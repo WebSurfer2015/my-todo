@@ -1,0 +1,314 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  Category,
+  Filter,
+  Priority,
+  Todo,
+  ViewMode,
+  isCategoryFilter,
+  categoryIdFromFilter,
+} from "./types";
+import {
+  CategoryDef,
+  SEED_CATEGORIES,
+  migrateCategory,
+  newCategoryId,
+} from "./categories";
+import { Profile, SEED_PROFILE, migrateProfile } from "./profile";
+import { useLang } from "./LangContext";
+import { useAuth } from "./AuthContext";
+import { storage as localAdapter } from "./persistence";
+import { db } from "./firebase";
+import { makeFirestoreAdapter } from "./firestoreAdapter";
+import { useSyncedState } from "./useSyncedState";
+import { StorageAdapter } from "../../core/src/persistence";
+import {
+  newTodo,
+  todoToggle,
+  todoMoveToTrash,
+  todoRestoreFromTrash,
+  todoPermanentlyDelete,
+  todoEmptyTrash,
+  todoClearDone,
+  todoSet,
+  migrateTodos,
+  categoryAdd,
+  categoryEdit,
+  categoryDelete,
+  categoryReorder,
+  deriveState,
+} from "../../core/src/derive";
+
+const SCHEMA_VERSION = 1;
+
+function unwrap(raw: string | null): unknown {
+  if (raw == null) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed) &&
+      "version" in parsed &&
+      "data" in parsed
+    ) {
+      return (parsed as { data: unknown }).data;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function wrap(data: unknown): string {
+  return JSON.stringify({ version: SCHEMA_VERSION, data });
+}
+
+const parseCategories = (raw: string | null): CategoryDef[] => {
+  const data = unwrap(raw);
+  if (!Array.isArray(data) || data.length === 0) return SEED_CATEGORIES;
+  return (data as Array<Partial<CategoryDef> & { id: string }>).map(
+    migrateCategory,
+  );
+};
+
+const parseTodos = (raw: string | null): Todo[] => migrateTodos(unwrap(raw));
+
+const parseProfile = (raw: string | null): Profile => {
+  const data = unwrap(raw);
+  return data ? migrateProfile(data) : SEED_PROFILE;
+};
+
+const serializeAny = (v: unknown): string => wrap(v);
+
+/** Push local AsyncStorage data to cloud once if cloud is empty (first-ever sign-in). */
+async function migrateLocalToCloud(adapter: StorageAdapter): Promise<void> {
+  const cloudProfile = await adapter.getItem("profile");
+  if (cloudProfile != null) return;
+  for (const key of ["todos", "categories", "profile"] as const) {
+    const raw = await AsyncStorage.getItem(key);
+    if (raw != null) await adapter.setItem(key, raw);
+  }
+}
+
+export function useTodoStore() {
+  const { t } = useLang();
+  const { user } = useAuth();
+
+  const adapter = useMemo<StorageAdapter>(
+    () => (user ? makeFirestoreAdapter(db, user.uid) : localAdapter),
+    [user],
+  );
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    migrateLocalToCloud(adapter).catch((err) => {
+      if (!cancelled) console.warn("Local→cloud migration failed:", err);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, adapter]);
+
+  const [categories, setCategories, categoriesLoaded] = useSyncedState<
+    CategoryDef[]
+  >(adapter, "categories", SEED_CATEGORIES, parseCategories, serializeAny);
+  const [todos, setTodos, todosLoaded] = useSyncedState<Todo[]>(
+    adapter,
+    "todos",
+    [],
+    parseTodos,
+    serializeAny,
+  );
+  const [profile, setProfile, profileLoaded] = useSyncedState<Profile>(
+    adapter,
+    "profile",
+    SEED_PROFILE,
+    parseProfile,
+    serializeAny,
+  );
+
+  const [filter, setFilter] = useState<Filter>("all");
+  const [view, setView] = useState<ViewMode>("category");
+  const todosRef = useRef(todos);
+  useEffect(() => {
+    todosRef.current = todos;
+  }, [todos]);
+
+  const loaded = categoriesLoaded && todosLoaded && profileLoaded;
+
+  // ---- Stable callbacks ----
+
+  const toggle = useCallback(
+    (id: number) => {
+      setTodos((prev) => todoToggle(prev, id));
+    },
+    [setTodos],
+  );
+
+  const moveToTrash = useCallback(
+    (id: number) => {
+      setTodos((prev) => todoMoveToTrash(prev, id));
+    },
+    [setTodos],
+  );
+
+  const restoreFromTrash = useCallback(
+    (id: number) => {
+      setTodos((prev) => todoRestoreFromTrash(prev, id));
+    },
+    [setTodos],
+  );
+
+  const permanentlyDelete = useCallback(
+    (id: number) => {
+      setTodos((prev) => todoPermanentlyDelete(prev, id));
+    },
+    [setTodos],
+  );
+
+  const updatePriority = useCallback(
+    (id: number, priority: Priority) => {
+      setTodos((prev) => todoSet(prev, id, "priority", priority));
+    },
+    [setTodos],
+  );
+
+  const updateDueDate = useCallback(
+    (id: number, dueDate: string) => {
+      setTodos((prev) => todoSet(prev, id, "dueDate", dueDate));
+    },
+    [setTodos],
+  );
+
+  const updateTaskCategory = useCallback(
+    (id: number, category: Category) => {
+      setTodos((prev) => todoSet(prev, id, "category", category));
+    },
+    [setTodos],
+  );
+
+  const updateText = useCallback(
+    (id: number, text: string) => {
+      setTodos((prev) => todoSet(prev, id, "text", text));
+    },
+    [setTodos],
+  );
+
+  // ---- Non-stable mutations ----
+
+  function addTask(
+    text: string,
+    priority: Priority,
+    dueDate: string,
+    category?: Category,
+  ) {
+    setTodos((prev) => [
+      newTodo({ text, priority, dueDate, category }),
+      ...prev,
+    ]);
+  }
+
+  function emptyTrash() {
+    if (todosRef.current.filter((td) => td.trashed).length === 0) return;
+    Alert.alert(t.emptyTrash, t.deletePermanentlyConfirm(t.filters.trash), [
+      { text: t.cancel, style: "cancel" },
+      {
+        text: t.emptyTrash,
+        style: "destructive",
+        onPress: () => setTodos(todoEmptyTrash),
+      },
+    ]);
+  }
+
+  function clearDone() {
+    setTodos(todoClearDone);
+  }
+
+  function addCategory(data: { label: string; color: string; icon: string }) {
+    setCategories((prev) => categoryAdd(prev, newCategoryId(), data));
+  }
+
+  function editCategory(
+    id: string,
+    data: { label: string; color: string; icon: string },
+  ) {
+    setCategories((prev) => categoryEdit(prev, id, data));
+  }
+
+  function deleteCategory(id: string) {
+    if (categories.length <= 1) return;
+    const next = categoryDelete(todos, categories, id);
+    if (next.targetId == null) return;
+    setTodos(next.todos);
+    setCategories(next.categories);
+    if (isCategoryFilter(filter) && categoryIdFromFilter(filter) === id)
+      setFilter("all");
+  }
+
+  function changeView(v: ViewMode) {
+    setView(v);
+    setFilter(v === "category" ? "all" : "open");
+  }
+
+  function reorderCategories(fromIdx: number, toIdx: number) {
+    setCategories((prev) => categoryReorder(prev, fromIdx, toIdx));
+  }
+
+  // ---- Derived state (memoized via core.deriveState) ----
+
+  const derived = useMemo(
+    () =>
+      deriveState({
+        todos,
+        filter,
+        categories,
+        t,
+        options: { separateDone: false },
+      }),
+    [todos, filter, categories, t],
+  );
+
+  const hour = new Date().getHours();
+  const greetingKey: "morning" | "afternoon" | "evening" =
+    hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
+  const headerLine =
+    profile.quote && profile.quote.trim()
+      ? profile.quote
+      : `${t.greeting[greetingKey]}, ${profile.name}`;
+
+  return {
+    todos,
+    categories,
+    profile,
+    filter,
+    view,
+    loaded,
+    ...derived,
+    byCategory: derived.byCategoryOpen,
+    taskCountsForSheet: derived.byCategoryTotal,
+    activeCount: derived.active.length,
+    headerLine,
+    setFilter,
+    saveProfile: setProfile,
+    changeView,
+    toggle,
+    moveToTrash,
+    restoreFromTrash,
+    permanentlyDelete,
+    updatePriority,
+    updateDueDate,
+    updateTaskCategory,
+    updateText,
+    addTask,
+    emptyTrash,
+    clearDone,
+    addCategory,
+    editCategory,
+    deleteCategory,
+    reorderCategories,
+  };
+}
