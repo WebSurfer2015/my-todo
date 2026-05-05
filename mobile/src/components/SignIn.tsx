@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as AppleAuthentication from "expo-apple-authentication";
 import { useAuth } from "../AuthContext";
 import { useLang } from "../LangContext";
 import { useTheme, ThemeColors } from "../theme";
@@ -18,7 +19,7 @@ export default function SignIn() {
   const { t } = useLang();
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, signInWithApple, appleAvailable } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,6 +34,22 @@ export default function SignIn() {
       else await signUp(email.trim(), password);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleApple() {
+    setError(null);
+    setBusy(true);
+    try {
+      await signInWithApple();
+    } catch (err) {
+      // User cancellation throws code "ERR_REQUEST_CANCELED"; suppress.
+      const code = (err as { code?: string } | null)?.code;
+      if (code !== "ERR_REQUEST_CANCELED") {
+        setError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       setBusy(false);
     }
@@ -109,6 +126,31 @@ export default function SignIn() {
                 : "Already have an account? Sign in"}
             </Text>
           </TouchableOpacity>
+
+          {appleAvailable && (
+            <View style={styles.appleSection}>
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or</Text>
+                <View style={styles.dividerLine} />
+              </View>
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={
+                  mode === "signin"
+                    ? AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
+                    : AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP
+                }
+                buttonStyle={
+                  theme.bg === "#000000"
+                    ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                    : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+                }
+                cornerRadius={10}
+                style={styles.appleButton}
+                onPress={handleApple}
+              />
+            </View>
+          )}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -180,5 +222,22 @@ function makeStyles(c: ThemeColors) {
     submitText: { color: "#fff", fontSize: 15, fontWeight: "600" },
     toggle: { marginTop: 14, alignItems: "center", padding: 6 },
     toggleText: { color: c.blue, fontSize: 13 },
+    appleSection: { marginTop: 16 },
+    divider: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    dividerLine: {
+      flex: 1,
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: c.separator,
+    },
+    dividerText: {
+      marginHorizontal: 10,
+      color: c.label2,
+      fontSize: 12,
+    },
+    appleButton: { width: "100%", height: 44 },
   });
 }

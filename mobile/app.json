@@ -37,6 +37,7 @@
     },
     "plugins": [
       "@react-native-community/datetimepicker",
+      "expo-apple-authentication",
       [
         "expo-image-picker",
         {
