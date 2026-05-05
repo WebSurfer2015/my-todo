@@ -1,23 +1,72 @@
-import { useEffect, useRef, useState } from 'react'
-import { Category, Priority, Todo, PRIORITY_VALUES, PRIORITY_COLORS, CATEGORY_VALUES, CATEGORY_COLORS } from '../types'
+import { memo, useEffect, useRef, useState } from 'react'
+import { Category, Priority, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
+import { CategoryDef, categoryLabel } from '../categories'
 import { formatDisplayDate, todayLocal } from '../utils'
 import PriorityBarsIcon from './PriorityBarsIcon'
 import CategoryIcon from './CategoryIcon'
 import { useLang } from '../LangContext'
 import { useCloseOnOutside } from '../hooks'
+import { useNotify } from '../notify'
+
+interface IconProps {
+  size?: number
+  strokeWidth?: number
+}
+
+function Trash2({ size = 14, strokeWidth = 2 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 6h18" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <line x1="10" x2="10" y1="11" y2="17" />
+      <line x1="14" x2="14" y1="11" y2="17" />
+    </svg>
+  )
+}
+
+function Undo2({ size = 14, strokeWidth = 2 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 14L4 9l5-5" />
+      <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11" />
+    </svg>
+  )
+}
+
+function X({ size = 15, strokeWidth = 2 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 6L6 18" />
+      <path d="M6 6l12 12" />
+    </svg>
+  )
+}
 
 interface Props {
   todo: Todo
+  categories: CategoryDef[]
+  inTrash: boolean
+  selected?: boolean
+  bulkSelecting?: boolean
+  onToggleSelect?: (id: number, shiftKey: boolean) => void
   onToggle: (id: number) => void
-  onRemove: (id: number) => void
+  onMoveToTrash: (id: number) => void
+  onRestore: (id: number) => void
+  onPermanentDelete: (id: number) => void
   onUpdatePriority: (id: number, priority: Priority) => void
   onUpdateDueDate: (id: number, dueDate: string) => void
   onUpdateCategory: (id: number, category: Category) => void
   onUpdateText: (id: number, text: string) => void
 }
 
-export default function TaskItem({ todo, onToggle, onRemove, onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateText }: Props) {
+function TaskItem({
+  todo, categories, inTrash, selected = false, bulkSelecting = false, onToggleSelect,
+  onToggle, onMoveToTrash, onRestore, onPermanentDelete,
+  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateText,
+}: Props) {
   const { t } = useLang()
+  const notify = useNotify()
   const [priorityOpen, setPriorityOpen] = useState(false)
   const [categoryOpen, setCategoryOpen] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -28,6 +77,7 @@ export default function TaskItem({ todo, onToggle, onRemove, onUpdatePriority, o
   const inputRef = useRef<HTMLInputElement>(null)
 
   const overdue = !!todo.dueDate && !todo.done && todo.dueDate < todayLocal()
+  const cat = categories.find((c) => c.id === todo.category) ?? categories[0]
 
   useCloseOnOutside(priorityRef, priorityOpen, () => setPriorityOpen(false))
   useCloseOnOutside(categoryRef, categoryOpen, () => setCategoryOpen(false))
@@ -51,18 +101,41 @@ export default function TaskItem({ todo, onToggle, onRemove, onUpdatePriority, o
     setEditing(false)
   }
 
-  const catClass = todo.category ? `cat-${todo.category}` : 'cat-none'
+  async function handlePermanentDelete() {
+    const ok = await notify.confirm({
+      title: t.deletePermanently,
+      message: t.deletePermanentlyConfirm(todo.text),
+      confirmLabel: t.deletePermanently,
+      cancelLabel: t.cancel,
+      variant: 'danger',
+    })
+    if (ok) onPermanentDelete(todo.id)
+  }
 
   return (
-    <li className={`item ${catClass}${todo.done ? ' done' : ''}`}>
-      <input
-        type="checkbox"
-        checked={todo.done}
-        onChange={() => onToggle(todo.id)}
-      />
+    <li
+      className={`item${todo.done ? ' done' : ''}${inTrash ? ' trashed' : ''}${selected ? ' selected' : ''}`}
+      style={{ ['--cat-color' as string]: cat?.color }}
+    >
+      {inTrash ? (
+        <input
+          type="checkbox"
+          className="select-checkbox"
+          checked={selected}
+          onChange={() => undefined}
+          onClick={(e) => onToggleSelect?.(todo.id, e.shiftKey)}
+          aria-label={t.selectTask}
+        />
+      ) : (
+        <input
+          type="checkbox"
+          checked={todo.done}
+          onChange={() => onToggle(todo.id)}
+        />
+      )}
       <div className="item-body">
         <div className="item-main">
-          {editing ? (
+          {editing && !inTrash ? (
             <input
               ref={inputRef}
               className="item-text-edit"
@@ -78,8 +151,8 @@ export default function TaskItem({ todo, onToggle, onRemove, onUpdatePriority, o
           ) : (
             <span
               className="item-text"
-              onClick={() => !todo.done && setEditing(true)}
-              title={todo.done ? '' : 'Click to edit'}
+              onClick={() => !inTrash && setEditing(true)}
+              title={inTrash ? '' : t.editTask}
             >
               {todo.text}
             </span>
@@ -88,12 +161,14 @@ export default function TaskItem({ todo, onToggle, onRemove, onUpdatePriority, o
             <button
               type="button"
               className={`priority-icon-btn priority-${todo.priority}`}
-              onClick={() => setPriorityOpen((v) => !v)}
+              onClick={() => !inTrash && setPriorityOpen((v) => !v)}
               aria-label={t.priorityLabel(t.priority[todo.priority])}
+              title={inTrash ? '' : t.setPriority}
+              disabled={inTrash}
             >
               <PriorityBarsIcon level={todo.priority} />
             </button>
-            {priorityOpen && (
+            {priorityOpen && !inTrash && (
               <div className="item-priority-dropdown">
                 {PRIORITY_VALUES.map((value) => (
                   <button
@@ -116,24 +191,28 @@ export default function TaskItem({ todo, onToggle, onRemove, onUpdatePriority, o
           <div className="category-edit" ref={categoryRef}>
             <button
               type="button"
-              className={`category-chip${todo.category ? ` cat-${todo.category}` : ' no-category'}`}
-              onClick={() => setCategoryOpen((v) => !v)}
+              className="category-chip"
+              style={{ color: cat?.color }}
+              onClick={() => !inTrash && setCategoryOpen((v) => !v)}
+              title={inTrash ? '' : t.setCategory}
+              aria-label={t.setCategory}
+              disabled={inTrash}
             >
-              {todo.category && <CategoryIcon category={todo.category} size={11} />}
-              {todo.category ? t.categories[todo.category] : t.noCategory}
+              {cat && <CategoryIcon icon={cat.icon} size={11} />}
+              {cat ? categoryLabel(cat, t) : ''}
             </button>
-            {categoryOpen && (
+            {categoryOpen && !inTrash && (
               <div className="category-item-dropdown">
-                {CATEGORY_VALUES.map((value) => (
+                {categories.map((c) => (
                   <button
-                    key={value}
+                    key={c.id}
                     type="button"
-                    className={`category-option${todo.category === value ? ' selected' : ''}`}
-                    style={{ color: CATEGORY_COLORS[value] }}
-                    onClick={() => { onUpdateCategory(todo.id, value); setCategoryOpen(false) }}
+                    className={`category-option${todo.category === c.id ? ' selected' : ''}`}
+                    style={{ color: c.color }}
+                    onClick={() => { onUpdateCategory(todo.id, c.id); setCategoryOpen(false) }}
                   >
-                    <CategoryIcon category={value} size={13} />
-                    {t.categories[value]}
+                    <CategoryIcon icon={c.icon} size={13} />
+                    {categoryLabel(c, t)}
                   </button>
                 ))}
               </div>
@@ -147,27 +226,62 @@ export default function TaskItem({ todo, onToggle, onRemove, onUpdatePriority, o
               className="date-input-hidden"
               value={todo.dueDate}
               onChange={(e) => onUpdateDueDate(todo.id, e.target.value)}
+              disabled={inTrash}
             />
             <button
               type="button"
               className={`date-chip${overdue ? ' overdue' : ''}${!todo.dueDate ? ' no-date' : ''}`}
-              onClick={() => dateRef.current?.showPicker()}
+              onClick={() => !inTrash && dateRef.current?.showPicker()}
+              title={inTrash ? '' : t.setDueDate}
+              aria-label={t.setDueDate}
+              disabled={inTrash}
             >
               {todo.dueDate
                 ? (overdue ? t.overdue : '') + formatDisplayDate(todo.dueDate, t.locale)
                 : t.noDate}
             </button>
           </div>
+
+          <div className="item-actions">
+            {inTrash ? (
+              <>
+                <button
+                  type="button"
+                  className="item-action item-action--restore"
+                  onClick={() => onRestore(todo.id)}
+                  disabled={bulkSelecting}
+                  title={t.restoreTask}
+                  aria-label={t.restoreTask}
+                >
+                  <Undo2 size={14} strokeWidth={2} />
+                </button>
+                <button
+                  type="button"
+                  className="item-action item-action--delete"
+                  onClick={handlePermanentDelete}
+                  disabled={bulkSelecting}
+                  title={t.deletePermanently}
+                  aria-label={t.deletePermanently}
+                >
+                  <X size={15} strokeWidth={2} />
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="item-action item-action--trash"
+                onClick={() => onMoveToTrash(todo.id)}
+                title={t.moveToTrash}
+                aria-label={t.moveToTrash}
+              >
+                <Trash2 size={14} strokeWidth={2} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
-      <button
-        className="btn-delete"
-        onClick={() => onRemove(todo.id)}
-        title={t.deleteTask}
-        aria-label={t.deleteTask}
-      >
-        &#x2715;
-      </button>
     </li>
   )
 }
+
+export default memo(TaskItem)

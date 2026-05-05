@@ -9,6 +9,11 @@ dist/
 .DS_Store
 .vscode/
 .idea/
+*.swp
+*.swo
+
+# Claude Code (user-local permissions)
+.claude/settings.local.json
 
 # Env / secrets
 .env

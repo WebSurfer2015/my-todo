@@ -1,117 +1,231 @@
-import { useState } from 'react'
-import { Category, Filter, Priority, Todo } from './types'
-import { buildGroups } from './groups'
-import AddTask from './components/AddTask'
-import Sidebar from './components/Sidebar'
-import TaskItem from './components/TaskItem'
-import Footer from './components/Footer'
-import { useLang } from './LangContext'
-
-function loadTodos(): Todo[] {
-  try {
-    const raw: unknown[] = JSON.parse(localStorage.getItem('todos') || '[]')
-    return raw.map((t) => {
-      const item = t as { id: number; text: string; done: boolean; priority?: Priority; dueDate?: string }
-      return { priority: 'medium', dueDate: '', ...item }
-    })
-  } catch {
-    return []
-  }
-}
+import { useEffect, useRef, useState } from "react";
+import AddTask, { AddTaskHandle } from "./components/AddTask";
+import Sidebar from "./components/Sidebar";
+import MobileTopBar from "./components/MobileTopBar";
+import TaskItem from "./components/TaskItem";
+import Footer from "./components/Footer";
+import SignIn from "./components/SignIn";
+import { useLang } from "./LangContext";
+import { useTodoStore } from "./useTodoStore";
+import { useAuth } from "./AuthContext";
 
 export default function App() {
-  const { t } = useLang()
-  const [todos, setTodos] = useState<Todo[]>(loadTodos)
-  const [filter, setFilter] = useState<Filter>('all')
+  const { t } = useLang();
+  const { user, loading: authLoading } = useAuth();
+  const store = useTodoStore();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const addTaskRef = useRef<AddTaskHandle>(null);
 
-  function save(next: Todo[]) {
-    setTodos(next)
-    localStorage.setItem('todos', JSON.stringify(next))
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [store.filter]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        if (store.filter === "trash") store.setFilter("all");
+        addTaskRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [store.filter, store.setFilter]);
+
+  const [titleEditing, setTitleEditing] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(store.appTitle);
+
+  useEffect(() => {
+    if (!titleEditing) setTitleDraft(store.appTitle);
+  }, [store.appTitle, titleEditing]);
+
+  function commitTitle() {
+    const trimmed = titleDraft.trim();
+    store.saveProfile({ ...store.profile, title: trimmed || undefined });
+    setTitleEditing(false);
+  }
+  function cancelTitleEdit() {
+    setTitleDraft(store.appTitle);
+    setTitleEditing(false);
   }
 
-  function addTask(text: string, priority: Priority, dueDate: string, category?: Category) {
-    save([{ id: Date.now(), text, done: false, priority, dueDate, category }, ...todos])
+  if (authLoading) {
+    return <div className="auth-loading" aria-busy="true" />;
   }
-
-  function toggle(id: number) {
-    save(todos.map((t) => (t.id === id ? { ...t, done: !t.done } : t)))
+  if (!user) {
+    return <SignIn />;
   }
-
-  function remove(id: number) {
-    save(todos.filter((t) => t.id !== id))
-  }
-
-  function clearDone() {
-    save(todos.filter((t) => !t.done))
-  }
-
-  function updatePriority(id: number, priority: Priority) {
-    save(todos.map((t) => (t.id === id ? { ...t, priority } : t)))
-  }
-
-  function updateDueDate(id: number, dueDate: string) {
-    save(todos.map((t) => (t.id === id ? { ...t, dueDate } : t)))
-  }
-
-  function updateCategory(id: number, category: Category) {
-    save(todos.map((t) => (t.id === id ? { ...t, category } : t)))
-  }
-
-  function updateText(id: number, text: string) {
-    save(todos.map((t) => (t.id === id ? { ...t, text } : t)))
-  }
-
-  const filtered = todos.filter((t) => {
-    if (filter === 'done')   return t.done
-    if (filter === 'home')   return t.category === 'home'
-    if (filter === 'school') return t.category === 'school'
-    if (filter === 'work')   return t.category === 'work'
-    return true
-  })
-  const groups = buildGroups(filtered)
-  const totalOpen = todos.filter((t) => !t.done).length
-  const visibleRemaining = filtered.filter((t) => !t.done).length
-  const completedCount = todos.filter((t) => t.done).length
-  const filterCounts: Record<Filter, number> = {
-    all:    totalOpen,
-    home:   todos.filter((t) => t.category === 'home'   && !t.done).length,
-    school: todos.filter((t) => t.category === 'school' && !t.done).length,
-    work:   todos.filter((t) => t.category === 'work'   && !t.done).length,
-    done:   completedCount,
-  }
-
-  const hour = new Date().getHours()
-  const greetingKey: 'morning' | 'afternoon' | 'evening' =
-    hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'
-
-  const listTitle = t.filters[filter]
-  const listCount = filter === 'done' ? completedCount : visibleRemaining
 
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell${drawerOpen ? " drawer-open" : ""}`}
+      data-density={store.profile.density ?? "comfortable"}
+    >
+      <MobileTopBar
+        drawerOpen={drawerOpen}
+        onToggleDrawer={() => setDrawerOpen((v) => !v)}
+        title={store.sectionLabel ?? store.appTitle}
+        parent={store.sectionLabel ? store.appTitle : undefined}
+      />
+      <div
+        className={`drawer-backdrop${drawerOpen ? " open" : ""}`}
+        onClick={() => setDrawerOpen(false)}
+        aria-hidden="true"
+      />
       <Sidebar
-        filter={filter}
-        onFilter={setFilter}
-        counts={filterCounts}
-        greetingKey={greetingKey}
+        filter={store.filter}
+        onFilter={store.setFilter}
+        counts={store.counts}
+        greetingKey={store.greetingKey}
+        categories={store.categories}
+        todoCounts={store.counts.byCategory}
+        onAddCategory={store.addCategory}
+        onEditCategory={store.editCategory}
+        onDeleteCategory={store.deleteCategory}
+        onReorderCategories={store.reorderCategories}
+        profile={store.profile}
+        onSaveProfile={store.saveProfile}
       />
       <main className="content">
         <header className="content-header">
           <div className="content-titles">
-            <h1 className="large-title">{listTitle}</h1>
-            <p className="content-subtitle">{t.listSubtitle(listCount)}</p>
+            <h1 className="large-title">
+              {store.sectionLabel ? (
+                <nav aria-label="breadcrumb" className="title-breadcrumb">
+                  <button
+                    type="button"
+                    className="title-parent"
+                    onClick={() => store.setFilter("all")}
+                  >
+                    {store.appTitle}
+                  </button>
+                  <span className="title-sep" aria-hidden="true">
+                    ›
+                  </span>
+                  <span className="title-current">{store.sectionLabel}</span>
+                </nav>
+              ) : titleEditing ? (
+                <input
+                  autoFocus
+                  className="title-input"
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  onBlur={commitTitle}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitTitle();
+                    else if (e.key === "Escape") cancelTitleEdit();
+                  }}
+                  maxLength={40}
+                />
+              ) : (
+                <span
+                  className="title-editable"
+                  onClick={() => setTitleEditing(true)}
+                  title={t.editTask}
+                >
+                  {store.appTitle}
+                </span>
+              )}
+            </h1>
+            <p className="content-subtitle">{store.subtitle}</p>
           </div>
+          {store.inTrashView &&
+            store.trashCount > 0 &&
+            (store.selectedTrashIds.size > 0 ? (
+              <div className="bulk-actions">
+                <span className="bulk-count">
+                  {t.selectedCount(store.selectedTrashIds.size)}
+                </span>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={store.bulkRestore}
+                >
+                  {t.bulkRestore}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={store.bulkPermanentDelete}
+                >
+                  {t.bulkDeletePermanently}
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={store.clearTrashSelection}
+                >
+                  {t.clearSelection}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={store.emptyTrash}
+              >
+                {t.emptyTrash}
+              </button>
+            ))}
         </header>
 
         <div className="content-body">
-          <AddTask onAdd={addTask} />
+          {!store.inTrashView && (
+            <AddTask
+              ref={addTaskRef}
+              onAdd={store.addTask}
+              defaultCategory={store.defaultCategory}
+              categories={store.categories}
+            />
+          )}
 
-          {groups.length === 0 ? (
-            <p className="empty">{t.emptyState}</p>
+          {store.inTrashView ? (
+            store.filtered.length === 0 ? (
+              <div className="empty">
+                <p className="empty-title">{store.emptyState.title}</p>
+                {store.emptyState.hint && (
+                  <p className="empty-hint">{store.emptyState.hint}</p>
+                )}
+              </div>
+            ) : (
+              <>
+                <p className="trash-notice">{t.trashRetention}</p>
+                <ul className="list">
+                  {store.filtered.map((td) => (
+                    <TaskItem
+                      key={td.id}
+                      todo={td}
+                      categories={store.categories}
+                      inTrash
+                      selected={store.selectedTrashIds.has(td.id)}
+                      bulkSelecting={store.selectedTrashIds.size > 0}
+                      onToggleSelect={store.toggleTrashSelection}
+                      onToggle={store.toggle}
+                      onMoveToTrash={store.moveToTrash}
+                      onRestore={store.restoreFromTrash}
+                      onPermanentDelete={store.permanentlyDelete}
+                      onUpdatePriority={store.updatePriority}
+                      onUpdateDueDate={store.updateDueDate}
+                      onUpdateCategory={store.updateTaskCategory}
+                      onUpdateText={store.updateText}
+                    />
+                  ))}
+                </ul>
+              </>
+            )
+          ) : store.groups.length === 0 ? (
+            <div className="empty">
+              <p className="empty-title">{store.emptyState.title}</p>
+              {store.emptyState.hint && (
+                <p className="empty-hint">{store.emptyState.hint}</p>
+              )}
+            </div>
           ) : (
-            groups.map((group) => (
+            store.groups.map((group) => (
               <section key={group.key} className="group">
-                <h2 className={`group-header${group.overdue ? ' group-header--overdue' : ''}`}>
+                <h2
+                  className={`group-header${group.overdue ? " group-header--overdue" : ""}`}
+                >
                   {t.groups[group.key]}
                 </h2>
                 <ul className="list">
@@ -119,12 +233,16 @@ export default function App() {
                     <TaskItem
                       key={td.id}
                       todo={td}
-                      onToggle={toggle}
-                      onRemove={remove}
-                      onUpdatePriority={updatePriority}
-                      onUpdateDueDate={updateDueDate}
-                      onUpdateCategory={updateCategory}
-                      onUpdateText={updateText}
+                      categories={store.categories}
+                      inTrash={false}
+                      onToggle={store.toggle}
+                      onMoveToTrash={store.moveToTrash}
+                      onRestore={store.restoreFromTrash}
+                      onPermanentDelete={store.permanentlyDelete}
+                      onUpdatePriority={store.updatePriority}
+                      onUpdateDueDate={store.updateDueDate}
+                      onUpdateCategory={store.updateTaskCategory}
+                      onUpdateText={store.updateText}
                     />
                   ))}
                 </ul>
@@ -132,9 +250,15 @@ export default function App() {
             ))
           )}
 
-          <Footer remaining={visibleRemaining} completedCount={completedCount} onClearDone={clearDone} />
+          {!store.inTrashView && (
+            <Footer
+              remaining={store.visibleRemaining}
+              completedCount={store.completedCount}
+              onClearDone={store.clearDone}
+            />
+          )}
         </div>
       </main>
     </div>
-  )
+  );
 }

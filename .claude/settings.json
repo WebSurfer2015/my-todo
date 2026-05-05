@@ -1,0 +1,21 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npm run build",
+            "statusMessage": "Running npm run build"
+          },
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path' | xargs npx prettier --write",
+            "statusMessage": "Formatting codes"
+          }
+        ]
+      }
+    ]
+  }
+}
