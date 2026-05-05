@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6366F1"/>
+      <stop offset="1" stop-color="#4F46E9"/>
+    </linearGradient>
+    <linearGradient id="check" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#10B981"/>
+      <stop offset="1" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded square background (iOS uses ~22.5% corner radius) -->
+  <rect x="0" y="0" width="1024" height="1024" rx="230" fill="url(#bg)"/>
+  <!-- Subtle ambient highlights -->
+  <circle cx="850" cy="170" r="380" fill="#FFFFFF" opacity="0.06"/>
+  <circle cx="170" cy="940" r="300" fill="#000000" opacity="0.08"/>
+  <!-- Clipboard card -->
+  <rect x="188" y="240" width="648" height="544" rx="60" fill="#FFFFFF"/>
+  <!-- Card header strip -->
+  <rect x="188" y="240" width="648" height="86" rx="60" fill="#F1F5F9"/>
+  <rect x="188" y="316" width="648" height="10" fill="#E2E8F0"/>
+  <!-- Header dots -->
+  <circle cx="247" cy="283" r="13" fill="#CBD5E1"/>
+  <circle cx="290" cy="283" r="13" fill="#CBD5E1"/>
+  <circle cx="333" cy="283" r="13" fill="#CBD5E1"/>
+  <!-- Row 1 - completed -->
+  <circle cx="290" cy="427" r="34" fill="url(#check)"/>
+  <path d="M273 427 L286 440 L312 414" stroke="#FFFFFF" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="349" y="410" width="342" height="26" rx="13" fill="#94A3B8"/>
+  <line x1="349" y1="461" x2="660" y2="461" stroke="#94A3B8" stroke-width="4" opacity="0.5"/>
+  <!-- Row 2 - completed -->
+  <circle cx="290" cy="555" r="34" fill="url(#check)"/>
+  <path d="M273 555 L286 568 L312 542" stroke="#FFFFFF" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="349" y="538" width="278" height="26" rx="13" fill="#94A3B8"/>
+  <line x1="349" y1="589" x2="595" y2="589" stroke="#94A3B8" stroke-width="4" opacity="0.5"/>
+  <!-- Row 3 - in progress -->
+  <circle cx="290" cy="683" r="34" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="8"/>
+  <rect x="349" y="666" width="385" height="26" rx="13" fill="#475569"/>
+  <rect x="349" y="708" width="214" height="18" rx="9" fill="#94A3B8"/>
+</svg>

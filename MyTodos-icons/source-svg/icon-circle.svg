@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6366F1"/>
+      <stop offset="1" stop-color="#4F46E9"/>
+    </linearGradient>
+    <linearGradient id="check" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#10B981"/>
+      <stop offset="1" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <circle cx="512" cy="512" r="512" fill="url(#bg)"/>
+  <circle cx="850" cy="170" r="280" fill="#FFFFFF" opacity="0.06"/>
+  <!-- Clipboard card (smaller relative to canvas for circle) -->
+  <rect x="232" y="280" width="560" height="490" rx="55" fill="#FFFFFF"/>
+  <rect x="232" y="280" width="560" height="76" rx="55" fill="#F1F5F9"/>
+  <rect x="232" y="346" width="560" height="10" fill="#E2E8F0"/>
+  <circle cx="285" cy="318" r="11" fill="#CBD5E1"/>
+  <circle cx="322" cy="318" r="11" fill="#CBD5E1"/>
+  <circle cx="359" cy="318" r="11" fill="#CBD5E1"/>
+  <!-- Row 1 -->
+  <circle cx="322" cy="455" r="30" fill="url(#check)"/>
+  <path d="M307 455 L318 466 L340 444" stroke="#FFFFFF" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="372" y="440" width="290" height="22" rx="11" fill="#94A3B8"/>
+  <!-- Row 2 -->
+  <circle cx="322" cy="555" r="30" fill="url(#check)"/>
+  <path d="M307 555 L318 566 L340 544" stroke="#FFFFFF" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="372" y="540" width="240" height="22" rx="11" fill="#94A3B8"/>
+  <!-- Row 3 -->
+  <circle cx="322" cy="655" r="30" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="7"/>
+  <rect x="372" y="640" width="320" height="22" rx="11" fill="#475569"/>
+  <rect x="372" y="676" width="180" height="16" rx="8" fill="#94A3B8"/>
+</svg>

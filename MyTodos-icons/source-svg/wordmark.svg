@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200" width="800" height="200">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6366F1"/>
+      <stop offset="1" stop-color="#4F46E9"/>
+    </linearGradient>
+    <linearGradient id="check" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#10B981"/>
+      <stop offset="1" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <rect x="40" y="40" width="120" height="120" rx="27" fill="url(#bg)"/>
+  <rect x="62" y="68" width="76" height="64" rx="8" fill="#FFFFFF"/>
+  <rect x="62" y="68" width="76" height="11" rx="8" fill="#F1F5F9"/>
+  <circle cx="76" cy="88" r="5" fill="url(#check)"/>
+  <path d="M73.5 88 L75.5 90 L78.5 86.5" stroke="#FFFFFF" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="86" y="86" width="40" height="4" rx="2" fill="#94A3B8"/>
+  <circle cx="76" cy="103" r="5" fill="url(#check)"/>
+  <path d="M73.5 103 L75.5 105 L78.5 101.5" stroke="#FFFFFF" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="86" y="101" width="32" height="4" rx="2" fill="#94A3B8"/>
+  <circle cx="76" cy="118" r="5" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.4"/>
+  <rect x="86" y="116" width="44" height="4" rx="2" fill="#475569"/>
+  <text x="190" y="118" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:62px;font-weight:600;fill:#0F172A;letter-spacing:-1px">My</text>
+  <text x="288" y="118" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:62px;font-weight:600;fill:#4F46E9;letter-spacing:-1px">Todos</text>
+</svg>
