@@ -450,6 +450,23 @@ body {
 }
 .btn-danger-solid:hover { filter: brightness(1.08); }
 
+/* Destructive zone in profile popover */
+.profile-danger-zone {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--separator);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+.profile-danger-text {
+  margin: 0;
+  font-size: 12px;
+  color: var(--label2);
+  line-height: 1.4;
+}
+
 /* Confirm dialog */
 .modal-card--confirm { gap: 12px; }
 .modal-message {

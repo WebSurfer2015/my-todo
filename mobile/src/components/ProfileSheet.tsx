@@ -38,7 +38,7 @@ export default function ProfileSheet({
   onClose,
 }: Props) {
   const { t, lang, toggle: toggleLang } = useLang();
-  const { signOut } = useAuth();
+  const { signOut, deleteAccount } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const [name, setName] = useState(profile.name);
@@ -47,6 +47,7 @@ export default function ProfileSheet({
   const [density, setDensity] = useState<Density>(
     profile.density ?? "comfortable",
   );
+  const [deleting, setDeleting] = useState(false);
 
   React.useEffect(() => {
     if (visible) {
@@ -286,9 +287,7 @@ export default function ProfileSheet({
                 signOut();
               }}
             >
-              <Text style={styles.signOutText}>
-                {lang === "en" ? "Sign out" : "登出"}
-              </Text>
+              <Text style={styles.signOutText}>{t.signOut}</Text>
             </TouchableOpacity>
 
             <View style={styles.actions}>
@@ -301,6 +300,53 @@ export default function ProfileSheet({
               >
                 <Text style={[styles.btnText, styles.btnPrimaryText]}>
                   {t.save}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.dangerZone}>
+              <Text style={styles.dangerText}>
+                {t.deleteAccountDescription}
+              </Text>
+              <TouchableOpacity
+                style={[styles.dangerBtn, deleting && styles.dangerBtnDisabled]}
+                disabled={deleting}
+                onPress={() => {
+                  Alert.alert(
+                    t.deleteAccount,
+                    t.deleteAccountConfirm,
+                    [
+                      { text: t.cancel, style: "cancel" },
+                      {
+                        text: t.deleteAccount,
+                        style: "destructive",
+                        onPress: async () => {
+                          setDeleting(true);
+                          try {
+                            await deleteAccount();
+                            onClose();
+                          } catch (err) {
+                            const code = (err as { name?: string } | null)
+                              ?.name;
+                            const message =
+                              code === "RecentLoginRequiredError"
+                                ? t.deleteAccountReauth
+                                : err instanceof Error
+                                  ? err.message
+                                  : String(err);
+                            Alert.alert(t.deleteAccount, message);
+                          } finally {
+                            setDeleting(false);
+                          }
+                        },
+                      },
+                    ],
+                    { cancelable: true },
+                  );
+                }}
+              >
+                <Text style={styles.dangerBtnText}>
+                  {deleting ? t.deleting : t.deleteAccount}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -469,6 +515,32 @@ function makeStyles(c: ThemeColors) {
       borderTopColor: c.separator,
     },
     signOutText: {
+      fontSize: 13,
+      color: c.red,
+      fontWeight: "500",
+    },
+    dangerZone: {
+      marginTop: 18,
+      paddingTop: 14,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.separator,
+      gap: 8,
+    },
+    dangerText: {
+      fontSize: 12,
+      color: c.label2,
+      lineHeight: 16,
+    },
+    dangerBtn: {
+      alignSelf: "flex-start",
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 8,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.red,
+    },
+    dangerBtnDisabled: { opacity: 0.5 },
+    dangerBtnText: {
       fontSize: 13,
       color: c.red,
       fontWeight: "500",

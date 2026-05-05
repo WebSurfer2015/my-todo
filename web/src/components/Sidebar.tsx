@@ -478,7 +478,7 @@ export default function Sidebar({
       </div>
       <div className="signout-row">
         <button type="button" onClick={() => signOut()}>
-          Sign out
+          {t.signOut}
         </button>
       </div>
 

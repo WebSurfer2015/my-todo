@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Profile, Avatar, AVATAR_LIBRARY, Density, fileToCompressedDataURL } from '../profile'
 import { useLang } from '../LangContext'
+import { useAuth, RecentLoginRequiredError } from '../AuthContext'
+import { useNotify } from '../notify'
 import AvatarView from './Avatar'
 
 interface Props {
@@ -12,12 +14,15 @@ interface Props {
 
 export default function ProfilePopover({ profile, onSave, onClose }: Props) {
   const { t } = useLang()
+  const { deleteAccount } = useAuth()
+  const { confirm, showSnackbar } = useNotify()
   const [name, setName] = useState(profile.name)
   const [title, setTitle] = useState(profile.title ?? '')
   const [quote, setQuote] = useState(profile.quote ?? '')
   const [avatar, setAvatar] = useState<Avatar>(profile.avatar)
   const [density, setDensity] = useState<Density>(profile.density ?? 'comfortable')
   const [uploading, setUploading] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const nameRef = useRef<HTMLInputElement>(null)
 
@@ -54,6 +59,32 @@ export default function ProfilePopover({ profile, onSave, onClose }: Props) {
       return
     }
     onSave({ name: trimmed, title: title.trim() || undefined, quote: quote.trim() || undefined, avatar, density })
+  }
+
+  async function handleDeleteAccount() {
+    const ok = await confirm({
+      title: t.deleteAccount,
+      message: t.deleteAccountConfirm,
+      confirmLabel: t.deleteAccount,
+      cancelLabel: t.cancel,
+      variant: 'danger',
+    })
+    if (!ok) return
+    setDeleting(true)
+    try {
+      await deleteAccount()
+      showSnackbar({ message: t.accountDeleted })
+    } catch (err) {
+      const msg =
+        err instanceof RecentLoginRequiredError
+          ? t.deleteAccountReauth
+          : err instanceof Error
+            ? err.message
+            : String(err)
+      showSnackbar({ message: msg })
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return createPortal(
@@ -164,6 +195,18 @@ export default function ProfilePopover({ profile, onSave, onClose }: Props) {
           <span className="modal-spacer" />
           <button type="button" className="btn" onClick={onClose}>{t.cancel}</button>
           <button type="button" className="btn btn-primary" onClick={handleSave}>{t.save}</button>
+        </div>
+
+        <div className="profile-danger-zone">
+          <p className="profile-danger-text">{t.deleteAccountDescription}</p>
+          <button
+            type="button"
+            className="btn btn-danger"
+            onClick={handleDeleteAccount}
+            disabled={deleting}
+          >
+            {deleting ? t.deleting : t.deleteAccount}
+          </button>
         </div>
       </div>
     </div>,

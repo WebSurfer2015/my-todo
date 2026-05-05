@@ -10,11 +10,21 @@ import {
 import {
   User,
   createUserWithEmailAndPassword,
+  deleteUser,
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut as fbSignOut,
 } from "firebase/auth";
-import { auth } from "./firebase";
+import { deleteDoc, doc } from "firebase/firestore";
+import { auth, db } from "./firebase";
+import { stateDocPath } from "../../core/src/persistence";
+
+export class RecentLoginRequiredError extends Error {
+  constructor() {
+    super("Please sign out and sign back in, then try deleting your account again.");
+    this.name = "RecentLoginRequiredError";
+  }
+}
 
 export interface AuthApi {
   user: User | null;
@@ -22,6 +32,11 @@ export interface AuthApi {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /**
+   * Permanently delete the signed-in user's Firestore data + auth record.
+   * Throws RecentLoginRequiredError if the user needs to re-authenticate.
+   */
+  deleteAccount: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthApi>(null!);
@@ -49,9 +64,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await fbSignOut(auth);
   }, []);
 
+  const deleteAccount = useCallback(async () => {
+    const current = auth.currentUser;
+    if (!current) throw new Error("Not signed in");
+    const uid = current.uid;
+    // Delete Firestore-side data first — once auth is gone, security rules
+    // would reject these writes.
+    await Promise.all(
+      ["todos", "categories", "profile"].map((key) =>
+        deleteDoc(doc(db, stateDocPath(uid, key))).catch(() => {
+          // Best-effort: missing doc is fine, transient failures shouldn't
+          // block the auth delete.
+        }),
+      ),
+    );
+    try {
+      await deleteUser(current);
+    } catch (err) {
+      if ((err as { code?: string } | null)?.code === "auth/requires-recent-login") {
+        throw new RecentLoginRequiredError();
+      }
+      throw err;
+    }
+  }, []);
+
   const value = useMemo<AuthApi>(
-    () => ({ user, loading, signIn, signUp, signOut }),
-    [user, loading, signIn, signUp, signOut],
+    () => ({ user, loading, signIn, signUp, signOut, deleteAccount }),
+    [user, loading, signIn, signUp, signOut, deleteAccount],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
