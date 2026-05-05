@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "my-todo-mobile",
+    "name": "My Todos",
     "slug": "my-todo-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -15,7 +15,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.websurfer.mytodo",
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "buildNumber": "1",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -25,6 +29,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.websurfer.mytodo",
+      "versionCode": 1,
       "googleServicesFile": "./google-services.json"
     },
     "web": {
@@ -48,7 +53,8 @@
             "useFrameworks": "static"
           }
         }
-      ]
+      ],
+      "./plugins/withFmtCxx17"
     ]
   }
 }
