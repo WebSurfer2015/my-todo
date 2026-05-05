@@ -5,7 +5,9 @@ import {
   deleteDoc,
   onSnapshot,
 } from "@react-native-firebase/firestore";
-import type { Firestore } from "@react-native-firebase/firestore";
+import type { FirebaseFirestoreTypes } from "@react-native-firebase/firestore";
+
+type Firestore = FirebaseFirestoreTypes.Module;
 import { StorageAdapter, stateDocPath } from "../../core/src/persistence";
 
 /**
