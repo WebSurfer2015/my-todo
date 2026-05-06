@@ -42,7 +42,8 @@
         "expo-image-picker",
         {
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to set a profile picture.",
-          "cameraPermission": "Allow $(PRODUCT_NAME) to use the camera to take a profile picture."
+          "cameraPermission": "Allow $(PRODUCT_NAME) to use the camera to take a profile picture.",
+          "microphonePermission": false
         }
       ],
       "@react-native-firebase/app",
@@ -56,6 +57,12 @@
         }
       ],
       "./plugins/withFmtCxx17"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c564f1cd-f80d-49e5-9520-fc5191f74c09"
+      }
+    },
+    "owner": "yingnming"
   }
 }
