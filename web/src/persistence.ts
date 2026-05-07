@@ -34,7 +34,7 @@ function isVersioned(raw: unknown): raw is Versioned<unknown> {
  * fully-async hydration is a drop-in replacement.
  */
 export function readVersioned<T>(key: string, migrate: (raw: unknown) => T): T {
-  let raw: unknown = null
+  let raw: unknown
   try {
     raw = JSON.parse(localStorage.getItem(key) ?? 'null')
   } catch {
