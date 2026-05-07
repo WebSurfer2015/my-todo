@@ -169,7 +169,7 @@ export function migrateTodos(
 
   const seen = new Map<string, Todo>();
   for (const td of raw.slice(0, MAX_TODOS_PER_USER)) {
-    if (typeof td !== "object" || td === null) continue;
+    if (typeof td !== "object" || td === null || Array.isArray(td)) continue;
     const item = td as Partial<Todo> & { id?: unknown };
 
     let id: string;
