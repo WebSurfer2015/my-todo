@@ -11,5 +11,6 @@
 # Vite ephemeral cache (sometimes lands at repo root)
 .vite/
 
-# Claude Code (user-local permissions)
+# Claude Code (user-local state)
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
