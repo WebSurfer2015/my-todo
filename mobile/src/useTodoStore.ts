@@ -143,56 +143,56 @@ export function useTodoStore() {
   // ---- Stable callbacks ----
 
   const toggle = useCallback(
-    (id: number) => {
+    (id: string) => {
       setTodos((prev) => todoToggle(prev, id));
     },
     [setTodos],
   );
 
   const moveToTrash = useCallback(
-    (id: number) => {
+    (id: string) => {
       setTodos((prev) => todoMoveToTrash(prev, id));
     },
     [setTodos],
   );
 
   const restoreFromTrash = useCallback(
-    (id: number) => {
+    (id: string) => {
       setTodos((prev) => todoRestoreFromTrash(prev, id));
     },
     [setTodos],
   );
 
   const permanentlyDelete = useCallback(
-    (id: number) => {
+    (id: string) => {
       setTodos((prev) => todoPermanentlyDelete(prev, id));
     },
     [setTodos],
   );
 
   const updatePriority = useCallback(
-    (id: number, priority: Priority) => {
+    (id: string, priority: Priority) => {
       setTodos((prev) => todoSet(prev, id, "priority", priority));
     },
     [setTodos],
   );
 
   const updateDueDate = useCallback(
-    (id: number, dueDate: string) => {
+    (id: string, dueDate: string) => {
       setTodos((prev) => todoSet(prev, id, "dueDate", dueDate));
     },
     [setTodos],
   );
 
   const updateTaskCategory = useCallback(
-    (id: number, category: Category) => {
+    (id: string, category: Category) => {
       setTodos((prev) => todoSet(prev, id, "category", category));
     },
     [setTodos],
   );
 
   const updateText = useCallback(
-    (id: number, text: string) => {
+    (id: string, text: string) => {
       setTodos((prev) => todoSet(prev, id, "text", text));
     },
     [setTodos],

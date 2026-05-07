@@ -15,7 +15,7 @@ function sortTodos(ts: Todo[]): Todo[] {
   return [...ts].sort((a, b) => {
     const pd = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]
     if (pd !== 0) return pd
-    if (!a.dueDate && !b.dueDate) return a.id - b.id
+    if (!a.dueDate && !b.dueDate) return a.id.localeCompare(b.id)
     if (!a.dueDate) return 1
     if (!b.dueDate) return -1
     return a.dueDate.localeCompare(b.dueDate)

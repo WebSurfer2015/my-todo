@@ -1,3 +1,17 @@
+/**
+ * Globally-unique id generator. Prefers `crypto.randomUUID()` (RFC 4122 v4)
+ * which is available in modern browsers and React Native via Hermes (RN
+ * 0.79+). Falls back to a time-prefixed random string for older runtimes —
+ * still collision-resistant under Phase-2 cross-device sync.
+ */
+export function genUuid(): string {
+  const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto
+  if (c && typeof c.randomUUID === 'function') return c.randomUUID()
+  // Time-prefix gives ordering; 8 random base-36 chars keep collisions
+  // negligible for our scale.
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}-${Math.random().toString(36).slice(2, 10)}`
+}
+
 export function todayLocal(): string {
   return isoDate(new Date())
 }

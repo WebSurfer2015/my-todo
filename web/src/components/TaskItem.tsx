@@ -49,15 +49,15 @@ interface Props {
   inTrash: boolean
   selected?: boolean
   bulkSelecting?: boolean
-  onToggleSelect?: (id: number, shiftKey: boolean) => void
-  onToggle: (id: number) => void
-  onMoveToTrash: (id: number) => void
-  onRestore: (id: number) => void
-  onPermanentDelete: (id: number) => void
-  onUpdatePriority: (id: number, priority: Priority) => void
-  onUpdateDueDate: (id: number, dueDate: string) => void
-  onUpdateCategory: (id: number, category: Category) => void
-  onUpdateText: (id: number, text: string) => void
+  onToggleSelect?: (id: string, shiftKey: boolean) => void
+  onToggle: (id: string) => void
+  onMoveToTrash: (id: string) => void
+  onRestore: (id: string) => void
+  onPermanentDelete: (id: string) => void
+  onUpdatePriority: (id: string, priority: Priority) => void
+  onUpdateDueDate: (id: string, dueDate: string) => void
+  onUpdateCategory: (id: string, category: Category) => void
+  onUpdateText: (id: string, text: string) => void
 }
 
 function TaskItem({

@@ -131,10 +131,10 @@ export function useTodoStore() {
   );
 
   const [filter, setFilter] = useState<Filter>("all");
-  const [selectedTrashIds, setSelectedTrashIds] = useState<Set<number>>(
+  const [selectedTrashIds, setSelectedTrashIds] = useState<Set<string>>(
     new Set(),
   );
-  const lastSelectedRef = useRef<number | null>(null);
+  const lastSelectedRef = useRef<string | null>(null);
   const todosRef = useRef(todos);
   useEffect(() => {
     todosRef.current = todos;
@@ -152,21 +152,21 @@ export function useTodoStore() {
   // ---- Stable callbacks (passed to React.memo'd TaskItem) ----
 
   const toggle = useCallback(
-    (id: number) => {
+    (id: string) => {
       setTodos((prev) => todoToggle(prev, id));
     },
     [setTodos],
   );
 
   const restoreFromTrash = useCallback(
-    (id: number) => {
+    (id: string) => {
       setTodos((prev) => todoRestoreFromTrash(prev, id));
     },
     [setTodos],
   );
 
   const moveToTrash = useCallback(
-    (id: number) => {
+    (id: string) => {
       setTodos((prev) => todoMoveToTrash(prev, id));
       notify.showSnackbar({
         message: t.movedToTrash,
@@ -178,41 +178,41 @@ export function useTodoStore() {
   );
 
   const permanentlyDelete = useCallback(
-    (id: number) => {
+    (id: string) => {
       setTodos((prev) => todoPermanentlyDelete(prev, id));
     },
     [setTodos],
   );
 
   const updatePriority = useCallback(
-    (id: number, priority: Priority) => {
+    (id: string, priority: Priority) => {
       setTodos((prev) => todoSet(prev, id, "priority", priority));
     },
     [setTodos],
   );
 
   const updateDueDate = useCallback(
-    (id: number, dueDate: string) => {
+    (id: string, dueDate: string) => {
       setTodos((prev) => todoSet(prev, id, "dueDate", dueDate));
     },
     [setTodos],
   );
 
   const updateTaskCategory = useCallback(
-    (id: number, category: Category) => {
+    (id: string, category: Category) => {
       setTodos((prev) => todoSet(prev, id, "category", category));
     },
     [setTodos],
   );
 
   const updateText = useCallback(
-    (id: number, text: string) => {
+    (id: string, text: string) => {
       setTodos((prev) => todoSet(prev, id, "text", text));
     },
     [setTodos],
   );
 
-  const toggleTrashSelection = useCallback((id: number, shiftKey: boolean) => {
+  const toggleTrashSelection = useCallback((id: string, shiftKey: boolean) => {
     const orderedIds = todosRef.current
       .filter((td) => td.trashed)
       .map((td) => td.id);

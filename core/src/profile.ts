@@ -26,6 +26,17 @@ export const SEED_PROFILE: Profile = {
   density: 'comfortable',
 }
 
+/** Hard caps applied at hydration. Defensive against malicious cloud writes. */
+export const MAX_PROFILE_NAME_LEN = 64
+export const MAX_PROFILE_QUOTE_LEN = 240
+export const MAX_PROFILE_TITLE_LEN = 64
+/**
+ * Avatar URI cap. Base64 data URLs typically run ~50-200 KB after web
+ * compression to 256px. Reject anything > 1 MB as a defense against bad
+ * data — also keeps profile docs under Firestore's 1 MB doc limit.
+ */
+export const MAX_AVATAR_URI_LEN = 1_000_000
+
 export interface PresetAvatar {
   key: string
   emoji: string
@@ -70,20 +81,32 @@ export function findPreset(key: string): PresetAvatar {
 
 /**
  * Migration: web's original Avatar shape used `data` for image kind. Map it
- * to `uri` so cloud-stored avatars are interchangeable.
+ * to `uri` so cloud-stored avatars are interchangeable. All string fields
+ * are length-capped to defend against malicious cloud pushes.
  */
 export function migrateProfile(raw: unknown): Profile {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return SEED_PROFILE
   const p = raw as Record<string, unknown>
-  if (!p.name || !p.avatar) return SEED_PROFILE
+  if (typeof p.name !== 'string' || p.name.length === 0 || !p.avatar) return SEED_PROFILE
   const avatar = migrateAvatar(p.avatar)
   if (!avatar) return SEED_PROFILE
   return {
-    name: String(p.name),
-    quote: typeof p.quote === 'string' ? p.quote : undefined,
+    name: p.name.slice(0, MAX_PROFILE_NAME_LEN),
+    quote:
+      typeof p.quote === 'string' && p.quote.length > 0
+        ? p.quote.slice(0, MAX_PROFILE_QUOTE_LEN)
+        : undefined,
     avatar,
-    density: p.density === 'compact' ? 'compact' : p.density === 'comfortable' ? 'comfortable' : undefined,
-    title: typeof p.title === 'string' ? p.title : undefined,
+    density:
+      p.density === 'compact'
+        ? 'compact'
+        : p.density === 'comfortable'
+          ? 'comfortable'
+          : undefined,
+    title:
+      typeof p.title === 'string' && p.title.length > 0
+        ? p.title.slice(0, MAX_PROFILE_TITLE_LEN)
+        : undefined,
   }
 }
 
@@ -93,13 +116,14 @@ function migrateAvatar(raw: unknown): Avatar | null {
   if (a.kind === 'image') {
     const uri = typeof a.uri === 'string' ? a.uri : typeof a.data === 'string' ? a.data : null
     if (!uri) return null
+    if (uri.length > MAX_AVATAR_URI_LEN) return null
     return { kind: 'image', uri }
   }
   if (a.kind === 'icon' && typeof a.icon === 'string' && typeof a.color === 'string') {
-    return { kind: 'icon', icon: a.icon, color: a.color }
+    return { kind: 'icon', icon: a.icon.slice(0, 64), color: a.color.slice(0, 32) }
   }
   if (a.kind === 'preset' && typeof a.key === 'string') {
-    return { kind: 'preset', key: a.key }
+    return { kind: 'preset', key: a.key.slice(0, 64) }
   }
   return null
 }

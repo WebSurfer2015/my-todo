@@ -10,7 +10,12 @@ export type Priority = 'high' | 'medium' | 'low'
 export type Category = string
 
 export interface Todo {
-  id: number
+  /**
+   * Stable, globally-unique id. Strings (UUID v4) since v1; older v0 stores
+   * used millisecond timestamps which collide on rapid bursts and across
+   * devices. `migrateTodos` rewrites legacy numeric ids on read.
+   */
+  id: string
   text: string
   done: boolean
   priority: Priority
@@ -18,6 +23,8 @@ export interface Todo {
   category?: Category
   trashed: boolean
   trashedAt?: number
+  /** ms since epoch; set on every mutation. Used by Firestore sync for last-write-wins per todo. */
+  updatedAt?: number
 }
 
 export const PRIORITY_VALUES: Priority[] = ['high', 'medium', 'low']

@@ -8,10 +8,17 @@ import {
 } from "./types";
 import { CategoryDef, categoryLabel } from "./categories";
 import { buildGroups, TodoGroup } from "./groups";
-import { todayLocal } from "./utils";
+import { genUuid, todayLocal } from "./utils";
 import type { Strings } from "./i18n";
 
 export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+// ---- Hard caps ----------------------------------------------------------
+// Defensive limits applied at hydration and on writes. These guard against
+// corrupt/malicious cloud data and runaway local state. Conservative —
+// well above any realistic legitimate use.
+export const MAX_TODO_TEXT_LEN = 4096;
+export const MAX_TODOS_PER_USER = 10_000;
 
 // ---- Pure mutation helpers ----------------------------------------------
 
@@ -22,35 +29,41 @@ export function newTodo(input: {
   category?: Category;
 }): Todo {
   return {
-    id: Date.now(),
-    text: input.text,
+    id: genUuid(),
+    text: input.text.slice(0, MAX_TODO_TEXT_LEN),
     done: false,
     priority: input.priority,
     dueDate: input.dueDate,
     category: input.category,
     trashed: false,
+    updatedAt: Date.now(),
   };
 }
 
-export function todoToggle(prev: Todo[], id: number): Todo[] {
-  return prev.map((td) => (td.id === id ? { ...td, done: !td.done } : td));
-}
-
-export function todoMoveToTrash(prev: Todo[], id: number): Todo[] {
+export function todoToggle(prev: Todo[], id: string): Todo[] {
+  const now = Date.now();
   return prev.map((td) =>
-    td.id === id ? { ...td, trashed: true, trashedAt: Date.now() } : td,
+    td.id === id ? { ...td, done: !td.done, updatedAt: now } : td,
   );
 }
 
-export function todoRestoreFromTrash(prev: Todo[], id: number): Todo[] {
+export function todoMoveToTrash(prev: Todo[], id: string): Todo[] {
+  const now = Date.now();
+  return prev.map((td) =>
+    td.id === id ? { ...td, trashed: true, trashedAt: now, updatedAt: now } : td,
+  );
+}
+
+export function todoRestoreFromTrash(prev: Todo[], id: string): Todo[] {
+  const now = Date.now();
   return prev.map((td) => {
     if (td.id !== id) return td;
     const { trashedAt: _t, ...rest } = td;
-    return { ...rest, trashed: false };
+    return { ...rest, trashed: false, updatedAt: now };
   });
 }
 
-export function todoPermanentlyDelete(prev: Todo[], id: number): Todo[] {
+export function todoPermanentlyDelete(prev: Todo[], id: string): Todo[] {
   return prev.filter((td) => td.id !== id);
 }
 
@@ -64,11 +77,19 @@ export function todoClearDone(prev: Todo[]): Todo[] {
 
 export function todoSet<K extends keyof Todo>(
   prev: Todo[],
-  id: number,
+  id: string,
   field: K,
   value: Todo[K],
 ): Todo[] {
-  return prev.map((td) => (td.id === id ? { ...td, [field]: value } : td));
+  const now = Date.now();
+  return prev.map((td) => {
+    if (td.id !== id) return td;
+    const next = { ...td, [field]: value, updatedAt: now };
+    if (field === "text" && typeof value === "string") {
+      next.text = value.slice(0, MAX_TODO_TEXT_LEN);
+    }
+    return next;
+  });
 }
 
 export function categoryAdd(
@@ -125,8 +146,15 @@ export function categoryReorder(
 /**
  * Sanitize a freshly-loaded todos array. Pass `categories` to also validate
  * that each todo's category id exists; pass `[]` (or omit) to skip that check
- * — useful when todos hydrate before categories are known. Field defaults
- * and trash-retention purge always run.
+ * — useful when todos hydrate before categories are known. Field defaults,
+ * trash-retention purge, and hard caps always run.
+ *
+ * Hardening:
+ * - Numeric legacy ids → stringified (one-time conversion to UUID-shaped strings).
+ * - text > MAX_TODO_TEXT_LEN truncated.
+ * - Array length capped at MAX_TODOS_PER_USER (defends against malicious cloud push).
+ * - Type-narrowing: non-string ids/text/dueDate, non-Priority priorities all rejected.
+ * - Duplicate ids deduped (last write wins by updatedAt).
  */
 export function migrateTodos(
   raw: unknown,
@@ -134,30 +162,73 @@ export function migrateTodos(
 ): Todo[] {
   if (!Array.isArray(raw)) return [];
   const validate = categories.length > 0;
-  const validIds = new Set(categories.map((c) => c.id));
+  const validCatIds = new Set(categories.map((c) => c.id));
+  const validPriorities = new Set<Priority>(["high", "medium", "low"]);
   const now = Date.now();
   const cutoff = now - TRASH_RETENTION_MS;
-  return raw
-    .map((td) => {
-      const item = td as Partial<Todo>;
-      const category = item.category;
-      const merged: Todo = {
-        id: typeof item.id === "number" ? item.id : Date.now() + Math.random(),
-        text: typeof item.text === "string" ? item.text : "",
-        done: !!item.done,
-        priority: item.priority ?? "medium",
-        dueDate: typeof item.dueDate === "string" ? item.dueDate : "",
-        category:
-          category && (!validate || validIds.has(category))
-            ? category
-            : undefined,
-        trashed: !!item.trashed,
-      };
-      if (item.trashedAt != null) merged.trashedAt = item.trashedAt;
-      if (merged.trashed && merged.trashedAt == null) merged.trashedAt = now;
-      return merged;
-    })
-    .filter((td) => !(td.trashed && (td.trashedAt ?? 0) < cutoff));
+
+  const seen = new Map<string, Todo>();
+  for (const td of raw.slice(0, MAX_TODOS_PER_USER)) {
+    if (typeof td !== "object" || td === null) continue;
+    const item = td as Partial<Todo> & { id?: unknown };
+
+    let id: string;
+    if (typeof item.id === "string" && item.id.length > 0) {
+      id = item.id;
+    } else if (typeof item.id === "number" && Number.isFinite(item.id)) {
+      // Legacy v0 numeric id — keep stable across migrations.
+      id = String(item.id);
+    } else {
+      id = genUuid();
+    }
+
+    const text =
+      typeof item.text === "string"
+        ? item.text.slice(0, MAX_TODO_TEXT_LEN)
+        : "";
+    const priority: Priority = validPriorities.has(item.priority as Priority)
+      ? (item.priority as Priority)
+      : "medium";
+    const dueDate = typeof item.dueDate === "string" ? item.dueDate : "";
+    const category =
+      typeof item.category === "string" &&
+      (!validate || validCatIds.has(item.category))
+        ? item.category
+        : undefined;
+    const trashed = !!item.trashed;
+    const trashedAt =
+      typeof item.trashedAt === "number"
+        ? item.trashedAt
+        : trashed
+          ? now
+          : undefined;
+    const updatedAt =
+      typeof item.updatedAt === "number" ? item.updatedAt : undefined;
+
+    if (trashed && (trashedAt ?? 0) < cutoff) continue;
+
+    const merged: Todo = {
+      id,
+      text,
+      done: !!item.done,
+      priority,
+      dueDate,
+      category,
+      trashed,
+    };
+    if (trashedAt != null) merged.trashedAt = trashedAt;
+    if (updatedAt != null) merged.updatedAt = updatedAt;
+
+    // Dedupe by id — last write (or higher updatedAt) wins.
+    const existing = seen.get(id);
+    if (
+      !existing ||
+      (merged.updatedAt ?? 0) >= (existing.updatedAt ?? 0)
+    ) {
+      seen.set(id, merged);
+    }
+  }
+  return Array.from(seen.values());
 }
 
 // ---- Derived state -------------------------------------------------------

@@ -9,6 +9,11 @@ export interface CategoryDef {
 
 export const BUILTIN_CATEGORY_IDS = new Set(['home', 'school', 'work', 'other'])
 
+/** Hard caps applied at hydration. Defensive against malicious cloud writes. */
+export const MAX_CATEGORY_LABEL_LEN = 64
+export const MAX_CATEGORIES_PER_USER = 200
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/
+
 /**
  * Apple system colors (iOS HIG). Hex form so the same value works in DOM
  * inline styles and React Native StyleSheet, and so cross-platform sync
@@ -61,8 +66,33 @@ export function migrateCategory(c: Partial<CategoryDef> & { id: string }): Categ
   const rawIcon = c.icon ?? LEGACY_ICON_FOR_BUILTIN[c.id] ?? 'tag'
   const icon = ICON_RENAMES[rawIcon] ?? rawIcon
   const rawColor = c.color ?? '#8E8E93'
-  const color = COLOR_RENAMES[rawColor] ?? rawColor
-  return { ...c, color, icon } as CategoryDef
+  let color = COLOR_RENAMES[rawColor] ?? rawColor
+  // Reject malformed colors (anything not a 6-digit hex) — fall back to gray.
+  if (!HEX_COLOR_RE.test(color)) color = '#8E8E93'
+  const label =
+    typeof c.label === 'string' && c.label.length > 0
+      ? c.label.slice(0, MAX_CATEGORY_LABEL_LEN)
+      : undefined
+  return { ...c, label, color, icon } as CategoryDef
+}
+
+/**
+ * Sanitize a freshly-loaded categories array. Rejects non-objects, missing
+ * ids, malformed entries; caps array length and per-field sizes.
+ */
+export function migrateCategories(raw: unknown): CategoryDef[] {
+  if (!Array.isArray(raw)) return []
+  const out: CategoryDef[] = []
+  const seen = new Set<string>()
+  for (const c of raw.slice(0, MAX_CATEGORIES_PER_USER)) {
+    if (typeof c !== 'object' || c === null) continue
+    const item = c as Partial<CategoryDef>
+    if (typeof item.id !== 'string' || item.id.length === 0) continue
+    if (seen.has(item.id)) continue
+    seen.add(item.id)
+    out.push(migrateCategory(item as Partial<CategoryDef> & { id: string }))
+  }
+  return out
 }
 
 export function newCategoryId(): string {
