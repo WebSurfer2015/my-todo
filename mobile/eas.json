@@ -27,6 +27,7 @@
   "submit": {
     "production": {
       "ios": {
+        "ascAppId": "6767378689",
         "ascApiKeyPath": "/Users/yingnming/.appstoreconnect/AuthKey_QD85GLBAA2.p8",
         "ascApiKeyId": "QD85GLBAA2",
         "ascApiKeyIssuerId": "34c60769-93e6-4cda-9faf-010ca1a57725"
