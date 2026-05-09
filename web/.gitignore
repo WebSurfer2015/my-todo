@@ -20,6 +20,9 @@ dist/
 .env.local
 .env.*.local
 
+# Stray local-only assets
+public/avatar.jpg
+
 # Logs
 npm-debug.log*
 yarn-debug.log*
