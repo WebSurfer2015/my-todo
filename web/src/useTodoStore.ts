@@ -337,7 +337,10 @@ export function useTodoStore() {
   const hour = new Date().getHours();
   const greetingKey: "morning" | "afternoon" | "evening" =
     hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
-  const appTitle = (profile.title && profile.title.trim()) || t.title;
+  const trimmedName = profile.name.trim();
+  const appTitle =
+    profile.title?.trim() ||
+    (trimmedName ? t.ownerTitle(trimmedName) : t.title);
 
   return {
     categories,

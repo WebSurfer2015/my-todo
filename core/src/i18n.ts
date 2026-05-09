@@ -3,6 +3,7 @@ export type Lang = 'en' | 'zh'
 export const strings = {
   en: {
     title: 'My TODOs',
+    ownerTitle: (name: string) => `${name}'s Todos`,
     addPlaceholder: 'Add a new task…',
     add: 'Add',
     save: 'Save',
@@ -110,6 +111,7 @@ export const strings = {
   },
   zh: {
     title: '我的待办',
+    ownerTitle: (name: string) => `${name}的待办`,
     addPlaceholder: '添加新任务…',
     add: '添加',
     save: '保存',
