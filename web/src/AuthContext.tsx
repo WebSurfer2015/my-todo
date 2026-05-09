@@ -14,6 +14,8 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut as fbSignOut,
+  OAuthProvider,
+  signInWithPopup,
 } from "firebase/auth";
 import { deleteDoc, doc } from "firebase/firestore";
 import { auth, db } from "./firebase";
@@ -31,6 +33,7 @@ export interface AuthApi {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
+  signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
   /**
    * Permanently delete the signed-in user's Firestore data + auth record.
@@ -58,6 +61,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = useCallback(async (email: string, password: string) => {
     await createUserWithEmailAndPassword(auth, email, password);
+  }, []);
+
+  const signInWithApple = useCallback(async () => {
+    const provider = new OAuthProvider("apple.com");
+    provider.addScope("email");
+    provider.addScope("name");
+    await signInWithPopup(auth, provider);
   }, []);
 
   const signOut = useCallback(async () => {
@@ -89,8 +99,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthApi>(
-    () => ({ user, loading, signIn, signUp, signOut, deleteAccount }),
-    [user, loading, signIn, signUp, signOut, deleteAccount],
+    () => ({ user, loading, signIn, signUp, signInWithApple, signOut, deleteAccount }),
+    [user, loading, signIn, signUp, signInWithApple, signOut, deleteAccount],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
