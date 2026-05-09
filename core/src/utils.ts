@@ -45,12 +45,6 @@ export function formatDisplayDate(iso: string, locale = 'default', labels?: Date
   if (diffDays === 0 && labels?.today) return labels.today
   if (diffDays === 1 && labels?.tomorrow) return labels.tomorrow
   if (diffDays === -1 && labels?.yesterday) return labels.yesterday
-  if (diffDays > 1 && diffDays < 7) {
-    return date.toLocaleString(locale, { weekday: 'long' })
-  }
-  if (diffDays < -1 && diffDays > -7) {
-    return date.toLocaleString(locale, { weekday: 'long' })
-  }
 
   const weekday = date.toLocaleString(locale, { weekday: 'short' })
   const month   = date.toLocaleString(locale, { month: 'short' })
