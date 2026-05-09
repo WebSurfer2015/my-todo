@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef, forwardRef, useImperativeHandle } from 'react'
-import { View, TextInput, TouchableOpacity, Text, StyleSheet } from 'react-native'
+import { View, TextInput, TouchableOpacity, Text, StyleSheet, Modal, Platform } from 'react-native'
 import * as Haptics from 'expo-haptics'
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
+import Svg, { Rect, Path } from 'react-native-svg'
 import { Category, Priority, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
 import { CategoryDef, categoryLabel } from '../categories'
 import { useTheme, ThemeColors } from '../theme'
@@ -8,6 +10,18 @@ import PriorityDot from './PriorityDot'
 import CategoryIcon from './CategoryIcon'
 import PickerModal from './PickerModal'
 import { useLang } from '../LangContext'
+import { formatDisplayDate, isoDate } from '../utils'
+
+function CalendarIcon({ size = 18, color = '#8E8E93' }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Rect x="3" y="4" width="18" height="18" rx="2" />
+      <Path d="M16 2v4" />
+      <Path d="M8 2v4" />
+      <Path d="M3 10h18" />
+    </Svg>
+  )
+}
 
 interface Props {
   onAdd: (text: string, priority: Priority, dueDate: string, category?: Category) => void
@@ -26,8 +40,11 @@ const AddTask = forwardRef<AddTaskHandle, Props>(function AddTask({ onAdd, categ
   const [text, setText] = useState('')
   const [priority, setPriority] = useState<Priority>('medium')
   const [category, setCategory] = useState<Category>(defaultCategory)
+  const [dueDate, setDueDate] = useState('')
   const [priorityOpen, setPriorityOpen] = useState(false)
   const [categoryOpen, setCategoryOpen] = useState(false)
+  const [dateOpen, setDateOpen] = useState(false)
+  const [pickerDate, setPickerDate] = useState<Date>(new Date())
   const [focused, setFocused] = useState(false)
   const inputRef = useRef<TextInput>(null)
 
@@ -43,10 +60,33 @@ const AddTask = forwardRef<AddTaskHandle, Props>(function AddTask({ onAdd, categ
     const trimmed = text.trim()
     if (!trimmed || !activeCat) return
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
-    onAdd(trimmed, priority, '', activeCat.id)
+    onAdd(trimmed, priority, dueDate, activeCat.id)
     setText('')
     setPriority('medium')
+    setDueDate('')
     setCategory(defaultCategory)
+  }
+
+  function openDatePicker() {
+    setPickerDate(dueDate ? new Date(`${dueDate}T00:00:00`) : new Date())
+    setDateOpen(true)
+  }
+
+  function commitDate() {
+    setDueDate(isoDate(pickerDate))
+    setDateOpen(false)
+  }
+
+  function handleDateChange(event: DateTimePickerEvent, selected?: Date) {
+    if (event.type === 'set' && selected) {
+      setPickerDate(selected)
+      if (Platform.OS === 'android') {
+        setDueDate(isoDate(selected))
+        setDateOpen(false)
+      }
+    } else if (Platform.OS === 'android') {
+      setDateOpen(false)
+    }
   }
 
   return (
@@ -83,6 +123,19 @@ const AddTask = forwardRef<AddTaskHandle, Props>(function AddTask({ onAdd, categ
         >
           <PriorityDot level={priority} size={13} />
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.dateBtn, dueDate ? styles.dateBtnHasDate : null]}
+          onPress={openDatePicker}
+          hitSlop={6}
+        >
+          <CalendarIcon size={16} color={dueDate ? theme.blue : theme.gray3} />
+          {dueDate ? (
+            <Text style={[styles.dateLabel, { color: theme.blue }]} numberOfLines={1}>
+              {formatDisplayDate(dueDate, t.locale)}
+            </Text>
+          ) : null}
+        </TouchableOpacity>
       </View>
 
       <TouchableOpacity style={styles.addBtn} onPress={submit}>
@@ -114,6 +167,45 @@ const AddTask = forwardRef<AddTaskHandle, Props>(function AddTask({ onAdd, categ
           icon: <PriorityDot level={v} size={12} />,
         }))}
       />
+
+      {dateOpen && Platform.OS === 'ios' && (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setDateOpen(false)}>
+          <TouchableOpacity
+            style={styles.dateOverlay}
+            onPress={() => setDateOpen(false)}
+            activeOpacity={1}
+          >
+            <View
+              style={styles.dateSheet}
+              onStartShouldSetResponder={() => true}
+            >
+              <DateTimePicker
+                value={pickerDate}
+                mode="date"
+                display="inline"
+                themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
+                onChange={handleDateChange}
+              />
+              <View style={styles.dateBtnRow}>
+                <TouchableOpacity onPress={() => { setDueDate(''); setDateOpen(false) }}>
+                  <Text style={styles.dateClear}>Clear</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={commitDate}>
+                  <Text style={styles.dateDone}>Done</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
+      {dateOpen && Platform.OS === 'android' && (
+        <DateTimePicker
+          value={pickerDate}
+          mode="date"
+          display="default"
+          onChange={handleDateChange}
+        />
+      )}
     </View>
   )
 })
@@ -162,6 +254,23 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 6,
       letterSpacing: -0.16,
     },
+    dateBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      height: 32,
+      paddingHorizontal: 6,
+      borderRadius: 8,
+      maxWidth: 140,
+    },
+    dateBtnHasDate: {
+      backgroundColor: 'transparent',
+    },
+    dateLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      letterSpacing: -0.12,
+    },
     addBtn: {
       height: 44,
       paddingHorizontal: 18,
@@ -175,6 +284,46 @@ function makeStyles(c: ThemeColors) {
       fontSize: 15,
       fontWeight: '600',
       letterSpacing: -0.16,
+    },
+    dateOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.4)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+    },
+    dateSheet: {
+      backgroundColor: c.modal,
+      borderRadius: 16,
+      paddingHorizontal: 8,
+      paddingTop: 4,
+      paddingBottom: 8,
+      width: '100%',
+      maxWidth: 360,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.18,
+      shadowRadius: 16,
+      elevation: 10,
+    },
+    dateBtnRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingHorizontal: 12,
+      paddingTop: 8,
+      paddingBottom: 4,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.separator,
+    },
+    dateClear: {
+      color: c.red,
+      fontSize: 16,
+      fontWeight: '500',
+    },
+    dateDone: {
+      color: c.blue,
+      fontSize: 16,
+      fontWeight: '600',
     },
   })
 }

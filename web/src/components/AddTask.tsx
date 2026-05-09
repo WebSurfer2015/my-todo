@@ -5,6 +5,18 @@ import PriorityBarsIcon from './PriorityBarsIcon'
 import CategoryIcon from './CategoryIcon'
 import { useLang } from '../LangContext'
 import { useCloseOnOutside } from '../hooks'
+import { formatDisplayDate } from '../utils'
+
+function CalendarIcon({ size = 18, strokeWidth = 2 }: { size?: number; strokeWidth?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M16 2v4" />
+      <path d="M8 2v4" />
+      <path d="M3 10h18" />
+    </svg>
+  )
+}
 
 interface Props {
   onAdd: (text: string, priority: Priority, dueDate: string, category: Category) => void
@@ -21,10 +33,12 @@ const AddTask = forwardRef<AddTaskHandle, Props>(function AddTask({ onAdd, defau
   const [text, setText] = useState('')
   const [priority, setPriority] = useState<Priority>('medium')
   const [category, setCategory] = useState<Category>(defaultCategory)
+  const [dueDate, setDueDate] = useState('')
   const [priorityOpen, setPriorityOpen] = useState(false)
   const [categoryOpen, setCategoryOpen] = useState(false)
   const priorityRef = useRef<HTMLDivElement>(null)
   const categoryRef = useRef<HTMLDivElement>(null)
+  const dateRef = useRef<HTMLInputElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useImperativeHandle(ref, () => ({
@@ -46,9 +60,10 @@ const AddTask = forwardRef<AddTaskHandle, Props>(function AddTask({ onAdd, defau
   function submit() {
     const trimmed = text.trim()
     if (!trimmed || !activeCat) return
-    onAdd(trimmed, priority, '', activeCat.id)
+    onAdd(trimmed, priority, dueDate, activeCat.id)
     setText('')
     setPriority('medium')
+    setDueDate('')
     setCategory(defaultCategory)
   }
 
@@ -125,6 +140,25 @@ const AddTask = forwardRef<AddTaskHandle, Props>(function AddTask({ onAdd, defau
               ))}
             </div>
           )}
+        </div>
+        <div className="date-trigger">
+          <input
+            ref={dateRef}
+            type="date"
+            className="date-input-hidden"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+          />
+          <button
+            type="button"
+            className={`date-trigger-btn${dueDate ? ' has-date' : ''}`}
+            onClick={() => dateRef.current?.showPicker()}
+            aria-label={t.setDueDate}
+            title={dueDate ? formatDisplayDate(dueDate, t.locale) : t.setDueDate}
+          >
+            <CalendarIcon size={18} />
+            {dueDate && <span className="date-trigger-label">{formatDisplayDate(dueDate, t.locale)}</span>}
+          </button>
         </div>
       </div>
 

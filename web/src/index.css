@@ -1012,6 +1012,39 @@ h1 { margin: 0; }
   pointer-events: none;
 }
 
+/* Date trigger (sits inside the text input, right of the priority button) */
+.date-trigger {
+  position: relative;
+  padding-right: 10px;
+  flex-shrink: 0;
+}
+
+.date-trigger-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--label3);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: -0.08px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.date-trigger-btn:hover { background: var(--fill); color: var(--label2); }
+.date-trigger-btn.has-date { color: var(--blue); }
+.date-trigger-btn.has-date:hover { color: var(--blue); }
+
+.date-trigger-label {
+  white-space: nowrap;
+  font-weight: 500;
+}
+
 /* ── Add button ──────────────────────────────────────────────────── */
 .btn {
   height: 46px;
