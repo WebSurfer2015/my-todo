@@ -28,6 +28,7 @@ interface Props {
     data: { label: string; color: string; icon: string },
   ) => void;
   onDelete: (id: string) => void;
+  onReorder: (fromIndex: number, toIndex: number) => void;
   onClose: () => void;
 }
 
@@ -40,9 +41,10 @@ export default function CategorySheet({
   onAdd,
   onEdit,
   onDelete,
+  onReorder,
   onClose,
 }: Props) {
-  const { t, lang } = useLang();
+  const { t } = useLang();
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const [mode, setMode] = useState<Mode>({ kind: "list" });
@@ -95,7 +97,7 @@ export default function CategorySheet({
           )
         : t.deleteCategoryConfirmEmpty(categoryLabel(c, t));
     Alert.alert(t.deleteCategoryAction, message, [
-      { text: lang === "en" ? "Cancel" : "取消", style: "cancel" },
+      { text: t.cancel, style: "cancel" },
       {
         text: t.deleteCategoryAction,
         style: "destructive",
@@ -129,10 +131,49 @@ export default function CategorySheet({
             {mode.kind === "list" ? (
               <>
                 <ScrollView style={styles.list}>
-                  {categories.map((c) => (
+                  {categories.map((c, idx) => (
                     <View key={c.id} style={styles.row}>
                       <CategoryIcon icon={c.icon} color={c.color} size={18} />
                       <Text style={styles.rowLabel}>{categoryLabel(c, t)}</Text>
+                      <View style={styles.reorderGroup}>
+                        <TouchableOpacity
+                          onPress={() => onReorder(idx, idx - 1)}
+                          disabled={idx === 0}
+                          style={styles.reorderBtn}
+                          hitSlop={6}
+                          accessibilityLabel="Move up"
+                        >
+                          <Text
+                            style={[
+                              styles.reorderArrow,
+                              { color: idx === 0 ? "#C7C7CC" : theme.label2 },
+                            ]}
+                          >
+                            ▲
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => onReorder(idx, idx + 1)}
+                          disabled={idx === categories.length - 1}
+                          style={styles.reorderBtn}
+                          hitSlop={6}
+                          accessibilityLabel="Move down"
+                        >
+                          <Text
+                            style={[
+                              styles.reorderArrow,
+                              {
+                                color:
+                                  idx === categories.length - 1
+                                    ? "#C7C7CC"
+                                    : theme.label2,
+                              },
+                            ]}
+                          >
+                            ▼
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                       <TouchableOpacity
                         onPress={() => startEdit(c)}
                         style={styles.rowBtn}
@@ -216,7 +257,7 @@ export default function CategorySheet({
                     onPress={() => setMode({ kind: "list" })}
                   >
                     <Text style={styles.btnText}>
-                      {lang === "en" ? "Back" : "返回"}
+                      {t.back}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -234,7 +275,7 @@ export default function CategorySheet({
             {mode.kind === "list" && (
               <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
                 <Text style={styles.closeBtnText}>
-                  {lang === "en" ? "Done" : "完成"}
+                  {t.done}
                 </Text>
               </TouchableOpacity>
             )}
@@ -302,6 +343,17 @@ function makeStyles(c: ThemeColors) {
       fontSize: 13,
       fontWeight: "600",
       color: c.blue,
+    },
+    reorderGroup: {
+      flexDirection: "column",
+      gap: 2,
+      marginRight: 4,
+    },
+    reorderBtn: {
+      paddingHorizontal: 4,
+    },
+    reorderArrow: {
+      fontSize: 10,
     },
     addBtn: {
       paddingVertical: 12,

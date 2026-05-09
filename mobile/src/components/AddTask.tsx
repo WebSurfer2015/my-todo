@@ -188,10 +188,10 @@ const AddTask = forwardRef<AddTaskHandle, Props>(function AddTask({ onAdd, categ
               />
               <View style={styles.dateBtnRow}>
                 <TouchableOpacity onPress={() => { setDueDate(''); setDateOpen(false) }}>
-                  <Text style={styles.dateClear}>Clear</Text>
+                  <Text style={styles.dateClear}>{t.clear}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={commitDate}>
-                  <Text style={styles.dateDone}>Done</Text>
+                  <Text style={styles.dateDone}>{t.done}</Text>
                 </TouchableOpacity>
               </View>
             </View>

@@ -17,6 +17,8 @@ import { useLang } from '../LangContext'
 interface Props {
   todo: Todo
   inTrash?: boolean
+  selected?: boolean
+  onToggleSelect?: (id: string) => void
   categories: CategoryDef[]
   density?: Density
   onToggle: (id: string) => void
@@ -59,7 +61,8 @@ function RestoreIcon({ size = 20, color = '#fff' }: { size?: number; color?: str
 }
 
 function TaskItem({
-  todo, inTrash = false, categories, density = 'comfortable',
+  todo, inTrash = false, selected = false, onToggleSelect,
+  categories, density = 'comfortable',
   onToggle, onMoveToTrash, onRestore, onPermanentDelete,
   onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateText,
 }: Props) {
@@ -245,12 +248,18 @@ function TaskItem({
         ]}
       >
         <TouchableOpacity
-          style={[styles.checkbox, todo.done && styles.checkboxDone]}
-          onPress={handleToggle}
-          disabled={inTrash}
+          style={[
+            styles.checkbox,
+            todo.done && styles.checkboxDone,
+            inTrash && selected && styles.checkboxSelected,
+          ]}
+          onPress={inTrash && onToggleSelect ? () => onToggleSelect(todo.id) : handleToggle}
+          disabled={inTrash && !onToggleSelect}
           hitSlop={10}
+          accessibilityRole={inTrash && onToggleSelect ? 'checkbox' : 'button'}
+          accessibilityState={inTrash && onToggleSelect ? { checked: selected } : undefined}
         >
-          {todo.done && <Text style={styles.checkmark}>✓</Text>}
+          {(todo.done || (inTrash && selected)) && <Text style={styles.checkmark}>✓</Text>}
         </TouchableOpacity>
 
         <View style={styles.body}>
@@ -363,10 +372,10 @@ function TaskItem({
                 />
                 <View style={styles.dateBtnRow}>
                   <TouchableOpacity onPress={() => { onUpdateDueDate(todo.id, ''); setDateOpen(false) }}>
-                    <Text style={styles.dateClear}>Clear</Text>
+                    <Text style={styles.dateClear}>{t.clear}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={commitDate}>
-                    <Text style={styles.dateDone}>Done</Text>
+                    <Text style={styles.dateDone}>{t.done}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -413,6 +422,10 @@ function makeStyles(c: ThemeColors, density: Density) {
       marginTop: 2,
     },
     checkboxDone: {
+      backgroundColor: c.blue,
+      borderColor: c.blue,
+    },
+    checkboxSelected: {
       backgroundColor: c.blue,
       borderColor: c.blue,
     },

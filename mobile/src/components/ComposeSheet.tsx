@@ -20,7 +20,7 @@ interface Props {
 export default function ComposeSheet({
   visible, categories, defaultCategory, onAdd, onClose,
 }: Props) {
-  const { t, lang } = useLang()
+  const { t } = useLang()
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
   const addTaskRef = useRef<AddTaskHandle>(null)
@@ -48,7 +48,7 @@ export default function ComposeSheet({
             <View style={styles.handle} />
             <View style={styles.headerRow}>
               <TouchableOpacity onPress={onClose} hitSlop={10}>
-                <Text style={styles.cancelText}>{lang === 'en' ? 'Cancel' : '取消'}</Text>
+                <Text style={styles.cancelText}>{t.cancel}</Text>
               </TouchableOpacity>
               <Text style={styles.title}>{t.addPlaceholder}</Text>
               <View style={{ width: 56 }} />

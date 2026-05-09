@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -14,7 +14,6 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme, ThemeColors } from "./src/theme";
-import { AddTaskHandle } from "./src/components/AddTask";
 import FilterBar from "./src/components/FilterBar";
 import ViewToggle from "./src/components/ViewToggle";
 import Fab from "./src/components/Fab";
@@ -26,6 +25,7 @@ import ProfileSheet from "./src/components/ProfileSheet";
 import CategorySheet from "./src/components/CategorySheet";
 import { LangProvider, useLang } from "./src/LangContext";
 import { AuthProvider, useAuth } from "./src/AuthContext";
+import { NotifyProvider } from "./src/notify";
 import { ErrorBoundary } from "./src/ErrorBoundary";
 import { useTodoStore } from "./src/useTodoStore";
 import SignIn from "./src/components/SignIn";
@@ -40,8 +40,6 @@ function AppInner() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [categorySheetOpen, setCategorySheetOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
-  const addTaskRef = useRef<AddTaskHandle>(null);
-  void addTaskRef; // reserved for future imperative focus
 
   if (authLoading)
     return <SafeAreaView style={styles.safe} edges={["top", "bottom"]} />;
@@ -79,7 +77,7 @@ function AppInner() {
               <Avatar avatar={store.profile.avatar} size={36} />
               <View style={styles.identityTextWrap}>
                 <Text style={styles.identityName} numberOfLines={1}>
-                  {store.profile.name}
+                  {store.appTitle}
                 </Text>
                 <Text style={styles.identityGreeting} numberOfLines={2}>
                   {store.headerLine}
@@ -125,15 +123,43 @@ function AppInner() {
 
           <View style={styles.body}>
             {store.inTrashView && store.trashCount > 0 && (
-              <View style={styles.trashHeader}>
-                <Text style={styles.trashNotice}>{t.trashRetention}</Text>
-                <TouchableOpacity
-                  onPress={store.emptyTrash}
-                  style={styles.emptyTrashBtn}
-                >
-                  <Text style={styles.emptyTrashText}>{t.emptyTrash}</Text>
-                </TouchableOpacity>
-              </View>
+              store.selectedTrashIds.size > 0 ? (
+                <View style={styles.bulkBar}>
+                  <Text style={styles.bulkCount}>
+                    {t.selectedCount(store.selectedTrashIds.size)}
+                  </Text>
+                  <View style={styles.bulkActions}>
+                    <TouchableOpacity
+                      onPress={store.bulkRestore}
+                      style={styles.bulkBtn}
+                    >
+                      <Text style={styles.bulkBtnText}>{t.bulkRestore}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={store.bulkPermanentDelete}
+                      style={styles.bulkBtn}
+                    >
+                      <Text style={styles.bulkBtnDanger}>{t.bulkDeletePermanently}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={store.clearTrashSelection}
+                      style={styles.bulkBtn}
+                    >
+                      <Text style={styles.bulkBtnMuted}>{t.clearSelection}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.trashHeader}>
+                  <Text style={styles.trashNotice}>{t.trashRetention}</Text>
+                  <TouchableOpacity
+                    onPress={store.emptyTrash}
+                    style={styles.emptyTrashBtn}
+                  >
+                    <Text style={styles.emptyTrashText}>{t.emptyTrash}</Text>
+                  </TouchableOpacity>
+                </View>
+              )
             )}
 
             {store.inTrashView ? (
@@ -158,6 +184,8 @@ function AppInner() {
                         categories={store.categories}
                         density={store.profile.density}
                         inTrash
+                        selected={store.selectedTrashIds.has(td.id)}
+                        onToggleSelect={store.toggleTrashSelection}
                         onToggle={store.toggle}
                         onMoveToTrash={store.moveToTrash}
                         onRestore={store.restoreFromTrash}
@@ -256,6 +284,7 @@ function AppInner() {
         onAdd={store.addCategory}
         onEdit={store.editCategory}
         onDelete={store.deleteCategory}
+        onReorder={store.reorderCategories}
         onClose={() => setCategorySheetOpen(false)}
       />
       <ComposeSheet
@@ -276,7 +305,9 @@ export default function App() {
         <ErrorBoundary>
           <AuthProvider>
             <LangProvider>
-              <AppInner />
+              <NotifyProvider>
+                <AppInner />
+              </NotifyProvider>
             </LangProvider>
           </AuthProvider>
         </ErrorBoundary>
@@ -429,6 +460,45 @@ function makeStyles(c: ThemeColors) {
       color: "#fff",
       fontSize: 13,
       fontWeight: "600",
+    },
+    bulkBar: {
+      backgroundColor: c.surface,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      marginBottom: 12,
+      gap: 8,
+    },
+    bulkCount: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: c.label,
+    },
+    bulkActions: {
+      flexDirection: "row",
+      gap: 6,
+      flexWrap: "wrap",
+    },
+    bulkBtn: {
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 8,
+      backgroundColor: c.card,
+    },
+    bulkBtnText: {
+      color: c.blue,
+      fontSize: 13,
+      fontWeight: "600",
+    },
+    bulkBtnDanger: {
+      color: c.red,
+      fontSize: 13,
+      fontWeight: "600",
+    },
+    bulkBtnMuted: {
+      color: c.label2,
+      fontSize: 13,
+      fontWeight: "500",
     },
   });
 }

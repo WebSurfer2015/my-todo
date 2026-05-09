@@ -19,6 +19,12 @@ import {
 import { Profile, SEED_PROFILE, migrateProfile } from "./profile";
 import { useLang } from "./LangContext";
 import { useAuth } from "./AuthContext";
+import { useNotify } from "./notify";
+import {
+  toggleSelection,
+  applyBulkRestore,
+  applyBulkDelete,
+} from "../../core/src/selection";
 import { storage as localAdapter } from "./persistence";
 import { db } from "./firebase";
 import { makeFirestoreAdapter } from "./firestoreAdapter";
@@ -96,6 +102,7 @@ async function migrateLocalToCloud(adapter: StorageAdapter): Promise<void> {
 export function useTodoStore() {
   const { t } = useLang();
   const { user } = useAuth();
+  const notify = useNotify();
 
   const adapter = useMemo<StorageAdapter>(
     () => (user ? makeFirestoreAdapter(db, user.uid) : localAdapter),
@@ -133,10 +140,20 @@ export function useTodoStore() {
 
   const [filter, setFilter] = useState<Filter>("all");
   const [view, setView] = useState<ViewMode>("category");
+  const [selectedTrashIds, setSelectedTrashIds] = useState<Set<string>>(
+    new Set(),
+  );
   const todosRef = useRef(todos);
   useEffect(() => {
     todosRef.current = todos;
   }, [todos]);
+
+  // Auto-clear selection when leaving trash view
+  useEffect(() => {
+    if (filter !== "trash" && selectedTrashIds.size > 0) {
+      setSelectedTrashIds(new Set());
+    }
+  }, [filter, selectedTrashIds.size]);
 
   const loaded = categoriesLoaded && todosLoaded && profileLoaded;
 
@@ -149,18 +166,23 @@ export function useTodoStore() {
     [setTodos],
   );
 
-  const moveToTrash = useCallback(
-    (id: string) => {
-      setTodos((prev) => todoMoveToTrash(prev, id));
-    },
-    [setTodos],
-  );
-
   const restoreFromTrash = useCallback(
     (id: string) => {
       setTodos((prev) => todoRestoreFromTrash(prev, id));
     },
     [setTodos],
+  );
+
+  const moveToTrash = useCallback(
+    (id: string) => {
+      setTodos((prev) => todoMoveToTrash(prev, id));
+      notify.showSnackbar({
+        message: t.movedToTrash,
+        actionLabel: t.undo,
+        onAction: () => restoreFromTrash(id),
+      });
+    },
+    [setTodos, notify, t, restoreFromTrash],
   );
 
   const permanentlyDelete = useCallback(
@@ -224,6 +246,44 @@ export function useTodoStore() {
     ]);
   }
 
+  const toggleTrashSelection = useCallback((id: string) => {
+    setSelectedTrashIds((prev) =>
+      toggleSelection({
+        prev,
+        id,
+        shiftKey: false,
+        lastSelected: null,
+        orderedIds: [],
+      }),
+    );
+  }, []);
+
+  function clearTrashSelection() {
+    setSelectedTrashIds(new Set());
+  }
+
+  function bulkRestore() {
+    if (selectedTrashIds.size === 0) return;
+    setTodos((prev) => applyBulkRestore(prev, selectedTrashIds));
+    clearTrashSelection();
+  }
+
+  function bulkPermanentDelete() {
+    const ids = selectedTrashIds;
+    if (ids.size === 0) return;
+    Alert.alert(t.bulkDeletePermanently, t.bulkDeleteConfirm(ids.size), [
+      { text: t.cancel, style: "cancel" },
+      {
+        text: t.bulkDeletePermanently,
+        style: "destructive",
+        onPress: () => {
+          setTodos((prev) => applyBulkDelete(prev, ids));
+          clearTrashSelection();
+        },
+      },
+    ]);
+  }
+
   function clearDone() {
     setTodos(todoClearDone);
   }
@@ -279,6 +339,10 @@ export function useTodoStore() {
     profile.quote && profile.quote.trim()
       ? profile.quote
       : `${t.greeting[greetingKey]}, ${profile.name}`;
+  const trimmedName = profile.name.trim();
+  const appTitle =
+    profile.title?.trim() ||
+    (trimmedName ? t.ownerTitle(trimmedName) : t.title);
 
   return {
     todos,
@@ -292,6 +356,7 @@ export function useTodoStore() {
     taskCountsForSheet: derived.byCategoryTotal,
     activeCount: derived.active.length,
     headerLine,
+    appTitle,
     setFilter,
     saveProfile: setProfile,
     changeView,
@@ -305,6 +370,11 @@ export function useTodoStore() {
     updateText,
     addTask,
     emptyTrash,
+    selectedTrashIds,
+    toggleTrashSelection,
+    clearTrashSelection,
+    bulkRestore,
+    bulkPermanentDelete,
     clearDone,
     addCategory,
     editCategory,
