@@ -23,8 +23,10 @@ dist/
 # Stray local-only assets
 public/avatar.jpg
 
-# Firebase CLI deploy cache
+# Firebase CLI deploy cache + transient logs
 .firebase/
+firebase-debug.log*
+firestore-debug.log*
 
 # Logs
 npm-debug.log*
