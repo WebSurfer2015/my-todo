@@ -12,12 +12,13 @@ import {
   createUserWithEmailAndPassword,
   deleteUser,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut as fbSignOut,
   OAuthProvider,
   signInWithPopup,
 } from "firebase/auth";
-import { deleteDoc, doc, setDoc } from "firebase/firestore";
+import { deleteDoc, doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import { stateDocPath } from "../../core/src/persistence";
 import { Profile, SEED_PROFILE, MAX_PROFILE_NAME_LEN } from "../../core/src/profile";
@@ -41,6 +42,7 @@ export interface AuthApi {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, init?: SignUpInit) => Promise<void>;
   signInWithApple: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   /**
    * Permanently delete the signed-in user's Firestore data + auth record.
@@ -96,7 +98,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const provider = new OAuthProvider("apple.com");
     provider.addScope("email");
     provider.addScope("name");
-    await signInWithPopup(auth, provider);
+    const cred = await signInWithPopup(auth, provider);
+    // First-time Apple sign-in: seed a profile doc so the store doesn't get
+    // stuck waiting for non-existent data and so appTitle has a real name.
+    // Returning users (profile already exists) are skipped untouched.
+    const profileRef = doc(db, stateDocPath(cred.user.uid, "profile"));
+    const snap = await getDoc(profileRef);
+    if (!snap.exists()) {
+      const display = cred.user.displayName?.trim() ?? "";
+      const [first, ...rest] = display.split(/\s+/).filter(Boolean);
+      const firstName =
+        first || cred.user.email?.split("@")[0] || SEED_PROFILE.name;
+      const lastName = rest.length > 0 ? rest.join(" ") : undefined;
+      const profile: Profile = {
+        ...SEED_PROFILE,
+        name: firstName.slice(0, MAX_PROFILE_NAME_LEN),
+        firstName: firstName.slice(0, MAX_PROFILE_NAME_LEN),
+        lastName,
+      };
+      await setDoc(profileRef, {
+        value: JSON.stringify({ version: 1, data: profile }),
+        updatedAt: Date.now(),
+      });
+    }
+  }, []);
+
+  const resetPassword = useCallback(async (email: string) => {
+    await sendPasswordResetEmail(auth, email);
   }, []);
 
   const signOut = useCallback(async () => {
@@ -128,8 +156,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthApi>(
-    () => ({ user, loading, signIn, signUp, signInWithApple, signOut, deleteAccount }),
-    [user, loading, signIn, signUp, signInWithApple, signOut, deleteAccount],
+    () => ({ user, loading, signIn, signUp, signInWithApple, resetPassword, signOut, deleteAccount }),
+    [user, loading, signIn, signUp, signInWithApple, resetPassword, signOut, deleteAccount],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

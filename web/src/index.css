@@ -704,7 +704,8 @@ body {
 @media (max-width: 768px) {
   .mobile-topbar { padding: 0 6px; }
 
-  /* Sidebar becomes off-canvas drawer */
+  /* Sidebar becomes off-canvas drawer — solid background so text doesn't
+     bleed through over the task list underneath. */
   .sidebar {
     position: fixed;
     top: 0;
@@ -719,6 +720,9 @@ body {
     padding-top: calc(16px + env(safe-area-inset-top, 0px));
     padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     border-right: none;
+    background: var(--bg-card);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
   .app-shell.drawer-open .sidebar { transform: translateX(0); }
 
@@ -1598,6 +1602,13 @@ h1 { margin: 0; }
 .signin-field-row { display: flex; gap: 10px; }
 .signin-field-row .signin-field { flex: 1; min-width: 0; }
 .signin-required { color: var(--red); }
+.signin-success {
+  font-size: 13px;
+  color: var(--green);
+  background: rgba(52, 199, 89, 0.10);
+  padding: 8px 10px;
+  border-radius: 6px;
+}
 .modal-field-row { display: flex; gap: 10px; }
 .modal-field-row .modal-field { flex: 1; min-width: 0; }
 .signin-label { font-size: 12px; color: var(--label2); font-weight: 600; }

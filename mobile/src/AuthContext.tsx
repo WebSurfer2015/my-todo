@@ -14,11 +14,12 @@ import {
   createUserWithEmailAndPassword,
   deleteUser,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInWithCredential,
   signInWithEmailAndPassword,
   signOut as fbSignOut,
 } from "@react-native-firebase/auth";
-import { deleteDoc, doc, setDoc } from "@react-native-firebase/firestore";
+import { deleteDoc, doc, getDoc, setDoc } from "@react-native-firebase/firestore";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
 import { auth, db } from "./firebase";
@@ -47,6 +48,7 @@ export interface AuthApi {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, init?: SignUpInit) => Promise<void>;
   signInWithApple: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   /**
    * Permanently delete the signed-in user's Firestore data + auth record.
@@ -130,7 +132,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       credential.identityToken,
       rawNonce,
     );
-    await signInWithCredential(auth, fbCredential);
+    const cred = await signInWithCredential(auth, fbCredential);
+    // First-time Apple sign-in: seed a profile doc using the name Apple
+    // provided in the credential (Apple sends fullName ONLY on the very
+    // first sign-in). Returning users are skipped.
+    const profileRef = doc(db, stateDocPath(cred.user.uid, "profile"));
+    const snap = await getDoc(profileRef);
+    if (!snap.exists()) {
+      const givenName = credential.fullName?.givenName?.trim() ?? "";
+      const familyName = credential.fullName?.familyName?.trim() ?? "";
+      const firstName =
+        givenName ||
+        cred.user.displayName?.trim().split(/\s+/)[0] ||
+        cred.user.email?.split("@")[0] ||
+        SEED_PROFILE.name;
+      const lastName = familyName || undefined;
+      const profile: Profile = {
+        ...SEED_PROFILE,
+        name: firstName.slice(0, MAX_PROFILE_NAME_LEN),
+        firstName: firstName.slice(0, MAX_PROFILE_NAME_LEN),
+        lastName,
+      };
+      await setDoc(profileRef, {
+        value: JSON.stringify({ version: 1, data: profile }),
+        updatedAt: Date.now(),
+      });
+    }
+  }, []);
+
+  const resetPassword = useCallback(async (email: string) => {
+    await sendPasswordResetEmail(auth, email);
   }, []);
 
   const signOut = useCallback(async () => {
@@ -169,6 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn,
       signUp,
       signInWithApple,
+      resetPassword,
       signOut,
       deleteAccount,
     }),
@@ -179,6 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn,
       signUp,
       signInWithApple,
+      resetPassword,
       signOut,
       deleteAccount,
     ],

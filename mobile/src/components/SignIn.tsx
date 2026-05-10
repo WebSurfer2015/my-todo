@@ -20,14 +20,22 @@ export default function SignIn() {
   const { t } = useLang();
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
-  const { signIn, signUp, signInWithApple, appleAvailable } = useAuth();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const { signIn, signUp, signInWithApple, resetPassword, appleAvailable } =
+    useAuth();
+  const [mode, setMode] = useState<"signin" | "signup" | "reset">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetSent, setResetSent] = useState(false);
+
+  function switchMode(next: "signin" | "signup" | "reset") {
+    setError(null);
+    setResetSent(false);
+    setMode(next);
+  }
 
   async function submit() {
     if (mode === "signup" && !firstName.trim()) {
@@ -37,12 +45,14 @@ export default function SignIn() {
     setError(null);
     setBusy(true);
     try {
-      if (mode === "signin") await signIn(email.trim(), password);
-      else
-        await signUp(email.trim(), password, {
-          firstName,
-          lastName,
-        });
+      if (mode === "signin") {
+        await signIn(email.trim(), password);
+      } else if (mode === "signup") {
+        await signUp(email.trim(), password, { firstName, lastName });
+      } else {
+        await resetPassword(email.trim());
+        setResetSent(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -79,7 +89,9 @@ export default function SignIn() {
             accessibilityLabel="My Todo"
           />
           <Text style={styles.title}>My Todo</Text>
-          <Text style={styles.subtitle}>Get things done</Text>
+          <Text style={styles.subtitle}>
+            {mode === "reset" ? t.resetPasswordPrompt : "Get things done"}
+          </Text>
 
           {mode === "signup" && (
             <View style={styles.fieldRow}>
@@ -126,21 +138,26 @@ export default function SignIn() {
             />
           </View>
 
-          <View style={styles.field}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              autoComplete={
-                mode === "signin" ? "current-password" : "new-password"
-              }
-              editable={!busy}
-            />
-          </View>
+          {mode !== "reset" && (
+            <View style={styles.field}>
+              <Text style={styles.label}>Password</Text>
+              <TextInput
+                style={styles.input}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoComplete={
+                  mode === "signin" ? "current-password" : "new-password"
+                }
+                editable={!busy}
+              />
+            </View>
+          )}
 
           {error && <Text style={styles.error}>{error}</Text>}
+          {resetSent && mode === "reset" && (
+            <Text style={styles.success}>{t.resetEmailSent}</Text>
+          )}
 
           <TouchableOpacity
             style={[styles.submit, busy && styles.submitDisabled]}
@@ -152,26 +169,46 @@ export default function SignIn() {
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.submitText}>
-                {mode === "signin" ? "Sign in" : "Create account"}
+                {mode === "signin"
+                  ? "Sign in"
+                  : mode === "signup"
+                    ? "Create account"
+                    : t.sendResetEmail}
               </Text>
             )}
           </TouchableOpacity>
 
+          {mode === "signin" && (
+            <TouchableOpacity
+              style={styles.toggle}
+              onPress={() => switchMode("reset")}
+            >
+              <Text style={styles.toggleText}>{t.forgotPassword}</Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={styles.toggle}
-            onPress={() => {
-              setError(null);
-              setMode((m) => (m === "signin" ? "signup" : "signin"));
-            }}
+            onPress={() =>
+              switchMode(
+                mode === "reset"
+                  ? "signin"
+                  : mode === "signin"
+                    ? "signup"
+                    : "signin",
+              )
+            }
           >
             <Text style={styles.toggleText}>
-              {mode === "signin"
-                ? "Don't have an account? Create one"
-                : "Already have an account? Sign in"}
+              {mode === "reset"
+                ? t.backToSignIn
+                : mode === "signin"
+                  ? "Don't have an account? Create one"
+                  : "Already have an account? Sign in"}
             </Text>
           </TouchableOpacity>
 
-          {appleAvailable && (
+          {mode !== "reset" && appleAvailable && (
             <View style={styles.appleSection}>
               <View style={styles.divider}>
                 <View style={styles.dividerLine} />
@@ -261,6 +298,16 @@ function makeStyles(c: ThemeColors) {
       fontSize: 13,
       color: c.red,
       backgroundColor: "rgba(255,59,48,0.08)",
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      borderRadius: 6,
+      marginTop: 4,
+      marginBottom: 4,
+    },
+    success: {
+      fontSize: 13,
+      color: c.green,
+      backgroundColor: "rgba(52,199,89,0.10)",
       paddingVertical: 8,
       paddingHorizontal: 10,
       borderRadius: 6,
