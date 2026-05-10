@@ -76,9 +76,7 @@ function TaskItem({
   const dateRef = useRef<HTMLInputElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const today = todayLocal()
-  const overdue = !!todo.dueDate && !todo.done && todo.dueDate < today
-  const isToday = !!todo.dueDate && !todo.done && todo.dueDate === today
+  const overdue = !!todo.dueDate && !todo.done && todo.dueDate < todayLocal()
   const cat = categories.find((c) => c.id === todo.category) ?? categories[0]
 
   useCloseOnOutside(priorityRef, priorityOpen, () => setPriorityOpen(false))
@@ -232,14 +230,14 @@ function TaskItem({
             />
             <button
               type="button"
-              className={`date-chip${overdue ? ' overdue' : ''}${isToday ? ' today' : ''}${!todo.dueDate ? ' no-date' : ''}`}
+              className={`date-chip${overdue ? ' overdue' : ''}${!todo.dueDate ? ' no-date' : ''}`}
               onClick={() => !inTrash && dateRef.current?.showPicker()}
               title={inTrash ? '' : t.setDueDate}
               aria-label={t.setDueDate}
               disabled={inTrash}
             >
               {todo.dueDate
-                ? formatDisplayDate(todo.dueDate, t.locale)
+                ? (overdue ? t.overdue : '') + formatDisplayDate(todo.dueDate, t.locale)
                 : t.noDate}
             </button>
           </div>
