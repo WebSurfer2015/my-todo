@@ -341,6 +341,9 @@ export function useTodoStore() {
   const appTitle =
     profile.title?.trim() ||
     (trimmedName ? t.ownerTitle(trimmedName) : t.title);
+  // displayTitle: shown in the page header next to the inline name+avatar.
+  // Skips the ownerTitle prefix so we don't render "Alex • Alex's Todos".
+  const displayTitle = profile.title?.trim() || t.title;
 
   return {
     categories,
@@ -364,6 +367,7 @@ export function useTodoStore() {
     },
     greetingKey,
     appTitle,
+    displayTitle,
     setFilter,
     saveProfile: setProfile,
     addTask,

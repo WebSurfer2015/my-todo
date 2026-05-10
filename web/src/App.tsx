@@ -4,6 +4,7 @@ import Sidebar from "./components/Sidebar";
 import MobileTopBar from "./components/MobileTopBar";
 import TaskItem from "./components/TaskItem";
 import Footer from "./components/Footer";
+import AvatarView from "./components/Avatar";
 import SignIn from "./components/SignIn";
 import { useLang } from "./LangContext";
 import { useTodoStore } from "./useTodoStore";
@@ -33,11 +34,11 @@ export default function App() {
   }, [store.filter, store.setFilter]);
 
   const [titleEditing, setTitleEditing] = useState(false);
-  const [titleDraft, setTitleDraft] = useState(store.appTitle);
+  const [titleDraft, setTitleDraft] = useState(store.displayTitle);
 
   useEffect(() => {
-    if (!titleEditing) setTitleDraft(store.appTitle);
-  }, [store.appTitle, titleEditing]);
+    if (!titleEditing) setTitleDraft(store.displayTitle);
+  }, [store.displayTitle, titleEditing]);
 
   function commitTitle() {
     const trimmed = titleDraft.trim();
@@ -45,7 +46,7 @@ export default function App() {
     setTitleEditing(false);
   }
   function cancelTitleEdit() {
-    setTitleDraft(store.appTitle);
+    setTitleDraft(store.displayTitle);
     setTitleEditing(false);
   }
 
@@ -90,6 +91,19 @@ export default function App() {
         <header className="content-header">
           <div className="content-titles">
             <h1 className="large-title">
+              <span className="title-identity">
+                <AvatarView
+                  avatar={store.profile.avatar}
+                  size={24}
+                  alt={store.profile.name}
+                />
+                <span className="title-identity-name">
+                  {store.profile.name}
+                </span>
+                <span className="title-identity-sep" aria-hidden="true">
+                  •
+                </span>
+              </span>
               {store.sectionLabel ? (
                 <nav aria-label="breadcrumb" className="title-breadcrumb">
                   <button
@@ -97,7 +111,7 @@ export default function App() {
                     className="title-parent"
                     onClick={() => store.setFilter("all")}
                   >
-                    {store.appTitle}
+                    {store.displayTitle}
                   </button>
                   <span className="title-sep" aria-hidden="true">
                     ›
@@ -123,7 +137,7 @@ export default function App() {
                   onClick={() => setTitleEditing(true)}
                   title={t.editTask}
                 >
-                  {store.appTitle}
+                  {store.displayTitle}
                 </span>
               )}
             </h1>

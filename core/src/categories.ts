@@ -34,7 +34,7 @@ export const SEED_CATEGORIES: CategoryDef[] = [
   { id: 'home',   color: '#34C759', icon: 'home' },
   { id: 'school', color: '#AF52DE', icon: 'graduation-cap' },
   { id: 'work',   color: '#007AFF', icon: 'briefcase' },
-  { id: 'other',  color: '#FF9500', icon: 'more-horizontal' },
+  { id: 'other',  color: '#AF52DE', icon: 'more-horizontal' },
 ]
 
 const ICON_RENAMES: Record<string, string> = {
@@ -69,6 +69,10 @@ export function migrateCategory(c: Partial<CategoryDef> & { id: string }): Categ
   let color = COLOR_RENAMES[rawColor] ?? rawColor
   // Reject malformed colors (anything not a 6-digit hex) — fall back to gray.
   if (!HEX_COLOR_RE.test(color)) color = '#8E8E93'
+  // One-time forced migration: older "other" defaults were orange. Move them
+  // to purple to match the new seed. Anyone who intentionally picked orange
+  // for "other" can re-pick after this lands.
+  if (c.id === 'other' && color === '#FF9500') color = '#AF52DE'
   const label =
     typeof c.label === 'string' && c.label.length > 0
       ? c.label.slice(0, MAX_CATEGORY_LABEL_LEN)

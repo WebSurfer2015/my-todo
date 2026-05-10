@@ -817,6 +817,18 @@ body {
   gap: 8px;
 }
 
+.title-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--label2);
+  letter-spacing: -0.2px;
+}
+.title-identity-name { color: var(--label); }
+.title-identity-sep { color: var(--label3); font-weight: 500; }
+
 .title-breadcrumb {
   display: inline-flex;
   align-items: baseline;
@@ -1286,6 +1298,7 @@ h1 { margin: 0; }
 
 .date-chip:hover { background: var(--fill); color: var(--label); }
 .date-chip.overdue { color: var(--red); font-weight: 600; }
+.date-chip.today { color: var(--orange); font-weight: 600; }
 .date-chip.no-date { color: var(--label3); font-style: italic; }
 .date-chip.no-date:hover { color: var(--label2); }
 

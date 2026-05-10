@@ -81,7 +81,9 @@ function TaskItem({
   const swipeableRef = useRef<Swipeable>(null)
   const [swipeOpen, setSwipeOpen] = useState(false)
 
-  const overdue = !!todo.dueDate && !todo.done && todo.dueDate < todayLocal()
+  const today = todayLocal()
+  const overdue = !!todo.dueDate && !todo.done && todo.dueDate < today
+  const isToday = !!todo.dueDate && !todo.done && todo.dueDate === today
   const cat = todo.category ? categories.find((c) => c.id === todo.category) : undefined
 
   useEffect(() => {
@@ -315,10 +317,16 @@ function TaskItem({
             >
               <Text style={[
                 styles.chipText,
-                overdue ? styles.chipTextOverdue : !todo.dueDate ? styles.chipTextMuted : styles.chipTextDate,
+                overdue
+                  ? styles.chipTextOverdue
+                  : isToday
+                    ? styles.chipTextToday
+                    : !todo.dueDate
+                      ? styles.chipTextMuted
+                      : styles.chipTextDate,
               ]}>
                 {todo.dueDate
-                  ? (overdue ? t.overdue : '') + formatDisplayDate(todo.dueDate, t.locale)
+                  ? formatDisplayDate(todo.dueDate, t.locale)
                   : t.noDate}
               </Text>
             </TouchableOpacity>
@@ -499,6 +507,10 @@ function makeStyles(c: ThemeColors, density: Density) {
     },
     chipTextOverdue: {
       color: c.red,
+      fontWeight: '600',
+    },
+    chipTextToday: {
+      color: c.orange,
       fontWeight: '600',
     },
     swipeContainer: {
