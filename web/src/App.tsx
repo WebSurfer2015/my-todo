@@ -55,6 +55,7 @@ export default function App() {
         onClick={() => setDrawerOpen(false)}
         aria-hidden="true"
       />
+      <div className="app-body">
       <Sidebar
         filter={store.filter}
         onFilter={store.setFilter}
@@ -201,6 +202,7 @@ export default function App() {
           )}
         </div>
       </main>
+      </div>
     </div>
   );
 }
