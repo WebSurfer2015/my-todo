@@ -44,18 +44,11 @@ export default function App() {
       className={`app-shell${drawerOpen ? " drawer-open" : ""}`}
       data-density={store.profile.density ?? "comfortable"}
     >
-      <MobileTopBar
-        drawerOpen={drawerOpen}
-        onToggleDrawer={() => setDrawerOpen((v) => !v)}
-        title={store.sectionLabel ?? store.appTitle}
-        subtitle={store.subtitle}
-      />
       <div
         className={`drawer-backdrop${drawerOpen ? " open" : ""}`}
         onClick={() => setDrawerOpen(false)}
         aria-hidden="true"
       />
-      <div className="app-body">
       <Sidebar
         filter={store.filter}
         onFilter={store.setFilter}
@@ -71,6 +64,12 @@ export default function App() {
         onSaveProfile={store.saveProfile}
       />
       <main className="content">
+        <MobileTopBar
+          drawerOpen={drawerOpen}
+          onToggleDrawer={() => setDrawerOpen((v) => !v)}
+          title={store.sectionLabel ?? store.appTitle}
+          subtitle={store.subtitle}
+        />
         {store.inTrashView && store.trashCount > 0 && (
           <div className="trash-actions">
             {store.selectedTrashIds.size > 0 ? (
@@ -202,7 +201,6 @@ export default function App() {
           )}
         </div>
       </main>
-      </div>
     </div>
   );
 }
