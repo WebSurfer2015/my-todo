@@ -1651,18 +1651,23 @@ h1 { margin: 0; }
   letter-spacing: 0.5px;
 }
 
-.signin-apple {
+.signin-providers {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+/* Shared social-button base */
+.signin-social {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
   width: 100%;
   height: 44px;
-  margin-top: 12px;
-  background: #000;
-  color: #fff;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;
@@ -1670,10 +1675,57 @@ h1 { margin: 0; }
   font-family: inherit;
   transition: opacity 0.15s;
 }
-.signin-apple:hover { opacity: 0.85; }
-.signin-apple:disabled { opacity: 0.5; cursor: not-allowed; }
+.signin-social:hover { opacity: 0.88; }
+.signin-social:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.signin-apple { background: #000; color: #fff; }
 @media (prefers-color-scheme: dark) {
   .signin-apple { background: #fff; color: #000; }
+}
+
+.signin-google {
+  background: #fff;
+  color: #1f1f1f;
+  border: 1px solid #dadce0;
+}
+@media (prefers-color-scheme: dark) {
+  .signin-google {
+    background: #131314;
+    color: #e3e3e3;
+    border-color: #5f6368;
+  }
+}
+
+.signin-facebook { background: #1877F2; color: #fff; }
+
+.signin-toggle-emphasis {
+  margin-top: 4px !important;
+  color: var(--label) !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+}
+
+/* Language picker — small select in top-right of the auth card */
+.signin-lang {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+  margin-top: -8px;
+}
+.signin-lang select {
+  background: transparent;
+  border: 1px solid var(--gray5);
+  color: var(--label2);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.signin-lang select:hover { border-color: var(--gray3); }
+.signin-lang select:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
 }
 
 .signin-toggle {

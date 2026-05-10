@@ -8,10 +8,14 @@ import {
   ReactNode,
 } from "react";
 import {
+  AuthProvider as FbAuthProvider,
   User,
+  UserCredential,
   createUserWithEmailAndPassword,
   deleteUser,
+  FacebookAuthProvider,
   getRedirectResult,
+  GoogleAuthProvider,
   onAuthStateChanged,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
@@ -44,6 +48,8 @@ export interface AuthApi {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, init?: SignUpInit) => Promise<void>;
   signInWithApple: () => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signInWithFacebook: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   /**
@@ -54,6 +60,57 @@ export interface AuthApi {
 }
 
 const AuthContext = createContext<AuthApi>(null!);
+
+/**
+ * If the user has no profile doc yet (first social sign-in), seed it with
+ * a name derived from the OAuth credential. Returning users are skipped.
+ */
+async function seedProfileIfMissing(cred: UserCredential): Promise<void> {
+  const profileRef = doc(db, stateDocPath(cred.user.uid, "profile"));
+  const snap = await getDoc(profileRef);
+  if (snap.exists()) return;
+  const display = cred.user.displayName?.trim() ?? "";
+  const [first, ...rest] = display.split(/\s+/).filter(Boolean);
+  const firstName =
+    first || cred.user.email?.split("@")[0] || SEED_PROFILE.name;
+  const lastName = rest.length > 0 ? rest.join(" ") : undefined;
+  const profile: Profile = {
+    ...SEED_PROFILE,
+    name: firstName.slice(0, MAX_PROFILE_NAME_LEN),
+    firstName: firstName.slice(0, MAX_PROFILE_NAME_LEN),
+    lastName,
+  };
+  await setDoc(profileRef, {
+    value: JSON.stringify({ version: 1, data: profile }),
+    updatedAt: Date.now(),
+  });
+}
+
+/**
+ * Run an OAuth provider sign-in via popup, falling back to redirect when the
+ * popup is blocked (Safari ITP, in-app browsers, strict cookie policies).
+ * Seeds a profile doc on first sign-in. Returns void in the redirect case
+ * because the page will navigate away.
+ */
+async function signInWithOAuthProvider(provider: FbAuthProvider): Promise<void> {
+  let cred: UserCredential;
+  try {
+    cred = await signInWithPopup(auth, provider);
+  } catch (err) {
+    const code = (err as { code?: string } | null)?.code ?? "";
+    if (
+      code === "auth/popup-blocked" ||
+      code === "auth/operation-not-supported-in-this-environment" ||
+      code === "auth/unauthorized-domain" ||
+      code === "auth/web-storage-unsupported"
+    ) {
+      await signInWithRedirect(auth, provider);
+      return;
+    }
+    throw err;
+  }
+  await seedProfileIfMissing(cred);
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -67,32 +124,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Complete signInWithRedirect handshake on page load (Safari ITP path).
-  // No-op when there's no pending redirect. If a credential comes back and
-  // the user has no profile doc yet, seed it the same way signInWithApple
-  // does for the popup path.
+  // No-op when there's no pending redirect. Profile-doc seed happens here
+  // for the redirect path (popup path seeds inline).
   useEffect(() => {
     let cancelled = false;
     getRedirectResult(auth)
       .then(async (cred) => {
         if (cancelled || !cred) return;
-        const profileRef = doc(db, stateDocPath(cred.user.uid, "profile"));
-        const snap = await getDoc(profileRef);
-        if (snap.exists()) return;
-        const display = cred.user.displayName?.trim() ?? "";
-        const [first, ...rest] = display.split(/\s+/).filter(Boolean);
-        const firstName =
-          first || cred.user.email?.split("@")[0] || SEED_PROFILE.name;
-        const lastName = rest.length > 0 ? rest.join(" ") : undefined;
-        const profile: Profile = {
-          ...SEED_PROFILE,
-          name: firstName.slice(0, MAX_PROFILE_NAME_LEN),
-          firstName: firstName.slice(0, MAX_PROFILE_NAME_LEN),
-          lastName,
-        };
-        await setDoc(profileRef, {
-          value: JSON.stringify({ version: 1, data: profile }),
-          updatedAt: Date.now(),
-        });
+        await seedProfileIfMissing(cred);
       })
       .catch((err) => {
         console.warn("getRedirectResult failed:", err);
@@ -136,49 +175,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const provider = new OAuthProvider("apple.com");
     provider.addScope("email");
     provider.addScope("name");
-    let cred;
-    try {
-      cred = await signInWithPopup(auth, provider);
-    } catch (err) {
-      // Safari with strict tracking prevention (ITP) blocks signInWithPopup
-      // for cross-origin OAuth. Fall back to redirect — user comes back here
-      // after Apple's login screen and getRedirectResult (in the effect
-      // below) finishes the handshake.
-      const code = (err as { code?: string } | null)?.code ?? "";
-      if (
-        code === "auth/popup-blocked" ||
-        code === "auth/operation-not-supported-in-this-environment" ||
-        code === "auth/unauthorized-domain" ||
-        code === "auth/web-storage-unsupported"
-      ) {
-        await signInWithRedirect(auth, provider);
-        return; // page will reload; profile-doc seeding happens in the
-                // redirect-result handler below
-      }
-      throw err;
-    }
-    // First-time Apple sign-in: seed a profile doc so the store doesn't get
-    // stuck waiting for non-existent data and so appTitle has a real name.
-    // Returning users (profile already exists) are skipped untouched.
-    const profileRef = doc(db, stateDocPath(cred.user.uid, "profile"));
-    const snap = await getDoc(profileRef);
-    if (!snap.exists()) {
-      const display = cred.user.displayName?.trim() ?? "";
-      const [first, ...rest] = display.split(/\s+/).filter(Boolean);
-      const firstName =
-        first || cred.user.email?.split("@")[0] || SEED_PROFILE.name;
-      const lastName = rest.length > 0 ? rest.join(" ") : undefined;
-      const profile: Profile = {
-        ...SEED_PROFILE,
-        name: firstName.slice(0, MAX_PROFILE_NAME_LEN),
-        firstName: firstName.slice(0, MAX_PROFILE_NAME_LEN),
-        lastName,
-      };
-      await setDoc(profileRef, {
-        value: JSON.stringify({ version: 1, data: profile }),
-        updatedAt: Date.now(),
-      });
-    }
+    await signInWithOAuthProvider(provider);
+  }, []);
+
+  const signInWithGoogle = useCallback(async () => {
+    const provider = new GoogleAuthProvider();
+    provider.addScope("email");
+    provider.addScope("profile");
+    await signInWithOAuthProvider(provider);
+  }, []);
+
+  const signInWithFacebook = useCallback(async () => {
+    const provider = new FacebookAuthProvider();
+    provider.addScope("email");
+    await signInWithOAuthProvider(provider);
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
@@ -224,8 +234,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthApi>(
-    () => ({ user, loading, signIn, signUp, signInWithApple, resetPassword, signOut, deleteAccount }),
-    [user, loading, signIn, signUp, signInWithApple, resetPassword, signOut, deleteAccount],
+    () => ({
+      user,
+      loading,
+      signIn,
+      signUp,
+      signInWithApple,
+      signInWithGoogle,
+      signInWithFacebook,
+      resetPassword,
+      signOut,
+      deleteAccount,
+    }),
+    [
+      user,
+      loading,
+      signIn,
+      signUp,
+      signInWithApple,
+      signInWithGoogle,
+      signInWithFacebook,
+      resetPassword,
+      signOut,
+      deleteAccount,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

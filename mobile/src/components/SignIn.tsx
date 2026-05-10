@@ -9,20 +9,32 @@ import {
   Platform,
   ActivityIndicator,
   Image,
+  ScrollView,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useAuth } from "../AuthContext";
 import { useLang } from "../LangContext";
 import { useTheme, ThemeColors } from "../theme";
+import { Lang, LANG_NAMES, LANG_ORDER } from "../../../core/src/i18n";
+
+type Mode = "social" | "signin" | "signup" | "reset";
 
 export default function SignIn() {
   const { t } = useLang();
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
-  const { signIn, signUp, signInWithApple, resetPassword, appleAvailable } =
-    useAuth();
-  const [mode, setMode] = useState<"signin" | "signup" | "reset">("signin");
+  const {
+    signIn,
+    signUp,
+    signInWithApple,
+    signInWithGoogle,
+    signInWithFacebook,
+    resetPassword,
+    appleAvailable,
+  } = useAuth();
+  const [mode, setMode] = useState<Mode>("social");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -31,7 +43,7 @@ export default function SignIn() {
   const [error, setError] = useState<string | null>(null);
   const [resetSent, setResetSent] = useState(false);
 
-  function switchMode(next: "signin" | "signup" | "reset") {
+  function switchMode(next: Mode) {
     setError(null);
     setResetSent(false);
     setMode(next);
@@ -49,7 +61,7 @@ export default function SignIn() {
         await signIn(email.trim(), password);
       } else if (mode === "signup") {
         await signUp(email.trim(), password, { firstName, lastName });
-      } else {
+      } else if (mode === "reset") {
         await resetPassword(email.trim());
         setResetSent(true);
       }
@@ -60,17 +72,22 @@ export default function SignIn() {
     }
   }
 
-  async function handleApple() {
+  async function withProvider(fn: () => Promise<void>) {
     setError(null);
     setBusy(true);
     try {
-      await signInWithApple();
+      await fn();
     } catch (err) {
-      // User cancellation throws code "ERR_REQUEST_CANCELED"; suppress.
       const code = (err as { code?: string } | null)?.code;
-      if (code !== "ERR_REQUEST_CANCELED") {
-        setError(err instanceof Error ? err.message : String(err));
+      // suppress user-cancellation across all 3 SDKs
+      if (
+        code === "ERR_REQUEST_CANCELED" ||
+        code === "SIGN_IN_CANCELLED" ||
+        code === "12501" /* Google Android cancel */
+      ) {
+        return;
       }
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
@@ -82,166 +99,277 @@ export default function SignIn() {
         style={styles.kb}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={styles.card}>
-          <Image
-            source={require("../../assets/icon.png")}
-            style={styles.icon}
-            accessibilityLabel="My Todo"
-          />
-          <Text style={styles.title}>My Todo</Text>
-          <Text style={styles.subtitle}>
-            {mode === "reset" ? t.resetPasswordPrompt : "Get things done"}
-          </Text>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.card}>
+            <LangPicker theme={theme} />
 
-          {mode === "signup" && (
-            <View style={styles.fieldRow}>
-              <View style={[styles.field, styles.fieldHalf]}>
-                <Text style={styles.label}>
-                  {t.profileFirstNameLabel}
-                  <Text style={styles.required}> *</Text>
-                </Text>
-                <TextInput
-                  style={styles.input}
-                  value={firstName}
-                  onChangeText={setFirstName}
-                  autoComplete="given-name"
-                  autoCapitalize="words"
-                  maxLength={40}
-                  editable={!busy}
-                />
-              </View>
-              <View style={[styles.field, styles.fieldHalf]}>
-                <Text style={styles.label}>{t.profileLastNameLabel}</Text>
-                <TextInput
-                  style={styles.input}
-                  value={lastName}
-                  onChangeText={setLastName}
-                  autoComplete="family-name"
-                  autoCapitalize="words"
-                  maxLength={40}
-                  editable={!busy}
-                />
-              </View>
-            </View>
-          )}
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              autoComplete="email"
-              keyboardType="email-address"
-              editable={!busy}
+            <Image
+              source={require("../../assets/icon.png")}
+              style={styles.icon}
+              accessibilityLabel="My Todo"
             />
-          </View>
-
-          {mode !== "reset" && (
-            <View style={styles.field}>
-              <Text style={styles.label}>Password</Text>
-              <TextInput
-                style={styles.input}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                autoComplete={
-                  mode === "signin" ? "current-password" : "new-password"
-                }
-                editable={!busy}
-              />
-            </View>
-          )}
-
-          {error && <Text style={styles.error}>{error}</Text>}
-          {resetSent && mode === "reset" && (
-            <Text style={styles.success}>{t.resetEmailSent}</Text>
-          )}
-
-          <TouchableOpacity
-            style={[styles.submit, busy && styles.submitDisabled]}
-            onPress={submit}
-            disabled={busy}
-            activeOpacity={0.8}
-          >
-            {busy ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.submitText}>
-                {mode === "signin"
-                  ? "Sign in"
-                  : mode === "signup"
-                    ? "Create account"
-                    : t.sendResetEmail}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          {mode === "signin" && (
-            <TouchableOpacity
-              style={styles.toggle}
-              onPress={() => switchMode("reset")}
-            >
-              <Text style={styles.toggleText}>{t.forgotPassword}</Text>
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={styles.toggle}
-            onPress={() =>
-              switchMode(
-                mode === "reset"
-                  ? "signin"
-                  : mode === "signin"
-                    ? "signup"
-                    : "signin",
-              )
-            }
-          >
-            <Text style={styles.toggleText}>
-              {mode === "reset"
-                ? t.backToSignIn
-                : mode === "signin"
-                  ? "Don't have an account? Create one"
-                  : "Already have an account? Sign in"}
+            <Text style={styles.title}>My Todo</Text>
+            <Text style={styles.subtitle}>
+              {mode === "reset" ? t.resetPasswordPrompt : "Get things done"}
             </Text>
-          </TouchableOpacity>
 
-          {mode !== "reset" && appleAvailable && (
-            <View style={styles.appleSection}>
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>or</Text>
-                <View style={styles.dividerLine} />
+            {/* SOCIAL PROVIDERS — Apple, Google, Facebook */}
+            {mode !== "reset" && mode === "social" && (
+              <View style={styles.providers}>
+                {appleAvailable && (
+                  <AppleAuthentication.AppleAuthenticationButton
+                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                    buttonStyle={
+                      theme.bg === "#000000"
+                        ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                        : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+                    }
+                    cornerRadius={10}
+                    style={styles.appleButton}
+                    onPress={() => withProvider(signInWithApple)}
+                  />
+                )}
+
+                <TouchableOpacity
+                  style={[styles.socialBtn, styles.googleBtn]}
+                  onPress={() => withProvider(signInWithGoogle)}
+                  disabled={busy}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.googleText}>Sign in with Google</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.socialBtn, styles.facebookBtn]}
+                  onPress={() => withProvider(signInWithFacebook)}
+                  disabled={busy}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.facebookText}>Sign in with Facebook</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.toggle}
+                  onPress={() => switchMode("signin")}
+                  disabled={busy}
+                >
+                  <Text style={styles.toggleEmphasis}>Sign in with email</Text>
+                </TouchableOpacity>
               </View>
-              <AppleAuthentication.AppleAuthenticationButton
-                buttonType={
-                  mode === "signin"
-                    ? AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
-                    : AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP
-                }
-                buttonStyle={
-                  theme.bg === "#000000"
-                    ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
-                    : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
-                }
-                cornerRadius={10}
-                style={styles.appleButton}
-                onPress={handleApple}
-              />
-            </View>
-          )}
-        </View>
+            )}
+
+            {/* EMAIL FORM */}
+            {mode !== "social" && (
+              <>
+                {mode === "signup" && (
+                  <View style={styles.fieldRow}>
+                    <View style={[styles.field, styles.fieldHalf]}>
+                      <Text style={styles.label}>
+                        {t.profileFirstNameLabel}
+                        <Text style={styles.required}> *</Text>
+                      </Text>
+                      <TextInput
+                        style={styles.input}
+                        value={firstName}
+                        onChangeText={setFirstName}
+                        autoComplete="given-name"
+                        autoCapitalize="words"
+                        maxLength={40}
+                        editable={!busy}
+                      />
+                    </View>
+                    <View style={[styles.field, styles.fieldHalf]}>
+                      <Text style={styles.label}>{t.profileLastNameLabel}</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={lastName}
+                        onChangeText={setLastName}
+                        autoComplete="family-name"
+                        autoCapitalize="words"
+                        maxLength={40}
+                        editable={!busy}
+                      />
+                    </View>
+                  </View>
+                )}
+
+                <View style={styles.field}>
+                  <Text style={styles.label}>Email</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={email}
+                    onChangeText={setEmail}
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    keyboardType="email-address"
+                    editable={!busy}
+                  />
+                </View>
+
+                {mode !== "reset" && (
+                  <View style={styles.field}>
+                    <Text style={styles.label}>Password</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={password}
+                      onChangeText={setPassword}
+                      secureTextEntry
+                      autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                      editable={!busy}
+                    />
+                  </View>
+                )}
+
+                {error && <Text style={styles.error}>{error}</Text>}
+                {resetSent && mode === "reset" && (
+                  <Text style={styles.success}>{t.resetEmailSent}</Text>
+                )}
+
+                <TouchableOpacity
+                  style={[styles.submit, busy && styles.submitDisabled]}
+                  onPress={submit}
+                  disabled={busy}
+                  activeOpacity={0.8}
+                >
+                  {busy ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.submitText}>
+                      {mode === "signin"
+                        ? "Sign in"
+                        : mode === "signup"
+                          ? "Create account"
+                          : t.sendResetEmail}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+
+                {mode === "signin" && (
+                  <TouchableOpacity
+                    style={styles.toggle}
+                    onPress={() => switchMode("reset")}
+                  >
+                    <Text style={styles.toggleText}>{t.forgotPassword}</Text>
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity
+                  style={styles.toggle}
+                  onPress={() =>
+                    switchMode(
+                      mode === "reset"
+                        ? "signin"
+                        : mode === "signin"
+                          ? "signup"
+                          : "signin",
+                    )
+                  }
+                >
+                  <Text style={styles.toggleText}>
+                    {mode === "reset"
+                      ? t.backToSignIn
+                      : mode === "signin"
+                        ? "Don't have an account? Create one"
+                        : "Already have an account? Sign in"}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.toggle}
+                  onPress={() => switchMode("social")}
+                >
+                  <Text style={styles.toggleText}>← Back to all sign-in options</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
+/** Tap to open a Modal listing all 6 languages. Selecting one persists via LangContext. */
+function LangPicker({ theme }: { theme: ThemeColors }) {
+  const { lang, setLang } = useLang();
+  const [open, setOpen] = useState(false);
+  const styles = useMemo(() => makeLangPickerStyles(theme), [theme]);
+  return (
+    <View style={styles.container}>
+      <TouchableOpacity
+        onPress={() => setOpen(true)}
+        style={styles.btn}
+        accessibilityLabel="Language"
+      >
+        <Text style={styles.btnText}>{LANG_NAMES[lang]} ▾</Text>
+      </TouchableOpacity>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <TouchableOpacity
+          style={styles.backdrop}
+          onPress={() => setOpen(false)}
+          activeOpacity={1}
+        >
+          <View style={styles.sheet} onStartShouldSetResponder={() => true}>
+            {LANG_ORDER.map((l) => (
+              <TouchableOpacity
+                key={l}
+                style={styles.row}
+                onPress={() => {
+                  setLang(l as Lang);
+                  setOpen(false);
+                }}
+              >
+                <Text style={[styles.rowText, l === lang && styles.rowTextActive]}>
+                  {LANG_NAMES[l]}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
+}
+
+function makeLangPickerStyles(c: ThemeColors) {
+  return StyleSheet.create({
+    container: { alignSelf: "flex-end", marginBottom: 8, marginTop: -8 },
+    btn: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 8,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.separator,
+    },
+    btnText: { color: c.label2, fontSize: 12 },
+    backdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.4)",
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 32,
+    },
+    sheet: {
+      backgroundColor: c.modal,
+      borderRadius: 14,
+      paddingVertical: 8,
+      width: "100%",
+      maxWidth: 280,
+    },
+    row: { paddingVertical: 12, paddingHorizontal: 16 },
+    rowText: { fontSize: 16, color: c.label, textAlign: "center" },
+    rowTextActive: { color: c.blue, fontWeight: "600" },
+  });
+}
+
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: c.bg },
-    kb: { flex: 1, justifyContent: "center", paddingHorizontal: 24 },
+    kb: { flex: 1 },
+    scroll: { flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingVertical: 24 },
     card: {
       backgroundColor: c.card,
       borderRadius: 14,
@@ -274,6 +402,24 @@ function makeStyles(c: ThemeColors) {
       marginBottom: 20,
       textAlign: "center",
     },
+    providers: { gap: 10 },
+    appleButton: { width: "100%", height: 44 },
+    socialBtn: {
+      width: "100%",
+      height: 44,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    googleBtn: {
+      backgroundColor: "#FFFFFF",
+      borderWidth: 1,
+      borderColor: "#dadce0",
+    },
+    googleText: { color: "#1f1f1f", fontSize: 15, fontWeight: "500" },
+    facebookBtn: { backgroundColor: "#1877F2" },
+    facebookText: { color: "#fff", fontSize: 15, fontWeight: "500" },
+    toggleEmphasis: { color: c.label, fontSize: 14, fontWeight: "500" },
     field: { marginBottom: 12 },
     fieldRow: { flexDirection: "row", gap: 10 },
     fieldHalf: { flex: 1 },
@@ -325,22 +471,5 @@ function makeStyles(c: ThemeColors) {
     submitText: { color: "#fff", fontSize: 15, fontWeight: "600" },
     toggle: { marginTop: 14, alignItems: "center", padding: 6 },
     toggleText: { color: c.blue, fontSize: 13 },
-    appleSection: { marginTop: 16 },
-    divider: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 12,
-    },
-    dividerLine: {
-      flex: 1,
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: c.separator,
-    },
-    dividerText: {
-      marginHorizontal: 10,
-      color: c.label2,
-      fontSize: 12,
-    },
-    appleButton: { width: "100%", height: 44 },
   });
 }

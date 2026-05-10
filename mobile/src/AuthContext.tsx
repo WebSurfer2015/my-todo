@@ -12,6 +12,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   FirebaseAuthTypes,
   AppleAuthProvider,
+  FacebookAuthProvider,
+  GoogleAuthProvider,
   createUserWithEmailAndPassword,
   deleteUser,
   onAuthStateChanged,
@@ -23,6 +25,8 @@ import {
 import { deleteDoc, doc, getDoc, setDoc } from "@react-native-firebase/firestore";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
+import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
+import { LoginManager, AccessToken, Profile as FBProfile } from "react-native-fbsdk-next";
 import { auth, db } from "./firebase";
 import { stateDocPath } from "../../core/src/persistence";
 import { Profile, SEED_PROFILE, MAX_PROFILE_NAME_LEN } from "../../core/src/profile";
@@ -49,6 +53,8 @@ export interface AuthApi {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, init?: SignUpInit) => Promise<void>;
   signInWithApple: () => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signInWithFacebook: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   /**
@@ -78,6 +84,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then(setAppleAvailable)
       .catch(() => setAppleAvailable(false));
   }, []);
+
+  // Configure Google Sign-In once on mount. webClientId comes from the
+  // Firebase project's auto-generated Google OAuth client (visible in
+  // Firebase Console → Authentication → Google → Web SDK configuration).
+  // The native iOS client is read from GoogleService-Info.plist
+  // automatically, so iosClientId isn't required here.
+  useEffect(() => {
+    GoogleSignin.configure({
+      // Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID before building, or hard-code
+      // the value here. Without it Google sign-in will fail with
+      // DEVELOPER_ERROR on Android (iOS works via plist).
+      webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+      offlineAccess: false,
+    });
+  }, []);
+
+  /** Helper: seed profile doc if missing (matches Apple/email flow). */
+  const seedProfileFromCred = useCallback(
+    async (
+      cred: FirebaseAuthTypes.UserCredential,
+      hint?: { firstName?: string; lastName?: string },
+    ) => {
+      const profileRef = doc(db, stateDocPath(cred.user.uid, "profile"));
+      const snap = await getDoc(profileRef);
+      if (snap.exists()) return;
+      const display = cred.user.displayName?.trim() ?? "";
+      const [first, ...rest] = display.split(/\s+/).filter(Boolean);
+      const firstName =
+        hint?.firstName?.trim() ||
+        first ||
+        cred.user.email?.split("@")[0] ||
+        SEED_PROFILE.name;
+      const lastName =
+        hint?.lastName?.trim() ||
+        (rest.length > 0 ? rest.join(" ") : undefined);
+      const profile: Profile = {
+        ...SEED_PROFILE,
+        name: firstName.slice(0, MAX_PROFILE_NAME_LEN),
+        firstName: firstName.slice(0, MAX_PROFILE_NAME_LEN),
+        lastName,
+      };
+      await setDoc(profileRef, {
+        value: JSON.stringify({ version: 1, data: profile }),
+        updatedAt: Date.now(),
+      });
+    },
+    [],
+  );
 
   const signIn = useCallback(async (email: string, password: string) => {
     await signInWithEmailAndPassword(auth, email, password);
@@ -161,6 +215,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const signInWithGoogle = useCallback(async () => {
+    try {
+      await GoogleSignin.hasPlayServices();
+      const result = await GoogleSignin.signIn();
+      // SDK v16+ returns { type: 'success' | 'cancelled', data: { idToken, ... } }
+      if (result.type === "cancelled") return;
+      const idToken = result.data?.idToken;
+      if (!idToken) throw new Error("Google Sign-In returned no idToken");
+      const fbCredential = GoogleAuthProvider.credential(idToken);
+      const cred = await signInWithCredential(auth, fbCredential);
+      const givenName = result.data?.user?.givenName ?? undefined;
+      const familyName = result.data?.user?.familyName ?? undefined;
+      await seedProfileFromCred(cred, { firstName: givenName, lastName: familyName });
+    } catch (err) {
+      const code = (err as { code?: string } | null)?.code;
+      // Cancelled or "in progress" are benign; let UI suppress.
+      if (
+        code === statusCodes.SIGN_IN_CANCELLED ||
+        code === statusCodes.IN_PROGRESS
+      ) {
+        return;
+      }
+      throw err;
+    }
+  }, [seedProfileFromCred]);
+
+  const signInWithFacebook = useCallback(async () => {
+    const result = await LoginManager.logInWithPermissions(["public_profile", "email"]);
+    if (result.isCancelled) return;
+    const tokenData = await AccessToken.getCurrentAccessToken();
+    if (!tokenData) throw new Error("Facebook Sign-In returned no access token");
+    const fbCredential = FacebookAuthProvider.credential(tokenData.accessToken);
+    const cred = await signInWithCredential(auth, fbCredential);
+    // Try to enrich the profile seed with Facebook's first/last name.
+    const fbProfile = await FBProfile.getCurrentProfile().catch(() => null);
+    await seedProfileFromCred(cred, {
+      firstName: fbProfile?.firstName ?? undefined,
+      lastName: fbProfile?.lastName ?? undefined,
+    });
+  }, [seedProfileFromCred]);
+
   const resetPassword = useCallback(async (email: string) => {
     await sendPasswordResetEmail(auth, email);
   }, []);
@@ -209,6 +304,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn,
       signUp,
       signInWithApple,
+      signInWithGoogle,
+      signInWithFacebook,
       resetPassword,
       signOut,
       deleteAccount,
@@ -220,6 +317,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn,
       signUp,
       signInWithApple,
+      signInWithGoogle,
+      signInWithFacebook,
       resetPassword,
       signOut,
       deleteAccount,

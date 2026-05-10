@@ -320,7 +320,7 @@ export default function Sidebar({
   profile,
   onSaveProfile,
 }: Props) {
-  const { t, lang, toggle: toggleLang } = useLang();
+  const { t } = useLang();
   const { signOut } = useAuth();
   const [popover, setPopover] = useState<
     { mode: "add" } | { mode: "edit"; id: string } | null
@@ -461,21 +461,6 @@ export default function Sidebar({
         />
       </nav>
 
-      <div className="sidebar-footer">
-        <button
-          className={`sidebar-lang${lang === "en" ? " active" : ""}`}
-          onClick={() => lang !== "en" && toggleLang()}
-        >
-          EN
-        </button>
-        <span className="sidebar-lang-sep">·</span>
-        <button
-          className={`sidebar-lang${lang === "zh" ? " active" : ""}`}
-          onClick={() => lang !== "zh" && toggleLang()}
-        >
-          中文
-        </button>
-      </div>
       <div className="signout-row">
         <button type="button" onClick={() => signOut()}>
           {t.signOut}

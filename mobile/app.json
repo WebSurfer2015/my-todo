@@ -63,7 +63,9 @@
         }
       ],
       "./plugins/withFmtCxx17",
-      "@react-native-firebase/crashlytics"
+      "@react-native-firebase/crashlytics",
+      "@react-native-google-signin/google-signin",
+      "react-native-fbsdk-next"
     ],
     "extra": {
       "eas": {

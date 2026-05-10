@@ -18,19 +18,24 @@ function collectPaths(obj: unknown, prefix = ''): string[] {
 }
 
 describe('i18n parity', () => {
-  it('zh has every key that en has (no missing translations)', () => {
-    const enKeys = new Set(collectPaths(strings.en))
-    const zhKeys = new Set(collectPaths(strings.zh))
-    const missingInZh: string[] = []
-    for (const k of enKeys) if (!zhKeys.has(k)) missingInZh.push(k)
-    expect(missingInZh).toEqual([])
-  })
+  const enKeys = new Set(collectPaths(strings.en))
+  const otherLangs = (Object.keys(strings) as Array<keyof typeof strings>).filter(
+    (l) => l !== 'en',
+  )
 
-  it('zh has no extra keys not in en (would be silently unused)', () => {
-    const enKeys = new Set(collectPaths(strings.en))
-    const zhKeys = new Set(collectPaths(strings.zh))
-    const extraInZh: string[] = []
-    for (const k of zhKeys) if (!enKeys.has(k)) extraInZh.push(k)
-    expect(extraInZh).toEqual([])
-  })
+  for (const lang of otherLangs) {
+    it(`${lang} has every key that en has (no missing translations)`, () => {
+      const langKeys = new Set(collectPaths(strings[lang]))
+      const missing: string[] = []
+      for (const k of enKeys) if (!langKeys.has(k)) missing.push(k)
+      expect(missing, `Missing in ${lang}: ${missing.join(', ')}`).toEqual([])
+    })
+
+    it(`${lang} has no extra keys not in en (would be silently unused)`, () => {
+      const langKeys = new Set(collectPaths(strings[lang]))
+      const extra: string[] = []
+      for (const k of langKeys) if (!enKeys.has(k)) extra.push(k)
+      expect(extra, `Extra in ${lang}: ${extra.join(', ')}`).toEqual([])
+    })
+  }
 })

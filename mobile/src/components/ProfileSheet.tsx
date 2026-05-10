@@ -39,7 +39,7 @@ export default function ProfileSheet({
   onSave,
   onClose,
 }: Props) {
-  const { t, lang, toggle: toggleLang } = useLang();
+  const { t } = useLang();
   const { showSnackbar } = useNotify();
   const { signOut, deleteAccount } = useAuth();
   const theme = useTheme();
@@ -124,7 +124,7 @@ export default function ProfileSheet({
   }
 
   function openAvatarPicker() {
-    const cancelLabel = lang === "en" ? "Cancel" : "取消";
+    const cancelLabel = t.cancel;
     if (Platform.OS === "ios") {
       ActionSheetIOS.showActionSheetWithOptions(
         {
@@ -247,44 +247,6 @@ export default function ProfileSheet({
                 maxLength={24}
               />
               <Text style={styles.helper}>{t.profileGreetingHelper}</Text>
-            </View>
-
-            <View style={styles.field}>
-              <Text style={styles.label}>{t.languageLabel}</Text>
-              <View style={styles.langRow}>
-                <TouchableOpacity
-                  style={[
-                    styles.langBtn,
-                    lang === "en" && styles.langBtnActive,
-                  ]}
-                  onPress={() => lang !== "en" && toggleLang()}
-                >
-                  <Text
-                    style={[
-                      styles.langBtnText,
-                      lang === "en" && styles.langBtnTextActive,
-                    ]}
-                  >
-                    EN
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.langBtn,
-                    lang === "zh" && styles.langBtnActive,
-                  ]}
-                  onPress={() => lang !== "zh" && toggleLang()}
-                >
-                  <Text
-                    style={[
-                      styles.langBtnText,
-                      lang === "zh" && styles.langBtnTextActive,
-                    ]}
-                  >
-                    中文
-                  </Text>
-                </TouchableOpacity>
-              </View>
             </View>
 
             <View style={styles.field}>
