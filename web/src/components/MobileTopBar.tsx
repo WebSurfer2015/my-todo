@@ -22,7 +22,12 @@ export default function MobileTopBar({ drawerOpen, onToggleDrawer, title, subtit
       </button>
       <div className="mobile-topbar-title">
         <span className="mobile-topbar-current">{title}</span>
-        {subtitle ? <span className="mobile-topbar-subtitle">{subtitle}</span> : null}
+        {subtitle ? (
+          <>
+            <span className="mobile-topbar-sep" aria-hidden="true">·</span>
+            <span className="mobile-topbar-subtitle">{subtitle}</span>
+          </>
+        ) : null}
       </div>
     </header>
   )

@@ -654,8 +654,9 @@ body {
 .mobile-topbar-btn:active { background: var(--fill); }
 .mobile-topbar-title {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
   line-height: 1.15;
   overflow: hidden;
   min-width: 0;
@@ -667,17 +668,22 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 100%;
+  flex-shrink: 0;
+}
+.mobile-topbar-sep {
+  color: var(--label3);
+  font-size: 13px;
+  font-weight: 500;
+  flex-shrink: 0;
 }
 .mobile-topbar-subtitle {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--label2);
-  margin-top: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 100%;
+  min-width: 0;
 }
 /* Hamburger only useful when sidebar is collapsed (mobile/narrow). On desktop
    the sidebar is always visible, so hide the toggle button. */
