@@ -674,14 +674,30 @@ body {
     color: var(--label2);
     font-weight: 500;
   }
-  .mobile-topbar-current {
-    font-size: 17px;
-    font-weight: 700;
+  .mobile-topbar-identity {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 600;
     color: var(--label);
+    line-height: 1.1;
+  }
+  .mobile-topbar-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 160px;
+  }
+  .mobile-topbar-current {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--label2);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     max-width: 100%;
+    margin-top: 1px;
   }
   .mobile-topbar-spacer { width: 40px; flex-shrink: 0; }
 

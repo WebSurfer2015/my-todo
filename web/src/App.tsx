@@ -65,8 +65,8 @@ export default function App() {
       <MobileTopBar
         drawerOpen={drawerOpen}
         onToggleDrawer={() => setDrawerOpen((v) => !v)}
-        title={store.sectionLabel ?? store.appTitle}
-        parent={store.sectionLabel ? store.appTitle : undefined}
+        profile={store.profile}
+        title={store.sectionLabel ?? store.displayTitle}
       />
       <div
         className={`drawer-backdrop${drawerOpen ? " open" : ""}`}
