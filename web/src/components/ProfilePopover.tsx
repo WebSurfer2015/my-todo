@@ -16,21 +16,19 @@ export default function ProfilePopover({ profile, onSave, onClose }: Props) {
   const { t } = useLang()
   const { deleteAccount } = useAuth()
   const { confirm, showSnackbar } = useNotify()
-  const [name, setName] = useState(profile.name)
   const [firstName, setFirstName] = useState(profile.firstName ?? '')
   const [lastName, setLastName] = useState(profile.lastName ?? '')
-  const [title, setTitle] = useState(profile.title ?? '')
   const [quote, setQuote] = useState(profile.quote ?? '')
   const [avatar, setAvatar] = useState<Avatar>(profile.avatar)
   const [density, setDensity] = useState<Density>(profile.density ?? 'comfortable')
   const [uploading, setUploading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
-  const nameRef = useRef<HTMLInputElement>(null)
+  const firstNameRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    nameRef.current?.focus()
-    nameRef.current?.select()
+    firstNameRef.current?.focus()
+    firstNameRef.current?.select()
   }, [])
 
   useEffect(() => {
@@ -55,16 +53,20 @@ export default function ProfilePopover({ profile, onSave, onClose }: Props) {
   }
 
   function handleSave() {
-    const trimmed = name.trim()
-    if (!trimmed) {
-      nameRef.current?.focus()
+    const trimmedFirst = firstName.trim()
+    if (!trimmedFirst) {
+      firstNameRef.current?.focus()
       return
     }
+    const trimmedLast = lastName.trim()
     onSave({
-      name: trimmed,
-      firstName: firstName.trim() || undefined,
-      lastName: lastName.trim() || undefined,
-      title: title.trim() || undefined,
+      // name field is no longer user-editable; auto-derive from firstName so
+      // greeting fallbacks and existing aria labels still have a value.
+      name: trimmedFirst,
+      firstName: trimmedFirst,
+      lastName: trimmedLast || undefined,
+      // title is hidden in the editor; preserve existing value untouched.
+      title: profile.title,
       quote: quote.trim() || undefined,
       avatar,
       density,
@@ -103,7 +105,7 @@ export default function ProfilePopover({ profile, onSave, onClose }: Props) {
         <h3 className="modal-title">{t.editProfile}</h3>
 
         <div className="modal-field profile-avatar-row">
-          <AvatarView avatar={avatar} size={64} alt={name} />
+          <AvatarView avatar={avatar} size={64} alt={firstName || profile.name} />
           <div className="profile-upload-actions">
             <button
               type="button"
@@ -141,27 +143,21 @@ export default function ProfilePopover({ profile, onSave, onClose }: Props) {
           </div>
         </div>
 
-        <label className="modal-field">
-          <span className="modal-label">{t.profileNameLabel}</span>
-          <input
-            ref={nameRef}
-            className="modal-input"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleSave() }}
-            maxLength={40}
-          />
-        </label>
-
         <div className="modal-field-row">
           <label className="modal-field">
-            <span className="modal-label">{t.profileFirstNameLabel}</span>
+            <span className="modal-label">
+              {t.profileFirstNameLabel}
+              <span className="signin-required"> *</span>
+            </span>
             <input
+              ref={firstNameRef}
               className="modal-input"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSave() }}
               maxLength={40}
               autoComplete="given-name"
+              required
             />
           </label>
           <label className="modal-field">
@@ -175,18 +171,6 @@ export default function ProfilePopover({ profile, onSave, onClose }: Props) {
             />
           </label>
         </div>
-
-        <label className="modal-field">
-          <span className="modal-label">{t.profileTitleLabel}</span>
-          <input
-            className="modal-input"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleSave() }}
-            placeholder={t.profileTitlePlaceholder}
-            maxLength={40}
-          />
-        </label>
 
         <label className="modal-field">
           <span className="modal-label">{t.profileQuoteLabel}</span>

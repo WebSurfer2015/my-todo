@@ -5,10 +5,10 @@ interface Props {
   drawerOpen: boolean
   onToggleDrawer: () => void
   title: string
-  parent?: string
+  subtitle?: string
 }
 
-export default function MobileTopBar({ drawerOpen, onToggleDrawer, title, parent }: Props) {
+export default function MobileTopBar({ drawerOpen, onToggleDrawer, title, subtitle }: Props) {
   const { t } = useLang()
   return (
     <header className="mobile-topbar">
@@ -21,10 +21,9 @@ export default function MobileTopBar({ drawerOpen, onToggleDrawer, title, parent
         {drawerOpen ? <X size={22} strokeWidth={2.2} /> : <Menu size={22} strokeWidth={2.2} />}
       </button>
       <div className="mobile-topbar-title">
-        {parent ? <span className="mobile-topbar-parent">{parent}</span> : null}
         <span className="mobile-topbar-current">{title}</span>
+        {subtitle ? <span className="mobile-topbar-subtitle">{subtitle}</span> : null}
       </div>
-      <span className="mobile-topbar-spacer" />
     </header>
   )
 }

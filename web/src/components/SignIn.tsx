@@ -10,7 +10,6 @@ export default function SignIn() {
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [profileName, setProfileName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +23,6 @@ export default function SignIn() {
         await signUp(email.trim(), password, {
           firstName,
           lastName,
-          profileName,
         });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -61,48 +59,34 @@ export default function SignIn() {
         <p className="signin-subtitle">Get things done</p>
         <form onSubmit={submit} className="signin-form">
           {mode === "signup" && (
-            <>
-              <div className="signin-field-row">
-                <label className="signin-field">
-                  <span className="signin-label">{t.profileFirstNameLabel}</span>
-                  <input
-                    type="text"
-                    autoComplete="given-name"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    disabled={busy}
-                    maxLength={40}
-                  />
-                </label>
-                <label className="signin-field">
-                  <span className="signin-label">{t.profileLastNameLabel}</span>
-                  <input
-                    type="text"
-                    autoComplete="family-name"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    disabled={busy}
-                    maxLength={40}
-                  />
-                </label>
-              </div>
+            <div className="signin-field-row">
               <label className="signin-field">
                 <span className="signin-label">
-                  {t.profileNameLabel}
+                  {t.profileFirstNameLabel}
                   <span className="signin-required"> *</span>
                 </span>
                 <input
                   type="text"
-                  autoComplete="nickname"
+                  autoComplete="given-name"
                   required
-                  value={profileName}
-                  onChange={(e) => setProfileName(e.target.value)}
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
                   disabled={busy}
                   maxLength={40}
-                  placeholder={firstName || "Alex"}
                 />
               </label>
-            </>
+              <label className="signin-field">
+                <span className="signin-label">{t.profileLastNameLabel}</span>
+                <input
+                  type="text"
+                  autoComplete="family-name"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  disabled={busy}
+                  maxLength={40}
+                />
+              </label>
+            </div>
           )}
           <label className="signin-field">
             <span className="signin-label">Email</span>

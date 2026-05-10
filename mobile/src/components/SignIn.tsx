@@ -26,11 +26,14 @@ export default function SignIn() {
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [profileName, setProfileName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function submit() {
+    if (mode === "signup" && !firstName.trim()) {
+      setError("First name is required");
+      return;
+    }
     setError(null);
     setBusy(true);
     try {
@@ -39,7 +42,6 @@ export default function SignIn() {
         await signUp(email.trim(), password, {
           firstName,
           lastName,
-          profileName,
         });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -80,51 +82,35 @@ export default function SignIn() {
           <Text style={styles.subtitle}>Get things done</Text>
 
           {mode === "signup" && (
-            <>
-              <View style={styles.fieldRow}>
-                <View style={[styles.field, styles.fieldHalf]}>
-                  <Text style={styles.label}>{t.profileFirstNameLabel}</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={firstName}
-                    onChangeText={setFirstName}
-                    autoComplete="given-name"
-                    autoCapitalize="words"
-                    maxLength={40}
-                    editable={!busy}
-                  />
-                </View>
-                <View style={[styles.field, styles.fieldHalf]}>
-                  <Text style={styles.label}>{t.profileLastNameLabel}</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={lastName}
-                    onChangeText={setLastName}
-                    autoComplete="family-name"
-                    autoCapitalize="words"
-                    maxLength={40}
-                    editable={!busy}
-                  />
-                </View>
-              </View>
-              <View style={styles.field}>
+            <View style={styles.fieldRow}>
+              <View style={[styles.field, styles.fieldHalf]}>
                 <Text style={styles.label}>
-                  {t.profileNameLabel}
+                  {t.profileFirstNameLabel}
                   <Text style={styles.required}> *</Text>
                 </Text>
                 <TextInput
                   style={styles.input}
-                  value={profileName}
-                  onChangeText={setProfileName}
-                  autoComplete="nickname"
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  autoComplete="given-name"
                   autoCapitalize="words"
                   maxLength={40}
-                  placeholder={firstName || "Alex"}
-                  placeholderTextColor={theme.gray3}
                   editable={!busy}
                 />
               </View>
-            </>
+              <View style={[styles.field, styles.fieldHalf]}>
+                <Text style={styles.label}>{t.profileLastNameLabel}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={lastName}
+                  onChangeText={setLastName}
+                  autoComplete="family-name"
+                  autoCapitalize="words"
+                  maxLength={40}
+                  editable={!busy}
+                />
+              </View>
+            </View>
           )}
 
           <View style={styles.field}>

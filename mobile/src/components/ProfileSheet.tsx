@@ -41,10 +41,8 @@ export default function ProfileSheet({
   const { signOut, deleteAccount } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
-  const [name, setName] = useState(profile.name);
   const [firstName, setFirstName] = useState(profile.firstName ?? "");
   const [lastName, setLastName] = useState(profile.lastName ?? "");
-  const [title, setTitle] = useState(profile.title ?? "");
   const [quote, setQuote] = useState(profile.quote ?? "");
   const [avatar, setAvatar] = useState<AvatarT>(profile.avatar);
   const [density, setDensity] = useState<Density>(
@@ -54,10 +52,8 @@ export default function ProfileSheet({
 
   React.useEffect(() => {
     if (visible) {
-      setName(profile.name);
       setFirstName(profile.firstName ?? "");
       setLastName(profile.lastName ?? "");
-      setTitle(profile.title ?? "");
       setQuote(profile.quote ?? "");
       setAvatar(profile.avatar);
       setDensity(profile.density ?? "comfortable");
@@ -127,16 +123,16 @@ export default function ProfileSheet({
   }
 
   function handleSave() {
-    const trimmed = name.trim();
-    if (!trimmed) return;
+    const trimmedFirst = firstName.trim();
+    if (!trimmedFirst) return;
     onSave({
-      name: trimmed,
-      firstName: firstName.trim() || undefined,
+      name: trimmedFirst,
+      firstName: trimmedFirst,
       lastName: lastName.trim() || undefined,
       quote: quote.trim() || undefined,
       avatar,
       density,
-      title: title.trim() || undefined,
+      title: profile.title,
     });
   }
 
@@ -184,20 +180,12 @@ export default function ProfileSheet({
               })}
             </View>
 
-            <View style={styles.field}>
-              <Text style={styles.label}>{t.profileNameLabel}</Text>
-              <TextInput
-                style={styles.input}
-                value={name}
-                onChangeText={setName}
-                maxLength={40}
-                returnKeyType="done"
-              />
-            </View>
-
             <View style={styles.fieldRow}>
               <View style={[styles.field, styles.fieldHalf]}>
-                <Text style={styles.label}>{t.profileFirstNameLabel}</Text>
+                <Text style={styles.label}>
+                  {t.profileFirstNameLabel}
+                  <Text style={{ color: theme.red }}> *</Text>
+                </Text>
                 <TextInput
                   style={styles.input}
                   value={firstName}
@@ -220,19 +208,6 @@ export default function ProfileSheet({
                   returnKeyType="done"
                 />
               </View>
-            </View>
-
-            <View style={styles.field}>
-              <Text style={styles.label}>{t.profileTitleLabel}</Text>
-              <TextInput
-                style={styles.input}
-                value={title}
-                onChangeText={setTitle}
-                placeholder={t.profileTitlePlaceholder}
-                placeholderTextColor={theme.gray3}
-                maxLength={64}
-                returnKeyType="done"
-              />
             </View>
 
             <View style={styles.field}>

@@ -3,7 +3,7 @@ export type Lang = 'en' | 'zh'
 export const strings = {
   en: {
     title: 'My TODOs',
-    ownerTitle: (name: string) => `${name}'s Todos`,
+    ownerTitle: (name: string) => `${name}'s todo`,
     addPlaceholder: 'Add a new task…',
     add: 'Add',
     save: 'Save',

@@ -339,10 +339,11 @@ export function useTodoStore() {
     profile.quote && profile.quote.trim()
       ? profile.quote
       : `${t.greeting[greetingKey]}, ${profile.name}`;
-  const trimmedName = profile.name.trim();
-  const appTitle =
-    profile.title?.trim() ||
-    (trimmedName ? t.ownerTitle(trimmedName) : t.title);
+  // App title is derived from firstName ("Alex's todo"); falls back to legacy
+  // profile.name for older accounts that have no firstName, then to t.title.
+  const titleName =
+    profile.firstName?.trim() || profile.name.trim();
+  const appTitle = titleName ? t.ownerTitle(titleName) : t.title;
 
   return {
     todos,

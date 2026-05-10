@@ -622,68 +622,82 @@ body {
 .sidebar-lang.active { color: var(--label); font-weight: 700; }
 .sidebar-lang-sep { color: var(--label3); }
 
-/* Mobile top bar (rendered only at ≤768px) */
-.mobile-topbar { display: none; }
+/* Top bar (rendered at all viewports — replaces the old content-header) */
+.mobile-topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  padding-top: env(safe-area-inset-top, 0px);
+  min-height: calc(52px + env(safe-area-inset-top, 0px));
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 0.5px solid var(--gray5);
+}
+.mobile-topbar-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: var(--label);
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.mobile-topbar-btn:active { background: var(--fill); }
+.mobile-topbar-title {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+  overflow: hidden;
+  min-width: 0;
+}
+.mobile-topbar-current {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--label);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.mobile-topbar-subtitle {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--label2);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+/* Hamburger only useful when sidebar is collapsed (mobile/narrow). On desktop
+   the sidebar is always visible, so hide the toggle button. */
+@media (min-width: 769px) {
+  .mobile-topbar-btn { display: none; }
+}
+
+/* Trash actions bar (renders below the top bar when in trash view) */
+.trash-actions {
+  padding: 10px 16px;
+  border-bottom: 0.5px solid var(--gray5);
+  background: var(--bg);
+}
 
 /* Drawer backdrop (visible only when drawer is open on mobile) */
 .drawer-backdrop { display: none; }
 
 @media (max-width: 768px) {
   .app-shell { flex-direction: column; }
-
-  .mobile-topbar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0 6px;
-    padding-top: env(safe-area-inset-top, 0px);
-    min-height: calc(52px + env(safe-area-inset-top, 0px));
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: saturate(180%) blur(20px);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
-    border-bottom: 0.5px solid var(--gray5);
-  }
-  .mobile-topbar-btn {
-    width: 40px;
-    height: 40px;
-    border: none;
-    background: transparent;
-    color: var(--label);
-    border-radius: 8px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    flex-shrink: 0;
-  }
-  .mobile-topbar-btn:active { background: var(--fill); }
-  .mobile-topbar-title {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    line-height: 1.15;
-    overflow: hidden;
-    text-align: center;
-  }
-  .mobile-topbar-parent {
-    font-size: 11px;
-    color: var(--label2);
-    font-weight: 500;
-  }
-  .mobile-topbar-current {
-    font-size: 17px;
-    font-weight: 700;
-    color: var(--label);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 100%;
-  }
-  .mobile-topbar-spacer { width: 40px; flex-shrink: 0; }
+  .mobile-topbar { padding: 0 6px; }
 
   /* Sidebar becomes off-canvas drawer */
   .sidebar {
@@ -1286,6 +1300,7 @@ h1 { margin: 0; }
 
 .date-chip:hover { background: var(--fill); color: var(--label); }
 .date-chip.overdue { color: var(--red); font-weight: 600; }
+.date-chip.today { color: var(--orange); font-weight: 600; }
 .date-chip.no-date { color: var(--label3); font-style: italic; }
 .date-chip.no-date:hover { color: var(--label2); }
 

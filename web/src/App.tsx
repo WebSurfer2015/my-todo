@@ -32,23 +32,6 @@ export default function App() {
     return () => document.removeEventListener("keydown", onKey);
   }, [store.filter, store.setFilter]);
 
-  const [titleEditing, setTitleEditing] = useState(false);
-  const [titleDraft, setTitleDraft] = useState(store.appTitle);
-
-  useEffect(() => {
-    if (!titleEditing) setTitleDraft(store.appTitle);
-  }, [store.appTitle, titleEditing]);
-
-  function commitTitle() {
-    const trimmed = titleDraft.trim();
-    store.saveProfile({ ...store.profile, title: trimmed || undefined });
-    setTitleEditing(false);
-  }
-  function cancelTitleEdit() {
-    setTitleDraft(store.appTitle);
-    setTitleEditing(false);
-  }
-
   if (authLoading) {
     return <div className="auth-loading" aria-busy="true" />;
   }
@@ -65,7 +48,7 @@ export default function App() {
         drawerOpen={drawerOpen}
         onToggleDrawer={() => setDrawerOpen((v) => !v)}
         title={store.sectionLabel ?? store.appTitle}
-        parent={store.sectionLabel ? store.appTitle : undefined}
+        subtitle={store.subtitle}
       />
       <div
         className={`drawer-backdrop${drawerOpen ? " open" : ""}`}
@@ -87,51 +70,9 @@ export default function App() {
         onSaveProfile={store.saveProfile}
       />
       <main className="content">
-        <header className="content-header">
-          <div className="content-titles">
-            <h1 className="large-title">
-              {store.sectionLabel ? (
-                <nav aria-label="breadcrumb" className="title-breadcrumb">
-                  <button
-                    type="button"
-                    className="title-parent"
-                    onClick={() => store.setFilter("all")}
-                  >
-                    {store.appTitle}
-                  </button>
-                  <span className="title-sep" aria-hidden="true">
-                    ›
-                  </span>
-                  <span className="title-current">{store.sectionLabel}</span>
-                </nav>
-              ) : titleEditing ? (
-                <input
-                  autoFocus
-                  className="title-input"
-                  value={titleDraft}
-                  onChange={(e) => setTitleDraft(e.target.value)}
-                  onBlur={commitTitle}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") commitTitle();
-                    else if (e.key === "Escape") cancelTitleEdit();
-                  }}
-                  maxLength={40}
-                />
-              ) : (
-                <span
-                  className="title-editable"
-                  onClick={() => setTitleEditing(true)}
-                  title={t.editTask}
-                >
-                  {store.appTitle}
-                </span>
-              )}
-            </h1>
-            <p className="content-subtitle">{store.subtitle}</p>
-          </div>
-          {store.inTrashView &&
-            store.trashCount > 0 &&
-            (store.selectedTrashIds.size > 0 ? (
+        {store.inTrashView && store.trashCount > 0 && (
+          <div className="trash-actions">
+            {store.selectedTrashIds.size > 0 ? (
               <div className="bulk-actions">
                 <span className="bulk-count">
                   {t.selectedCount(store.selectedTrashIds.size)}
@@ -166,8 +107,9 @@ export default function App() {
               >
                 {t.emptyTrash}
               </button>
-            ))}
-        </header>
+            )}
+          </div>
+        )}
 
         <div className="content-body">
           {!store.inTrashView && (
