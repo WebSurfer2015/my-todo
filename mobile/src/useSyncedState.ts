@@ -54,14 +54,21 @@ export function useSyncedState<T>(
     });
   }, [adapter, key]);
 
+  // Trailing-debounced write (~400ms) so a burst of mutations (typing in a
+  // task title) collapses into a single Firestore setDoc instead of one
+  // per keystroke.
   useEffect(() => {
     if (!loaded) return;
     const json = serializeRef.current(state);
     if (json === lastSerializedRef.current) return;
-    lastSerializedRef.current = json;
-    adapter.setItem(key, json).catch((err) => {
-      console.warn(`useSyncedState[${key}] write failed:`, err);
-    });
+    const handle = setTimeout(() => {
+      if (json === lastSerializedRef.current) return;
+      lastSerializedRef.current = json;
+      adapter.setItem(key, json).catch((err) => {
+        console.warn(`useSyncedState[${key}] write failed:`, err);
+      });
+    }, 400);
+    return () => clearTimeout(handle);
   }, [adapter, key, loaded, state]);
 
   return [state, setState, loaded];

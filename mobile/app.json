@@ -62,7 +62,8 @@
           }
         }
       ],
-      "./plugins/withFmtCxx17"
+      "./plugins/withFmtCxx17",
+      "@react-native-firebase/crashlytics"
     ],
     "extra": {
       "eas": {

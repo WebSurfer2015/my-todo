@@ -4,7 +4,11 @@ import {
   browserLocalPersistence,
   setPersistence,
 } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from "firebase/firestore";
 
 /**
  * Firebase web SDK initialization. The config below is NOT a secret — anyone
@@ -24,7 +28,15 @@ export const firebaseApp = getApps().length
   ? getApps()[0]
   : initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
-export const db = getFirestore(firebaseApp);
+// initializeFirestore (vs getFirestore) lets us configure persistent IndexedDB
+// cache. Repeat loads paint instantly from cache instead of waiting on the
+// network round-trip; live updates still arrive via onSnapshot.
+// persistentMultipleTabManager keeps two open tabs in sync via the same cache.
+export const db = initializeFirestore(firebaseApp, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
+});
 
 // Persist auth across reloads (default is localStorage; this is explicit).
 setPersistence(auth, browserLocalPersistence).catch((err) => {

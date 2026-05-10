@@ -9,10 +9,8 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from "react-native";
-import Svg, { Circle, Path } from "react-native-svg";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { LinearGradient } from "expo-linear-gradient";
 import { useTheme, ThemeColors } from "./src/theme";
 import FilterBar from "./src/components/FilterBar";
 import ViewToggle from "./src/components/ViewToggle";
@@ -49,14 +47,6 @@ function AppInner() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-      <LinearGradient
-        colors={theme.bgGradient}
-        locations={[0, 0.55, 1]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-        pointerEvents="none"
-      />
       <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
       <KeyboardAvoidingView
         style={styles.kb}
@@ -68,44 +58,23 @@ function AppInner() {
           keyboardShouldPersistTaps="handled"
           stickyHeaderIndices={[2]}
         >
-          <View style={styles.identityRow}>
-            <TouchableOpacity
-              style={styles.identityLeft}
-              onPress={() => setProfileOpen(true)}
-              activeOpacity={0.7}
-            >
-              <Avatar avatar={store.profile.avatar} size={36} />
-              <View style={styles.identityTextWrap}>
-                <Text style={styles.identityName} numberOfLines={1}>
-                  {store.appTitle}
-                </Text>
-                <Text style={styles.identityGreeting} numberOfLines={2}>
-                  {store.headerLine}
-                </Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.gearBtn}
-              onPress={() => setProfileOpen(true)}
-              accessibilityLabel={t.editProfile}
-              accessibilityRole="button"
-              hitSlop={10}
-            >
-              <Svg
-                width={22}
-                height={22}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={theme.label}
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <Circle cx="12" cy="12" r="3" />
-                <Path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
-              </Svg>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.identityRow}
+            onPress={() => setProfileOpen(true)}
+            activeOpacity={0.7}
+            accessibilityLabel={t.editProfile}
+            accessibilityRole="button"
+          >
+            <Avatar avatar={store.profile.avatar} size={36} />
+            <View style={styles.identityTextWrap}>
+              <Text style={styles.identityName} numberOfLines={1}>
+                {store.appTitle}
+              </Text>
+              <Text style={styles.identityGreeting} numberOfLines={2}>
+                {store.headerLine}
+              </Text>
+            </View>
+          </TouchableOpacity>
 
           <ViewToggle view={store.view} onChange={store.changeView} />
 
@@ -334,23 +303,9 @@ function makeStyles(c: ThemeColors) {
       paddingTop: 12,
       paddingBottom: 8,
     },
-    identityLeft: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-      flex: 1,
-      minWidth: 0,
-    },
     identityTextWrap: {
       flex: 1,
       minWidth: 0,
-    },
-    gearBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      alignItems: "center",
-      justifyContent: "center",
     },
     identityName: {
       fontSize: 14,

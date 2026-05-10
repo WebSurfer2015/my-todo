@@ -1,0 +1,26 @@
+rules_version = '2';
+
+// Firestore security rules for my-todos.
+//
+// Schema (see core/src/persistence.ts → stateDocPath):
+//   users/{uid}/state/{key}    where key ∈ { todos, categories, profile }
+//
+// Each user can read AND write only their own subtree. Default deny on
+// everything else — including listing the root users collection (which would
+// leak the set of valid uids and account count).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{uid}/state/{key} {
+      // Only the signed-in user can touch their own per-key docs.
+      allow read, write:
+        if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Default deny — explicit so no future "match /{document=**}" elsewhere
+    // accidentally exposes data. Required even with allow rules above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

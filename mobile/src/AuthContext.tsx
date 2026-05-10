@@ -8,6 +8,7 @@ import React, {
   ReactNode,
 } from "react";
 import { Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   FirebaseAuthTypes,
   AppleAuthProvider,
@@ -166,6 +167,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await fbSignOut(auth);
+    // Clear local persisted state so the next user signing in on this
+    // device doesn't see leftover data, and so migrateLocalToCloud can't
+    // push prior-user todos into a brand-new user's empty Firestore doc.
+    await AsyncStorage.multiRemove(["todos", "categories", "profile"]).catch(
+      () => {
+        // best-effort — don't block sign-out on a storage hiccup
+      },
+    );
   }, []);
 
   const deleteAccount = useCallback(async () => {

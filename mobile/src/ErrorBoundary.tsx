@@ -1,6 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react'
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import crashlytics from '@react-native-firebase/crashlytics'
 import { clearAllPersisted } from './persistence'
 
 interface State {
@@ -16,6 +17,15 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('ErrorBoundary caught:', error, info)
+    // Forward to Firebase Crashlytics. No-ops gracefully until Crashlytics
+    // is enabled in the Firebase Console (Console → Crashlytics → Get
+    // started). Native crashes are auto-collected; this catches JS errors.
+    try {
+      crashlytics().log(`ErrorBoundary: ${info.componentStack ?? '(no stack)'}`)
+      crashlytics().recordError(error)
+    } catch {
+      // Defensive — don't crash the crash reporter
+    }
   }
 
   reset = () => {

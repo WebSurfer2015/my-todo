@@ -45,7 +45,7 @@ export default function ProfilePopover({ profile, onSave, onClose }: Props) {
       const data = await fileToCompressedDataURL(file)
       setAvatar({ kind: 'image', uri: data })
     } catch (err) {
-      window.alert(String(err))
+      showSnackbar({ message: err instanceof Error ? err.message : String(err) })
     } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ''
@@ -71,6 +71,8 @@ export default function ProfilePopover({ profile, onSave, onClose }: Props) {
       avatar,
       density,
     })
+    showSnackbar({ message: t.profileSaved })
+    onClose()
   }
 
   async function handleDeleteAccount() {

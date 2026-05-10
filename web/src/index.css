@@ -1051,7 +1051,7 @@ h1 { margin: 0; }
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: var(--label3);
+  color: var(--label2);
   cursor: pointer;
   font-family: inherit;
   font-size: 13px;
@@ -1310,7 +1310,7 @@ h1 { margin: 0; }
 .date-chip:hover { background: var(--fill); color: var(--label); }
 .date-chip.overdue { color: var(--red); font-weight: 600; }
 .date-chip.today { color: var(--orange); font-weight: 600; }
-.date-chip.no-date { color: var(--label3); font-style: italic; }
+.date-chip.no-date { color: var(--label2); }
 .date-chip.no-date:hover { color: var(--label2); }
 
 /* ── Category (task item) ─────────────────────────────────────────── */
@@ -1636,7 +1636,7 @@ h1 { margin: 0; }
   align-items: center;
   gap: 8px;
   margin-top: 16px;
-  color: var(--label3);
+  color: var(--label2);
   font-size: 12px;
 }
 .signin-divider::before,
@@ -1703,8 +1703,8 @@ h1 { margin: 0; }
 .signout-row button {
   background: transparent;
   border: none;
-  color: var(--label3);
-  font-size: 12px;
+  color: var(--label2);
+  font-size: 13px;
   cursor: pointer;
   padding: 4px 8px;
 }

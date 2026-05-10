@@ -57,15 +57,23 @@ export function useSyncedState<T>(
     });
   }, [adapter, key]);
 
-  // Write through adapter; skip if the value matches what we just received
+  // Write through adapter, trailing-debounced ~400ms. Without debouncing,
+  // every keystroke during a text edit fires a full setDoc to Firestore —
+  // burns billed writes and pushes stale snapshots to other devices.
   useEffect(() => {
     if (!loaded) return;
     const json = serializeRef.current(state);
     if (json === lastSerializedRef.current) return;
-    lastSerializedRef.current = json;
-    adapter.setItem(key, json).catch((err) => {
-      console.warn(`useSyncedState[${key}] write failed:`, err);
-    });
+    const handle = setTimeout(() => {
+      // Re-check inside the timer: a remote snapshot may have arrived during
+      // the wait and updated lastSerializedRef to match `json` already.
+      if (json === lastSerializedRef.current) return;
+      lastSerializedRef.current = json;
+      adapter.setItem(key, json).catch((err) => {
+        console.warn(`useSyncedState[${key}] write failed:`, err);
+      });
+    }, 400);
+    return () => clearTimeout(handle);
   }, [adapter, key, loaded, state]);
 
   return [state, setState, loaded];

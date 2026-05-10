@@ -3,7 +3,6 @@ import { useColorScheme } from 'react-native'
 export interface ThemeColors {
   // Backgrounds
   bg: string
-  bgGradient: [string, string, string]
   card: string
   surface: string
   surfaceAlt: string
@@ -31,8 +30,7 @@ export interface ThemeColors {
 }
 
 export const LIGHT: ThemeColors = {
-  bg: '#FCEFFF',
-  bgGradient: ['#FCEFFF', '#FFF1F0', '#EAF2FF'],
+  bg: '#F2F2F7',
   card: '#FFFFFF',
   surface: 'rgba(255, 255, 255, 0.55)',
   surfaceAlt: 'rgba(255, 255, 255, 0.6)',
@@ -56,9 +54,8 @@ export const LIGHT: ThemeColors = {
 }
 
 export const DARK: ThemeColors = {
-  bg: '#1C1C1E',
-  bgGradient: ['#2C1B33', '#321B22', '#1B2438'],
-  card: '#2C2C2E',
+  bg: '#000000',
+  card: '#1C1C1E',
   surface: 'rgba(28, 28, 30, 0.55)',
   surfaceAlt: 'rgba(28, 28, 30, 0.7)',
   modal: '#1C1C1E',

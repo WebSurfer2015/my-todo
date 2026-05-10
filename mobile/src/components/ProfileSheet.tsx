@@ -13,6 +13,7 @@ import {
   Alert,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import {
   Profile,
   Avatar as AvatarT,
@@ -21,6 +22,7 @@ import {
 } from "../profile";
 import Avatar from "./Avatar";
 import { useLang } from "../LangContext";
+import { useNotify } from "../notify";
 import { useAuth } from "../AuthContext";
 import { useTheme, ThemeColors } from "../theme";
 
@@ -38,6 +40,7 @@ export default function ProfileSheet({
   onClose,
 }: Props) {
   const { t, lang, toggle: toggleLang } = useLang();
+  const { showSnackbar } = useNotify();
   const { signOut, deleteAccount } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
@@ -60,6 +63,24 @@ export default function ProfileSheet({
     }
   }, [visible, profile]);
 
+  // Resize the picked photo to 256x256 + JPEG q=0.7 BEFORE encoding to base64.
+  // expo-image-picker's quality only affects compression of the original
+  // resolution — a 4k crop at q=0.7 still produces multi-MB base64 that
+  // exceeds MAX_AVATAR_URI_LEN (1MB) and gets silently rejected on read.
+  async function compressToDataUri(uri: string): Promise<string> {
+    const result = await ImageManipulator.manipulateAsync(
+      uri,
+      [{ resize: { width: 256, height: 256 } }],
+      {
+        compress: 0.7,
+        format: ImageManipulator.SaveFormat.JPEG,
+        base64: true,
+      },
+    );
+    if (!result.base64) throw new Error("Image compression returned no data");
+    return `data:image/jpeg;base64,${result.base64}`;
+  }
+
   async function pickFromLibrary() {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
@@ -70,13 +91,14 @@ export default function ProfileSheet({
       mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.7,
-      base64: true,
+      quality: 1,
     });
     if (!result.canceled && result.assets[0]) {
-      const a = result.assets[0];
-      const uri = a.base64 ? `data:image/jpeg;base64,${a.base64}` : a.uri;
-      setAvatar({ kind: "image", uri });
+      try {
+        setAvatar({ kind: "image", uri: await compressToDataUri(result.assets[0].uri) });
+      } catch (err) {
+        Alert.alert("Photo error", err instanceof Error ? err.message : String(err));
+      }
     }
   }
 
@@ -90,13 +112,14 @@ export default function ProfileSheet({
       mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.7,
-      base64: true,
+      quality: 1,
     });
     if (!result.canceled && result.assets[0]) {
-      const a = result.assets[0];
-      const uri = a.base64 ? `data:image/jpeg;base64,${a.base64}` : a.uri;
-      setAvatar({ kind: "image", uri });
+      try {
+        setAvatar({ kind: "image", uri: await compressToDataUri(result.assets[0].uri) });
+      } catch (err) {
+        Alert.alert("Photo error", err instanceof Error ? err.message : String(err));
+      }
     }
   }
 
@@ -134,6 +157,8 @@ export default function ProfileSheet({
       density,
       title: profile.title,
     });
+    showSnackbar({ message: t.profileSaved });
+    onClose();
   }
 
   return (
