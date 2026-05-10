@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as AppleAuthentication from "expo-apple-authentication";
@@ -23,6 +24,9 @@ export default function SignIn() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [profileName, setProfileName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,7 +35,12 @@ export default function SignIn() {
     setBusy(true);
     try {
       if (mode === "signin") await signIn(email.trim(), password);
-      else await signUp(email.trim(), password);
+      else
+        await signUp(email.trim(), password, {
+          firstName,
+          lastName,
+          profileName,
+        });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -62,12 +71,61 @@ export default function SignIn() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View style={styles.card}>
-          <Text style={styles.title}>{t.title}</Text>
-          <Text style={styles.subtitle}>
-            {mode === "signin"
-              ? "Sign in to sync your tasks across devices."
-              : "Create an account to sync your tasks across devices."}
-          </Text>
+          <Image
+            source={require("../../assets/icon.png")}
+            style={styles.icon}
+            accessibilityLabel="My Todo"
+          />
+          <Text style={styles.title}>My Todo</Text>
+          <Text style={styles.subtitle}>Get things done</Text>
+
+          {mode === "signup" && (
+            <>
+              <View style={styles.fieldRow}>
+                <View style={[styles.field, styles.fieldHalf]}>
+                  <Text style={styles.label}>{t.profileFirstNameLabel}</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={firstName}
+                    onChangeText={setFirstName}
+                    autoComplete="given-name"
+                    autoCapitalize="words"
+                    maxLength={40}
+                    editable={!busy}
+                  />
+                </View>
+                <View style={[styles.field, styles.fieldHalf]}>
+                  <Text style={styles.label}>{t.profileLastNameLabel}</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={lastName}
+                    onChangeText={setLastName}
+                    autoComplete="family-name"
+                    autoCapitalize="words"
+                    maxLength={40}
+                    editable={!busy}
+                  />
+                </View>
+              </View>
+              <View style={styles.field}>
+                <Text style={styles.label}>
+                  {t.profileNameLabel}
+                  <Text style={styles.required}> *</Text>
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  value={profileName}
+                  onChangeText={setProfileName}
+                  autoComplete="nickname"
+                  autoCapitalize="words"
+                  maxLength={40}
+                  placeholder={firstName || "Alex"}
+                  placeholderTextColor={theme.gray3}
+                  editable={!busy}
+                />
+              </View>
+            </>
+          )}
 
           <View style={styles.field}>
             <Text style={styles.label}>Email</Text>
@@ -171,20 +229,32 @@ function makeStyles(c: ThemeColors) {
       shadowRadius: 16,
       elevation: 4,
     },
+    icon: {
+      width: 72,
+      height: 72,
+      borderRadius: 16,
+      alignSelf: "center",
+      marginBottom: 12,
+    },
     title: {
       fontSize: 22,
       fontWeight: "700",
       color: c.label,
       letterSpacing: -0.4,
       marginBottom: 6,
+      textAlign: "center",
     },
     subtitle: {
       fontSize: 13,
       color: c.label2,
       lineHeight: 18,
       marginBottom: 20,
+      textAlign: "center",
     },
     field: { marginBottom: 12 },
+    fieldRow: { flexDirection: "row", gap: 10 },
+    fieldHalf: { flex: 1 },
+    required: { color: c.red },
     label: {
       fontSize: 12,
       color: c.label2,

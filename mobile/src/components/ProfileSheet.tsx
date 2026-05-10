@@ -42,6 +42,8 @@ export default function ProfileSheet({
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const [name, setName] = useState(profile.name);
+  const [firstName, setFirstName] = useState(profile.firstName ?? "");
+  const [lastName, setLastName] = useState(profile.lastName ?? "");
   const [title, setTitle] = useState(profile.title ?? "");
   const [quote, setQuote] = useState(profile.quote ?? "");
   const [avatar, setAvatar] = useState<AvatarT>(profile.avatar);
@@ -53,6 +55,8 @@ export default function ProfileSheet({
   React.useEffect(() => {
     if (visible) {
       setName(profile.name);
+      setFirstName(profile.firstName ?? "");
+      setLastName(profile.lastName ?? "");
       setTitle(profile.title ?? "");
       setQuote(profile.quote ?? "");
       setAvatar(profile.avatar);
@@ -127,6 +131,8 @@ export default function ProfileSheet({
     if (!trimmed) return;
     onSave({
       name: trimmed,
+      firstName: firstName.trim() || undefined,
+      lastName: lastName.trim() || undefined,
       quote: quote.trim() || undefined,
       avatar,
       density,
@@ -187,6 +193,33 @@ export default function ProfileSheet({
                 maxLength={40}
                 returnKeyType="done"
               />
+            </View>
+
+            <View style={styles.fieldRow}>
+              <View style={[styles.field, styles.fieldHalf]}>
+                <Text style={styles.label}>{t.profileFirstNameLabel}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  maxLength={40}
+                  autoComplete="given-name"
+                  autoCapitalize="words"
+                  returnKeyType="done"
+                />
+              </View>
+              <View style={[styles.field, styles.fieldHalf]}>
+                <Text style={styles.label}>{t.profileLastNameLabel}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={lastName}
+                  onChangeText={setLastName}
+                  maxLength={40}
+                  autoComplete="family-name"
+                  autoCapitalize="words"
+                  returnKeyType="done"
+                />
+              </View>
             </View>
 
             <View style={styles.field}>
@@ -446,6 +479,8 @@ function makeStyles(c: ThemeColors) {
     field: {
       marginBottom: 12,
     },
+    fieldRow: { flexDirection: "row", gap: 10 },
+    fieldHalf: { flex: 1 },
     label: {
       fontSize: 11,
       fontWeight: "700",

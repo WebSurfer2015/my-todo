@@ -8,6 +8,9 @@ export default function SignIn() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [profileName, setProfileName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,7 +20,12 @@ export default function SignIn() {
     setBusy(true);
     try {
       if (mode === "signin") await signIn(email.trim(), password);
-      else await signUp(email.trim(), password);
+      else
+        await signUp(email.trim(), password, {
+          firstName,
+          lastName,
+          profileName,
+        });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -42,13 +50,60 @@ export default function SignIn() {
   return (
     <div className="signin-shell">
       <div className="signin-card">
-        <h1 className="signin-title">{t.title}</h1>
-        <p className="signin-subtitle">
-          {mode === "signin"
-            ? "Sign in to sync your tasks across devices."
-            : "Create an account to sync your tasks across devices."}
-        </p>
+        <img
+          className="signin-icon"
+          src="/apple-touch-icon.png"
+          alt="My Todo"
+          width={72}
+          height={72}
+        />
+        <h1 className="signin-title">My Todo</h1>
+        <p className="signin-subtitle">Get things done</p>
         <form onSubmit={submit} className="signin-form">
+          {mode === "signup" && (
+            <>
+              <div className="signin-field-row">
+                <label className="signin-field">
+                  <span className="signin-label">{t.profileFirstNameLabel}</span>
+                  <input
+                    type="text"
+                    autoComplete="given-name"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    disabled={busy}
+                    maxLength={40}
+                  />
+                </label>
+                <label className="signin-field">
+                  <span className="signin-label">{t.profileLastNameLabel}</span>
+                  <input
+                    type="text"
+                    autoComplete="family-name"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    disabled={busy}
+                    maxLength={40}
+                  />
+                </label>
+              </div>
+              <label className="signin-field">
+                <span className="signin-label">
+                  {t.profileNameLabel}
+                  <span className="signin-required"> *</span>
+                </span>
+                <input
+                  type="text"
+                  autoComplete="nickname"
+                  required
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
+                  disabled={busy}
+                  maxLength={40}
+                  placeholder={firstName || "Alex"}
+                />
+              </label>
+            </>
+          )}
           <label className="signin-field">
             <span className="signin-label">Email</span>
             <input

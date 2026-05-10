@@ -14,6 +14,8 @@ export type Density = 'comfortable' | 'compact'
 
 export interface Profile {
   name: string
+  firstName?: string
+  lastName?: string
   quote?: string
   avatar: Avatar
   density?: Density
@@ -92,6 +94,14 @@ export function migrateProfile(raw: unknown): Profile {
   if (!avatar) return SEED_PROFILE
   return {
     name: p.name.slice(0, MAX_PROFILE_NAME_LEN),
+    firstName:
+      typeof p.firstName === 'string' && p.firstName.length > 0
+        ? p.firstName.slice(0, MAX_PROFILE_NAME_LEN)
+        : undefined,
+    lastName:
+      typeof p.lastName === 'string' && p.lastName.length > 0
+        ? p.lastName.slice(0, MAX_PROFILE_NAME_LEN)
+        : undefined,
     quote:
       typeof p.quote === 'string' && p.quote.length > 0
         ? p.quote.slice(0, MAX_PROFILE_QUOTE_LEN)

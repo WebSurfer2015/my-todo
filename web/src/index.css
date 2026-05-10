@@ -1551,20 +1551,35 @@ h1 { margin: 0; }
   padding: 32px 28px;
   box-shadow: 0 6px 24px rgba(0,0,0,0.06);
 }
+.signin-icon {
+  display: block;
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 12px;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+}
 .signin-title {
   margin: 0 0 6px;
   font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.4px;
+  text-align: center;
 }
 .signin-subtitle {
   margin: 0 0 20px;
   font-size: 13px;
   color: var(--label2);
   line-height: 1.4;
+  text-align: center;
 }
 .signin-form { display: flex; flex-direction: column; gap: 12px; }
 .signin-field { display: flex; flex-direction: column; gap: 4px; }
+.signin-field-row { display: flex; gap: 10px; }
+.signin-field-row .signin-field { flex: 1; min-width: 0; }
+.signin-required { color: var(--red); }
+.modal-field-row { display: flex; gap: 10px; }
+.modal-field-row .modal-field { flex: 1; min-width: 0; }
 .signin-label { font-size: 12px; color: var(--label2); font-weight: 600; }
 .signin-field input {
   padding: 10px 12px;

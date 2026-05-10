@@ -17,6 +17,8 @@ export default function ProfilePopover({ profile, onSave, onClose }: Props) {
   const { deleteAccount } = useAuth()
   const { confirm, showSnackbar } = useNotify()
   const [name, setName] = useState(profile.name)
+  const [firstName, setFirstName] = useState(profile.firstName ?? '')
+  const [lastName, setLastName] = useState(profile.lastName ?? '')
   const [title, setTitle] = useState(profile.title ?? '')
   const [quote, setQuote] = useState(profile.quote ?? '')
   const [avatar, setAvatar] = useState<Avatar>(profile.avatar)
@@ -58,7 +60,15 @@ export default function ProfilePopover({ profile, onSave, onClose }: Props) {
       nameRef.current?.focus()
       return
     }
-    onSave({ name: trimmed, title: title.trim() || undefined, quote: quote.trim() || undefined, avatar, density })
+    onSave({
+      name: trimmed,
+      firstName: firstName.trim() || undefined,
+      lastName: lastName.trim() || undefined,
+      title: title.trim() || undefined,
+      quote: quote.trim() || undefined,
+      avatar,
+      density,
+    })
   }
 
   async function handleDeleteAccount() {
@@ -142,6 +152,29 @@ export default function ProfilePopover({ profile, onSave, onClose }: Props) {
             maxLength={40}
           />
         </label>
+
+        <div className="modal-field-row">
+          <label className="modal-field">
+            <span className="modal-label">{t.profileFirstNameLabel}</span>
+            <input
+              className="modal-input"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              maxLength={40}
+              autoComplete="given-name"
+            />
+          </label>
+          <label className="modal-field">
+            <span className="modal-label">{t.profileLastNameLabel}</span>
+            <input
+              className="modal-input"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              maxLength={40}
+              autoComplete="family-name"
+            />
+          </label>
+        </div>
 
         <label className="modal-field">
           <span className="modal-label">{t.profileTitleLabel}</span>
