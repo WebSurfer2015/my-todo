@@ -89,11 +89,16 @@ const parseProfile = (raw: string | null): Profile => {
 
 const serializeAny = (v: unknown): string => wrap(v);
 
-/** Push local AsyncStorage data to cloud once if cloud is empty (first-ever sign-in). */
+/**
+ * Push local AsyncStorage data to cloud, per-key, only when that cloud key is
+ * empty. Per-key gating (vs only checking `profile`) prevents stomping cloud
+ * todos or categories on a device whose local copy is stale and whose cloud
+ * profile happens to have been deleted or never written.
+ */
 async function migrateLocalToCloud(adapter: StorageAdapter): Promise<void> {
-  const cloudProfile = await adapter.getItem("profile");
-  if (cloudProfile != null) return;
   for (const key of ["todos", "categories", "profile"] as const) {
+    const cloudVal = await adapter.getItem(key);
+    if (cloudVal != null) continue;
     const raw = await AsyncStorage.getItem(key);
     if (raw != null) await adapter.setItem(key, raw);
   }
@@ -104,13 +109,17 @@ export function useTodoStore() {
   const { user } = useAuth();
   const notify = useNotify();
 
+  // Memoize on uid (not the User object) so token refresh — which replaces
+  // the User reference ~hourly — doesn't recreate the adapter, tear down
+  // Firestore listeners, and re-fire migrateLocalToCloud.
+  const uid = user?.uid ?? null;
   const adapter = useMemo<StorageAdapter>(
-    () => (user ? makeFirestoreAdapter(db, user.uid) : localAdapter),
-    [user],
+    () => (uid ? makeFirestoreAdapter(db, uid) : localAdapter),
+    [uid],
   );
 
   useEffect(() => {
-    if (!user) return;
+    if (!uid) return;
     let cancelled = false;
     migrateLocalToCloud(adapter).catch((err) => {
       if (!cancelled) console.warn("Local→cloud migration failed:", err);
@@ -118,7 +127,7 @@ export function useTodoStore() {
     return () => {
       cancelled = true;
     };
-  }, [user, adapter]);
+  }, [uid, adapter]);
 
   const [categories, setCategories, categoriesLoaded] = useSyncedState<
     CategoryDef[]
