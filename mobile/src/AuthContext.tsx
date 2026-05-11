@@ -85,17 +85,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(() => setAppleAvailable(false));
   }, []);
 
-  // Configure Google Sign-In once on mount. webClientId comes from the
-  // Firebase project's auto-generated Google OAuth client (visible in
-  // Firebase Console → Authentication → Google → Web SDK configuration).
-  // The native iOS client is read from GoogleService-Info.plist
-  // automatically, so iosClientId isn't required here.
+  // Google Sign-In needs BOTH IDs on iOS:
+  //  - webClientId: Firebase verifies the returned idToken against this.
+  //  - iosClientId: GoogleSignin v16 wrapper does NOT auto-read
+  //    GIDClientID from Info.plist when initializing GIDConfiguration —
+  //    omitting it produces "must specify |clientID| in |GIDConfiguration|".
   useEffect(() => {
     GoogleSignin.configure({
-      // Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID before building, or hard-code
-      // the value here. Without it Google sign-in will fail with
-      // DEVELOPER_ERROR on Android (iOS works via plist).
-      webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+      webClientId:
+        process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ??
+        "986088928923-hh38uefh095la6k74h8d5ui7h1m8b5bd.apps.googleusercontent.com",
+      iosClientId:
+        "986088928923-s8u1ibjj8brq785a8mppo6ugstt3n7j8.apps.googleusercontent.com",
       offlineAccess: false,
     });
   }, []);
