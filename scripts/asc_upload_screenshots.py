@@ -76,31 +76,42 @@ def make_token() -> str:
     )
 
 
-_token = make_token()
+_token: Optional[str] = None
 
 
-def _refresh_token():
+def _get_token() -> str:
     global _token
-    _token = make_token()
+    if _token is None:
+        _token = make_token()
+    return _token
+
+
+def _send(method, url, data, headers):
+    r = urllib.request.Request(url, data=data, method=method, headers=headers)
+    with urllib.request.urlopen(r) as resp:
+        raw = resp.read()
+        return resp.status, (json.loads(raw) if raw else None)
 
 
 def req(method: str, path_or_url: str, body=None, headers=None):
     url = path_or_url if path_or_url.startswith("http") else API + path_or_url
     data = json.dumps(body).encode() if body is not None else None
-    h = {"Authorization": f"Bearer {_token}"}
-    if data is not None:
-        h["Content-Type"] = "application/json"
+    base = {"Content-Type": "application/json"} if data is not None else {}
     if headers:
-        h.update(headers)
-    r = urllib.request.Request(url, data=data, method=method, headers=h)
-    try:
-        with urllib.request.urlopen(r) as resp:
-            raw = resp.read()
-            return resp.status, (json.loads(raw) if raw else None)
-    except urllib.error.HTTPError as e:
-        body_text = e.read().decode("utf-8", "replace")
-        print(f"HTTP {e.code} on {method} {path_or_url}\n{body_text}", file=sys.stderr)
-        raise
+        base.update(headers)
+    for attempt in (1, 2):
+        h = {"Authorization": f"Bearer {_get_token()}", **base}
+        try:
+            return _send(method, url, data, h)
+        except urllib.error.HTTPError as e:
+            # Refresh once on 401 (expired/invalid JWT); otherwise surface.
+            if e.code == 401 and attempt == 1:
+                global _token
+                _token = make_token()
+                continue
+            body_text = e.read().decode("utf-8", "replace")
+            print(f"HTTP {e.code} on {method} {path_or_url}\n{body_text}", file=sys.stderr)
+            raise
 
 
 def upload_chunk(method: str, url: str, headers: dict, payload: bytes):
@@ -152,7 +163,7 @@ def find_or_create_set(localization_id: str, display_type: str) -> str:
 
 
 def list_set_items(set_id: str) -> list[dict]:
-    _, body = req("GET", f"/v1/appScreenshotSets/{set_id}/appScreenshots?limit=10")
+    _, body = req("GET", f"/v1/appScreenshotSets/{set_id}/appScreenshots?limit=200")
     return body.get("data", [])
 
 
@@ -194,7 +205,6 @@ def commit_screenshot(shot_id: str, md5_hex: str):
 
 
 def reorder_set(set_id: str, ordered_ids: list[str]):
-    """PATCH the set's screenshot relationships to enforce display order."""
     req(
         "PATCH",
         f"/v1/appScreenshotSets/{set_id}/relationships/appScreenshots",
@@ -203,12 +213,6 @@ def reorder_set(set_id: str, ordered_ids: list[str]):
 
 
 # ── Main flow ──────────────────────────────────────────────────────────────
-def detect_display_type(path: Path) -> Optional[str]:
-    with Image.open(path) as im:
-        size = im.size  # (w, h)
-    return SUPPORTED_SIZES.get(size)
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("directory", help="Folder containing PNG/JPG screenshots")
@@ -248,10 +252,10 @@ def main():
         print("Skipping (unsupported size):")
         for p, sz in skipped:
             print(f"  {p.name}  {sz[0]}x{sz[1]}")
-            print(
-                "    Supported: "
-                + ", ".join(f"{w}x{h}→{t}" for (w, h), t in SUPPORTED_SIZES.items())
-            )
+        print(
+            "  Supported: "
+            + ", ".join(f"{w}x{h}→{t}" for (w, h), t in SUPPORTED_SIZES.items())
+        )
 
     if not by_type:
         sys.exit("Nothing to upload.")
@@ -265,23 +269,22 @@ def main():
         set_id = find_or_create_set(loc_id, display_type)
         print(f"  set id = {set_id}")
 
+        pre_existing_ids: list[str] = []
         if args.replace:
             existing = list_set_items(set_id)
             if existing:
                 print(f"  --replace: deleting {len(existing)} existing screenshot(s)")
                 for s in existing:
                     delete_screenshot(s["id"])
+        else:
+            pre_existing_ids = [s["id"] for s in list_set_items(set_id)]
 
         new_ids: list[str] = []
         for path in paths:
             data = path.read_bytes()
             md5_hex = hashlib.md5(data).hexdigest()
             print(f"  upload {path.name} ({len(data)} bytes md5={md5_hex})")
-            try:
-                shot = reserve_screenshot(set_id, path.name, len(data))
-            except urllib.error.HTTPError:
-                _refresh_token()
-                shot = reserve_screenshot(set_id, path.name, len(data))
+            shot = reserve_screenshot(set_id, path.name, len(data))
             shot_id = shot["id"]
             ops = shot["attributes"]["uploadOperations"]
             for op in ops:
@@ -295,12 +298,7 @@ def main():
             new_ids.append(shot_id)
             print(f"    ✓ shot id = {shot_id}")
 
-        # Preserve full ordering: existing-untouched + newly-added
-        if args.replace:
-            ordered = new_ids
-        else:
-            existing = [s["id"] for s in list_set_items(set_id) if s["id"] not in new_ids]
-            ordered = existing + new_ids
+        ordered = new_ids if args.replace else pre_existing_ids + new_ids
         if len(ordered) > 1:
             reorder_set(set_id, ordered)
             print(f"  ordered {len(ordered)} screenshot(s)")
