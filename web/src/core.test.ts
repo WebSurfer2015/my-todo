@@ -372,4 +372,20 @@ describe("buildGroups", () => {
     ]);
     expect(groups[0].todos.map((t) => t.id)).toEqual(["b", "c", "a"]);
   });
+
+  // Regression: prior endOfWeekLocal returned today on Sundays, so the
+  // `week` bucket was always empty for Sun-rendered views. See core/utils.ts.
+  it("week bucket includes Mon-Sat dates when today is Sunday", () => {
+    vi.setSystemTime(new Date("2026-05-10T09:00:00")); // Sunday
+    const groups = buildGroups([
+      mk("mon", "2026-05-11"),
+      mk("sat", "2026-05-16"),
+      mk("nextweek", "2026-05-17"), // next Sunday → upcoming
+    ]);
+    const by = Object.fromEntries(
+      groups.map((g) => [g.key, g.todos.map((t) => t.id)]),
+    );
+    expect(by.week?.sort()).toEqual(["mon", "sat"]);
+    expect(by.upcoming).toEqual(["nextweek"]);
+  });
 });

@@ -17,9 +17,13 @@ export function todayLocal(): string {
 }
 
 export function endOfWeekLocal(): string {
+  // Last day of the current Sun-Sat week. On Sunday, "this week" runs Sun-Sat,
+  // so we still need the upcoming Saturday — not today. Without the +6 branch,
+  // every Sunday's `week` bucket would be empty (todos for Mon-Sat fall into
+  // `upcoming` because their date > today).
   const d = new Date()
   const dow = d.getDay()
-  d.setDate(d.getDate() + (dow === 0 ? 0 : 7 - dow))
+  d.setDate(d.getDate() + (dow === 0 ? 6 : 6 - dow))
   return isoDate(d)
 }
 
