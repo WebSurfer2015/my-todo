@@ -43,17 +43,22 @@ APP_STORE_VERSION_ID = "5024a18a-6446-4818-8b94-a743314ef904"  # 1.0
 DEFAULT_LOCALE = "en-US"
 API = "https://api.appstoreconnect.apple.com"
 
-# (width, height) → ASC screenshotDisplayType. Apple accepts either
-# orientation for any pair, so include both.
+# (width, height) → ASC screenshotDisplayType. Apple validates dimensions
+# strictly per slot — a 1290×2796 image will be rejected in the 6.5" slot
+# even though it was historically accepted there. Use the slot that matches
+# the actual device class.
 SUPPORTED_SIZES = {
-    # iPhone 6.5" (iPhone XS Max / 11 Pro Max)
+    # iPhone 6.5" (iPhone XS Max, 11 Pro Max)
     (1242, 2688): "APP_IPHONE_65",
     (2688, 1242): "APP_IPHONE_65",
-    # iPhone 6.7" (iPhone 14 Pro Max etc.) — Apple accepts these in the 6.5 slot
-    (1290, 2796): "APP_IPHONE_65",
-    (2796, 1290): "APP_IPHONE_65",
-    (1284, 2778): "APP_IPHONE_65",
-    (2778, 1284): "APP_IPHONE_65",
+    # iPhone 6.7" (iPhone 12/13/14/15 Pro Max)
+    (1290, 2796): "APP_IPHONE_67",
+    (2796, 1290): "APP_IPHONE_67",
+    (1284, 2778): "APP_IPHONE_67",
+    (2778, 1284): "APP_IPHONE_67",
+    # iPhone 6.9" (iPhone 16/17 Pro Max) — APP_IPHONE_69 isn't a valid
+    # ASC slot yet; native captures from these devices need to be
+    # downscaled to 1290×2796 (APP_IPHONE_67) before upload.
     # iPad Pro 12.9" 3rd gen (and 4th/5th/6th — same resolution)
     (2048, 2732): "APP_IPAD_PRO_3GEN_129",
     (2732, 2048): "APP_IPAD_PRO_3GEN_129",
@@ -115,10 +120,27 @@ def req(method: str, path_or_url: str, body=None, headers=None):
 
 
 def upload_chunk(method: str, url: str, headers: dict, payload: bytes):
-    """Apple's signed upload URL — no Bearer auth, custom headers from API."""
-    r = urllib.request.Request(url, data=payload, method=method, headers=headers)
-    with urllib.request.urlopen(r) as resp:
-        return resp.status
+    """Apple's signed upload URL — no Bearer auth, custom headers from API.
+
+    Retries on transient TLS/socket errors that intermittently surface from
+    Apple's upload edge (BrokenPipe, ConnectionReset, SSL bad-record-mac).
+    Each retry uses a fresh connection.
+    """
+    import ssl
+    last_err: Exception | None = None
+    for attempt in range(5):
+        try:
+            r = urllib.request.Request(url, data=payload, method=method, headers=headers)
+            with urllib.request.urlopen(r, timeout=60) as resp:
+                return resp.status
+        except (BrokenPipeError, ConnectionResetError, ssl.SSLError,
+                urllib.error.URLError, TimeoutError) as e:
+            last_err = e
+            if attempt < 4:
+                time.sleep(2 ** attempt)
+                continue
+            raise
+    raise last_err  # unreachable
 
 
 # ── ASC operations ─────────────────────────────────────────────────────────
