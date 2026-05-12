@@ -151,6 +151,23 @@ sequenceDiagram
   App->>U: render todos
 ```
 
+#### Legend (sign-in)
+
+| Term | Meaning |
+|---|---|
+| **`AuthContext`** | React context (`web/src/AuthContext.tsx`) wrapping Firebase Auth; exposes `user`, `loading`, sign-in/up/out APIs. |
+| **`onAuthStateChanged`** | Firebase listener that fires whenever auth state changes (sign-in, sign-out, token refresh). |
+| **`signInWithPopup` / `signInWithRedirect`** | Firebase OAuth methods. Popup is the default; redirect is the fallback for environments that block third-party storage. |
+| **Safari ITP** | Safari's Intelligent Tracking Prevention. Blocks third-party cookies/storage, which breaks `signInWithPopup` for many providers. We catch `auth/popup-blocked`, `auth/operation-not-supported-in-this-environment`, `auth/unauthorized-domain`, `auth/web-storage-unsupported` and fall back to redirect. |
+| **`getRedirectResult`** | Run on every page load to complete a pending redirect-based sign-in. No-op when there's no pending redirect. |
+| **`UserCredential`** | Firebase object returned from a successful sign-in: `{ user, providerId, operationType, … }`. |
+| **`uid`** | Firebase user id — stable per account, opaque string. **The store memoizes the adapter on `uid`, not `user`** (the `User` object reference rotates on token refresh). |
+| **`localStorage adapter`** | `StorageAdapter` impl backed by `localStorage` — used while signed out and as the source for `migrateLocalToCloud`. |
+| **`Firestore adapter`** | `StorageAdapter` impl backed by `users/{uid}/state/{key}` Firestore docs; supports `subscribe` via `onSnapshot`. |
+| **`migrateLocalToCloud`** | First-time-per-uid migration: for each persisted key, push the local value up **only if cloud is missing**. Per-key gated to prevent stale local data clobbering live cloud data. |
+| **versioned envelope** | The `{ version: SCHEMA_VERSION, data: … }` JSON wrapper that both adapters use. Lets `migrate*` functions detect schema upgrades. |
+| **`loaded`** | Store-level flag — true once all three persisted entities (`todos`, `categories`, `profile`) have hydrated from the adapter. |
+
 ### 2b. Mutation → debounced write → cross-device fan-out
 
 ```mermaid
@@ -180,6 +197,21 @@ sequenceDiagram
   SyncB-->>SB: todos updated
   SB-->>TB: derived state recomputed, re-render
 ```
+
+#### Legend (sync)
+
+| Term | Meaning |
+|---|---|
+| **Tab A / Tab B** | Two clients holding the same `uid` — could be two browser tabs (same Firestore IndexedDB cache via `persistentMultipleTabManager`), or web ↔ mobile, or two separate devices. |
+| **`useTodoStore`** | Top-level domain hook. Owns `todos`/`categories`/`profile` via `useSyncedState`, plus session state (`filter`, `selectedTrashIds`) and derived data. |
+| **`useSyncedState(adapter, key, …)`** | The hook every persisted entity goes through. Hydrates via `adapter.getItem`, subscribes if supported, debounces writes ~400ms. |
+| **`TaskItem`** | `React.memo`-wrapped row component. Receives stable callbacks from the store; mutation props use functional setState so they don't close over `todos`. |
+| **`updateText` / `todoSet`** | Store callback → core's pure mutation helper. `todoSet(prev, id, field, value)` returns a new `Todo[]` with the field updated and `updatedAt` bumped. |
+| **trailing debounce (400ms)** | Fires once 400ms after the **last** call within the window. A burst of keystrokes collapses into one Firestore `setDoc` instead of one per character. |
+| **`setDoc`** | Firestore write. Replaces the doc at `users/{uid}/state/{key}` with `{ value: <envelope>, updatedAt: Date.now() }`. |
+| **`onSnapshot`** | Firestore real-time listener. Fires for **every** writer including the local one — that's why the round-trip guard matters. |
+| **`lastSerializedRef`** | Per-key ref in `useSyncedState` holding the last value seen-or-written. If `onSnapshot` delivers a value identical to it, skip the `setState` — otherwise the writing tab would re-render itself from its own write. |
+| **derived state** | Memoized output of `core/src/derive.ts → deriveState({ todos, filter, categories, t })`: `filtered`, `groups`, `systemCounts`, `byCategoryOpen`, `sectionLabel`, `subtitle`, `emptyState`, `defaultCategory`. Recomputes when any of those four inputs change. |
 
 ### Workflow notes
 
