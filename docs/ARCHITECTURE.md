@@ -226,5 +226,5 @@ sequenceDiagram
 FigJam versions of these diagrams are published below — useful for stakeholder review or quick visual exploration. The Mermaid above is the source of truth; if the two diverge, trust the Mermaid and regenerate.
 
 - [System architecture](https://www.figma.com/board/3i7eiMCySzF6tBIwa6s3bS) — mirrors §1
-- [Sign-in workflow](https://www.figma.com/board/7swkuCLxDDWXWafwVvwvNB) — mirrors §2a
-- [Sync workflow](https://www.figma.com/board/6SvvLRrqoPBcKc0A9RaByH) — mirrors §2b
+- [Sign-in workflow (with legend)](https://www.figma.com/board/hLMaehKk3vlx2nkipFW3ff) — mirrors §2a, term legend embedded as side panel
+- [Sync workflow (with legend)](https://www.figma.com/board/3wJIsiskRbt7Jnda47mKiD) — mirrors §2b, term legend embedded as side panel
