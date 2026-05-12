@@ -7,17 +7,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run dev` — start Vite dev server
 - `npm run build` — type-check (`tsc -b`) then build with Vite; type errors fail the build
 - `npm run preview` — serve the built `dist/`
-- `npm test` — run Vitest once (currently only `src/selection.test.ts`)
-- `npm run test:watch` — Vitest in watch mode
+- `npm test` — Vitest once. Excludes `tests/firestore-rules.test.ts` because it needs the emulator. Includes `src/{selection,core,i18n}.test.ts`.
+- `npm run test:watch` — Vitest in watch mode (also excludes the rules test)
+- `npm run test:rules` — boots the Firestore emulator via `firebase emulators:exec` and runs the rules test against it
 - Single file: `npx vitest run src/selection.test.ts`; filter by name: `npx vitest run -t "regression"`
+- `npm run lint` — ESLint via flat config (`eslint.config.js`). Rules are mostly **warnings** (incl. `react-hooks/set-state-in-effect`, `react-hooks/refs`, `@typescript-eslint/no-explicit-any`) — they won't fail CI on their own.
+- `npm run deploy` — `npm run build && firebase deploy --only hosting`. **Production is hosted on AWS Amplify** (auto-deploys from the `main` branch via root-level `amplify.yml`); `firebase hosting` is a backup target, not the primary surface.
+- `npm run deploy:rules` — `firebase deploy --only firestore:rules`. Use when `firestore.rules` changes.
 
-No linter is configured. TypeScript is `strict` with `noUnusedLocals` and `noUnusedParameters` on (see `tsconfig.app.json`), so dead variables/params fail the build — `tsc -b` (via `npm run build`) is the primary verification pass.
+TypeScript is `strict` with `noUnusedLocals` and `noUnusedParameters` on (see `tsconfig.app.json`), so dead variables/params fail the build — `tsc -b` (via `npm run build`) is the authoritative verification pass; the lint step warns but doesn't block.
 
 A `PostToolUse:Edit/Write` hook runs `npm run build` after every file edit. If a Write/Edit lands the codebase in a non-compiling state (e.g. importing a symbol you haven't used yet, removing an export still referenced elsewhere), the hook blocks. Land import-then-usage in a **single Write**, not two Edits.
 
 ## Architecture
 
-Single-page React 18 + TypeScript + Vite app. No router, no backend (yet — Phase 2 will add Firestore sync). Domain state lives in a custom hook (`useTodoStore`) and persists to `localStorage`. Storage keys: `todos`, `categories`, `profile`, `lang`.
+Single-page React 18 + TypeScript + Vite app. No router. Auth via Firebase (Google / Apple / Facebook / email-password) and per-user state syncs to Firestore at `users/{uid}/state/{key}`. While signed out (or before auth resolves), state lives in `localStorage` under the same keys (`todos`, `categories`, `profile`, `lang`) using the same versioned envelope, so the same parser/migrator handles both. Domain state lives in `useTodoStore`; the storage adapter behind it switches on `uid` (see "Persistence & sync" below). Sentry is wired in `main.tsx` and gated on `VITE_SENTRY_DSN` (no-op when unset, so dev never reports).
 
 ### Shared `core/` package
 
@@ -36,50 +40,87 @@ Core exports:
 
 Each platform's `useTodoStore` is now thin glue: storage adapter + `useState`/`useCallback`/`useMemo` + calls into core's `derive` and mutation helpers.
 
-### Persistence: dual sync + async paths
-
-Web's `src/persistence.ts` exports BOTH:
-
-- A sync `readVersioned`/`writeVersioned` pair operating directly on `localStorage` — used by `useState(loader)` and similar synchronous initializers (today's hot path).
-- An async `storage: StorageAdapter` wrapping `localStorage` in the same async interface mobile/Firestore use — Phase 2 will switch the store to use this and a `FirestoreAdapter` will plug in alongside.
-
-The two paths read/write the same versioned envelope, so swapping is a drop-in.
-
 ### Top-level wiring (`src/main.tsx`)
 
 ```
-<ErrorBoundary>          // catches mutation throws, offers data-clear reset
-  <LangProvider>         // i18n, lang persisted to localStorage
-    <NotifyProvider>     // snackbar + confirm dialog (portaled)
-      <App />
-    </NotifyProvider>
-  </LangProvider>
-</ErrorBoundary>
+<StrictMode>
+  <ErrorBoundary>        // catches mutation throws, offers data-clear reset
+    <AuthProvider>       // Firebase auth state + sign-in/up/out APIs
+      <LangProvider>     // i18n, lang persisted to localStorage via usePersistedState
+        <NotifyProvider> // snackbar + confirm dialog (portaled)
+          <App />
+        </NotifyProvider>
+      </LangProvider>
+    </AuthProvider>
+  </ErrorBoundary>
+</StrictMode>
 ```
 
-All four providers must be present: `LangProvider` and `NotifyProvider` defaults are `null!`, so the hooks throw outside them. Any new top-level provider must also be added here.
+All providers must be present in this order: `useTodoStore` consumes `useAuth()`, `useLang()`, and `useNotify()`, and each context default is `null!` so hooks throw outside their provider. `App.tsx` blocks on `auth.loading`, then renders `<SignIn />` when `!user`, then renders the app. Any new top-level provider must be added here.
+
+Sentry init runs at the very top of `main.tsx`, before `createRoot`, gated on `import.meta.env.VITE_SENTRY_DSN`. Without the env var it's a no-op.
 
 ### Domain store (`src/useTodoStore.ts`)
 
-`useTodoStore()` is the single owner of domain state — `categories`, `todos`, `filter`, `profile`, `selectedTrashIds`. It returns derived data (`filtered`, `groups`, `counts`, `sectionLabel`, `subtitle`, `emptyState`, `defaultCategory`, `appTitle`, …) plus all mutations. `App.tsx` is layout-only and keeps just ephemeral UI state (drawer toggle, title-edit input).
+`useTodoStore()` is the single owner of domain state — `categories`, `todos`, `filter`, `profile`, `selectedTrashIds`. The three persisted entities (`categories`, `todos`, `profile`) are owned by `useSyncedState` calls against the auth-aware `adapter` described above. `filter` and `selectedTrashIds` are session-only (plain `useState`).
 
-Three rules to know when extending the store:
+The store also returns derived data (`filtered`, `groups`, `systemCounts`, `byCategoryOpen`/`byCategoryTotal`, `sectionLabel`, `subtitle`, `emptyState`, `defaultCategory`, `appTitle`, `greetingKey`, `loaded`, …) all computed by `core/src/derive.ts → deriveState(...)` inside a `useMemo` keyed on `[todos, filter, categories, t]`, plus all mutations. `App.tsx` is layout-only and keeps just ephemeral UI state (drawer toggle).
+
+Four rules to know when extending the store:
 
 1. **Mutations passed to `TaskItem` MUST stay stable.** `TaskItem` is wrapped in `React.memo`, so its memoization breaks if a callback prop gets a new identity each render. The mutations that flow into `TaskItem` (`toggle`, `moveToTrash`, `restoreFromTrash`, `permanentlyDelete`, `updatePriority`, `updateDueDate`, `updateTaskCategory`, `updateText`, `toggleTrashSelection`) are wrapped in `useCallback` with **only setter deps** (and refs for `toggleTrashSelection`). They use functional setState (`setTodos(prev => ...)`) so they don't close over `todos`. Non-`TaskItem` mutations (e.g. `addCategory`, `deleteCategory`, `bulkPermanentDelete`) don't have this constraint and are plain functions.
 2. **Derived state is wrapped in `useMemo`** keyed on `[todos, filter, categories, t]`. `t` is included so language toggles refresh `sectionLabel`/`subtitle`/`emptyState`. If you add a derived value that depends on `profile` or another piece of state, add it to the dep array.
-3. **Trash-selection bulk ops use a `todosRef`** to keep `toggleTrashSelection` stable. If you need access to current `todos` from a stable callback, follow the same `useRef` + sync `useEffect` pattern.
+3. **Trash-selection bulk ops use refs** (`todosRef`, `lastSelectedRef`) to keep `toggleTrashSelection` stable. The selection set is `Set<string>` (todo ids are strings — see "ID format" below). If you need access to current `todos` from a stable callback, follow the same `useRef` + sync `useEffect` pattern.
+4. **Hydration is async**. Even with `localStorage` (the signed-out path), `useSyncedState` flips `loaded` true only after the first `adapter.getItem` resolves on a microtask. The store exposes `loaded = categoriesLoaded && todosLoaded && profileLoaded`. `App.tsx` does NOT gate on `store.loaded` directly — it gates on `auth.loading` and shows a loading shell, then flips to `<SignIn />` or the app. Components that need to wait for first hydrate before rendering should check `store.loaded`.
 
-### Persistence (`src/persistence.ts` + `src/usePersistedState.ts`)
+### Persistence & sync
 
-The versioned envelope (`{ version: SCHEMA_VERSION, data }`) and `StorageAdapter` interface live in `core/src/persistence.ts`. Web's `src/persistence.ts` exports the legacy SYNC `readVersioned`/`writeVersioned` (operating directly on `localStorage`) used by `useState(loader)` initializers, AND an async `storage: StorageAdapter` for code that wants the unified async interface.
+Three layers cooperate:
 
-- `readVersioned<T>(key, migrate)` parses, unwraps if versioned, falls through to `migrate(raw)` for legacy bare arrays/objects (so old installs keep working) or `null` (first-time use).
-- `writeVersioned(key, data)` always wraps. Quota errors are swallowed.
-- `usePersistedState<T>(key, loader)` is a thin `useState` wrapper that writes to localStorage via a `useEffect`. Use this for any new persisted entity. The setter returned is the standard React `useState` dispatch — it's stable, so passing it through `useCallback` deps is safe.
+1. **`StorageAdapter`** (`core/src/persistence.ts`) — async key/value interface (`getItem`/`setItem`/`removeItem`/`clear`, optional `subscribe`). All persistence flows through this.
+2. **Two adapter implementations:**
+   - `storage` in `src/persistence.ts` — wraps browser `localStorage` (no `subscribe`).
+   - `makeFirestoreAdapter(db, uid)` in `src/firestoreAdapter.ts` — reads/writes `users/{uid}/state/{key}` as `{ value: <json envelope>, updatedAt: number }`. `subscribe` uses `onSnapshot` so cross-device + cross-tab updates land live. `clear()` is a no-op (subcollection enumeration is too expensive).
+3. **`useSyncedState(adapter, key, initial, parse, serialize)`** (`src/useSyncedState.ts`) — the hook every persisted entity goes through. Hydrates via `adapter.getItem` → flips its `loaded` flag, subscribes if the adapter supports it, debounces writes by ~400ms (so a burst of mutations during typing collapses into one Firestore `setDoc`). A `lastSerializedRef` short-circuits write→subscribe→setState round-trips.
 
-`useTodoStore` uses `usePersistedState` for `categories`, `todos`, and `profile`. `LangProvider` uses it for `lang`. `filter` and `selectedTrashIds` are session-only — plain `useState`.
+The versioned envelope (`{ version: SCHEMA_VERSION, data }`) is the same on both adapters, so the same `migrate*` functions in core handle either. `SCHEMA_VERSION` is `1`. Bumped versions get forward-migration in the appropriate `migrate*` function.
 
-`SCHEMA_VERSION` is `1` (from core). Stored shape changes get a bumped version + forward-migration logic in the appropriate `migrate*` function in core.
+The legacy sync `readVersioned`/`writeVersioned` and `usePersistedState` (`src/usePersistedState.ts`) are still exported but only `LangProvider`'s `lang` key uses them. New persisted entities should use `useSyncedState` against the auth-aware adapter from the store, not `usePersistedState`. `usePersistedState` is **not** auth-aware and would write to `localStorage` only.
+
+### Auth + adapter swap (`src/AuthContext.tsx` + `useTodoStore`)
+
+`AuthContext` exposes `{ user, loading, signIn, signUp, signInWithApple, signInWithGoogle, signInWithFacebook, resetPassword, signOut, deleteAccount }`. Social sign-in uses `signInWithPopup` and falls back to `signInWithRedirect` on `auth/popup-blocked` / `auth/operation-not-supported-in-this-environment` / `auth/unauthorized-domain` / `auth/web-storage-unsupported` (Safari ITP, in-app browsers). `getRedirectResult` runs on every mount to complete pending redirect handshakes.
+
+First-time social sign-in calls `seedProfileIfMissing` — fetches `users/{uid}/state/profile`, and if absent writes a profile derived from `cred.user.displayName` / `cred.user.email`. **Apple sends name only on the very first sign-in**, so a missed seed there is unrecoverable.
+
+`signOut()` clears `["todos","categories","profile"]` from `localStorage` so the next user signing in on this browser can't bleed prior-user data into their empty Firestore via `migrateLocalToCloud` (see below).
+
+`deleteAccount()` deletes Firestore docs first (security rules block writes once auth is gone), then `deleteUser`. Throws `RecentLoginRequiredError` on `auth/requires-recent-login` so UI can prompt re-auth.
+
+In `useTodoStore`:
+
+```ts
+const uid = user?.uid ?? null;
+const adapter = useMemo<StorageAdapter>(
+  () => (uid ? makeFirestoreAdapter(db, uid) : localAdapter),
+  [uid],   // memoize on uid, NOT on the User object
+);
+```
+
+**Memoize on `uid`, never on `user`.** Firebase rotates the `User` reference roughly hourly on token refresh. Memoizing on `user` would tear down Firestore listeners and re-fire `migrateLocalToCloud` on every refresh.
+
+`migrateLocalToCloud(adapter)` runs once per uid: for each key in `["todos","categories","profile"]`, if the cloud value is missing, push the local `localStorage` value up. **Per-key gating** is intentional — only checking `profile` would let a stale local `todos` overwrite cloud `todos` on a device whose cloud profile happened to be missing.
+
+### Firebase setup (`src/firebase.ts`) + Firestore rules
+
+`firebase.ts` initializes the app with `initializeFirestore` (vs `getFirestore`) so it can configure `persistentLocalCache({ tabManager: persistentMultipleTabManager() })` — repeat loads paint instantly from IndexedDB, and two open tabs share the same cache. `setPersistence(auth, browserLocalPersistence)` is set explicitly. The `firebaseConfig` is bundled in JS (intentional — Firebase config is not a secret; security is enforced by rules).
+
+`firestore.rules` (deployed via `npm run deploy:rules`):
+
+- `users/{uid}/state/{key}` — only the signed-in user can read/write their own subtree (`request.auth.uid == uid`).
+- Default deny on everything else, including the root `users` collection (would otherwise leak the set of valid uids).
+
+`tests/firestore-rules.test.ts` exercises these rules under the Firestore emulator (`npm run test:rules`).
 
 ### Data flow
 
@@ -112,7 +153,11 @@ Built-ins are not privileged — they can be renamed, recolored, re-iconed, reor
 
 `Filter = SystemFilter | \`cat:${string}\``— system filters are`'all' | 'overdue' | 'open' | 'done' | 'trash'`, plus category filters tagged with a `cat:`prefix. Helpers:`isCategoryFilter(f)`, `categoryIdFromFilter(f)`, `categoryFilter(id)`. Because template-literal Filter members can't be enumerated, filter counts use a struct shape `{ all, overdue, open, done, trash, byCategory }`rather than`Record<Filter, number>`.
 
-`Todo` carries `trashed: boolean` and `trashedAt?: number`. The active list filters out trashed items everywhere except the `'trash'` view, which shows only trashed items.
+`Todo` carries `trashed: boolean` and `trashedAt?: number`. The active list filters out trashed items everywhere except the `'trash'` view, which shows only trashed items. `Todo.updatedAt?: number` is set on every mutation in core's `derive.ts` helpers and is used for last-write-wins semantics in cross-device sync.
+
+#### ID format
+
+`Todo.id` is `string` (UUID v4 generated by `crypto.randomUUID()` inside `core/src/derive.ts → newTodo`). Older v0 stores used `Date.now()` numbers, which collide on rapid bursts and aren't safe across devices — `migrateTodos` in core rewrites legacy numeric ids to UUIDs on read. Anything new that holds id sets/maps must use `Set<string>` / `Record<string, …>`.
 
 `PRIORITY_VALUES` / `PRIORITY_COLORS` (hex) live in core. The CSS variables in `src/index.css` (`--red`, `--orange`, `--blue`) are kept for the rest of the chrome (sidebar accents, etc.) but priority badges now use the core hex values directly so the same colors render consistently across web and mobile.
 
@@ -176,19 +221,13 @@ Density is exposed via `data-density="comfortable" | "compact"` on `.app-shell`;
 - Date inputs use `dateRef.current?.showPicker()` to trigger the native picker from a styled chip button.
 - `lucide-react` provides the bulk of category icons via `CategoryIcon.tsx` (80+) and the mobile top-bar (`Menu`/`X`). `Sidebar.tsx` and `TaskItem.tsx` use **inline SVGs** instead — match the style of nearby components when adding icons rather than mixing approaches in one file.
 
-### Phase 2: cross-device sync (Firestore)
+### Hosting
 
-The `core/` package and `StorageAdapter` interface exist so Phase 2 can plug in a `FirestoreAdapter` without touching domain logic. When wiring Firestore:
+Production traffic lives at AWS Amplify (`main.dhcuxhzauzw4c.amplifyapp.com` and the custom domain). The build spec is at the repo root in `amplify.yml` (`appRoot: web`). Amplify rebuilds + deploys on every push to `main`. Firebase Hosting (`firebase.json`) is configured as a fallback target — `dist/` published, SPA rewrite to `/index.html`, immutable cache headers on hashed assets — but `npm run deploy` is not the canonical deploy path; pushes to `main` are.
 
-1. Add `firebase` SDK to web and `@react-native-firebase/*` (or web SDK) to mobile.
-2. Create `core/src/firestoreAdapter.ts` implementing `StorageAdapter` against `setDoc`/`onSnapshot`. Keys map to docs/collections.
-3. Add a `core/src/auth.ts` defining `useAuth` (anonymous → upgrade to Google/Apple).
-4. Convert each app's `useTodoStore` to use the async `storage` adapter (web's sync paths get retired). Hydration becomes async on web too — accept the brief loading frame.
-5. First sign-in: if Firestore is empty for the user but local has data, push local→cloud; otherwise pull cloud→local cache.
-6. Last-write-wins conflict resolution per field, using `updatedAt` timestamps. Add `updatedAt: number` to `Todo` if needed.
+### Tests
 
-The schema is already cross-platform-safe: hex colors, `uri`-based image avatars, `cat:` prefixed filters, versioned envelopes. No data migration should be required when the cloud goes online — existing local stores are already in the canonical shape.
-
-### Known deferred refactor
-
-`Todo.id` is still `Date.now()` (number), which has theoretical ms-collision risk. Switching to `crypto.randomUUID()` would ripple through `Todo`, `Set<number>` in `selection.ts`, the test fixtures, and a localStorage migration step. Single-user app + ms granularity makes it safe to defer — but cross-device sync (Phase 2) will need it. Bump alongside that work.
+- `src/selection.test.ts` — locks in the trash-view bulk-select stale-closure regression.
+- `src/core.test.ts` — exercises pure helpers from `core/src/derive.ts` and friends.
+- `src/i18n.test.ts` — verifies `strings.en` and `strings.zh` cover the same key shape and that count formatters return non-empty strings.
+- `tests/firestore-rules.test.ts` — runs under the Firestore emulator to verify per-uid isolation. Requires the Firebase CLI installed; gated behind `npm run test:rules` so a normal `npm test` doesn't fail when the emulator isn't running.
