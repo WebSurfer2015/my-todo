@@ -2,6 +2,16 @@
 
 App Store "What's New" copy. Paste into App Store Connect when submitting a new version.
 
+## Submission checklist
+
+For each new version page in ASC, before clicking **Add for Review**:
+
+- [ ] Build selected (from TestFlight, after Apple finishes processing)
+- [ ] "What's New in This Version" pasted from the section below
+- [ ] **Version Release** set to **Automatically release this version** (Apple flips this back to manual by default each time — easy to miss)
+- [ ] Export compliance / IDFA answers match the previous version's
+- [ ] Screenshots / metadata unchanged (or updated if the UI changed materially)
+
 ## v1.0.1 (Build 20) — 2026-05-13
 
 - The app is now called "Todos for Everyone"
