@@ -50,7 +50,7 @@ export default function SignIn() {
 
   async function submit() {
     if (mode === "signup" && !firstName.trim()) {
-      setError("First name is required");
+      setError(t.firstNameRequired);
       return;
     }
     setError(null);
@@ -112,7 +112,7 @@ export default function SignIn() {
             />
             <Text style={styles.title}>Todos for Everyone</Text>
             <Text style={styles.subtitle}>
-              {mode === "reset" ? t.resetPasswordPrompt : "Get things done"}
+              {mode === "reset" ? t.resetPasswordPrompt : t.signInTagline}
             </Text>
 
             {/* SOCIAL PROVIDERS — Apple, Google */}
@@ -138,7 +138,7 @@ export default function SignIn() {
                   disabled={busy}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.googleText}>Sign in with Google</Text>
+                  <Text style={styles.googleText}>{t.signInWithGoogle}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -146,7 +146,7 @@ export default function SignIn() {
                   onPress={() => switchMode("signin")}
                   disabled={busy}
                 >
-                  <Text style={styles.toggleEmphasis}>Sign in with email</Text>
+                  <Text style={styles.toggleEmphasis}>{t.signInWithEmail}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -154,7 +154,7 @@ export default function SignIn() {
                   onPress={() => switchMode("signup")}
                   disabled={busy}
                 >
-                  <Text style={styles.toggleText}>Don't have an account? Create one</Text>
+                  <Text style={styles.toggleText}>{t.createAccountToggle}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -195,7 +195,7 @@ export default function SignIn() {
                 )}
 
                 <View style={styles.field}>
-                  <Text style={styles.label}>Email</Text>
+                  <Text style={styles.label}>{t.emailLabel}</Text>
                   <TextInput
                     style={styles.input}
                     value={email}
@@ -209,7 +209,7 @@ export default function SignIn() {
 
                 {mode !== "reset" && (
                   <View style={styles.field}>
-                    <Text style={styles.label}>Password</Text>
+                    <Text style={styles.label}>{t.passwordLabel}</Text>
                     <TextInput
                       style={styles.input}
                       value={password}
@@ -237,9 +237,9 @@ export default function SignIn() {
                   ) : (
                     <Text style={styles.submitText}>
                       {mode === "signin"
-                        ? "Sign in"
+                        ? t.signInAction
                         : mode === "signup"
-                          ? "Create account"
+                          ? t.createAccountAction
                           : t.sendResetEmail}
                     </Text>
                   )}
@@ -262,7 +262,7 @@ export default function SignIn() {
                     <Text style={styles.toggleText}>
                       {mode === "reset"
                         ? t.backToSignIn
-                        : "Already have an account? Sign in"}
+                        : t.haveAccountToggle}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -271,7 +271,7 @@ export default function SignIn() {
                   style={styles.toggle}
                   onPress={() => switchMode("social")}
                 >
-                  <Text style={styles.toggleText}>← Back to all sign-in options</Text>
+                  <Text style={styles.toggleText}>{t.backToAllOptions}</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -284,7 +284,7 @@ export default function SignIn() {
 
 /** Tap to open a Modal listing all 6 languages. Selecting one persists via LangContext. */
 function LangPicker({ theme }: { theme: ThemeColors }) {
-  const { lang, setLang } = useLang();
+  const { lang, setLang, t } = useLang();
   const [open, setOpen] = useState(false);
   const styles = useMemo(() => makeLangPickerStyles(theme), [theme]);
   return (
@@ -292,7 +292,7 @@ function LangPicker({ theme }: { theme: ThemeColors }) {
       <TouchableOpacity
         onPress={() => setOpen(true)}
         style={styles.btn}
-        accessibilityLabel="Language"
+        accessibilityLabel={t.languageLabel}
       >
         <Text style={styles.btnText}>{LANG_NAMES[lang]} ▾</Text>
       </TouchableOpacity>

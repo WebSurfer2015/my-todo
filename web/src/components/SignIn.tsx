@@ -84,7 +84,7 @@ export default function SignIn() {
         />
         <h1 className="signin-title">Todos for Everyone</h1>
         <p className="signin-subtitle">
-          {mode === "reset" ? t.resetPasswordPrompt : "Get things done"}
+          {mode === "reset" ? t.resetPasswordPrompt : t.signInTagline}
         </p>
 
         {/* SOCIAL PROVIDERS — Apple, Google (landing only) */}
@@ -95,12 +95,12 @@ export default function SignIn() {
               className="signin-social signin-apple"
               onClick={handleApple}
               disabled={busy}
-              aria-label="Sign in with Apple"
+              aria-label={t.signInWithApple}
             >
               <svg width="16" height="18" viewBox="0 0 14 18" fill="currentColor" aria-hidden="true">
                 <path d="M11.6 9.5c0-2 1.6-3 1.7-3-.9-1.4-2.4-1.6-2.9-1.6-1.2-.1-2.4.7-3 .7-.6 0-1.6-.7-2.6-.7-1.4 0-2.6.8-3.3 2C-.1 9 .9 12.7 2.4 14.7c.7 1 1.6 2.1 2.7 2 1.1 0 1.5-.7 2.8-.7 1.3 0 1.7.7 2.8.7 1.2 0 1.9-1 2.6-2 .8-1.2 1.1-2.3 1.2-2.4-.1 0-2.3-.9-2.4-3.4zM9.5 3.6c.6-.7 1-1.7.9-2.7-.9 0-1.9.6-2.5 1.3-.6.6-1.1 1.6-.9 2.6 1 .1 2 -.5 2.5-1.2z" />
               </svg>
-              Sign in with Apple
+              {t.signInWithApple}
             </button>
 
             <button
@@ -108,7 +108,7 @@ export default function SignIn() {
               className="signin-social signin-google"
               onClick={handleGoogle}
               disabled={busy}
-              aria-label="Sign in with Google"
+              aria-label={t.signInWithGoogle}
             >
               <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
                 <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" />
@@ -116,7 +116,7 @@ export default function SignIn() {
                 <path fill="#FBBC05" d="M3.964 10.706A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.706V4.962H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.038l3.007-2.332z" />
                 <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.962L3.964 7.294C4.672 5.167 6.656 3.58 9 3.58z" />
               </svg>
-              Sign in with Google
+              {t.signInWithGoogle}
             </button>
 
             <button
@@ -125,7 +125,7 @@ export default function SignIn() {
               onClick={() => switchMode("signin")}
               disabled={busy}
             >
-              Sign in with email
+              {t.signInWithEmail}
             </button>
 
             <button
@@ -134,7 +134,7 @@ export default function SignIn() {
               onClick={() => switchMode("signup")}
               disabled={busy}
             >
-              Don't have an account? Create one
+              {t.createAccountToggle}
             </button>
           </div>
         )}
@@ -174,7 +174,7 @@ export default function SignIn() {
             )}
 
             <label className="signin-field">
-              <span className="signin-label">Email</span>
+              <span className="signin-label">{t.emailLabel}</span>
               <input
                 type="email"
                 autoComplete="email"
@@ -187,7 +187,7 @@ export default function SignIn() {
 
             {mode !== "reset" && (
               <label className="signin-field">
-                <span className="signin-label">Password</span>
+                <span className="signin-label">{t.passwordLabel}</span>
                 <input
                   type="password"
                   autoComplete={mode === "signin" ? "current-password" : "new-password"}
@@ -213,9 +213,9 @@ export default function SignIn() {
               {busy
                 ? "…"
                 : mode === "signin"
-                  ? "Sign in"
+                  ? t.signInAction
                   : mode === "signup"
-                    ? "Create account"
+                    ? t.createAccountAction
                     : t.sendResetEmail}
             </button>
           </form>
@@ -238,7 +238,7 @@ export default function SignIn() {
             className="signin-toggle"
             onClick={() => switchMode("signin")}
           >
-            {mode === "reset" ? t.backToSignIn : "Already have an account? Sign in"}
+            {mode === "reset" ? t.backToSignIn : t.haveAccountToggle}
           </button>
         )}
 
@@ -248,7 +248,7 @@ export default function SignIn() {
             className="signin-toggle"
             onClick={() => switchMode("social")}
           >
-            ← Back to all sign-in options
+            {t.backToAllOptions}
           </button>
         )}
       </div>
@@ -261,13 +261,13 @@ export default function SignIn() {
  * LangProvider's existing localStorage handling — selection survives reload.
  */
 function LangPicker() {
-  const { lang, setLang } = useLang();
+  const { lang, setLang, t } = useLang();
   return (
     <div className="signin-lang">
       <select
         value={lang}
         onChange={(e) => setLang(e.target.value as Lang)}
-        aria-label="Language"
+        aria-label={t.languageLabel}
       >
         {LANG_ORDER.map((l) => (
           <option key={l} value={l}>
