@@ -1,9 +1,9 @@
 ---
 layout: default
-title: My Todos
+title: Todos for Everyone
 ---
 
-# My Todos
+# Todos for Everyone
 
 Cross-platform todo app — web, iOS, and Android.
 

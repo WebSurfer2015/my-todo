@@ -2,7 +2,7 @@
 
 _Last updated: 2026-05-05_
 
-This policy explains what **My Todos** ("the app") collects, how it's used,
+This policy explains what **Todos for Everyone** ("the app") collects, how it's used,
 and your choices. The app is offered on iOS, Android, and the web.
 
 ## What we collect

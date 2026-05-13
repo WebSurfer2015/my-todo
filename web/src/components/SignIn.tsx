@@ -81,11 +81,11 @@ export default function SignIn() {
         <img
           className="signin-icon"
           src="/apple-touch-icon.png"
-          alt="My Todo"
+          alt="Todos for Everyone"
           width={72}
           height={72}
         />
-        <h1 className="signin-title">My Todo</h1>
+        <h1 className="signin-title">Todos for Everyone</h1>
         <p className="signin-subtitle">
           {mode === "reset" ? t.resetPasswordPrompt : "Get things done"}
         </p>

@@ -115,9 +115,9 @@ export default function SignIn() {
             <Image
               source={require("../../assets/icon.png")}
               style={styles.icon}
-              accessibilityLabel="My Todo"
+              accessibilityLabel="Todos for Everyone"
             />
-            <Text style={styles.title}>My Todo</Text>
+            <Text style={styles.title}>Todos for Everyone</Text>
             <Text style={styles.subtitle}>
               {mode === "reset" ? t.resetPasswordPrompt : "Get things done"}
             </Text>
