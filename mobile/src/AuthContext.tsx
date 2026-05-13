@@ -12,7 +12,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   FirebaseAuthTypes,
   AppleAuthProvider,
-  FacebookAuthProvider,
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
   deleteUser,
@@ -26,7 +25,6 @@ import { deleteDoc, doc, getDoc, setDoc } from "@react-native-firebase/firestore
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
 import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
-import { LoginManager, AccessToken, Profile as FBProfile } from "react-native-fbsdk-next";
 import { auth, db } from "./firebase";
 import { stateDocPath } from "../../core/src/persistence";
 import { Profile, SEED_PROFILE, MAX_PROFILE_NAME_LEN } from "../../core/src/profile";
@@ -54,7 +52,6 @@ export interface AuthApi {
   signUp: (email: string, password: string, init?: SignUpInit) => Promise<void>;
   signInWithApple: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
-  signInWithFacebook: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   /**
@@ -242,21 +239,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [seedProfileFromCred]);
 
-  const signInWithFacebook = useCallback(async () => {
-    const result = await LoginManager.logInWithPermissions(["public_profile", "email"]);
-    if (result.isCancelled) return;
-    const tokenData = await AccessToken.getCurrentAccessToken();
-    if (!tokenData) throw new Error("Facebook Sign-In returned no access token");
-    const fbCredential = FacebookAuthProvider.credential(tokenData.accessToken);
-    const cred = await signInWithCredential(auth, fbCredential);
-    // Try to enrich the profile seed with Facebook's first/last name.
-    const fbProfile = await FBProfile.getCurrentProfile().catch(() => null);
-    await seedProfileFromCred(cred, {
-      firstName: fbProfile?.firstName ?? undefined,
-      lastName: fbProfile?.lastName ?? undefined,
-    });
-  }, [seedProfileFromCred]);
-
   const resetPassword = useCallback(async (email: string) => {
     await sendPasswordResetEmail(auth, email);
   }, []);
@@ -306,7 +288,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUp,
       signInWithApple,
       signInWithGoogle,
-      signInWithFacebook,
       resetPassword,
       signOut,
       deleteAccount,
@@ -319,7 +300,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUp,
       signInWithApple,
       signInWithGoogle,
-      signInWithFacebook,
       resetPassword,
       signOut,
       deleteAccount,

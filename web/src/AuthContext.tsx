@@ -13,7 +13,6 @@ import {
   UserCredential,
   createUserWithEmailAndPassword,
   deleteUser,
-  FacebookAuthProvider,
   getRedirectResult,
   GoogleAuthProvider,
   onAuthStateChanged,
@@ -49,7 +48,6 @@ export interface AuthApi {
   signUp: (email: string, password: string, init?: SignUpInit) => Promise<void>;
   signInWithApple: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
-  signInWithFacebook: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   /**
@@ -185,12 +183,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signInWithOAuthProvider(provider);
   }, []);
 
-  const signInWithFacebook = useCallback(async () => {
-    const provider = new FacebookAuthProvider();
-    provider.addScope("email");
-    await signInWithOAuthProvider(provider);
-  }, []);
-
   const resetPassword = useCallback(async (email: string) => {
     await sendPasswordResetEmail(auth, email);
   }, []);
@@ -241,7 +233,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUp,
       signInWithApple,
       signInWithGoogle,
-      signInWithFacebook,
       resetPassword,
       signOut,
       deleteAccount,
@@ -253,7 +244,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUp,
       signInWithApple,
       signInWithGoogle,
-      signInWithFacebook,
       resetPassword,
       signOut,
       deleteAccount,

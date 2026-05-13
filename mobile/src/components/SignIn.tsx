@@ -19,12 +19,6 @@ import { useLang } from "../LangContext";
 import { useTheme, ThemeColors } from "../theme";
 import { Lang, LANG_NAMES, LANG_ORDER } from "../../../core/src/i18n";
 
-// Facebook is hidden until the user adds their FB App ID to app.json's
-// react-native-fbsdk-next plugin block. Without that, the native SDK isn't
-// in the build and tapping the button would throw a native-module-not-found
-// error. Set EXPO_PUBLIC_ENABLE_FACEBOOK=1 once configured to show it.
-const FACEBOOK_ENABLED = process.env.EXPO_PUBLIC_ENABLE_FACEBOOK === "1";
-
 type Mode = "social" | "signin" | "signup" | "reset";
 
 export default function SignIn() {
@@ -36,7 +30,6 @@ export default function SignIn() {
     signUp,
     signInWithApple,
     signInWithGoogle,
-    signInWithFacebook,
     resetPassword,
     appleAvailable,
   } = useAuth();
@@ -122,7 +115,7 @@ export default function SignIn() {
               {mode === "reset" ? t.resetPasswordPrompt : "Get things done"}
             </Text>
 
-            {/* SOCIAL PROVIDERS — Apple, Google, Facebook */}
+            {/* SOCIAL PROVIDERS — Apple, Google */}
             {mode !== "reset" && mode === "social" && (
               <View style={styles.providers}>
                 {appleAvailable && (
@@ -147,17 +140,6 @@ export default function SignIn() {
                 >
                   <Text style={styles.googleText}>Sign in with Google</Text>
                 </TouchableOpacity>
-
-                {FACEBOOK_ENABLED && (
-                  <TouchableOpacity
-                    style={[styles.socialBtn, styles.facebookBtn]}
-                    onPress={() => withProvider(signInWithFacebook)}
-                    disabled={busy}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.facebookText}>Sign in with Facebook</Text>
-                  </TouchableOpacity>
-                )}
 
                 <TouchableOpacity
                   style={styles.toggle}
@@ -425,8 +407,6 @@ function makeStyles(c: ThemeColors) {
       borderColor: "#dadce0",
     },
     googleText: { color: "#1f1f1f", fontSize: 15, fontWeight: "500" },
-    facebookBtn: { backgroundColor: "#1877F2" },
-    facebookText: { color: "#fff", fontSize: 15, fontWeight: "500" },
     toggleEmphasis: { color: c.label, fontSize: 14, fontWeight: "500" },
     field: { marginBottom: 12 },
     fieldRow: { flexDirection: "row", gap: 10 },
