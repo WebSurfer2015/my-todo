@@ -90,8 +90,8 @@ export default function SignIn() {
           {mode === "reset" ? t.resetPasswordPrompt : "Get things done"}
         </p>
 
-        {/* SOCIAL PROVIDERS — Apple, Google, Facebook */}
-        {mode !== "reset" && (
+        {/* SOCIAL PROVIDERS — Apple, Google, Facebook (landing only) */}
+        {mode === "social" && (
           <div className="signin-providers">
             <button
               type="button"
@@ -142,6 +142,15 @@ export default function SignIn() {
               disabled={busy}
             >
               Sign in with email
+            </button>
+
+            <button
+              type="button"
+              className="signin-toggle"
+              onClick={() => switchMode("signup")}
+              disabled={busy}
+            >
+              Don't have an account? Create one
             </button>
           </div>
         )}
@@ -239,21 +248,13 @@ export default function SignIn() {
           </button>
         )}
 
-        {mode !== "social" && (
+        {(mode === "signup" || mode === "reset") && (
           <button
             type="button"
             className="signin-toggle"
-            onClick={() => {
-              if (mode === "reset") switchMode("signin");
-              else if (mode === "signin") switchMode("signup");
-              else switchMode("signin");
-            }}
+            onClick={() => switchMode("signin")}
           >
-            {mode === "reset"
-              ? t.backToSignIn
-              : mode === "signin"
-                ? "Don't have an account? Create one"
-                : "Already have an account? Sign in"}
+            {mode === "reset" ? t.backToSignIn : "Already have an account? Sign in"}
           </button>
         )}
 

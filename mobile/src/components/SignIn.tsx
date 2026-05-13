@@ -166,6 +166,14 @@ export default function SignIn() {
                 >
                   <Text style={styles.toggleEmphasis}>Sign in with email</Text>
                 </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.toggle}
+                  onPress={() => switchMode("signup")}
+                  disabled={busy}
+                >
+                  <Text style={styles.toggleText}>Don't have an account? Create one</Text>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -264,26 +272,18 @@ export default function SignIn() {
                   </TouchableOpacity>
                 )}
 
-                <TouchableOpacity
-                  style={styles.toggle}
-                  onPress={() =>
-                    switchMode(
-                      mode === "reset"
-                        ? "signin"
-                        : mode === "signin"
-                          ? "signup"
-                          : "signin",
-                    )
-                  }
-                >
-                  <Text style={styles.toggleText}>
-                    {mode === "reset"
-                      ? t.backToSignIn
-                      : mode === "signin"
-                        ? "Don't have an account? Create one"
+                {(mode === "signup" || mode === "reset") && (
+                  <TouchableOpacity
+                    style={styles.toggle}
+                    onPress={() => switchMode("signin")}
+                  >
+                    <Text style={styles.toggleText}>
+                      {mode === "reset"
+                        ? t.backToSignIn
                         : "Already have an account? Sign in"}
-                  </Text>
-                </TouchableOpacity>
+                    </Text>
+                  </TouchableOpacity>
+                )}
 
                 <TouchableOpacity
                   style={styles.toggle}
