@@ -6,7 +6,7 @@ This is the **mobile** workspace of `my-todo` — Expo SDK 54 + React Native 0.8
 
 ## Commands
 
-- `npm run ios` / `npm run android` — `expo run:ios` / `expo run:android`. Builds the dev client and launches on a sim/device. **Use the dev client, not Expo Go** — the project depends on native modules (Firebase, Google Sign-In, Apple Auth, FB SDK) that Expo Go does not bundle. `expo-dev-client` is in deps so EAS won't print the "uses Expo Go" warning.
+- `npm run ios` / `npm run android` — `expo run:ios` / `expo run:android`. Builds the dev client and launches on a sim/device. **Use the dev client, not Expo Go** — the project depends on native modules (Firebase, Google Sign-In, Apple Auth) that Expo Go does not bundle. `expo-dev-client` is in deps so EAS won't print the "uses Expo Go" warning.
 - `npm start` — starts the Metro bundler only (use after a dev client is already installed).
 - `npm run typecheck` — `tsc --noEmit`. Strict mode is on via `expo/tsconfig.base` + `"strict": true`.
 - `npm run lint` — flat-config ESLint (`eslint.config.js`). `react-hooks` rules + `@typescript-eslint`.
@@ -68,11 +68,11 @@ The Firestore adapter writes each entity to `users/{uid}/state/{key}` as `{ valu
 
 ### Auth (`src/AuthContext.tsx`)
 
-Three social providers + email/password, all funnel through `signInWithCredential(auth, …)`.
+Two social providers (Apple, Google) + email/password, all funnel through `signInWithCredential(auth, …)`. Facebook was removed in v1.0.1 — its native dep (`react-native-fbsdk-next`) is unlinked, so don't reintroduce a Facebook path without re-adding the native module.
 
 - **Apple** — `expo-apple-authentication` + Firebase nonce flow. Generates a raw nonce (`Crypto.randomUUID`), sends SHA-256 hash to Apple, passes the raw nonce alongside the JWT to Firebase. Apple sends `fullName` only on **first** sign-in — seed the profile then or it's lost forever.
 - **Google** — `@react-native-google-signin/google-signin` v16. Configure happens in a `useEffect` on mount. **iOS requires both `webClientId` and `iosClientId`** — v16's wrapper does NOT auto-read `GIDClientID` from `Info.plist`; omitting `iosClientId` produces `must specify |clientID| in |GIDConfiguration|`. Don't "simplify" this.
-- **Facebook** — `react-native-fbsdk-next` `LoginManager.logInWithPermissions`, fetches profile via `FBProfile.getCurrentProfile()` for first/last name seeding.
+- **Sign-in modes** — `src/components/SignIn.tsx` is a 4-mode state machine: `"social"` (landing — Apple/Google + email-link toggle + create-account toggle) → `"signin"` | `"signup"` | `"reset"`. The email page intentionally has **no** social buttons (one path per page). Mirrors web; keep them in sync.
 - `signOut()` clears `["todos","categories","profile"]` from AsyncStorage so the next signed-in user on this device can't bleed prior-user data into a brand-new Firestore doc via `migrateLocalToCloud`.
 - `deleteAccount()` deletes Firestore docs first (security rules block writes once auth is gone), then `deleteUser`. Throws `RecentLoginRequiredError` on `auth/requires-recent-login` so UI can prompt re-auth.
 
