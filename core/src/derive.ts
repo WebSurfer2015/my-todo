@@ -47,21 +47,21 @@ export function todoToggle(prev: Todo[], id: string): Todo[] {
   const now = Date.now();
   return prev.map((td) => {
     if (td.id !== id) return td;
-    const nextDone = !td.done;
-    // Propagate parent toggle to subtasks so the parent's done state stays
-    // equal to subs.every(s => s.done). Avoids ambiguous "parent open, all
-    // subs done" states.
-    const nextSubs =
-      td.subtasks && td.subtasks.length > 0
-        ? td.subtasks.map((s) => (s.done === nextDone ? s : { ...s, done: nextDone }))
-        : td.subtasks;
-    const next: Todo = { ...td, done: nextDone, updatedAt: now };
-    if (nextSubs !== undefined) next.subtasks = nextSubs;
-    return next;
+    // When subtasks exist, parent.done is derived from subs.every(done) — the
+    // user can only "complete" the parent by completing every subtask. A direct
+    // toggle is a no-op to preserve the invariant and the UX rule.
+    if (td.subtasks && td.subtasks.length > 0) return td;
+    return { ...td, done: !td.done, updatedAt: now };
   });
 }
 
-export function subtaskAdd(prev: Todo[], todoId: string, text: string): Todo[] {
+export function subtaskAdd(
+  prev: Todo[],
+  todoId: string,
+  text: string,
+  priority: Priority = "medium",
+  dueDate: string = "",
+): Todo[] {
   const trimmed = text.trim().slice(0, MAX_SUBTASK_TEXT_LEN);
   if (!trimmed) return prev;
   const now = Date.now();
@@ -69,12 +69,50 @@ export function subtaskAdd(prev: Todo[], todoId: string, text: string): Todo[] {
     if (td.id !== todoId) return td;
     const existing = td.subtasks ?? [];
     if (existing.length >= MAX_SUBTASKS_PER_TODO) return td;
-    const newSub: Subtask = { id: genUuid(), text: trimmed, done: false };
+    const newSub: Subtask = {
+      id: genUuid(),
+      text: trimmed,
+      done: false,
+      priority,
+      dueDate,
+    };
     const nextSubs = [...existing, newSub];
     // Adding an open subtask invalidates a previously-done parent.
     const next: Todo = { ...td, subtasks: nextSubs, updatedAt: now };
     next.done = nextSubs.every((s) => s.done);
     return next;
+  });
+}
+
+export function subtaskUpdatePriority(
+  prev: Todo[],
+  todoId: string,
+  subId: string,
+  priority: Priority,
+): Todo[] {
+  const now = Date.now();
+  return prev.map((td) => {
+    if (td.id !== todoId || !td.subtasks) return td;
+    const nextSubs = td.subtasks.map((s) =>
+      s.id === subId ? { ...s, priority } : s,
+    );
+    return { ...td, subtasks: nextSubs, updatedAt: now };
+  });
+}
+
+export function subtaskUpdateDueDate(
+  prev: Todo[],
+  todoId: string,
+  subId: string,
+  dueDate: string,
+): Todo[] {
+  const now = Date.now();
+  return prev.map((td) => {
+    if (td.id !== todoId || !td.subtasks) return td;
+    const nextSubs = td.subtasks.map((s) =>
+      s.id === subId ? { ...s, dueDate } : s,
+    );
+    return { ...td, subtasks: nextSubs, updatedAt: now };
   });
 }
 
@@ -307,7 +345,17 @@ export function migrateTodos(
         subSeen.add(sid);
         const sText =
           typeof s.text === "string" ? s.text.slice(0, MAX_SUBTASK_TEXT_LEN) : "";
-        cleaned.push({ id: sid, text: sText, done: !!s.done });
+        const sPriority: Priority = validPriorities.has(s.priority as Priority)
+          ? (s.priority as Priority)
+          : "medium";
+        const sDueDate = typeof s.dueDate === "string" ? s.dueDate : "";
+        cleaned.push({
+          id: sid,
+          text: sText,
+          done: !!s.done,
+          priority: sPriority,
+          dueDate: sDueDate,
+        });
       }
       if (cleaned.length > 0) subtasks = cleaned;
     }

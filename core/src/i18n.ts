@@ -149,6 +149,9 @@ export const strings = {
     deleteSubtask: 'Delete subtask',
     taskDetails: 'Task details',
     subtaskProgress: (done: number, total: number) => `${done}/${total}`,
+    statusNotStarted: 'Not started',
+    statusInProgress: 'In progress',
+    statusDone: 'Done',
   },
   zh: {
     title: 'Todos for Everyone',
@@ -286,6 +289,9 @@ export const strings = {
     deleteSubtask: '删除子任务',
     taskDetails: '任务详情',
     subtaskProgress: (done: number, total: number) => `${done}/${total}`,
+    statusNotStarted: '未开始',
+    statusInProgress: '进行中',
+    statusDone: '已完成',
   },
   es: {
     title: 'Todos for Everyone',
@@ -423,6 +429,9 @@ export const strings = {
     deleteSubtask: 'Eliminar subtarea',
     taskDetails: 'Detalles de la tarea',
     subtaskProgress: (done: number, total: number) => `${done}/${total}`,
+    statusNotStarted: 'No iniciada',
+    statusInProgress: 'En curso',
+    statusDone: 'Completada',
   },
   fr: {
     title: 'Todos for Everyone',
@@ -560,6 +569,9 @@ export const strings = {
     deleteSubtask: 'Supprimer la sous-tâche',
     taskDetails: 'Détails de la tâche',
     subtaskProgress: (done: number, total: number) => `${done}/${total}`,
+    statusNotStarted: 'Pas commencée',
+    statusInProgress: 'En cours',
+    statusDone: 'Terminée',
   },
   ja: {
     title: 'Todos for Everyone',
@@ -697,6 +709,9 @@ export const strings = {
     deleteSubtask: 'サブタスクを削除',
     taskDetails: 'タスクの詳細',
     subtaskProgress: (done: number, total: number) => `${done}/${total}`,
+    statusNotStarted: '未着手',
+    statusInProgress: '進行中',
+    statusDone: '完了',
   },
   de: {
     title: 'Todos for Everyone',
@@ -834,6 +849,9 @@ export const strings = {
     deleteSubtask: 'Teilaufgabe löschen',
     taskDetails: 'Aufgabendetails',
     subtaskProgress: (done: number, total: number) => `${done}/${total}`,
+    statusNotStarted: 'Nicht begonnen',
+    statusInProgress: 'In Bearbeitung',
+    statusDone: 'Erledigt',
   },
 }
 

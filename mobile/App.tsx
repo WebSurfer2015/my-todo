@@ -213,6 +213,8 @@ function AppInner() {
                           onAddSubtask={store.addSubtask}
                           onToggleSubtask={store.toggleSubtask}
                           onUpdateSubtaskText={store.updateSubtaskText}
+                          onUpdateSubtaskPriority={store.updateSubtaskPriority}
+                          onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
                           onRemoveSubtask={store.removeSubtask}
                           subtaskVisibility={
                             store.filter === 'open'

@@ -13,6 +13,10 @@ export interface Subtask {
   id: string
   text: string
   done: boolean
+  /** Optional, defaults to 'medium' in mutation helpers. */
+  priority?: Priority
+  /** Optional ISO yyyy-mm-dd date string. Empty string when unset. */
+  dueDate?: string
 }
 
 export interface Todo {

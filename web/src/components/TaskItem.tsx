@@ -1,5 +1,5 @@
 import { memo, useRef, useState } from 'react'
-import { Category, Priority, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
+import { Category, Priority, Subtask, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
 import { CategoryDef, categoryLabel } from '../categories'
 import { formatDisplayDate, todayLocal } from '../utils'
 import PriorityBarsIcon from './PriorityBarsIcon'
@@ -46,7 +46,7 @@ function X({ size = 15, strokeWidth = 2 }: IconProps) {
   )
 }
 
-function ChevronRight({ size = 12, strokeWidth = 2.5 }: IconProps) {
+function ChevronRight({ size = 14, strokeWidth = 2.5 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
       <path d="M9 18l6-6-6-6" />
@@ -70,9 +70,11 @@ interface Props {
   onUpdateDueDate: (id: string, dueDate: string) => void
   onUpdateCategory: (id: string, category: Category) => void
   onUpdateText: (id: string, text: string) => void
-  onAddSubtask?: (id: string, text: string) => void
+  onAddSubtask?: (id: string, text: string, priority?: Priority, dueDate?: string) => void
   onToggleSubtask?: (id: string, subId: string) => void
   onUpdateSubtaskText?: (id: string, subId: string, text: string) => void
+  onUpdateSubtaskPriority?: (id: string, subId: string, priority: Priority) => void
+  onUpdateSubtaskDueDate?: (id: string, subId: string, dueDate: string) => void
   onRemoveSubtask?: (id: string, subId: string) => void
 }
 
@@ -82,7 +84,8 @@ function TaskItem({
   onToggleSelect,
   onToggle, onMoveToTrash, onRestore, onPermanentDelete,
   onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateText,
-  onAddSubtask, onToggleSubtask, onUpdateSubtaskText, onRemoveSubtask,
+  onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
+  onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
 }: Props) {
   const { t } = useLang()
   const notify = useNotify()
@@ -91,6 +94,7 @@ function TaskItem({
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const subs = todo.subtasks ?? []
+  const hasSubs = subs.length > 0
   const subsDoneCount = subs.filter((s) => s.done).length
   const detailsAvailable =
     !!onAddSubtask && !!onToggleSubtask && !!onUpdateSubtaskText && !!onRemoveSubtask
@@ -131,7 +135,7 @@ function TaskItem({
 
   return (
     <li
-      className={`item${todo.done ? ' done' : ''}${inTrash ? ' trashed' : ''}${selected ? ' selected' : ''}${expanded ? ' expanded' : ''}`}
+      className={`item${todo.done ? ' done' : ''}${inTrash ? ' trashed' : ''}${selected ? ' selected' : ''}${expanded ? ' expanded' : ''}${hasSubs ? ' has-subs' : ''}`}
       style={{ ['--cat-color' as string]: cat?.color }}
     >
       {inTrash ? (
@@ -143,6 +147,19 @@ function TaskItem({
           onClick={(e) => onToggleSelect?.(todo.id, e.shiftKey)}
           aria-label={t.selectTask}
         />
+      ) : hasSubs ? (
+        <button
+          type="button"
+          className={`expand-toggle${expanded ? ' expanded' : ''}${todo.done ? ' done' : ''}`}
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          title={t.subtasks}
+        >
+          <ChevronRight size={14} />
+          <span className="expand-toggle-count">
+            {t.subtaskProgress(subsDoneCount, subs.length)}
+          </span>
+        </button>
       ) : (
         <input
           type="checkbox"
@@ -244,21 +261,6 @@ function TaskItem({
             </button>
           </div>
 
-          {detailsAvailable && !inTrash && subs.length > 0 && (
-            <button
-              type="button"
-              className={`expand-btn${expanded ? ' expanded' : ''}`}
-              onClick={() => setExpanded((v) => !v)}
-              aria-expanded={expanded}
-              title={t.subtasks}
-            >
-              <ChevronRight size={11} />
-              <span className="expand-count">
-                {t.subtaskProgress(subsDoneCount, subs.length)}
-              </span>
-            </button>
-          )}
-
           <div className="item-actions">
             {inTrash ? (
               <>
@@ -300,23 +302,15 @@ function TaskItem({
         {expanded && detailsAvailable && !inTrash && visibleSubs.length > 0 && (
           <ul className="subtask-inline-list">
             {visibleSubs.map((s) => (
-              <li
+              <SubtaskInlineRow
                 key={s.id}
-                className={`subtask-inline-row${s.done ? ' done' : ''}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={s.done}
-                  onChange={() => onToggleSubtask!(todo.id, s.id)}
-                />
-                <span
-                  className="subtask-inline-text"
-                  onClick={() => setDetailsOpen(true)}
-                  title={t.editTask}
-                >
-                  {s.text}
-                </span>
-              </li>
+                parentId={todo.id}
+                subtask={s}
+                onToggle={onToggleSubtask!}
+                onUpdatePriority={onUpdateSubtaskPriority}
+                onUpdateDueDate={onUpdateSubtaskDueDate}
+                onOpenDetails={() => setDetailsOpen(true)}
+              />
             ))}
           </ul>
         )}
@@ -324,14 +318,113 @@ function TaskItem({
       {detailsOpen && detailsAvailable && (
         <TaskDetailsModal
           todo={todo}
+          categories={categories}
           onClose={() => setDetailsOpen(false)}
           onUpdateText={onUpdateText}
           onAddSubtask={onAddSubtask!}
           onToggleSubtask={onToggleSubtask!}
           onUpdateSubtaskText={onUpdateSubtaskText!}
+          onUpdateSubtaskPriority={onUpdateSubtaskPriority}
+          onUpdateSubtaskDueDate={onUpdateSubtaskDueDate}
           onRemoveSubtask={onRemoveSubtask!}
         />
       )}
+    </li>
+  )
+}
+
+function SubtaskInlineRow({
+  parentId, subtask, onToggle, onUpdatePriority, onUpdateDueDate, onOpenDetails,
+}: {
+  parentId: string
+  subtask: Subtask
+  onToggle: (id: string, subId: string) => void
+  onUpdatePriority?: (id: string, subId: string, priority: Priority) => void
+  onUpdateDueDate?: (id: string, subId: string, dueDate: string) => void
+  onOpenDetails: () => void
+}) {
+  const { t } = useLang()
+  const [priorityOpen, setPriorityOpen] = useState(false)
+  const priorityRef = useRef<HTMLDivElement>(null)
+  const dateRef = useRef<HTMLInputElement>(null)
+  useCloseOnOutside(priorityRef, priorityOpen, () => setPriorityOpen(false))
+
+  const priority: Priority = subtask.priority ?? 'medium'
+  const dueDate = subtask.dueDate ?? ''
+  const today = todayLocal()
+  const overdue = !!dueDate && !subtask.done && dueDate < today
+  const isToday = !!dueDate && !subtask.done && dueDate === today
+
+  return (
+    <li className={`subtask-row-inline${subtask.done ? ' done' : ''}`}>
+      <input
+        type="checkbox"
+        className="subtask-inline-checkbox"
+        checked={subtask.done}
+        onChange={() => onToggle(parentId, subtask.id)}
+      />
+      <div className="subtask-inline-body">
+        <div className="subtask-inline-main">
+          <span
+            className="subtask-inline-text clickable"
+            onClick={onOpenDetails}
+            title={t.editTask}
+          >
+            {subtask.text}
+          </span>
+          {onUpdatePriority && (
+            <div className="priority-edit" ref={priorityRef}>
+              <button
+                type="button"
+                className={`priority-icon-btn priority-${priority}`}
+                onClick={() => setPriorityOpen((v) => !v)}
+                aria-label={t.priorityLabel(t.priority[priority])}
+                title={t.setPriority}
+              >
+                <PriorityBarsIcon level={priority} />
+              </button>
+              {priorityOpen && (
+                <div className="item-priority-dropdown">
+                  {PRIORITY_VALUES.map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={`item-priority-option${priority === value ? ' selected' : ''}`}
+                      style={{ color: PRIORITY_COLORS[value] }}
+                      onClick={() => { onUpdatePriority(parentId, subtask.id, value); setPriorityOpen(false) }}
+                    >
+                      <span className="item-priority-icon"><PriorityBarsIcon level={value} /></span>
+                      {t.priority[value]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        {onUpdateDueDate && (
+          <div className="due-date-edit subtask-inline-meta">
+            <input
+              ref={dateRef}
+              type="date"
+              className="date-input-hidden"
+              value={dueDate}
+              onChange={(e) => onUpdateDueDate(parentId, subtask.id, e.target.value)}
+            />
+            <button
+              type="button"
+              className={`date-chip${overdue ? ' overdue' : ''}${isToday ? ' today' : ''}${!dueDate ? ' no-date' : ''}`}
+              onClick={() => dateRef.current?.showPicker()}
+              title={t.setDueDate}
+              aria-label={t.setDueDate}
+            >
+              {dueDate
+                ? formatDisplayDate(dueDate, t.locale)
+                : t.noDate}
+            </button>
+          </div>
+        )}
+      </div>
     </li>
   )
 }

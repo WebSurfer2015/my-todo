@@ -33,6 +33,8 @@ import {
   subtaskAdd,
   subtaskToggle,
   subtaskUpdateText,
+  subtaskUpdatePriority,
+  subtaskUpdateDueDate,
   subtaskRemove,
   categoryAdd,
   categoryEdit,
@@ -225,8 +227,8 @@ export function useTodoStore() {
   );
 
   const addSubtask = useCallback(
-    (id: string, text: string) => {
-      setTodos((prev) => subtaskAdd(prev, id, text));
+    (id: string, text: string, priority?: Priority, dueDate?: string) => {
+      setTodos((prev) => subtaskAdd(prev, id, text, priority, dueDate));
     },
     [setTodos],
   );
@@ -241,6 +243,20 @@ export function useTodoStore() {
   const updateSubtaskText = useCallback(
     (id: string, subId: string, text: string) => {
       setTodos((prev) => subtaskUpdateText(prev, id, subId, text));
+    },
+    [setTodos],
+  );
+
+  const updateSubtaskPriority = useCallback(
+    (id: string, subId: string, priority: Priority) => {
+      setTodos((prev) => subtaskUpdatePriority(prev, id, subId, priority));
+    },
+    [setTodos],
+  );
+
+  const updateSubtaskDueDate = useCallback(
+    (id: string, subId: string, dueDate: string) => {
+      setTodos((prev) => subtaskUpdateDueDate(prev, id, subId, dueDate));
     },
     [setTodos],
   );
@@ -425,6 +441,8 @@ export function useTodoStore() {
     addSubtask,
     toggleSubtask,
     updateSubtaskText,
+    updateSubtaskPriority,
+    updateSubtaskDueDate,
     removeSubtask,
     addCategory,
     editCategory,

@@ -1766,59 +1766,202 @@ h1 { margin: 0; }
 .item-text.clickable { cursor: pointer; }
 .item-text.clickable:hover { text-decoration: underline; text-decoration-color: var(--label3); text-underline-offset: 2px; }
 
-.expand-btn {
+/* Chevron+count that replaces the checkbox on a parent that has subtasks.
+   Uses the same overall slot size so the row alignment stays identical to
+   a regular checkbox row. */
+.expand-toggle {
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 1px;
   background: transparent;
-  border: none;
+  border: 1px solid var(--separator);
   border-radius: 6px;
-  padding: 2px 6px;
-  font-size: 11.5px;
-  font-weight: 600;
+  padding: 2px 4px;
+  min-width: 28px;
+  font-size: 10px;
+  font-weight: 700;
   color: var(--label2);
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  flex-shrink: 0;
 }
-.expand-btn:hover { background: var(--bg); color: var(--label); }
-.expand-btn svg { transition: transform 0.15s ease-out; }
-.expand-btn.expanded svg { transform: rotate(90deg); }
-.expand-count { font-variant-numeric: tabular-nums; font-size: 11px; }
+.expand-toggle:hover { background: var(--bg); color: var(--label); border-color: var(--label3); }
+.expand-toggle svg { transition: transform 0.15s ease-out; }
+.expand-toggle.expanded svg { transform: rotate(90deg); }
+.expand-toggle.done {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+.expand-toggle-count {
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  line-height: 1;
+}
 
+/* Inline subtask list under a parent — full task-row look, but indented
+   and slightly smaller. A dashed top border + dashed left "branch" line
+   gives a subtle "this belongs to that" cue without heavy chrome. */
+.item.has-subs.expanded { padding-bottom: 4px; }
 .subtask-inline-list {
   list-style: none;
-  padding: 4px 0 4px 0;
-  margin: 6px 0 2px 0;
+  padding: 4px 0 0 0;
+  margin: 8px 0 0 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   border-top: 1px dashed var(--separator);
 }
-.subtask-inline-row {
+.subtask-row-inline {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 6px;
-  border-radius: 4px;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 4px 6px 16px;
+  border-radius: 6px;
+  position: relative;
 }
-.subtask-inline-row:hover { background: var(--bg); }
-.subtask-inline-row input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
+.subtask-row-inline::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--separator);
+  border-radius: 1px;
+}
+.subtask-row-inline:hover { background: var(--bg); }
+.subtask-inline-checkbox {
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
   cursor: pointer;
+  margin-top: 2px;
+}
+.subtask-inline-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.subtask-inline-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 .subtask-inline-text {
-  font-size: 13px;
+  flex: 1;
+  font-size: 14px;
   color: var(--label);
-  cursor: pointer;
   word-break: break-word;
   line-height: 1.4;
 }
-.subtask-inline-row.done .subtask-inline-text {
+.subtask-inline-text.clickable { cursor: pointer; }
+.subtask-inline-text.clickable:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--label3);
+  text-underline-offset: 2px;
+}
+.subtask-row-inline.done .subtask-inline-text {
   color: var(--label3);
   text-decoration: line-through;
 }
+.subtask-inline-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.subtask-inline-meta .date-chip {
+  font-size: 11px;
+  padding: 1px 6px;
+}
+
+/* Modal subtitle: status pill + category + due date */
+.modal-details-subtitle {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--label2);
+  margin: 0;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.status-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.status-pill.status-notstarted { background: var(--fill); color: var(--label2); }
+.status-pill.status-progress { background: rgba(255, 149, 0, 0.15); color: #FF9500; }
+.status-pill.status-done { background: rgba(52, 199, 89, 0.18); color: #34C759; }
+.modal-meta-sep { color: var(--label3); }
+.modal-meta-cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+.modal-meta-date { color: var(--label2); font-weight: 500; }
+.modal-meta-date.overdue { color: var(--red); font-weight: 600; }
+.modal-meta-date.today { color: var(--orange); font-weight: 600; }
+.modal-meta-date.no-date { color: var(--label3); font-style: italic; }
+
+/* Modal subtask list re-uses .item from TaskItem for a uniform card design.
+   The `.item--sub` modifier just tones things down: smaller text, lighter shadow. */
+.subtask-card-list { gap: 6px; padding: 0; }
+.item.item--sub {
+  padding: 10px 12px 10px 15px;
+  box-shadow: 0 0 0 0.5px rgba(0,0,0,0.05);
+  background: var(--fill);
+}
+.item.item--sub .item-text { font-size: 15px; }
+
+/* Add-subtask row built as a card with priority/date controls inline. */
+.subtask-add-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid var(--separator);
+  padding: 10px 4px 0 4px;
+  flex-wrap: wrap;
+}
+.subtask-add-card .subtask-add-input {
+  flex: 1;
+  min-width: 140px;
+  font-size: 14px;
+  color: var(--label);
+  background: transparent;
+  border: 1px solid var(--separator);
+  border-radius: 8px;
+  padding: 8px 10px;
+  outline: none;
+}
+.subtask-add-card .subtask-add-input:focus { border-color: var(--blue); }
+.subtask-add-card .priority-icon-btn { width: 26px; height: 26px; }
+.subtask-add-card .date-chip { font-size: 11px; }
+.subtask-add-card .subtask-add-btn {
+  background: var(--blue);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.subtask-add-card .subtask-add-btn:disabled { background: var(--gray3); cursor: not-allowed; }
 
 .modal-card--details {
   width: min(94vw, 480px);
@@ -1878,88 +2021,4 @@ h1 { margin: 0; }
 }
 .subtask-progress-text { font-variant-numeric: tabular-nums; }
 
-.subtask-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  max-height: 50vh;
-  overflow-y: auto;
-}
-.subtask-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 4px;
-  border-radius: 6px;
-}
-.subtask-row:hover { background: var(--bg); }
-.subtask-row input[type="checkbox"] { flex-shrink: 0; cursor: pointer; }
-.subtask-text {
-  flex: 1;
-  font-size: 14px;
-  color: var(--label);
-  cursor: text;
-  word-break: break-word;
-}
-.subtask-row.done .subtask-text {
-  color: var(--label3);
-  text-decoration: line-through;
-}
-.subtask-text-edit {
-  flex: 1;
-  font-size: 14px;
-  color: var(--label);
-  background: var(--bg-card);
-  border: 1px solid var(--separator);
-  border-radius: 4px;
-  padding: 4px 6px;
-  outline: none;
-}
-.subtask-text-edit:focus { border-color: var(--blue); }
-.subtask-remove {
-  background: transparent;
-  border: none;
-  color: var(--label3);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  line-height: 0;
-  opacity: 0;
-  transition: opacity 0.12s;
-}
-.subtask-row:hover .subtask-remove { opacity: 1; }
-.subtask-remove:hover { color: var(--red); background: var(--bg); }
-
-.subtask-add-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-top: 1px solid var(--separator);
-  padding-top: 12px;
-}
-.subtask-add-input {
-  flex: 1;
-  font-size: 14px;
-  color: var(--label);
-  background: transparent;
-  border: 1px solid var(--separator);
-  border-radius: 8px;
-  padding: 8px 10px;
-  outline: none;
-}
-.subtask-add-input:focus { border-color: var(--blue); }
-.subtask-add-btn {
-  background: var(--blue);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 8px 10px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.subtask-add-btn:disabled { background: var(--gray3); cursor: not-allowed; }
+/* (subtask-list/.subtask-row legacy styles removed — modal now reuses .item) */

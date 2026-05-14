@@ -13,6 +13,8 @@ import {
   subtaskAdd,
   subtaskToggle,
   subtaskUpdateText,
+  subtaskUpdatePriority,
+  subtaskUpdateDueDate,
   subtaskRemove,
   TRASH_RETENTION_MS,
   MAX_TODO_TEXT_LEN,
@@ -232,16 +234,36 @@ describe("subtasks", () => {
     expect(state[0].done).toBe(false);
   });
 
-  it("toggling the parent propagates to all subtasks", () => {
+  it("todoToggle is a no-op when subs exist (parent done is derived)", () => {
     let state = [makeTodo()];
     state = subtaskAdd(state, state[0].id, "a");
     state = subtaskAdd(state, state[0].id, "b");
+    const before = state[0];
     state = todoToggle(state, state[0].id);
-    expect(state[0].done).toBe(true);
-    expect(state[0].subtasks!.every((s) => s.done)).toBe(true);
-    state = todoToggle(state, state[0].id);
+    expect(state[0]).toBe(before); // same reference — no mutation
     expect(state[0].done).toBe(false);
     expect(state[0].subtasks!.every((s) => !s.done)).toBe(true);
+  });
+
+  it("subtaskAdd defaults priority=medium and dueDate=''", () => {
+    let state = [makeTodo()];
+    state = subtaskAdd(state, state[0].id, "with defaults");
+    const sub = state[0].subtasks![0];
+    expect(sub.priority).toBe("medium");
+    expect(sub.dueDate).toBe("");
+  });
+
+  it("subtaskUpdatePriority and subtaskUpdateDueDate edit a single subtask", () => {
+    let state = [makeTodo()];
+    state = subtaskAdd(state, state[0].id, "a");
+    state = subtaskAdd(state, state[0].id, "b");
+    const [a, b] = state[0].subtasks!;
+    state = subtaskUpdatePriority(state, state[0].id, a.id, "high");
+    state = subtaskUpdateDueDate(state, state[0].id, b.id, "2026-12-31");
+    expect(state[0].subtasks![0].priority).toBe("high");
+    expect(state[0].subtasks![0].dueDate).toBe("");
+    expect(state[0].subtasks![1].priority).toBe("medium");
+    expect(state[0].subtasks![1].dueDate).toBe("2026-12-31");
   });
 
   it("adding an open subtask to a done parent re-opens the parent", () => {

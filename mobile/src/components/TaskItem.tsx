@@ -33,9 +33,11 @@ interface Props {
   onUpdateDueDate: (id: string, dueDate: string) => void
   onUpdateCategory: (id: string, category: Category) => void
   onUpdateText: (id: string, text: string) => void
-  onAddSubtask?: (id: string, text: string) => void
+  onAddSubtask?: (id: string, text: string, priority?: Priority, dueDate?: string) => void
   onToggleSubtask?: (id: string, subId: string) => void
   onUpdateSubtaskText?: (id: string, subId: string, text: string) => void
+  onUpdateSubtaskPriority?: (id: string, subId: string, priority: Priority) => void
+  onUpdateSubtaskDueDate?: (id: string, subId: string, dueDate: string) => void
   onRemoveSubtask?: (id: string, subId: string) => void
 }
 
@@ -74,7 +76,8 @@ function TaskItem({
   subtaskVisibility = 'all',
   onToggle, onMoveToTrash, onRestore, onPermanentDelete,
   onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateText,
-  onAddSubtask, onToggleSubtask, onUpdateSubtaskText, onRemoveSubtask,
+  onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
+  onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
@@ -84,7 +87,12 @@ function TaskItem({
   const [dateOpen, setDateOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  // Shared per-subtask pickers — track which sub has the modal open.
+  const [subPriorityForId, setSubPriorityForId] = useState<string | null>(null)
+  const [subDateForId, setSubDateForId] = useState<string | null>(null)
+  const [subPickerDate, setSubPickerDate] = useState<Date>(new Date())
   const subs = todo.subtasks ?? []
+  const hasSubs = subs.length > 0
   const subsDoneCount = subs.filter((s) => s.done).length
   const detailsAvailable =
     !!onAddSubtask && !!onToggleSubtask && !!onUpdateSubtaskText && !!onRemoveSubtask
@@ -257,20 +265,44 @@ function TaskItem({
           pressed && styles.rowPressed,
         ]}
       >
-        <TouchableOpacity
-          style={[
-            styles.checkbox,
-            todo.done && styles.checkboxDone,
-            inTrash && selected && styles.checkboxSelected,
-          ]}
-          onPress={inTrash && onToggleSelect ? () => onToggleSelect(todo.id) : handleToggle}
-          disabled={inTrash && !onToggleSelect}
-          hitSlop={10}
-          accessibilityRole={inTrash && onToggleSelect ? 'checkbox' : 'button'}
-          accessibilityState={inTrash && onToggleSelect ? { checked: selected } : undefined}
-        >
-          {(todo.done || (inTrash && selected)) && <Text style={styles.checkmark}>✓</Text>}
-        </TouchableOpacity>
+        {!inTrash && hasSubs ? (
+          <TouchableOpacity
+            style={[
+              styles.expandToggle,
+              expanded && styles.expandToggleExpanded,
+              todo.done && styles.expandToggleDone,
+            ]}
+            onPress={() => setExpanded((v) => !v)}
+            hitSlop={10}
+            accessibilityLabel={t.subtasks}
+          >
+            <Text style={[
+              styles.expandToggleChev,
+              todo.done && styles.expandToggleChevDone,
+            ]}>{expanded ? '▼' : '▶'}</Text>
+            <Text style={[
+              styles.expandToggleCount,
+              todo.done && styles.expandToggleCountDone,
+            ]}>
+              {t.subtaskProgress(subsDoneCount, subs.length)}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[
+              styles.checkbox,
+              todo.done && styles.checkboxDone,
+              inTrash && selected && styles.checkboxSelected,
+            ]}
+            onPress={inTrash && onToggleSelect ? () => onToggleSelect(todo.id) : handleToggle}
+            disabled={inTrash && !onToggleSelect}
+            hitSlop={10}
+            accessibilityRole={inTrash && onToggleSelect ? 'checkbox' : 'button'}
+            accessibilityState={inTrash && onToggleSelect ? { checked: selected } : undefined}
+          >
+            {(todo.done || (inTrash && selected)) && <Text style={styles.checkmark}>✓</Text>}
+          </TouchableOpacity>
+        )}
 
         <View style={styles.body}>
           <View style={styles.mainLine}>
@@ -327,42 +359,73 @@ function TaskItem({
               </Text>
             </TouchableOpacity>
 
-            {detailsAvailable && !inTrash && subs.length > 0 && (
-              <TouchableOpacity
-                style={styles.expandChip}
-                onPress={() => setExpanded((v) => !v)}
-                hitSlop={10}
-                accessibilityLabel={t.subtasks}
-              >
-                <Text style={styles.chevron}>{expanded ? '▼' : '▶'}</Text>
-                <Text style={styles.chipTextSubs}>
-                  {t.subtaskProgress(subsDoneCount, subs.length)}
-                </Text>
-              </TouchableOpacity>
-            )}
           </View>
 
           {expanded && detailsAvailable && !inTrash && visibleSubs.length > 0 && (
             <View style={styles.subList}>
-              {visibleSubs.map((s) => (
-                <View key={s.id} style={styles.subRow}>
-                  <TouchableOpacity
-                    onPress={() => onToggleSubtask!(todo.id, s.id)}
-                    hitSlop={10}
-                    style={[styles.subCheckbox, s.done && styles.subCheckboxDone]}
-                  >
-                    {s.done && <Text style={styles.subCheckmark}>✓</Text>}
-                  </TouchableOpacity>
-                  <Text
-                    style={[styles.subText, s.done && styles.subTextDone]}
-                    numberOfLines={2}
-                    onPress={openDetails}
-                    suppressHighlighting
-                  >
-                    {s.text}
-                  </Text>
-                </View>
-              ))}
+              {visibleSubs.map((s) => {
+                const sPriority: Priority = s.priority ?? 'medium'
+                const sDue = s.dueDate ?? ''
+                const sOverdue = !!sDue && !s.done && sDue < today
+                const sIsToday = !!sDue && !s.done && sDue === today
+                return (
+                  <View key={s.id} style={styles.subRow}>
+                    <TouchableOpacity
+                      onPress={() => onToggleSubtask!(todo.id, s.id)}
+                      hitSlop={10}
+                      style={[styles.subCheckbox, s.done && styles.subCheckboxDone]}
+                    >
+                      {s.done && <Text style={styles.subCheckmark}>✓</Text>}
+                    </TouchableOpacity>
+                    <View style={styles.subBody}>
+                      <View style={styles.subMain}>
+                        <Text
+                          style={[styles.subText, s.done && styles.subTextDone]}
+                          numberOfLines={2}
+                          onPress={openDetails}
+                          suppressHighlighting
+                        >
+                          {s.text}
+                        </Text>
+                        {onUpdateSubtaskPriority && (
+                          <TouchableOpacity
+                            onPress={() => setSubPriorityForId(s.id)}
+                            hitSlop={8}
+                            style={styles.subPriorityBtn}
+                          >
+                            <PriorityDot level={sPriority} size={9} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                      {onUpdateSubtaskDueDate && (
+                        <View style={styles.subMeta}>
+                          <TouchableOpacity
+                            onPress={() => {
+                              setSubPickerDate(sDue ? new Date(`${sDue}T00:00:00`) : new Date())
+                              setSubDateForId(s.id)
+                            }}
+                            hitSlop={8}
+                            style={styles.subChip}
+                          >
+                            <Text style={[
+                              styles.subChipText,
+                              sOverdue
+                                ? styles.chipTextOverdue
+                                : sIsToday
+                                  ? styles.chipTextToday
+                                  : !sDue
+                                    ? styles.chipTextMuted
+                                    : styles.chipTextDate,
+                            ]}>
+                              {sDue ? formatDisplayDate(sDue, t.locale) : t.noDate}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                )
+              })}
             </View>
           )}
         </View>
@@ -432,15 +495,97 @@ function TaskItem({
           />
         )}
 
+        {/* Per-subtask priority picker (shared, scoped by subPriorityForId). */}
+        {onUpdateSubtaskPriority && (
+          <PickerModal
+            visible={subPriorityForId !== null}
+            selectedKey={subPriorityForId
+              ? (subs.find((s) => s.id === subPriorityForId)?.priority ?? 'medium')
+              : 'medium'}
+            onSelect={(k) => {
+              if (subPriorityForId) onUpdateSubtaskPriority(todo.id, subPriorityForId, k as Priority)
+            }}
+            onClose={() => setSubPriorityForId(null)}
+            options={PRIORITY_VALUES.map((v) => ({
+              key: v,
+              label: t.priority[v],
+              color: PRIORITY_COLORS[v],
+              icon: <PriorityDot level={v} size={12} />,
+            }))}
+          />
+        )}
+
+        {/* Per-subtask date picker (iOS sheet / Android native). */}
+        {onUpdateSubtaskDueDate && subDateForId !== null && Platform.OS === 'ios' && (
+          <Modal
+            visible
+            transparent
+            animationType="fade"
+            onRequestClose={() => setSubDateForId(null)}
+          >
+            <TouchableOpacity
+              style={styles.dateOverlay}
+              onPress={() => setSubDateForId(null)}
+              activeOpacity={1}
+            >
+              <View style={styles.dateSheet} onStartShouldSetResponder={() => true}>
+                <DateTimePicker
+                  value={subPickerDate}
+                  mode="date"
+                  display="inline"
+                  themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
+                  onChange={(e, d) => {
+                    if (e.type === 'set' && d) setSubPickerDate(d)
+                  }}
+                />
+                <View style={styles.dateBtnRow}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (subDateForId) onUpdateSubtaskDueDate(todo.id, subDateForId, '')
+                      setSubDateForId(null)
+                    }}
+                  >
+                    <Text style={styles.dateClear}>{t.clear}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (subDateForId) onUpdateSubtaskDueDate(todo.id, subDateForId, isoDate(subPickerDate))
+                      setSubDateForId(null)
+                    }}
+                  >
+                    <Text style={styles.dateDone}>{t.done}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </Modal>
+        )}
+        {onUpdateSubtaskDueDate && subDateForId !== null && Platform.OS === 'android' && (
+          <DateTimePicker
+            value={subPickerDate}
+            mode="date"
+            display="default"
+            onChange={(e, d) => {
+              if (e.type === 'set' && d && subDateForId) {
+                onUpdateSubtaskDueDate(todo.id, subDateForId, isoDate(d))
+              }
+              setSubDateForId(null)
+            }}
+          />
+        )}
+
         {detailsAvailable && (
           <TaskDetailsSheet
             visible={detailsOpen}
             todo={todo}
+            categories={categories}
             onClose={() => setDetailsOpen(false)}
             onUpdateText={onUpdateText}
             onAddSubtask={onAddSubtask!}
             onToggleSubtask={onToggleSubtask!}
             onUpdateSubtaskText={onUpdateSubtaskText!}
+            onUpdateSubtaskPriority={onUpdateSubtaskPriority}
+            onUpdateSubtaskDueDate={onUpdateSubtaskDueDate}
             onRemoveSubtask={onRemoveSubtask!}
           />
         )}
@@ -559,37 +704,84 @@ function makeStyles(c: ThemeColors, density: Density) {
       color: c.orange,
       fontWeight: '600',
     },
-    chipTextSubs: {
-      fontSize: 12,
-      color: c.label2,
-      fontWeight: '600',
-      fontVariant: ['tabular-nums'],
-    },
-    expandChip: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
+    expandToggle: {
+      minWidth: 38,
       paddingHorizontal: 4,
       paddingVertical: 2,
-      borderRadius: 5,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.separator,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 2,
     },
-    chevron: {
+    expandToggleExpanded: {
+      borderColor: c.label3,
+    },
+    expandToggleDone: {
+      borderColor: c.blue,
+    },
+    expandToggleChev: {
       fontSize: 9,
+      lineHeight: 12,
       color: c.label2,
+    },
+    expandToggleChevDone: {
+      color: c.blue,
+    },
+    expandToggleCount: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: c.label2,
+      fontVariant: ['tabular-nums'],
       lineHeight: 12,
     },
+    expandToggleCountDone: {
+      color: c.blue,
+    },
     subList: {
-      marginTop: 4,
-      paddingTop: 4,
+      marginTop: 6,
+      paddingTop: 6,
+      paddingLeft: 6,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: c.separator,
-      gap: 2,
+      gap: 4,
     },
     subRow: {
       flexDirection: 'row',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       gap: 10,
       paddingVertical: 4,
+      paddingLeft: 8,
+      borderLeftWidth: 2,
+      borderLeftColor: c.separator,
+      borderRadius: 2,
+    },
+    subBody: {
+      flex: 1,
+      gap: 2,
+    },
+    subMain: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    subPriorityBtn: {
+      padding: 3,
+    },
+    subMeta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    subChip: {
+      paddingHorizontal: 4,
+      paddingVertical: 1,
+      borderRadius: 4,
+    },
+    subChipText: {
+      fontSize: 11,
+      fontWeight: '500',
     },
     subCheckbox: {
       width: 18,
@@ -599,6 +791,7 @@ function makeStyles(c: ThemeColors, density: Density) {
       borderColor: c.gray3,
       alignItems: 'center',
       justifyContent: 'center',
+      marginTop: 2,
     },
     subCheckboxDone: {
       backgroundColor: c.blue,
@@ -612,9 +805,9 @@ function makeStyles(c: ThemeColors, density: Density) {
     },
     subText: {
       flex: 1,
-      fontSize: 13,
+      fontSize: 14,
       color: c.label,
-      lineHeight: 18,
+      lineHeight: 19,
     },
     subTextDone: {
       color: c.label3,

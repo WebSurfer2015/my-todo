@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState, KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { Subtask, Todo } from '../types'
+import { Priority, Subtask, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
+import { CategoryDef, categoryLabel } from '../categories'
+import { formatDisplayDate, todayLocal } from '../utils'
+import PriorityBarsIcon from './PriorityBarsIcon'
+import CategoryIcon from './CategoryIcon'
 import { useLang } from '../LangContext'
+import { useCloseOnOutside } from '../hooks'
 
 interface IconProps {
   size?: number
@@ -17,7 +22,7 @@ function X({ size = 18, strokeWidth = 2 }: IconProps) {
   )
 }
 
-function Plus({ size = 16, strokeWidth = 2 }: IconProps) {
+function Plus({ size = 16, strokeWidth = 2.4 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 5v14" />
@@ -26,27 +31,53 @@ function Plus({ size = 16, strokeWidth = 2 }: IconProps) {
   )
 }
 
+function Trash2({ size = 14, strokeWidth = 2 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 6h18" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <line x1="10" x2="10" y1="11" y2="17" />
+      <line x1="14" x2="14" y1="11" y2="17" />
+    </svg>
+  )
+}
+
 interface Props {
   todo: Todo
+  categories: CategoryDef[]
   onClose: () => void
   onUpdateText: (id: string, text: string) => void
-  onAddSubtask: (id: string, text: string) => void
+  onAddSubtask: (id: string, text: string, priority?: Priority, dueDate?: string) => void
   onToggleSubtask: (id: string, subId: string) => void
   onUpdateSubtaskText: (id: string, subId: string, text: string) => void
+  onUpdateSubtaskPriority?: (id: string, subId: string, priority: Priority) => void
+  onUpdateSubtaskDueDate?: (id: string, subId: string, dueDate: string) => void
   onRemoveSubtask: (id: string, subId: string) => void
 }
 
 export default function TaskDetailsModal({
-  todo, onClose, onUpdateText, onAddSubtask, onToggleSubtask, onUpdateSubtaskText, onRemoveSubtask,
+  todo, categories, onClose, onUpdateText, onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
+  onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
 }: Props) {
   const { t } = useLang()
+  const subs = todo.subtasks ?? []
+  const doneCount = subs.filter((s) => s.done).length
+
+  // New-subtask state: defaults inherit from parent, so a quick Enter keeps
+  // the new sub aligned with the parent's priority + due date.
   const [newText, setNewText] = useState('')
+  const [newPriority, setNewPriority] = useState<Priority>(todo.priority)
+  const [newDueDate, setNewDueDate] = useState<string>(todo.dueDate || '')
+  const [newPriorityOpen, setNewPriorityOpen] = useState(false)
+  const newPriorityRef = useRef<HTMLDivElement>(null)
+  const newDateRef = useRef<HTMLInputElement>(null)
+  useCloseOnOutside(newPriorityRef, newPriorityOpen, () => setNewPriorityOpen(false))
+
   const [titleEditing, setTitleEditing] = useState(false)
   const [titleText, setTitleText] = useState(todo.text)
   const addInputRef = useRef<HTMLInputElement>(null)
   const titleInputRef = useRef<HTMLInputElement>(null)
-  const subs = todo.subtasks ?? []
-  const doneCount = subs.filter((s) => s.done).length
 
   useEffect(() => {
     if (titleEditing) {
@@ -78,9 +109,10 @@ export default function TaskDetailsModal({
   function commitNew() {
     const trimmed = newText.trim()
     if (!trimmed) return
-    onAddSubtask(todo.id, trimmed)
+    onAddSubtask(todo.id, trimmed, newPriority, newDueDate)
     setNewText('')
-    // Refocus so users can rapidly add multiple subtasks.
+    setNewPriority(todo.priority)
+    setNewDueDate(todo.dueDate || '')
     addInputRef.current?.focus()
   }
 
@@ -90,6 +122,23 @@ export default function TaskDetailsModal({
       commitNew()
     }
   }
+
+  // Status: derived from subs (or todo.done if no subs)
+  let statusLabel: string
+  if (subs.length === 0) {
+    statusLabel = todo.done ? t.statusDone : t.statusNotStarted
+  } else if (doneCount === subs.length) {
+    statusLabel = t.statusDone
+  } else if (doneCount === 0) {
+    statusLabel = t.statusNotStarted
+  } else {
+    statusLabel = t.statusInProgress
+  }
+
+  const cat = categories.find((c) => c.id === todo.category) ?? categories[0]
+  const today = todayLocal()
+  const parentOverdue = !!todo.dueDate && !todo.done && todo.dueDate < today
+  const parentToday = !!todo.dueDate && !todo.done && todo.dueDate === today
 
   return createPortal(
     <div className="modal-backdrop" onMouseDown={onClose}>
@@ -133,28 +182,49 @@ export default function TaskDetailsModal({
               <X size={18} />
             </button>
           </div>
-          <p className="modal-details-subtitle">
-            {t.subtasks}
-            {subs.length > 0 && (
-              <> · <span className="subtask-progress-text">{t.subtaskProgress(doneCount, subs.length)}</span></>
+          <div className="modal-details-subtitle">
+            <span className={`status-pill status-${subs.length === 0 && !todo.done ? 'notstarted' : doneCount === subs.length && subs.length > 0 ? 'done' : doneCount > 0 ? 'progress' : todo.done ? 'done' : 'notstarted'}`}>
+              {statusLabel}
+            </span>
+            {cat && (
+              <>
+                <span className="modal-meta-sep">·</span>
+                <span className="modal-meta-cat" style={{ color: cat.color }}>
+                  <CategoryIcon icon={cat.icon} size={11} />
+                  {categoryLabel(cat, t)}
+                </span>
+              </>
             )}
-          </p>
+            <span className="modal-meta-sep">·</span>
+            <span className={`modal-meta-date${parentOverdue ? ' overdue' : ''}${parentToday ? ' today' : ''}${!todo.dueDate ? ' no-date' : ''}`}>
+              {todo.dueDate ? formatDisplayDate(todo.dueDate, t.locale) : t.noDate}
+            </span>
+            {subs.length > 0 && (
+              <>
+                <span className="modal-meta-sep">·</span>
+                <span className="subtask-progress-text">{t.subtaskProgress(doneCount, subs.length)}</span>
+              </>
+            )}
+          </div>
         </div>
 
-        <ul className="subtask-list">
+        <ul className="list subtask-card-list">
           {subs.map((s) => (
-            <SubtaskRow
+            <SubtaskCard
               key={s.id}
               parentId={todo.id}
+              parentColor={cat?.color}
               subtask={s}
               onToggle={onToggleSubtask}
               onUpdateText={onUpdateSubtaskText}
+              onUpdatePriority={onUpdateSubtaskPriority}
+              onUpdateDueDate={onUpdateSubtaskDueDate}
               onRemove={onRemoveSubtask}
             />
           ))}
         </ul>
 
-        <div className="subtask-add-row">
+        <div className="subtask-add-card">
           <input
             ref={addInputRef}
             type="text"
@@ -165,6 +235,51 @@ export default function TaskDetailsModal({
             onKeyDown={handleNewKey}
             maxLength={500}
           />
+          <div className="priority-edit" ref={newPriorityRef}>
+            <button
+              type="button"
+              className={`priority-icon-btn priority-${newPriority}`}
+              onClick={() => setNewPriorityOpen((v) => !v)}
+              aria-label={t.priorityLabel(t.priority[newPriority])}
+              title={t.setPriority}
+            >
+              <PriorityBarsIcon level={newPriority} />
+            </button>
+            {newPriorityOpen && (
+              <div className="item-priority-dropdown">
+                {PRIORITY_VALUES.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={`item-priority-option${newPriority === value ? ' selected' : ''}`}
+                    style={{ color: PRIORITY_COLORS[value] }}
+                    onClick={() => { setNewPriority(value); setNewPriorityOpen(false) }}
+                  >
+                    <span className="item-priority-icon"><PriorityBarsIcon level={value} /></span>
+                    {t.priority[value]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="due-date-edit">
+            <input
+              ref={newDateRef}
+              type="date"
+              className="date-input-hidden"
+              value={newDueDate}
+              onChange={(e) => setNewDueDate(e.target.value)}
+            />
+            <button
+              type="button"
+              className={`date-chip${!newDueDate ? ' no-date' : ''}`}
+              onClick={() => newDateRef.current?.showPicker()}
+              title={t.setDueDate}
+              aria-label={t.setDueDate}
+            >
+              {newDueDate ? formatDisplayDate(newDueDate, t.locale) : t.noDate}
+            </button>
+          </div>
           <button
             type="button"
             className="subtask-add-btn"
@@ -181,19 +296,33 @@ export default function TaskDetailsModal({
   )
 }
 
-function SubtaskRow({
-  parentId, subtask, onToggle, onUpdateText, onRemove,
+function SubtaskCard({
+  parentId, parentColor, subtask,
+  onToggle, onUpdateText, onUpdatePriority, onUpdateDueDate, onRemove,
 }: {
   parentId: string
+  parentColor?: string
   subtask: Subtask
   onToggle: (id: string, subId: string) => void
   onUpdateText: (id: string, subId: string, text: string) => void
+  onUpdatePriority?: (id: string, subId: string, priority: Priority) => void
+  onUpdateDueDate?: (id: string, subId: string, dueDate: string) => void
   onRemove: (id: string, subId: string) => void
 }) {
   const { t } = useLang()
   const [editing, setEditing] = useState(false)
   const [text, setText] = useState(subtask.text)
+  const [priorityOpen, setPriorityOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const priorityRef = useRef<HTMLDivElement>(null)
+  const dateRef = useRef<HTMLInputElement>(null)
+  useCloseOnOutside(priorityRef, priorityOpen, () => setPriorityOpen(false))
+
+  const priority: Priority = subtask.priority ?? 'medium'
+  const dueDate = subtask.dueDate ?? ''
+  const today = todayLocal()
+  const overdue = !!dueDate && !subtask.done && dueDate < today
+  const isToday = !!dueDate && !subtask.done && dueDate === today
 
   useEffect(() => {
     if (editing) {
@@ -215,40 +344,104 @@ function SubtaskRow({
   }
 
   return (
-    <li className={`subtask-row${subtask.done ? ' done' : ''}`}>
+    <li
+      className={`item item--sub${subtask.done ? ' done' : ''}`}
+      style={{ ['--cat-color' as string]: parentColor }}
+    >
       <input
         type="checkbox"
         checked={subtask.done}
         onChange={() => onToggle(parentId, subtask.id)}
         aria-label={subtask.text}
       />
-      {editing ? (
-        <input
-          ref={inputRef}
-          className="subtask-text-edit"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') commit()
-            else if (e.key === 'Escape') cancel()
-          }}
-          maxLength={500}
-        />
-      ) : (
-        <span className="subtask-text" onClick={() => setEditing(true)}>
-          {subtask.text}
-        </span>
-      )}
-      <button
-        type="button"
-        className="subtask-remove"
-        onClick={() => onRemove(parentId, subtask.id)}
-        aria-label={t.deleteSubtask}
-        title={t.deleteSubtask}
-      >
-        <X size={14} />
-      </button>
+      <div className="item-body">
+        <div className="item-main">
+          {editing ? (
+            <input
+              ref={inputRef}
+              className="item-text-edit"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onBlur={commit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commit()
+                else if (e.key === 'Escape') cancel()
+              }}
+              maxLength={500}
+            />
+          ) : (
+            <span
+              className="item-text"
+              onClick={() => setEditing(true)}
+              title={t.editTask}
+            >
+              {subtask.text}
+            </span>
+          )}
+          {onUpdatePriority && (
+            <div className="priority-edit" ref={priorityRef}>
+              <button
+                type="button"
+                className={`priority-icon-btn priority-${priority}`}
+                onClick={() => setPriorityOpen((v) => !v)}
+                aria-label={t.priorityLabel(t.priority[priority])}
+                title={t.setPriority}
+              >
+                <PriorityBarsIcon level={priority} />
+              </button>
+              {priorityOpen && (
+                <div className="item-priority-dropdown">
+                  {PRIORITY_VALUES.map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={`item-priority-option${priority === value ? ' selected' : ''}`}
+                      style={{ color: PRIORITY_COLORS[value] }}
+                      onClick={() => { onUpdatePriority(parentId, subtask.id, value); setPriorityOpen(false) }}
+                    >
+                      <span className="item-priority-icon"><PriorityBarsIcon level={value} /></span>
+                      {t.priority[value]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="item-meta">
+          {onUpdateDueDate && (
+            <div className="due-date-edit">
+              <input
+                ref={dateRef}
+                type="date"
+                className="date-input-hidden"
+                value={dueDate}
+                onChange={(e) => onUpdateDueDate(parentId, subtask.id, e.target.value)}
+              />
+              <button
+                type="button"
+                className={`date-chip${overdue ? ' overdue' : ''}${isToday ? ' today' : ''}${!dueDate ? ' no-date' : ''}`}
+                onClick={() => dateRef.current?.showPicker()}
+                title={t.setDueDate}
+                aria-label={t.setDueDate}
+              >
+                {dueDate ? formatDisplayDate(dueDate, t.locale) : t.noDate}
+              </button>
+            </div>
+          )}
+          <div className="item-actions">
+            <button
+              type="button"
+              className="item-action item-action--trash"
+              onClick={() => onRemove(parentId, subtask.id)}
+              title={t.deleteSubtask}
+              aria-label={t.deleteSubtask}
+            >
+              <Trash2 size={14} strokeWidth={2} />
+            </button>
+          </div>
+        </div>
+      </div>
     </li>
   )
 }
