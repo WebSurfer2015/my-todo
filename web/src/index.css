@@ -1,68 +1,140 @@
+/* ── Atkinson Hyperlegible — high legibility, low-vision optimized ── */
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap');
+
 /* ── Reset ───────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body, #root { min-height: 100vh; }
 
-/* ── Apple System Colours ────────────────────────────────────────── */
+/* ────────────────────────────────────────────────────────────────────
+   Anxiety-conscious design tokens. The classic var names (--blue, --red,
+   --green, --bg, --label*, etc.) are redefined to low-saturation values so
+   every existing call site cascades to the calm palette automatically.
+   Added tokens: --motion-duration / --motion-easing / type scale.
+   ─────────────────────────────────────────────────────────────────── */
 :root {
-  --blue:    #007AFF;
-  --red:     #FF3B30;
-  --orange:  #FF9500;
-  --yellow:  #FFCC00;
-  --green:   #34C759;
-  --teal:    #30B0C7;
-  --purple:  #AF52DE;
-  --pink:    #FF2D92;
-  --gray:    #8E8E93;
-  --gray3:   #C7C7CC;
-  --gray5:   #E5E5EA;
-  --gray6:   #F2F2F7;
+  /* Accent palette — muted, sage/blue/sand vs neon iOS */
+  --blue:    #5B7C99;   /* primary action — muted slate blue */
+  --red:     #A85B5B;   /* genuine danger only — never a primary action */
+  --orange:  #B89364;   /* warm sand */
+  --yellow:  #C9B85F;
+  --green:   #6B8E66;   /* sage success */
+  --teal:    #6A9999;
+  --purple:  #927AAE;
+  --pink:    #B57894;
+  --gray:    #7C7C7C;
+  --gray3:   #C8C5C0;
+  --gray5:   #E5E1DC;
+  --gray6:   #F4F1ED;
 
-  --label:        #000000;
-  --label2:       rgba(60, 60, 67, 0.60);
-  --label3:       rgba(60, 60, 67, 0.30);
-  --fill:         rgba(120, 120, 128, 0.20);
+  /* Surfaces & text — warm neutrals, AAA contrast where possible */
+  --label:        #1F1F1F;   /* 7:1 contrast on #FAFAF9 */
+  --label2:       #5C5C5C;
+  --label3:       #8A8580;
+  --fill:         #EFECE7;   /* gentle hover surface */
 
-  --bg:           #F2F2F7;
+  --bg:           #FAFAF9;
   --bg-card:      #FFFFFF;
-  --separator:    rgba(60, 60, 67, 0.29);
+  --separator:    #E5E1DC;
+
+  /* Motion tokens. ease-out, never bounce; 200-400ms range */
+  --motion-easing:        cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --motion-duration:      240ms;
+  --motion-duration-fast: 160ms;
+  --motion-duration-slow: 320ms;
+
+  /* Type scale — Atkinson Hyperlegible with system fallback */
+  --type-body:    17px;
+  --type-small:   14px;
+  --type-tiny:    12px;
+  --type-h1:      28px;
+  --type-h2:      22px;
+  --type-h3:      19px;
+  --line-body:    1.6;
+  --line-tight:   1.4;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --blue:    #0A84FF;
-    --red:     #FF453A;
-    --orange:  #FF9F0A;
-    --yellow:  #FFD60A;
-    --green:   #30D158;
-    --teal:    #40C8E0;
-    --purple:  #BF5AF2;
-    --pink:    #FF375F;
-    --gray:    #8E8E93;
-    --gray3:   #48484A;
-    --gray5:   #2C2C2E;
-    --gray6:   #1C1C1E;
+    --blue:    #8FA9BE;
+    --red:     #C28080;
+    --orange:  #C9A878;
+    --yellow:  #D9C97A;
+    --green:   #8AA985;
+    --teal:    #7AAEB0;
+    --purple:  #A89BC2;
+    --pink:    #C997AA;
+    --gray:    #9A9A9A;
+    --gray3:   #4A4A4A;
+    --gray5:   #2D2B29;
+    --gray6:   #232323;
 
-    --label:        #FFFFFF;
-    --label2:       rgba(235, 235, 245, 0.60);
-    --label3:       rgba(235, 235, 245, 0.30);
-    --fill:         rgba(120, 120, 128, 0.36);
+    --label:        #ECECEC;
+    --label2:       #B5B5B5;
+    --label3:       #828282;
+    --fill:         #2A2A2A;
 
-    --bg:           #000000;
-    --bg-card:      #1C1C1E;
-    --separator:    rgba(84, 84, 88, 0.65);
+    --bg:           #1A1A1A;   /* native dark mode, not pure black */
+    --bg-card:      #232323;
+    --separator:    #383634;
   }
 }
 
 /* ── Base ─────────────────────────────────────────────────────────── */
 body {
-  font-family: -apple-system, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Atkinson Hyperlegible', 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+  font-size: var(--type-body);
+  line-height: var(--line-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: var(--bg);
   color: var(--label);
   min-height: 100vh;
   margin: 0;
+}
+
+/* Honor system prefers-reduced-motion AND an app-level toggle
+   (data-reduce-motion="true" on .app-shell). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+[data-reduce-motion="true"] *,
+[data-reduce-motion="true"] *::before,
+[data-reduce-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* Profile popover: reduce-motion toggle row */
+.profile-toggle-row {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 16px;
+}
+.modal-label-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+.modal-hint {
+  font-size: 12px;
+  color: var(--label2);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.profile-toggle-checkbox {
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  accent-color: var(--blue);
+  flex-shrink: 0;
 }
 
 /* ── App shell (Reminders.app style two-column) ───────────────────── */
@@ -160,7 +232,7 @@ body {
 .sidebar-section-title {
   font-size: 11px;
   font-weight: 700;
-  text-transform: uppercase;
+  text-transform: none;
   letter-spacing: 0.06em;
   color: var(--label2);
   padding: 16px 10px 6px;
@@ -278,7 +350,7 @@ body {
 .modal-label {
   font-size: 11px;
   font-weight: 700;
-  text-transform: uppercase;
+  text-transform: none;
   letter-spacing: 0.06em;
   color: var(--label2);
 }
@@ -686,6 +758,14 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+.mobile-topbar-saved {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--label3);
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 /* Hamburger only useful when sidebar is collapsed (mobile/narrow). On desktop
    the sidebar is always visible, so hide the toggle button. */
@@ -1649,7 +1729,7 @@ h1 { margin: 0; }
   background: var(--separator);
 }
 .signin-divider span {
-  text-transform: uppercase;
+  text-transform: none;
   letter-spacing: 0.5px;
 }
 
@@ -1898,7 +1978,7 @@ h1 { margin: 0; }
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
-  text-transform: uppercase;
+  text-transform: none;
 }
 .status-pill.status-notstarted { background: var(--fill); color: var(--label2); }
 .status-pill.status-progress { background: rgba(255, 149, 0, 0.15); color: #FF9500; }
@@ -2016,7 +2096,7 @@ h1 { margin: 0; }
   font-size: 12px;
   color: var(--label2);
   margin: 0;
-  text-transform: uppercase;
+  text-transform: none;
   letter-spacing: 0.04em;
 }
 .subtask-progress-text { font-variant-numeric: tabular-nums; }

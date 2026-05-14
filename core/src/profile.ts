@@ -20,6 +20,12 @@ export interface Profile {
   avatar: Avatar
   density?: Density
   title?: string
+  /**
+   * Anxiety-friendly setting: when true, the app suppresses non-essential
+   * motion (slide-ins, hover transitions) regardless of the OS prefers-reduced-
+   * motion setting. Honored on web via [data-reduce-motion] on .app-shell.
+   */
+  reduceMotion?: boolean
 }
 
 export const SEED_PROFILE: Profile = {
@@ -117,6 +123,7 @@ export function migrateProfile(raw: unknown): Profile {
       typeof p.title === 'string' && p.title.length > 0
         ? p.title.slice(0, MAX_PROFILE_TITLE_LEN)
         : undefined,
+    reduceMotion: p.reduceMotion === true ? true : undefined,
   }
 }
 

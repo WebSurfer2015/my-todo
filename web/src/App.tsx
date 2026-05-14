@@ -43,6 +43,7 @@ export default function App() {
     <div
       className={`app-shell${drawerOpen ? " drawer-open" : ""}`}
       data-density={store.profile.density ?? "comfortable"}
+      data-reduce-motion={store.profile.reduceMotion ? "true" : "false"}
     >
       <div
         className={`drawer-backdrop${drawerOpen ? " open" : ""}`}
@@ -69,6 +70,7 @@ export default function App() {
           onToggleDrawer={() => setDrawerOpen((v) => !v)}
           title={store.sectionLabel ?? store.appTitle}
           subtitle={store.subtitle}
+          lastSavedAt={store.lastSavedAt}
         />
         {store.inTrashView && store.trashCount > 0 && (
           <div className="trash-actions">

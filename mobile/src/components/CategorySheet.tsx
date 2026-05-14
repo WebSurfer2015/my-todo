@@ -383,7 +383,7 @@ function makeStyles(c: ThemeColors) {
     label: {
       fontSize: 11,
       fontWeight: "700",
-      textTransform: "uppercase",
+      textTransform: "none",
       letterSpacing: 0.6,
       color: c.label3,
       marginBottom: 6,

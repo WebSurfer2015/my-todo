@@ -21,6 +21,7 @@ export default function ProfilePopover({ profile, onSave, onClose }: Props) {
   const [quote, setQuote] = useState(profile.quote ?? '')
   const [avatar, setAvatar] = useState<Avatar>(profile.avatar)
   const [density, setDensity] = useState<Density>(profile.density ?? 'comfortable')
+  const [reduceMotion, setReduceMotion] = useState<boolean>(!!profile.reduceMotion)
   const [uploading, setUploading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -70,6 +71,7 @@ export default function ProfilePopover({ profile, onSave, onClose }: Props) {
       quote: quote.trim() || undefined,
       avatar,
       density,
+      reduceMotion: reduceMotion || undefined,
     })
     showSnackbar({ message: t.profileSaved })
     onClose()
@@ -209,6 +211,20 @@ export default function ProfilePopover({ profile, onSave, onClose }: Props) {
             </button>
           </div>
         </div>
+
+        <label className="modal-field profile-toggle-row">
+          <span className="modal-label-stack">
+            <span className="modal-label">{t.reduceMotionLabel}</span>
+            <span className="modal-hint">{t.reduceMotionHint}</span>
+          </span>
+          <input
+            type="checkbox"
+            className="profile-toggle-checkbox"
+            checked={reduceMotion}
+            onChange={(e) => setReduceMotion(e.target.checked)}
+            aria-label={t.reduceMotionLabel}
+          />
+        </label>
 
         <div className="modal-actions">
           <span className="modal-spacer" />

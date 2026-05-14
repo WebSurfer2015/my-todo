@@ -9,6 +9,10 @@ import { StorageAdapter } from "../../core/src/persistence";
  *
  * A `lastSerializedRef` tracks the last-seen-or-written value so the
  * write→subscribe→setState loop terminates on round-trip echoes.
+ *
+ * `onSaved`: optional callback fired when adapter.setItem resolves. The
+ * timestamp lets the UI show an anxiety-friendly "Saved · just now" affordance
+ * without needing to change the public tuple shape.
  */
 export function useSyncedState<T>(
   adapter: StorageAdapter,
@@ -16,14 +20,17 @@ export function useSyncedState<T>(
   initial: T,
   parse: (raw: string | null) => T,
   serialize: (value: T) => string,
+  onSaved?: (savedAt: number) => void,
 ): [T, Dispatch<SetStateAction<T>>, boolean] {
   const [state, setState] = useState<T>(initial);
   const [loaded, setLoaded] = useState(false);
   const lastSerializedRef = useRef<string | null>(null);
   const parseRef = useRef(parse);
   const serializeRef = useRef(serialize);
+  const onSavedRef = useRef(onSaved);
   parseRef.current = parse;
   serializeRef.current = serialize;
+  onSavedRef.current = onSaved;
 
   // Hydrate when adapter or key changes
   useEffect(() => {
@@ -69,9 +76,12 @@ export function useSyncedState<T>(
       // the wait and updated lastSerializedRef to match `json` already.
       if (json === lastSerializedRef.current) return;
       lastSerializedRef.current = json;
-      adapter.setItem(key, json).catch((err) => {
-        console.warn(`useSyncedState[${key}] write failed:`, err);
-      });
+      adapter
+        .setItem(key, json)
+        .then(() => onSavedRef.current?.(Date.now()))
+        .catch((err) => {
+          console.warn(`useSyncedState[${key}] write failed:`, err);
+        });
     }, 400);
     return () => clearTimeout(handle);
   }, [adapter, key, loaded, state]);

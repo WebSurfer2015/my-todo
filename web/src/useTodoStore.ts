@@ -126,15 +126,21 @@ export function useTodoStore() {
     };
   }, [uid, adapter]);
 
+  // Track the most recent successful adapter.setItem across any synced key so
+  // the UI can show "Saved · just now" — anxiety-friendly auto-save signal.
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const onSaved = useCallback((ts: number) => setLastSavedAt(ts), []);
+
   const [categories, setCategories, categoriesLoaded] = useSyncedState<
     CategoryDef[]
-  >(adapter, "categories", SEED_CATEGORIES, parseCategories, serializeAny);
+  >(adapter, "categories", SEED_CATEGORIES, parseCategories, serializeAny, onSaved);
   const [todos, setTodos, todosLoaded] = useSyncedState<Todo[]>(
     adapter,
     "todos",
     [],
     parseTodos,
     serializeAny,
+    onSaved,
   );
   const [profile, setProfile, profileLoaded] = useSyncedState<Profile>(
     adapter,
@@ -142,6 +148,7 @@ export function useTodoStore() {
     SEED_PROFILE,
     parseProfile,
     serializeAny,
+    onSaved,
   );
 
   const [filter, setFilter] = useState<Filter>("all");
@@ -406,6 +413,7 @@ export function useTodoStore() {
     profile,
     selectedTrashIds,
     loaded,
+    lastSavedAt,
     ...derived,
     counts: {
       ...derived.systemCounts,

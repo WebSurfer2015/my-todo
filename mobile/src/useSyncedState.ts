@@ -15,14 +15,17 @@ export function useSyncedState<T>(
   initial: T,
   parse: (raw: string | null) => T,
   serialize: (value: T) => string,
+  onSaved?: (savedAt: number) => void,
 ): [T, Dispatch<SetStateAction<T>>, boolean] {
   const [state, setState] = useState<T>(initial);
   const [loaded, setLoaded] = useState(false);
   const lastSerializedRef = useRef<string | null>(null);
   const parseRef = useRef(parse);
   const serializeRef = useRef(serialize);
+  const onSavedRef = useRef(onSaved);
   parseRef.current = parse;
   serializeRef.current = serialize;
+  onSavedRef.current = onSaved;
 
   useEffect(() => {
     let cancelled = false;
@@ -64,9 +67,12 @@ export function useSyncedState<T>(
     const handle = setTimeout(() => {
       if (json === lastSerializedRef.current) return;
       lastSerializedRef.current = json;
-      adapter.setItem(key, json).catch((err) => {
-        console.warn(`useSyncedState[${key}] write failed:`, err);
-      });
+      adapter
+        .setItem(key, json)
+        .then(() => onSavedRef.current?.(Date.now()))
+        .catch((err) => {
+          console.warn(`useSyncedState[${key}] write failed:`, err);
+        });
     }, 400);
     return () => clearTimeout(handle);
   }, [adapter, key, loaded, state]);

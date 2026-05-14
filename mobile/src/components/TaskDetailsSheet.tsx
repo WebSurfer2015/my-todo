@@ -180,7 +180,7 @@ export default function TaskDetailsSheet({
               <View style={styles.subtitle}>
                 <View style={[styles.statusPill, styles[`statusPill_${statusKey}`]]}>
                   <Text style={[styles.statusPillText, styles[`statusPillText_${statusKey}`]]}>
-                    {statusLabel.toUpperCase()}
+                    {statusLabel}
                   </Text>
                 </View>
                 {cat && (

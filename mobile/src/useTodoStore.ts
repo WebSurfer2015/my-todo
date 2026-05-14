@@ -135,15 +135,19 @@ export function useTodoStore() {
     };
   }, [uid, adapter]);
 
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const onSaved = useCallback((ts: number) => setLastSavedAt(ts), []);
+
   const [categories, setCategories, categoriesLoaded] = useSyncedState<
     CategoryDef[]
-  >(adapter, "categories", SEED_CATEGORIES, parseCategories, serializeAny);
+  >(adapter, "categories", SEED_CATEGORIES, parseCategories, serializeAny, onSaved);
   const [todos, setTodos, todosLoaded] = useSyncedState<Todo[]>(
     adapter,
     "todos",
     [],
     parseTodos,
     serializeAny,
+    onSaved,
   );
   const [profile, setProfile, profileLoaded] = useSyncedState<Profile>(
     adapter,
@@ -151,6 +155,7 @@ export function useTodoStore() {
     SEED_PROFILE,
     parseProfile,
     serializeAny,
+    onSaved,
   );
 
   const [filter, setFilter] = useState<Filter>("all");
@@ -409,6 +414,7 @@ export function useTodoStore() {
     filter,
     view,
     loaded,
+    lastSavedAt,
     ...derived,
     byCategory: derived.byCategoryOpen,
     taskCountsForSheet: derived.byCategoryTotal,

@@ -39,6 +39,21 @@ export interface DateLabels {
 
 const MS_PER_DAY = 86_400_000
 
+/**
+ * Renders "just now" / "2 min ago" / "12:14 PM" depending on how stale the
+ * timestamp is. Used by the auto-save indicator — anxiety-friendly, gives the
+ * user a clear, gentle confirmation that work was saved.
+ */
+export function formatSavedAt(ms: number, locale = 'default', now = Date.now()): string {
+  const diffSec = Math.max(0, Math.floor((now - ms) / 1000))
+  if (diffSec < 30) return 'just now'
+  if (diffSec < 60) return `${diffSec}s ago`
+  const diffMin = Math.floor(diffSec / 60)
+  if (diffMin === 1) return '1 min ago'
+  if (diffMin < 60) return `${diffMin} min ago`
+  return new Date(ms).toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' })
+}
+
 export function formatDisplayDate(iso: string, locale = 'default', labels?: DateLabels): string {
   const [y, m, d] = iso.split('-').map(Number)
   const date = new Date(y, m - 1, d)

@@ -51,6 +51,7 @@ export default function ProfileSheet({
   const [density, setDensity] = useState<Density>(
     profile.density ?? "comfortable",
   );
+  const [reduceMotion, setReduceMotion] = useState<boolean>(!!profile.reduceMotion);
   const [deleting, setDeleting] = useState(false);
 
   React.useEffect(() => {
@@ -60,6 +61,7 @@ export default function ProfileSheet({
       setQuote(profile.quote ?? "");
       setAvatar(profile.avatar);
       setDensity(profile.density ?? "comfortable");
+      setReduceMotion(!!profile.reduceMotion);
     }
   }, [visible, profile]);
 
@@ -156,6 +158,7 @@ export default function ProfileSheet({
       avatar,
       density,
       title: profile.title,
+      reduceMotion: reduceMotion || undefined,
     });
     showSnackbar({ message: t.profileSaved });
     onClose();
@@ -292,6 +295,22 @@ export default function ProfileSheet({
             </View>
 
             <TouchableOpacity
+              style={styles.toggleRow}
+              onPress={() => setReduceMotion((v) => !v)}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: reduceMotion }}
+              accessibilityLabel={t.reduceMotionLabel}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>{t.reduceMotionLabel}</Text>
+                <Text style={styles.toggleHint}>{t.reduceMotionHint}</Text>
+              </View>
+              <View style={[styles.toggleTrack, reduceMotion && styles.toggleTrackOn]}>
+                <View style={[styles.toggleKnob, reduceMotion && styles.toggleKnobOn]} />
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={styles.signOut}
               onPress={() => {
                 onClose();
@@ -418,7 +437,7 @@ function makeStyles(c: ThemeColors) {
     sectionLabel: {
       fontSize: 11,
       fontWeight: "700",
-      textTransform: "uppercase",
+      textTransform: "none",
       letterSpacing: 0.6,
       color: c.label3,
       marginBottom: 8,
@@ -446,7 +465,7 @@ function makeStyles(c: ThemeColors) {
     label: {
       fontSize: 11,
       fontWeight: "700",
-      textTransform: "uppercase",
+      textTransform: "none",
       letterSpacing: 0.6,
       color: c.label3,
       marginBottom: 6,
@@ -519,6 +538,44 @@ function makeStyles(c: ThemeColors) {
     },
     btnPrimaryText: {
       color: "#fff",
+    },
+    toggleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingVertical: 12,
+      paddingHorizontal: 4,
+    },
+    toggleHint: {
+      fontSize: 12,
+      color: c.label2,
+      marginTop: 2,
+      lineHeight: 16,
+    },
+    toggleTrack: {
+      width: 50,
+      height: 30,
+      borderRadius: 15,
+      backgroundColor: c.gray3,
+      padding: 3,
+      justifyContent: "center",
+    },
+    toggleTrackOn: {
+      backgroundColor: c.blue,
+    },
+    toggleKnob: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      backgroundColor: "#fff",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.18,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+    toggleKnobOn: {
+      transform: [{ translateX: 20 }],
     },
     signOut: {
       alignItems: "center",
