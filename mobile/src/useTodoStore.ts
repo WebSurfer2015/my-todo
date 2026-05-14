@@ -40,6 +40,10 @@ import {
   todoClearDone,
   todoSet,
   migrateTodos,
+  subtaskAdd,
+  subtaskToggle,
+  subtaskUpdateText,
+  subtaskRemove,
   categoryAdd,
   categoryEdit,
   categoryDelete,
@@ -229,6 +233,34 @@ export function useTodoStore() {
     [setTodos],
   );
 
+  const addSubtask = useCallback(
+    (id: string, text: string) => {
+      setTodos((prev) => subtaskAdd(prev, id, text));
+    },
+    [setTodos],
+  );
+
+  const toggleSubtask = useCallback(
+    (id: string, subId: string) => {
+      setTodos((prev) => subtaskToggle(prev, id, subId));
+    },
+    [setTodos],
+  );
+
+  const updateSubtaskText = useCallback(
+    (id: string, subId: string, text: string) => {
+      setTodos((prev) => subtaskUpdateText(prev, id, subId, text));
+    },
+    [setTodos],
+  );
+
+  const removeSubtask = useCallback(
+    (id: string, subId: string) => {
+      setTodos((prev) => subtaskRemove(prev, id, subId));
+    },
+    [setTodos],
+  );
+
   // ---- Non-stable mutations ----
 
   function addTask(
@@ -378,6 +410,10 @@ export function useTodoStore() {
     updateDueDate,
     updateTaskCategory,
     updateText,
+    addSubtask,
+    toggleSubtask,
+    updateSubtaskText,
+    removeSubtask,
     addTask,
     emptyTrash,
     selectedTrashIds,

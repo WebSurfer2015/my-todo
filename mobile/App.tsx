@@ -210,6 +210,17 @@ function AppInner() {
                           onUpdateDueDate={store.updateDueDate}
                           onUpdateCategory={store.updateTaskCategory}
                           onUpdateText={store.updateText}
+                          onAddSubtask={store.addSubtask}
+                          onToggleSubtask={store.toggleSubtask}
+                          onUpdateSubtaskText={store.updateSubtaskText}
+                          onRemoveSubtask={store.removeSubtask}
+                          subtaskVisibility={
+                            store.filter === 'open'
+                              ? 'open'
+                              : store.filter === 'done'
+                                ? 'done'
+                                : 'all'
+                          }
                         />
                       </View>
                     ))}

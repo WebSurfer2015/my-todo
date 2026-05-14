@@ -2,6 +2,7 @@ import {
   Category,
   Filter,
   Priority,
+  Subtask,
   Todo,
   isCategoryFilter,
   categoryIdFromFilter,
@@ -19,6 +20,8 @@ export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 // well above any realistic legitimate use.
 export const MAX_TODO_TEXT_LEN = 4096;
 export const MAX_TODOS_PER_USER = 10_000;
+export const MAX_SUBTASK_TEXT_LEN = 1024;
+export const MAX_SUBTASKS_PER_TODO = 100;
 
 // ---- Pure mutation helpers ----------------------------------------------
 
@@ -42,9 +45,91 @@ export function newTodo(input: {
 
 export function todoToggle(prev: Todo[], id: string): Todo[] {
   const now = Date.now();
-  return prev.map((td) =>
-    td.id === id ? { ...td, done: !td.done, updatedAt: now } : td,
-  );
+  return prev.map((td) => {
+    if (td.id !== id) return td;
+    const nextDone = !td.done;
+    // Propagate parent toggle to subtasks so the parent's done state stays
+    // equal to subs.every(s => s.done). Avoids ambiguous "parent open, all
+    // subs done" states.
+    const nextSubs =
+      td.subtasks && td.subtasks.length > 0
+        ? td.subtasks.map((s) => (s.done === nextDone ? s : { ...s, done: nextDone }))
+        : td.subtasks;
+    const next: Todo = { ...td, done: nextDone, updatedAt: now };
+    if (nextSubs !== undefined) next.subtasks = nextSubs;
+    return next;
+  });
+}
+
+export function subtaskAdd(prev: Todo[], todoId: string, text: string): Todo[] {
+  const trimmed = text.trim().slice(0, MAX_SUBTASK_TEXT_LEN);
+  if (!trimmed) return prev;
+  const now = Date.now();
+  return prev.map((td) => {
+    if (td.id !== todoId) return td;
+    const existing = td.subtasks ?? [];
+    if (existing.length >= MAX_SUBTASKS_PER_TODO) return td;
+    const newSub: Subtask = { id: genUuid(), text: trimmed, done: false };
+    const nextSubs = [...existing, newSub];
+    // Adding an open subtask invalidates a previously-done parent.
+    const next: Todo = { ...td, subtasks: nextSubs, updatedAt: now };
+    next.done = nextSubs.every((s) => s.done);
+    return next;
+  });
+}
+
+export function subtaskToggle(
+  prev: Todo[],
+  todoId: string,
+  subId: string,
+): Todo[] {
+  const now = Date.now();
+  return prev.map((td) => {
+    if (td.id !== todoId || !td.subtasks) return td;
+    const nextSubs = td.subtasks.map((s) =>
+      s.id === subId ? { ...s, done: !s.done } : s,
+    );
+    return {
+      ...td,
+      subtasks: nextSubs,
+      done: nextSubs.every((s) => s.done),
+      updatedAt: now,
+    };
+  });
+}
+
+export function subtaskUpdateText(
+  prev: Todo[],
+  todoId: string,
+  subId: string,
+  text: string,
+): Todo[] {
+  const trimmed = text.slice(0, MAX_SUBTASK_TEXT_LEN);
+  const now = Date.now();
+  return prev.map((td) => {
+    if (td.id !== todoId || !td.subtasks) return td;
+    const nextSubs = td.subtasks.map((s) =>
+      s.id === subId ? { ...s, text: trimmed } : s,
+    );
+    return { ...td, subtasks: nextSubs, updatedAt: now };
+  });
+}
+
+export function subtaskRemove(
+  prev: Todo[],
+  todoId: string,
+  subId: string,
+): Todo[] {
+  const now = Date.now();
+  return prev.map((td) => {
+    if (td.id !== todoId || !td.subtasks) return td;
+    const nextSubs = td.subtasks.filter((s) => s.id !== subId);
+    const next: Todo = { ...td, subtasks: nextSubs, updatedAt: now };
+    // Only re-derive parent done when subs remain. If the list becomes empty,
+    // leave whatever state the user last set on the parent.
+    if (nextSubs.length > 0) next.done = nextSubs.every((s) => s.done);
+    return next;
+  });
 }
 
 export function todoMoveToTrash(prev: Todo[], id: string): Todo[] {
@@ -207,10 +292,32 @@ export function migrateTodos(
 
     if (trashed && (trashedAt ?? 0) < cutoff) continue;
 
+    // Subtasks: sanitize/cap each entry. Drop garbage so a malicious cloud
+    // push can't smuggle bad shapes through.
+    let subtasks: Subtask[] | undefined;
+    if (Array.isArray(item.subtasks)) {
+      const cleaned: Subtask[] = [];
+      const subSeen = new Set<string>();
+      for (const sRaw of item.subtasks.slice(0, MAX_SUBTASKS_PER_TODO)) {
+        if (typeof sRaw !== "object" || sRaw === null || Array.isArray(sRaw)) continue;
+        const s = sRaw as Partial<Subtask>;
+        const sid =
+          typeof s.id === "string" && s.id.length > 0 ? s.id : genUuid();
+        if (subSeen.has(sid)) continue;
+        subSeen.add(sid);
+        const sText =
+          typeof s.text === "string" ? s.text.slice(0, MAX_SUBTASK_TEXT_LEN) : "";
+        cleaned.push({ id: sid, text: sText, done: !!s.done });
+      }
+      if (cleaned.length > 0) subtasks = cleaned;
+    }
+
     const merged: Todo = {
       id,
       text,
-      done: !!item.done,
+      // When subtasks exist, derive parent done from them so the invariant
+      // (parent.done === subs.every(done)) holds even if stored data drifted.
+      done: subtasks && subtasks.length > 0 ? subtasks.every((s) => s.done) : !!item.done,
       priority,
       dueDate,
       category,
@@ -218,6 +325,7 @@ export function migrateTodos(
     };
     if (trashedAt != null) merged.trashedAt = trashedAt;
     if (updatedAt != null) merged.updatedAt = updatedAt;
+    if (subtasks) merged.subtasks = subtasks;
 
     // Dedupe by id — last write (or higher updatedAt) wins.
     const existing = seen.get(id);

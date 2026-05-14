@@ -10,9 +10,14 @@ import {
   todoMoveToTrash,
   todoToggle,
   todoSet,
+  subtaskAdd,
+  subtaskToggle,
+  subtaskUpdateText,
+  subtaskRemove,
   TRASH_RETENTION_MS,
   MAX_TODO_TEXT_LEN,
   MAX_TODOS_PER_USER,
+  MAX_SUBTASKS_PER_TODO,
 } from "../../core/src/derive";
 import { buildGroups } from "../../core/src/groups";
 import {
@@ -186,6 +191,134 @@ describe("newTodo + mutations", () => {
       "x".repeat(MAX_TODO_TEXT_LEN + 200),
     );
     expect(after[0].text).toHaveLength(MAX_TODO_TEXT_LEN);
+  });
+});
+
+// ---- Subtasks: helpers + parent auto-complete --------------------------
+
+describe("subtasks", () => {
+  function makeTodo() {
+    return newTodo({ text: "parent", priority: "low", dueDate: "" });
+  }
+
+  it("subtaskAdd appends an open subtask and keeps the parent open", () => {
+    const before = [makeTodo()];
+    const after = subtaskAdd(before, before[0].id, "step 1");
+    expect(after[0].subtasks).toHaveLength(1);
+    expect(after[0].subtasks![0].text).toBe("step 1");
+    expect(after[0].subtasks![0].done).toBe(false);
+    expect(after[0].done).toBe(false);
+  });
+
+  it("subtaskAdd trims and ignores empty input", () => {
+    const before = [makeTodo()];
+    expect(subtaskAdd(before, before[0].id, "   ")[0].subtasks).toBeUndefined();
+    const after = subtaskAdd(before, before[0].id, "  trimmed  ");
+    expect(after[0].subtasks![0].text).toBe("trimmed");
+  });
+
+  it("toggling all subtasks done auto-completes the parent", () => {
+    let state = [makeTodo()];
+    state = subtaskAdd(state, state[0].id, "a");
+    state = subtaskAdd(state, state[0].id, "b");
+    expect(state[0].done).toBe(false);
+    const [s1, s2] = state[0].subtasks!;
+    state = subtaskToggle(state, state[0].id, s1.id);
+    expect(state[0].done).toBe(false);
+    state = subtaskToggle(state, state[0].id, s2.id);
+    expect(state[0].done).toBe(true);
+    // Re-opening one subtask re-opens the parent.
+    state = subtaskToggle(state, state[0].id, s2.id);
+    expect(state[0].done).toBe(false);
+  });
+
+  it("toggling the parent propagates to all subtasks", () => {
+    let state = [makeTodo()];
+    state = subtaskAdd(state, state[0].id, "a");
+    state = subtaskAdd(state, state[0].id, "b");
+    state = todoToggle(state, state[0].id);
+    expect(state[0].done).toBe(true);
+    expect(state[0].subtasks!.every((s) => s.done)).toBe(true);
+    state = todoToggle(state, state[0].id);
+    expect(state[0].done).toBe(false);
+    expect(state[0].subtasks!.every((s) => !s.done)).toBe(true);
+  });
+
+  it("adding an open subtask to a done parent re-opens the parent", () => {
+    let state = [makeTodo()];
+    state = todoToggle(state, state[0].id);
+    expect(state[0].done).toBe(true);
+    state = subtaskAdd(state, state[0].id, "new step");
+    expect(state[0].done).toBe(false);
+  });
+
+  it("subtaskUpdateText edits a subtask and clamps length", () => {
+    let state = [makeTodo()];
+    state = subtaskAdd(state, state[0].id, "old");
+    const subId = state[0].subtasks![0].id;
+    state = subtaskUpdateText(state, state[0].id, subId, "new text");
+    expect(state[0].subtasks![0].text).toBe("new text");
+  });
+
+  it("subtaskRemove drops a subtask and re-derives parent done if subs remain", () => {
+    let state = [makeTodo()];
+    state = subtaskAdd(state, state[0].id, "a");
+    state = subtaskAdd(state, state[0].id, "b");
+    const [a, b] = state[0].subtasks!;
+    state = subtaskToggle(state, state[0].id, a.id);
+    state = subtaskToggle(state, state[0].id, b.id);
+    expect(state[0].done).toBe(true);
+    // Remove the only-open subtask after adding a third
+    state = subtaskAdd(state, state[0].id, "c");
+    expect(state[0].done).toBe(false);
+    const cId = state[0].subtasks![2].id;
+    state = subtaskRemove(state, state[0].id, cId);
+    // a and b were done, parent should be done again
+    expect(state[0].done).toBe(true);
+  });
+
+  it("removing the last subtask preserves parent's manual done state", () => {
+    let state = [makeTodo()];
+    state = subtaskAdd(state, state[0].id, "only");
+    const subId = state[0].subtasks![0].id;
+    state = subtaskToggle(state, state[0].id, subId);
+    expect(state[0].done).toBe(true);
+    state = subtaskRemove(state, state[0].id, subId);
+    expect(state[0].subtasks).toHaveLength(0);
+    expect(state[0].done).toBe(true);
+  });
+
+  it("subtaskAdd respects MAX_SUBTASKS_PER_TODO cap", () => {
+    let state = [makeTodo()];
+    for (let i = 0; i < MAX_SUBTASKS_PER_TODO + 5; i++) {
+      state = subtaskAdd(state, state[0].id, `s${i}`);
+    }
+    expect(state[0].subtasks!.length).toBe(MAX_SUBTASKS_PER_TODO);
+  });
+
+  it("migrateTodos sanitizes subtasks and re-derives parent done", () => {
+    const out = migrateTodos([
+      {
+        id: "t1",
+        text: "x",
+        priority: "low",
+        dueDate: "",
+        done: false, // intentionally stale — all subs are done so should flip true
+        subtasks: [
+          { id: "s1", text: "one", done: true },
+          { id: "s2", text: "two", done: true },
+          { text: "missing id", done: false }, // gets a fresh id
+          null, // dropped
+          { id: "s3", text: 123, done: "yes" }, // text/done coerced
+        ],
+      },
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].subtasks).toBeDefined();
+    // Parent done re-derived from subs: not all done (one is open) → false
+    expect(out[0].done).toBe(false);
+    // Garbage entries dropped, but the "missing id" one kept with a fresh id
+    expect(out[0].subtasks!.length).toBe(4);
   });
 });
 

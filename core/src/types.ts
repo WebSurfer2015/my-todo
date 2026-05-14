@@ -9,6 +9,12 @@ export const STATUS_FILTERS: StatusFilter[] = ['overdue', 'open', 'done', 'trash
 export type Priority = 'high' | 'medium' | 'low'
 export type Category = string
 
+export interface Subtask {
+  id: string
+  text: string
+  done: boolean
+}
+
 export interface Todo {
   /**
    * Stable, globally-unique id. Strings (UUID v4) since v1; older v0 stores
@@ -25,6 +31,11 @@ export interface Todo {
   trashedAt?: number
   /** ms since epoch; set on every mutation. Used by Firestore sync for last-write-wins per todo. */
   updatedAt?: number
+  /**
+   * Optional checklist. Parent `done` is kept in sync with `subtasks.every(s => s.done)` by
+   * the subtask mutation helpers; toggling the parent propagates to all subtasks.
+   */
+  subtasks?: Subtask[]
 }
 
 export const PRIORITY_VALUES: Priority[] = ['high', 'medium', 'low']

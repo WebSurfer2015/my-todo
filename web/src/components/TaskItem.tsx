@@ -1,12 +1,15 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useRef, useState } from 'react'
 import { Category, Priority, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
 import { CategoryDef, categoryLabel } from '../categories'
 import { formatDisplayDate, todayLocal } from '../utils'
 import PriorityBarsIcon from './PriorityBarsIcon'
 import CategoryIcon from './CategoryIcon'
+import TaskDetailsModal from './TaskDetailsModal'
 import { useLang } from '../LangContext'
 import { useCloseOnOutside } from '../hooks'
 import { useNotify } from '../notify'
+
+export type SubtaskVisibility = 'all' | 'open' | 'done'
 
 interface IconProps {
   size?: number
@@ -43,12 +46,21 @@ function X({ size = 15, strokeWidth = 2 }: IconProps) {
   )
 }
 
+function ChevronRight({ size = 12, strokeWidth = 2.5 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 18l6-6-6-6" />
+    </svg>
+  )
+}
+
 interface Props {
   todo: Todo
   categories: CategoryDef[]
   inTrash: boolean
   selected?: boolean
   bulkSelecting?: boolean
+  subtaskVisibility?: SubtaskVisibility
   onToggleSelect?: (id: string, shiftKey: boolean) => void
   onToggle: (id: string) => void
   onMoveToTrash: (id: string) => void
@@ -58,23 +70,33 @@ interface Props {
   onUpdateDueDate: (id: string, dueDate: string) => void
   onUpdateCategory: (id: string, category: Category) => void
   onUpdateText: (id: string, text: string) => void
+  onAddSubtask?: (id: string, text: string) => void
+  onToggleSubtask?: (id: string, subId: string) => void
+  onUpdateSubtaskText?: (id: string, subId: string, text: string) => void
+  onRemoveSubtask?: (id: string, subId: string) => void
 }
 
 function TaskItem({
-  todo, categories, inTrash, selected = false, bulkSelecting = false, onToggleSelect,
+  todo, categories, inTrash, selected = false, bulkSelecting = false,
+  subtaskVisibility = 'all',
+  onToggleSelect,
   onToggle, onMoveToTrash, onRestore, onPermanentDelete,
   onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateText,
+  onAddSubtask, onToggleSubtask, onUpdateSubtaskText, onRemoveSubtask,
 }: Props) {
   const { t } = useLang()
   const notify = useNotify()
   const [priorityOpen, setPriorityOpen] = useState(false)
   const [categoryOpen, setCategoryOpen] = useState(false)
-  const [editing, setEditing] = useState(false)
-  const [editText, setEditText] = useState(todo.text)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+  const subs = todo.subtasks ?? []
+  const subsDoneCount = subs.filter((s) => s.done).length
+  const detailsAvailable =
+    !!onAddSubtask && !!onToggleSubtask && !!onUpdateSubtaskText && !!onRemoveSubtask
   const priorityRef = useRef<HTMLDivElement>(null)
   const categoryRef = useRef<HTMLDivElement>(null)
   const dateRef = useRef<HTMLInputElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
 
   const today = todayLocal()
   const overdue = !!todo.dueDate && !todo.done && todo.dueDate < today
@@ -84,24 +106,12 @@ function TaskItem({
   useCloseOnOutside(priorityRef, priorityOpen, () => setPriorityOpen(false))
   useCloseOnOutside(categoryRef, categoryOpen, () => setCategoryOpen(false))
 
-  useEffect(() => {
-    if (editing) {
-      inputRef.current?.focus()
-      inputRef.current?.select()
-    }
-  }, [editing])
-
-  function commitEdit() {
-    const trimmed = editText.trim()
-    if (trimmed && trimmed !== todo.text) onUpdateText(todo.id, trimmed)
-    else setEditText(todo.text)
-    setEditing(false)
-  }
-
-  function cancelEdit() {
-    setEditText(todo.text)
-    setEditing(false)
-  }
+  const visibleSubs =
+    subtaskVisibility === 'open'
+      ? subs.filter((s) => !s.done)
+      : subtaskVisibility === 'done'
+        ? subs.filter((s) => s.done)
+        : subs
 
   async function handlePermanentDelete() {
     const ok = await notify.confirm({
@@ -114,9 +124,14 @@ function TaskItem({
     if (ok) onPermanentDelete(todo.id)
   }
 
+  function handleTextClick() {
+    if (inTrash) return
+    if (detailsAvailable) setDetailsOpen(true)
+  }
+
   return (
     <li
-      className={`item${todo.done ? ' done' : ''}${inTrash ? ' trashed' : ''}${selected ? ' selected' : ''}`}
+      className={`item${todo.done ? ' done' : ''}${inTrash ? ' trashed' : ''}${selected ? ' selected' : ''}${expanded ? ' expanded' : ''}`}
       style={{ ['--cat-color' as string]: cat?.color }}
     >
       {inTrash ? (
@@ -137,28 +152,13 @@ function TaskItem({
       )}
       <div className="item-body">
         <div className="item-main">
-          {editing && !inTrash ? (
-            <input
-              ref={inputRef}
-              className="item-text-edit"
-              value={editText}
-              onChange={(e) => setEditText(e.target.value)}
-              onBlur={commitEdit}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') commitEdit()
-                else if (e.key === 'Escape') cancelEdit()
-              }}
-              maxLength={200}
-            />
-          ) : (
-            <span
-              className="item-text"
-              onClick={() => !inTrash && setEditing(true)}
-              title={inTrash ? '' : t.editTask}
-            >
-              {todo.text}
-            </span>
-          )}
+          <span
+            className={`item-text${detailsAvailable && !inTrash ? ' clickable' : ''}`}
+            onClick={handleTextClick}
+            title={inTrash ? '' : t.taskDetails}
+          >
+            {todo.text}
+          </span>
           <div className="priority-edit" ref={priorityRef}>
             <button
               type="button"
@@ -244,6 +244,21 @@ function TaskItem({
             </button>
           </div>
 
+          {detailsAvailable && !inTrash && subs.length > 0 && (
+            <button
+              type="button"
+              className={`expand-btn${expanded ? ' expanded' : ''}`}
+              onClick={() => setExpanded((v) => !v)}
+              aria-expanded={expanded}
+              title={t.subtasks}
+            >
+              <ChevronRight size={11} />
+              <span className="expand-count">
+                {t.subtaskProgress(subsDoneCount, subs.length)}
+              </span>
+            </button>
+          )}
+
           <div className="item-actions">
             {inTrash ? (
               <>
@@ -281,7 +296,42 @@ function TaskItem({
             )}
           </div>
         </div>
+
+        {expanded && detailsAvailable && !inTrash && visibleSubs.length > 0 && (
+          <ul className="subtask-inline-list">
+            {visibleSubs.map((s) => (
+              <li
+                key={s.id}
+                className={`subtask-inline-row${s.done ? ' done' : ''}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={s.done}
+                  onChange={() => onToggleSubtask!(todo.id, s.id)}
+                />
+                <span
+                  className="subtask-inline-text"
+                  onClick={() => setDetailsOpen(true)}
+                  title={t.editTask}
+                >
+                  {s.text}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
+      {detailsOpen && detailsAvailable && (
+        <TaskDetailsModal
+          todo={todo}
+          onClose={() => setDetailsOpen(false)}
+          onUpdateText={onUpdateText}
+          onAddSubtask={onAddSubtask!}
+          onToggleSubtask={onToggleSubtask!}
+          onUpdateSubtaskText={onUpdateSubtaskText!}
+          onRemoveSubtask={onRemoveSubtask!}
+        />
+      )}
     </li>
   )
 }

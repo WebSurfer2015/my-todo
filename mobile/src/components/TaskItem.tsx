@@ -1,5 +1,5 @@
-import React, { memo, useEffect, useMemo, useRef, useState } from 'react'
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, Platform, Modal, Alert, Pressable, ActionSheetIOS } from 'react-native'
+import React, { memo, useMemo, useRef, useState } from 'react'
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Modal, Alert, Pressable, ActionSheetIOS } from 'react-native'
 import { Swipeable } from 'react-native-gesture-handler'
 import * as Haptics from 'expo-haptics'
 import Svg, { Path, Polyline } from 'react-native-svg'
@@ -12,7 +12,10 @@ import { useTheme, ThemeColors } from '../theme'
 import PriorityDot from './PriorityDot'
 import CategoryIcon from './CategoryIcon'
 import PickerModal from './PickerModal'
+import TaskDetailsSheet from './TaskDetailsSheet'
 import { useLang } from '../LangContext'
+
+export type SubtaskVisibility = 'all' | 'open' | 'done'
 
 interface Props {
   todo: Todo
@@ -21,6 +24,7 @@ interface Props {
   onToggleSelect?: (id: string) => void
   categories: CategoryDef[]
   density?: Density
+  subtaskVisibility?: SubtaskVisibility
   onToggle: (id: string) => void
   onMoveToTrash: (id: string) => void
   onRestore?: (id: string) => void
@@ -29,6 +33,10 @@ interface Props {
   onUpdateDueDate: (id: string, dueDate: string) => void
   onUpdateCategory: (id: string, category: Category) => void
   onUpdateText: (id: string, text: string) => void
+  onAddSubtask?: (id: string, text: string) => void
+  onToggleSubtask?: (id: string, subId: string) => void
+  onUpdateSubtaskText?: (id: string, subId: string, text: string) => void
+  onRemoveSubtask?: (id: string, subId: string) => void
 }
 
 function PencilIcon({ size = 20, color = '#fff' }: { size?: number; color?: string }) {
@@ -63,8 +71,10 @@ function RestoreIcon({ size = 20, color = '#fff' }: { size?: number; color?: str
 function TaskItem({
   todo, inTrash = false, selected = false, onToggleSelect,
   categories, density = 'comfortable',
+  subtaskVisibility = 'all',
   onToggle, onMoveToTrash, onRestore, onPermanentDelete,
   onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateText,
+  onAddSubtask, onToggleSubtask, onUpdateSubtaskText, onRemoveSubtask,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
@@ -72,12 +82,21 @@ function TaskItem({
   const [priorityOpen, setPriorityOpen] = useState(false)
   const [categoryOpen, setCategoryOpen] = useState(false)
   const [dateOpen, setDateOpen] = useState(false)
-  const [editing, setEditing] = useState(false)
-  const [editText, setEditText] = useState(todo.text)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+  const subs = todo.subtasks ?? []
+  const subsDoneCount = subs.filter((s) => s.done).length
+  const detailsAvailable =
+    !!onAddSubtask && !!onToggleSubtask && !!onUpdateSubtaskText && !!onRemoveSubtask
+  const visibleSubs =
+    subtaskVisibility === 'open'
+      ? subs.filter((s) => !s.done)
+      : subtaskVisibility === 'done'
+        ? subs.filter((s) => s.done)
+        : subs
   const [pickerDate, setPickerDate] = useState<Date>(() =>
     todo.dueDate ? new Date(`${todo.dueDate}T00:00:00`) : new Date()
   )
-  const inputRef = useRef<TextInput>(null)
   const swipeableRef = useRef<Swipeable>(null)
   const [swipeOpen, setSwipeOpen] = useState(false)
 
@@ -86,13 +105,9 @@ function TaskItem({
   const isToday = !!todo.dueDate && !todo.done && todo.dueDate === today
   const cat = todo.category ? categories.find((c) => c.id === todo.category) : undefined
 
-  useEffect(() => {
-    if (editing) inputRef.current?.focus()
-  }, [editing])
-
-  function startEdit() {
+  function openDetails() {
     swipeableRef.current?.close()
-    if (!inTrash) setEditing(true)
+    if (!inTrash && detailsAvailable) setDetailsOpen(true)
   }
 
   function handleToggle() {
@@ -171,7 +186,7 @@ function TaskItem({
       )
     }
     return (
-      <TouchableOpacity style={[styles.swipeAction, styles.swipeEdit]} onPress={startEdit}>
+      <TouchableOpacity style={[styles.swipeAction, styles.swipeEdit]} onPress={openDetails}>
         <PencilIcon />
         <Text style={styles.swipeActionText}>{t.editTask}</Text>
       </TouchableOpacity>
@@ -193,13 +208,6 @@ function TaskItem({
         <Text style={styles.swipeActionText}>{t.moveToTrash}</Text>
       </TouchableOpacity>
     )
-  }
-
-  function commitEdit() {
-    const trimmed = editText.trim()
-    if (trimmed && trimmed !== todo.text) onUpdateText(todo.id, trimmed)
-    else setEditText(todo.text)
-    setEditing(false)
   }
 
   function openDatePicker() {
@@ -266,26 +274,14 @@ function TaskItem({
 
         <View style={styles.body}>
           <View style={styles.mainLine}>
-            {editing && !inTrash ? (
-              <TextInput
-                ref={inputRef}
-                style={styles.textEdit}
-                value={editText}
-                onChangeText={setEditText}
-                onBlur={commitEdit}
-                onSubmitEditing={commitEdit}
-                returnKeyType="done"
-                maxLength={200}
-              />
-            ) : (
-              <Text
-                style={[styles.text, todo.done && styles.textDone]}
-                numberOfLines={3}
-                onPress={() => !todo.done && !inTrash && setEditing(true)}
-              >
-                {todo.text}
-              </Text>
-            )}
+            <Text
+              style={[styles.text, todo.done && styles.textDone]}
+              numberOfLines={3}
+              onPress={openDetails}
+              suppressHighlighting
+            >
+              {todo.text}
+            </Text>
             <TouchableOpacity onPress={() => !inTrash && setPriorityOpen(true)} style={styles.priorityBtn} hitSlop={10} disabled={inTrash}>
               <PriorityDot level={todo.priority} size={11} />
             </TouchableOpacity>
@@ -331,7 +327,44 @@ function TaskItem({
               </Text>
             </TouchableOpacity>
 
+            {detailsAvailable && !inTrash && subs.length > 0 && (
+              <TouchableOpacity
+                style={styles.expandChip}
+                onPress={() => setExpanded((v) => !v)}
+                hitSlop={10}
+                accessibilityLabel={t.subtasks}
+              >
+                <Text style={styles.chevron}>{expanded ? '▼' : '▶'}</Text>
+                <Text style={styles.chipTextSubs}>
+                  {t.subtaskProgress(subsDoneCount, subs.length)}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
+
+          {expanded && detailsAvailable && !inTrash && visibleSubs.length > 0 && (
+            <View style={styles.subList}>
+              {visibleSubs.map((s) => (
+                <View key={s.id} style={styles.subRow}>
+                  <TouchableOpacity
+                    onPress={() => onToggleSubtask!(todo.id, s.id)}
+                    hitSlop={10}
+                    style={[styles.subCheckbox, s.done && styles.subCheckboxDone]}
+                  >
+                    {s.done && <Text style={styles.subCheckmark}>✓</Text>}
+                  </TouchableOpacity>
+                  <Text
+                    style={[styles.subText, s.done && styles.subTextDone]}
+                    numberOfLines={2}
+                    onPress={openDetails}
+                    suppressHighlighting
+                  >
+                    {s.text}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
         <PickerModal
@@ -396,6 +429,19 @@ function TaskItem({
             mode="date"
             display="default"
             onChange={handleDateChange}
+          />
+        )}
+
+        {detailsAvailable && (
+          <TaskDetailsSheet
+            visible={detailsOpen}
+            todo={todo}
+            onClose={() => setDetailsOpen(false)}
+            onUpdateText={onUpdateText}
+            onAddSubtask={onAddSubtask!}
+            onToggleSubtask={onToggleSubtask!}
+            onUpdateSubtaskText={onUpdateSubtaskText!}
+            onRemoveSubtask={onRemoveSubtask!}
           />
         )}
       </Pressable>
@@ -512,6 +558,67 @@ function makeStyles(c: ThemeColors, density: Density) {
     chipTextToday: {
       color: c.orange,
       fontWeight: '600',
+    },
+    chipTextSubs: {
+      fontSize: 12,
+      color: c.label2,
+      fontWeight: '600',
+      fontVariant: ['tabular-nums'],
+    },
+    expandChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 4,
+      paddingVertical: 2,
+      borderRadius: 5,
+    },
+    chevron: {
+      fontSize: 9,
+      color: c.label2,
+      lineHeight: 12,
+    },
+    subList: {
+      marginTop: 4,
+      paddingTop: 4,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.separator,
+      gap: 2,
+    },
+    subRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingVertical: 4,
+    },
+    subCheckbox: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      borderWidth: 1.5,
+      borderColor: c.gray3,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    subCheckboxDone: {
+      backgroundColor: c.blue,
+      borderColor: c.blue,
+    },
+    subCheckmark: {
+      color: '#fff',
+      fontSize: 11,
+      fontWeight: '700',
+      lineHeight: 13,
+    },
+    subText: {
+      flex: 1,
+      fontSize: 13,
+      color: c.label,
+      lineHeight: 18,
+    },
+    subTextDone: {
+      color: c.label3,
+      textDecorationLine: 'line-through',
     },
     swipeContainer: {
       overflow: 'hidden',
