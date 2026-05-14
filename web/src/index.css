@@ -2021,4 +2021,438 @@ h1 { margin: 0; }
 }
 .subtask-progress-text { font-variant-numeric: tabular-nums; }
 
-/* (subtask-list/.subtask-row legacy styles removed — modal now reuses .item) */
+/* ────────────────────────────────────────────────────────────────────
+   M3 EXPRESSIVE — scoped to the task details modal + inline subtask UX.
+   Dynamic palette derived from parent category seeds CSS vars set on
+   `.m3-dialog`. Light defaults live on the root; dark mode pulls the
+   `--m3d-*` variants. Nothing here leaks outside `.m3-dialog`.
+   ─────────────────────────────────────────────────────────────────── */
+
+/* M3 expressive easings + durations */
+:root {
+  --m3-easing-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --m3-easing-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --m3-duration-short: 180ms;
+  --m3-duration-medium: 260ms;
+}
+
+@keyframes m3-rise {
+  from { opacity: 0; transform: translateY(28px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+.m3-backdrop {
+  background: rgba(0, 0, 0, 0.40);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* ── M3 dialog shell ───────────────────────────────────────────── */
+.m3-dialog {
+  width: min(92vw, 520px);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 24px 20px;
+  border-radius: 28px;
+  background: var(--m3-surface-container);
+  color: var(--m3-on-surface);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    0 12px 32px rgba(0, 0, 0, 0.16),
+    0 24px 60px rgba(0, 0, 0, 0.12);
+  animation: m3-rise var(--m3-duration-medium) var(--m3-easing-spring);
+}
+
+@media (prefers-color-scheme: dark) {
+  .m3-dialog {
+    background: var(--m3d-surface-container);
+    color: var(--m3d-on-surface);
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.5),
+      0 12px 32px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* ── Header ───────────────────────────────────────────────────── */
+.m3-dialog-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.m3-dialog-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.m3-dialog-title {
+  flex: 1;
+  margin: 0;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 32px;
+  letter-spacing: -0.2px;
+  color: var(--m3-on-surface);
+  cursor: text;
+  border-radius: 8px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  word-break: break-word;
+  transition: background var(--m3-duration-short) var(--m3-easing-emphasized);
+}
+.m3-dialog-title:hover { background: var(--m3-surface-container-high); }
+.m3-dialog-title-edit {
+  flex: 1;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 32px;
+  letter-spacing: -0.2px;
+  color: var(--m3-on-surface);
+  background: var(--m3-surface-container-high);
+  border: 2px solid var(--m3-primary);
+  border-radius: 8px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  outline: none;
+  font-family: inherit;
+}
+@media (prefers-color-scheme: dark) {
+  .m3-dialog-title { color: var(--m3d-on-surface); }
+  .m3-dialog-title:hover { background: var(--m3d-surface-container-high); }
+  .m3-dialog-title-edit {
+    color: var(--m3d-on-surface);
+    background: var(--m3d-surface-container-high);
+    border-color: var(--m3d-primary);
+  }
+}
+
+/* ── Meta row (status chip + category + date + progress) ─────── */
+.m3-dialog-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.m3-status-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.m3-status-chip--notstarted {
+  background: var(--m3-surface-container-high);
+  color: var(--m3-on-surface-variant);
+}
+.m3-status-chip--progress {
+  background: var(--m3-primary-container);
+  color: var(--m3-on-primary-container);
+}
+.m3-status-chip--done {
+  background: var(--m3-primary);
+  color: var(--m3-on-primary);
+}
+@media (prefers-color-scheme: dark) {
+  .m3-status-chip--notstarted {
+    background: var(--m3d-surface-container-high);
+    color: var(--m3d-on-surface-variant);
+  }
+  .m3-status-chip--progress {
+    background: var(--m3d-primary-container);
+    color: var(--m3d-on-primary-container);
+  }
+  .m3-status-chip--done {
+    background: var(--m3d-primary);
+    color: var(--m3d-on-primary);
+  }
+}
+
+.m3-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid var(--m3-outline);
+  color: var(--m3-on-surface-variant);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: default;
+  transition: background var(--m3-duration-short), border-color var(--m3-duration-short);
+}
+button.m3-meta-chip { cursor: pointer; }
+button.m3-meta-chip:hover {
+  background: var(--m3-surface-container-high);
+  border-color: var(--m3-on-surface-variant);
+}
+.m3-meta-chip--cat {
+  border-color: var(--m3-primary);
+  color: var(--m3-on-primary-container);
+  background: var(--m3-primary-container);
+}
+.m3-meta-chip--date.is-empty { font-style: italic; color: var(--m3-on-surface-variant); }
+.m3-meta-chip--date.is-overdue {
+  background: #FCE8E6;
+  border-color: #F4685C;
+  color: #B3261E;
+}
+.m3-meta-chip--date.is-today {
+  background: #FFF1E0;
+  border-color: #F1B36A;
+  color: #944A00;
+}
+.m3-meta-chip--progress {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+@media (prefers-color-scheme: dark) {
+  .m3-meta-chip {
+    border-color: var(--m3d-outline);
+    color: var(--m3d-on-surface-variant);
+  }
+  button.m3-meta-chip:hover {
+    background: var(--m3d-surface-container-high);
+    border-color: var(--m3d-on-surface-variant);
+  }
+  .m3-meta-chip--cat {
+    background: var(--m3d-primary-container);
+    color: var(--m3d-on-primary-container);
+    border-color: var(--m3d-primary);
+  }
+  .m3-meta-chip--date.is-overdue {
+    background: rgba(244, 104, 92, 0.18);
+    border-color: #F4685C;
+    color: #F4B5AE;
+  }
+  .m3-meta-chip--date.is-today {
+    background: rgba(241, 179, 106, 0.18);
+    border-color: #F1B36A;
+    color: #F1B36A;
+  }
+}
+
+/* ── Subtask card list ───────────────────────────────────────── */
+.m3-sub-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 52vh;
+  overflow-y: auto;
+  /* scrollbar styling kept subtle to fit the surface */
+  scrollbar-width: thin;
+}
+.m3-sub-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 18px;
+  background: var(--m3-surface-container-high);
+  transition:
+    background var(--m3-duration-short) var(--m3-easing-emphasized),
+    transform var(--m3-duration-short) var(--m3-easing-spring);
+}
+.m3-sub-card:hover { background: var(--m3-primary-container); }
+.m3-sub-card.is-done { background: var(--m3-surface-container); }
+@media (prefers-color-scheme: dark) {
+  .m3-sub-card { background: var(--m3d-surface-container-high); }
+  .m3-sub-card:hover { background: var(--m3d-primary-container); }
+  .m3-sub-card.is-done { background: var(--m3d-surface-container); }
+}
+
+/* M3 circular check (kept circular per user preference, not the square
+   M3 default). Filled tonal when checked, outline when unchecked. */
+.m3-sub-check {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--m3-outline);
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--m3-on-primary);
+  transition:
+    background var(--m3-duration-short),
+    border-color var(--m3-duration-short),
+    transform var(--m3-duration-short) var(--m3-easing-spring);
+}
+.m3-sub-check:hover { border-color: var(--m3-primary); }
+.m3-sub-check.is-checked {
+  background: var(--m3-primary);
+  border-color: var(--m3-primary);
+  transform: scale(1.04);
+}
+@media (prefers-color-scheme: dark) {
+  .m3-sub-check { border-color: var(--m3d-outline); color: var(--m3d-on-primary); }
+  .m3-sub-check:hover { border-color: var(--m3d-primary); }
+  .m3-sub-check.is-checked { background: var(--m3d-primary); border-color: var(--m3d-primary); }
+}
+
+.m3-sub-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.m3-sub-card-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.m3-sub-card-text {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 22px;
+  letter-spacing: 0.1px;
+  color: var(--m3-on-surface);
+  cursor: text;
+  border-radius: 4px;
+  padding: 1px 2px;
+  margin: -1px -2px;
+  word-break: break-word;
+}
+.m3-sub-card-text:hover { color: var(--m3-on-primary-container); }
+.m3-sub-card.is-done .m3-sub-card-text {
+  text-decoration: line-through;
+  color: var(--m3-on-surface-variant);
+}
+.m3-sub-card-text-edit {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 22px;
+  letter-spacing: 0.1px;
+  color: var(--m3-on-surface);
+  background: var(--m3-surface);
+  border: 2px solid var(--m3-primary);
+  border-radius: 6px;
+  padding: 1px 6px;
+  margin: -1px -6px;
+  outline: none;
+  font-family: inherit;
+}
+@media (prefers-color-scheme: dark) {
+  .m3-sub-card-text { color: var(--m3d-on-surface); }
+  .m3-sub-card-text:hover { color: var(--m3d-on-primary-container); }
+  .m3-sub-card.is-done .m3-sub-card-text { color: var(--m3d-on-surface-variant); }
+  .m3-sub-card-text-edit {
+    color: var(--m3d-on-surface);
+    background: var(--m3d-surface);
+    border-color: var(--m3d-primary);
+  }
+}
+
+.m3-sub-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Icon buttons (close, priority, delete) ─────────────────── */
+.m3-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  border: none;
+  background: transparent;
+  color: var(--m3-on-surface-variant);
+  cursor: pointer;
+  transition:
+    background var(--m3-duration-short) var(--m3-easing-emphasized),
+    color var(--m3-duration-short);
+  flex-shrink: 0;
+}
+.m3-icon-btn:hover { background: var(--m3-surface-container-high); color: var(--m3-on-surface); }
+.m3-icon-btn--close:hover { color: var(--m3-on-surface); }
+.m3-icon-btn--delete:hover { color: #B3261E; background: #FCE8E6; }
+@media (prefers-color-scheme: dark) {
+  .m3-icon-btn { color: var(--m3d-on-surface-variant); }
+  .m3-icon-btn:hover { background: var(--m3d-surface-container-high); color: var(--m3d-on-surface); }
+  .m3-icon-btn--delete:hover { background: rgba(244, 104, 92, 0.20); color: #F4B5AE; }
+}
+
+/* ── Add-subtask card (always visible) ──────────────────────── */
+.m3-add-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 8px 16px;
+  background: var(--m3-primary-container);
+  border-radius: 28px;
+  flex-wrap: wrap;
+}
+@media (prefers-color-scheme: dark) {
+  .m3-add-card { background: var(--m3d-primary-container); }
+}
+.m3-add-input {
+  flex: 1;
+  min-width: 120px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--m3-on-primary-container);
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 8px 4px;
+  font-family: inherit;
+}
+.m3-add-input::placeholder { color: var(--m3-on-primary-container); opacity: 0.65; }
+@media (prefers-color-scheme: dark) {
+  .m3-add-input { color: var(--m3d-on-primary-container); }
+  .m3-add-input::placeholder { color: var(--m3d-on-primary-container); opacity: 0.65; }
+}
+
+/* FAB-style add button — primary tonal, circular, springy press */
+.m3-fab {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px; /* M3 expressive "squircle" feel */
+  background: var(--m3-primary);
+  color: var(--m3-on-primary);
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    transform var(--m3-duration-short) var(--m3-easing-spring),
+    filter var(--m3-duration-short);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+.m3-fab:hover { filter: brightness(1.05); transform: scale(1.04); }
+.m3-fab:active { transform: scale(0.94); }
+.m3-fab:disabled {
+  background: var(--m3-surface-container-high);
+  color: var(--m3-on-surface-variant);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+@media (prefers-color-scheme: dark) {
+  .m3-fab { background: var(--m3d-primary); color: var(--m3d-on-primary); }
+  .m3-fab:disabled {
+    background: var(--m3d-surface-container-high);
+    color: var(--m3d-on-surface-variant);
+  }
+}
+

@@ -12,3 +12,4 @@ export * from "./profile";
 export * from "./i18n";
 export * from "./derive";
 export * from "./groups";
+export * from "./m3palette";

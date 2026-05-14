@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, KeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Priority, Subtask, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
 import { CategoryDef, categoryLabel } from '../categories'
 import { formatDisplayDate, todayLocal } from '../utils'
+import { tonalPalette } from '../../../core/src/m3palette'
 import PriorityBarsIcon from './PriorityBarsIcon'
 import CategoryIcon from './CategoryIcon'
 import { useLang } from '../LangContext'
@@ -140,21 +141,53 @@ export default function TaskDetailsModal({
   const parentOverdue = !!todo.dueDate && !todo.done && todo.dueDate < today
   const parentToday = !!todo.dueDate && !todo.done && todo.dueDate === today
 
+  // M3 Expressive dynamic palette derived from the parent's category color.
+  // Generates both light and dark variants and exposes them as CSS vars so
+  // the stylesheet can theme containers/text/outlines from a single seed.
+  const seed = cat?.color ?? '#007AFF'
+  const m3Vars = useMemo(() => {
+    const light = tonalPalette(seed, false)
+    const dark = tonalPalette(seed, true)
+    return {
+      ['--m3-primary']: light.primary,
+      ['--m3-on-primary']: light.onPrimary,
+      ['--m3-primary-container']: light.primaryContainer,
+      ['--m3-on-primary-container']: light.onPrimaryContainer,
+      ['--m3-surface']: light.surface,
+      ['--m3-surface-container']: light.surfaceContainer,
+      ['--m3-surface-container-high']: light.surfaceContainerHigh,
+      ['--m3-outline']: light.outline,
+      ['--m3-on-surface']: light.onSurface,
+      ['--m3-on-surface-variant']: light.onSurfaceVariant,
+      ['--m3d-primary']: dark.primary,
+      ['--m3d-on-primary']: dark.onPrimary,
+      ['--m3d-primary-container']: dark.primaryContainer,
+      ['--m3d-on-primary-container']: dark.onPrimaryContainer,
+      ['--m3d-surface']: dark.surface,
+      ['--m3d-surface-container']: dark.surfaceContainer,
+      ['--m3d-surface-container-high']: dark.surfaceContainerHigh,
+      ['--m3d-outline']: dark.outline,
+      ['--m3d-on-surface']: dark.onSurface,
+      ['--m3d-on-surface-variant']: dark.onSurfaceVariant,
+    } as React.CSSProperties
+  }, [seed])
+
   return createPortal(
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop m3-backdrop" onMouseDown={onClose}>
       <div
-        className="modal-card modal-card--details"
+        className="m3-dialog"
+        style={m3Vars}
         onMouseDown={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label={t.taskDetails}
       >
-        <div className="modal-details-header">
-          <div className="modal-details-title-row">
+        <header className="m3-dialog-header">
+          <div className="m3-dialog-title-row">
             {titleEditing ? (
               <input
                 ref={titleInputRef}
-                className="modal-title-edit"
+                className="m3-dialog-title-edit"
                 value={titleText}
                 onChange={(e) => setTitleText(e.target.value)}
                 onBlur={commitTitle}
@@ -165,55 +198,49 @@ export default function TaskDetailsModal({
                 maxLength={200}
               />
             ) : (
-              <h3
-                className="modal-title modal-title--editable"
+              <h2
+                className="m3-dialog-title"
                 onClick={() => setTitleEditing(true)}
                 title={t.editTask}
               >
                 {todo.text}
-              </h3>
+              </h2>
             )}
             <button
               type="button"
-              className="modal-close"
+              className="m3-icon-btn m3-icon-btn--close"
               onClick={onClose}
               aria-label={t.cancel}
             >
-              <X size={18} />
+              <X size={20} />
             </button>
           </div>
-          <div className="modal-details-subtitle">
-            <span className={`status-pill status-${subs.length === 0 && !todo.done ? 'notstarted' : doneCount === subs.length && subs.length > 0 ? 'done' : doneCount > 0 ? 'progress' : todo.done ? 'done' : 'notstarted'}`}>
+          <div className="m3-dialog-meta">
+            <span className={`m3-status-chip m3-status-chip--${subs.length === 0 && !todo.done ? 'notstarted' : doneCount === subs.length && subs.length > 0 ? 'done' : doneCount > 0 ? 'progress' : todo.done ? 'done' : 'notstarted'}`}>
               {statusLabel}
             </span>
             {cat && (
-              <>
-                <span className="modal-meta-sep">·</span>
-                <span className="modal-meta-cat" style={{ color: cat.color }}>
-                  <CategoryIcon icon={cat.icon} size={11} />
-                  {categoryLabel(cat, t)}
-                </span>
-              </>
+              <span className="m3-meta-chip m3-meta-chip--cat">
+                <CategoryIcon icon={cat.icon} size={12} />
+                {categoryLabel(cat, t)}
+              </span>
             )}
-            <span className="modal-meta-sep">·</span>
-            <span className={`modal-meta-date${parentOverdue ? ' overdue' : ''}${parentToday ? ' today' : ''}${!todo.dueDate ? ' no-date' : ''}`}>
+            <span className={`m3-meta-chip m3-meta-chip--date${parentOverdue ? ' is-overdue' : ''}${parentToday ? ' is-today' : ''}${!todo.dueDate ? ' is-empty' : ''}`}>
               {todo.dueDate ? formatDisplayDate(todo.dueDate, t.locale) : t.noDate}
             </span>
             {subs.length > 0 && (
-              <>
-                <span className="modal-meta-sep">·</span>
-                <span className="subtask-progress-text">{t.subtaskProgress(doneCount, subs.length)}</span>
-              </>
+              <span className="m3-meta-chip m3-meta-chip--progress">
+                {t.subtaskProgress(doneCount, subs.length)}
+              </span>
             )}
           </div>
-        </div>
+        </header>
 
-        <ul className="list subtask-card-list">
+        <ul className="m3-sub-list">
           {subs.map((s) => (
             <SubtaskCard
               key={s.id}
               parentId={todo.id}
-              parentColor={cat?.color}
               subtask={s}
               onToggle={onToggleSubtask}
               onUpdateText={onUpdateSubtaskText}
@@ -224,11 +251,11 @@ export default function TaskDetailsModal({
           ))}
         </ul>
 
-        <div className="subtask-add-card">
+        <div className="m3-add-card">
           <input
             ref={addInputRef}
             type="text"
-            className="subtask-add-input"
+            className="m3-add-input"
             placeholder={t.addSubtask}
             value={newText}
             onChange={(e) => setNewText(e.target.value)}
@@ -238,7 +265,7 @@ export default function TaskDetailsModal({
           <div className="priority-edit" ref={newPriorityRef}>
             <button
               type="button"
-              className={`priority-icon-btn priority-${newPriority}`}
+              className={`m3-icon-btn priority-${newPriority}`}
               onClick={() => setNewPriorityOpen((v) => !v)}
               aria-label={t.priorityLabel(t.priority[newPriority])}
               title={t.setPriority}
@@ -272,7 +299,7 @@ export default function TaskDetailsModal({
             />
             <button
               type="button"
-              className={`date-chip${!newDueDate ? ' no-date' : ''}`}
+              className={`m3-meta-chip m3-meta-chip--date${!newDueDate ? ' is-empty' : ''}`}
               onClick={() => newDateRef.current?.showPicker()}
               title={t.setDueDate}
               aria-label={t.setDueDate}
@@ -282,12 +309,12 @@ export default function TaskDetailsModal({
           </div>
           <button
             type="button"
-            className="subtask-add-btn"
+            className="m3-fab"
             onClick={commitNew}
             disabled={!newText.trim()}
             aria-label={t.add}
           >
-            <Plus size={16} />
+            <Plus size={18} />
           </button>
         </div>
       </div>
@@ -297,11 +324,10 @@ export default function TaskDetailsModal({
 }
 
 function SubtaskCard({
-  parentId, parentColor, subtask,
+  parentId, subtask,
   onToggle, onUpdateText, onUpdatePriority, onUpdateDueDate, onRemove,
 }: {
   parentId: string
-  parentColor?: string
   subtask: Subtask
   onToggle: (id: string, subId: string) => void
   onUpdateText: (id: string, subId: string, text: string) => void
@@ -344,22 +370,26 @@ function SubtaskCard({
   }
 
   return (
-    <li
-      className={`item item--sub${subtask.done ? ' done' : ''}`}
-      style={{ ['--cat-color' as string]: parentColor }}
-    >
-      <input
-        type="checkbox"
-        checked={subtask.done}
-        onChange={() => onToggle(parentId, subtask.id)}
+    <li className={`m3-sub-card${subtask.done ? ' is-done' : ''}`}>
+      <button
+        type="button"
+        className={`m3-sub-check${subtask.done ? ' is-checked' : ''}`}
+        onClick={() => onToggle(parentId, subtask.id)}
         aria-label={subtask.text}
-      />
-      <div className="item-body">
-        <div className="item-main">
+        aria-pressed={subtask.done}
+      >
+        {subtask.done && (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        )}
+      </button>
+      <div className="m3-sub-card-body">
+        <div className="m3-sub-card-main">
           {editing ? (
             <input
               ref={inputRef}
-              className="item-text-edit"
+              className="m3-sub-card-text-edit"
               value={text}
               onChange={(e) => setText(e.target.value)}
               onBlur={commit}
@@ -371,7 +401,7 @@ function SubtaskCard({
             />
           ) : (
             <span
-              className="item-text"
+              className="m3-sub-card-text"
               onClick={() => setEditing(true)}
               title={t.editTask}
             >
@@ -382,7 +412,7 @@ function SubtaskCard({
             <div className="priority-edit" ref={priorityRef}>
               <button
                 type="button"
-                className={`priority-icon-btn priority-${priority}`}
+                className={`m3-icon-btn priority-${priority}`}
                 onClick={() => setPriorityOpen((v) => !v)}
                 aria-label={t.priorityLabel(t.priority[priority])}
                 title={t.setPriority}
@@ -408,7 +438,7 @@ function SubtaskCard({
             </div>
           )}
         </div>
-        <div className="item-meta">
+        <div className="m3-sub-card-meta">
           {onUpdateDueDate && (
             <div className="due-date-edit">
               <input
@@ -420,7 +450,7 @@ function SubtaskCard({
               />
               <button
                 type="button"
-                className={`date-chip${overdue ? ' overdue' : ''}${isToday ? ' today' : ''}${!dueDate ? ' no-date' : ''}`}
+                className={`m3-meta-chip m3-meta-chip--date${overdue ? ' is-overdue' : ''}${isToday ? ' is-today' : ''}${!dueDate ? ' is-empty' : ''}`}
                 onClick={() => dateRef.current?.showPicker()}
                 title={t.setDueDate}
                 aria-label={t.setDueDate}
@@ -429,17 +459,15 @@ function SubtaskCard({
               </button>
             </div>
           )}
-          <div className="item-actions">
-            <button
-              type="button"
-              className="item-action item-action--trash"
-              onClick={() => onRemove(parentId, subtask.id)}
-              title={t.deleteSubtask}
-              aria-label={t.deleteSubtask}
-            >
-              <Trash2 size={14} strokeWidth={2} />
-            </button>
-          </div>
+          <button
+            type="button"
+            className="m3-icon-btn m3-icon-btn--delete"
+            onClick={() => onRemove(parentId, subtask.id)}
+            title={t.deleteSubtask}
+            aria-label={t.deleteSubtask}
+          >
+            <Trash2 size={16} strokeWidth={2} />
+          </button>
         </div>
       </div>
     </li>
