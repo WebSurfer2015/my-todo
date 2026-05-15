@@ -45,14 +45,14 @@ export interface Todo {
 export const PRIORITY_VALUES: Priority[] = ['high', 'medium', 'low']
 
 /**
- * Anxiety-conscious priority colors. Hex (vs CSS variables) so the same value
- * works in both DOM and React Native. Low-saturation warm/sage palette — no
- * panic-red. Bar count (1/2/3) carries the urgency, color is just an accent.
+ * Classic red/orange/blue priority cue but pulled a few stops lighter than
+ * iOS bright — recognizable hierarchy without the anxiety-triggering
+ * full-saturation red. Bar count (1/2/3) still carries the primary signal.
  */
 export const PRIORITY_COLORS: Record<Priority, string> = {
-  high:   '#B58072',  // warm clay
-  medium: '#C4A47C',  // warm sand
-  low:    '#8FA989',  // soft sage
+  high:   '#E07878',  // soft coral red
+  medium: '#E8A964',  // soft amber
+  low:    '#7AA4D4',  // soft slate blue
 }
 
 export function isStatusFilter(f: Filter): f is StatusFilter {
