@@ -47,6 +47,19 @@ export function newTodo(input: {
   };
 }
 
+/**
+ * Returns true if the transition from `before` → `after` counts as a pebble-
+ * earning completion. A completion is either a non-recurring task flipping
+ * done false → true, or a recurring task whose dueDate rolled forward (the
+ * user finished an occurrence even though `done` stays false).
+ */
+export function didEarnPebble(before: Todo | undefined, after: Todo | undefined): boolean {
+  if (!before || !after) return false;
+  if (!before.done && after.done) return true;
+  if (before.recurrence && after.recurrence && before.dueDate !== after.dueDate) return true;
+  return false;
+}
+
 export function todoToggle(prev: Todo[], id: string): Todo[] {
   const now = Date.now();
   return prev.map((td) => {

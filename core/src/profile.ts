@@ -44,6 +44,43 @@ export interface Profile {
   completionAnimation?: boolean
   /** Play a sound when a task is marked done. Defaults to true. (Sound playback NYI.) */
   completionSound?: boolean
+  /**
+   * Pebbles — gentle progress counter. Every time a task is completed (or a
+   * recurring task rolls forward an occurrence), the user earns one pebble.
+   * lifetimePebbles never decrements, even when tasks are trashed or undone:
+   * "the pile only grows" is the anxiety-friendly contract.
+   *
+   * todayPebbles + pebblesDate work as a rotating daily counter. When the
+   * local date no longer matches pebblesDate, the displayed today count
+   * resets to 0 (the new day starts fresh — not a decrement, a new day).
+   */
+  lifetimePebbles?: number
+  todayPebbles?: number
+  /** Local ISO date (yyyy-mm-dd) of the day todayPebbles is counting. */
+  pebblesDate?: string
+}
+
+/**
+ * Returns the today-pebble count, but only if pebblesDate matches today.
+ * Otherwise the stale value is treated as zero — the new day starts fresh.
+ */
+export function getTodayPebbles(p: Profile, today: string): number {
+  if (!p.pebblesDate || p.pebblesDate !== today) return 0
+  return p.todayPebbles ?? 0
+}
+
+/**
+ * Increment both lifetime and today counters. On a new day, today resets to 1
+ * and pebblesDate advances. Lifetime is monotonic — only grows.
+ */
+export function incrementPebble(p: Profile, today: string): Profile {
+  const isNewDay = p.pebblesDate !== today
+  return {
+    ...p,
+    lifetimePebbles: (p.lifetimePebbles ?? 0) + 1,
+    todayPebbles: isNewDay ? 1 : (p.todayPebbles ?? 0) + 1,
+    pebblesDate: today,
+  }
 }
 
 export const SEED_PROFILE: Profile = {

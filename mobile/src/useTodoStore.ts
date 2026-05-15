@@ -25,7 +25,7 @@ import {
   migrateCategory,
   newCategoryId,
 } from "./categories";
-import { Profile, SEED_PROFILE, migrateProfile } from "./profile";
+import { Profile, SEED_PROFILE, migrateProfile, getTodayPebbles, incrementPebble } from "./profile";
 import { useLang } from "./LangContext";
 import { useAuth } from "./AuthContext";
 import { useNotify } from "./notify";
@@ -42,6 +42,7 @@ import { StorageAdapter } from "../../core/src/persistence";
 import {
   newTodo,
   todoToggle,
+  didEarnPebble,
   todoMoveToTrash,
   todoRestoreFromTrash,
   todoPermanentlyDelete,
@@ -191,9 +192,17 @@ export function useTodoStore() {
 
   const toggle = useCallback(
     (id: string) => {
-      setTodos((prev) => todoToggle(prev, id));
+      setTodos((prev) => {
+        const next = todoToggle(prev, id);
+        const before = prev.find((t) => t.id === id);
+        const after = next.find((t) => t.id === id);
+        if (didEarnPebble(before, after)) {
+          setProfile((p) => incrementPebble(p, todayLocal()));
+        }
+        return next;
+      });
     },
-    [setTodos],
+    [setTodos, setProfile],
   );
 
   const restoreFromTrash = useCallback(
@@ -473,6 +482,8 @@ export function useTodoStore() {
   const plateLine = t.todayPlate(todayCount);
   const orderedStatuses = getOrderedStatuses(profile, t);
   const orderedVisibleStatuses = getOrderedVisibleStatuses(profile, t);
+  const todayPebbles = getTodayPebbles(profile, todayDate);
+  const lifetimePebbles = profile.lifetimePebbles ?? 0;
 
   return {
     todos,
@@ -489,6 +500,8 @@ export function useTodoStore() {
     headerLine,
     quoteLine,
     plateLine,
+    todayPebbles,
+    lifetimePebbles,
     orderedStatuses,
     orderedVisibleStatuses,
     setFilter,

@@ -28,6 +28,7 @@ import { ErrorBoundary } from "./src/ErrorBoundary";
 import { useTodoStore } from "./src/useTodoStore";
 import SignIn from "./src/components/SignIn";
 import EmptyState from "./src/components/EmptyState";
+import PebbleStrip from "./src/components/PebbleStrip";
 
 function SlidersIcon({ size = 18, color = "#3C3C43" }: { size?: number; color?: string }) {
   return (
@@ -195,6 +196,10 @@ function AppInner() {
                   </TouchableOpacity>
                 </View>
               )
+            )}
+
+            {!store.inTrashView && store.filter !== "done" && (
+              <PebbleStrip count={store.todayPebbles} />
             )}
 
             {store.inTrashView ? (

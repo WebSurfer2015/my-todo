@@ -398,6 +398,14 @@ export default function ProfileSheet({
               </View>
             </TouchableOpacity>
 
+            <View style={styles.pebbleRow}>
+              <Text style={styles.pebbleRowLabel}>Pebbles placed</Text>
+              <Text style={styles.pebbleRowValue}>{profile.lifetimePebbles ?? 0}</Text>
+            </View>
+            <Text style={styles.pebbleRowHint}>
+              Every task you've finished, since you started.
+            </Text>
+
             <View style={styles.actions}>
               <TouchableOpacity
                 disabled={deleting}
@@ -593,6 +601,35 @@ function makeStyles(c: ThemeColors) {
     },
     langBtnTextActive: {
       color: "#fff",
+    },
+    pebbleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 14,
+      paddingHorizontal: 14,
+      marginTop: 12,
+      borderRadius: 10,
+      backgroundColor: c.primarySoft,
+    },
+    pebbleRowLabel: {
+      fontSize: 15,
+      color: c.label,
+      fontWeight: "500",
+    },
+    pebbleRowValue: {
+      fontSize: 17,
+      color: c.primary,
+      fontWeight: "700",
+      fontVariant: ["tabular-nums"],
+    },
+    pebbleRowHint: {
+      fontSize: 12,
+      color: c.label3,
+      paddingHorizontal: 14,
+      paddingTop: 6,
+      paddingBottom: 4,
+      fontStyle: "italic",
     },
     actions: {
       flexDirection: "row",
