@@ -373,6 +373,23 @@ export default function CategorySheet({
                     </ScrollView>
                   ) : (
                     <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+                      <View style={[styles.listCard, styles.allCard]}>
+                        <TouchableOpacity
+                          style={[styles.viewRow, styles.viewRowFlush]}
+                          onPress={() => pickFilter("all")}
+                          activeOpacity={0.65}
+                        >
+                          <View style={styles.rowIcon} />
+                          <Text style={styles.viewRowLabel}>{t.filters.all}</Text>
+                          <Text style={styles.viewRowCount}>{systemCounts.all}</Text>
+                          {currentFilter === "all" ? (
+                            <Check size={18} color={theme.primary} strokeWidth={2.5} />
+                          ) : (
+                            <View style={styles.checkPlaceholder} />
+                          )}
+                        </TouchableOpacity>
+                      </View>
+
                       <Text style={styles.sectionHeader}>STATUSES</Text>
                       <View style={styles.listCard}>
                         {orderedVisibleStatuses.map(viewStatusRow)}
@@ -383,14 +400,6 @@ export default function CategorySheet({
                       </View>
                     </ScrollView>
                   )}
-
-                  <TouchableOpacity
-                    style={styles.bottomDoneBtn}
-                    onPress={onClose}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.bottomDoneBtnText}>{t.done}</Text>
-                  </TouchableOpacity>
                 </>
               ) : mode.kind === "editStatus" ? (
                 <>
@@ -662,19 +671,11 @@ function makeStyles(c: ThemeColors) {
     btnPrimary: { backgroundColor: c.primary },
     btnText: { fontSize: 14, fontWeight: "600", color: c.label },
     btnPrimaryText: { color: "#fff" },
-    bottomDoneBtn: {
-      marginTop: 12,
-      height: 50,
-      borderRadius: 12,
-      backgroundColor: c.primary,
-      alignItems: "center",
-      justifyContent: "center",
+    allCard: {
+      marginTop: 14,
     },
-    bottomDoneBtnText: {
-      color: "#fff",
-      fontSize: 16,
-      fontWeight: "600",
-      letterSpacing: -0.16,
+    viewRowFlush: {
+      borderBottomWidth: 0,
     },
   });
 }
