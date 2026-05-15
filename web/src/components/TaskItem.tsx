@@ -54,6 +54,17 @@ function ChevronRight({ size = 14, strokeWidth = 2.5 }: IconProps) {
   )
 }
 
+function CalendarIcon({ size = 14, strokeWidth = 1.8 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M16 2v4" />
+      <path d="M8 2v4" />
+      <path d="M3 10h18" />
+    </svg>
+  )
+}
+
 interface Props {
   todo: Todo
   categories: CategoryDef[]
@@ -423,14 +434,14 @@ function SubtaskInlineRow({
             />
             <button
               type="button"
-              className={`date-chip${overdue ? ' overdue' : ''}${isToday ? ' today' : ''}${!dueDate ? ' no-date' : ''}`}
+              className={`date-chip${overdue ? ' overdue' : ''}${isToday ? ' today' : ''}${!dueDate ? ' icon-only' : ''}`}
               onClick={() => dateRef.current?.showPicker?.()}
-              title={t.setDueDate}
+              title={dueDate ? formatDisplayDate(dueDate, t.locale) : t.setDueDate}
               aria-label={t.setDueDate}
             >
               {dueDate
                 ? formatDisplayDate(dueDate, t.locale)
-                : t.noDate}
+                : <CalendarIcon size={13} />}
             </button>
           </div>
         )}

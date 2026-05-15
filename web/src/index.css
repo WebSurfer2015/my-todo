@@ -1258,13 +1258,19 @@ h1 { margin: 0; }
 .item {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;   /* anchor leading checkbox/chevron to the top */
   gap: 12px;
   background: var(--bg-card);
   border-radius: 18px;
   padding: 14px 16px 14px 19px;
   box-shadow: 0 1px 3px rgba(40, 30, 20, 0.04), 0 6px 18px rgba(40, 30, 20, 0.05);
   animation: slideIn var(--motion-duration) var(--motion-easing);
+}
+/* When checkbox/chevron is taller than 1 line of text, nudge it to baseline. */
+.item > input[type="checkbox"],
+.item > .expand-toggle,
+.item > .select-checkbox {
+  margin-top: 3px;
 }
 
 .item::before {
@@ -1466,6 +1472,17 @@ h1 { margin: 0; }
 .date-chip.today { color: var(--orange); font-weight: 600; }
 .date-chip.no-date { color: var(--label2); }
 .date-chip.no-date:hover { color: var(--label2); }
+/* Icon-only date button (used inline on subtasks when no date is set) */
+.date-chip.icon-only {
+  padding: 0;
+  min-height: 24px;
+  width: 24px;
+  color: var(--label3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.date-chip.icon-only:hover { color: var(--primary); background: var(--primary-soft); }
 
 /* ── Category (task item) ─────────────────────────────────────────── */
 .category-edit { position: relative; flex-shrink: 0; }
@@ -1962,18 +1979,19 @@ h1 { margin: 0; }
 .item.has-subs.expanded { padding-bottom: 4px; }
 .subtask-inline-list {
   list-style: none;
-  padding: 4px 0 0 0;
-  margin: 8px 0 0 0;
+  padding: 0;
+  margin: 10px 0 0 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  border-top: 1px dashed var(--separator);
+  gap: 1px;
+  /* No top border — whitespace + the per-row left branch line is enough
+     visual grouping. Cleaner than a dashed/solid separator. */
 }
 .subtask-row-inline {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
-  padding: 6px 4px 6px 8px;
+  padding: 4px 4px 4px 8px;
   border-radius: 6px;
   position: relative;
 }
@@ -1998,15 +2016,22 @@ h1 { margin: 0; }
 .subtask-inline-body {
   flex: 1;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;     /* single-line: text + priority + date all inline */
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 .subtask-inline-main {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
+}
+.subtask-inline-meta {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
 }
 .subtask-inline-text {
   flex: 1;
