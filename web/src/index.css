@@ -687,16 +687,16 @@ body {
 }
 
 .sidebar-item:hover { background: var(--fill); }
-/* Active filter: tonal container in the category/status accent color, NOT a
-   solid fill — keeps it visually subordinate to the primary "Add" CTA so
-   the two don't compete for the eye. */
+/* Active filter: tonal slate-teal container, regardless of category color.
+   Keeps a single, calm selection signal across the whole sidebar — only the
+   "Add" CTA uses the solid version of this hue. */
 .sidebar-item.active {
-  background: color-mix(in oklab, var(--accent) 16%, transparent);
-  color: var(--accent);
+  background: color-mix(in oklab, var(--primary) 16%, transparent);
+  color: var(--primary);
   font-weight: 600;
 }
-.sidebar-item.active .sidebar-item-icon { color: var(--accent) !important; }
-.sidebar-item.active .sidebar-item-count { color: var(--accent); opacity: 0.85; }
+.sidebar-item.active .sidebar-item-icon { color: var(--primary) !important; }
+.sidebar-item.active .sidebar-item-count { color: var(--primary); opacity: 0.85; }
 
 .sidebar-item-icon {
   display: flex;
