@@ -115,8 +115,7 @@ export interface PresetAvatar {
 
 /** Cross-platform emoji preset library. Stable keys so cross-device sync works. */
 export const AVATAR_PRESET_LIBRARY: PresetAvatar[] = [
-  { key: 'mochi',    emoji: '🐢', bg: '#E8F0E5', imageKey: 'mochi' },  // Mochi illustration (brand mascot)
-  { key: 'turtle',   emoji: '🐢', bg: '#E8F0E5' },  // Mochi pale mint (matches primarySoft)
+  { key: 'mochi',    emoji: '🐢', bg: '#E8F0E5', imageKey: 'mochi' },  // Mochi illustration (brand mascot) — emoji is fallback only
   { key: 'smile',    emoji: '😀', bg: '#FF9500' },
   { key: 'cat',      emoji: '🐱', bg: '#34C759' },
   { key: 'dog',      emoji: '🐶', bg: '#007AFF' },

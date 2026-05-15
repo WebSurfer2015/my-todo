@@ -29,7 +29,7 @@ export default function Avatar({ avatar, size = 36 }: { avatar: AvatarT; size?: 
         >
           <Image
             source={bundled}
-            style={{ width: size, height: size }}
+            style={{ width: size, height: size, borderRadius: size / 2 }}
             resizeMode="cover"
           />
         </View>

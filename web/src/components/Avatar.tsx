@@ -25,14 +25,14 @@ export default function AvatarView({ avatar, size = 38, alt = '' }: { avatar: Av
       return (
         <div
           className="avatar-icon"
-          style={{ width: size, height: size, background: preset.bg, overflow: 'hidden' }}
+          style={{ width: size, height: size, background: preset.bg, overflow: 'hidden', borderRadius: '50%' }}
           aria-label={alt || preset.key}
           role="img"
         >
           <img
             src={imgUrl}
             alt=""
-            style={{ width: size, height: size, objectFit: 'cover' }}
+            style={{ width: size, height: size, objectFit: 'cover', borderRadius: '50%', display: 'block' }}
           />
         </div>
       )
