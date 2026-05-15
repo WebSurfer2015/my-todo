@@ -70,7 +70,6 @@ export default function App() {
           onToggleDrawer={() => setDrawerOpen((v) => !v)}
           title={store.sectionLabel ?? store.appTitle}
           subtitle={store.subtitle}
-          lastSavedAt={store.lastSavedAt}
         />
         {store.inTrashView && store.trashCount > 0 && (
           <div className="trash-actions">

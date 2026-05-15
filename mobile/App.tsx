@@ -1,5 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { formatSavedAt } from "./src/utils";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -28,24 +27,6 @@ import { NotifyProvider } from "./src/notify";
 import { ErrorBoundary } from "./src/ErrorBoundary";
 import { useTodoStore } from "./src/useTodoStore";
 import SignIn from "./src/components/SignIn";
-
-function SavedAt({ at, locale, prefix }: { at: number; locale: string; prefix: string }) {
-  const theme = useTheme()
-  // Tick every 30s so "just now" → "1 min ago" updates without extra writes.
-  const [, setTick] = useState(0)
-  useEffect(() => {
-    const id = setInterval(() => setTick((n) => n + 1), 30_000)
-    return () => clearInterval(id)
-  }, [])
-  return (
-    <Text
-      style={{ fontSize: 11, color: theme.label3, fontVariant: ['tabular-nums'], marginTop: 2 }}
-      accessibilityLiveRegion="polite"
-    >
-      {prefix} · {formatSavedAt(at, locale)}
-    </Text>
-  )
-}
 
 function AppInner() {
   const { t } = useLang();
@@ -92,9 +73,6 @@ function AppInner() {
               <Text style={styles.identityGreeting} numberOfLines={2}>
                 {store.headerLine}
               </Text>
-              {store.lastSavedAt != null && (
-                <SavedAt at={store.lastSavedAt} locale={t.locale} prefix={t.saved} />
-              )}
             </View>
           </TouchableOpacity>
 
