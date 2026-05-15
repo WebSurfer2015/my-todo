@@ -311,7 +311,6 @@ function TaskItem({
               <SubtaskInlineRow
                 key={s.id}
                 parentId={todo.id}
-                parentDueDate={todo.dueDate}
                 subtask={s}
                 onToggle={onToggleSubtask!}
                 onUpdatePriority={onUpdateSubtaskPriority}
@@ -342,10 +341,9 @@ function TaskItem({
 }
 
 function SubtaskInlineRow({
-  parentId, parentDueDate, subtask, onToggle, onUpdatePriority, onUpdateDueDate, onRemove, onOpenDetails,
+  parentId, subtask, onToggle, onUpdatePriority, onUpdateDueDate, onRemove, onOpenDetails,
 }: {
   parentId: string
-  parentDueDate: string
   subtask: Subtask
   onToggle: (id: string, subId: string) => void
   onUpdatePriority?: (id: string, subId: string, priority: Priority) => void
@@ -360,10 +358,7 @@ function SubtaskInlineRow({
   useCloseOnOutside(priorityRef, priorityOpen, () => setPriorityOpen(false))
 
   const priority: Priority = subtask.priority ?? 'medium'
-  const ownDate = subtask.dueDate ?? ''
-  // Display fallback: when the sub has no own date, show the parent's date
-  // so the row never reads "no date" while the parent has one.
-  const dueDate = ownDate || parentDueDate || ''
+  const dueDate = subtask.dueDate ?? ''
   const today = todayLocal()
   const overdue = !!dueDate && !subtask.done && dueDate < today
   const isToday = !!dueDate && !subtask.done && dueDate === today
@@ -421,7 +416,7 @@ function SubtaskInlineRow({
               ref={dateRef}
               type="date"
               className="date-input-hidden"
-              value={ownDate}
+              value={dueDate}
               onChange={(e) => onUpdateDueDate(parentId, subtask.id, e.target.value)}
             />
             <button

@@ -16,6 +16,7 @@ import * as Haptics from 'expo-haptics'
 import { Priority, Subtask, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
 import { CategoryDef, categoryLabel } from '../categories'
 import { formatDisplayDate, isoDate, todayLocal } from '../utils'
+import { sortedSubs } from '../../../core/src/derive'
 import { useTheme, ThemeColors } from '../theme'
 import { useLang } from '../LangContext'
 import PriorityDot from './PriorityDot'
@@ -79,12 +80,7 @@ export default function TaskDetailsSheet({
 
   const [newText, setNewText] = useState('')
   const [newPriority, setNewPriority] = useState<Priority>(todo.priority)
-  const [newDueDate, setNewDueDate] = useState<string>(todo.dueDate || '')
   const [newPriorityOpen, setNewPriorityOpen] = useState(false)
-  const [newDateOpen, setNewDateOpen] = useState(false)
-  const [newPickerDate, setNewPickerDate] = useState<Date>(
-    todo.dueDate ? new Date(`${todo.dueDate}T00:00:00`) : new Date(),
-  )
 
   const [titleEditing, setTitleEditing] = useState(false)
   const [titleText, setTitleText] = useState(todo.text)
@@ -97,10 +93,11 @@ export default function TaskDetailsSheet({
   function commitNew() {
     const trimmed = newText.trim()
     if (!trimmed) return
-    onAddSubtask(todo.id, trimmed, newPriority, newDueDate)
+    // No date inheritance — sub starts with no date.
+    onAddSubtask(todo.id, trimmed, newPriority, '')
     setNewText('')
     setNewPriority(todo.priority)
-    setNewDueDate(todo.dueDate || '')
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
     newInputRef.current?.focus()
   }
 
@@ -120,25 +117,6 @@ export default function TaskDetailsSheet({
   function openSubDate(s: Subtask) {
     setSubPickerDate(s.dueDate ? new Date(`${s.dueDate}T00:00:00`) : new Date())
     setSubDateForId(s.id)
-  }
-
-  function openNewDate() {
-    setNewPickerDate(newDueDate ? new Date(`${newDueDate}T00:00:00`) : new Date())
-    setNewDateOpen(true)
-  }
-
-  // Status derived from subs (or todo.done if no subs)
-  let statusLabel: string
-  let statusKey: 'notstarted' | 'progress' | 'done'
-  if (subs.length === 0) {
-    if (todo.done) { statusLabel = t.statusDone; statusKey = 'done' }
-    else { statusLabel = t.statusNotStarted; statusKey = 'notstarted' }
-  } else if (doneCount === subs.length) {
-    statusLabel = t.statusDone; statusKey = 'done'
-  } else if (doneCount === 0) {
-    statusLabel = t.statusNotStarted; statusKey = 'notstarted'
-  } else {
-    statusLabel = t.statusInProgress; statusKey = 'progress'
   }
 
   const cat = todo.category ? categories.find((c) => c.id === todo.category) : undefined
@@ -179,21 +157,13 @@ export default function TaskDetailsSheet({
                 </Text>
               )}
               <View style={styles.subtitle}>
-                <View style={[styles.statusPill, styles[`statusPill_${statusKey}`]]}>
-                  <Text style={[styles.statusPillText, styles[`statusPillText_${statusKey}`]]}>
-                    {statusLabel}
-                  </Text>
-                </View>
                 {cat && (
-                  <>
-                    <Text style={styles.metaSep}>·</Text>
-                    <View style={styles.metaCat}>
-                      <CategoryIcon icon={cat.icon} size={11} color={cat.color} />
-                      <Text style={[styles.metaCatText, { color: cat.color }]}>{categoryLabel(cat, t)}</Text>
-                    </View>
-                  </>
+                  <View style={styles.metaCat}>
+                    <CategoryIcon icon={cat.icon} size={11} color={cat.color} />
+                    <Text style={[styles.metaCatText, { color: cat.color }]}>{categoryLabel(cat, t)}</Text>
+                  </View>
                 )}
-                <Text style={styles.metaSep}>·</Text>
+                {cat && <Text style={styles.metaSep}>·</Text>}
                 <Text style={[
                   styles.metaDate,
                   parentOverdue && styles.metaDateOverdue,
@@ -223,7 +193,7 @@ export default function TaskDetailsSheet({
             {subs.length === 0 ? (
               <Text style={styles.emptyText}>{t.addSubtask}</Text>
             ) : (
-              subs.map((s) => (
+              sortedSubs(subs).map((s) => (
                 <SubtaskCard
                   key={s.id}
                   parentId={todo.id}
@@ -241,7 +211,8 @@ export default function TaskDetailsSheet({
             )}
           </ScrollView>
 
-          {/* Always-visible add-subtask row with priority + date defaults from parent */}
+          {/* Add-subtask row: text + priority + Add button. No date picker —
+              user can set the date later by tapping the sub's date chip. */}
           <View style={styles.addCard}>
             <TextInput
               ref={newInputRef}
@@ -263,23 +234,12 @@ export default function TaskDetailsSheet({
               <PriorityDot level={newPriority} size={11} />
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.addDateChip}
-              onPress={openNewDate}
-              hitSlop={8}
-            >
-              <Text style={[
-                styles.addDateText,
-                !newDueDate && styles.metaDateMuted,
-              ]}>
-                {newDueDate ? formatDisplayDate(newDueDate, t.locale) : t.noDate}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
               style={[styles.addBtn, !newText.trim() && styles.addBtnDisabled]}
               onPress={commitNew}
               disabled={!newText.trim()}
             >
-              <PlusIcon size={18} color="#fff" />
+              <PlusIcon size={16} color="#fff" />
+              <Text style={styles.addBtnText}>{t.add}</Text>
             </TouchableOpacity>
           </View>
 
@@ -296,55 +256,6 @@ export default function TaskDetailsSheet({
               icon: <PriorityDot level={v} size={12} />,
             }))}
           />
-
-          {/* New-subtask date picker */}
-          {newDateOpen && Platform.OS === 'ios' && (
-            <Modal
-              visible
-              transparent
-              animationType="fade"
-              onRequestClose={() => setNewDateOpen(false)}
-            >
-              <TouchableOpacity
-                style={styles.dateOverlay}
-                onPress={() => setNewDateOpen(false)}
-                activeOpacity={1}
-              >
-                <View style={styles.dateSheet} onStartShouldSetResponder={() => true}>
-                  <DateTimePicker
-                    value={newPickerDate}
-                    mode="date"
-                    display="inline"
-                    themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
-                    onChange={(e, d) => { if (e.type === 'set' && d) setNewPickerDate(d) }}
-                  />
-                  <View style={styles.dateBtnRow}>
-                    <TouchableOpacity
-                      onPress={() => { setNewDueDate(''); setNewDateOpen(false) }}
-                    >
-                      <Text style={styles.dateClear}>{t.clear}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => { setNewDueDate(isoDate(newPickerDate)); setNewDateOpen(false) }}
-                    >
-                      <Text style={styles.dateDone}>{t.done}</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            </Modal>
-          )}
-          {newDateOpen && Platform.OS === 'android' && (
-            <DateTimePicker
-              value={newPickerDate}
-              mode="date"
-              display="default"
-              onChange={(e, d) => {
-                if (e.type === 'set' && d) setNewDueDate(isoDate(d))
-                setNewDateOpen(false)
-              }}
-            />
-          )}
 
           {/* Per-subtask priority picker */}
           {onUpdateSubtaskPriority && (
@@ -713,21 +624,18 @@ function makeStyles(c: ThemeColors) {
       paddingVertical: 8,
     },
     addPriorityBtn: { padding: 6 },
-    addDateChip: {
-      paddingHorizontal: 6,
-      paddingVertical: 4,
-      borderRadius: 5,
-    },
-    addDateText: { fontSize: 12, fontWeight: '500', color: c.label2 },
     addBtn: {
-      backgroundColor: c.blue,
-      borderRadius: 8,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
+      flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
+      gap: 6,
+      backgroundColor: c.primary,
+      borderRadius: 999,
+      paddingHorizontal: 18,
+      paddingVertical: 10,
     },
     addBtnDisabled: { backgroundColor: c.gray3 },
+    addBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
 
     dateOverlay: {
       flex: 1,

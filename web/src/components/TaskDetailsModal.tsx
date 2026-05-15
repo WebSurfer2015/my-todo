@@ -109,8 +109,8 @@ export default function TaskDetailsModal({
   function commitNew() {
     const trimmed = newText.trim()
     if (!trimmed) return
-    // Date always inherited from parent — no per-sub date picker in the add row.
-    onAddSubtask(todo.id, trimmed, newPriority, todo.dueDate || '')
+    // No automatic date inheritance — sub starts with no date, user can pick later.
+    onAddSubtask(todo.id, trimmed, newPriority, '')
     setNewText('')
     setNewPriority(todo.priority)
     addInputRef.current?.focus()
@@ -195,7 +195,6 @@ export default function TaskDetailsModal({
             <SubtaskCard
               key={s.id}
               parentId={todo.id}
-              parentDueDate={todo.dueDate}
               subtask={s}
               onToggle={onToggleSubtask}
               onUpdateText={onUpdateSubtaskText}
@@ -265,11 +264,10 @@ export default function TaskDetailsModal({
 }
 
 function SubtaskCard({
-  parentId, parentDueDate, subtask,
+  parentId, subtask,
   onToggle, onUpdateText, onUpdatePriority, onUpdateDueDate, onRemove,
 }: {
   parentId: string
-  parentDueDate: string
   subtask: Subtask
   onToggle: (id: string, subId: string) => void
   onUpdateText: (id: string, subId: string, text: string) => void
@@ -287,9 +285,7 @@ function SubtaskCard({
   useCloseOnOutside(priorityRef, priorityOpen, () => setPriorityOpen(false))
 
   const priority: Priority = subtask.priority ?? 'medium'
-  const ownDate = subtask.dueDate ?? ''
-  // Display fallback to parent's date when sub has no own date.
-  const dueDate = ownDate || parentDueDate || ''
+  const dueDate = subtask.dueDate ?? ''
   const today = todayLocal()
   const overdue = !!dueDate && !subtask.done && dueDate < today
   const isToday = !!dueDate && !subtask.done && dueDate === today
@@ -382,7 +378,7 @@ function SubtaskCard({
               ref={dateRef}
               type="date"
               className="date-input-hidden"
-              value={ownDate}
+              value={dueDate}
               onChange={(e) => onUpdateDueDate(parentId, subtask.id, e.target.value)}
             />
             <button
