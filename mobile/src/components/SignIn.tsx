@@ -108,9 +108,9 @@ export default function SignIn() {
             <Image
               source={require("../../assets/icon.png")}
               style={styles.icon}
-              accessibilityLabel="Todos for Everyone"
+              accessibilityLabel="Sagely"
             />
-            <Text style={styles.title}>Todos for Everyone</Text>
+            <Text style={styles.title}>Sagely</Text>
             <Text style={styles.subtitle}>
               {mode === "reset" ? t.resetPasswordPrompt : t.signInTagline}
             </Text>

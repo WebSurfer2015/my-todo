@@ -14,7 +14,7 @@ export const LANG_ORDER: Lang[] = ['en', 'zh', 'es', 'fr', 'ja', 'de']
 
 export const strings = {
   en: {
-    title: 'Todos for Everyone',
+    title: 'Sagely',
     ownerTitle: (name: string) => `${name}'s todo`,
     addPlaceholder: 'Add a task…',
     add: 'Add',
@@ -167,7 +167,7 @@ export const strings = {
     statusDone: 'Complete',
   },
   zh: {
-    title: 'Todos for Everyone',
+    title: 'Sagely',
     ownerTitle: (name: string) => `${name}的待办`,
     addPlaceholder: '添加新任务…',
     add: '添加',
@@ -320,7 +320,7 @@ export const strings = {
     statusDone: '已完成',
   },
   es: {
-    title: 'Todos for Everyone',
+    title: 'Sagely',
     ownerTitle: (name: string) => `Tareas de ${name}`,
     addPlaceholder: 'Añadir una tarea…',
     add: 'Añadir',
@@ -473,7 +473,7 @@ export const strings = {
     statusDone: 'Completada',
   },
   fr: {
-    title: 'Todos for Everyone',
+    title: 'Sagely',
     ownerTitle: (name: string) => `Les tâches de ${name}`,
     addPlaceholder: 'Ajouter une tâche…',
     add: 'Ajouter',
@@ -626,7 +626,7 @@ export const strings = {
     statusDone: 'Terminée',
   },
   ja: {
-    title: 'Todos for Everyone',
+    title: 'Sagely',
     ownerTitle: (name: string) => `${name}の TODO`,
     addPlaceholder: 'タスクを追加…',
     add: '追加',
@@ -779,7 +779,7 @@ export const strings = {
     statusDone: '完了',
   },
   de: {
-    title: 'Todos for Everyone',
+    title: 'Sagely',
     ownerTitle: (name: string) => `${name}s Aufgaben`,
     addPlaceholder: 'Aufgabe hinzufügen…',
     add: 'Hinzufügen',
