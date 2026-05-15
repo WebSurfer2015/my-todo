@@ -4,39 +4,36 @@ import Svg, { Ellipse } from 'react-native-svg'
 import { useTheme, ThemeColors } from '../theme'
 
 /**
- * Live progress indicator. Big pebbles for completed tasks, small pebbles
- * for completed subtasks. Pebbles accumulate from the left; the count caption
- * is pinned to the right on the same row.
+ * Live progress indicator. Each completed task or subtask adds one pebble.
+ * Un-completing removes it (decrement is handled in the store). At local
+ * midnight the counter resets to 0.
  *
- * Live = mirrors current state. Un-checking a task removes its pebble
- * (decrement is handled in the store). At local midnight the counters
- * reset to 0 (handled in profile.ts).
+ * The row fills from the left across the full available width; if the
+ * count would overflow, a "+N" indicator appears at the end. The caption
+ * ("N today") sits beneath the row.
  */
 
-const BIG_SIZE = 18
-const SMALL_SIZE = 11
+const PEBBLE_SIZE = 15
 // Inter-pebble gap (matches the icon's spacing).
 const GAP = 3
-// Width reserved on the right for the count caption.
-const CAPTION_RESERVE = 96
 // Side padding on the strip.
 const SIDE_PADDING = 4
-// Width reserved at the end for the "+N" overflow indicator (if any).
-const OVERFLOW_RESERVE = 28
+// Width reserved on the right for the "+N" indicator — only applied when
+// overflow actually exists, so small counts can use the full row.
+const OVERFLOW_RESERVE = 30
 
 // Slight size variance per slot so the row reads like real stones.
-const BIG_JITTER = [0, -1, 0, 1, 0, -1, 1, 0]
-const SMALL_JITTER = [0, 1, -1, 0, 1, 0, -1, 0]
+const SIZE_JITTER = [0, 1, -1, 0, 1, -1, 0, 1]
+const Y_JITTER = [0, 1, -1, 0, 1, 0, -1, 1]
 
 interface PebbleProps {
   size: number
   fill: string
   stroke: string
   shadow: string
-  strokeWidth?: number
 }
 
-function Pebble({ size, fill, stroke, shadow, strokeWidth = 1.4 }: PebbleProps) {
+function Pebble({ size, fill, stroke, shadow }: PebbleProps) {
   const w = size * 1.35
   const h = size * 0.95
   const pad = 2
@@ -59,7 +56,7 @@ function Pebble({ size, fill, stroke, shadow, strokeWidth = 1.4 }: PebbleProps) 
         ry={h / 2 - 1}
         fill={fill}
         stroke={stroke}
-        strokeWidth={strokeWidth}
+        strokeWidth={1.4}
       />
     </Svg>
   )
@@ -70,19 +67,17 @@ function pebbleWidth(size: number): number {
 }
 
 interface Props {
-  taskCount: number
-  subtaskCount: number
+  count: number
 }
 
-export default function PebbleStrip({ taskCount, subtaskCount }: Props) {
+export default function PebbleStrip({ count }: Props) {
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
-  const total = taskCount + subtaskCount
 
-  if (total === 0) {
+  if (count === 0) {
     return (
-      <View style={styles.emptyContainer}>
-        <View style={styles.emptyPebble}>
+      <View style={styles.container}>
+        <View style={styles.row}>
           <Svg width={26} height={16}>
             <Ellipse
               cx={13}
@@ -102,84 +97,41 @@ export default function PebbleStrip({ taskCount, subtaskCount }: Props) {
     )
   }
 
-  // How many fit before we need a "+N" indicator?
+  // Greedy fit. First try without reserving space for "+N" — if everything
+  // fits, render them all. Otherwise reserve and recompute.
   const screenW = Dimensions.get('window').width
-  // App.tsx renders the strip inside a 16-px padded content area, so the
-  // usable width is screenW - 32 - sidePadding*2. We further reserve
-  // CAPTION_RESERVE on the right for the count caption.
-  const usable =
-    screenW - 32 /* App padding */ - SIDE_PADDING * 2 - CAPTION_RESERVE
-  const bigW = pebbleWidth(BIG_SIZE) + GAP
-  const smallW = pebbleWidth(SMALL_SIZE) + GAP
+  const usable = screenW - 32 /* App horizontal padding */ - SIDE_PADDING * 2
+  const slot = pebbleWidth(PEBBLE_SIZE) + GAP
 
-  // Greedy fit: tasks first (big), then subtasks (small).
-  let used = 0
-  let visibleBig = 0
-  for (let i = 0; i < taskCount; i++) {
-    if (used + bigW <= usable - OVERFLOW_RESERVE) {
-      visibleBig++
-      used += bigW
-    } else {
-      break
-    }
-  }
-  let visibleSmall = 0
-  for (let i = 0; i < subtaskCount; i++) {
-    if (used + smallW <= usable - OVERFLOW_RESERVE) {
-      visibleSmall++
-      used += smallW
-    } else {
-      break
-    }
-  }
-  const overflow =
-    taskCount - visibleBig + (subtaskCount - visibleSmall)
-  // If nothing overflowed, we don't need the reserve; recompute one more.
-  // (Lets the row use the OVERFLOW_RESERVE slot when counts are small.)
-  if (overflow === 0) {
-    if (taskCount > visibleBig + 0 && used + bigW <= usable) {
-      // unreachable — kept for clarity
-    }
+  let visible = Math.min(count, Math.floor(usable / slot))
+  let overflow = count - visible
+  if (overflow > 0) {
+    // Reserve space for the "+N" indicator and recompute.
+    visible = Math.min(count, Math.floor((usable - OVERFLOW_RESERVE) / slot))
+    overflow = count - visible
   }
 
   return (
     <View style={styles.container}>
       <View style={styles.row}>
-        <View style={styles.pebblesArea}>
-          {Array.from({ length: visibleBig }).map((_, i) => (
-            <View
-              key={`big-${i}`}
-              style={{ marginTop: BIG_JITTER[i % BIG_JITTER.length] }}
-            >
-              <Pebble
-                size={BIG_SIZE}
-                fill={theme.card}
-                stroke={theme.primary}
-                shadow={theme.primaryHover}
-                strokeWidth={1.5}
-              />
-            </View>
-          ))}
-          {Array.from({ length: visibleSmall }).map((_, i) => (
-            <View
-              key={`small-${i}`}
-              style={{ marginTop: SMALL_JITTER[i % SMALL_JITTER.length] + 4 }}
-            >
-              <Pebble
-                size={SMALL_SIZE}
-                fill={theme.card}
-                stroke={theme.primary}
-                shadow={theme.primaryHover}
-                strokeWidth={1.2}
-              />
-            </View>
-          ))}
-          {overflow > 0 && <Text style={styles.overflow}>+{overflow}</Text>}
-        </View>
-        <Text style={styles.caption}>
-          {total === 1 ? '1 today' : `${total} today`}
-        </Text>
+        {Array.from({ length: visible }).map((_, i) => (
+          <View
+            key={i}
+            style={{ marginTop: Y_JITTER[i % Y_JITTER.length] }}
+          >
+            <Pebble
+              size={PEBBLE_SIZE + SIZE_JITTER[i % SIZE_JITTER.length]}
+              fill={theme.card}
+              stroke={theme.primary}
+              shadow={theme.primaryHover}
+            />
+          </View>
+        ))}
+        {overflow > 0 && <Text style={styles.overflow}>+{overflow}</Text>}
       </View>
+      <Text style={styles.caption}>
+        {count === 1 ? '1 pebble today' : `${count} pebbles today`}
+      </Text>
     </View>
   )
 }
@@ -220,46 +172,27 @@ function makeStyles(c: ThemeColors) {
       paddingBottom: 8,
       paddingHorizontal: SIDE_PADDING,
       marginBottom: 14,
+      alignItems: 'flex-start',
+      gap: 4,
     },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      minHeight: 24,
-    },
-    pebblesArea: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
       flexWrap: 'nowrap',
       gap: GAP,
-      overflow: 'hidden',
+      minHeight: 22,
     },
     caption: {
       fontSize: 12,
       color: c.label3,
-      fontWeight: '600',
+      fontWeight: '500',
       letterSpacing: 0.1,
-      marginLeft: 8,
-      fontVariant: ['tabular-nums'],
-      textAlign: 'right',
-      minWidth: 72,
-    },
-    emptyContainer: {
-      paddingTop: 2,
-      paddingBottom: 8,
-      paddingHorizontal: SIDE_PADDING,
-      marginBottom: 14,
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    emptyPebble: {
-      marginRight: 8,
     },
     overflow: {
-      fontSize: 11,
+      fontSize: 12,
       color: c.label2,
       fontWeight: '700',
-      marginLeft: 4,
+      marginLeft: 6,
     },
   })
 }
