@@ -7,10 +7,29 @@ interface SnackbarOptions {
   actionLabel?: string
   onAction?: () => void
   durationMs?: number
+  /**
+   * If set, repeat calls with the same mergeKey while a toast is still
+   * showing accumulate into a single stacked toast ("3 moved to trash. Undo all").
+   * Each merged onAction is preserved and called in order on Undo.
+   */
+  mergeKey?: string
+  /** Builder for the merged message; receives the new total count (>=2). */
+  mergedMessage?: (count: number) => string
+  /** Label shown when stacked; defaults to actionLabel. */
+  mergedActionLabel?: string
 }
 
-interface SnackbarState extends SnackbarOptions {
+interface SnackbarState {
   id: number
+  message: string
+  actionLabel?: string
+  onAction?: () => void
+  durationMs: number
+  mergeKey?: string
+  mergedCount: number
+  mergedActions: Array<() => void>
+  mergedMessage?: (count: number) => string
+  mergedActionLabel?: string
 }
 
 interface NotifyApi {
@@ -19,14 +38,16 @@ interface NotifyApi {
 
 const NotifyContext = createContext<NotifyApi>(null!)
 
-const DEFAULT_DURATION = 4000
+const DEFAULT_DURATION = 10000
 
 export function NotifyProvider({ children }: { children: ReactNode }) {
   const [snackbar, setSnackbar] = useState<SnackbarState | null>(null)
+  const snackbarRef = useRef<SnackbarState | null>(null)
   const idRef = useRef(0)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const dismissSnackbar = useCallback(() => {
+    snackbarRef.current = null
     setSnackbar(null)
     if (timerRef.current) {
       clearTimeout(timerRef.current)
@@ -36,13 +57,57 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
 
   const showSnackbar = useCallback((opts: SnackbarOptions) => {
     const id = ++idRef.current
-    setSnackbar({ ...opts, id })
+    const prev = snackbarRef.current
+    let next: SnackbarState
+    if (prev && opts.mergeKey && prev.mergeKey === opts.mergeKey) {
+      const newCount = prev.mergedCount + 1
+      const accumulated = [...prev.mergedActions]
+      if (prev.onAction) accumulated.push(prev.onAction)
+      const builder = opts.mergedMessage ?? prev.mergedMessage
+      const message = builder ? builder(newCount) : opts.message
+      next = {
+        id,
+        message,
+        actionLabel:
+          opts.mergedActionLabel ??
+          prev.mergedActionLabel ??
+          opts.actionLabel ??
+          prev.actionLabel,
+        onAction: () => {
+          accumulated.forEach((a) => a())
+          opts.onAction?.()
+        },
+        durationMs: opts.durationMs ?? DEFAULT_DURATION,
+        mergeKey: opts.mergeKey,
+        mergedCount: newCount,
+        mergedActions: accumulated,
+        mergedMessage: builder,
+        mergedActionLabel: opts.mergedActionLabel ?? prev.mergedActionLabel,
+      }
+    } else {
+      next = {
+        id,
+        message: opts.message,
+        actionLabel: opts.actionLabel,
+        onAction: opts.onAction,
+        durationMs: opts.durationMs ?? DEFAULT_DURATION,
+        mergeKey: opts.mergeKey,
+        mergedCount: 1,
+        mergedActions: [],
+        mergedMessage: opts.mergedMessage,
+        mergedActionLabel: opts.mergedActionLabel,
+      }
+    }
+    snackbarRef.current = next
+    setSnackbar(next)
     if (timerRef.current) clearTimeout(timerRef.current)
-    const duration = opts.durationMs ?? DEFAULT_DURATION
     timerRef.current = setTimeout(() => {
-      setSnackbar((cur) => (cur?.id === id ? null : cur))
+      if (snackbarRef.current?.id === id) {
+        snackbarRef.current = null
+        setSnackbar(null)
+      }
       timerRef.current = null
-    }, duration)
+    }, next.durationMs)
   }, [])
 
   const handleAction = useCallback(() => {

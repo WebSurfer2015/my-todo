@@ -5,11 +5,19 @@ import {
   Category,
   Filter,
   Priority,
+  StatusFilter,
   Todo,
   ViewMode,
   isCategoryFilter,
   categoryIdFromFilter,
 } from "./types";
+import {
+  getOrderedStatuses,
+  getOrderedVisibleStatuses,
+  statusRename,
+  statusToggleHidden,
+  statusReorder,
+} from "../../core/src/statuses";
 import {
   CategoryDef,
   SEED_CATEGORIES,
@@ -52,6 +60,7 @@ import {
   categoryReorder,
   deriveState,
 } from "../../core/src/derive";
+import { todayLocal } from "../../core/src/utils";
 
 const SCHEMA_VERSION = 1;
 
@@ -159,7 +168,7 @@ export function useTodoStore() {
   );
 
   const [filter, setFilter] = useState<Filter>("all");
-  const [view, setView] = useState<ViewMode>("category");
+  const view: ViewMode = profile.view ?? "status";
   const [selectedTrashIds, setSelectedTrashIds] = useState<Set<string>>(
     new Set(),
   );
@@ -200,6 +209,9 @@ export function useTodoStore() {
         message: t.movedToTrash,
         actionLabel: t.undo,
         onAction: () => restoreFromTrash(id),
+        mergeKey: "trash",
+        mergedMessage: (n) => t.movedToTrashMany(n),
+        mergedActionLabel: t.undoAll,
       });
     },
     [setTodos, notify, t, restoreFromTrash],
@@ -347,7 +359,28 @@ export function useTodoStore() {
   }
 
   function clearDone() {
-    setTodos(todoClearDone);
+    let trashedIds: string[] = [];
+    setTodos((prev) => {
+      const result = todoClearDone(prev);
+      trashedIds = result.trashedIds;
+      return result.todos;
+    });
+    if (trashedIds.length === 0) return;
+    notify.showSnackbar({
+      message: t.movedToTrashMany(trashedIds.length),
+      actionLabel: t.undoAll,
+      onAction: () => {
+        setTodos((prev) => {
+          const now = Date.now();
+          const idSet = new Set(trashedIds);
+          return prev.map((td) =>
+            idSet.has(td.id)
+              ? { ...td, trashed: false, trashedAt: undefined, updatedAt: now }
+              : td,
+          );
+        });
+      },
+    });
   }
 
   function addCategory(data: { label: string; color: string; icon: string }) {
@@ -364,7 +397,7 @@ export function useTodoStore() {
   function deleteCategory(id: string) {
     if (categories.length <= 1) return;
     const next = categoryDelete(todos, categories, id);
-    if (next.targetId == null) return;
+    if (!next.deleted) return;
     setTodos(next.todos);
     setCategories(next.categories);
     if (isCategoryFilter(filter) && categoryIdFromFilter(filter) === id)
@@ -372,12 +405,24 @@ export function useTodoStore() {
   }
 
   function changeView(v: ViewMode) {
-    setView(v);
+    setProfile((prev) => ({ ...prev, view: v }));
     setFilter(v === "category" ? "all" : "open");
   }
 
   function reorderCategories(fromIdx: number, toIdx: number) {
     setCategories((prev) => categoryReorder(prev, fromIdx, toIdx));
+  }
+
+  function renameStatus(id: StatusFilter, label: string) {
+    setProfile((prev) => statusRename(prev, id, label));
+  }
+
+  function toggleStatusHidden(id: StatusFilter) {
+    setProfile((prev) => statusToggleHidden(prev, id));
+  }
+
+  function reorderStatuses(newOrder: StatusFilter[]) {
+    setProfile((prev) => statusReorder(prev, newOrder));
   }
 
   // ---- Derived state (memoized via core.deriveState) ----
@@ -397,15 +442,17 @@ export function useTodoStore() {
   const hour = new Date().getHours();
   const greetingKey: "morning" | "afternoon" | "evening" =
     hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
-  const headerLine =
-    profile.quote && profile.quote.trim()
-      ? profile.quote
-      : `${t.greeting[greetingKey]}, ${profile.name}`;
-  // App title is derived from firstName ("Alex's todo"); falls back to legacy
-  // profile.name for older accounts that have no firstName, then to t.title.
-  const titleName =
+  const greetingName =
     profile.firstName?.trim() || profile.name.trim();
-  const appTitle = titleName ? t.ownerTitle(titleName) : t.title;
+  const headerLine = `${t.greeting[greetingKey]}, ${greetingName}`;
+  const quoteLine = profile.quote && profile.quote.trim() ? profile.quote : '';
+  const todayDate = todayLocal();
+  const todayCount = todos.filter(
+    (td) => !td.trashed && td.dueDate === todayDate,
+  ).length;
+  const plateLine = t.todayPlate(todayCount);
+  const orderedStatuses = getOrderedStatuses(profile, t);
+  const orderedVisibleStatuses = getOrderedVisibleStatuses(profile, t);
 
   return {
     todos,
@@ -420,10 +467,16 @@ export function useTodoStore() {
     taskCountsForSheet: derived.byCategoryTotal,
     activeCount: derived.active.length,
     headerLine,
-    appTitle,
+    quoteLine,
+    plateLine,
+    orderedStatuses,
+    orderedVisibleStatuses,
     setFilter,
     saveProfile: setProfile,
     changeView,
+    renameStatus,
+    toggleStatusHidden,
+    reorderStatuses,
     toggle,
     moveToTrash,
     restoreFromTrash,

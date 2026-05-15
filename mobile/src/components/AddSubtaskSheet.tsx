@@ -6,13 +6,11 @@ import {
 import * as Haptics from 'expo-haptics'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import Svg, { Rect, Path } from 'react-native-svg'
-import { Category, Priority, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
-import { CategoryDef, categoryLabel } from '../categories'
+import { Priority, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
 import { formatDisplayDate, isoDate } from '../utils'
 import PriorityDot from './PriorityDot'
-import CategoryIcon from './CategoryIcon'
 import InlinePicker from './InlinePicker'
 
 function CalendarIcon({ size = 18, color = '#8E8E93' }: { size?: number; color?: string }) {
@@ -28,17 +26,15 @@ function CalendarIcon({ size = 18, color = '#8E8E93' }: { size?: number; color?:
 
 interface Props {
   visible: boolean
-  categories: CategoryDef[]
-  defaultCategory: Category
-  onAdd: (text: string, priority: Priority, dueDate: string, category?: Category) => void
+  onAdd: (text: string, priority: Priority, dueDate: string) => void
   onClose: () => void
+  /** Default due date when the sheet opens (typically the parent task's dueDate). */
+  defaultDueDate?: string
 }
 
-type SubView = 'main' | 'category' | 'priority' | 'date'
+type SubView = 'main' | 'priority' | 'date'
 
-export default function ComposeSheet({
-  visible, categories, defaultCategory, onAdd, onClose,
-}: Props) {
+export default function AddSubtaskSheet({ visible, onAdd, onClose, defaultDueDate = '' }: Props) {
   const { t } = useLang()
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
@@ -47,32 +43,27 @@ export default function ComposeSheet({
   const [subView, setSubView] = useState<SubView>('main')
   const [text, setText] = useState('')
   const [priority, setPriority] = useState<Priority>('medium')
-  const [category, setCategory] = useState<Category>(defaultCategory)
-  const [dueDate, setDueDate] = useState('')
+  const [dueDate, setDueDate] = useState(defaultDueDate)
   const [pickerDate, setPickerDate] = useState<Date>(new Date())
-
-  useEffect(() => { setCategory(defaultCategory) }, [defaultCategory])
 
   useEffect(() => {
     if (visible) {
       setSubView('main')
       setText('')
       setPriority('medium')
-      setCategory(defaultCategory)
-      setDueDate('')
+      setDueDate(defaultDueDate)
       const id = setTimeout(() => inputRef.current?.focus(), 120)
       return () => clearTimeout(id)
     }
-  }, [visible, defaultCategory])
+  }, [visible, defaultDueDate])
 
-  const activeCat = categories.find((c) => c.id === category) ?? categories[0]
-  const canSubmit = text.trim().length > 0 && !!activeCat
+  const canSubmit = text.trim().length > 0
 
   function submit() {
     const trimmed = text.trim()
-    if (!trimmed || !activeCat) return
+    if (!trimmed) return
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
-    onAdd(trimmed, priority, dueDate, activeCat.id)
+    onAdd(trimmed, priority, dueDate)
     onClose()
   }
 
@@ -113,7 +104,7 @@ export default function ComposeSheet({
                   <TouchableOpacity onPress={onClose} hitSlop={10}>
                     <Text style={styles.cancelText}>{t.cancel}</Text>
                   </TouchableOpacity>
-                  <Text style={styles.title}>{t.addPlaceholder}</Text>
+                  <Text style={styles.title}>{t.addSubtaskTitle}</Text>
                   <View style={{ width: 56 }} />
                 </View>
 
@@ -121,31 +112,16 @@ export default function ComposeSheet({
                   <TextInput
                     ref={inputRef}
                     style={styles.textInput}
-                    placeholder={t.addPlaceholder}
+                    placeholder={t.addSubtask}
                     placeholderTextColor={theme.gray3}
                     value={text}
                     onChangeText={setText}
                     multiline
-                    maxLength={4096}
+                    maxLength={1024}
                     textAlignVertical="top"
                   />
 
                   <View style={styles.fieldGroup}>
-                    <TouchableOpacity
-                      style={styles.fieldRow}
-                      onPress={() => setSubView('category')}
-                      activeOpacity={0.6}
-                    >
-                      {activeCat && <CategoryIcon icon={activeCat.icon} size={18} color={activeCat.color} />}
-                      <Text style={styles.fieldLabel}>{t.composeCategoryLabel}</Text>
-                      <Text style={styles.fieldValue} numberOfLines={1}>
-                        {activeCat ? categoryLabel(activeCat, t) : ''}
-                      </Text>
-                      <Text style={styles.chevron}>›</Text>
-                    </TouchableOpacity>
-
-                    <View style={styles.divider} />
-
                     <TouchableOpacity
                       style={styles.fieldRow}
                       onPress={() => setSubView('priority')}
@@ -192,48 +168,29 @@ export default function ComposeSheet({
               </>
             )}
 
-            {subView === 'category' && (
-              <InlinePicker
-                title={t.composeCategoryLabel}
-                options={categories.map((c) => ({
-                  key: c.id,
-                  label: categoryLabel(c, t),
-                  color: c.color,
-                  icon: <CategoryIcon icon={c.icon} size={18} color={c.color} />,
-                }))}
-                selectedKey={category}
-                onSelect={(k) => {
-                  setCategory(k)
-                  setSubView('main')
-                }}
-                onBack={() => setSubView('main')}
-              />
-            )}
-
             {subView === 'priority' && (
-              <InlinePicker
-                title={t.composePriorityLabel}
-                options={PRIORITY_VALUES.map((v) => ({
-                  key: v,
-                  label: t.priority[v],
-                  color: PRIORITY_COLORS[v],
-                  icon: <PriorityDot level={v} size={14} />,
-                }))}
-                selectedKey={priority}
-                onSelect={(k) => {
-                  setPriority(k as Priority)
-                  setSubView('main')
-                }}
-                onBack={() => setSubView('main')}
-              />
+              <View style={styles.subViewWrap}>
+                <InlinePicker
+                  title={t.composePriorityLabel}
+                  options={PRIORITY_VALUES.map((v) => ({
+                    key: v,
+                    label: t.priority[v],
+                    color: PRIORITY_COLORS[v],
+                    icon: <PriorityDot level={v} size={14} />,
+                  }))}
+                  selectedKey={priority}
+                  onSelect={(k) => {
+                    setPriority(k as Priority)
+                    setSubView('main')
+                  }}
+                />
+              </View>
             )}
 
             {subView === 'date' && (
-              <>
+              <View style={styles.subViewWrap}>
                 <View style={styles.headerRow}>
-                  <TouchableOpacity onPress={() => setSubView('main')} hitSlop={10}>
-                    <Text style={styles.cancelText}>‹ Back</Text>
-                  </TouchableOpacity>
+                  <View style={{ width: 56 }} />
                   <Text style={styles.title}>Completed by</Text>
                   <View style={{ width: 56 }} />
                 </View>
@@ -257,7 +214,7 @@ export default function ComposeSheet({
                     <Text style={styles.addBtnText}>{t.done}</Text>
                   </TouchableOpacity>
                 </View>
-              </>
+              </View>
             )}
           </Pressable>
         </Pressable>
@@ -281,7 +238,7 @@ function makeStyles(c: ThemeColors) {
       paddingTop: 8,
       paddingBottom: 24,
       paddingHorizontal: 16,
-      minHeight: 420,
+      minHeight: 380,
     },
     handle: {
       alignSelf: 'center',
@@ -310,6 +267,9 @@ function makeStyles(c: ThemeColors) {
     },
     body: {
       paddingTop: 4,
+    },
+    subViewWrap: {
+      flex: 1,
     },
     textInput: {
       minHeight: 96,

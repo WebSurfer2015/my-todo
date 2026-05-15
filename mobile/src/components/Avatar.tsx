@@ -13,6 +13,7 @@ export default function Avatar({ avatar, size = 36 }: { avatar: AvatarT; size?: 
   }
   if (avatar.kind === 'preset') {
     const preset = findPreset(avatar.key)
+    const emojiSize = size * 0.6
     return (
       <View
         style={[
@@ -20,7 +21,16 @@ export default function Avatar({ avatar, size = 36 }: { avatar: AvatarT; size?: 
           { width: size, height: size, borderRadius: size / 2, backgroundColor: preset.bg },
         ]}
       >
-        <Text style={{ fontSize: size * 0.55 }}>{preset.emoji}</Text>
+        <Text
+          style={{
+            fontSize: emojiSize,
+            lineHeight: emojiSize * 1.1,
+            textAlign: 'center',
+            includeFontPadding: false,
+          }}
+        >
+          {preset.emoji}
+        </Text>
       </View>
     )
   }

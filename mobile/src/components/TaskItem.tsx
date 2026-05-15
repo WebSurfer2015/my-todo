@@ -1,7 +1,42 @@
-import React, { memo, useMemo, useRef, useState } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, Platform, Modal, Alert, Pressable, ActionSheetIOS } from 'react-native'
+import React, { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Modal, Alert, Pressable, ActionSheetIOS, Animated, Easing, Dimensions } from 'react-native'
+
+const SCREEN_WIDTH = Dimensions.get('window').width
+const FULL_SWIPE_THRESHOLD = SCREEN_WIDTH * 0.5
+
+/** Listens to a Swipeable's drag animated value and fires onFullSwipe when |drag| exceeds the threshold. */
+function FullSwipeWatcher({
+  dragX,
+  direction,
+  onFullSwipe,
+}: {
+  dragX: Animated.AnimatedInterpolation<number>
+  direction: 'left' | 'right'
+  onFullSwipe: () => void
+}) {
+  const firedRef = useRef(false)
+  useEffect(() => {
+    const id = (dragX as Animated.Value).addListener(({ value }: { value: number }) => {
+      const past =
+        direction === 'left'
+          ? value > FULL_SWIPE_THRESHOLD
+          : value < -FULL_SWIPE_THRESHOLD
+      if (past && !firedRef.current) {
+        firedRef.current = true
+        onFullSwipe()
+      }
+      // Reset when the row returns near closed so we can re-fire next gesture.
+      if (Math.abs(value) < 20) {
+        firedRef.current = false
+      }
+    })
+    return () => (dragX as Animated.Value).removeListener(id)
+  }, [dragX, direction, onFullSwipe])
+  return null
+}
 import { Swipeable } from 'react-native-gesture-handler'
 import * as Haptics from 'expo-haptics'
+import { Audio } from 'expo-av'
 import Svg, { Path, Polyline } from 'react-native-svg'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Category, Priority, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
@@ -24,6 +59,10 @@ interface Props {
   onToggleSelect?: (id: string) => void
   categories: CategoryDef[]
   density?: Density
+  /** When true, animate the checkbox on done-transition. Defaults to true. */
+  celebrate?: boolean
+  /** When true, play a chime on done-transition. Defaults to true. */
+  playSound?: boolean
   subtaskVisibility?: SubtaskVisibility
   onToggle: (id: string) => void
   onMoveToTrash: (id: string) => void
@@ -72,7 +111,7 @@ function RestoreIcon({ size = 20, color = '#fff' }: { size?: number; color?: str
 
 function TaskItem({
   todo, inTrash = false, selected = false, onToggleSelect,
-  categories, density = 'comfortable',
+  categories, density = 'comfortable', celebrate = true, playSound = true,
   subtaskVisibility = 'all',
   onToggle, onMoveToTrash, onRestore, onPermanentDelete,
   onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateText,
@@ -105,6 +144,45 @@ function TaskItem({
   const [pickerDate, setPickerDate] = useState<Date>(() =>
     todo.dueDate ? new Date(`${todo.dueDate}T00:00:00`) : new Date()
   )
+
+  // Calm completion animation + sound — fires when a task transitions to done.
+  const checkboxScale = useRef(new Animated.Value(1)).current
+  const prevDoneRef = useRef(todo.done)
+  useEffect(() => {
+    if (todo.done && !prevDoneRef.current) {
+      if (celebrate) {
+        Animated.sequence([
+          Animated.timing(checkboxScale, {
+            toValue: 1.35,
+            duration: 140,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(checkboxScale, {
+            toValue: 1,
+            duration: 220,
+            easing: Easing.elastic(1.2),
+            useNativeDriver: true,
+          }),
+        ]).start()
+      }
+      if (playSound) {
+        // Replace assets/sounds/complete.wav with a calm chime for an audible cue.
+        Audio.Sound.createAsync(require('../../assets/sounds/complete.wav'), { shouldPlay: true })
+          .then(({ sound }) => {
+            sound.setOnPlaybackStatusUpdate((status) => {
+              if ('isLoaded' in status && status.isLoaded && status.didJustFinish) {
+                sound.unloadAsync().catch(() => {})
+              }
+            })
+          })
+          .catch(() => {
+            // Silent fail — sound is optional.
+          })
+      }
+    }
+    prevDoneRef.current = todo.done
+  }, [todo.done, celebrate, playSound, checkboxScale])
   const swipeableRef = useRef<Swipeable>(null)
   const [swipeOpen, setSwipeOpen] = useState(false)
 
@@ -128,6 +206,14 @@ function TaskItem({
     swipeableRef.current?.close()
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {})
     onMoveToTrash(todo.id)
+  }
+
+  function handleMarkDone() {
+    swipeableRef.current?.close()
+    if (!todo.done) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
+    }
+    onToggle(todo.id)
   }
 
   function confirmPermanentDelete() {
@@ -184,7 +270,8 @@ function TaskItem({
 
   // iOS conventions: leading swipe (rightward, reveals leftActions) → non-destructive.
   // Trailing swipe (leftward, reveals rightActions) → destructive.
-  function renderLeftActions() {
+  // Full-swipe auto-commit: dragging more than half the screen triggers the action.
+  function renderLeftActions(_progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) {
     if (inTrash) {
       return (
         <TouchableOpacity style={[styles.swipeAction, styles.swipeRestore]} onPress={handleRestore}>
@@ -194,14 +281,16 @@ function TaskItem({
       )
     }
     return (
-      <TouchableOpacity style={[styles.swipeAction, styles.swipeEdit]} onPress={openDetails}>
-        <PencilIcon />
-        <Text style={styles.swipeActionText}>{t.editTask}</Text>
-      </TouchableOpacity>
+      <>
+        <FullSwipeWatcher dragX={dragX} direction="left" onFullSwipe={handleMarkDone} />
+        <TouchableOpacity style={[styles.swipeAction, styles.swipeMarkDone]} onPress={handleMarkDone}>
+          <Text style={styles.swipeActionText}>{todo.done ? 'Reopen' : 'Mark as Done'}</Text>
+        </TouchableOpacity>
+      </>
     )
   }
 
-  function renderRightActions() {
+  function renderRightActions(_progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) {
     if (inTrash) {
       return (
         <TouchableOpacity style={[styles.swipeAction, styles.swipeDelete]} onPress={confirmPermanentDelete}>
@@ -211,10 +300,13 @@ function TaskItem({
       )
     }
     return (
-      <TouchableOpacity style={[styles.swipeAction, styles.swipeTrash]} onPress={handleMoveToTrash}>
-        <TrashIcon />
-        <Text style={styles.swipeActionText}>{t.moveToTrash}</Text>
-      </TouchableOpacity>
+      <>
+        <FullSwipeWatcher dragX={dragX} direction="right" onFullSwipe={handleMoveToTrash} />
+        <TouchableOpacity style={[styles.swipeAction, styles.swipeTrash]} onPress={handleMoveToTrash}>
+          <TrashIcon />
+          <Text style={styles.swipeActionText}>{t.moveToTrash}</Text>
+        </TouchableOpacity>
+      </>
     )
   }
 
@@ -248,8 +340,8 @@ function TaskItem({
       renderRightActions={renderRightActions}
       leftThreshold={40}
       rightThreshold={40}
-      overshootLeft={false}
-      overshootRight={false}
+      overshootLeft={true}
+      overshootRight={true}
       friction={2}
       containerStyle={styles.swipeContainer}
       onSwipeableWillOpen={() => setSwipeOpen(true)}
@@ -278,20 +370,22 @@ function TaskItem({
             ]}>{expanded ? '⌄' : '›'}</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity
-            style={[
-              styles.checkbox,
-              todo.done && styles.checkboxDone,
-              inTrash && selected && styles.checkboxSelected,
-            ]}
-            onPress={inTrash && onToggleSelect ? () => onToggleSelect(todo.id) : handleToggle}
-            disabled={inTrash && !onToggleSelect}
-            hitSlop={10}
-            accessibilityRole={inTrash && onToggleSelect ? 'checkbox' : 'button'}
-            accessibilityState={inTrash && onToggleSelect ? { checked: selected } : undefined}
-          >
-            {(todo.done || (inTrash && selected)) && <Text style={styles.checkmark}>✓</Text>}
-          </TouchableOpacity>
+          <Animated.View style={{ transform: [{ scale: checkboxScale }] }}>
+            <TouchableOpacity
+              style={[
+                styles.checkbox,
+                todo.done && styles.checkboxDone,
+                inTrash && selected && styles.checkboxSelected,
+              ]}
+              onPress={inTrash && onToggleSelect ? () => onToggleSelect(todo.id) : handleToggle}
+              disabled={inTrash && !onToggleSelect}
+              hitSlop={10}
+              accessibilityRole={inTrash && onToggleSelect ? 'checkbox' : 'button'}
+              accessibilityState={inTrash && onToggleSelect ? { checked: selected } : undefined}
+            >
+              {(todo.done || (inTrash && selected)) && <Text style={styles.checkmark}>✓</Text>}
+            </TouchableOpacity>
+          </Animated.View>
         )}
 
         <View style={styles.body}>
@@ -304,9 +398,13 @@ function TaskItem({
             >
               {todo.text}
             </Text>
-            <TouchableOpacity onPress={() => !inTrash && setPriorityOpen(true)} style={styles.priorityBtn} hitSlop={10} disabled={inTrash}>
-              <PriorityDot level={todo.priority} size={11} />
-            </TouchableOpacity>
+            {!inTrash && hasSubs && (
+              <View style={styles.progressPill}>
+                <Text style={styles.progressPillText}>
+                  {t.subtaskProgress(subsDoneCount, subs.length)}
+                </Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.metaLine}>
@@ -351,13 +449,16 @@ function TaskItem({
               </Text>
             </TouchableOpacity>
 
-            {!inTrash && hasSubs && (
-              <View style={styles.progressPill}>
-                <Text style={styles.progressPillText}>
-                  {t.subtaskProgress(subsDoneCount, subs.length)}
-                </Text>
-              </View>
-            )}
+            <View style={{ flex: 1 }} />
+
+            <TouchableOpacity
+              onPress={() => !inTrash && setPriorityOpen(true)}
+              style={styles.priorityBtn}
+              hitSlop={10}
+              disabled={inTrash}
+            >
+              <PriorityDot level={todo.priority} size={11} />
+            </TouchableOpacity>
           </View>
 
           {expanded && detailsAvailable && !inTrash && visibleSubs.length > 0 && (
@@ -577,6 +678,10 @@ function TaskItem({
             categories={categories}
             onClose={() => setDetailsOpen(false)}
             onUpdateText={onUpdateText}
+            onUpdatePriority={onUpdatePriority}
+            onUpdateDueDate={onUpdateDueDate}
+            onUpdateCategory={onUpdateCategory}
+            onMoveToTrash={onMoveToTrash}
             onAddSubtask={onAddSubtask!}
             onToggleSubtask={onToggleSubtask!}
             onUpdateSubtaskText={onUpdateSubtaskText!}
@@ -792,6 +897,7 @@ function makeStyles(c: ThemeColors, density: Density) {
       gap: 4,
     },
     swipeEdit:    { backgroundColor: c.blue },
+    swipeMarkDone: { backgroundColor: c.green },
     swipeTrash:   { backgroundColor: c.red },
     swipeRestore: { backgroundColor: c.green },
     swipeDelete:  { backgroundColor: c.red },

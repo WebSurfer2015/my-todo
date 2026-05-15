@@ -42,8 +42,8 @@ export function buildGroups(todos: Todo[], options: { separateDone?: boolean } =
   }
 
   const groups: TodoGroup[] = []
-  if (buckets.overdue.length)  groups.push({ key: 'overdue',  overdue: true, todos: sortTodos(buckets.overdue) })
   if (buckets.today.length)    groups.push({ key: 'today',    todos: sortTodos(buckets.today) })
+  if (buckets.overdue.length)  groups.push({ key: 'overdue',  overdue: true, todos: sortTodos(buckets.overdue) })
   if (buckets.week.length)     groups.push({ key: 'week',     todos: sortTodos(buckets.week) })
   if (buckets.upcoming.length) groups.push({ key: 'upcoming', todos: sortTodos(buckets.upcoming) })
   if (buckets.done.length)     groups.push({ key: 'done',     todos: sortTodos(buckets.done) })

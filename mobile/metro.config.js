@@ -14,4 +14,9 @@ config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
 ]
 
+// lucide-react-native publishes ESM as .mjs — Metro needs to know to resolve them.
+if (!config.resolver.sourceExts.includes('mjs')) {
+  config.resolver.sourceExts = [...config.resolver.sourceExts, 'mjs']
+}
+
 module.exports = config

@@ -11,9 +11,9 @@ import {
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import Svg, { Line, Path, Circle, Rect } from "react-native-svg";
 import { useTheme, ThemeColors } from "./src/theme";
 import FilterBar from "./src/components/FilterBar";
-import ViewToggle from "./src/components/ViewToggle";
 import Fab from "./src/components/Fab";
 import ComposeSheet from "./src/components/ComposeSheet";
 import TaskItem from "./src/components/TaskItem";
@@ -27,6 +27,49 @@ import { NotifyProvider } from "./src/notify";
 import { ErrorBoundary } from "./src/ErrorBoundary";
 import { useTodoStore } from "./src/useTodoStore";
 import SignIn from "./src/components/SignIn";
+import EmptyState from "./src/components/EmptyState";
+
+function SlidersIcon({ size = 18, color = "#3C3C43" }: { size?: number; color?: string }) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Line x1="3" y1="6" x2="21" y2="6" />
+      <Circle cx="8" cy="6" r="2.5" fill={color} stroke="none" />
+      <Line x1="3" y1="12" x2="21" y2="12" />
+      <Circle cx="16" cy="12" r="2.5" fill={color} stroke="none" />
+      <Line x1="3" y1="18" x2="21" y2="18" />
+      <Circle cx="10" cy="18" r="2.5" fill={color} stroke="none" />
+    </Svg>
+  );
+}
+
+function GridIcon({ size = 18, color = "#3C3C43" }: { size?: number; color?: string }) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Rect x="3" y="3" width="7" height="7" rx="1" />
+      <Rect x="14" y="3" width="7" height="7" rx="1" />
+      <Rect x="3" y="14" width="7" height="7" rx="1" />
+      <Rect x="14" y="14" width="7" height="7" rx="1" />
+    </Svg>
+  );
+}
 
 function AppInner() {
   const { t } = useLang();
@@ -38,6 +81,8 @@ function AppInner() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [categorySheetOpen, setCategorySheetOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [carriedOverExpanded, setCarriedOverExpanded] = useState(false);
+  const [upcomingExpanded, setUpcomingExpanded] = useState(false);
 
   if (authLoading)
     return <SafeAreaView style={styles.safe} edges={["top", "bottom"]} />;
@@ -56,7 +101,7 @@ function AppInner() {
         <ScrollView
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
-          stickyHeaderIndices={[2]}
+          stickyHeaderIndices={[1]}
         >
           <TouchableOpacity
             style={styles.identityRow}
@@ -67,27 +112,48 @@ function AppInner() {
           >
             <Avatar avatar={store.profile.avatar} size={36} />
             <View style={styles.identityTextWrap}>
-              <Text style={styles.identityName} numberOfLines={1}>
-                {store.appTitle}
-              </Text>
-              <Text style={styles.identityGreeting} numberOfLines={2}>
+              <Text style={styles.identityGreeting} numberOfLines={1}>
                 {store.headerLine}
+              </Text>
+              <Text
+                style={[
+                  styles.identityPlate,
+                  store.quoteLine && styles.identityQuote,
+                ]}
+                numberOfLines={2}
+              >
+                {store.quoteLine || store.plateLine}
               </Text>
             </View>
           </TouchableOpacity>
 
-          <ViewToggle view={store.view} onChange={store.changeView} />
-
           <View style={styles.stickyFilter}>
-            <FilterBar
-              view={store.view}
-              filter={store.filter}
-              onFilter={store.setFilter}
-              systemCounts={store.systemCounts}
-              byCategory={store.byCategory}
-              categories={store.categories}
-              onManageCategories={() => setCategorySheetOpen(true)}
-            />
+            <View style={styles.filterRow}>
+              <TouchableOpacity
+                onPress={() => setCategorySheetOpen(true)}
+                style={styles.viewPickerBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t.views[store.view]}
+                hitSlop={8}
+              >
+                {store.view === "status" ? (
+                  <SlidersIcon size={16} color={theme.label} />
+                ) : (
+                  <GridIcon size={16} color={theme.label} />
+                )}
+              </TouchableOpacity>
+              <View style={styles.filterFlex}>
+                <FilterBar
+                  view={store.view}
+                  filter={store.filter}
+                  onFilter={store.setFilter}
+                  systemCounts={store.systemCounts}
+                  byCategory={store.byCategory}
+                  categories={store.categories}
+                  orderedVisibleStatuses={store.orderedVisibleStatuses}
+                />
+              </View>
+            </View>
           </View>
 
           <View style={styles.body}>
@@ -133,16 +199,10 @@ function AppInner() {
 
             {store.inTrashView ? (
               store.filtered.length === 0 ? (
-                <View style={styles.emptyWrap}>
-                  <Text style={styles.emptyTitle}>
-                    {store.emptyState.title}
-                  </Text>
-                  {store.emptyState.hint && (
-                    <Text style={styles.emptyHint}>
-                      {store.emptyState.hint}
-                    </Text>
-                  )}
-                </View>
+                <EmptyState
+                  title={store.emptyState.title}
+                  hint={store.emptyState.hint}
+                />
               ) : (
                 <View style={styles.groupCard}>
                   {store.filtered.map((td, i) => (
@@ -152,6 +212,8 @@ function AppInner() {
                         todo={td}
                         categories={store.categories}
                         density={store.profile.density}
+                        celebrate={store.profile.completionAnimation !== false}
+                        playSound={store.profile.completionSound !== false}
                         inTrash
                         selected={store.selectedTrashIds.has(td.id)}
                         onToggleSelect={store.toggleTrashSelection}
@@ -169,41 +231,31 @@ function AppInner() {
                 </View>
               )
             ) : store.groups.length === 0 ? (
-              <View style={styles.emptyWrap}>
-                <Text style={styles.emptyTitle}>{store.emptyState.title}</Text>
-                {store.emptyState.hint && (
-                  <Text style={styles.emptyHint}>{store.emptyState.hint}</Text>
-                )}
-                {store.emptyState.ctaLabel && (
-                  <TouchableOpacity
-                    style={styles.emptyCta}
-                    onPress={() => setComposeOpen(true)}
-                  >
-                    <Text style={styles.emptyCtaText}>
-                      {store.emptyState.ctaLabel}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            ) : (
-              store.groups.map((group) => (
-                <View key={group.key} style={styles.groupSection}>
-                  <Text
-                    style={[
-                      styles.groupHeader,
-                      group.overdue && styles.groupHeaderOverdue,
-                    ]}
-                  >
-                    {t.groups[group.key]}
-                  </Text>
-                  <View style={styles.groupCard}>
-                    {group.todos.map((td, i) => (
+              <EmptyState
+                title={store.emptyState.title}
+                hint={store.emptyState.hint}
+                ctaLabel={store.emptyState.ctaLabel}
+                onCta={() => setComposeOpen(true)}
+              />
+            ) : store.filter === "overdue" || store.filter === "done" ? (
+              <View style={styles.groupSection}>
+                <View style={styles.groupCard}>
+                  {[...store.filtered]
+                    .sort((a, b) => {
+                      if (!a.dueDate && !b.dueDate) return 0;
+                      if (!a.dueDate) return 1;
+                      if (!b.dueDate) return -1;
+                      return a.dueDate.localeCompare(b.dueDate);
+                    })
+                    .map((td, i) => (
                       <View key={td.id}>
                         {i > 0 && <View style={styles.rowSeparator} />}
                         <TaskItem
                           todo={td}
                           categories={store.categories}
                           density={store.profile.density}
+                        celebrate={store.profile.completionAnimation !== false}
+                        playSound={store.profile.completionSound !== false}
                           onToggle={store.toggle}
                           onMoveToTrash={store.moveToTrash}
                           onUpdatePriority={store.updatePriority}
@@ -213,29 +265,113 @@ function AppInner() {
                           onAddSubtask={store.addSubtask}
                           onToggleSubtask={store.toggleSubtask}
                           onUpdateSubtaskText={store.updateSubtaskText}
-                          onUpdateSubtaskPriority={store.updateSubtaskPriority}
+                          onUpdateSubtaskPriority={
+                            store.updateSubtaskPriority
+                          }
                           onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
                           onRemoveSubtask={store.removeSubtask}
-                          subtaskVisibility={
-                            store.filter === 'open'
-                              ? 'open'
-                              : store.filter === 'done'
-                                ? 'done'
-                                : 'all'
-                          }
+                          subtaskVisibility="all"
                         />
                       </View>
                     ))}
-                  </View>
                 </View>
-              ))
+              </View>
+            ) : (
+              store.groups.map((group) => {
+                const isCarriedOver = group.key === "overdue";
+                const isUpcoming =
+                  group.key === "upcoming" && store.filter === "all";
+                const toggleable = isCarriedOver || isUpcoming;
+                const expanded = isCarriedOver
+                  ? carriedOverExpanded
+                  : isUpcoming
+                    ? upcomingExpanded
+                    : true;
+                const collapsed = toggleable && !expanded;
+                const onToggle = isCarriedOver
+                  ? () => setCarriedOverExpanded((v) => !v)
+                  : isUpcoming
+                    ? () => setUpcomingExpanded((v) => !v)
+                    : undefined;
+                const statusOverride =
+                  group.key === "overdue" || group.key === "done"
+                    ? store.orderedStatuses.find((s) => s.id === group.key)
+                    : null;
+                const headerLabel = statusOverride
+                  ? statusOverride.label
+                  : t.groups[group.key];
+                const headerCount =
+                  group.key === "done"
+                    ? group.todos.length
+                    : group.todos.filter((td) => !td.done).length;
+                return (
+                  <View key={group.key} style={styles.groupSection}>
+                    {toggleable ? (
+                      <TouchableOpacity
+                        onPress={onToggle}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityState={{ expanded: !collapsed }}
+                        hitSlop={8}
+                      >
+                        <Text style={styles.groupHeader}>
+                          {collapsed ? "▸" : "▾"}  {headerLabel} ({headerCount})
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={styles.groupHeader}>
+                        {headerLabel} ({headerCount})
+                      </Text>
+                    )}
+                    {!collapsed && (
+                      <View style={styles.groupCard}>
+                        {group.todos.map((td, i) => (
+                          <View key={td.id}>
+                            {i > 0 && <View style={styles.rowSeparator} />}
+                            <TaskItem
+                              todo={td}
+                              categories={store.categories}
+                              density={store.profile.density}
+                        celebrate={store.profile.completionAnimation !== false}
+                        playSound={store.profile.completionSound !== false}
+                              onToggle={store.toggle}
+                              onMoveToTrash={store.moveToTrash}
+                              onUpdatePriority={store.updatePriority}
+                              onUpdateDueDate={store.updateDueDate}
+                              onUpdateCategory={store.updateTaskCategory}
+                              onUpdateText={store.updateText}
+                              onAddSubtask={store.addSubtask}
+                              onToggleSubtask={store.toggleSubtask}
+                              onUpdateSubtaskText={store.updateSubtaskText}
+                              onUpdateSubtaskPriority={
+                                store.updateSubtaskPriority
+                              }
+                              onUpdateSubtaskDueDate={
+                                store.updateSubtaskDueDate
+                              }
+                              onRemoveSubtask={store.removeSubtask}
+                              subtaskVisibility={
+                                store.filter === "open"
+                                  ? "open"
+                                  : store.filter === "done"
+                                    ? "done"
+                                    : "all"
+                              }
+                            />
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                );
+              })
             )}
 
             {!store.inTrashView && (
               <Footer
-                remaining={store.visibleRemaining}
                 completedCount={store.completedCount}
                 onClearDone={store.clearDone}
+                showClear={store.filter === "done"}
               />
             )}
           </View>
@@ -263,10 +399,20 @@ function AppInner() {
         visible={categorySheetOpen}
         categories={store.categories}
         taskCounts={store.taskCountsForSheet}
+        view={store.view}
+        onChangeView={store.changeView}
+        viewIcons={{
+          status: <SlidersIcon size={20} color={theme.label} />,
+          category: <GridIcon size={20} color={theme.label} />,
+        }}
         onAdd={store.addCategory}
         onEdit={store.editCategory}
         onDelete={store.deleteCategory}
         onReorder={store.reorderCategories}
+        orderedStatuses={store.orderedStatuses}
+        onRenameStatus={store.renameStatus}
+        onToggleStatusHidden={store.toggleStatusHidden}
+        onReorderStatuses={store.reorderStatuses}
         onClose={() => setCategorySheetOpen(false)}
       />
       <ComposeSheet
@@ -320,22 +466,41 @@ function makeStyles(c: ThemeColors) {
       flex: 1,
       minWidth: 0,
     },
-    identityName: {
-      fontSize: 14,
-      fontWeight: "700",
+    identityGreeting: {
+      fontSize: 15,
       color: c.label,
+      fontWeight: "700",
       letterSpacing: -0.16,
     },
-    identityGreeting: {
+    identityPlate: {
       fontSize: 12,
       color: c.label2,
       fontWeight: "500",
       marginTop: 1,
     },
+    identityQuote: {
+      fontStyle: "italic",
+      color: c.label3,
+    },
     stickyFilter: {
       backgroundColor: c.surface,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.separator,
+    },
+    filterRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      paddingTop: 8,
+    },
+    viewPickerBtn: {
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      marginLeft: 16,
+      borderRadius: 100,
+    },
+    filterFlex: {
+      flex: 1,
+      minWidth: 0,
     },
     body: {
       paddingHorizontal: 16,
@@ -359,36 +524,6 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.separator,
       marginLeft: 48,
     },
-    emptyWrap: {
-      alignItems: "center",
-      paddingVertical: 56,
-      paddingHorizontal: 16,
-      gap: 6,
-    },
-    emptyTitle: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: c.label,
-    },
-    emptyHint: {
-      fontSize: 13,
-      color: c.label3,
-      textAlign: "center",
-      maxWidth: 320,
-      lineHeight: 18,
-    },
-    emptyCta: {
-      marginTop: 12,
-      paddingHorizontal: 18,
-      paddingVertical: 10,
-      borderRadius: 10,
-      backgroundColor: c.blue,
-    },
-    emptyCtaText: {
-      color: "#fff",
-      fontSize: 14,
-      fontWeight: "600",
-    },
     groupHeader: {
       fontSize: 12,
       fontWeight: "700",
@@ -397,9 +532,6 @@ function makeStyles(c: ThemeColors) {
       textTransform: "uppercase",
       marginBottom: 8,
       marginLeft: 4,
-    },
-    groupHeaderOverdue: {
-      color: c.red,
     },
     trashHeader: {
       flexDirection: "row",

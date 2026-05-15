@@ -14,12 +14,15 @@ export interface ThemeColors {
   // Lines
   separator: string
   border: string
-  // Headspace primary action color (warm sunset orange)
+  // Primary action (sage/forest from turtle brand)
   primary: string
   primaryHover: string
   primarySoft: string
   primaryOn: string
-  // Brand
+  // Brand semantic slots — `blue` is the long-standing key for primary actions
+  // throughout the codebase. After the turtle rebrand it holds a sage value;
+  // semantically it's "the primary accent" — kept as `blue` to avoid a
+  // codebase-wide rename. New code may use `primary` instead.
   blue: string
   red: string
   orange: string
@@ -34,63 +37,63 @@ export interface ThemeColors {
   statusBar: 'light-content' | 'dark-content'
 }
 
-// Anxiety-conscious palette: low saturation, AAA contrast where possible,
-// warm neutrals (#FAFAF9 / #1A1A1A) instead of pure white/black. Mirrors the
-// web :root tokens in web/src/index.css so cross-device sync feels coherent.
+// Turtle-brand palette: muted sage greens drawn from the turtle illustration.
+// Warm cream backgrounds, deep forest accents, soft blush warmth.
+// Stays low-saturation per the anxiety-conscious design guideline.
 export const LIGHT: ThemeColors = {
-  bg: '#FAF6EE',     // warm cream (Headspace)
-  card: '#FFFEFC',   // warm white
-  surface: 'rgba(255, 254, 252, 0.65)',
-  surfaceAlt: 'rgba(255, 254, 252, 0.78)',
-  modal: '#FFFEFC',
-  label: '#1F1F1F',
-  label2: '#4F4F4F',
-  label3: '#6B6862',
-  separator: '#ECE5D7',
-  border: '#ECE5D7',
-  primary: '#6E94A8',       // muted slate-teal — calm primary action
-  primaryHover: '#5C8294',
-  primarySoft: '#DDE6EC',
+  bg: '#F5F1E8',        // warm cream — slightly more saturated than before
+  card: '#FFFEFB',      // near-white with a hint of warmth
+  surface: 'rgba(255, 254, 251, 0.65)',
+  surfaceAlt: 'rgba(255, 254, 251, 0.78)',
+  modal: '#FFFEFB',
+  label: '#1F2A26',     // deep teal-tinted near-black
+  label2: '#4E5F58',    // sage-tinted gray
+  label3: '#7A8A82',    // muted sage
+  separator: '#E5E8E1', // soft mint separator
+  border: '#E5E8E1',
+  primary: '#3D8870',         // turtle deep sage — primary action
+  primaryHover: '#2F6F5A',    // darker on press
+  primarySoft: '#E2EDE6',     // pale mint background
   primaryOn: '#FFFFFF',
-  blue: '#7AA4D4',
-  red: '#E07878',
+  blue: '#3D8870',      // primary sage (was muted blue; kept key name)
+  red: '#D87878',       // soft coral, slightly warmer
   orange: '#E8A964',
   yellow: '#C9B85F',
-  green: '#6B8E66',  // sage
+  green: '#5A9B7E',     // brand sage (lighter than primary, used for "done")
   purple: '#927AAE',
-  pink: '#B57894',
-  teal: '#6A9999',
-  gray: '#7C7C7C',
-  gray3: '#C8C5C0',
+  pink: '#D9A8AD',      // turtle blush accent
+  teal: '#4A9485',
+  gray: '#7A8A82',
+  gray3: '#C5CCC3',     // sage-tinted neutral
   statusBar: 'dark-content',
 }
 
-// Native-dark palette — warm gray surfaces, never pure black, AAA text.
+// Dark mode — lifted versions of the same sage hues on a warm dark surface.
 export const DARK: ThemeColors = {
-  bg: '#1A1815',     // warm dark
-  card: '#232017',
-  surface: 'rgba(35, 32, 23, 0.65)',
-  surfaceAlt: 'rgba(35, 32, 23, 0.78)',
-  modal: '#232017',
-  label: '#ECECEC',
-  label2: '#C4C4C4',
-  label3: '#969696',
-  separator: '#3A3530',
-  border: '#3A3530',
-  primary: '#8DA9BD',
-  primaryHover: '#A2BCCC',
-  primarySoft: '#2E4252',
-  primaryOn: '#1A1815',
-  blue: '#8AB4DD',
-  red: '#E58888',
+  bg: '#181712',        // warm dark
+  card: '#22201A',
+  surface: 'rgba(34, 32, 26, 0.65)',
+  surfaceAlt: 'rgba(34, 32, 26, 0.78)',
+  modal: '#22201A',
+  label: '#EAECE7',     // off-white with green tint
+  label2: '#B8C2BB',
+  label3: '#8C9A91',
+  separator: '#3A3D35',
+  border: '#3A3D35',
+  primary: '#7AB89D',         // lifted sage for dark mode contrast
+  primaryHover: '#8DC8AD',
+  primarySoft: '#2A4138',
+  primaryOn: '#181712',
+  blue: '#7AB89D',      // primary sage in dark
+  red: '#E08A8A',
   orange: '#ECB178',
   yellow: '#D9C97A',
-  green: '#8AA985',
+  green: '#8AC2A2',     // slightly more saturated for "done" in dark
   purple: '#A89BC2',
-  pink: '#C997AA',
+  pink: '#D9B0B5',
   teal: '#7AAEB0',
-  gray: '#9A9A9A',
-  gray3: '#4A4A4A',
+  gray: '#8C9A91',
+  gray3: '#4A4D45',
   statusBar: 'light-content',
 }
 

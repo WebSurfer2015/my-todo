@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Modal,
   View,
@@ -9,11 +9,13 @@ import {
   StyleSheet,
   Platform,
   KeyboardAvoidingView,
+  Alert,
 } from 'react-native'
-import Svg, { Path, Line, Polyline } from 'react-native-svg'
+import Svg, { Path, Line, Polyline, Rect } from 'react-native-svg'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import * as Haptics from 'expo-haptics'
-import { Priority, Subtask, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
+import { Category, Priority, Subtask, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
+import type { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { CategoryDef, categoryLabel } from '../categories'
 import { formatDisplayDate, isoDate, todayLocal } from '../utils'
 import { sortedSubs } from '../../../core/src/derive'
@@ -22,6 +24,9 @@ import { useLang } from '../LangContext'
 import PriorityDot from './PriorityDot'
 import CategoryIcon from './CategoryIcon'
 import PickerModal from './PickerModal'
+import AddSubtaskSheet from './AddSubtaskSheet'
+import EmptyState from './EmptyState'
+import InlinePicker from './InlinePicker'
 
 function XIcon({ size = 18, color = '#999' }: { size?: number; color?: string }) {
   return (
@@ -53,12 +58,27 @@ function TrashIcon({ size = 16, color = '#999' }: { size?: number; color?: strin
   )
 }
 
+function CalendarIcon({ size = 18, color = '#8E8E93' }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Rect x="3" y="4" width="18" height="18" rx="2" />
+      <Path d="M16 2v4" />
+      <Path d="M8 2v4" />
+      <Path d="M3 10h18" />
+    </Svg>
+  )
+}
+
 interface Props {
   visible: boolean
   todo: Todo
   categories: CategoryDef[]
   onClose: () => void
   onUpdateText: (id: string, text: string) => void
+  onUpdatePriority: (id: string, priority: Priority) => void
+  onUpdateDueDate: (id: string, dueDate: string) => void
+  onUpdateCategory: (id: string, category: Category) => void
+  onMoveToTrash: (id: string) => void
   onAddSubtask: (id: string, text: string, priority?: Priority, dueDate?: string) => void
   onToggleSubtask: (id: string, subId: string) => void
   onUpdateSubtaskText: (id: string, subId: string, text: string) => void
@@ -69,6 +89,7 @@ interface Props {
 
 export default function TaskDetailsSheet({
   visible, todo, categories, onClose, onUpdateText,
+  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onMoveToTrash,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
 }: Props) {
@@ -78,46 +99,135 @@ export default function TaskDetailsSheet({
   const subs = todo.subtasks ?? []
   const doneCount = subs.filter((s) => s.done).length
 
-  const [newText, setNewText] = useState('')
-  const [newPriority, setNewPriority] = useState<Priority>(todo.priority)
-  const [newPriorityOpen, setNewPriorityOpen] = useState(false)
+  const [addSubtaskOpen, setAddSubtaskOpen] = useState(false)
 
-  const [titleEditing, setTitleEditing] = useState(false)
-  const [titleText, setTitleText] = useState(todo.text)
+  // Edit form state (sheet is always in edit mode for the parent task)
+  const [editText, setEditText] = useState(todo.text)
+  const [editPriority, setEditPriority] = useState<Priority>(todo.priority)
+  const [editCategory, setEditCategory] = useState<Category | undefined>(todo.category)
+  const [editDueDate, setEditDueDate] = useState(todo.dueDate ?? '')
+  const [editPriorityOpen, setEditPriorityOpen] = useState(false)
+  const [editCategoryOpen, setEditCategoryOpen] = useState(false)
+  const [editDateOpen, setEditDateOpen] = useState(false)
+  const [editPickerDate, setEditPickerDate] = useState<Date>(new Date())
+
+  // Subtask edit (in-sheet) — when set, renders the edit-subtask sub-view.
+  const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null)
+  const [editSubText, setEditSubText] = useState('')
+  const [editSubPriority, setEditSubPriority] = useState<Priority>('medium')
+  const [editSubDueDate, setEditSubDueDate] = useState('')
+  const [editSubPickerView, setEditSubPickerView] = useState<'main' | 'priority' | 'date'>('main')
+  const [editSubPickerDate, setEditSubPickerDate] = useState<Date>(new Date())
+
   const [subPriorityForId, setSubPriorityForId] = useState<string | null>(null)
   const [subDateForId, setSubDateForId] = useState<string | null>(null)
   const [subPickerDate, setSubPickerDate] = useState<Date>(new Date())
-  const newInputRef = useRef<TextInput>(null)
-  const titleInputRef = useRef<TextInput>(null)
 
-  function commitNew() {
-    const trimmed = newText.trim()
-    if (!trimmed) return
-    // No date inheritance — sub starts with no date.
-    onAddSubtask(todo.id, trimmed, newPriority, '')
-    setNewText('')
-    setNewPriority(todo.priority)
+  // Re-seed form values when sheet opens or task changes.
+  useEffect(() => {
+    if (visible) {
+      setEditText(todo.text)
+      setEditPriority(todo.priority)
+      setEditCategory(todo.category)
+      setEditDueDate(todo.dueDate ?? '')
+    }
+  }, [visible, todo])
+
+  const editActiveCat = categories.find((c) => c.id === editCategory) ?? categories[0]
+  const editCanSubmit = editText.trim().length > 0 && !!editActiveCat
+
+  function saveEdit() {
+    const trimmed = editText.trim()
+    if (!trimmed || !editActiveCat) return
+    if (trimmed !== todo.text) onUpdateText(todo.id, trimmed)
+    if (editPriority !== todo.priority) onUpdatePriority(todo.id, editPriority)
+    if (editDueDate !== (todo.dueDate ?? '')) onUpdateDueDate(todo.id, editDueDate)
+    if (editActiveCat.id !== todo.category) onUpdateCategory(todo.id, editActiveCat.id)
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
-    newInputRef.current?.focus()
+    onClose()
   }
 
-  function startEditTitle() {
-    setTitleText(todo.text)
-    setTitleEditing(true)
-    setTimeout(() => titleInputRef.current?.focus(), 0)
+  function openEditDatePicker() {
+    setEditPickerDate(editDueDate ? new Date(`${editDueDate}T00:00:00`) : new Date())
+    setEditDateOpen(true)
   }
 
-  function commitTitle() {
-    const trimmed = titleText.trim()
-    if (trimmed && trimmed !== todo.text) onUpdateText(todo.id, trimmed)
-    else setTitleText(todo.text)
-    setTitleEditing(false)
+  function commitEditDate() {
+    setEditDueDate(isoDate(editPickerDate))
+    setEditDateOpen(false)
+  }
+
+  function handleEditDateChange(event: DateTimePickerEvent, selected?: Date) {
+    if (event.type === 'set' && selected) {
+      setEditPickerDate(selected)
+      if (Platform.OS === 'android') {
+        setEditDueDate(isoDate(selected))
+        setEditDateOpen(false)
+      }
+    } else if (Platform.OS === 'android') {
+      setEditDateOpen(false)
+    }
   }
 
   function openSubDate(s: Subtask) {
     setSubPickerDate(s.dueDate ? new Date(`${s.dueDate}T00:00:00`) : new Date())
     setSubDateForId(s.id)
   }
+
+  function startEditSubtask(s: Subtask) {
+    setEditSubText(s.text)
+    setEditSubPriority(s.priority ?? 'medium')
+    setEditSubDueDate(s.dueDate ?? '')
+    setEditSubPickerView('main')
+    setEditingSubtaskId(s.id)
+  }
+
+  function cancelEditSubtask() {
+    setEditingSubtaskId(null)
+    setEditSubPickerView('main')
+  }
+
+  function openEditSubDate() {
+    setEditSubPickerDate(editSubDueDate ? new Date(`${editSubDueDate}T00:00:00`) : new Date())
+    setEditSubPickerView('date')
+  }
+
+  function commitEditSubDate() {
+    setEditSubDueDate(isoDate(editSubPickerDate))
+    setEditSubPickerView('main')
+  }
+
+  function clearEditSubDate() {
+    setEditSubDueDate('')
+    setEditSubPickerView('main')
+  }
+
+  function handleEditSubDateChange(event: DateTimePickerEvent, selected?: Date) {
+    if (event.type === 'set' && selected) {
+      setEditSubPickerDate(selected)
+    }
+  }
+
+  function saveEditSubtask() {
+    if (!editingSubtaskId) return
+    const trimmed = editSubText.trim()
+    if (!trimmed) return
+    const current = subs.find((s) => s.id === editingSubtaskId)
+    if (!current) {
+      setEditingSubtaskId(null)
+      return
+    }
+    if (trimmed !== current.text) onUpdateSubtaskText(todo.id, editingSubtaskId, trimmed)
+    if (onUpdateSubtaskPriority && editSubPriority !== (current.priority ?? 'medium'))
+      onUpdateSubtaskPriority(todo.id, editingSubtaskId, editSubPriority)
+    if (onUpdateSubtaskDueDate && editSubDueDate !== (current.dueDate ?? ''))
+      onUpdateSubtaskDueDate(todo.id, editingSubtaskId, editSubDueDate)
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
+    setEditingSubtaskId(null)
+    setEditSubPickerView('main')
+  }
+
+  const editSubCanSubmit = editSubText.trim().length > 0
 
   const cat = todo.category ? categories.find((c) => c.id === todo.category) : undefined
   const today = todayLocal()
@@ -132,122 +242,297 @@ export default function TaskDetailsSheet({
       >
         <TouchableOpacity style={styles.overlayTouch} activeOpacity={1} onPress={onClose} />
         <View style={styles.sheet}>
-          <View style={styles.header}>
-            <View style={{ flex: 1 }}>
-              {titleEditing ? (
-                <TextInput
-                  ref={titleInputRef}
-                  style={styles.titleEdit}
-                  value={titleText}
-                  onChangeText={setTitleText}
-                  onBlur={commitTitle}
-                  onSubmitEditing={commitTitle}
-                  returnKeyType="done"
-                  multiline
-                  maxLength={200}
-                />
-              ) : (
-                <Text
-                  style={styles.title}
-                  numberOfLines={3}
-                  onPress={startEditTitle}
-                  suppressHighlighting
-                >
-                  {todo.text}
-                </Text>
-              )}
-              <View style={styles.subtitle}>
-                {cat && (
-                  <View style={styles.metaCat}>
-                    <CategoryIcon icon={cat.icon} size={11} color={cat.color} />
-                    <Text style={[styles.metaCatText, { color: cat.color }]}>{categoryLabel(cat, t)}</Text>
+          {editingSubtaskId ? (
+            editSubPickerView === 'priority' ? (
+              <InlinePicker
+                title={t.composePriorityLabel}
+                options={PRIORITY_VALUES.map((v) => ({
+                  key: v,
+                  label: t.priority[v],
+                  color: PRIORITY_COLORS[v],
+                  icon: <PriorityDot level={v} size={14} />,
+                }))}
+                selectedKey={editSubPriority}
+                onSelect={(k) => {
+                  setEditSubPriority(k as Priority)
+                  setEditSubPickerView('main')
+                }}
+              />
+            ) : editSubPickerView === 'date' ? (
+              <>
+                <View style={styles.editHeader}>
+                  <View style={styles.headerSideBtn} />
+                  <Text style={styles.editHeaderTitle}>Completed by</Text>
+                  <View style={styles.headerSideBtn} />
+                </View>
+                <View style={styles.dateWrap}>
+                  <DateTimePicker
+                    value={editSubPickerDate}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                    themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
+                    onChange={handleEditSubDateChange}
+                  />
+                </View>
+                <View style={styles.dateActions}>
+                  <TouchableOpacity onPress={clearEditSubDate} style={styles.dateClearBtn}>
+                    <Text style={styles.dateClearBtnText}>{t.clear}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={commitEditSubDate} style={styles.dateDoneBtn}>
+                    <Text style={styles.dateDoneBtnText}>{t.done}</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={styles.editHeader}>
+                  <TouchableOpacity onPress={cancelEditSubtask} hitSlop={10} style={styles.headerSideBtn}>
+                    <Text style={styles.cancelText}>‹ Back</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.editHeaderTitle}>Edit Subtask</Text>
+                  <TouchableOpacity
+                    onPress={saveEditSubtask}
+                    hitSlop={10}
+                    style={styles.headerSideBtn}
+                    disabled={!editSubCanSubmit}
+                  >
+                    <Text style={[styles.saveHeaderText, !editSubCanSubmit && styles.saveHeaderTextDisabled]}>{t.save}</Text>
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={styles.list} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editBody}>
+                  <View style={styles.editGroupCard}>
+                    <TextInput
+                      style={styles.editTextInputInCard}
+                      value={editSubText}
+                      onChangeText={setEditSubText}
+                      placeholder={t.addSubtask}
+                      placeholderTextColor={theme.gray3}
+                      multiline
+                      maxLength={1024}
+                      textAlignVertical="top"
+                    />
+                    <View style={styles.editGroupDivider} />
+                    <TouchableOpacity
+                      style={styles.editFieldRowInGroup}
+                      onPress={() => setEditSubPickerView('priority')}
+                      activeOpacity={0.6}
+                    >
+                      <PriorityDot level={editSubPriority} size={14} />
+                      <Text style={styles.editFieldLabel}>{t.composePriorityLabel}</Text>
+                      <Text style={styles.editFieldValue} numberOfLines={1}>
+                        {t.priority[editSubPriority]}
+                      </Text>
+                      <Text style={styles.editChevron}>›</Text>
+                    </TouchableOpacity>
+                    <View style={styles.editGroupDivider} />
+                    <TouchableOpacity
+                      style={styles.editFieldRowInGroup}
+                      onPress={openEditSubDate}
+                      activeOpacity={0.6}
+                    >
+                      <CalendarIcon size={18} color={editSubDueDate ? theme.blue : theme.gray3} />
+                      <Text style={styles.editFieldLabel}>Completed by</Text>
+                      <Text
+                        style={[
+                          styles.editFieldValue,
+                          !editSubDueDate && styles.editFieldValueMuted,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {editSubDueDate ? formatDisplayDate(editSubDueDate, t.locale) : t.noDate}
+                      </Text>
+                      <Text style={styles.editChevron}>›</Text>
+                    </TouchableOpacity>
                   </View>
-                )}
-                {cat && <Text style={styles.metaSep}>·</Text>}
-                <Text style={[
-                  styles.metaDate,
-                  parentOverdue && styles.metaDateOverdue,
-                  parentToday && styles.metaDateToday,
-                  !todo.dueDate && styles.metaDateMuted,
-                ]}>
-                  {todo.dueDate ? formatDisplayDate(todo.dueDate, t.locale) : t.noDate}
-                </Text>
-                {subs.length > 0 && (
-                  <>
-                    <Text style={styles.metaSep}>·</Text>
-                    <Text style={styles.metaProgress}>{t.subtaskProgress(doneCount, subs.length)}</Text>
-                  </>
-                )}
-              </View>
-            </View>
-            <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.closeBtn}>
-              <XIcon size={20} color={theme.label2} />
+
+                  <TouchableOpacity
+                    style={styles.destructiveAction}
+                    onPress={() => {
+                      const subId = editingSubtaskId
+                      if (!subId) return
+                      Alert.alert(
+                        t.deleteSubtask,
+                        'Delete this subtask?',
+                        [
+                          { text: t.cancel, style: 'cancel' },
+                          {
+                            text: t.deleteSubtask,
+                            style: 'destructive',
+                            onPress: () => {
+                              onRemoveSubtask(todo.id, subId)
+                              setEditingSubtaskId(null)
+                              setEditSubPickerView('main')
+                            },
+                          },
+                        ],
+                      )
+                    }}
+                    activeOpacity={0.6}
+                  >
+                    <Text style={styles.destructiveActionText}>Delete Subtask</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              </>
+            )
+          ) : (
+          <>
+          <View style={styles.editHeader}>
+            <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.headerSideBtn}>
+              <Text style={styles.cancelText}>{t.cancel}</Text>
+            </TouchableOpacity>
+            <Text style={styles.editHeaderTitle}>Edit Task</Text>
+            <TouchableOpacity
+              onPress={saveEdit}
+              hitSlop={10}
+              style={styles.headerSideBtn}
+              disabled={!editCanSubmit}
+            >
+              <Text style={[styles.saveHeaderText, !editCanSubmit && styles.saveHeaderTextDisabled]}>{t.save}</Text>
             </TouchableOpacity>
           </View>
 
           <ScrollView
-            style={styles.list}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={subs.length === 0 ? styles.listEmpty : styles.listFilled}
-          >
-            {subs.length === 0 ? (
-              <Text style={styles.emptyText}>{t.addSubtask}</Text>
-            ) : (
-              sortedSubs(subs).map((s) => (
-                <SubtaskCard
-                  key={s.id}
-                  parentId={todo.id}
-                  subtask={s}
-                  styles={styles}
-                  theme={theme}
-                  onToggle={onToggleSubtask}
-                  onUpdateText={onUpdateSubtaskText}
-                  onRemove={onRemoveSubtask}
-                  onOpenPriority={onUpdateSubtaskPriority ? () => setSubPriorityForId(s.id) : undefined}
-                  onOpenDate={onUpdateSubtaskDueDate ? () => openSubDate(s) : undefined}
+              style={styles.list}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.editBody}
+            >
+              <View style={styles.editGroupCard}>
+                <TextInput
+                  style={styles.editTextInputInCard}
+                  value={editText}
+                  onChangeText={setEditText}
+                  placeholder={t.addPlaceholder}
+                  placeholderTextColor={theme.gray3}
+                  multiline
+                  maxLength={4096}
+                  textAlignVertical="top"
                 />
-              ))
-            )}
-          </ScrollView>
+                <View style={styles.editGroupDivider} />
+                <TouchableOpacity
+                  style={styles.editFieldRowInGroup}
+                  onPress={() => setEditCategoryOpen(true)}
+                  activeOpacity={0.6}
+                >
+                  {editActiveCat && <CategoryIcon icon={editActiveCat.icon} size={18} color={editActiveCat.color} />}
+                  <Text style={styles.editFieldLabel}>{t.composeCategoryLabel}</Text>
+                  <Text style={styles.editFieldValue} numberOfLines={1}>
+                    {editActiveCat ? categoryLabel(editActiveCat, t) : ''}
+                  </Text>
+                  <Text style={styles.editChevron}>›</Text>
+                </TouchableOpacity>
+                <View style={styles.editGroupDivider} />
+                <TouchableOpacity
+                  style={styles.editFieldRowInGroup}
+                  onPress={openEditDatePicker}
+                  activeOpacity={0.6}
+                >
+                  <CalendarIcon size={18} color={editDueDate ? theme.blue : theme.gray3} />
+                  <Text style={styles.editFieldLabel}>Completed by</Text>
+                  <Text
+                    style={[
+                      styles.editFieldValue,
+                      !editDueDate && styles.editFieldValueMuted,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {editDueDate ? formatDisplayDate(editDueDate, t.locale) : t.noDate}
+                  </Text>
+                  <Text style={styles.editChevron}>›</Text>
+                </TouchableOpacity>
+              </View>
 
-          {/* Add-subtask row: text + priority + Add button. No date picker —
-              user can set the date later by tapping the sub's date chip. */}
-          <View style={styles.addCard}>
-            <TextInput
-              ref={newInputRef}
-              style={styles.addInput}
-              value={newText}
-              onChangeText={setNewText}
-              placeholder={t.addSubtask}
-              placeholderTextColor={theme.label3}
-              onSubmitEditing={commitNew}
-              returnKeyType="done"
-              maxLength={500}
-              blurOnSubmit={false}
-            />
-            <TouchableOpacity
-              style={styles.addPriorityBtn}
-              onPress={() => setNewPriorityOpen(true)}
-              hitSlop={8}
-            >
-              <PriorityDot level={newPriority} size={11} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.addBtn, !newText.trim() && styles.addBtnDisabled]}
-              onPress={commitNew}
-              disabled={!newText.trim()}
-            >
-              <PlusIcon size={16} color="#fff" />
-              <Text style={styles.addBtnText}>{t.add}</Text>
-            </TouchableOpacity>
-          </View>
+              <Text style={styles.subtaskSectionHeader}>SUBTASKS</Text>
+              {subs.length === 0 ? (
+                <EmptyState
+                  variant="compact"
+                  title="No subtasks yet"
+                  hint="Break this task into smaller steps when you're ready."
+                />
+              ) : (
+                <View style={styles.editSubtasks}>
+                  {sortedSubs(subs).map((s) => (
+                    <SubtaskCard
+                      key={s.id}
+                      parentId={todo.id}
+                      subtask={s}
+                      styles={styles}
+                      theme={theme}
+                      onToggle={onToggleSubtask}
+                      onUpdateText={onUpdateSubtaskText}
+                      onRemove={onRemoveSubtask}
+                      onOpenPriority={onUpdateSubtaskPriority ? () => setSubPriorityForId(s.id) : undefined}
+                      onOpenDate={onUpdateSubtaskDueDate ? () => openSubDate(s) : undefined}
+                      onTap={() => startEditSubtask(s)}
+                    />
+                  ))}
+                </View>
+              )}
+              <TouchableOpacity
+                style={styles.addSubtaskLink}
+                onPress={() => setAddSubtaskOpen(true)}
+                activeOpacity={0.6}
+              >
+                <PlusIcon size={16} color={theme.blue} />
+                <Text style={styles.addSubtaskLinkText}>{t.addSubtask}</Text>
+              </TouchableOpacity>
 
-          {/* New-subtask priority picker */}
+              <TouchableOpacity
+                style={styles.destructiveAction}
+                onPress={() => {
+                  Alert.alert(
+                    t.moveToTrash,
+                    `Move "${todo.text}" to trash? You can restore it within 30 days.`,
+                    [
+                      { text: t.cancel, style: 'cancel' },
+                      {
+                        text: t.moveToTrash,
+                        style: 'destructive',
+                        onPress: () => {
+                          onMoveToTrash(todo.id)
+                          onClose()
+                        },
+                      },
+                    ],
+                  )
+                }}
+                activeOpacity={0.6}
+              >
+                <Text style={styles.destructiveActionText}>Delete Task</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </>
+          )}
+
+          <AddSubtaskSheet
+            visible={addSubtaskOpen}
+            defaultDueDate={todo.dueDate ?? ''}
+            onAdd={(text, priority, dueDate) => {
+              onAddSubtask(todo.id, text, priority, dueDate)
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
+            }}
+            onClose={() => setAddSubtaskOpen(false)}
+          />
+
+          {/* Parent task category picker (edit mode) */}
           <PickerModal
-            visible={newPriorityOpen}
-            selectedKey={newPriority}
-            onSelect={(k) => setNewPriority(k as Priority)}
-            onClose={() => setNewPriorityOpen(false)}
+            visible={editCategoryOpen}
+            selectedKey={editCategory ?? ''}
+            onSelect={(k) => setEditCategory(k)}
+            onClose={() => setEditCategoryOpen(false)}
+            options={categories.map((c) => ({
+              key: c.id,
+              label: categoryLabel(c, t),
+              color: c.color,
+              icon: <CategoryIcon icon={c.icon} size={16} color={c.color} />,
+            }))}
+          />
+
+          {/* Parent task priority picker (edit mode) */}
+          <PickerModal
+            visible={editPriorityOpen}
+            selectedKey={editPriority}
+            onSelect={(k) => setEditPriority(k as Priority)}
+            onClose={() => setEditPriorityOpen(false)}
             options={PRIORITY_VALUES.map((v) => ({
               key: v,
               label: t.priority[v],
@@ -255,6 +540,43 @@ export default function TaskDetailsSheet({
               icon: <PriorityDot level={v} size={12} />,
             }))}
           />
+
+          {/* Parent task date picker (edit mode) */}
+          {editDateOpen && Platform.OS === 'ios' && (
+            <Modal visible transparent animationType="fade" onRequestClose={() => setEditDateOpen(false)}>
+              <TouchableOpacity
+                style={styles.dateOverlay}
+                onPress={() => setEditDateOpen(false)}
+                activeOpacity={1}
+              >
+                <View style={styles.dateSheet} onStartShouldSetResponder={() => true}>
+                  <DateTimePicker
+                    value={editPickerDate}
+                    mode="date"
+                    display="inline"
+                    themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
+                    onChange={handleEditDateChange}
+                  />
+                  <View style={styles.dateBtnRow}>
+                    <TouchableOpacity onPress={() => { setEditDueDate(''); setEditDateOpen(false) }}>
+                      <Text style={styles.dateClear}>{t.clear}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={commitEditDate}>
+                      <Text style={styles.dateDone}>{t.done}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </Modal>
+          )}
+          {editDateOpen && Platform.OS === 'android' && (
+            <DateTimePicker
+              value={editPickerDate}
+              mode="date"
+              display="default"
+              onChange={handleEditDateChange}
+            />
+          )}
 
           {/* Per-subtask priority picker */}
           {onUpdateSubtaskPriority && (
@@ -342,7 +664,7 @@ export default function TaskDetailsSheet({
 
 function SubtaskCard({
   parentId, subtask, styles, theme,
-  onToggle, onUpdateText, onRemove, onOpenPriority, onOpenDate,
+  onToggle, onUpdateText, onRemove, onOpenPriority, onOpenDate, onTap,
 }: {
   parentId: string
   subtask: Subtask
@@ -353,6 +675,8 @@ function SubtaskCard({
   onRemove: (id: string, subId: string) => void
   onOpenPriority?: () => void
   onOpenDate?: () => void
+  /** If provided, tapping the row's text area opens this callback instead of inline edit. */
+  onTap?: () => void
 }) {
   const { t } = useLang()
   const [editing, setEditing] = useState(false)
@@ -404,22 +728,18 @@ function SubtaskCard({
           maxLength={500}
         />
       ) : (
-        <Text
-          style={[styles.subCardText, subtask.done && styles.subCardTextDone]}
-          numberOfLines={1}
-          onPress={startEdit}
-          suppressHighlighting
+        <TouchableOpacity
+          style={styles.subCardTapArea}
+          onPress={onTap ?? startEdit}
+          activeOpacity={0.6}
         >
-          {subtask.text}
-        </Text>
-      )}
-      {onOpenPriority && (
-        <TouchableOpacity onPress={onOpenPriority} hitSlop={8} style={styles.subPriorityBtn}>
+          <Text
+            style={[styles.subCardText, subtask.done && styles.subCardTextDone]}
+            numberOfLines={1}
+          >
+            {subtask.text}
+          </Text>
           <PriorityDot level={priority} size={11} />
-        </TouchableOpacity>
-      )}
-      {onOpenDate && (
-        <TouchableOpacity onPress={onOpenDate} hitSlop={8} style={styles.subDateChip}>
           <Text style={[
             styles.subDateChipText,
             overdue
@@ -434,14 +754,6 @@ function SubtaskCard({
           </Text>
         </TouchableOpacity>
       )}
-      <TouchableOpacity
-        onPress={() => onRemove(parentId, subtask.id)}
-        hitSlop={10}
-        style={styles.subRemoveBtn}
-        accessibilityLabel={t.deleteSubtask}
-      >
-        <TrashIcon size={14} color={theme.label3} />
-      </TouchableOpacity>
     </View>
   )
 }
@@ -529,16 +841,17 @@ function makeStyles(c: ThemeColors) {
     list: { flexGrow: 0, flexShrink: 1 },
     listFilled: { paddingVertical: 8, gap: 6 },
     listEmpty: { paddingVertical: 24, alignItems: 'center' },
-    emptyText: { color: c.label3, fontSize: 14, fontStyle: 'italic' },
 
-    /* Subtask row — borderless single line, sidecar style */
+    /* Subtask row — borderless single line, sidecar style.
+       paddingHorizontal:14 matches the editFieldRowInGroup so the checkbox
+       aligns with the Category/Completed-by icons above. */
     subCard: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 10,
-      paddingVertical: 6,
-      paddingLeft: 4,
-      paddingRight: 2,
+      paddingVertical: 8,
+      paddingLeft: 14,
+      paddingRight: 14,
     },
     subCardCheckbox: {
       width: 20,
@@ -558,6 +871,13 @@ function makeStyles(c: ThemeColors) {
       fontSize: 12,
       fontWeight: '700',
       lineHeight: 14,
+    },
+    subCardTapArea: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 2,
     },
     subCardText: { flex: 1, fontSize: 15, color: c.label, letterSpacing: -0.2 },
     subCardTextDone: { color: c.label3, textDecorationLine: 'line-through' },
@@ -583,38 +903,195 @@ function makeStyles(c: ThemeColors) {
     subDateChipToday: { color: c.orange, fontWeight: '600' },
     subRemoveBtn: { padding: 4 },
 
-    /* Add row — always visible at bottom with priority + date + + button */
-    addCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      paddingTop: 10,
+    /* Action bar (view mode): Add a subtask primary */
+    actionBar: {
+      paddingTop: 12,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: c.separator,
     },
-    addInput: {
-      flex: 1,
-      minWidth: 100,
-      fontSize: 14,
-      color: c.label,
-      backgroundColor: c.bg,
-      borderRadius: 8,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
+    addSubtaskBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      height: 50,
+      borderRadius: 12,
+      backgroundColor: c.blue,
     },
-    addPriorityBtn: { padding: 6 },
-    addBtn: {
+    addSubtaskBtnText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '600',
+      letterSpacing: -0.16,
+    },
+    /* Header: Cancel | Edit Task | Save */
+    editHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 4,
+      paddingBottom: 12,
+    },
+    editHeaderTitle: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: c.label,
+    },
+    headerSideBtn: {
+      width: 64,
+    },
+    cancelText: {
+      fontSize: 15,
+      fontWeight: '500',
+      color: c.blue,
+    },
+    saveHeaderText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: c.blue,
+      textAlign: 'right',
+    },
+    saveHeaderTextDisabled: {
+      color: c.gray3,
+    },
+    /* Edit-mode body */
+    editBody: {
+      paddingTop: 16,
+      paddingBottom: 16,
+    },
+    editGroupCard: {
+      backgroundColor: c.bg,
+      borderRadius: 12,
+      overflow: 'hidden',
+      marginBottom: 16,
+    },
+    editTextInputInCard: {
+      minHeight: 96,
+      fontSize: 16,
+      color: c.label,
+      paddingHorizontal: 14,
+      paddingTop: 14,
+      paddingBottom: 14,
+      letterSpacing: -0.16,
+      lineHeight: 22,
+    },
+    editGroupDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: c.separator,
+      marginLeft: 14,
+    },
+    editFieldRowInGroup: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 13,
+    },
+    subtaskSectionHeader: {
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 0.6,
+      color: c.label3,
+      marginTop: 4,
+      marginBottom: 8,
+    },
+    editFieldRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 13,
+    },
+    editFieldLabel: {
+      flex: 1,
+      fontSize: 15,
+      color: c.label,
+      fontWeight: '500',
+    },
+    editFieldValue: {
+      fontSize: 15,
+      color: c.label2,
+      maxWidth: 160,
+    },
+    editFieldValueMuted: {
+      color: c.gray3,
+    },
+    editChevron: {
+      fontSize: 18,
+      color: c.gray3,
+      fontWeight: '300',
+      marginLeft: 2,
+    },
+    editDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: c.separator,
+      marginLeft: 44,
+    },
+    editSubtasks: {
+      gap: 6,
+    },
+    dateWrap: {
+      paddingTop: 8,
+      alignItems: 'center',
+    },
+    dateActions: {
+      flexDirection: 'row',
+      gap: 12,
+      marginTop: 12,
+    },
+    dateClearBtn: {
+      flex: 1,
+      height: 50,
+      borderRadius: 12,
+      backgroundColor: c.bg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dateClearBtnText: {
+      color: c.red,
+      fontSize: 16,
+      fontWeight: '500',
+    },
+    dateDoneBtn: {
+      flex: 1.4,
+      height: 50,
+      borderRadius: 12,
+      backgroundColor: c.blue,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dateDoneBtnText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    addSubtaskLink: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: 6,
-      backgroundColor: c.primary,
-      borderRadius: 999,
-      paddingHorizontal: 18,
-      paddingVertical: 10,
+      paddingVertical: 12,
     },
-    addBtnDisabled: { backgroundColor: c.gray3 },
-    addBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+    destructiveAction: {
+      alignItems: 'flex-start',
+      paddingVertical: 14,
+      paddingHorizontal: 4,
+      marginTop: 12,
+    },
+    destructiveActionText: {
+      color: c.label3,
+      fontSize: 14,
+      fontWeight: '500',
+      letterSpacing: -0.16,
+    },
+    addSubtaskLinkText: {
+      color: c.blue,
+      fontSize: 15,
+      fontWeight: '600',
+      letterSpacing: -0.16,
+    },
 
     dateOverlay: {
       flex: 1,

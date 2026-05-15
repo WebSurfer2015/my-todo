@@ -12,6 +12,16 @@ export type Avatar =
 
 export type Density = 'comfortable' | 'compact'
 
+import type { ViewMode, StatusFilter } from './types'
+
+export interface StatusOverride {
+  id: StatusFilter
+  /** User-set label override; falls back to t.filters[id]. */
+  label?: string
+  /** When true, this status is hidden from the filter row. */
+  hidden?: boolean
+}
+
 export interface Profile {
   name: string
   firstName?: string
@@ -26,11 +36,19 @@ export interface Profile {
    * motion setting. Honored on web via [data-reduce-motion] on .app-shell.
    */
   reduceMotion?: boolean
+  /** Last selected grouping (category vs status). Persisted across launches. */
+  view?: ViewMode
+  /** Per-status overrides (rename, hide, reorder). Array order determines display order. */
+  statuses?: StatusOverride[]
+  /** Show a calm completion animation when a task is marked done. Defaults to true. */
+  completionAnimation?: boolean
+  /** Play a sound when a task is marked done. Defaults to true. (Sound playback NYI.) */
+  completionSound?: boolean
 }
 
 export const SEED_PROFILE: Profile = {
   name: 'Ying',
-  avatar: { kind: 'preset', key: 'smile' },
+  avatar: { kind: 'preset', key: 'turtle' },
   density: 'comfortable',
 }
 
@@ -53,6 +71,7 @@ export interface PresetAvatar {
 
 /** Cross-platform emoji preset library. Stable keys so cross-device sync works. */
 export const AVATAR_PRESET_LIBRARY: PresetAvatar[] = [
+  { key: 'turtle',   emoji: '🐢', bg: '#E2EDE6' },  // pale mint (distinct from app cream)
   { key: 'smile',    emoji: '😀', bg: '#FF9500' },
   { key: 'cat',      emoji: '🐱', bg: '#34C759' },
   { key: 'dog',      emoji: '🐶', bg: '#007AFF' },
@@ -124,7 +143,37 @@ export function migrateProfile(raw: unknown): Profile {
         ? p.title.slice(0, MAX_PROFILE_TITLE_LEN)
         : undefined,
     reduceMotion: p.reduceMotion === true ? true : undefined,
+    view: p.view === 'category' || p.view === 'status' ? p.view : undefined,
+    statuses: migrateStatuses(p.statuses),
+    completionAnimation: p.completionAnimation === false ? false : undefined,
+    completionSound: p.completionSound === false ? false : undefined,
   }
+}
+
+const VALID_STATUS_IDS: StatusFilter[] = ['overdue', 'open', 'done', 'trash']
+const MAX_STATUS_LABEL_LEN = 40
+
+function migrateStatuses(raw: unknown): StatusOverride[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const seen = new Set<StatusFilter>()
+  const result: StatusOverride[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const o = item as Record<string, unknown>
+    const id = o.id
+    if (typeof id !== 'string' || !VALID_STATUS_IDS.includes(id as StatusFilter)) continue
+    if (seen.has(id as StatusFilter)) continue
+    seen.add(id as StatusFilter)
+    result.push({
+      id: id as StatusFilter,
+      label:
+        typeof o.label === 'string' && o.label.length > 0
+          ? o.label.slice(0, MAX_STATUS_LABEL_LEN)
+          : undefined,
+      hidden: o.hidden === true ? true : undefined,
+    })
+  }
+  return result.length > 0 ? result : undefined
 }
 
 function migrateAvatar(raw: unknown): Avatar | null {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, ReactNode } from "react";
 import {
   Modal,
   View,
@@ -12,16 +12,31 @@ import {
   Platform,
   Alert,
 } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import DraggableFlatList, {
+  RenderItemParams,
+} from "react-native-draggable-flatlist";
 import { CategoryDef, COLOR_PALETTE, categoryLabel } from "../categories";
 import { ICON_KEYS, IconKey } from "../icons";
+import { StatusFilter, ViewMode } from "../types";
 import CategoryIcon from "./CategoryIcon";
+import StatusIcon, { statusColor } from "./StatusIcon";
 import { useLang } from "../LangContext";
 import { useTheme, ThemeColors } from "../theme";
+
+export interface StatusEntry {
+  id: StatusFilter;
+  label: string;
+  hidden: boolean;
+}
 
 interface Props {
   visible: boolean;
   categories: CategoryDef[];
   taskCounts: Record<string, number>;
+  view: ViewMode;
+  onChangeView: (v: ViewMode) => void;
+  viewIcons: { status: ReactNode; category: ReactNode };
   onAdd: (data: { label: string; color: string; icon: string }) => void;
   onEdit: (
     id: string,
@@ -29,19 +44,33 @@ interface Props {
   ) => void;
   onDelete: (id: string) => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
+  orderedStatuses: StatusEntry[];
+  onRenameStatus: (id: StatusFilter, label: string) => void;
+  onToggleStatusHidden: (id: StatusFilter) => void;
+  onReorderStatuses: (newOrder: StatusFilter[]) => void;
   onClose: () => void;
 }
 
-type Mode = { kind: "list" } | { kind: "edit"; id: string | null };
+type Mode =
+  | { kind: "list" }
+  | { kind: "edit"; id: string | null }
+  | { kind: "editStatus"; id: StatusFilter };
 
 export default function CategorySheet({
   visible,
   categories,
   taskCounts,
+  view,
+  onChangeView,
+  viewIcons,
   onAdd,
   onEdit,
   onDelete,
   onReorder,
+  orderedStatuses,
+  onRenameStatus,
+  onToggleStatusHidden,
+  onReorderStatuses,
   onClose,
 }: Props) {
   const { t } = useLang();
@@ -51,10 +80,22 @@ export default function CategorySheet({
   const [name, setName] = useState("");
   const [color, setColor] = useState(COLOR_PALETTE[5]);
   const [icon, setIcon] = useState<string>("tag");
+  const [statusLabel, setStatusLabel] = useState("");
 
   useEffect(() => {
     if (visible) setMode({ kind: "list" });
   }, [visible]);
+
+  function startEditStatus(s: StatusEntry) {
+    setStatusLabel(s.label);
+    setMode({ kind: "editStatus", id: s.id });
+  }
+
+  function saveStatusLabel() {
+    if (mode.kind !== "editStatus") return;
+    onRenameStatus(mode.id, statusLabel.trim());
+    setMode({ kind: "list" });
+  }
 
   function startAdd() {
     setName("");
@@ -113,6 +154,7 @@ export default function CategorySheet({
       animationType="slide"
       onRequestClose={onClose}
     >
+      <GestureHandlerRootView style={styles.flex}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -120,89 +162,215 @@ export default function CategorySheet({
         <Pressable style={styles.backdrop} onPress={onClose}>
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
             <View style={styles.handle} />
-            <Text style={styles.title}>
-              {mode.kind === "list"
-                ? t.manageCategories
-                : mode.id
-                  ? t.editCategory
-                  : t.addCategory}
-            </Text>
+            {mode.kind === "edit" && (
+              <Text style={styles.title}>
+                {mode.id ? t.editCategory : t.addCategory}
+              </Text>
+            )}
+            {mode.kind === "editStatus" && (
+              <Text style={styles.title}>{t.editStatus}</Text>
+            )}
 
             {mode.kind === "list" ? (
               <>
-                <ScrollView style={styles.list}>
-                  {categories.map((c, idx) => (
-                    <View key={c.id} style={styles.row}>
-                      <CategoryIcon icon={c.icon} color={c.color} size={18} />
-                      <Text style={styles.rowLabel}>{categoryLabel(c, t)}</Text>
-                      <View style={styles.reorderGroup}>
-                        <TouchableOpacity
-                          onPress={() => onReorder(idx, idx - 1)}
-                          disabled={idx === 0}
-                          style={styles.reorderBtn}
-                          hitSlop={6}
-                          accessibilityLabel="Move up"
-                        >
-                          <Text
-                            style={[
-                              styles.reorderArrow,
-                              { color: idx === 0 ? "#C7C7CC" : theme.label2 },
-                            ]}
+                <Text style={styles.sectionHeader}>VIEW</Text>
+                <View style={styles.viewPicker}>
+                  {(["status", "category"] as ViewMode[]).map((v, i) => (
+                    <TouchableOpacity
+                      key={v}
+                      style={[
+                        styles.viewPickerRow,
+                        i === 0 && styles.viewPickerRowBorder,
+                      ]}
+                      onPress={() => onChangeView(v)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: view === v }}
+                    >
+                      {viewIcons[v]}
+                      <Text style={styles.viewPickerLabel}>{t.views[v]}</Text>
+                      {view === v && (
+                        <Text style={styles.viewPickerCheck}>✓</Text>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {view === "category" ? (
+                  <>
+                    <Text style={styles.sectionHeader}>CATEGORIES</Text>
+                    <View style={styles.listCard}>
+                      <DraggableFlatList
+                        data={categories}
+                        keyExtractor={(c) => c.id}
+                        onDragEnd={({ data }) => {
+                          for (let i = 0; i < categories.length; i++) {
+                            if (categories[i].id !== data[i].id) {
+                              const movedItem = data[i];
+                              const oldIdx = categories.findIndex(
+                                (c) => c.id === movedItem.id,
+                              );
+                              onReorder(oldIdx, i);
+                              break;
+                            }
+                          }
+                        }}
+                        renderItem={({
+                          item: c,
+                          drag,
+                          isActive,
+                        }: RenderItemParams<CategoryDef>) => (
+                          <View
+                            style={[styles.row, isActive && styles.rowActive]}
                           >
-                            ▲
-                          </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => onReorder(idx, idx + 1)}
-                          disabled={idx === categories.length - 1}
-                          style={styles.reorderBtn}
-                          hitSlop={6}
-                          accessibilityLabel="Move down"
-                        >
-                          <Text
-                            style={[
-                              styles.reorderArrow,
-                              {
-                                color:
-                                  idx === categories.length - 1
-                                    ? "#C7C7CC"
-                                    : theme.label2,
-                              },
-                            ]}
-                          >
-                            ▼
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
+                            <CategoryIcon
+                              icon={c.icon}
+                              color={c.color}
+                              size={18}
+                            />
+                            <Text style={styles.rowLabel}>
+                              {categoryLabel(c, t)}
+                            </Text>
+                            <TouchableOpacity
+                              onPress={() => startEdit(c)}
+                              style={styles.rowBtn}
+                            >
+                              <Text style={styles.rowBtnText}>
+                                {t.editTask}
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => handleDelete(c)}
+                              style={styles.rowBtn}
+                              disabled={categories.length <= 1}
+                            >
+                              <Text
+                                style={[
+                                  styles.rowBtnText,
+                                  {
+                                    color:
+                                      categories.length <= 1
+                                        ? "#C7C7CC"
+                                        : "#FF3B30",
+                                  },
+                                ]}
+                              >
+                                {t.deleteCategoryAction}
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onLongPress={drag}
+                              delayLongPress={150}
+                              disabled={isActive}
+                              style={styles.dragHandle}
+                              accessibilityLabel="Drag to reorder"
+                            >
+                              <Text style={styles.dragHandleIcon}>≡</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      />
                       <TouchableOpacity
-                        onPress={() => startEdit(c)}
-                        style={styles.rowBtn}
+                        style={styles.addRow}
+                        onPress={startAdd}
+                        activeOpacity={0.6}
                       >
-                        <Text style={styles.rowBtnText}>{t.editTask}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => handleDelete(c)}
-                        style={styles.rowBtn}
-                        disabled={categories.length <= 1}
-                      >
-                        <Text
-                          style={[
-                            styles.rowBtnText,
-                            {
-                              color:
-                                categories.length <= 1 ? "#C7C7CC" : "#FF3B30",
-                            },
-                          ]}
-                        >
-                          {t.deleteCategoryAction}
+                        <Text style={styles.addRowText}>
+                          + {t.addCategory}
                         </Text>
                       </TouchableOpacity>
                     </View>
-                  ))}
-                </ScrollView>
-                <TouchableOpacity style={styles.addBtn} onPress={startAdd}>
-                  <Text style={styles.addBtnText}>+ {t.addCategory}</Text>
-                </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.sectionHeader}>STATUSES</Text>
+                    <View style={styles.listCard}>
+                      <DraggableFlatList
+                        data={orderedStatuses}
+                        keyExtractor={(s) => s.id}
+                        onDragEnd={({ data }) => {
+                          onReorderStatuses(data.map((s) => s.id));
+                        }}
+                        renderItem={({
+                          item: s,
+                          drag,
+                          isActive,
+                        }: RenderItemParams<StatusEntry>) => (
+                          <View
+                            style={[styles.row, isActive && styles.rowActive]}
+                          >
+                            <StatusIcon
+                              id={s.id}
+                              size={18}
+                              color={statusColor(s.id, theme)}
+                            />
+                            <Text
+                              style={[
+                                styles.rowLabel,
+                                s.hidden && styles.rowLabelHidden,
+                              ]}
+                            >
+                              {s.label}
+                            </Text>
+                            <TouchableOpacity
+                              onPress={() => startEditStatus(s)}
+                              style={styles.rowBtn}
+                            >
+                              <Text style={styles.rowBtnText}>
+                                {t.editTask}
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => onToggleStatusHidden(s.id)}
+                              style={styles.rowBtn}
+                            >
+                              <Text style={styles.rowBtnText}>
+                                {s.hidden ? t.showStatus : t.hideStatus}
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onLongPress={drag}
+                              delayLongPress={150}
+                              disabled={isActive}
+                              style={styles.dragHandle}
+                              accessibilityLabel="Drag to reorder"
+                            >
+                              <Text style={styles.dragHandleIcon}>≡</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      />
+                    </View>
+                  </>
+                )}
+              </>
+            ) : mode.kind === "editStatus" ? (
+              <>
+                <View style={styles.field}>
+                  <Text style={styles.label}>{t.categoryNameLabel}</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={statusLabel}
+                    onChangeText={setStatusLabel}
+                    autoFocus
+                    maxLength={40}
+                  />
+                </View>
+                <View style={styles.actions}>
+                  <TouchableOpacity
+                    style={styles.btn}
+                    onPress={() => setMode({ kind: "list" })}
+                  >
+                    <Text style={styles.btnText}>{t.back}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.btn, styles.btnPrimary]}
+                    onPress={saveStatusLabel}
+                  >
+                    <Text style={[styles.btnText, styles.btnPrimaryText]}>
+                      {t.save}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </>
             ) : (
               <>
@@ -282,6 +450,7 @@ export default function CategorySheet({
           </Pressable>
         </Pressable>
       </KeyboardAvoidingView>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -298,7 +467,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.modal,
       borderTopLeftRadius: 18,
       borderTopRightRadius: 18,
-      paddingHorizontal: 20,
+      paddingHorizontal: 16,
       paddingTop: 8,
       paddingBottom: 28,
       maxHeight: "85%",
@@ -317,23 +486,82 @@ function makeStyles(c: ThemeColors) {
       marginBottom: 14,
       color: c.label,
     },
+    sectionHeader: {
+      fontSize: 11,
+      fontWeight: "700",
+      letterSpacing: 0.6,
+      color: c.label3,
+      marginTop: 8,
+      marginBottom: 8,
+    },
+    viewPicker: {
+      backgroundColor: c.bg,
+      borderRadius: 10,
+      marginBottom: 4,
+      overflow: "hidden",
+    },
+    viewPickerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+    },
+    viewPickerRowBorder: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.separator,
+    },
+    viewPickerLabel: {
+      flex: 1,
+      fontSize: 15,
+      fontWeight: "500",
+      color: c.label,
+    },
+    viewPickerCheck: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: c.blue,
+    },
     list: {
       maxHeight: 320,
       marginBottom: 8,
     },
+    listCard: {
+      backgroundColor: c.card,
+      borderRadius: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      overflow: "hidden",
+      marginBottom: 4,
+    },
     row: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 10,
-      paddingVertical: 10,
+      gap: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 13,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.separator,
+    },
+    rowActive: {
+      backgroundColor: c.surface,
+      borderRadius: 8,
+      borderBottomWidth: 0,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.12,
+      shadowRadius: 6,
+      elevation: 4,
     },
     rowLabel: {
       flex: 1,
       fontSize: 15,
       color: c.label,
       fontWeight: "500",
+    },
+    rowLabelHidden: {
+      color: c.label3,
+      textDecorationLine: "line-through",
     },
     rowBtn: {
       paddingHorizontal: 8,
@@ -344,38 +572,38 @@ function makeStyles(c: ThemeColors) {
       fontWeight: "600",
       color: c.blue,
     },
-    reorderGroup: {
-      flexDirection: "column",
-      gap: 2,
-      marginRight: 4,
+    dragHandle: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
     },
-    reorderBtn: {
-      paddingHorizontal: 4,
+    dragHandleIcon: {
+      fontSize: 18,
+      color: c.label3,
+      fontWeight: "500",
     },
-    reorderArrow: {
-      fontSize: 10,
-    },
-    addBtn: {
-      paddingVertical: 12,
+    addRow: {
+      paddingHorizontal: 14,
+      paddingVertical: 13,
       alignItems: "center",
-      backgroundColor: c.bg,
-      borderRadius: 8,
-      marginTop: 8,
     },
-    addBtnText: {
-      fontSize: 14,
+    addRowText: {
+      fontSize: 15,
       fontWeight: "600",
       color: c.blue,
     },
     closeBtn: {
-      paddingVertical: 12,
+      marginTop: 20,
+      height: 50,
+      borderRadius: 12,
+      backgroundColor: c.blue,
       alignItems: "center",
-      marginTop: 4,
+      justifyContent: "center",
     },
     closeBtnText: {
-      fontSize: 15,
+      color: "#fff",
+      fontSize: 16,
       fontWeight: "600",
-      color: c.blue,
+      letterSpacing: -0.16,
     },
     field: {
       marginBottom: 12,

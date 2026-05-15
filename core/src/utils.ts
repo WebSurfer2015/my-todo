@@ -65,20 +65,33 @@ export function formatSavedAt(ms: number, locale = 'default', now = Date.now()):
   return new Date(ms).toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' })
 }
 
-export function formatDisplayDate(iso: string, locale = 'default', labels?: DateLabels): string {
+/**
+ * Relative-time date label: "Today" / "Tomorrow" / "Yesterday" / "in 3 days" /
+ * "5 days ago" / "in 2 months" / "1 month ago" / "in 1 year" / "2 years ago".
+ * `labels` overrides for the today/tomorrow/yesterday cases when provided.
+ * `locale` is currently unused — kept for forward-compat with localized strings.
+ */
+export function formatDisplayDate(iso: string, _locale = 'default', labels?: DateLabels): string {
   const [y, m, d] = iso.split('-').map(Number)
   const date = new Date(y, m - 1, d)
   const now = new Date()
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const diffDays = Math.round((date.getTime() - startOfToday.getTime()) / MS_PER_DAY)
 
-  if (diffDays === 0 && labels?.today) return labels.today
-  if (diffDays === 1 && labels?.tomorrow) return labels.tomorrow
-  if (diffDays === -1 && labels?.yesterday) return labels.yesterday
+  if (diffDays === 0) return labels?.today ?? 'Today'
+  if (diffDays === 1) return labels?.tomorrow ?? 'Tomorrow'
+  if (diffDays === -1) return labels?.yesterday ?? 'Yesterday'
 
-  const weekday = date.toLocaleString(locale, { weekday: 'short' })
-  const month   = date.toLocaleString(locale, { month: 'short' })
-  return y === now.getFullYear()
-    ? `${weekday}, ${month} ${d}`
-    : `${weekday}, ${month} ${d}, ${y}`
+  const abs = Math.abs(diffDays)
+  if (abs <= 30) {
+    return diffDays > 0 ? `in ${abs} days` : `${abs} days ago`
+  }
+  if (abs <= 364) {
+    const months = Math.round(abs / 30)
+    const unit = months === 1 ? 'month' : 'months'
+    return diffDays > 0 ? `in ${months} ${unit}` : `${months} ${unit} ago`
+  }
+  const years = Math.round(abs / 365)
+  const yu = years === 1 ? 'year' : 'years'
+  return diffDays > 0 ? `in ${years} ${yu}` : `${years} ${yu} ago`
 }

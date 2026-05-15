@@ -19,7 +19,6 @@ import {
   Profile,
   Avatar as AvatarT,
   AVATAR_LIBRARY,
-  Density,
 } from "../profile";
 import Avatar from "./Avatar";
 import { useLang } from "../LangContext";
@@ -49,11 +48,96 @@ export default function ProfileSheet({
   const [lastName, setLastName] = useState(profile.lastName ?? "");
   const [quote, setQuote] = useState(profile.quote ?? "");
   const [avatar, setAvatar] = useState<AvatarT>(profile.avatar);
-  const [density, setDensity] = useState<Density>(
-    profile.density ?? "comfortable",
-  );
-  const [reduceMotion, setReduceMotion] = useState<boolean>(!!profile.reduceMotion);
   const [deleting, setDeleting] = useState(false);
+  const [pickingQuote, setPickingQuote] = useState(false);
+  const [celebrateAnim, setCelebrateAnim] = useState<boolean>(
+    profile.completionAnimation !== false,
+  );
+  const [celebrateSound, setCelebrateSound] = useState<boolean>(
+    profile.completionSound !== false,
+  );
+
+  // Short anxiety-aware quotes for subheader display. Grouped loosely by
+  // intent: breath/grounding, permission/kindness, gentle action, perspective.
+  const QUOTES = [
+    // Breath & grounding — instant calm
+    "Breathe in. Breathe out.",
+    "Inhale. Exhale. Keep going.",
+    "One breath at a time.",
+    "Pause. Settle. Continue.",
+    "Right now, you are safe.",
+    "This moment is enough.",
+    "Be where your feet are.",
+    "Take a deep breath. You're doing better than you think.",
+    // Permission & kindness
+    "Be kind to yourself today.",
+    "Rest is productive too.",
+    "It's okay to take it slow.",
+    "You don't have to do it all.",
+    "You're allowed to rest.",
+    "Pause is part of progress.",
+    "Be gentle with yourself.",
+    // Gentle action
+    "Small steps still count.",
+    "Progress, not perfection.",
+    "Done is better than perfect.",
+    "Tiny wins still count.",
+    "Just the next right thing.",
+    "Start small. Start anyway.",
+    "Showing up is half the work.",
+    "One thing at a time.",
+    // Perspective
+    "This too shall pass.",
+    "Not everything needs your worry.",
+    "You are not your thoughts.",
+    "Zoom out. The picture is bigger.",
+    "Most worries don't come true.",
+    "What matters most? Start there.",
+    "You are not behind.",
+    "You are exactly where you need to be.",
+    // Self-compassion
+    "You're doing better than you think.",
+    "You don't have to be perfect to be amazing.",
+    "Imperfect is allowed.",
+    "You are a work in progress, and that's okay.",
+    // Calm flow
+    "Be like water. Adapt and flow.",
+    "Slow is smooth. Smooth is fast.",
+    "Be the calm in your own storm.",
+    "Less is often more.",
+    "Trust the process.",
+    // Gentle humor
+    "Worry less. Breathe more.",
+    "Your only competition is yesterday's you.",
+    "If in doubt, take a walk.",
+    "Unplug for a few minutes. Most things work again after that.",
+    "Plot twist: I'm doing my best.",
+    "Procrastinators unite! …Tomorrow.",
+    "Worry is a rocking chair. Lots of motion, no progress.",
+    "If you can't fix it, can it wait?",
+    "Coffee first. Decisions later.",
+    "Adulting? More like figuring-it-out-ing.",
+    "Take a nap. The world can wait five minutes.",
+    "I'd panic, but I'm too busy doing my best.",
+    "Tomorrow's problem. Tomorrow's me.",
+    "I came. I saw. I forgot what I was doing.",
+    "My to-do list and I are in a complicated relationship.",
+    "Don't grow up. It's a trap.",
+    "Anxiety: paying interest on trouble that may never come.",
+    "Plot twist: nobody has it all figured out.",
+    "If life gives you lemons, ask for the receipt.",
+  ];
+
+  async function pickQuoteForMe() {
+    if (pickingQuote) return;
+    setPickingQuote(true);
+    // Pick a different quote than the current one when possible.
+    const candidates = QUOTES.filter((q) => q !== quote);
+    const next = candidates[Math.floor(Math.random() * candidates.length)];
+    setQuote(next);
+    // Brief visual feedback so the button feels responsive.
+    setTimeout(() => setPickingQuote(false), 120);
+  }
 
   React.useEffect(() => {
     if (visible) {
@@ -61,8 +145,8 @@ export default function ProfileSheet({
       setLastName(profile.lastName ?? "");
       setQuote(profile.quote ?? "");
       setAvatar(profile.avatar);
-      setDensity(profile.density ?? "comfortable");
-      setReduceMotion(!!profile.reduceMotion);
+      setCelebrateAnim(profile.completionAnimation !== false);
+      setCelebrateSound(profile.completionSound !== false);
     }
   }, [visible, profile]);
 
@@ -157,9 +241,11 @@ export default function ProfileSheet({
       lastName: lastName.trim() || undefined,
       quote: quote.trim() || undefined,
       avatar,
-      density,
+      density: "comfortable",
       title: profile.title,
-      reduceMotion: reduceMotion || undefined,
+      reduceMotion: true,
+      completionAnimation: celebrateAnim,
+      completionSound: celebrateSound,
     });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     showSnackbar({ message: t.profileSaved });
@@ -180,7 +266,15 @@ export default function ProfileSheet({
         <Pressable style={styles.backdrop} onPress={onClose}>
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
             <View style={styles.handle} />
-            <Text style={styles.title}>{t.editProfile}</Text>
+            <View style={styles.titleRow}>
+              <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.titleSideBtn}>
+                <Text style={styles.cancelHeaderText}>{t.cancel}</Text>
+              </TouchableOpacity>
+              <Text style={styles.title}>{t.editProfile}</Text>
+              <TouchableOpacity onPress={handleSave} hitSlop={10} style={styles.titleSideBtn}>
+                <Text style={styles.saveHeaderText}>{t.save}</Text>
+              </TouchableOpacity>
+            </View>
 
             <View style={styles.avatarRow}>
               <TouchableOpacity onPress={openAvatarPicker} activeOpacity={0.8}>
@@ -241,108 +335,73 @@ export default function ProfileSheet({
             </View>
 
             <View style={styles.field}>
-              <Text style={styles.label}>{t.profileQuoteLabel}</Text>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Quote</Text>
+                <TouchableOpacity
+                  onPress={pickQuoteForMe}
+                  disabled={pickingQuote}
+                  hitSlop={8}
+                >
+                  <Text
+                    style={[
+                      styles.pickForMeText,
+                      pickingQuote && styles.pickForMeTextDisabled,
+                    ]}
+                  >
+                    {pickingQuote ? "Picking…" : "Pick it for me"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
               <TextInput
-                style={[styles.input, styles.inputMulti]}
+                style={[styles.input, styles.inputMulti, styles.inputItalic]}
                 value={quote}
                 onChangeText={setQuote}
                 placeholder={t.profileQuotePlaceholder}
                 placeholderTextColor={theme.gray3}
                 multiline
-                maxLength={24}
+                maxLength={128}
               />
-              <Text style={styles.helper}>{t.profileGreetingHelper}</Text>
-            </View>
-
-            <View style={styles.field}>
-              <Text style={styles.label}>{t.densityLabel}</Text>
-              <View style={styles.langRow}>
-                <TouchableOpacity
-                  style={[
-                    styles.langBtn,
-                    density === "comfortable" && styles.langBtnActive,
-                  ]}
-                  onPress={() => setDensity("comfortable")}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: density === "comfortable" }}
-                >
-                  <Text
-                    style={[
-                      styles.langBtnText,
-                      density === "comfortable" && styles.langBtnTextActive,
-                    ]}
-                  >
-                    {t.densityComfortable}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.langBtn,
-                    density === "compact" && styles.langBtnActive,
-                  ]}
-                  onPress={() => setDensity("compact")}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: density === "compact" }}
-                >
-                  <Text
-                    style={[
-                      styles.langBtnText,
-                      density === "compact" && styles.langBtnTextActive,
-                    ]}
-                  >
-                    {t.densityCompact}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              <Text style={styles.helper}>Shown under your greeting.</Text>
             </View>
 
             <TouchableOpacity
               style={styles.toggleRow}
-              onPress={() => setReduceMotion((v) => !v)}
+              onPress={() => setCelebrateAnim((v) => !v)}
               accessibilityRole="switch"
-              accessibilityState={{ checked: reduceMotion }}
-              accessibilityLabel={t.reduceMotionLabel}
+              accessibilityState={{ checked: celebrateAnim }}
             >
               <View style={{ flex: 1 }}>
-                <Text style={styles.label}>{t.reduceMotionLabel}</Text>
-                <Text style={styles.toggleHint}>{t.reduceMotionHint}</Text>
+                <Text style={styles.label}>Completion animation</Text>
+                <Text style={styles.toggleHint}>
+                  A calm scale pulse when you mark a task done.
+                </Text>
               </View>
-              <View style={[styles.toggleTrack, reduceMotion && styles.toggleTrackOn]}>
-                <View style={[styles.toggleKnob, reduceMotion && styles.toggleKnobOn]} />
+              <View style={[styles.toggleTrack, celebrateAnim && styles.toggleTrackOn]}>
+                <View style={[styles.toggleKnob, celebrateAnim && styles.toggleKnobOn]} />
               </View>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.signOut}
-              onPress={() => {
-                onClose();
-                signOut();
-              }}
+              style={styles.toggleRow}
+              onPress={() => setCelebrateSound((v) => !v)}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: celebrateSound }}
             >
-              <Text style={styles.signOutText}>{t.signOut}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Completion sound</Text>
+                <Text style={styles.toggleHint}>
+                  A soft chime when you mark a task done. (Coming soon.)
+                </Text>
+              </View>
+              <View style={[styles.toggleTrack, celebrateSound && styles.toggleTrackOn]}>
+                <View style={[styles.toggleKnob, celebrateSound && styles.toggleKnobOn]} />
+              </View>
             </TouchableOpacity>
 
             <View style={styles.actions}>
-              <TouchableOpacity style={styles.btn} onPress={onClose}>
-                <Text style={styles.btnText}>{t.cancel}</Text>
-              </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.btn, styles.btnPrimary]}
-                onPress={handleSave}
-              >
-                <Text style={[styles.btnText, styles.btnPrimaryText]}>
-                  {t.save}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.dangerZone}>
-              <Text style={styles.dangerText}>
-                {t.deleteAccountDescription}
-              </Text>
-              <TouchableOpacity
-                style={[styles.dangerBtn, deleting && styles.dangerBtnDisabled]}
                 disabled={deleting}
+                hitSlop={10}
                 onPress={() => {
                   Alert.alert(
                     t.deleteAccount,
@@ -377,9 +436,24 @@ export default function ProfileSheet({
                   );
                 }}
               >
-                <Text style={styles.dangerBtnText}>
+                <Text
+                  style={[
+                    styles.deleteInlineText,
+                    deleting && styles.deleteInlineTextDisabled,
+                  ]}
+                >
                   {deleting ? t.deleting : t.deleteAccount}
                 </Text>
+              </TouchableOpacity>
+              <View style={{ flex: 1 }} />
+              <TouchableOpacity
+                onPress={() => {
+                  onClose();
+                  signOut();
+                }}
+                hitSlop={10}
+              >
+                <Text style={styles.signOutInlineText}>{t.signOut}</Text>
               </TouchableOpacity>
             </View>
           </Pressable>
@@ -416,7 +490,6 @@ function makeStyles(c: ThemeColors) {
     title: {
       fontSize: 17,
       fontWeight: "700",
-      marginBottom: 14,
       color: c.label,
     },
     avatarRow: {
@@ -487,6 +560,9 @@ function makeStyles(c: ThemeColors) {
       paddingTop: 8,
       paddingBottom: 8,
       textAlignVertical: "top",
+    },
+    inputItalic: {
+      fontStyle: "italic",
     },
     helper: {
       marginTop: 6,
@@ -579,43 +655,56 @@ function makeStyles(c: ThemeColors) {
     toggleKnobOn: {
       transform: [{ translateX: 20 }],
     },
-    signOut: {
+    titleRow: {
+      flexDirection: "row",
       alignItems: "center",
-      paddingVertical: 10,
-      marginTop: 4,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: c.separator,
+      justifyContent: "space-between",
+      marginBottom: 14,
     },
-    signOutText: {
+    labelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 6,
+    },
+    pickForMeText: {
       fontSize: 13,
-      color: c.red,
+      color: c.blue,
+      fontWeight: "600",
+    },
+    pickForMeTextDisabled: {
+      color: c.gray3,
+    },
+    titleSideBtn: {
+      minWidth: 56,
+    },
+    cancelHeaderText: {
+      fontSize: 15,
+      color: c.blue,
       fontWeight: "500",
     },
-    dangerZone: {
-      marginTop: 18,
-      paddingTop: 14,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: c.separator,
-      gap: 8,
+    saveHeaderText: {
+      fontSize: 15,
+      color: c.blue,
+      fontWeight: "700",
+      textAlign: "right",
     },
-    dangerText: {
-      fontSize: 12,
+    signOutInlineText: {
+      fontSize: 14,
       color: c.label2,
-      lineHeight: 16,
-    },
-    dangerBtn: {
-      alignSelf: "flex-start",
-      paddingVertical: 8,
-      paddingHorizontal: 12,
-      borderRadius: 8,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: c.red,
-    },
-    dangerBtnDisabled: { opacity: 0.5 },
-    dangerBtnText: {
-      fontSize: 13,
-      color: c.red,
       fontWeight: "500",
+      paddingVertical: 10,
+      paddingHorizontal: 4,
+    },
+    deleteInlineText: {
+      fontSize: 14,
+      color: c.label3,
+      fontWeight: "500",
+      paddingVertical: 10,
+      paddingHorizontal: 4,
+    },
+    deleteInlineTextDisabled: {
+      opacity: 0.5,
     },
   });
 }

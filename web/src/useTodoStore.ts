@@ -344,7 +344,7 @@ export function useTodoStore() {
   }
 
   function clearDone() {
-    setTodos(todoClearDone);
+    setTodos((prev) => todoClearDone(prev).todos);
   }
 
   function addCategory(data: { label: string; color: string; icon: string }) {

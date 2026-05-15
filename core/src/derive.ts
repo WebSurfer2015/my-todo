@@ -47,10 +47,19 @@ export function todoToggle(prev: Todo[], id: string): Todo[] {
   const now = Date.now();
   return prev.map((td) => {
     if (td.id !== id) return td;
-    // When subtasks exist, parent.done is derived from subs.every(done) — the
-    // user can only "complete" the parent by completing every subtask. A direct
-    // toggle is a no-op to preserve the invariant and the UX rule.
-    if (td.subtasks && td.subtasks.length > 0) return td;
+    // For tasks with subtasks: toggling the parent cascades to all subtasks.
+    // Mark done → all subtasks done. Mark open → all subtasks open.
+    if (td.subtasks && td.subtasks.length > 0) {
+      const nextDone = !td.done;
+      return {
+        ...td,
+        done: nextDone,
+        updatedAt: now,
+        subtasks: td.subtasks.map((s) =>
+          s.done === nextDone ? s : { ...s, done: nextDone },
+        ),
+      };
+    }
     return { ...td, done: !td.done, updatedAt: now };
   });
 }
@@ -235,8 +244,22 @@ export function todoEmptyTrash(prev: Todo[]): Todo[] {
   return prev.filter((td) => !td.trashed);
 }
 
-export function todoClearDone(prev: Todo[]): Todo[] {
-  return prev.filter((td) => !td.done || td.trashed);
+/**
+ * Move all completed-and-not-yet-trashed todos to trash (soft delete).
+ * Consistent with moveToTrash — items live in the 30-day trash and can be
+ * restored. Replaces the prior hard-delete behavior.
+ */
+export function todoClearDone(prev: Todo[]): { todos: Todo[]; trashedIds: string[] } {
+  const now = Date.now();
+  const trashedIds: string[] = [];
+  const todos = prev.map((td) => {
+    if (td.done && !td.trashed) {
+      trashedIds.push(td.id);
+      return { ...td, trashed: true, trashedAt: now, updatedAt: now };
+    }
+    return td;
+  });
+  return { todos, trashedIds };
 }
 
 export function todoSet<K extends keyof Todo>(
@@ -280,16 +303,18 @@ export function categoryDelete(
   todos: Todo[],
   categories: CategoryDef[],
   id: string,
-): { categories: CategoryDef[]; todos: Todo[]; targetId: string | null } {
-  if (categories.length <= 1) return { categories, todos, targetId: null };
+): { categories: CategoryDef[]; todos: Todo[]; deleted: boolean } {
+  if (categories.length <= 1) return { categories, todos, deleted: false };
   const remaining = categories.filter((c) => c.id !== id);
-  const targetId = remaining[0].id;
+  const now = Date.now();
   return {
     categories: remaining,
     todos: todos.map((td) =>
-      td.category === id ? { ...td, category: targetId } : td,
+      td.category === id && !td.trashed
+        ? { ...td, trashed: true, trashedAt: now, updatedAt: now }
+        : td,
     ),
-    targetId,
+    deleted: true,
   };
 }
 
