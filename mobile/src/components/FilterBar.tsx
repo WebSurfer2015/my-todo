@@ -1,7 +1,12 @@
 import React, { useMemo } from 'react'
-import { ScrollView, TouchableOpacity, Text, StyleSheet, View } from 'react-native'
-import Svg, { Path } from 'react-native-svg'
-import { Filter, StatusFilter, ViewMode, categoryFilter, isCategoryFilter, categoryIdFromFilter } from '../types'
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { Filter as FunnelIcon } from 'lucide-react-native'
+import {
+  Filter,
+  StatusFilter,
+  categoryIdFromFilter,
+  isCategoryFilter,
+} from '../types'
 import { CategoryDef, categoryLabel } from '../categories'
 import CategoryIcon from './CategoryIcon'
 import StatusIcon, { statusColor } from './StatusIcon'
@@ -9,131 +14,113 @@ import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
 
 interface Props {
-  view: ViewMode
   filter: Filter
   onFilter: (f: Filter) => void
-  systemCounts: { all: number; overdue: number; open: number; done: number; trash: number }
-  byCategory: Record<string, number>
+  onOpenSheet: () => void
   categories: CategoryDef[]
   orderedVisibleStatuses: { id: StatusFilter; label: string }[]
+  systemCounts: { all: number; overdue: number; open: number; done: number; trash: number }
+  byCategory: Record<string, number>
 }
 
-function AllIcon({ size = 16, color = '#3C3C43' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M22 13l-3.5 7a1 1 0 01-.9.5H6.4a1 1 0 01-.9-.5L2 13" />
-      <Path d="M5 13V5a2 2 0 012-2h10a2 2 0 012 2v8" />
-      <Path d="M9 13h6" />
-    </Svg>
-  )
-}
-
-function PencilIcon({ size = 14, color = '#007AFF' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M12 20h9" />
-      <Path d="M16.5 3.5a2.121 2.121 0 113 3L7 19l-4 1 1-4 12.5-12.5z" />
-    </Svg>
-  )
-}
-
+/**
+ * Three-piece filter row: funnel icon (opens the combined picker sheet),
+ * the always-present "All" pill (taps clear any filter back to default),
+ * and an optional "Selected" pill that surfaces the currently active
+ * status or category filter.
+ */
 export default function FilterBar({
-  view, filter, onFilter, systemCounts, byCategory, categories, orderedVisibleStatuses,
+  filter,
+  onFilter,
+  onOpenSheet,
+  categories,
+  orderedVisibleStatuses,
+  systemCounts,
+  byCategory,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
 
-  function statusIcon(value: StatusFilter, color: string) {
-    return <StatusIcon id={value} size={15} color={color} />
+  // Resolve display details for the currently selected non-All filter.
+  let selected: {
+    icon: React.ReactNode
+    label: string
+    color: string
+    count: number
+  } | null = null
+  if (filter !== 'all') {
+    if (isCategoryFilter(filter)) {
+      const id = categoryIdFromFilter(filter)
+      const c = categories.find((x) => x.id === id)
+      if (c) {
+        selected = {
+          icon: <CategoryIcon icon={c.icon} size={15} color={c.color} />,
+          label: categoryLabel(c, t),
+          color: c.color,
+          count: byCategory[c.id] ?? 0,
+        }
+      }
+    } else {
+      const s = orderedVisibleStatuses.find((x) => x.id === filter)
+      if (s) {
+        selected = {
+          icon: <StatusIcon id={s.id} size={15} color={statusColor(s.id, theme)} />,
+          label: s.label,
+          color: statusColor(s.id, theme),
+          count: systemCounts[s.id] ?? 0,
+        }
+      }
+    }
   }
 
-  const renderAllPill = () => {
-    const active = filter === 'all'
-    const color = theme.blue
-    return (
+  const allActive = filter === 'all'
+
+  return (
+    <View style={styles.row}>
       <TouchableOpacity
-        style={[styles.pill, active && { backgroundColor: color, borderColor: color }]}
+        onPress={onOpenSheet}
+        style={styles.iconBtn}
+        hitSlop={8}
+        accessibilityLabel="Filter"
+        accessibilityRole="button"
+      >
+        <FunnelIcon size={18} color={theme.label2} strokeWidth={2} />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.pill, allActive && styles.pillActive]}
         onPress={() => onFilter('all')}
         activeOpacity={0.75}
       >
-        <AllIcon size={15} color={active ? '#fff' : color} />
-        <Text style={[styles.pillLabel, { color: active ? '#fff' : theme.label }]}>
+        <Text style={[styles.pillLabel, allActive && styles.pillLabelActive]}>
           {t.filters.all}
         </Text>
         {systemCounts.all > 0 && (
-          <View style={[styles.badge, active && styles.badgeActive]}>
-            <Text style={[styles.badgeText, { color: active ? '#fff' : theme.label3 }]}>
-              {systemCounts.all}
-            </Text>
-          </View>
+          <Text style={[styles.pillCount, allActive && styles.pillCountActive]}>
+            {systemCounts.all}
+          </Text>
         )}
       </TouchableOpacity>
-    )
-  }
 
-  return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.row}
-    >
-      {renderAllPill()}
-      {view === 'category' ? (
-        <>
-          {categories.map((c) => {
-            const active = isCategoryFilter(filter) && categoryIdFromFilter(filter) === c.id
-            const count = byCategory[c.id] ?? 0
-            return (
-              <TouchableOpacity
-                key={c.id}
-                style={[styles.pill, active && { backgroundColor: theme.blue, borderColor: theme.blue }]}
-                onPress={() => onFilter(categoryFilter(c.id))}
-                activeOpacity={0.75}
-              >
-                <CategoryIcon icon={c.icon} size={15} color={active ? '#fff' : c.color} />
-                <Text style={[styles.pillLabel, { color: active ? '#fff' : theme.label }]}>
-                  {categoryLabel(c, t)}
-                </Text>
-                {count > 0 && (
-                  <View style={[styles.badge, active && styles.badgeActive]}>
-                    <Text style={[styles.badgeText, { color: active ? '#fff' : theme.label3 }]}>
-                      {count}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            )
-          })}
-        </>
-      ) : (
-        orderedVisibleStatuses.map(({ id: value, label }) => {
-          const active = filter === value
-          const color = statusColor(value, theme)
-          const count = systemCounts[value]
-          return (
-            <TouchableOpacity
-              key={value}
-              style={[styles.pill, active && { backgroundColor: theme.blue, borderColor: theme.blue }]}
-              onPress={() => onFilter(value)}
-              activeOpacity={0.75}
-            >
-              {statusIcon(value, active ? '#fff' : color)}
-              <Text style={[styles.pillLabel, { color: active ? '#fff' : theme.label }]}>
-                {label}
-              </Text>
-              {count > 0 && (
-                <View style={[styles.badge, active && styles.badgeActive]}>
-                  <Text style={[styles.badgeText, { color: active ? '#fff' : theme.label3 }]}>
-                    {count}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          )
-        })
+      {selected && (
+        <TouchableOpacity
+          style={[styles.pill, styles.pillSelected]}
+          onPress={onOpenSheet}
+          activeOpacity={0.75}
+        >
+          {selected.icon}
+          <Text style={[styles.pillLabel, styles.pillLabelSelected]} numberOfLines={1}>
+            {selected.label}
+          </Text>
+          {selected.count > 0 && (
+            <Text style={[styles.pillCount, styles.pillCountSelected]}>
+              {selected.count}
+            </Text>
+          )}
+        </TouchableOpacity>
       )}
-    </ScrollView>
+    </View>
   )
 }
 
@@ -141,10 +128,17 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     row: {
       flexDirection: 'row',
-      paddingTop: 0,
-      paddingBottom: 12,
-      paddingHorizontal: 20,
+      alignItems: 'center',
       gap: 8,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+    },
+    iconBtn: {
+      width: 32,
+      height: 32,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 100,
     },
     pill: {
       flexDirection: 'row',
@@ -157,38 +151,31 @@ function makeStyles(c: ThemeColors) {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
     },
+    pillActive: {
+      backgroundColor: c.primary,
+      borderColor: c.primary,
+    },
+    pillSelected: {
+      backgroundColor: c.primarySoft,
+      borderColor: c.primary,
+    },
     pillLabel: {
       fontSize: 13,
       fontWeight: '600',
       letterSpacing: -0.16,
+      color: c.label,
+      maxWidth: 140,
     },
-    badge: {
-      minWidth: 18,
-      height: 18,
-      paddingHorizontal: 5,
-      borderRadius: 9,
-      backgroundColor: c.bg,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginLeft: 2,
-    },
-    badgeActive: {
-      backgroundColor: 'rgba(255,255,255,0.25)',
-    },
-    badgeText: {
+    pillLabelActive: { color: '#fff' },
+    pillLabelSelected: { color: c.primary },
+    pillCount: {
       fontSize: 11,
       fontWeight: '700',
+      color: c.label3,
       fontVariant: ['tabular-nums'],
+      marginLeft: 2,
     },
-    managePill: {
-      backgroundColor: c.surface,
-      borderColor: c.border,
-    },
-    managePillText: {
-      fontSize: 13,
-      fontWeight: '600',
-      color: c.blue,
-      letterSpacing: -0.16,
-    },
+    pillCountActive: { color: 'rgba(255,255,255,0.9)' },
+    pillCountSelected: { color: c.primary, opacity: 0.8 },
   })
 }

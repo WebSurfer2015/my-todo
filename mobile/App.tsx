@@ -129,32 +129,15 @@ function AppInner() {
           </TouchableOpacity>
 
           <View style={styles.stickyFilter}>
-            <View style={styles.filterRow}>
-              <TouchableOpacity
-                onPress={() => setCategorySheetOpen(true)}
-                style={styles.viewPickerBtn}
-                accessibilityRole="button"
-                accessibilityLabel={t.views[store.view]}
-                hitSlop={8}
-              >
-                {store.view === "status" ? (
-                  <SlidersIcon size={16} color={theme.label} />
-                ) : (
-                  <GridIcon size={16} color={theme.label} />
-                )}
-              </TouchableOpacity>
-              <View style={styles.filterFlex}>
-                <FilterBar
-                  view={store.view}
-                  filter={store.filter}
-                  onFilter={store.setFilter}
-                  systemCounts={store.systemCounts}
-                  byCategory={store.byCategory}
-                  categories={store.categories}
-                  orderedVisibleStatuses={store.orderedVisibleStatuses}
-                />
-              </View>
-            </View>
+            <FilterBar
+              filter={store.filter}
+              onFilter={store.setFilter}
+              onOpenSheet={() => setCategorySheetOpen(true)}
+              systemCounts={store.systemCounts}
+              byCategory={store.byCategory}
+              categories={store.categories}
+              orderedVisibleStatuses={store.orderedVisibleStatuses}
+            />
           </View>
 
           <View style={styles.body}>
@@ -405,19 +388,17 @@ function AppInner() {
       />
       <CategorySheet
         visible={categorySheetOpen}
+        currentFilter={store.filter}
+        onSelectFilter={store.setFilter}
         categories={store.categories}
         taskCounts={store.taskCountsForSheet}
-        view={store.view}
-        onChangeView={store.changeView}
-        viewIcons={{
-          status: <SlidersIcon size={20} color={theme.label} />,
-          category: <GridIcon size={20} color={theme.label} />,
-        }}
+        systemCounts={store.systemCounts}
+        orderedStatuses={store.orderedStatuses}
+        orderedVisibleStatuses={store.orderedVisibleStatuses}
         onAdd={store.addCategory}
         onEdit={store.editCategory}
         onDelete={store.deleteCategory}
         onReorder={store.reorderCategories}
-        orderedStatuses={store.orderedStatuses}
         onRenameStatus={store.renameStatus}
         onToggleStatusHidden={store.toggleStatusHidden}
         onReorderStatuses={store.reorderStatuses}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, ReactNode } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Modal,
   View,
@@ -12,13 +12,20 @@ import {
   Platform,
   Alert,
 } from "react-native";
+import { Check } from "lucide-react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import DraggableFlatList, {
   RenderItemParams,
 } from "react-native-draggable-flatlist";
 import { CategoryDef, COLOR_PALETTE, categoryLabel } from "../categories";
-import { ICON_KEYS, IconKey } from "../icons";
-import { StatusFilter, ViewMode } from "../types";
+import { ICON_KEYS } from "../icons";
+import {
+  Filter,
+  StatusFilter,
+  categoryFilter,
+  categoryIdFromFilter,
+  isCategoryFilter,
+} from "../types";
 import CategoryIcon from "./CategoryIcon";
 import StatusIcon, { statusColor } from "./StatusIcon";
 import { useLang } from "../LangContext";
@@ -32,11 +39,16 @@ export interface StatusEntry {
 
 interface Props {
   visible: boolean;
+  currentFilter: Filter;
+  onSelectFilter: (f: Filter) => void;
   categories: CategoryDef[];
+  /** Total task counts per category (used for delete confirm + row badges). */
   taskCounts: Record<string, number>;
-  view: ViewMode;
-  onChangeView: (v: ViewMode) => void;
-  viewIcons: { status: ReactNode; category: ReactNode };
+  systemCounts: { all: number; overdue: number; open: number; done: number; trash: number };
+  /** Full status list — used in Edit mode so hidden statuses can be unhidden. */
+  orderedStatuses: StatusEntry[];
+  /** Visible-only status list — used in View mode picker. */
+  orderedVisibleStatuses: { id: StatusFilter; label: string }[];
   onAdd: (data: { label: string; color: string; icon: string }) => void;
   onEdit: (
     id: string,
@@ -44,7 +56,6 @@ interface Props {
   ) => void;
   onDelete: (id: string) => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
-  orderedStatuses: StatusEntry[];
   onRenameStatus: (id: StatusFilter, label: string) => void;
   onToggleStatusHidden: (id: StatusFilter) => void;
   onReorderStatuses: (newOrder: StatusFilter[]) => void;
@@ -52,22 +63,36 @@ interface Props {
 }
 
 type Mode =
-  | { kind: "list" }
-  | { kind: "edit"; id: string | null }
+  | { kind: "view" }
+  | { kind: "edit" }
+  | { kind: "editCategory"; id: string | null }
   | { kind: "editStatus"; id: StatusFilter };
 
+/**
+ * Combined filter picker + management sheet.
+ *
+ * - View mode (default): two read-only sections — STATUSES (top) and
+ *   CATEGORIES (below). Tapping a row sets the filter and closes the sheet.
+ *   The currently active filter shows a checkmark.
+ * - Edit mode: same layout but each row exposes drag-to-reorder + edit
+ *   actions (rename/hide for statuses; rename/delete for categories). Add
+ *   Category appears at the end of the categories list.
+ *
+ * Toggle between modes via the "Edit" / "Done" action in the header.
+ */
 export default function CategorySheet({
   visible,
+  currentFilter,
+  onSelectFilter,
   categories,
   taskCounts,
-  view,
-  onChangeView,
-  viewIcons,
+  systemCounts,
+  orderedStatuses,
+  orderedVisibleStatuses,
   onAdd,
   onEdit,
   onDelete,
   onReorder,
-  orderedStatuses,
   onRenameStatus,
   onToggleStatusHidden,
   onReorderStatuses,
@@ -76,14 +101,14 @@ export default function CategorySheet({
   const { t } = useLang();
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
-  const [mode, setMode] = useState<Mode>({ kind: "list" });
+  const [mode, setMode] = useState<Mode>({ kind: "view" });
   const [name, setName] = useState("");
   const [color, setColor] = useState(COLOR_PALETTE[5]);
   const [icon, setIcon] = useState<string>("tag");
   const [statusLabel, setStatusLabel] = useState("");
 
   useEffect(() => {
-    if (visible) setMode({ kind: "list" });
+    if (visible) setMode({ kind: "view" });
   }, [visible]);
 
   function startEditStatus(s: StatusEntry) {
@@ -94,32 +119,32 @@ export default function CategorySheet({
   function saveStatusLabel() {
     if (mode.kind !== "editStatus") return;
     onRenameStatus(mode.id, statusLabel.trim());
-    setMode({ kind: "list" });
+    setMode({ kind: "edit" });
   }
 
   function startAdd() {
     setName("");
     setColor(COLOR_PALETTE[5]);
     setIcon("tag");
-    setMode({ kind: "edit", id: null });
+    setMode({ kind: "editCategory", id: null });
   }
 
-  function startEdit(c: CategoryDef) {
+  function startEditCategory(c: CategoryDef) {
     setName(categoryLabel(c, t));
     setColor(c.color);
     setIcon(c.icon);
-    setMode({ kind: "edit", id: c.id });
+    setMode({ kind: "editCategory", id: c.id });
   }
 
   function handleSave() {
     const trimmed = name.trim();
     if (!trimmed) return;
-    if (mode.kind === "edit" && mode.id) {
+    if (mode.kind === "editCategory" && mode.id) {
       onEdit(mode.id, { label: trimmed, color, icon });
     } else {
       onAdd({ label: trimmed, color, icon });
     }
-    setMode({ kind: "list" });
+    setMode({ kind: "edit" });
   }
 
   function handleDelete(c: CategoryDef) {
@@ -147,6 +172,58 @@ export default function CategorySheet({
     ]);
   }
 
+  function pickFilter(f: Filter) {
+    onSelectFilter(f);
+    onClose();
+  }
+
+  // --- Row renderers ----------------------------------------------------
+
+  function viewStatusRow(s: { id: StatusFilter; label: string }) {
+    const active = currentFilter === s.id;
+    const count = systemCounts[s.id] ?? 0;
+    return (
+      <TouchableOpacity
+        key={s.id}
+        style={styles.viewRow}
+        onPress={() => pickFilter(s.id)}
+        activeOpacity={0.65}
+      >
+        <View style={styles.rowIcon}>
+          <StatusIcon id={s.id} size={18} color={statusColor(s.id, theme)} />
+        </View>
+        <Text style={styles.viewRowLabel}>{s.label}</Text>
+        {count > 0 && <Text style={styles.viewRowCount}>{count}</Text>}
+        {active ? <Check size={18} color={theme.primary} strokeWidth={2.5} /> : <View style={styles.checkPlaceholder} />}
+      </TouchableOpacity>
+    );
+  }
+
+  function viewCategoryRow(c: CategoryDef) {
+    const active = isCategoryFilter(currentFilter) && categoryIdFromFilter(currentFilter) === c.id;
+    const count = taskCounts[c.id] ?? 0;
+    return (
+      <TouchableOpacity
+        key={c.id}
+        style={styles.viewRow}
+        onPress={() => pickFilter(categoryFilter(c.id))}
+        activeOpacity={0.65}
+      >
+        <View style={styles.rowIcon}>
+          <CategoryIcon icon={c.icon} color={c.color} size={18} />
+        </View>
+        <Text style={styles.viewRowLabel}>{categoryLabel(c, t)}</Text>
+        {count > 0 && <Text style={styles.viewRowCount}>{count}</Text>}
+        {active ? <Check size={18} color={theme.primary} strokeWidth={2.5} /> : <View style={styles.checkPlaceholder} />}
+      </TouchableOpacity>
+    );
+  }
+
+  // --- Render ----------------------------------------------------------
+
+  const isList = mode.kind === "view" || mode.kind === "edit";
+  const isEditing = mode.kind === "edit";
+
   return (
     <Modal
       visible={visible}
@@ -155,301 +232,259 @@ export default function CategorySheet({
       onRequestClose={onClose}
     >
       <GestureHandlerRootView style={styles.flex}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <Pressable style={styles.backdrop} onPress={onClose}>
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.handle} />
-            {mode.kind === "edit" && (
-              <Text style={styles.title}>
-                {mode.id ? t.editCategory : t.addCategory}
-              </Text>
-            )}
-            {mode.kind === "editStatus" && (
-              <Text style={styles.title}>{t.editStatus}</Text>
-            )}
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <Pressable style={styles.backdrop} onPress={onClose}>
+            <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.handle} />
 
-            {mode.kind === "list" ? (
-              <>
-                <Text style={styles.sectionHeader}>VIEW</Text>
-                <View style={styles.viewPicker}>
-                  {(["status", "category"] as ViewMode[]).map((v, i) => (
-                    <TouchableOpacity
-                      key={v}
-                      style={[
-                        styles.viewPickerRow,
-                        i === 0 && styles.viewPickerRowBorder,
-                      ]}
-                      onPress={() => onChangeView(v)}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: view === v }}
-                    >
-                      {viewIcons[v]}
-                      <Text style={styles.viewPickerLabel}>{t.views[v]}</Text>
-                      {view === v && (
-                        <Text style={styles.viewPickerCheck}>✓</Text>
-                      )}
+              {isList ? (
+                <>
+                  <View style={styles.headerRow}>
+                    <TouchableOpacity onPress={onClose} hitSlop={8}>
+                      <Text style={styles.headerLeft}>{t.cancel}</Text>
                     </TouchableOpacity>
-                  ))}
-                </View>
+                    <Text style={styles.headerTitle}>Show</Text>
+                    <TouchableOpacity
+                      onPress={() => setMode(isEditing ? { kind: "view" } : { kind: "edit" })}
+                      hitSlop={8}
+                    >
+                      <Text style={styles.headerRight}>
+                        {isEditing ? t.done : t.editTask}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
 
-                {view === "category" ? (
-                  <>
-                    <Text style={styles.sectionHeader}>CATEGORIES</Text>
-                    <View style={styles.listCard}>
-                      <DraggableFlatList
-                        data={categories}
-                        keyExtractor={(c) => c.id}
-                        onDragEnd={({ data }) => {
-                          for (let i = 0; i < categories.length; i++) {
-                            if (categories[i].id !== data[i].id) {
-                              const movedItem = data[i];
-                              const oldIdx = categories.findIndex(
-                                (c) => c.id === movedItem.id,
-                              );
-                              onReorder(oldIdx, i);
-                              break;
-                            }
-                          }
-                        }}
-                        renderItem={({
-                          item: c,
-                          drag,
-                          isActive,
-                        }: RenderItemParams<CategoryDef>) => (
-                          <View
-                            style={[styles.row, isActive && styles.rowActive]}
-                          >
-                            <CategoryIcon
-                              icon={c.icon}
-                              color={c.color}
-                              size={18}
-                            />
-                            <Text style={styles.rowLabel}>
-                              {categoryLabel(c, t)}
-                            </Text>
-                            <TouchableOpacity
-                              onPress={() => startEdit(c)}
-                              style={styles.rowBtn}
-                            >
-                              <Text style={styles.rowBtnText}>
-                                {t.editTask}
+                  {isEditing ? (
+                    <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+                      <Text style={styles.sectionHeader}>STATUSES</Text>
+                      <View style={styles.listCard}>
+                        <DraggableFlatList
+                          data={orderedStatuses}
+                          keyExtractor={(s) => s.id}
+                          scrollEnabled={false}
+                          activationDistance={8}
+                          onDragEnd={({ data }) => {
+                            onReorderStatuses(data.map((s) => s.id));
+                          }}
+                          renderItem={({
+                            item: s,
+                            drag,
+                            isActive,
+                          }: RenderItemParams<StatusEntry>) => (
+                            <View style={[styles.editRow, isActive && styles.editRowActive]}>
+                              <StatusIcon id={s.id} size={18} color={statusColor(s.id, theme)} />
+                              <Text style={[styles.editRowLabel, s.hidden && styles.editRowLabelHidden]}>
+                                {s.label}
                               </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              onPress={() => handleDelete(c)}
-                              style={styles.rowBtn}
-                              disabled={categories.length <= 1}
-                            >
-                              <Text
-                                style={[
-                                  styles.rowBtnText,
-                                  {
-                                    color:
-                                      categories.length <= 1
-                                        ? "#C7C7CC"
-                                        : "#FF3B30",
-                                  },
-                                ]}
+                              <TouchableOpacity onPress={() => startEditStatus(s)} style={styles.rowBtn}>
+                                <Text style={styles.rowBtnText}>{t.editTask}</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity onPress={() => onToggleStatusHidden(s.id)} style={styles.rowBtn}>
+                                <Text style={styles.rowBtnText}>
+                                  {s.hidden ? t.showStatus : t.hideStatus}
+                                </Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onLongPress={drag}
+                                delayLongPress={150}
+                                disabled={isActive}
+                                style={styles.dragHandle}
+                                accessibilityLabel="Drag to reorder"
                               >
-                                {t.deleteCategoryAction}
-                              </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              onLongPress={drag}
-                              delayLongPress={150}
-                              disabled={isActive}
-                              style={styles.dragHandle}
-                              accessibilityLabel="Drag to reorder"
-                            >
-                              <Text style={styles.dragHandleIcon}>≡</Text>
-                            </TouchableOpacity>
-                          </View>
-                        )}
-                      />
-                      <TouchableOpacity
-                        style={styles.addRow}
-                        onPress={startAdd}
-                        activeOpacity={0.6}
-                      >
-                        <Text style={styles.addRowText}>
-                          + {t.addCategory}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </>
-                ) : (
-                  <>
-                    <Text style={styles.sectionHeader}>STATUSES</Text>
-                    <View style={styles.listCard}>
-                      <DraggableFlatList
-                        data={orderedStatuses}
-                        keyExtractor={(s) => s.id}
-                        onDragEnd={({ data }) => {
-                          onReorderStatuses(data.map((s) => s.id));
-                        }}
-                        renderItem={({
-                          item: s,
-                          drag,
-                          isActive,
-                        }: RenderItemParams<StatusEntry>) => (
-                          <View
-                            style={[styles.row, isActive && styles.rowActive]}
-                          >
-                            <StatusIcon
-                              id={s.id}
-                              size={18}
-                              color={statusColor(s.id, theme)}
-                            />
-                            <Text
-                              style={[
-                                styles.rowLabel,
-                                s.hidden && styles.rowLabelHidden,
-                              ]}
-                            >
-                              {s.label}
-                            </Text>
-                            <TouchableOpacity
-                              onPress={() => startEditStatus(s)}
-                              style={styles.rowBtn}
-                            >
-                              <Text style={styles.rowBtnText}>
-                                {t.editTask}
-                              </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              onPress={() => onToggleStatusHidden(s.id)}
-                              style={styles.rowBtn}
-                            >
-                              <Text style={styles.rowBtnText}>
-                                {s.hidden ? t.showStatus : t.hideStatus}
-                              </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              onLongPress={drag}
-                              delayLongPress={150}
-                              disabled={isActive}
-                              style={styles.dragHandle}
-                              accessibilityLabel="Drag to reorder"
-                            >
-                              <Text style={styles.dragHandleIcon}>≡</Text>
-                            </TouchableOpacity>
-                          </View>
-                        )}
-                      />
-                    </View>
-                  </>
-                )}
-              </>
-            ) : mode.kind === "editStatus" ? (
-              <>
-                <View style={styles.field}>
-                  <Text style={styles.label}>{t.categoryNameLabel}</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={statusLabel}
-                    onChangeText={setStatusLabel}
-                    autoFocus
-                    maxLength={40}
-                  />
-                </View>
-                <View style={styles.actions}>
-                  <TouchableOpacity
-                    style={styles.btn}
-                    onPress={() => setMode({ kind: "list" })}
-                  >
-                    <Text style={styles.btnText}>{t.back}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.btn, styles.btnPrimary]}
-                    onPress={saveStatusLabel}
-                  >
-                    <Text style={[styles.btnText, styles.btnPrimaryText]}>
-                      {t.save}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            ) : (
-              <>
-                <View style={styles.field}>
-                  <Text style={styles.label}>{t.categoryNameLabel}</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={name}
-                    onChangeText={setName}
-                    autoFocus
-                    maxLength={40}
-                  />
-                </View>
-                <View style={styles.field}>
-                  <Text style={styles.label}>{t.categoryColorLabel}</Text>
-                  <View style={styles.swatchRow}>
-                    {COLOR_PALETTE.map((c) => (
-                      <TouchableOpacity
-                        key={c}
-                        onPress={() => setColor(c)}
-                        style={[
-                          styles.swatch,
-                          { backgroundColor: c },
-                          color === c && styles.swatchSelected,
-                        ]}
-                        accessibilityLabel={c}
-                      />
-                    ))}
-                  </View>
-                </View>
-                <View style={styles.field}>
-                  <Text style={styles.label}>{t.categoryIconLabel}</Text>
-                  <View style={styles.iconGrid}>
-                    {ICON_KEYS.map((k) => (
-                      <TouchableOpacity
-                        key={k}
-                        onPress={() => setIcon(k)}
-                        style={[
-                          styles.iconCell,
-                          { borderColor: icon === k ? color : "transparent" },
-                        ]}
-                        accessibilityLabel={k}
-                      >
-                        <CategoryIcon icon={k} size={20} color={color} />
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-                <View style={styles.actions}>
-                  <TouchableOpacity
-                    style={styles.btn}
-                    onPress={() => setMode({ kind: "list" })}
-                  >
-                    <Text style={styles.btnText}>
-                      {t.back}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.btn, styles.btnPrimary]}
-                    onPress={handleSave}
-                  >
-                    <Text style={[styles.btnText, styles.btnPrimaryText]}>
-                      {t.save}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
+                                <Text style={styles.dragHandleIcon}>≡</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                        />
+                      </View>
 
-            {mode.kind === "list" && (
-              <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-                <Text style={styles.closeBtnText}>
-                  {t.done}
-                </Text>
-              </TouchableOpacity>
-            )}
+                      <Text style={styles.sectionHeader}>CATEGORIES</Text>
+                      <View style={styles.listCard}>
+                        <DraggableFlatList
+                          data={categories}
+                          keyExtractor={(c) => c.id}
+                          scrollEnabled={false}
+                          activationDistance={8}
+                          onDragEnd={({ data }) => {
+                            for (let i = 0; i < categories.length; i++) {
+                              if (categories[i].id !== data[i].id) {
+                                const movedItem = data[i];
+                                const oldIdx = categories.findIndex(
+                                  (c) => c.id === movedItem.id,
+                                );
+                                onReorder(oldIdx, i);
+                                break;
+                              }
+                            }
+                          }}
+                          renderItem={({
+                            item: c,
+                            drag,
+                            isActive,
+                          }: RenderItemParams<CategoryDef>) => (
+                            <View style={[styles.editRow, isActive && styles.editRowActive]}>
+                              <CategoryIcon icon={c.icon} color={c.color} size={18} />
+                              <Text style={styles.editRowLabel}>{categoryLabel(c, t)}</Text>
+                              <TouchableOpacity onPress={() => startEditCategory(c)} style={styles.rowBtn}>
+                                <Text style={styles.rowBtnText}>{t.editTask}</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => handleDelete(c)}
+                                style={styles.rowBtn}
+                                disabled={categories.length <= 1}
+                              >
+                                <Text
+                                  style={[
+                                    styles.rowBtnText,
+                                    {
+                                      color:
+                                        categories.length <= 1
+                                          ? theme.gray3
+                                          : theme.red,
+                                    },
+                                  ]}
+                                >
+                                  {t.deleteCategoryAction}
+                                </Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onLongPress={drag}
+                                delayLongPress={150}
+                                disabled={isActive}
+                                style={styles.dragHandle}
+                                accessibilityLabel="Drag to reorder"
+                              >
+                                <Text style={styles.dragHandleIcon}>≡</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                        />
+                        <TouchableOpacity
+                          style={styles.addRow}
+                          onPress={startAdd}
+                          activeOpacity={0.6}
+                        >
+                          <Text style={styles.addRowText}>+ {t.addCategory}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </ScrollView>
+                  ) : (
+                    <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+                      <Text style={styles.sectionHeader}>STATUSES</Text>
+                      <View style={styles.listCard}>
+                        {orderedVisibleStatuses.map(viewStatusRow)}
+                      </View>
+                      <Text style={styles.sectionHeader}>CATEGORIES</Text>
+                      <View style={styles.listCard}>
+                        {categories.map(viewCategoryRow)}
+                      </View>
+                    </ScrollView>
+                  )}
+                </>
+              ) : mode.kind === "editStatus" ? (
+                <>
+                  <Text style={styles.title}>{t.editStatus}</Text>
+                  <View style={styles.field}>
+                    <Text style={styles.label}>{t.categoryNameLabel}</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={statusLabel}
+                      onChangeText={setStatusLabel}
+                      autoFocus
+                      maxLength={40}
+                    />
+                  </View>
+                  <View style={styles.actions}>
+                    <TouchableOpacity
+                      style={styles.btn}
+                      onPress={() => setMode({ kind: "edit" })}
+                    >
+                      <Text style={styles.btnText}>{t.back}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.btn, styles.btnPrimary]}
+                      onPress={saveStatusLabel}
+                    >
+                      <Text style={[styles.btnText, styles.btnPrimaryText]}>
+                        {t.save}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.title}>
+                    {mode.id ? t.editCategory : t.addCategory}
+                  </Text>
+                  <View style={styles.field}>
+                    <Text style={styles.label}>{t.categoryNameLabel}</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={name}
+                      onChangeText={setName}
+                      autoFocus
+                      maxLength={40}
+                    />
+                  </View>
+                  <View style={styles.field}>
+                    <Text style={styles.label}>{t.categoryColorLabel}</Text>
+                    <View style={styles.swatchRow}>
+                      {COLOR_PALETTE.map((cl) => (
+                        <TouchableOpacity
+                          key={cl}
+                          onPress={() => setColor(cl)}
+                          style={[
+                            styles.swatch,
+                            { backgroundColor: cl },
+                            color === cl && styles.swatchSelected,
+                          ]}
+                          accessibilityLabel={cl}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                  <View style={styles.field}>
+                    <Text style={styles.label}>{t.categoryIconLabel}</Text>
+                    <View style={styles.iconGrid}>
+                      {ICON_KEYS.map((k) => (
+                        <TouchableOpacity
+                          key={k}
+                          onPress={() => setIcon(k)}
+                          style={[
+                            styles.iconCell,
+                            { borderColor: icon === k ? color : "transparent" },
+                          ]}
+                          accessibilityLabel={k}
+                        >
+                          <CategoryIcon icon={k} size={20} color={color} />
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                  <View style={styles.actions}>
+                    <TouchableOpacity
+                      style={styles.btn}
+                      onPress={() => setMode({ kind: "edit" })}
+                    >
+                      <Text style={styles.btnText}>{t.back}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.btn, styles.btnPrimary]}
+                      onPress={handleSave}
+                    >
+                      <Text style={[styles.btnText, styles.btnPrimaryText]}>
+                        {t.save}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </Pressable>
           </Pressable>
-        </Pressable>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
       </GestureHandlerRootView>
     </Modal>
   );
@@ -480,51 +515,33 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.gray3,
       marginBottom: 12,
     },
+    headerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingBottom: 10,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.separator,
+    },
+    headerTitle: { fontSize: 17, fontWeight: "700", color: c.label },
+    headerLeft: { fontSize: 16, fontWeight: "500", color: c.primary },
+    headerRight: { fontSize: 16, fontWeight: "600", color: c.primary },
     title: {
       fontSize: 17,
       fontWeight: "700",
       marginBottom: 14,
       color: c.label,
     },
+    body: { flexShrink: 1 },
+    bodyContent: { paddingTop: 4, paddingBottom: 12 },
     sectionHeader: {
       fontSize: 11,
       fontWeight: "700",
       letterSpacing: 0.6,
       color: c.label3,
-      marginTop: 8,
+      marginTop: 14,
       marginBottom: 8,
-    },
-    viewPicker: {
-      backgroundColor: c.bg,
-      borderRadius: 10,
-      marginBottom: 4,
-      overflow: "hidden",
-    },
-    viewPickerRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-      paddingHorizontal: 14,
-      paddingVertical: 14,
-    },
-    viewPickerRowBorder: {
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: c.separator,
-    },
-    viewPickerLabel: {
-      flex: 1,
-      fontSize: 15,
-      fontWeight: "500",
-      color: c.label,
-    },
-    viewPickerCheck: {
-      fontSize: 16,
-      fontWeight: "700",
-      color: c.blue,
-    },
-    list: {
-      maxHeight: 320,
-      marginBottom: 8,
+      paddingHorizontal: 4,
     },
     listCard: {
       backgroundColor: c.card,
@@ -532,9 +549,8 @@ function makeStyles(c: ThemeColors) {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
       overflow: "hidden",
-      marginBottom: 4,
     },
-    row: {
+    viewRow: {
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
@@ -543,7 +559,26 @@ function makeStyles(c: ThemeColors) {
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.separator,
     },
-    rowActive: {
+    rowIcon: { width: 20, alignItems: "center" },
+    viewRowLabel: { flex: 1, fontSize: 16, fontWeight: "500", color: c.label },
+    viewRowCount: {
+      fontSize: 14,
+      color: c.label3,
+      fontVariant: ["tabular-nums"],
+      minWidth: 24,
+      textAlign: "right",
+    },
+    checkPlaceholder: { width: 18 },
+    editRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 13,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.separator,
+    },
+    editRowActive: {
       backgroundColor: c.surface,
       borderRadius: 8,
       borderBottomWidth: 0,
@@ -553,65 +588,22 @@ function makeStyles(c: ThemeColors) {
       shadowRadius: 6,
       elevation: 4,
     },
-    rowLabel: {
-      flex: 1,
-      fontSize: 15,
-      color: c.label,
-      fontWeight: "500",
-    },
-    rowLabelHidden: {
-      color: c.label3,
-      textDecorationLine: "line-through",
-    },
-    rowBtn: {
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-    },
-    rowBtnText: {
-      fontSize: 13,
-      fontWeight: "600",
-      color: c.blue,
-    },
-    dragHandle: {
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-    },
-    dragHandleIcon: {
-      fontSize: 18,
-      color: c.label3,
-      fontWeight: "500",
-    },
+    editRowLabel: { flex: 1, fontSize: 15, color: c.label, fontWeight: "500" },
+    editRowLabelHidden: { color: c.label3, textDecorationLine: "line-through" },
+    rowBtn: { paddingHorizontal: 8, paddingVertical: 4 },
+    rowBtnText: { fontSize: 13, fontWeight: "600", color: c.primary },
+    dragHandle: { paddingHorizontal: 8, paddingVertical: 4 },
+    dragHandleIcon: { fontSize: 18, color: c.label3, fontWeight: "500" },
     addRow: {
       paddingHorizontal: 14,
       paddingVertical: 13,
       alignItems: "center",
     },
-    addRowText: {
-      fontSize: 15,
-      fontWeight: "600",
-      color: c.blue,
-    },
-    closeBtn: {
-      marginTop: 20,
-      height: 50,
-      borderRadius: 12,
-      backgroundColor: c.blue,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    closeBtnText: {
-      color: "#fff",
-      fontSize: 16,
-      fontWeight: "600",
-      letterSpacing: -0.16,
-    },
-    field: {
-      marginBottom: 12,
-    },
+    addRowText: { fontSize: 15, fontWeight: "600", color: c.primary },
+    field: { marginBottom: 12 },
     label: {
       fontSize: 11,
       fontWeight: "700",
-      textTransform: "none",
       letterSpacing: 0.6,
       color: c.label3,
       marginBottom: 6,
@@ -626,11 +618,7 @@ function makeStyles(c: ThemeColors) {
       color: c.label,
       backgroundColor: c.bg,
     },
-    swatchRow: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 10,
-    },
+    swatchRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
     swatch: {
       width: 32,
       height: 32,
@@ -638,14 +626,8 @@ function makeStyles(c: ThemeColors) {
       borderWidth: 2,
       borderColor: "transparent",
     },
-    swatchSelected: {
-      borderColor: c.label,
-    },
-    iconGrid: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 8,
-    },
+    swatchSelected: { borderColor: c.label },
+    iconGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
     iconCell: {
       width: 38,
       height: 38,
@@ -667,16 +649,8 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 8,
       backgroundColor: c.bg,
     },
-    btnPrimary: {
-      backgroundColor: c.blue,
-    },
-    btnText: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: c.label,
-    },
-    btnPrimaryText: {
-      color: "#fff",
-    },
+    btnPrimary: { backgroundColor: c.primary },
+    btnText: { fontSize: 14, fontWeight: "600", color: c.label },
+    btnPrimaryText: { color: "#fff" },
   });
 }

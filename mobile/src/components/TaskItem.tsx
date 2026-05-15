@@ -412,7 +412,7 @@ function TaskItem({
           <View style={styles.metaLine}>
             <TouchableOpacity
               style={styles.chip}
-              onPress={() => !inTrash && setCategoryOpen(true)}
+              onPress={openDetails}
               hitSlop={10}
               disabled={inTrash}
             >
@@ -431,7 +431,7 @@ function TaskItem({
 
             <TouchableOpacity
               style={styles.chip}
-              onPress={openDatePicker}
+              onPress={openDetails}
               hitSlop={10}
               disabled={inTrash}
             >
@@ -462,7 +462,7 @@ function TaskItem({
             )}
 
             <TouchableOpacity
-              onPress={() => !inTrash && setPriorityOpen(true)}
+              onPress={openDetails}
               style={styles.priorityBtn}
               hitSlop={10}
               disabled={inTrash}
