@@ -330,6 +330,7 @@ function TaskItem({
                 onToggle={onToggleSubtask!}
                 onUpdatePriority={onUpdateSubtaskPriority}
                 onUpdateDueDate={onUpdateSubtaskDueDate}
+                onRemove={onRemoveSubtask}
                 onOpenDetails={() => setDetailsOpen(true)}
               />
             ))}
@@ -355,13 +356,14 @@ function TaskItem({
 }
 
 function SubtaskInlineRow({
-  parentId, subtask, onToggle, onUpdatePriority, onUpdateDueDate, onOpenDetails,
+  parentId, subtask, onToggle, onUpdatePriority, onUpdateDueDate, onRemove, onOpenDetails,
 }: {
   parentId: string
   subtask: Subtask
   onToggle: (id: string, subId: string) => void
   onUpdatePriority?: (id: string, subId: string, priority: Priority) => void
   onUpdateDueDate?: (id: string, subId: string, dueDate: string) => void
+  onRemove?: (id: string, subId: string) => void
   onOpenDetails: () => void
 }) {
   const { t } = useLang()
@@ -444,6 +446,17 @@ function SubtaskInlineRow({
                 : <CalendarIcon size={13} />}
             </button>
           </div>
+        )}
+        {onRemove && (
+          <button
+            type="button"
+            className="subtask-inline-remove"
+            onClick={() => onRemove(parentId, subtask.id)}
+            title={t.deleteSubtask}
+            aria-label={t.deleteSubtask}
+          >
+            <Trash2 size={13} />
+          </button>
         )}
       </div>
     </li>

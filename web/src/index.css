@@ -1991,20 +1991,28 @@ h1 { margin: 0; }
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 4px 4px 4px 8px;
-  border-radius: 6px;
+  padding: 4px 4px 4px 14px;   /* indent only — no vertical line */
+  border-radius: 8px;
   position: relative;
 }
-.subtask-row-inline::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: var(--separator);
-  border-radius: 1px;
+/* Trash button on inline subtask — only visible on row hover, like the modal. */
+.subtask-inline-remove {
+  background: transparent;
+  border: none;
+  color: var(--label3);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  line-height: 0;
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity var(--motion-duration-fast) var(--motion-easing),
+              color var(--motion-duration-fast),
+              background var(--motion-duration-fast);
 }
+.subtask-row-inline:hover .subtask-inline-remove,
+.subtask-inline-remove:focus-visible { opacity: 1; }
+.subtask-inline-remove:hover { color: var(--red); background: var(--fill); }
 .subtask-row-inline:hover { background: var(--bg); }
 .subtask-inline-checkbox {
   width: 16px;
