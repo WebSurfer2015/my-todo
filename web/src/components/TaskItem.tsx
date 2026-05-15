@@ -302,8 +302,11 @@ function TaskItem({
         {expanded && detailsAvailable && !inTrash && visibleSubs.length > 0 && (
           <ul className="subtask-inline-list">
             {visibleSubs.map((s) => (
+              // Including priority+dueDate in the key forces a remount when
+              // those fields change, sidestepping any subtle React re-render
+              // issue while we trace the subtle update bug.
               <SubtaskInlineRow
-                key={s.id}
+                key={`${s.id}|${s.priority ?? ''}|${s.dueDate ?? ''}|${s.done ? 'd' : 'o'}`}
                 parentId={todo.id}
                 subtask={s}
                 onToggle={onToggleSubtask!}
