@@ -1929,35 +1929,25 @@ h1 { margin: 0; }
 /* Chevron+count that replaces the checkbox on a parent that has subtasks.
    Uses the same overall slot size so the row alignment stays identical to
    a regular checkbox row. */
-/* Match the round checkbox sizing so the parent's leading slot is visually
-   consistent across tasks with subs (chevron) and without (checkbox). */
 .expand-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   background: transparent;
-  border: 2px solid var(--gray3);
+  border: none;
   border-radius: 50%;
   padding: 0;
   color: var(--label2);
   cursor: pointer;
-  transition: background 0.18s, color 0.18s, border-color 0.18s;
+  transition: background 0.12s, color 0.12s;
   flex-shrink: 0;
 }
-.expand-toggle:hover {
-  background: var(--fill);
-  color: var(--label);
-  border-color: var(--label3);
-}
+.expand-toggle:hover { background: var(--fill); color: var(--label); }
 .expand-toggle svg { transition: transform 0.15s ease-out; }
 .expand-toggle.expanded svg { transform: rotate(90deg); }
-.expand-toggle.done {
-  background: var(--blue);
-  border-color: var(--blue);
-  color: #fff;
-}
+.expand-toggle.done { color: var(--blue); }
 
 /* Subtask progress pill — sits in the title row, after the priority bars. */
 .subtask-progress-pill {
