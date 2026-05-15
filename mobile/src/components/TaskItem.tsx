@@ -267,25 +267,15 @@ function TaskItem({
       >
         {!inTrash && hasSubs ? (
           <TouchableOpacity
-            style={[
-              styles.expandToggle,
-              expanded && styles.expandToggleExpanded,
-              todo.done && styles.expandToggleDone,
-            ]}
+            style={styles.expandToggle}
             onPress={() => setExpanded((v) => !v)}
             hitSlop={10}
             accessibilityLabel={t.subtasks}
           >
             <Text style={[
-              styles.expandToggleChev,
-              todo.done && styles.expandToggleChevDone,
-            ]}>{expanded ? '▼' : '▶'}</Text>
-            <Text style={[
-              styles.expandToggleCount,
-              todo.done && styles.expandToggleCountDone,
-            ]}>
-              {t.subtaskProgress(subsDoneCount, subs.length)}
-            </Text>
+              styles.expandToggleArrow,
+              todo.done && styles.expandToggleArrowDone,
+            ]}>{expanded ? '⌄' : '›'}</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
@@ -337,6 +327,8 @@ function TaskItem({
               </Text>
             </TouchableOpacity>
 
+            <Text style={styles.metaSep}>·</Text>
+
             <TouchableOpacity
               style={styles.chip}
               onPress={openDatePicker}
@@ -359,6 +351,13 @@ function TaskItem({
               </Text>
             </TouchableOpacity>
 
+            {!inTrash && hasSubs && (
+              <View style={styles.progressPill}>
+                <Text style={styles.progressPillText}>
+                  {t.subtaskProgress(subsDoneCount, subs.length)}
+                </Text>
+              </View>
+            )}
           </View>
 
           {expanded && detailsAvailable && !inTrash && visibleSubs.length > 0 && (
@@ -380,52 +379,46 @@ function TaskItem({
                     >
                       {s.done && <Text style={styles.subCheckmark}>✓</Text>}
                     </TouchableOpacity>
-                    <View style={styles.subBody}>
-                      <View style={styles.subMain}>
-                        <Text
-                          style={[styles.subText, s.done && styles.subTextDone]}
-                          numberOfLines={2}
-                          onPress={openDetails}
-                          suppressHighlighting
-                        >
-                          {s.text}
+                    <Text
+                      style={[styles.subText, s.done && styles.subTextDone]}
+                      numberOfLines={1}
+                      onPress={openDetails}
+                      suppressHighlighting
+                    >
+                      {s.text}
+                    </Text>
+                    {onUpdateSubtaskPriority && (
+                      <TouchableOpacity
+                        onPress={() => setSubPriorityForId(s.id)}
+                        hitSlop={8}
+                        style={styles.subPriorityBtn}
+                      >
+                        <PriorityDot level={sPriority} size={9} />
+                      </TouchableOpacity>
+                    )}
+                    {onUpdateSubtaskDueDate && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSubPickerDate(sDue ? new Date(`${sDue}T00:00:00`) : new Date())
+                          setSubDateForId(s.id)
+                        }}
+                        hitSlop={8}
+                        style={styles.subChip}
+                      >
+                        <Text style={[
+                          styles.subChipText,
+                          sOverdue
+                            ? styles.chipTextOverdue
+                            : sIsToday
+                              ? styles.chipTextToday
+                              : !sDue
+                                ? styles.chipTextMuted
+                                : styles.chipTextDate,
+                        ]}>
+                          {sDue ? formatDisplayDate(sDue, t.locale) : t.noDate}
                         </Text>
-                        {onUpdateSubtaskPriority && (
-                          <TouchableOpacity
-                            onPress={() => setSubPriorityForId(s.id)}
-                            hitSlop={8}
-                            style={styles.subPriorityBtn}
-                          >
-                            <PriorityDot level={sPriority} size={9} />
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                      {onUpdateSubtaskDueDate && (
-                        <View style={styles.subMeta}>
-                          <TouchableOpacity
-                            onPress={() => {
-                              setSubPickerDate(sDue ? new Date(`${sDue}T00:00:00`) : new Date())
-                              setSubDateForId(s.id)
-                            }}
-                            hitSlop={8}
-                            style={styles.subChip}
-                          >
-                            <Text style={[
-                              styles.subChipText,
-                              sOverdue
-                                ? styles.chipTextOverdue
-                                : sIsToday
-                                  ? styles.chipTextToday
-                                  : !sDue
-                                    ? styles.chipTextMuted
-                                    : styles.chipTextDate,
-                            ]}>
-                              {sDue ? formatDisplayDate(sDue, t.locale) : t.noDate}
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
-                    </View>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 )
               })}
@@ -708,74 +701,48 @@ function makeStyles(c: ThemeColors, density: Density) {
       fontWeight: '600',
     },
     expandToggle: {
-      minWidth: 38,
-      paddingHorizontal: 4,
-      paddingVertical: 2,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: c.separator,
+      width: 22,
+      height: compact ? 19 : 21,
       alignItems: 'center',
       justifyContent: 'center',
-      marginTop: 2,
     },
-    expandToggleExpanded: {
-      borderColor: c.label3,
-    },
-    expandToggleDone: {
-      borderColor: c.blue,
-    },
-    expandToggleChev: {
-      fontSize: 9,
-      lineHeight: 12,
+    expandToggleArrow: {
+      fontSize: 18,
+      lineHeight: 20,
       color: c.label2,
+      fontWeight: '600',
     },
-    expandToggleChevDone: {
-      color: c.blue,
+    expandToggleArrowDone: {
+      color: c.primary,
     },
-    expandToggleCount: {
+    metaSep: { color: c.label3, fontSize: 12, marginHorizontal: 2 },
+    progressPill: {
+      marginLeft: 'auto',
+      paddingHorizontal: 8,
+      paddingVertical: 1,
+      borderRadius: 999,
+      backgroundColor: c.primarySoft,
+    },
+    progressPillText: {
       fontSize: 10,
       fontWeight: '700',
-      color: c.label2,
+      color: c.primary,
       fontVariant: ['tabular-nums'],
-      lineHeight: 12,
-    },
-    expandToggleCountDone: {
-      color: c.blue,
+      lineHeight: 13,
     },
     subList: {
-      marginTop: 6,
-      paddingTop: 6,
-      paddingLeft: 6,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: c.separator,
-      gap: 4,
+      marginTop: 4,
+      gap: 2,
     },
     subRow: {
       flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 10,
-      paddingVertical: 4,
-      paddingLeft: 8,
-      borderLeftWidth: 2,
-      borderLeftColor: c.separator,
-      borderRadius: 2,
-    },
-    subBody: {
-      flex: 1,
-      gap: 2,
-    },
-    subMain: {
-      flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
+      gap: 8,
+      paddingVertical: 4,
+      paddingLeft: 2,
     },
     subPriorityBtn: {
       padding: 3,
-    },
-    subMeta: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
     },
     subChip: {
       paddingHorizontal: 4,
@@ -794,11 +761,10 @@ function makeStyles(c: ThemeColors, density: Density) {
       borderColor: c.gray3,
       alignItems: 'center',
       justifyContent: 'center',
-      marginTop: 2,
     },
     subCheckboxDone: {
-      backgroundColor: c.blue,
-      borderColor: c.blue,
+      backgroundColor: c.primary,
+      borderColor: c.primary,
     },
     subCheckmark: {
       color: '#fff',

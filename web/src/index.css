@@ -687,16 +687,15 @@ body {
 }
 
 .sidebar-item:hover { background: var(--fill); }
-/* Active filter: tonal slate-teal container, regardless of category color.
-   Keeps a single, calm selection signal across the whole sidebar — only the
-   "Add" CTA uses the solid version of this hue. */
+/* Active filter: tonal secondary-blue container (lighter than the Add CTA).
+   Keeps a single, calm selection signal across the whole sidebar. */
 .sidebar-item.active {
-  background: color-mix(in oklab, var(--primary) 16%, transparent);
-  color: var(--primary);
+  background: rgba(0, 122, 255, 0.10);
+  color: #0066D6;
   font-weight: 600;
 }
-.sidebar-item.active .sidebar-item-icon { color: var(--primary) !important; }
-.sidebar-item.active .sidebar-item-count { color: var(--primary); opacity: 0.85; }
+.sidebar-item.active .sidebar-item-icon { color: #0066D6 !important; }
+.sidebar-item.active .sidebar-item-count { color: #0066D6; opacity: 0.85; }
 
 .sidebar-item-icon {
   display: flex;
@@ -1222,12 +1221,12 @@ h1 { margin: 0; }
 .btn:active { transform: scale(0.97); }
 
 .btn-add {
-  background: var(--primary);
-  color: var(--primary-on);
-  box-shadow: 0 2px 6px rgba(110, 148, 168, 0.20), 0 6px 18px rgba(110, 148, 168, 0.14);
+  background: #007AFF;             /* classic iOS blue — primary CTA */
+  color: #FFFFFF;
+  box-shadow: 0 2px 6px rgba(0, 122, 255, 0.22), 0 6px 18px rgba(0, 122, 255, 0.14);
   animation: calm-breathe 5s var(--motion-easing) infinite;   /* slower */
 }
-.btn-add:hover { background: var(--primary-hover); animation-play-state: paused; }
+.btn-add:hover { background: #0066D6; animation-play-state: paused; }
 .btn-add:active { animation-play-state: paused; }
 
 
@@ -1949,18 +1948,21 @@ h1 { margin: 0; }
 .expand-toggle.expanded svg { transform: rotate(90deg); }
 .expand-toggle.done { color: var(--blue); }
 
-/* Subtask progress pill — sits in the title row, after the priority bars. */
+/* Subtask progress pill — sits in the meta row, pushed to the right. */
 .subtask-progress-pill {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--label2);
-  padding: 2px 8px;
+  color: var(--primary);
+  padding: 1px 8px;
   border-radius: 999px;
-  background: var(--fill);
+  background: var(--primary-soft);
   line-height: 1.4;
   flex-shrink: 0;
+  margin-left: auto;
 }
+/* When the pill is present, item-actions follows it (no longer claims auto). */
+.item-meta .subtask-progress-pill + .item-actions { margin-left: 4px; }
 
 /* Tiny dot separator inside the meta row (between category and date). */
 .item-meta .meta-dot {

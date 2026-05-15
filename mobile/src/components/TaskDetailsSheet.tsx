@@ -197,7 +197,6 @@ export default function TaskDetailsSheet({
                 <SubtaskCard
                   key={s.id}
                   parentId={todo.id}
-                  parentColor={cat?.color}
                   subtask={s}
                   styles={styles}
                   theme={theme}
@@ -342,11 +341,10 @@ export default function TaskDetailsSheet({
 }
 
 function SubtaskCard({
-  parentId, parentColor, subtask, styles, theme,
+  parentId, subtask, styles, theme,
   onToggle, onUpdateText, onRemove, onOpenPriority, onOpenDate,
 }: {
   parentId: string
-  parentColor?: string
   subtask: Subtask
   styles: ReturnType<typeof makeStyles>
   theme: ThemeColors
@@ -383,7 +381,7 @@ function SubtaskCard({
   }
 
   return (
-    <View style={[styles.subCard, { borderLeftColor: parentColor ?? theme.separator }]}>
+    <View style={styles.subCard}>
       <TouchableOpacity
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {})
@@ -394,61 +392,56 @@ function SubtaskCard({
       >
         {subtask.done && <Text style={styles.subCardCheckmark}>✓</Text>}
       </TouchableOpacity>
-      <View style={styles.subCardBody}>
-        <View style={styles.subCardMain}>
-          {editing ? (
-            <TextInput
-              ref={inputRef}
-              style={styles.subCardTextEdit}
-              value={text}
-              onChangeText={setText}
-              onBlur={commit}
-              onSubmitEditing={commit}
-              returnKeyType="done"
-              maxLength={500}
-            />
-          ) : (
-            <Text
-              style={[styles.subCardText, subtask.done && styles.subCardTextDone]}
-              onPress={startEdit}
-              suppressHighlighting
-            >
-              {subtask.text}
-            </Text>
-          )}
-          {onOpenPriority && (
-            <TouchableOpacity onPress={onOpenPriority} hitSlop={8} style={styles.subPriorityBtn}>
-              <PriorityDot level={priority} size={11} />
-            </TouchableOpacity>
-          )}
-        </View>
-        <View style={styles.subCardMeta}>
-          {onOpenDate && (
-            <TouchableOpacity onPress={onOpenDate} hitSlop={8} style={styles.subDateChip}>
-              <Text style={[
-                styles.subDateChipText,
-                overdue
-                  ? styles.subDateChipOverdue
-                  : isToday
-                    ? styles.subDateChipToday
-                    : !dueDate
-                      ? styles.subDateChipMuted
-                      : styles.subDateChipPlain,
-              ]}>
-                {dueDate ? formatDisplayDate(dueDate, t.locale) : t.noDate}
-              </Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            onPress={() => onRemove(parentId, subtask.id)}
-            hitSlop={10}
-            style={styles.subRemoveBtn}
-            accessibilityLabel={t.deleteSubtask}
-          >
-            <TrashIcon size={14} color={theme.label3} />
-          </TouchableOpacity>
-        </View>
-      </View>
+      {editing ? (
+        <TextInput
+          ref={inputRef}
+          style={styles.subCardTextEdit}
+          value={text}
+          onChangeText={setText}
+          onBlur={commit}
+          onSubmitEditing={commit}
+          returnKeyType="done"
+          maxLength={500}
+        />
+      ) : (
+        <Text
+          style={[styles.subCardText, subtask.done && styles.subCardTextDone]}
+          numberOfLines={1}
+          onPress={startEdit}
+          suppressHighlighting
+        >
+          {subtask.text}
+        </Text>
+      )}
+      {onOpenPriority && (
+        <TouchableOpacity onPress={onOpenPriority} hitSlop={8} style={styles.subPriorityBtn}>
+          <PriorityDot level={priority} size={11} />
+        </TouchableOpacity>
+      )}
+      {onOpenDate && (
+        <TouchableOpacity onPress={onOpenDate} hitSlop={8} style={styles.subDateChip}>
+          <Text style={[
+            styles.subDateChipText,
+            overdue
+              ? styles.subDateChipOverdue
+              : isToday
+                ? styles.subDateChipToday
+                : !dueDate
+                  ? styles.subDateChipMuted
+                  : styles.subDateChipPlain,
+          ]}>
+            {dueDate ? formatDisplayDate(dueDate, t.locale) : t.noDate}
+          </Text>
+        </TouchableOpacity>
+      )}
+      <TouchableOpacity
+        onPress={() => onRemove(parentId, subtask.id)}
+        hitSlop={10}
+        style={styles.subRemoveBtn}
+        accessibilityLabel={t.deleteSubtask}
+      >
+        <TrashIcon size={14} color={theme.label3} />
+      </TouchableOpacity>
     </View>
   )
 }
@@ -538,60 +531,46 @@ function makeStyles(c: ThemeColors) {
     listEmpty: { paddingVertical: 24, alignItems: 'center' },
     emptyText: { color: c.label3, fontSize: 14, fontStyle: 'italic' },
 
-    /* Subtask card — mirrors task row look-and-feel: card bg, padding, circle checkbox */
+    /* Subtask row — borderless single line, sidecar style */
     subCard: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 10,
-      backgroundColor: c.bg,
-      borderRadius: 10,
-      padding: 10,
-      paddingLeft: 13,
-      borderLeftWidth: 3,
+      paddingVertical: 6,
+      paddingLeft: 4,
+      paddingRight: 2,
     },
     subCardCheckbox: {
-      width: 22,
-      height: 22,
-      borderRadius: 11,
+      width: 20,
+      height: 20,
+      borderRadius: 10,
       borderWidth: 1.5,
       borderColor: c.gray3,
       alignItems: 'center',
       justifyContent: 'center',
     },
     subCardCheckboxDone: {
-      backgroundColor: c.blue,
-      borderColor: c.blue,
+      backgroundColor: c.primary,
+      borderColor: c.primary,
     },
     subCardCheckmark: {
       color: '#fff',
-      fontSize: 13,
+      fontSize: 12,
       fontWeight: '700',
-      lineHeight: 15,
+      lineHeight: 14,
     },
-    subCardBody: { flex: 1, gap: 2 },
-    subCardMain: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-    },
-    subCardText: { flex: 1, fontSize: 15, color: c.label, lineHeight: 20 },
+    subCardText: { flex: 1, fontSize: 15, color: c.label, letterSpacing: -0.2 },
     subCardTextDone: { color: c.label3, textDecorationLine: 'line-through' },
     subCardTextEdit: {
       flex: 1,
       fontSize: 15,
       color: c.label,
-      lineHeight: 20,
-      backgroundColor: c.modal,
+      backgroundColor: c.bg,
       paddingHorizontal: 6,
       paddingVertical: 2,
       borderRadius: 4,
     },
     subPriorityBtn: { padding: 4 },
-    subCardMeta: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-    },
     subDateChip: {
       paddingHorizontal: 6,
       paddingVertical: 2,
@@ -602,7 +581,7 @@ function makeStyles(c: ThemeColors) {
     subDateChipPlain: { color: c.label3, fontWeight: '500' },
     subDateChipOverdue: { color: c.red, fontWeight: '600' },
     subDateChipToday: { color: c.orange, fontWeight: '600' },
-    subRemoveBtn: { padding: 4, marginLeft: 'auto' },
+    subRemoveBtn: { padding: 4 },
 
     /* Add row — always visible at bottom with priority + date + + button */
     addCard: {
