@@ -1937,10 +1937,8 @@ h1 { margin: 0; }
 .expand-toggle.expanded svg { transform: rotate(90deg); }
 .expand-toggle.done { color: var(--blue); }
 
-/* Subtask progress chip — right-aligned in the meta row, sits visually
-   under the priority bars on the row above. */
+/* Subtask progress pill — sits next to the date chip in the meta row. */
 .subtask-progress-pill {
-  margin-left: auto;
   font-size: 11px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
