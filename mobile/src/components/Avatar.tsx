@@ -2,6 +2,11 @@ import React from 'react'
 import { Image, Text, View, StyleSheet } from 'react-native'
 import { Avatar as AvatarT, findPreset } from '../profile'
 
+/** Platform-resolved bundled images for presets with `imageKey`. */
+const PRESET_IMAGES: Record<string, ReturnType<typeof require>> = {
+  mochi: require('../../assets/icon.png'),
+}
+
 export default function Avatar({ avatar, size = 36 }: { avatar: AvatarT; size?: number }) {
   if (avatar.kind === 'image') {
     return (
@@ -13,6 +18,23 @@ export default function Avatar({ avatar, size = 36 }: { avatar: AvatarT; size?: 
   }
   if (avatar.kind === 'preset') {
     const preset = findPreset(avatar.key)
+    const bundled = preset.imageKey ? PRESET_IMAGES[preset.imageKey] : undefined
+    if (bundled) {
+      return (
+        <View
+          style={[
+            styles.preset,
+            { width: size, height: size, borderRadius: size / 2, backgroundColor: preset.bg, overflow: 'hidden' },
+          ]}
+        >
+          <Image
+            source={bundled}
+            style={{ width: size, height: size }}
+            resizeMode="cover"
+          />
+        </View>
+      )
+    }
     const emojiSize = size * 0.6
     return (
       <View

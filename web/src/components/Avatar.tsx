@@ -2,6 +2,11 @@ import type { Avatar } from '../profile'
 import { findPreset } from '../profile'
 import CategoryIcon from './CategoryIcon'
 
+/** Public URLs for presets with `imageKey`. Web bundles via /public. */
+const PRESET_IMAGE_URLS: Record<string, string> = {
+  mochi: '/apple-touch-icon.png',
+}
+
 export default function AvatarView({ avatar, size = 38, alt = '' }: { avatar: Avatar; size?: number; alt?: string }) {
   if (avatar.kind === 'image') {
     return (
@@ -15,6 +20,23 @@ export default function AvatarView({ avatar, size = 38, alt = '' }: { avatar: Av
   }
   if (avatar.kind === 'preset') {
     const preset = findPreset(avatar.key)
+    const imgUrl = preset.imageKey ? PRESET_IMAGE_URLS[preset.imageKey] : undefined
+    if (imgUrl) {
+      return (
+        <div
+          className="avatar-icon"
+          style={{ width: size, height: size, background: preset.bg, overflow: 'hidden' }}
+          aria-label={alt || preset.key}
+          role="img"
+        >
+          <img
+            src={imgUrl}
+            alt=""
+            style={{ width: size, height: size, objectFit: 'cover' }}
+          />
+        </div>
+      )
+    }
     return (
       <div
         className="avatar-icon"

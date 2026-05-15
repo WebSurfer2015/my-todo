@@ -48,7 +48,7 @@ export interface Profile {
 
 export const SEED_PROFILE: Profile = {
   name: 'Ying',
-  avatar: { kind: 'preset', key: 'turtle' },
+  avatar: { kind: 'preset', key: 'mochi' },
   density: 'comfortable',
 }
 
@@ -67,11 +67,19 @@ export interface PresetAvatar {
   key: string
   emoji: string
   bg: string
+  /**
+   * Optional bundled-image key. When set, Avatar components render a platform-
+   * resolved image source (mobile: require'd asset; web: public URL) instead
+   * of the emoji. The emoji is kept as a fallback for environments where the
+   * image can't load.
+   */
+  imageKey?: string
 }
 
 /** Cross-platform emoji preset library. Stable keys so cross-device sync works. */
 export const AVATAR_PRESET_LIBRARY: PresetAvatar[] = [
-  { key: 'turtle',   emoji: '🐢', bg: '#E2EDE6' },  // pale mint (distinct from app cream)
+  { key: 'mochi',    emoji: '🐢', bg: '#E8F0E5', imageKey: 'mochi' },  // Mochi illustration (brand mascot)
+  { key: 'turtle',   emoji: '🐢', bg: '#E8F0E5' },  // Mochi pale mint (matches primarySoft)
   { key: 'smile',    emoji: '😀', bg: '#FF9500' },
   { key: 'cat',      emoji: '🐱', bg: '#34C759' },
   { key: 'dog',      emoji: '🐶', bg: '#007AFF' },
