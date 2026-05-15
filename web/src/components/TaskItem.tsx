@@ -393,11 +393,7 @@ function SubtaskInlineRow({
                       type="button"
                       className={`item-priority-option${priority === value ? ' selected' : ''}`}
                       style={{ color: PRIORITY_COLORS[value] }}
-                      onClick={() => {
-                      console.log("[debug] SubtaskInlineRow priority option click", { parentId, subId: subtask.id, value, hasHandler: !!onUpdatePriority })
-                      onUpdatePriority(parentId, subtask.id, value)
-                      setPriorityOpen(false)
-                    }}
+                      onClick={() => { onUpdatePriority(parentId, subtask.id, value); setPriorityOpen(false) }}
                     >
                       <span className="item-priority-icon"><PriorityBarsIcon level={value} /></span>
                       {t.priority[value]}
@@ -415,18 +411,12 @@ function SubtaskInlineRow({
               type="date"
               className="date-input-hidden"
               value={dueDate}
-              onChange={(e) => {
-                console.log("[debug] SubtaskInlineRow date onChange", { parentId, subId: subtask.id, value: e.target.value, hasHandler: !!onUpdateDueDate })
-                onUpdateDueDate(parentId, subtask.id, e.target.value)
-              }}
+              onChange={(e) => onUpdateDueDate(parentId, subtask.id, e.target.value)}
             />
             <button
               type="button"
               className={`date-chip${overdue ? ' overdue' : ''}${isToday ? ' today' : ''}${!dueDate ? ' no-date' : ''}`}
-              onClick={() => {
-                console.log("[debug] SubtaskInlineRow date chip click — calling showPicker", { hasInput: !!dateRef.current, hasShowPicker: typeof dateRef.current?.showPicker === 'function' })
-                dateRef.current?.showPicker?.()
-              }}
+              onClick={() => dateRef.current?.showPicker?.()}
               title={t.setDueDate}
               aria-label={t.setDueDate}
             >

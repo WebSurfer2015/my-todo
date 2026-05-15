@@ -44,11 +44,15 @@ export interface Todo {
 
 export const PRIORITY_VALUES: Priority[] = ['high', 'medium', 'low']
 
-/** Apple-system priority hex colors. Hex (vs CSS variables) so the same value works in both DOM and React Native. */
+/**
+ * Anxiety-conscious priority colors. Hex (vs CSS variables) so the same value
+ * works in both DOM and React Native. Low-saturation warm/sage palette — no
+ * panic-red. Bar count (1/2/3) carries the urgency, color is just an accent.
+ */
 export const PRIORITY_COLORS: Record<Priority, string> = {
-  high:   '#FF3B30',
-  medium: '#FF9500',
-  low:    '#007AFF',
+  high:   '#B58072',  // warm clay
+  medium: '#C4A47C',  // warm sand
+  low:    '#8FA989',  // soft sage
 }
 
 export function isStatusFilter(f: Filter): f is StatusFilter {

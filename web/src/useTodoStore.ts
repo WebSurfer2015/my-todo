@@ -256,26 +256,14 @@ export function useTodoStore() {
 
   const updateSubtaskPriority = useCallback(
     (id: string, subId: string, priority: Priority) => {
-      console.log("[debug] store.updateSubtaskPriority", { id, subId, priority });
-      setTodos((prev) => {
-        const next = subtaskUpdatePriority(prev, id, subId, priority);
-        console.log("[debug] subtaskUpdatePriority result — same ref?", next === prev,
-          "matched todo:", next.find((t) => t.id === id)?.subtasks?.find((s) => s.id === subId));
-        return next;
-      });
+      setTodos((prev) => subtaskUpdatePriority(prev, id, subId, priority));
     },
     [setTodos],
   );
 
   const updateSubtaskDueDate = useCallback(
     (id: string, subId: string, dueDate: string) => {
-      console.log("[debug] store.updateSubtaskDueDate", { id, subId, dueDate });
-      setTodos((prev) => {
-        const next = subtaskUpdateDueDate(prev, id, subId, dueDate);
-        console.log("[debug] subtaskUpdateDueDate result — same ref?", next === prev,
-          "matched todo:", next.find((t) => t.id === id)?.subtasks?.find((s) => s.id === subId));
-        return next;
-      });
+      setTodos((prev) => subtaskUpdateDueDate(prev, id, subId, dueDate));
     },
     [setTodos],
   );
