@@ -449,17 +449,16 @@ function TaskItem({
                   ? formatDisplayDate(todo.dueDate, t.locale)
                   : t.noDate}
               </Text>
+              {todo.recurrence && (
+                <LucideRepeat
+                  size={11}
+                  color={theme.label3}
+                  strokeWidth={2}
+                />
+              )}
             </TouchableOpacity>
 
             <View style={{ flex: 1 }} />
-
-            {todo.recurrence && (
-              <LucideRepeat
-                size={11}
-                color={theme.label3}
-                strokeWidth={2}
-              />
-            )}
 
             <TouchableOpacity
               onPress={openDetails}
