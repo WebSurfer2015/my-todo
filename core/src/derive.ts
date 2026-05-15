@@ -2,6 +2,8 @@ import {
   Category,
   Filter,
   Priority,
+  Recurrence,
+  RecurrenceFreq,
   Subtask,
   Todo,
   isCategoryFilter,
@@ -9,7 +11,7 @@ import {
 } from "./types";
 import { CategoryDef, categoryLabel } from "./categories";
 import { buildGroups, TodoGroup } from "./groups";
-import { genUuid, todayLocal } from "./utils";
+import { genUuid, todayLocal, nextOccurrence } from "./utils";
 import type { Strings } from "./i18n";
 
 export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
@@ -30,6 +32,7 @@ export function newTodo(input: {
   priority: Priority;
   dueDate: string;
   category?: Category;
+  recurrence?: Recurrence;
 }): Todo {
   return {
     id: genUuid(),
@@ -40,6 +43,7 @@ export function newTodo(input: {
     category: input.category,
     trashed: false,
     updatedAt: Date.now(),
+    ...(input.recurrence ? { recurrence: input.recurrence } : {}),
   };
 }
 
@@ -47,8 +51,28 @@ export function todoToggle(prev: Todo[], id: string): Todo[] {
   const now = Date.now();
   return prev.map((td) => {
     if (td.id !== id) return td;
+    // Recurring tasks: instead of completing, roll dueDate forward and reset
+    // subtasks. The same row keeps moving through time. To finish a series,
+    // remove the recurrence first.
+    if (!td.done && td.recurrence && td.dueDate) {
+      const rolled = nextOccurrence(
+        td.dueDate,
+        td.recurrence.freq,
+        td.recurrence.interval ?? 1,
+        td.recurrence.byWeekday,
+        td.recurrence.bySetPos,
+      );
+      return {
+        ...td,
+        dueDate: rolled,
+        done: false,
+        updatedAt: now,
+        subtasks: td.subtasks?.map((s) =>
+          s.done ? { ...s, done: false } : s,
+        ),
+      };
+    }
     // For tasks with subtasks: toggling the parent cascades to all subtasks.
-    // Mark done → all subtasks done. Mark open → all subtasks open.
     if (td.subtasks && td.subtasks.length > 0) {
       const nextDone = !td.done;
       return {
@@ -426,6 +450,33 @@ export function migrateTodos(
       if (cleaned.length > 0) subtasks = cleaned;
     }
 
+    // Recurrence: validate freq is in the allow-list; drop if malformed.
+    let recurrence: Recurrence | undefined;
+    if (item.recurrence && typeof item.recurrence === "object" && !Array.isArray(item.recurrence)) {
+      const r = item.recurrence as Partial<Recurrence>;
+      const validFreqs = new Set<RecurrenceFreq>(["daily", "weekly", "monthly", "yearly"]);
+      if (validFreqs.has(r.freq as RecurrenceFreq)) {
+        recurrence = { freq: r.freq as RecurrenceFreq };
+        if (typeof r.interval === "number" && Number.isFinite(r.interval) && r.interval >= 1) {
+          recurrence.interval = Math.floor(r.interval);
+        }
+        if (Array.isArray(r.byWeekday)) {
+          const days = r.byWeekday
+            .filter((n): n is number => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 6)
+            .map((n) => Math.floor(n));
+          const unique = Array.from(new Set(days)).sort();
+          if (unique.length > 0) recurrence.byWeekday = unique;
+        }
+        if (Array.isArray(r.bySetPos)) {
+          const pos = r.bySetPos
+            .filter((n): n is number => typeof n === "number" && Number.isFinite(n) && ((n >= 1 && n <= 5) || n === -1))
+            .map((n) => Math.floor(n));
+          const unique = Array.from(new Set(pos));
+          if (unique.length > 0) recurrence.bySetPos = unique;
+        }
+      }
+    }
+
     const merged: Todo = {
       id,
       text,
@@ -440,6 +491,7 @@ export function migrateTodos(
     if (trashedAt != null) merged.trashedAt = trashedAt;
     if (updatedAt != null) merged.updatedAt = updatedAt;
     if (subtasks) merged.subtasks = subtasks;
+    if (recurrence) merged.recurrence = recurrence;
 
     // Dedupe by id — last write (or higher updatedAt) wins.
     const existing = seen.get(id);

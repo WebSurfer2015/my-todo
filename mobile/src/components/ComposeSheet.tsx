@@ -6,14 +6,16 @@ import {
 import * as Haptics from 'expo-haptics'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import Svg, { Rect, Path } from 'react-native-svg'
-import { Category, Priority, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
+import { Repeat } from 'lucide-react-native'
+import { Category, Priority, PRIORITY_VALUES, PRIORITY_COLORS, Recurrence, RecurrenceFreq, RECURRENCE_FREQS } from '../types'
 import { CategoryDef, categoryLabel } from '../categories'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
-import { formatDisplayDate, isoDate } from '../utils'
+import { formatDisplayDate, formatRecurrence, isoDate } from '../utils'
 import PriorityDot from './PriorityDot'
 import CategoryIcon from './CategoryIcon'
 import InlinePicker from './InlinePicker'
+import CustomRecurrenceForm from './CustomRecurrenceForm'
 
 function CalendarIcon({ size = 18, color = '#8E8E93' }: { size?: number; color?: string }) {
   return (
@@ -30,11 +32,29 @@ interface Props {
   visible: boolean
   categories: CategoryDef[]
   defaultCategory: Category
-  onAdd: (text: string, priority: Priority, dueDate: string, category?: Category) => void
+  onAdd: (text: string, priority: Priority, dueDate: string, category?: Category, recurrence?: Recurrence) => void
   onClose: () => void
 }
 
-type SubView = 'main' | 'category' | 'priority' | 'date'
+type SubView = 'main' | 'category' | 'priority' | 'date' | 'repeat' | 'customRepeat'
+
+const RECURRENCE_LABELS: Record<'none' | RecurrenceFreq, string> = {
+  none: 'Never',
+  daily: 'Daily',
+  weekly: 'Weekly',
+  monthly: 'Monthly',
+  yearly: 'Yearly',
+}
+
+function recurrenceLabel(rec: Recurrence | undefined): string {
+  if (!rec) return 'Never'
+  if (rec.byWeekday && rec.byWeekday.length > 0) return formatRecurrence(rec)
+  return RECURRENCE_LABELS[rec.freq] ?? 'Never'
+}
+
+function isCustomRecurrence(rec: Recurrence | undefined): boolean {
+  return !!rec && Array.isArray(rec.byWeekday) && rec.byWeekday.length > 0
+}
 
 export default function ComposeSheet({
   visible, categories, defaultCategory, onAdd, onClose,
@@ -50,6 +70,7 @@ export default function ComposeSheet({
   const [category, setCategory] = useState<Category>(defaultCategory)
   const [dueDate, setDueDate] = useState('')
   const [pickerDate, setPickerDate] = useState<Date>(new Date())
+  const [recurrence, setRecurrence] = useState<Recurrence | undefined>(undefined)
 
   useEffect(() => { setCategory(defaultCategory) }, [defaultCategory])
 
@@ -60,6 +81,7 @@ export default function ComposeSheet({
       setPriority('medium')
       setCategory(defaultCategory)
       setDueDate('')
+      setRecurrence(undefined)
       const id = setTimeout(() => inputRef.current?.focus(), 120)
       return () => clearTimeout(id)
     }
@@ -72,7 +94,7 @@ export default function ComposeSheet({
     const trimmed = text.trim()
     if (!trimmed || !activeCat) return
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
-    onAdd(trimmed, priority, dueDate, activeCat.id)
+    onAdd(trimmed, priority, dueDate, activeCat.id, recurrence)
     onClose()
   }
 
@@ -179,6 +201,27 @@ export default function ComposeSheet({
                       </Text>
                       <Text style={styles.chevron}>›</Text>
                     </TouchableOpacity>
+
+                    <View style={styles.divider} />
+
+                    <TouchableOpacity
+                      style={styles.fieldRow}
+                      onPress={() => setSubView('repeat')}
+                      activeOpacity={0.6}
+                    >
+                      <Repeat size={18} color={recurrence ? theme.blue : theme.gray3} strokeWidth={2} />
+                      <Text style={styles.fieldLabel}>Repeat</Text>
+                      <Text
+                        style={[
+                          styles.fieldValue,
+                          !recurrence && styles.fieldValueMuted,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {recurrenceLabel(recurrence)}
+                      </Text>
+                      <Text style={styles.chevron}>›</Text>
+                    </TouchableOpacity>
                   </View>
 
                   <TouchableOpacity
@@ -225,6 +268,52 @@ export default function ComposeSheet({
                   setSubView('main')
                 }}
                 onBack={() => setSubView('main')}
+              />
+            )}
+
+            {subView === 'repeat' && (
+              <InlinePicker
+                title="Repeat"
+                options={[
+                  { key: 'none', label: RECURRENCE_LABELS.none, color: theme.label },
+                  ...RECURRENCE_FREQS.map((f) => ({
+                    key: f,
+                    label: RECURRENCE_LABELS[f],
+                    color: theme.label,
+                    icon: <Repeat size={16} color={theme.blue} strokeWidth={2} />,
+                  })),
+                  { key: 'custom', label: 'Custom…', color: theme.label },
+                ]}
+                selectedKey={
+                  !recurrence
+                    ? 'none'
+                    : isCustomRecurrence(recurrence)
+                      ? 'custom'
+                      : recurrence.freq
+                }
+                onSelect={(k) => {
+                  if (k === 'custom') {
+                    setSubView('customRepeat')
+                  } else if (k === 'none') {
+                    setRecurrence(undefined)
+                    setSubView('main')
+                  } else {
+                    setRecurrence({ freq: k as RecurrenceFreq })
+                    setSubView('main')
+                  }
+                }}
+                onBack={() => setSubView('main')}
+              />
+            )}
+
+            {subView === 'customRepeat' && (
+              <CustomRecurrenceForm
+                initial={recurrence}
+                onDone={(rec) => {
+                  setRecurrence(rec)
+                  setSubView('main')
+                }}
+                onBack={() => setSubView('repeat')}
               />
             )}
 

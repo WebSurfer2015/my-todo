@@ -12,12 +12,21 @@ import {
   Alert,
 } from 'react-native'
 import Svg, { Path, Line, Polyline, Rect } from 'react-native-svg'
+import { Repeat } from 'lucide-react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import * as Haptics from 'expo-haptics'
-import { Category, Priority, Subtask, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
+import { Category, Priority, Subtask, Todo, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
+
+const RECURRENCE_LABELS: Record<'none' | RecurrenceFreq, string> = {
+  none: 'Never',
+  daily: 'Daily',
+  weekly: 'Weekly',
+  monthly: 'Monthly',
+  yearly: 'Yearly',
+}
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { CategoryDef, categoryLabel } from '../categories'
-import { formatDisplayDate, isoDate, todayLocal } from '../utils'
+import { formatDisplayDate, formatRecurrence, isoDate, todayLocal } from '../utils'
 import { sortedSubs } from '../../../core/src/derive'
 import { useTheme, ThemeColors } from '../theme'
 import { useLang } from '../LangContext'
@@ -27,6 +36,17 @@ import PickerModal from './PickerModal'
 import AddSubtaskSheet from './AddSubtaskSheet'
 import EmptyState from './EmptyState'
 import InlinePicker from './InlinePicker'
+import CustomRecurrenceForm from './CustomRecurrenceForm'
+
+function recurrenceLabel(rec: Recurrence | undefined): string {
+  if (!rec) return RECURRENCE_LABELS.none
+  if (rec.byWeekday && rec.byWeekday.length > 0) return formatRecurrence(rec)
+  return RECURRENCE_LABELS[rec.freq] ?? RECURRENCE_LABELS.none
+}
+
+function isCustomRecurrence(rec: Recurrence | undefined): boolean {
+  return !!rec && Array.isArray(rec.byWeekday) && rec.byWeekday.length > 0
+}
 
 function XIcon({ size = 18, color = '#999' }: { size?: number; color?: string }) {
   return (
@@ -78,6 +98,7 @@ interface Props {
   onUpdatePriority: (id: string, priority: Priority) => void
   onUpdateDueDate: (id: string, dueDate: string) => void
   onUpdateCategory: (id: string, category: Category) => void
+  onUpdateRecurrence: (id: string, recurrence: Recurrence | undefined) => void
   onMoveToTrash: (id: string) => void
   onAddSubtask: (id: string, text: string, priority?: Priority, dueDate?: string) => void
   onToggleSubtask: (id: string, subId: string) => void
@@ -89,7 +110,7 @@ interface Props {
 
 export default function TaskDetailsSheet({
   visible, todo, categories, onClose, onUpdateText,
-  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onMoveToTrash,
+  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onMoveToTrash,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
 }: Props) {
@@ -110,6 +131,8 @@ export default function TaskDetailsSheet({
   const [editCategoryOpen, setEditCategoryOpen] = useState(false)
   const [editDateOpen, setEditDateOpen] = useState(false)
   const [editPickerDate, setEditPickerDate] = useState<Date>(new Date())
+  const [editRecurrence, setEditRecurrence] = useState<Recurrence | undefined>(undefined)
+  const [parentEditView, setParentEditView] = useState<'main' | 'repeat' | 'customRepeat'>('main')
 
   // Subtask edit (in-sheet) — when set, renders the edit-subtask sub-view.
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null)
@@ -130,6 +153,8 @@ export default function TaskDetailsSheet({
       setEditPriority(todo.priority)
       setEditCategory(todo.category)
       setEditDueDate(todo.dueDate ?? '')
+      setEditRecurrence(todo.recurrence)
+      setParentEditView('main')
     }
   }, [visible, todo])
 
@@ -143,6 +168,9 @@ export default function TaskDetailsSheet({
     if (editPriority !== todo.priority) onUpdatePriority(todo.id, editPriority)
     if (editDueDate !== (todo.dueDate ?? '')) onUpdateDueDate(todo.id, editDueDate)
     if (editActiveCat.id !== todo.category) onUpdateCategory(todo.id, editActiveCat.id)
+    if (JSON.stringify(editRecurrence ?? null) !== JSON.stringify(todo.recurrence ?? null)) {
+      onUpdateRecurrence(todo.id, editRecurrence)
+    }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
     onClose()
   }
@@ -374,6 +402,48 @@ export default function TaskDetailsSheet({
                 </ScrollView>
               </>
             )
+          ) : parentEditView === 'repeat' ? (
+            <InlinePicker
+              title="Repeat"
+              options={[
+                { key: 'none', label: RECURRENCE_LABELS.none, color: theme.label },
+                ...RECURRENCE_FREQS.map((f) => ({
+                  key: f,
+                  label: RECURRENCE_LABELS[f],
+                  color: theme.label,
+                  icon: <Repeat size={16} color={theme.blue} strokeWidth={2} />,
+                })),
+                { key: 'custom', label: 'Custom…', color: theme.label },
+              ]}
+              selectedKey={
+                !editRecurrence
+                  ? 'none'
+                  : isCustomRecurrence(editRecurrence)
+                    ? 'custom'
+                    : editRecurrence.freq
+              }
+              onSelect={(k) => {
+                if (k === 'custom') {
+                  setParentEditView('customRepeat')
+                } else if (k === 'none') {
+                  setEditRecurrence(undefined)
+                  setParentEditView('main')
+                } else {
+                  setEditRecurrence({ freq: k as RecurrenceFreq })
+                  setParentEditView('main')
+                }
+              }}
+              onBack={() => setParentEditView('main')}
+            />
+          ) : parentEditView === 'customRepeat' ? (
+            <CustomRecurrenceForm
+              initial={editRecurrence}
+              onDone={(rec) => {
+                setEditRecurrence(rec)
+                setParentEditView('main')
+              }}
+              onBack={() => setParentEditView('repeat')}
+            />
           ) : (
           <>
           <View style={styles.editHeader}>
@@ -436,6 +506,25 @@ export default function TaskDetailsSheet({
                     numberOfLines={1}
                   >
                     {editDueDate ? formatDisplayDate(editDueDate, t.locale) : t.noDate}
+                  </Text>
+                  <Text style={styles.editChevron}>›</Text>
+                </TouchableOpacity>
+                <View style={styles.editGroupDivider} />
+                <TouchableOpacity
+                  style={styles.editFieldRowInGroup}
+                  onPress={() => setParentEditView('repeat')}
+                  activeOpacity={0.6}
+                >
+                  <Repeat size={18} color={editRecurrence ? theme.blue : theme.gray3} strokeWidth={2} />
+                  <Text style={styles.editFieldLabel}>Repeat</Text>
+                  <Text
+                    style={[
+                      styles.editFieldValue,
+                      !editRecurrence && styles.editFieldValueMuted,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {recurrenceLabel(editRecurrence)}
                   </Text>
                   <Text style={styles.editChevron}>›</Text>
                 </TouchableOpacity>

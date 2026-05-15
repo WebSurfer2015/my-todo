@@ -5,6 +5,7 @@ import {
   Category,
   Filter,
   Priority,
+  Recurrence,
   StatusFilter,
   Todo,
   ViewMode,
@@ -301,12 +302,31 @@ export function useTodoStore() {
     priority: Priority,
     dueDate: string,
     category?: Category,
+    recurrence?: Recurrence,
   ) {
     setTodos((prev) => [
-      newTodo({ text, priority, dueDate, category }),
+      newTodo({ text, priority, dueDate, category, recurrence }),
       ...prev,
     ]);
   }
+
+  const updateRecurrence = useCallback(
+    (id: string, recurrence: Recurrence | undefined) => {
+      setTodos((prev) =>
+        prev.map((td) =>
+          td.id === id
+            ? recurrence
+              ? { ...td, recurrence, updatedAt: Date.now() }
+              : (() => {
+                  const { recurrence: _, ...rest } = td;
+                  return { ...rest, updatedAt: Date.now() };
+                })()
+            : td,
+        ),
+      );
+    },
+    [setTodos],
+  );
 
   function emptyTrash() {
     if (todosRef.current.filter((td) => td.trashed).length === 0) return;
@@ -492,6 +512,7 @@ export function useTodoStore() {
     updateSubtaskDueDate,
     removeSubtask,
     addTask,
+    updateRecurrence,
     emptyTrash,
     selectedTrashIds,
     toggleTrashSelection,

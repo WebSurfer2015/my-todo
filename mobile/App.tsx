@@ -225,6 +225,7 @@ function AppInner() {
                         onUpdateDueDate={store.updateDueDate}
                         onUpdateCategory={store.updateTaskCategory}
                         onUpdateText={store.updateText}
+                        onUpdateRecurrence={store.updateRecurrence}
                       />
                     </View>
                   ))}
@@ -262,6 +263,7 @@ function AppInner() {
                           onUpdateDueDate={store.updateDueDate}
                           onUpdateCategory={store.updateTaskCategory}
                           onUpdateText={store.updateText}
+                        onUpdateRecurrence={store.updateRecurrence}
                           onAddSubtask={store.addSubtask}
                           onToggleSubtask={store.toggleSubtask}
                           onUpdateSubtaskText={store.updateSubtaskText}
@@ -340,6 +342,7 @@ function AppInner() {
                               onUpdateDueDate={store.updateDueDate}
                               onUpdateCategory={store.updateTaskCategory}
                               onUpdateText={store.updateText}
+                        onUpdateRecurrence={store.updateRecurrence}
                               onAddSubtask={store.addSubtask}
                               onToggleSubtask={store.toggleSubtask}
                               onUpdateSubtaskText={store.updateSubtaskText}

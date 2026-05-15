@@ -37,9 +37,10 @@ function FullSwipeWatcher({
 import { Swipeable } from 'react-native-gesture-handler'
 import * as Haptics from 'expo-haptics'
 import { Audio } from 'expo-av'
+import { Repeat as LucideRepeat } from 'lucide-react-native'
 import Svg, { Path, Polyline } from 'react-native-svg'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
-import { Category, Priority, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
+import { Category, Priority, Recurrence, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
 import { CategoryDef, categoryLabel } from '../categories'
 import type { Density } from '../profile'
 import { formatDisplayDate, todayLocal, isoDate } from '../utils'
@@ -72,6 +73,7 @@ interface Props {
   onUpdateDueDate: (id: string, dueDate: string) => void
   onUpdateCategory: (id: string, category: Category) => void
   onUpdateText: (id: string, text: string) => void
+  onUpdateRecurrence?: (id: string, recurrence: Recurrence | undefined) => void
   onAddSubtask?: (id: string, text: string, priority?: Priority, dueDate?: string) => void
   onToggleSubtask?: (id: string, subId: string) => void
   onUpdateSubtaskText?: (id: string, subId: string, text: string) => void
@@ -114,7 +116,7 @@ function TaskItem({
   categories, density = 'comfortable', celebrate = true, playSound = true,
   subtaskVisibility = 'all',
   onToggle, onMoveToTrash, onRestore, onPermanentDelete,
-  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateText,
+  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateText, onUpdateRecurrence,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
 }: Props) {
@@ -451,6 +453,14 @@ function TaskItem({
 
             <View style={{ flex: 1 }} />
 
+            {todo.recurrence && (
+              <LucideRepeat
+                size={11}
+                color={theme.label3}
+                strokeWidth={2}
+              />
+            )}
+
             <TouchableOpacity
               onPress={() => !inTrash && setPriorityOpen(true)}
               style={styles.priorityBtn}
@@ -681,6 +691,7 @@ function TaskItem({
             onUpdatePriority={onUpdatePriority}
             onUpdateDueDate={onUpdateDueDate}
             onUpdateCategory={onUpdateCategory}
+            onUpdateRecurrence={onUpdateRecurrence ?? (() => {})}
             onMoveToTrash={onMoveToTrash}
             onAddSubtask={onAddSubtask!}
             onToggleSubtask={onToggleSubtask!}

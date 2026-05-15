@@ -9,6 +9,29 @@ export const STATUS_FILTERS: StatusFilter[] = ['overdue', 'open', 'done', 'trash
 export type Priority = 'high' | 'medium' | 'low'
 export type Category = string
 
+export type RecurrenceFreq = 'daily' | 'weekly' | 'monthly' | 'yearly'
+export interface Recurrence {
+  freq: RecurrenceFreq
+  /** Defaults to 1 (every period). Reserved for future "every N weeks" UI. */
+  interval?: number
+  /**
+   * Day-of-week filter (0=Sunday..6=Saturday). Meaningful for weekly and
+   * monthly. For weekly: repeats on each listed weekday. For monthly: combined
+   * with bySetPos to express "2nd Thursday", etc.
+   */
+  byWeekday?: number[]
+  /**
+   * Week-of-month positions (1..5 from the start; -1 means "last"). Only used
+   * with monthly + byWeekday — e.g. byWeekday=[4], bySetPos=[2,4] means the
+   * 2nd and 4th Thursday of the month.
+   */
+  bySetPos?: number[]
+}
+export const RECURRENCE_FREQS: RecurrenceFreq[] = ['daily', 'weekly', 'monthly', 'yearly']
+/** Weekday short labels — Sun=0. */
+export const WEEKDAY_SHORT: readonly string[] = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+export const WEEKDAY_LONG: readonly string[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
 export interface Subtask {
   id: string
   text: string
@@ -40,6 +63,12 @@ export interface Todo {
    * the subtask mutation helpers; toggling the parent propagates to all subtasks.
    */
   subtasks?: Subtask[]
+  /**
+   * Optional recurrence. When set, marking the task done rolls dueDate forward
+   * by the recurrence period instead of completing it — same row keeps moving
+   * through time.
+   */
+  recurrence?: Recurrence
 }
 
 export const PRIORITY_VALUES: Priority[] = ['high', 'medium', 'low']

@@ -32,6 +32,124 @@ export function isoDate(d: Date): string {
 }
 
 /**
+ * Advance an ISO date string by one recurrence period. Used to roll a
+ * recurring todo forward when it's marked done.
+ *
+ * Supports:
+ *   - simple daily/weekly/monthly/yearly (interval-based)
+ *   - weekly with byWeekday: next listed weekday after current
+ *   - monthly with byWeekday + bySetPos: e.g. "2nd & 4th Thursday"
+ */
+export function nextOccurrence(
+  iso: string,
+  freq: 'daily' | 'weekly' | 'monthly' | 'yearly',
+  interval = 1,
+  byWeekday?: number[],
+  bySetPos?: number[],
+): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const start = new Date(y, m - 1, d)
+  const n = Math.max(1, interval)
+
+  // Weekly with specific weekdays: find next listed weekday strictly after start
+  if (freq === 'weekly' && byWeekday && byWeekday.length > 0) {
+    const set = new Set(byWeekday)
+    const probe = new Date(start)
+    for (let i = 1; i <= 14 * n; i++) {
+      probe.setDate(probe.getDate() + 1)
+      if (set.has(probe.getDay())) return isoDate(probe)
+    }
+    // Fallback (shouldn't hit): bump by interval weeks
+    start.setDate(start.getDate() + 7 * n)
+    return isoDate(start)
+  }
+
+  // Monthly with byWeekday + bySetPos: find next 2nd/4th Thursday etc.
+  if (freq === 'monthly' && byWeekday && byWeekday.length > 0) {
+    const weekdaySet = new Set(byWeekday)
+    const positions = bySetPos && bySetPos.length > 0 ? bySetPos : [1, 2, 3, 4, 5]
+    // Search current month, then advance month-by-month until we find one strictly after start.
+    let monthCursor = new Date(start.getFullYear(), start.getMonth(), 1)
+    for (let iter = 0; iter < 36; iter++) {
+      const candidates: Date[] = []
+      const year = monthCursor.getFullYear()
+      const month = monthCursor.getMonth()
+      // Build all matching weekday occurrences in this month
+      const byWeekdayHits: Record<number, Date[]> = {}
+      const lastDay = new Date(year, month + 1, 0).getDate()
+      for (let day = 1; day <= lastDay; day++) {
+        const dt = new Date(year, month, day)
+        const wd = dt.getDay()
+        if (!weekdaySet.has(wd)) continue
+        ;(byWeekdayHits[wd] ??= []).push(dt)
+      }
+      // Pick by position
+      for (const wd of byWeekday) {
+        const list = byWeekdayHits[wd] ?? []
+        for (const pos of positions) {
+          if (pos === -1) {
+            const last = list[list.length - 1]
+            if (last) candidates.push(last)
+          } else {
+            const hit = list[pos - 1]
+            if (hit) candidates.push(hit)
+          }
+        }
+      }
+      candidates.sort((a, b) => a.getTime() - b.getTime())
+      const after = candidates.find((c) => c.getTime() > start.getTime())
+      if (after) return isoDate(after)
+      // Advance by interval months
+      monthCursor = new Date(year, month + n, 1)
+    }
+    // Fallback: simple monthly bump
+    start.setMonth(start.getMonth() + n)
+    return isoDate(start)
+  }
+
+  // Simple frequency-based advance
+  switch (freq) {
+    case 'daily':   start.setDate(start.getDate() + n); break
+    case 'weekly':  start.setDate(start.getDate() + 7 * n); break
+    case 'monthly': start.setMonth(start.getMonth() + n); break
+    case 'yearly':  start.setFullYear(start.getFullYear() + n); break
+  }
+  return isoDate(start)
+}
+
+/** Friendly summary like "Every Monday" or "2nd & 4th Thursday". */
+export function formatRecurrence(rec: {
+  freq: 'daily' | 'weekly' | 'monthly' | 'yearly'
+  interval?: number
+  byWeekday?: number[]
+  bySetPos?: number[]
+}): string {
+  const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const POS_LABELS: Record<number, string> = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th', 5: '5th', [-1]: 'Last' }
+  const interval = rec.interval ?? 1
+  const everyN = interval === 1 ? 'every' : `every ${interval}`
+  if (rec.freq === 'weekly' && rec.byWeekday && rec.byWeekday.length > 0) {
+    const days = rec.byWeekday.slice().sort().map((w) => WEEKDAYS[w]).join(', ')
+    return `Weekly · ${days}`
+  }
+  if (rec.freq === 'monthly' && rec.byWeekday && rec.byWeekday.length > 0) {
+    const days = rec.byWeekday.slice().sort().map((w) => WEEKDAYS[w]).join(', ')
+    const positions = rec.bySetPos && rec.bySetPos.length > 0
+      ? rec.bySetPos.slice().sort((a, b) => a - b).map((p) => POS_LABELS[p] ?? `${p}`).join(' & ')
+      : ''
+    return positions ? `Monthly · ${positions} ${days}` : `Monthly · ${days}`
+  }
+  switch (rec.freq) {
+    case 'daily':   return interval === 1 ? 'Daily'   : `Every ${interval} days`
+    case 'weekly':  return interval === 1 ? 'Weekly'  : `Every ${interval} weeks`
+    case 'monthly': return interval === 1 ? 'Monthly' : `Every ${interval} months`
+    case 'yearly':  return interval === 1 ? 'Yearly'  : `Every ${interval} years`
+  }
+  // Unreachable; keeps `everyN` referenced for future use.
+  return everyN
+}
+
+/**
  * Tactile reassurance: a short, gentle vibration for completing checklist
  * actions. No-op when navigator.vibrate isn't available (most desktop
  * browsers, iOS Safari). Defaults to 12ms — barely perceptible, just enough
