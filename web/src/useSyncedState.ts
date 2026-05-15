@@ -58,9 +58,20 @@ export function useSyncedState<T>(
   useEffect(() => {
     if (!adapter.subscribe) return;
     return adapter.subscribe(key, (raw) => {
-      if (raw === lastSerializedRef.current) return;
+      const matches = raw === lastSerializedRef.current;
+      if (key === "todos") {
+        console.log(`[bug] subscribe[${key}] fired`, {
+          rawLen: raw?.length ?? 0,
+          lastLen: lastSerializedRef.current?.length ?? 0,
+          matches,
+          rawTail: raw?.slice(-200) ?? null,
+          lastTail: lastSerializedRef.current?.slice(-200) ?? null,
+        });
+      }
+      if (matches) return;
       lastSerializedRef.current = raw;
       setState(parseRef.current(raw));
+      if (key === "todos") console.log(`[bug] subscribe[${key}] OVERWROTE local state`);
     });
   }, [adapter, key]);
 
@@ -76,9 +87,13 @@ export function useSyncedState<T>(
       // the wait and updated lastSerializedRef to match `json` already.
       if (json === lastSerializedRef.current) return;
       lastSerializedRef.current = json;
+      if (key === "todos") console.log(`[bug] write[${key}] firing`, { jsonTail: json.slice(-200) });
       adapter
         .setItem(key, json)
-        .then(() => onSavedRef.current?.(Date.now()))
+        .then(() => {
+          if (key === "todos") console.log(`[bug] write[${key}] settled`);
+          onSavedRef.current?.(Date.now());
+        })
         .catch((err) => {
           console.warn(`useSyncedState[${key}] write failed:`, err);
         });

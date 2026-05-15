@@ -201,6 +201,22 @@ export default function TaskDetailsModal({
           </div>
         </div>
 
+        <ul className="list subtask-card-list">
+          {sortedSubs(subs).map((s) => (
+            <SubtaskCard
+              key={s.id}
+              parentId={todo.id}
+              parentDueDate={todo.dueDate}
+              subtask={s}
+              onToggle={onToggleSubtask}
+              onUpdateText={onUpdateSubtaskText}
+              onUpdatePriority={onUpdateSubtaskPriority}
+              onUpdateDueDate={onUpdateSubtaskDueDate}
+              onRemove={onRemoveSubtask}
+            />
+          ))}
+        </ul>
+
         <div className="input-row">
           <div className="task-input-wrapper">
             <input
@@ -253,22 +269,6 @@ export default function TaskDetailsModal({
             <span>{t.add}</span>
           </button>
         </div>
-
-        <ul className="list subtask-card-list">
-          {sortedSubs(subs).map((s) => (
-            <SubtaskCard
-              key={s.id}
-              parentId={todo.id}
-              parentDueDate={todo.dueDate}
-              subtask={s}
-              onToggle={onToggleSubtask}
-              onUpdateText={onUpdateSubtaskText}
-              onUpdatePriority={onUpdateSubtaskPriority}
-              onUpdateDueDate={onUpdateSubtaskDueDate}
-              onRemove={onRemoveSubtask}
-            />
-          ))}
-        </ul>
       </aside>
     </div>,
     document.body,
