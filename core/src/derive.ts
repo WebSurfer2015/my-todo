@@ -640,7 +640,10 @@ export function deriveState(input: DeriveInput): DerivedState {
     if (td.trashed) return false;
     if (filter === "done") return td.done;
     if (filter === "overdue") return isOverdue(td);
-    if (filter === "open") return !td.done && !isOverdue(td);
+    // "Open" includes carried-over (overdue) items — every unfinished task,
+    // whether it's still on schedule or already past due. The separate
+    // "Overdue" filter still exists for the user who wants only past-due.
+    if (filter === "open") return !td.done;
     if (filter === "all") return true;
     if (isCategoryFilter(filter))
       return td.category === categoryIdFromFilter(filter);
@@ -672,7 +675,7 @@ export function deriveState(input: DeriveInput): DerivedState {
   const systemCounts = {
     all: totalOpen,
     overdue: active.filter(isOverdue).length,
-    open: active.filter((td) => !td.done && !isOverdue(td)).length,
+    open: active.filter((td) => !td.done).length,
     done: completedCount,
     trash: trashCount,
   };
