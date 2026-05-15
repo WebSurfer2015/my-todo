@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { Filter as FunnelIcon } from 'lucide-react-native'
 import {
@@ -26,8 +26,10 @@ interface Props {
 /**
  * Three-piece filter row: funnel icon (opens the combined picker sheet),
  * the always-present "All" pill (taps clear any filter back to default),
- * and an optional "Selected" pill that surfaces the currently active
- * status or category filter.
+ * and a sticky "last selected" pill that surfaces the most recent
+ * non-All filter. When the active filter matches the sticky pill, it
+ * renders highlighted; otherwise it stays visible (so the user can
+ * one-tap re-apply the previous filter) but reads as inactive.
  */
 export default function FilterBar({
   filter,
@@ -42,38 +44,47 @@ export default function FilterBar({
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
 
-  // Resolve display details for the currently selected non-All filter.
-  let selected: {
+  // Remember the most recently picked non-All filter. Stays visible as a
+  // dim pill after tapping "All" so the user can re-apply it without
+  // reopening the sheet.
+  const [stickyFilter, setStickyFilter] = useState<Filter | null>(null)
+  useEffect(() => {
+    if (filter !== 'all') setStickyFilter(filter)
+  }, [filter])
+
+  // Resolve display info (icon/label/color/count) for the sticky pill's
+  // target filter. If the underlying category was deleted or the status
+  // was hidden since we last saw it, fall back to null and don't render.
+  function resolveFilter(f: Filter): {
     icon: React.ReactNode
     label: string
     color: string
     count: number
-  } | null = null
-  if (filter !== 'all') {
-    if (isCategoryFilter(filter)) {
-      const id = categoryIdFromFilter(filter)
+  } | null {
+    if (f === 'all') return null
+    if (isCategoryFilter(f)) {
+      const id = categoryIdFromFilter(f)
       const c = categories.find((x) => x.id === id)
-      if (c) {
-        selected = {
-          icon: <CategoryIcon icon={c.icon} size={15} color={c.color} />,
-          label: categoryLabel(c, t),
-          color: c.color,
-          count: byCategory[c.id] ?? 0,
-        }
+      if (!c) return null
+      return {
+        icon: <CategoryIcon icon={c.icon} size={15} color={c.color} />,
+        label: categoryLabel(c, t),
+        color: c.color,
+        count: byCategory[c.id] ?? 0,
       }
-    } else {
-      const s = orderedVisibleStatuses.find((x) => x.id === filter)
-      if (s) {
-        selected = {
-          icon: <StatusIcon id={s.id} size={15} color={statusColor(s.id, theme)} />,
-          label: s.label,
-          color: statusColor(s.id, theme),
-          count: systemCounts[s.id] ?? 0,
-        }
-      }
+    }
+    const s = orderedVisibleStatuses.find((x) => x.id === f)
+    if (!s) return null
+    return {
+      icon: <StatusIcon id={s.id} size={15} color={statusColor(s.id, theme)} />,
+      label: s.label,
+      color: statusColor(s.id, theme),
+      count: systemCounts[s.id] ?? 0,
     }
   }
 
+  const stickyResolved = stickyFilter ? resolveFilter(stickyFilter) : null
+  const stickyActive = !!stickyFilter && filter === stickyFilter
   const allActive = filter === 'all'
 
   return (
@@ -103,19 +114,33 @@ export default function FilterBar({
         )}
       </TouchableOpacity>
 
-      {selected && (
+      {stickyResolved && stickyFilter && (
         <TouchableOpacity
-          style={[styles.pill, styles.pillSelected]}
-          onPress={onOpenSheet}
+          style={[
+            styles.pill,
+            stickyActive ? styles.pillSelected : styles.pillSticky,
+          ]}
+          onPress={() => onFilter(stickyFilter)}
           activeOpacity={0.75}
         >
-          {selected.icon}
-          <Text style={[styles.pillLabel, styles.pillLabelSelected]} numberOfLines={1}>
-            {selected.label}
+          {stickyResolved.icon}
+          <Text
+            style={[
+              styles.pillLabel,
+              stickyActive ? styles.pillLabelSelected : null,
+            ]}
+            numberOfLines={1}
+          >
+            {stickyResolved.label}
           </Text>
-          {selected.count > 0 && (
-            <Text style={[styles.pillCount, styles.pillCountSelected]}>
-              {selected.count}
+          {stickyResolved.count > 0 && (
+            <Text
+              style={[
+                styles.pillCount,
+                stickyActive ? styles.pillCountSelected : null,
+              ]}
+            >
+              {stickyResolved.count}
             </Text>
           )}
         </TouchableOpacity>
@@ -158,6 +183,13 @@ function makeStyles(c: ThemeColors) {
     pillSelected: {
       backgroundColor: c.primarySoft,
       borderColor: c.primary,
+    },
+    pillSticky: {
+      // Inactive "last selected" — visible but de-emphasized so the user
+      // can re-apply it with one tap without losing visual hierarchy.
+      backgroundColor: c.card,
+      borderColor: c.border,
+      opacity: 0.85,
     },
     pillLabel: {
       fontSize: 13,
