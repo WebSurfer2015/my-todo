@@ -77,8 +77,18 @@ export function subtaskAdd(
       dueDate,
     };
     const nextSubs = [...existing, newSub];
+    // If the new sub's date is later than the parent's, push the parent's
+    // dueDate forward so the parent never finishes before its sub. ISO
+    // YYYY-MM-DD strings sort lexically.
+    const nextParentDueDate =
+      dueDate && td.dueDate && dueDate > td.dueDate ? dueDate : td.dueDate;
     // Adding an open subtask invalidates a previously-done parent.
-    const next: Todo = { ...td, subtasks: nextSubs, updatedAt: now };
+    const next: Todo = {
+      ...td,
+      subtasks: nextSubs,
+      dueDate: nextParentDueDate,
+      updatedAt: now,
+    };
     next.done = nextSubs.every((s) => s.done);
     return next;
   });
@@ -112,7 +122,16 @@ export function subtaskUpdateDueDate(
     const nextSubs = td.subtasks.map((s) =>
       s.id === subId ? { ...s, dueDate } : s,
     );
-    return { ...td, subtasks: nextSubs, updatedAt: now };
+    // Push parent's dueDate forward if the new sub date is later.
+    // (Parent with no date stays empty — comparison is undefined.)
+    const nextParentDueDate =
+      dueDate && td.dueDate && dueDate > td.dueDate ? dueDate : td.dueDate;
+    return {
+      ...td,
+      subtasks: nextSubs,
+      dueDate: nextParentDueDate,
+      updatedAt: now,
+    };
   });
 }
 

@@ -310,6 +310,53 @@ describe("subtasks", () => {
     expect(state[0].done).toBe(true);
   });
 
+  it("subtaskAdd pushes parent dueDate forward if the new sub is later", () => {
+    let state = [
+      { ...newTodo({ text: "trip", priority: "low", dueDate: "2026-06-01" }) },
+    ];
+    state = subtaskAdd(state, state[0].id, "book later flight", "medium", "2026-07-15");
+    expect(state[0].dueDate).toBe("2026-07-15");
+    expect(state[0].subtasks![0].dueDate).toBe("2026-07-15");
+  });
+
+  it("subtaskAdd leaves parent dueDate alone if the sub is earlier", () => {
+    let state = [
+      { ...newTodo({ text: "trip", priority: "low", dueDate: "2026-06-01" }) },
+    ];
+    state = subtaskAdd(state, state[0].id, "earlier", "medium", "2026-05-15");
+    expect(state[0].dueDate).toBe("2026-06-01");
+  });
+
+  it("subtaskAdd does not push when parent has no dueDate", () => {
+    let state = [
+      { ...newTodo({ text: "no date", priority: "low", dueDate: "" }) },
+    ];
+    state = subtaskAdd(state, state[0].id, "future", "medium", "2026-07-01");
+    expect(state[0].dueDate).toBe("");
+  });
+
+  it("subtaskUpdateDueDate pushes parent dueDate when changed to later", () => {
+    let state = [
+      { ...newTodo({ text: "trip", priority: "low", dueDate: "2026-06-01" }) },
+    ];
+    state = subtaskAdd(state, state[0].id, "step", "medium", "2026-05-20");
+    const subId = state[0].subtasks![0].id;
+    expect(state[0].dueDate).toBe("2026-06-01"); // unchanged so far
+    state = subtaskUpdateDueDate(state, state[0].id, subId, "2026-07-10");
+    expect(state[0].subtasks![0].dueDate).toBe("2026-07-10");
+    expect(state[0].dueDate).toBe("2026-07-10"); // pushed
+  });
+
+  it("subtaskUpdateDueDate leaves parent dueDate alone when changed earlier", () => {
+    let state = [
+      { ...newTodo({ text: "trip", priority: "low", dueDate: "2026-06-01" }) },
+    ];
+    state = subtaskAdd(state, state[0].id, "step", "medium", "2026-05-20");
+    const subId = state[0].subtasks![0].id;
+    state = subtaskUpdateDueDate(state, state[0].id, subId, "2026-05-10");
+    expect(state[0].dueDate).toBe("2026-06-01");
+  });
+
   it("subtaskAdd respects MAX_SUBTASKS_PER_TODO cap", () => {
     let state = [makeTodo()];
     for (let i = 0; i < MAX_SUBTASKS_PER_TODO + 5; i++) {
