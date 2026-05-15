@@ -1940,25 +1940,35 @@ h1 { margin: 0; }
 /* Chevron+count that replaces the checkbox on a parent that has subtasks.
    Uses the same overall slot size so the row alignment stays identical to
    a regular checkbox row. */
+/* Match the round checkbox sizing so the parent's leading slot is visually
+   consistent across tasks with subs (chevron) and without (checkbox). */
 .expand-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   background: transparent;
-  border: none;
+  border: 2px solid var(--gray3);
   border-radius: 50%;
   padding: 0;
   color: var(--label2);
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  transition: background 0.18s, color 0.18s, border-color 0.18s;
   flex-shrink: 0;
 }
-.expand-toggle:hover { background: var(--fill); color: var(--label); }
+.expand-toggle:hover {
+  background: var(--fill);
+  color: var(--label);
+  border-color: var(--label3);
+}
 .expand-toggle svg { transition: transform 0.15s ease-out; }
 .expand-toggle.expanded svg { transform: rotate(90deg); }
-.expand-toggle.done { color: var(--blue); }
+.expand-toggle.done {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
 
 /* Subtask progress pill — sits in the title row, after the priority bars. */
 .subtask-progress-pill {
@@ -2024,12 +2034,36 @@ h1 { margin: 0; }
 .subtask-inline-remove:focus-visible { opacity: 1; }
 .subtask-inline-remove:hover { color: var(--red); background: var(--fill); }
 .subtask-row-inline:hover { background: var(--bg); }
+/* Round subtask checkbox — matches the .item task checkbox style. */
 .subtask-inline-checkbox {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--gray3);
+  border-radius: 50%;
+  background: transparent;
   cursor: pointer;
-  margin-top: 2px;
+  flex-shrink: 0;
+  position: relative;
+  transition: background 0.18s, border-color 0.18s;
+  margin: 0;
+}
+.subtask-inline-checkbox:checked {
+  background: var(--blue);
+  border-color: var(--blue);
+}
+.subtask-inline-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 6px;
+  height: 10px;
+  border: 2px solid #fff;
+  border-top: none;
+  border-left: none;
+  transform: rotate(45deg);
 }
 .subtask-inline-body {
   flex: 1;
@@ -2053,10 +2087,11 @@ h1 { margin: 0; }
 }
 .subtask-inline-text {
   flex: 1;
-  font-size: 14px;
+  font-size: 15px;
+  letter-spacing: -0.2px;
   color: var(--label);
   word-break: break-word;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 .subtask-inline-text.clickable { cursor: pointer; }
 .subtask-inline-text.clickable:hover {
