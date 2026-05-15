@@ -1868,33 +1868,37 @@ h1 { margin: 0; }
    a regular checkbox row. */
 .expand-toggle {
   display: inline-flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1px;
+  width: 24px;
+  height: 24px;
   background: transparent;
-  border: 1px solid var(--separator);
-  border-radius: 6px;
-  padding: 2px 4px;
-  min-width: 28px;
-  font-size: 10px;
-  font-weight: 700;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
   color: var(--label2);
   cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  transition: background 0.12s, color 0.12s;
   flex-shrink: 0;
 }
-.expand-toggle:hover { background: var(--bg); color: var(--label); border-color: var(--label3); }
+.expand-toggle:hover { background: var(--fill); color: var(--label); }
 .expand-toggle svg { transition: transform 0.15s ease-out; }
 .expand-toggle.expanded svg { transform: rotate(90deg); }
-.expand-toggle.done {
-  border-color: var(--blue);
-  color: var(--blue);
-}
-.expand-toggle-count {
+.expand-toggle.done { color: var(--blue); }
+
+/* Subtask progress chip — right-aligned in the meta row, sits visually
+   under the priority bars on the row above. */
+.subtask-progress-pill {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  font-size: 10px;
-  line-height: 1;
+  color: var(--label2);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--fill);
+  line-height: 1.4;
+  flex-shrink: 0;
 }
 
 /* Inline subtask list under a parent — full task-row look, but indented
@@ -1914,14 +1918,14 @@ h1 { margin: 0; }
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 6px 4px 6px 16px;
+  padding: 6px 4px 6px 8px;
   border-radius: 6px;
   position: relative;
 }
 .subtask-row-inline::before {
   content: '';
   position: absolute;
-  left: 4px;
+  left: 0;
   top: 0;
   bottom: 0;
   width: 2px;

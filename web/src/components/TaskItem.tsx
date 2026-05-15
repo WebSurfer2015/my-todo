@@ -153,11 +153,9 @@ function TaskItem({
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
           title={t.subtasks}
+          aria-label={t.subtaskProgress(subsDoneCount, subs.length)}
         >
-          <ChevronRight size={14} />
-          <span className="expand-toggle-count">
-            {t.subtaskProgress(subsDoneCount, subs.length)}
-          </span>
+          <ChevronRight size={16} />
         </button>
       ) : (
         <input
@@ -296,6 +294,16 @@ function TaskItem({
               </button>
             )}
           </div>
+
+          {hasSubs && !inTrash && (
+            <span
+              className="subtask-progress-pill"
+              aria-hidden="true"
+              title={t.subtaskProgress(subsDoneCount, subs.length)}
+            >
+              {t.subtaskProgress(subsDoneCount, subs.length)}
+            </span>
+          )}
         </div>
 
         {expanded && detailsAvailable && !inTrash && visibleSubs.length > 0 && (
