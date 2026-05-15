@@ -172,6 +172,28 @@ export function subtaskUpdateText(
   });
 }
 
+/**
+ * Display-layer ordering for subtasks: open before done, then earliest
+ * due date first (no date last), then high priority first. Pure — caller
+ * keeps the original storage order intact.
+ */
+const PRIORITY_RANK: Record<Priority, number> = { high: 0, medium: 1, low: 2 };
+export function sortedSubs(subs: Subtask[]): Subtask[] {
+  return [...subs].sort((a, b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    const ad = a.dueDate || "";
+    const bd = b.dueDate || "";
+    if (ad !== bd) {
+      if (!ad) return 1;
+      if (!bd) return -1;
+      return ad < bd ? -1 : 1;
+    }
+    const ap = PRIORITY_RANK[a.priority ?? "medium"];
+    const bp = PRIORITY_RANK[b.priority ?? "medium"];
+    return ap - bp;
+  });
+}
+
 export function subtaskRemove(
   prev: Todo[],
   todoId: string,

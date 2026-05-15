@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Priority, Subtask, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
 import { CategoryDef, categoryLabel } from '../categories'
 import { formatDisplayDate, todayLocal } from '../utils'
+import { sortedSubs } from '../../../core/src/derive'
 import PriorityBarsIcon from './PriorityBarsIcon'
 import CategoryIcon from './CategoryIcon'
 import { useLang } from '../LangContext'
@@ -31,16 +32,6 @@ function Plus({ size = 16, strokeWidth = 2.4 }: IconProps) {
   )
 }
 
-function CalendarIcon({ size = 18, strokeWidth = 2 }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="18" rx="2" />
-      <path d="M16 2v4" />
-      <path d="M8 2v4" />
-      <path d="M3 10h18" />
-    </svg>
-  )
-}
 
 function Trash2({ size = 14, strokeWidth = 2 }: IconProps) {
   return (
@@ -75,14 +66,12 @@ export default function TaskDetailsModal({
   const subs = todo.subtasks ?? []
   const doneCount = subs.filter((s) => s.done).length
 
-  // New-subtask state: defaults inherit from parent, so a quick Enter keeps
-  // the new sub aligned with the parent's priority + due date.
+  // New-subtask state: defaults inherit from parent's priority. Date is
+  // always inherited from the parent (no per-sub date in the add row).
   const [newText, setNewText] = useState('')
   const [newPriority, setNewPriority] = useState<Priority>(todo.priority)
-  const [newDueDate, setNewDueDate] = useState<string>(todo.dueDate || '')
   const [newPriorityOpen, setNewPriorityOpen] = useState(false)
   const newPriorityRef = useRef<HTMLDivElement>(null)
-  const newDateRef = useRef<HTMLInputElement>(null)
   useCloseOnOutside(newPriorityRef, newPriorityOpen, () => setNewPriorityOpen(false))
 
   const [titleEditing, setTitleEditing] = useState(false)
@@ -120,10 +109,10 @@ export default function TaskDetailsModal({
   function commitNew() {
     const trimmed = newText.trim()
     if (!trimmed) return
-    onAddSubtask(todo.id, trimmed, newPriority, newDueDate)
+    // Date always inherited from parent — no per-sub date picker in the add row.
+    onAddSubtask(todo.id, trimmed, newPriority, todo.dueDate || '')
     setNewText('')
     setNewPriority(todo.priority)
-    setNewDueDate(todo.dueDate || '')
     addInputRef.current?.focus()
   }
 
@@ -132,18 +121,6 @@ export default function TaskDetailsModal({
       e.preventDefault()
       commitNew()
     }
-  }
-
-  // Status: derived from subs (or todo.done if no subs)
-  let statusLabel: string
-  if (subs.length === 0) {
-    statusLabel = todo.done ? t.statusDone : t.statusNotStarted
-  } else if (doneCount === subs.length) {
-    statusLabel = t.statusDone
-  } else if (doneCount === 0) {
-    statusLabel = t.statusNotStarted
-  } else {
-    statusLabel = t.statusInProgress
   }
 
   const cat = categories.find((c) => c.id === todo.category) ?? categories[0]
@@ -194,19 +171,13 @@ export default function TaskDetailsModal({
             </button>
           </div>
           <div className="modal-details-subtitle">
-            <span className={`status-pill status-${subs.length === 0 && !todo.done ? 'notstarted' : doneCount === subs.length && subs.length > 0 ? 'done' : doneCount > 0 ? 'progress' : todo.done ? 'done' : 'notstarted'}`}>
-              {statusLabel}
-            </span>
             {cat && (
-              <>
-                <span className="modal-meta-sep">·</span>
-                <span className="modal-meta-cat" style={{ color: cat.color }}>
-                  <CategoryIcon icon={cat.icon} size={11} />
-                  {categoryLabel(cat, t)}
-                </span>
-              </>
+              <span className="modal-meta-cat" style={{ color: cat.color }}>
+                <CategoryIcon icon={cat.icon} size={11} />
+                {categoryLabel(cat, t)}
+              </span>
             )}
-            <span className="modal-meta-sep">·</span>
+            {cat && <span className="modal-meta-sep">·</span>}
             <span className={`modal-meta-date${parentOverdue ? ' overdue' : ''}${parentToday ? ' today' : ''}${!todo.dueDate ? ' no-date' : ''}`}>
               {todo.dueDate ? formatDisplayDate(todo.dueDate, t.locale) : t.noDate}
             </span>
@@ -218,22 +189,6 @@ export default function TaskDetailsModal({
             )}
           </div>
         </div>
-
-        <ul className="list subtask-card-list">
-          {subs.map((s) => (
-            <SubtaskCard
-              key={s.id}
-              parentId={todo.id}
-              parentColor={cat?.color}
-              subtask={s}
-              onToggle={onToggleSubtask}
-              onUpdateText={onUpdateSubtaskText}
-              onUpdatePriority={onUpdateSubtaskPriority}
-              onUpdateDueDate={onUpdateSubtaskDueDate}
-              onRemove={onRemoveSubtask}
-            />
-          ))}
-        </ul>
 
         <div className="input-row">
           <div className="task-input-wrapper">
@@ -276,25 +231,6 @@ export default function TaskDetailsModal({
                 </div>
               )}
             </div>
-            <div className="date-trigger">
-              <input
-                ref={newDateRef}
-                type="date"
-                className="date-input-hidden"
-                value={newDueDate}
-                onChange={(e) => setNewDueDate(e.target.value)}
-              />
-              <button
-                type="button"
-                className={`date-trigger-btn${newDueDate ? ' has-date' : ''}`}
-                onClick={() => newDateRef.current?.showPicker?.()}
-                aria-label={t.setDueDate}
-                title={newDueDate ? formatDisplayDate(newDueDate, t.locale) : t.setDueDate}
-              >
-                <CalendarIcon size={18} />
-                {newDueDate && <span className="date-trigger-label">{formatDisplayDate(newDueDate, t.locale)}</span>}
-              </button>
-            </div>
           </div>
           <button
             type="button"
@@ -306,6 +242,22 @@ export default function TaskDetailsModal({
             <span>{t.add}</span>
           </button>
         </div>
+
+        <ul className="list subtask-card-list">
+          {sortedSubs(subs).map((s) => (
+            <SubtaskCard
+              key={s.id}
+              parentId={todo.id}
+              parentColor={cat?.color}
+              subtask={s}
+              onToggle={onToggleSubtask}
+              onUpdateText={onUpdateSubtaskText}
+              onUpdatePriority={onUpdateSubtaskPriority}
+              onUpdateDueDate={onUpdateSubtaskDueDate}
+              onRemove={onRemoveSubtask}
+            />
+          ))}
+        </ul>
       </aside>
     </div>,
     document.body,

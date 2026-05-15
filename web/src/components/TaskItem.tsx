@@ -2,6 +2,7 @@ import { memo, useRef, useState } from 'react'
 import { Category, Priority, Subtask, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
 import { CategoryDef, categoryLabel } from '../categories'
 import { formatDisplayDate, todayLocal } from '../utils'
+import { sortedSubs } from '../../../core/src/derive'
 import PriorityBarsIcon from './PriorityBarsIcon'
 import CategoryIcon from './CategoryIcon'
 import TaskDetailsModal from './TaskDetailsModal'
@@ -122,10 +123,9 @@ function TaskItem({
   useCloseOnOutside(priorityRef, priorityOpen, () => setPriorityOpen(false))
   useCloseOnOutside(categoryRef, categoryOpen, () => setCategoryOpen(false))
 
-  // Always show all subs inline — filtering inline by parent's view scope
-  // confused the user (subtasks vanishing from a single-task expansion).
-  // The modal still has the full list with editing tools.
-  const visibleSubs = subs
+  // Always show all subs inline, sorted: open first, then earliest due
+  // date, then high priority first.
+  const visibleSubs = sortedSubs(subs)
 
   async function handlePermanentDelete() {
     const ok = await notify.confirm({
@@ -322,6 +322,7 @@ function TaskItem({
               <SubtaskInlineRow
                 key={s.id}
                 parentId={todo.id}
+                parentDueDate={todo.dueDate}
                 subtask={s}
                 onToggle={onToggleSubtask!}
                 onUpdatePriority={onUpdateSubtaskPriority}
@@ -352,9 +353,10 @@ function TaskItem({
 }
 
 function SubtaskInlineRow({
-  parentId, subtask, onToggle, onUpdatePriority, onUpdateDueDate, onRemove, onOpenDetails,
+  parentId, parentDueDate, subtask, onToggle, onUpdatePriority, onUpdateDueDate, onRemove, onOpenDetails,
 }: {
   parentId: string
+  parentDueDate: string
   subtask: Subtask
   onToggle: (id: string, subId: string) => void
   onUpdatePriority?: (id: string, subId: string, priority: Priority) => void
@@ -369,7 +371,10 @@ function SubtaskInlineRow({
   useCloseOnOutside(priorityRef, priorityOpen, () => setPriorityOpen(false))
 
   const priority: Priority = subtask.priority ?? 'medium'
-  const dueDate = subtask.dueDate ?? ''
+  const ownDate = subtask.dueDate ?? ''
+  // Display fallback: when the sub has no own date, show the parent's date
+  // so the row never reads "no date" while the parent has one.
+  const dueDate = ownDate || parentDueDate || ''
   const today = todayLocal()
   const overdue = !!dueDate && !subtask.done && dueDate < today
   const isToday = !!dueDate && !subtask.done && dueDate === today
@@ -427,7 +432,7 @@ function SubtaskInlineRow({
               ref={dateRef}
               type="date"
               className="date-input-hidden"
-              value={dueDate}
+              value={ownDate}
               onChange={(e) => onUpdateDueDate(parentId, subtask.id, e.target.value)}
             />
             <button
