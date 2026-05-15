@@ -199,7 +199,10 @@ function AppInner() {
             )}
 
             {!store.inTrashView && store.filter !== "done" && (
-              <PebbleStrip count={store.todayPebbles} />
+              <PebbleStrip
+                taskCount={store.todayTaskPebbles}
+                subtaskCount={store.todaySubtaskPebbles}
+              />
             )}
 
             {store.inTrashView ? (

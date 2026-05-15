@@ -25,7 +25,7 @@ import {
   migrateCategory,
   newCategoryId,
 } from "./categories";
-import { Profile, SEED_PROFILE, migrateProfile, getTodayPebbles, incrementPebble } from "./profile";
+import { Profile, SEED_PROFILE, migrateProfile, getTodayPebbles, incrementPebble, decrementPebble } from "./profile";
 import { useLang } from "./LangContext";
 import { useAuth } from "./AuthContext";
 import { useNotify } from "./notify";
@@ -192,15 +192,24 @@ export function useTodoStore() {
 
   const toggle = useCallback(
     (id: string) => {
-      setTodos((prev) => {
-        const next = todoToggle(prev, id);
-        const before = prev.find((t) => t.id === id);
-        const after = next.find((t) => t.id === id);
-        if (didEarnPebble(before, after)) {
-          setProfile((p) => incrementPebble(p, todayLocal()));
-        }
-        return next;
-      });
+      // Detect transitions against the current todos via ref so setTodos +
+      // setProfile sit at the same nesting level (React 18 batches them and
+      // StrictMode's double-invoke can't double-bump the counter).
+      const beforeTodo = todosRef.current.find((t) => t.id === id);
+      setTodos((prev) => todoToggle(prev, id));
+      if (!beforeTodo) return;
+      const afterTodo = todoToggle([beforeTodo], id)[0];
+      const wasDone = beforeTodo.done;
+      const isDone = afterTodo.done;
+      const recurringCompletion = didEarnPebble(beforeTodo, afterTodo) && !wasDone && !isDone;
+      // Recurring tasks roll dueDate forward without flipping `done`; still
+      // counts as a completion for pebbles. We flag that case explicitly so
+      // we only increment, never decrement.
+      if (!wasDone && (isDone || recurringCompletion)) {
+        setProfile((p) => incrementPebble(p, todayLocal(), 'task'));
+      } else if (wasDone && !isDone) {
+        setProfile((p) => decrementPebble(p, todayLocal(), 'task'));
+      }
     },
     [setTodos, setProfile],
   );
@@ -271,9 +280,22 @@ export function useTodoStore() {
 
   const toggleSubtask = useCallback(
     (id: string, subId: string) => {
+      // Subtask transitions earn small pebbles. Done → +1, undone → -1.
+      // The auto-cascade that marks the parent done when all subs are done
+      // is a derived state, not a separate action — so it does not earn an
+      // extra task pebble.
+      const beforeSub = todosRef.current
+        .find((t) => t.id === id)
+        ?.subtasks?.find((s) => s.id === subId);
       setTodos((prev) => subtaskToggle(prev, id, subId));
+      if (!beforeSub) return;
+      if (!beforeSub.done) {
+        setProfile((p) => incrementPebble(p, todayLocal(), 'subtask'));
+      } else {
+        setProfile((p) => decrementPebble(p, todayLocal(), 'subtask'));
+      }
     },
-    [setTodos],
+    [setTodos, setProfile],
   );
 
   const updateSubtaskText = useCallback(
@@ -482,7 +504,10 @@ export function useTodoStore() {
   const plateLine = t.todayPlate(todayCount);
   const orderedStatuses = getOrderedStatuses(profile, t);
   const orderedVisibleStatuses = getOrderedVisibleStatuses(profile, t);
-  const todayPebbles = getTodayPebbles(profile, todayDate);
+  const todayPebbleCounts = getTodayPebbles(profile, todayDate);
+  const todayTaskPebbles = todayPebbleCounts.task;
+  const todaySubtaskPebbles = todayPebbleCounts.subtask;
+  const todayPebbles = todayTaskPebbles + todaySubtaskPebbles;
   const lifetimePebbles = profile.lifetimePebbles ?? 0;
 
   return {
@@ -501,6 +526,8 @@ export function useTodoStore() {
     quoteLine,
     plateLine,
     todayPebbles,
+    todayTaskPebbles,
+    todaySubtaskPebbles,
     lifetimePebbles,
     orderedStatuses,
     orderedVisibleStatuses,

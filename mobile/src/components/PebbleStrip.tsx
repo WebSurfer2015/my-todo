@@ -1,39 +1,42 @@
 import React, { useMemo } from 'react'
-import { View, Text, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet, Dimensions } from 'react-native'
 import Svg, { Ellipse } from 'react-native-svg'
 import { useTheme, ThemeColors } from '../theme'
 
 /**
- * Gentle progress indicator. Each completed task adds a cream-and-teal-outline
- * pebble to a horizontal row, echoing the cairn on Mochi's shell from the
- * brand illustration.
+ * Live progress indicator. Big pebbles for completed tasks, small pebbles
+ * for completed subtasks. Pebbles accumulate from the left; the count caption
+ * is pinned to the right on the same row.
  *
- * Calm-design rules baked in (per the pebbles spec):
- *  - Pebbles never disappear retroactively. Today resets to 0 at midnight
- *    (handled in profile.ts); never decremented by the user.
- *  - No goal/quota copy. No "X more pebbles to your daily target."
- *  - No mascot-mood signaling. Mochi doesn't get sadder with fewer pebbles.
+ * Live = mirrors current state. Un-checking a task removes its pebble
+ * (decrement is handled in the store). At local midnight the counters
+ * reset to 0 (handled in profile.ts).
  */
 
-const MAX_VISIBLE = 7
-// Slight size variance per slot so the row reads like real stones, not
-// a row of identical dots.
-const SIZE_VARIANTS = [16, 14, 17, 15, 16, 18, 15]
-// Subtle vertical jitter to suggest hand-placement.
-const Y_JITTER = [0, 1, -1, 0, 1, 0, -1]
+const BIG_SIZE = 18
+const SMALL_SIZE = 11
+// Inter-pebble gap (matches the icon's spacing).
+const GAP = 3
+// Width reserved on the right for the count caption.
+const CAPTION_RESERVE = 96
+// Side padding on the strip.
+const SIDE_PADDING = 4
+// Width reserved at the end for the "+N" overflow indicator (if any).
+const OVERFLOW_RESERVE = 28
+
+// Slight size variance per slot so the row reads like real stones.
+const BIG_JITTER = [0, -1, 0, 1, 0, -1, 1, 0]
+const SMALL_JITTER = [0, 1, -1, 0, 1, 0, -1, 0]
 
 interface PebbleProps {
   size: number
   fill: string
   stroke: string
   shadow: string
+  strokeWidth?: number
 }
 
-/**
- * Single outlined pebble — cream fill, teal stroke, soft drop shadow. Matches
- * the stacked-pebble cairn on Mochi's shell in the brand illustration.
- */
-function Pebble({ size, fill, stroke, shadow }: PebbleProps) {
+function Pebble({ size, fill, stroke, shadow, strokeWidth = 1.4 }: PebbleProps) {
   const w = size * 1.35
   const h = size * 0.95
   const pad = 2
@@ -41,7 +44,6 @@ function Pebble({ size, fill, stroke, shadow }: PebbleProps) {
   const H = h + pad * 2 + 1
   return (
     <Svg width={W} height={H}>
-      {/* Soft drop shadow */}
       <Ellipse
         cx={W / 2}
         cy={H / 2 + 1.5}
@@ -50,7 +52,6 @@ function Pebble({ size, fill, stroke, shadow }: PebbleProps) {
         fill={shadow}
         opacity={0.18}
       />
-      {/* Pebble body */}
       <Ellipse
         cx={W / 2}
         cy={H / 2}
@@ -58,32 +59,35 @@ function Pebble({ size, fill, stroke, shadow }: PebbleProps) {
         ry={h / 2 - 1}
         fill={fill}
         stroke={stroke}
-        strokeWidth={1.5}
+        strokeWidth={strokeWidth}
       />
     </Svg>
   )
 }
 
-interface Props {
-  count: number
+function pebbleWidth(size: number): number {
+  return size * 1.35 + 4 // body + 2px padding each side
 }
 
-export default function PebbleStrip({ count }: Props) {
+interface Props {
+  taskCount: number
+  subtaskCount: number
+}
+
+export default function PebbleStrip({ taskCount, subtaskCount }: Props) {
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
-  const visible = Math.min(count, MAX_VISIBLE)
-  const overflow = Math.max(0, count - MAX_VISIBLE)
+  const total = taskCount + subtaskCount
 
-  if (count === 0) {
+  if (total === 0) {
     return (
-      <View style={styles.container}>
-        <View style={styles.row}>
-          {/* Dashed-outline pebble — gentle invitation, no pressure */}
-          <Svg width={24} height={16}>
+      <View style={styles.emptyContainer}>
+        <View style={styles.emptyPebble}>
+          <Svg width={26} height={16}>
             <Ellipse
-              cx={12}
+              cx={13}
               cy={8}
-              rx={10}
+              rx={11}
               ry={5.5}
               fill="none"
               stroke={theme.label3}
@@ -98,24 +102,84 @@ export default function PebbleStrip({ count }: Props) {
     )
   }
 
+  // How many fit before we need a "+N" indicator?
+  const screenW = Dimensions.get('window').width
+  // App.tsx renders the strip inside a 16-px padded content area, so the
+  // usable width is screenW - 32 - sidePadding*2. We further reserve
+  // CAPTION_RESERVE on the right for the count caption.
+  const usable =
+    screenW - 32 /* App padding */ - SIDE_PADDING * 2 - CAPTION_RESERVE
+  const bigW = pebbleWidth(BIG_SIZE) + GAP
+  const smallW = pebbleWidth(SMALL_SIZE) + GAP
+
+  // Greedy fit: tasks first (big), then subtasks (small).
+  let used = 0
+  let visibleBig = 0
+  for (let i = 0; i < taskCount; i++) {
+    if (used + bigW <= usable - OVERFLOW_RESERVE) {
+      visibleBig++
+      used += bigW
+    } else {
+      break
+    }
+  }
+  let visibleSmall = 0
+  for (let i = 0; i < subtaskCount; i++) {
+    if (used + smallW <= usable - OVERFLOW_RESERVE) {
+      visibleSmall++
+      used += smallW
+    } else {
+      break
+    }
+  }
+  const overflow =
+    taskCount - visibleBig + (subtaskCount - visibleSmall)
+  // If nothing overflowed, we don't need the reserve; recompute one more.
+  // (Lets the row use the OVERFLOW_RESERVE slot when counts are small.)
+  if (overflow === 0) {
+    if (taskCount > visibleBig + 0 && used + bigW <= usable) {
+      // unreachable — kept for clarity
+    }
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.row}>
-        {Array.from({ length: visible }).map((_, i) => (
-          <View key={i} style={{ marginTop: Y_JITTER[i % Y_JITTER.length] }}>
-            <Pebble
-              size={SIZE_VARIANTS[i % SIZE_VARIANTS.length]}
-              fill={theme.card}
-              stroke={theme.primary}
-              shadow={theme.primaryHover}
-            />
-          </View>
-        ))}
-        {overflow > 0 && <Text style={styles.overflow}>+{overflow}</Text>}
+        <View style={styles.pebblesArea}>
+          {Array.from({ length: visibleBig }).map((_, i) => (
+            <View
+              key={`big-${i}`}
+              style={{ marginTop: BIG_JITTER[i % BIG_JITTER.length] }}
+            >
+              <Pebble
+                size={BIG_SIZE}
+                fill={theme.card}
+                stroke={theme.primary}
+                shadow={theme.primaryHover}
+                strokeWidth={1.5}
+              />
+            </View>
+          ))}
+          {Array.from({ length: visibleSmall }).map((_, i) => (
+            <View
+              key={`small-${i}`}
+              style={{ marginTop: SMALL_JITTER[i % SMALL_JITTER.length] + 4 }}
+            >
+              <Pebble
+                size={SMALL_SIZE}
+                fill={theme.card}
+                stroke={theme.primary}
+                shadow={theme.primaryHover}
+                strokeWidth={1.2}
+              />
+            </View>
+          ))}
+          {overflow > 0 && <Text style={styles.overflow}>+{overflow}</Text>}
+        </View>
+        <Text style={styles.caption}>
+          {total === 1 ? '1 today' : `${total} today`}
+        </Text>
       </View>
-      <Text style={styles.caption}>
-        {count === 1 ? '1 pebble today' : `${count} pebbles today`}
-      </Text>
     </View>
   )
 }
@@ -126,11 +190,10 @@ export default function PebbleStrip({ count }: Props) {
  */
 export function CairnGlyph({ size = 22 }: { size?: number }) {
   const theme = useTheme()
-  // Three stones, tapering top → narrow, bottom → wide.
   const stones = [
-    { rx: 0.45, ry: 0.18, cy: 0.30 }, // top
-    { rx: 0.55, ry: 0.20, cy: 0.55 }, // middle
-    { rx: 0.70, ry: 0.22, cy: 0.82 }, // bottom
+    { rx: 0.45, ry: 0.18, cy: 0.30 },
+    { rx: 0.55, ry: 0.20, cy: 0.55 },
+    { rx: 0.70, ry: 0.22, cy: 0.82 },
   ]
   return (
     <Svg width={size} height={size}>
@@ -153,29 +216,50 @@ export function CairnGlyph({ size = 22 }: { size?: number }) {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: {
-      paddingTop: 4,
-      paddingBottom: 10,
-      paddingHorizontal: 4,
-      alignItems: 'flex-start',
-      gap: 4,
+      paddingTop: 2,
+      paddingBottom: 8,
+      paddingHorizontal: SIDE_PADDING,
+      marginBottom: 14,
     },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 2,
-      minHeight: 22,
+      minHeight: 24,
+    },
+    pebblesArea: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'nowrap',
+      gap: GAP,
+      overflow: 'hidden',
     },
     caption: {
       fontSize: 12,
       color: c.label3,
-      fontWeight: '500',
+      fontWeight: '600',
       letterSpacing: 0.1,
+      marginLeft: 8,
+      fontVariant: ['tabular-nums'],
+      textAlign: 'right',
+      minWidth: 72,
+    },
+    emptyContainer: {
+      paddingTop: 2,
+      paddingBottom: 8,
+      paddingHorizontal: SIDE_PADDING,
+      marginBottom: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    emptyPebble: {
+      marginRight: 8,
     },
     overflow: {
-      fontSize: 12,
+      fontSize: 11,
       color: c.label2,
-      fontWeight: '600',
-      marginLeft: 6,
+      fontWeight: '700',
+      marginLeft: 4,
     },
   })
 }

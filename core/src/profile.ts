@@ -45,42 +45,77 @@ export interface Profile {
   /** Play a sound when a task is marked done. Defaults to true. (Sound playback NYI.) */
   completionSound?: boolean
   /**
-   * Pebbles — gentle progress counter. Every time a task is completed (or a
-   * recurring task rolls forward an occurrence), the user earns one pebble.
-   * lifetimePebbles never decrements, even when tasks are trashed or undone:
-   * "the pile only grows" is the anxiety-friendly contract.
+   * Pebbles — live progress indicator with two scopes:
    *
-   * todayPebbles + pebblesDate work as a rotating daily counter. When the
-   * local date no longer matches pebblesDate, the displayed today count
-   * resets to 0 (the new day starts fresh — not a decrement, a new day).
+   * - `todayTaskPebbles` / `todaySubtaskPebbles` mirror today's actual
+   *   completions. They go UP when a task/subtask is checked done and DOWN
+   *   when it's un-checked (min 0). At local midnight (pebblesDate change)
+   *   both reset to 0.
+   *
+   * - `lifetimePebbles` is cumulative and monotonic. Trashing or undoing a
+   *   task does not lower it — it represents "every check-off you've ever
+   *   completed, since you started." Shown on the Profile sheet.
+   *
+   * Splitting today into task vs subtask lets the UI render them at
+   * different sizes (big stones for tasks, small stones for subtasks).
    */
   lifetimePebbles?: number
-  todayPebbles?: number
-  /** Local ISO date (yyyy-mm-dd) of the day todayPebbles is counting. */
+  todayTaskPebbles?: number
+  todaySubtaskPebbles?: number
+  /** Local ISO date (yyyy-mm-dd) of the day the today counters belong to. */
   pebblesDate?: string
 }
 
-/**
- * Returns the today-pebble count, but only if pebblesDate matches today.
- * Otherwise the stale value is treated as zero — the new day starts fresh.
- */
-export function getTodayPebbles(p: Profile, today: string): number {
-  if (!p.pebblesDate || p.pebblesDate !== today) return 0
-  return p.todayPebbles ?? 0
+export type PebbleKind = 'task' | 'subtask'
+
+interface TodayCounts {
+  task: number
+  subtask: number
 }
 
 /**
- * Increment both lifetime and today counters. On a new day, today resets to 1
- * and pebblesDate advances. Lifetime is monotonic — only grows.
+ * Returns today's task and subtask counts, but only if pebblesDate matches
+ * today. Otherwise both are zero — the new day starts fresh.
  */
-export function incrementPebble(p: Profile, today: string): Profile {
+export function getTodayPebbles(p: Profile, today: string): TodayCounts {
+  if (!p.pebblesDate || p.pebblesDate !== today) {
+    return { task: 0, subtask: 0 }
+  }
+  return {
+    task: p.todayTaskPebbles ?? 0,
+    subtask: p.todaySubtaskPebbles ?? 0,
+  }
+}
+
+/**
+ * Increment today (for the given kind) and lifetime. On a new day, the
+ * counters reset and pebblesDate advances. Lifetime only grows.
+ */
+export function incrementPebble(p: Profile, today: string, kind: PebbleKind): Profile {
   const isNewDay = p.pebblesDate !== today
+  const baseTask = isNewDay ? 0 : (p.todayTaskPebbles ?? 0)
+  const baseSub = isNewDay ? 0 : (p.todaySubtaskPebbles ?? 0)
   return {
     ...p,
     lifetimePebbles: (p.lifetimePebbles ?? 0) + 1,
-    todayPebbles: isNewDay ? 1 : (p.todayPebbles ?? 0) + 1,
+    todayTaskPebbles: kind === 'task' ? baseTask + 1 : baseTask,
+    todaySubtaskPebbles: kind === 'subtask' ? baseSub + 1 : baseSub,
     pebblesDate: today,
   }
+}
+
+/**
+ * Decrement today (for the given kind), clamped at 0. Lifetime is unchanged
+ * — historical completions stay on the record even when something is undone.
+ * If the user undoes a task completed yesterday, today's counters don't move
+ * (pebblesDate mismatch).
+ */
+export function decrementPebble(p: Profile, today: string, kind: PebbleKind): Profile {
+  if (p.pebblesDate !== today) return p
+  if (kind === 'task') {
+    return { ...p, todayTaskPebbles: Math.max(0, (p.todayTaskPebbles ?? 0) - 1) }
+  }
+  return { ...p, todaySubtaskPebbles: Math.max(0, (p.todaySubtaskPebbles ?? 0) - 1) }
 }
 
 export const SEED_PROFILE: Profile = {
