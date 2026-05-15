@@ -212,6 +212,15 @@ function TaskItem({
               </div>
             )}
           </div>
+          {hasSubs && !inTrash && (
+            <span
+              className="subtask-progress-pill"
+              aria-hidden="true"
+              title={t.subtaskProgress(subsDoneCount, subs.length)}
+            >
+              {t.subtaskProgress(subsDoneCount, subs.length)}
+            </span>
+          )}
         </div>
 
         <div className="item-meta">
@@ -245,7 +254,7 @@ function TaskItem({
               </div>
             )}
           </div>
-
+          <span className="meta-dot" aria-hidden="true">·</span>
           <div className="due-date-edit">
             <input
               ref={dateRef}
@@ -268,16 +277,6 @@ function TaskItem({
                 : t.noDate}
             </button>
           </div>
-
-          {hasSubs && !inTrash && (
-            <span
-              className="subtask-progress-pill"
-              aria-hidden="true"
-              title={t.subtaskProgress(subsDoneCount, subs.length)}
-            >
-              {t.subtaskProgress(subsDoneCount, subs.length)}
-            </span>
-          )}
 
           <div className="item-actions">
             {inTrash ? (
