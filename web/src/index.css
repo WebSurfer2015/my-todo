@@ -1472,17 +1472,6 @@ h1 { margin: 0; }
 .date-chip.today { color: var(--orange); font-weight: 600; }
 .date-chip.no-date { color: var(--label2); }
 .date-chip.no-date:hover { color: var(--label2); }
-/* Icon-only date button (used inline on subtasks when no date is set) */
-.date-chip.icon-only {
-  padding: 0;
-  min-height: 24px;
-  width: 24px;
-  color: var(--label3);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.date-chip.icon-only:hover { color: var(--primary); background: var(--primary-soft); }
 
 /* ── Category (task item) ─────────────────────────────────────────── */
 .category-edit { position: relative; flex-shrink: 0; }
