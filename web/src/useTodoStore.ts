@@ -43,6 +43,7 @@ import {
   deriveState,
 } from "../../core/src/derive";
 import { newCategoryId } from "../../core/src/categories";
+import { vibrate } from "../../core/src/utils";
 
 const SCHEMA_VERSION = 1;
 
@@ -174,6 +175,7 @@ export function useTodoStore() {
 
   const toggle = useCallback(
     (id: string) => {
+      vibrate();
       setTodos((prev) => todoToggle(prev, id));
     },
     [setTodos],
@@ -242,6 +244,7 @@ export function useTodoStore() {
 
   const toggleSubtask = useCallback(
     (id: string, subId: string) => {
+      vibrate();
       setTodos((prev) => subtaskToggle(prev, id, subId));
     },
     [setTodos],

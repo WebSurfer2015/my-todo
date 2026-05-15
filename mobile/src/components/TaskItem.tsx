@@ -371,7 +371,10 @@ function TaskItem({
                 return (
                   <View key={s.id} style={styles.subRow}>
                     <TouchableOpacity
-                      onPress={() => onToggleSubtask!(todo.id, s.id)}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {})
+                        onToggleSubtask!(todo.id, s.id)
+                      }}
                       hitSlop={10}
                       style={[styles.subCheckbox, s.done && styles.subCheckboxDone]}
                     >

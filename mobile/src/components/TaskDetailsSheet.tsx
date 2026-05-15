@@ -12,6 +12,7 @@ import {
 } from 'react-native'
 import Svg, { Path, Line, Polyline } from 'react-native-svg'
 import DateTimePicker from '@react-native-community/datetimepicker'
+import * as Haptics from 'expo-haptics'
 import { Priority, Subtask, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
 import { CategoryDef, categoryLabel } from '../categories'
 import { formatDisplayDate, isoDate, todayLocal } from '../utils'
@@ -463,15 +464,20 @@ function SubtaskCard({
 
   function commit() {
     const trimmed = text.trim()
-    if (trimmed && trimmed !== subtask.text) onUpdateText(parentId, subtask.id, trimmed)
-    else setText(subtask.text)
+    if (trimmed && trimmed !== subtask.text) {
+      onUpdateText(parentId, subtask.id, trimmed)
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
+    } else setText(subtask.text)
     setEditing(false)
   }
 
   return (
     <View style={[styles.subCard, { borderLeftColor: parentColor ?? theme.separator }]}>
       <TouchableOpacity
-        onPress={() => onToggle(parentId, subtask.id)}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {})
+          onToggle(parentId, subtask.id)
+        }}
         hitSlop={10}
         style={[styles.subCardCheckbox, subtask.done && styles.subCardCheckboxDone]}
       >

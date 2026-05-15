@@ -17,11 +17,13 @@ html, body, #root { min-height: 100vh; }
      soft pastels for accents. Status colors stay on the calm coral/amber/
      slate scale so overdue/priority don't lose their meaning. */
 
-  /* Primary action (Headspace orange family) */
-  --primary:        #F89D43;   /* warm sunset */
-  --primary-hover:  #F18B2C;   /* slightly deeper for press */
-  --primary-soft:   #FFE7D0;   /* tonal container background */
-  --primary-on:     #FFFFFF;   /* text/icon on primary */
+  /* Primary action — desaturated slate-teal. Calm, low-energy, blue-green
+     family (per mental-wellness UI guidance). Pulled in from the prior
+     Headspace sunset orange. */
+  --primary:        #6E94A8;   /* slate-teal */
+  --primary-hover:  #5C8294;
+  --primary-soft:   #DDE6EC;   /* tonal container */
+  --primary-on:     #FFFFFF;
 
   /* Accent palette — soft pastels, classic status hues */
   --blue:    #7AA4D4;   /* soft slate blue — kept for priority "low" */
@@ -72,9 +74,9 @@ html, body, #root { min-height: 100vh; }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --primary:        #F8B061;
-    --primary-hover:  #FCC788;
-    --primary-soft:   #4A3924;
+    --primary:        #8DA9BD;
+    --primary-hover:  #A2BCCC;
+    --primary-soft:   #2E4252;
     --primary-on:     #1A1815;
 
     --blue:    #8AB4DD;
@@ -131,11 +133,11 @@ body {
 @keyframes calm-breathe {
   0%, 100% {
     transform: scale(1);
-    box-shadow: 0 2px 6px rgba(248, 157, 67, 0.22), 0 6px 18px rgba(248, 157, 67, 0.16);
+    box-shadow: 0 2px 6px rgba(110, 148, 168, 0.20), 0 6px 18px rgba(110, 148, 168, 0.14);
   }
   50% {
-    transform: scale(1.018);
-    box-shadow: 0 4px 12px rgba(248, 157, 67, 0.28), 0 12px 28px rgba(248, 157, 67, 0.22);
+    transform: scale(1.012);   /* softer pulse */
+    box-shadow: 0 4px 10px rgba(110, 148, 168, 0.26), 0 12px 26px rgba(110, 148, 168, 0.18);
   }
 }
 
@@ -1218,8 +1220,8 @@ h1 { margin: 0; }
 .btn-add {
   background: var(--primary);
   color: var(--primary-on);
-  box-shadow: 0 2px 6px rgba(248, 157, 67, 0.22), 0 6px 18px rgba(248, 157, 67, 0.16);
-  animation: calm-breathe 4s var(--motion-easing) infinite;
+  box-shadow: 0 2px 6px rgba(110, 148, 168, 0.20), 0 6px 18px rgba(110, 148, 168, 0.14);
+  animation: calm-breathe 5s var(--motion-easing) infinite;   /* slower */
 }
 .btn-add:hover { background: var(--primary-hover); animation-play-state: paused; }
 .btn-add:active { animation-play-state: paused; }

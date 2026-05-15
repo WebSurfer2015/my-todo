@@ -13,6 +13,7 @@ import {
   Alert,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as Haptics from "expo-haptics";
 import * as ImageManipulator from "expo-image-manipulator";
 import {
   Profile,
@@ -160,6 +161,7 @@ export default function ProfileSheet({
       title: profile.title,
       reduceMotion: reduceMotion || undefined,
     });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     showSnackbar({ message: t.profileSaved });
     onClose();
   }

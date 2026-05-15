@@ -31,6 +31,17 @@ export function isoDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/**
+ * Tactile reassurance: a short, gentle vibration for completing checklist
+ * actions. No-op when navigator.vibrate isn't available (most desktop
+ * browsers, iOS Safari). Defaults to 12ms — barely perceptible, just enough
+ * to feel grounded.
+ */
+export function vibrate(ms = 12): void {
+  const n = (globalThis as { navigator?: { vibrate?: (pattern: number) => boolean } }).navigator
+  try { n?.vibrate?.(ms) } catch { /* ignore */ }
+}
+
 export interface DateLabels {
   today?: string
   tomorrow?: string
