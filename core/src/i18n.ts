@@ -124,10 +124,10 @@ export const strings = {
     greeting: { morning: 'Good morning', afternoon: 'Good afternoon', evening: 'Good evening' },
     todayCount: (n: number) => n === 0 ? 'No tasks today' : `${n} task${n !== 1 ? 's' : ''} today`,
     listSubtitle: (done: number, toGo: number) => {
-      if (done === 0 && toGo === 0) return 'No tasks'
-      if (done === 0) return `${toGo} to go`
+      if (done === 0 && toGo === 0) return 'All clear'
+      if (done === 0) return `${toGo} ahead`
       if (toGo === 0) return `${done} done`
-      return `${done} done, ${toGo} to go`
+      return `${done} done · ${toGo} ahead`
     },
     trashSubtitle: (n: number) => n === 1 ? '1 in trash' : `${n} in trash`,
     emptyState: 'Nothing here yet.',

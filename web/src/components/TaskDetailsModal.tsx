@@ -31,6 +31,17 @@ function Plus({ size = 16, strokeWidth = 2.4 }: IconProps) {
   )
 }
 
+function CalendarIcon({ size = 18, strokeWidth = 2 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M16 2v4" />
+      <path d="M8 2v4" />
+      <path d="M3 10h18" />
+    </svg>
+  )
+}
+
 function Trash2({ size = 14, strokeWidth = 2 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -224,70 +235,74 @@ export default function TaskDetailsModal({
           ))}
         </ul>
 
-        <div className="subtask-add-card">
-          <input
-            ref={addInputRef}
-            type="text"
-            className="subtask-add-input"
-            placeholder={t.addSubtask}
-            value={newText}
-            onChange={(e) => setNewText(e.target.value)}
-            onKeyDown={handleNewKey}
-            maxLength={500}
-          />
-          <div className="priority-edit" ref={newPriorityRef}>
-            <button
-              type="button"
-              className={`priority-icon-btn priority-${newPriority}`}
-              onClick={() => setNewPriorityOpen((v) => !v)}
-              aria-label={t.priorityLabel(t.priority[newPriority])}
-              title={t.setPriority}
-            >
-              <PriorityBarsIcon level={newPriority} />
-            </button>
-            {newPriorityOpen && (
-              <div className="item-priority-dropdown">
-                {PRIORITY_VALUES.map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={`item-priority-option${newPriority === value ? ' selected' : ''}`}
-                    style={{ color: PRIORITY_COLORS[value] }}
-                    onClick={() => { setNewPriority(value); setNewPriorityOpen(false) }}
-                  >
-                    <span className="item-priority-icon"><PriorityBarsIcon level={value} /></span>
-                    {t.priority[value]}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="due-date-edit">
+        <div className="input-row">
+          <div className="task-input-wrapper">
             <input
-              ref={newDateRef}
-              type="date"
-              className="date-input-hidden"
-              value={newDueDate}
-              onChange={(e) => setNewDueDate(e.target.value)}
+              ref={addInputRef}
+              type="text"
+              placeholder={t.addSubtask}
+              value={newText}
+              onChange={(e) => setNewText(e.target.value)}
+              onKeyDown={handleNewKey}
+              maxLength={500}
             />
-            <button
-              type="button"
-              className={`date-chip${!newDueDate ? ' no-date' : ''}`}
-              onClick={() => newDateRef.current?.showPicker()}
-              title={t.setDueDate}
-              aria-label={t.setDueDate}
-            >
-              {newDueDate ? formatDisplayDate(newDueDate, t.locale) : t.noDate}
-            </button>
+            <div className="priority-trigger" ref={newPriorityRef}>
+              <button
+                type="button"
+                className="priority-trigger-btn"
+                style={{ color: PRIORITY_COLORS[newPriority] }}
+                onClick={() => setNewPriorityOpen((v) => !v)}
+                aria-label={t.priorityLabel(t.priority[newPriority])}
+                title={t.setPriority}
+              >
+                <PriorityBarsIcon level={newPriority} />
+              </button>
+              {newPriorityOpen && (
+                <div className="priority-dropdown">
+                  {PRIORITY_VALUES.map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={`priority-option${newPriority === value ? ' selected' : ''}`}
+                      style={{ color: newPriority === value ? PRIORITY_COLORS[value] : undefined }}
+                      onClick={() => { setNewPriority(value); setNewPriorityOpen(false) }}
+                    >
+                      <span className="priority-option-icon" style={{ color: PRIORITY_COLORS[value] }}>
+                        <PriorityBarsIcon level={value} />
+                      </span>
+                      {t.priority[value]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="date-trigger">
+              <input
+                ref={newDateRef}
+                type="date"
+                className="date-input-hidden"
+                value={newDueDate}
+                onChange={(e) => setNewDueDate(e.target.value)}
+              />
+              <button
+                type="button"
+                className={`date-trigger-btn${newDueDate ? ' has-date' : ''}`}
+                onClick={() => newDateRef.current?.showPicker?.()}
+                aria-label={t.setDueDate}
+                title={newDueDate ? formatDisplayDate(newDueDate, t.locale) : t.setDueDate}
+              >
+                <CalendarIcon size={18} />
+                {newDueDate && <span className="date-trigger-label">{formatDisplayDate(newDueDate, t.locale)}</span>}
+              </button>
+            </div>
           </div>
           <button
             type="button"
-            className="subtask-add-btn"
+            className="btn btn-add"
             onClick={commitNew}
             disabled={!newText.trim()}
-            aria-label={t.add}
           >
-            <Plus size={16} />
+            <Plus size={18} />
           </button>
         </div>
       </div>
