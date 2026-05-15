@@ -1221,12 +1221,12 @@ h1 { margin: 0; }
 .btn:active { transform: scale(0.97); }
 
 .btn-add {
-  background: #007AFF;             /* classic iOS blue — primary CTA */
+  background: #4F8A75;             /* Sagely teal — Mochi outline color */
   color: #FFFFFF;
-  box-shadow: 0 2px 6px rgba(0, 122, 255, 0.22), 0 6px 18px rgba(0, 122, 255, 0.14);
+  box-shadow: 0 2px 6px rgba(79, 138, 117, 0.22), 0 6px 18px rgba(79, 138, 117, 0.14);
   animation: calm-breathe 5s var(--motion-easing) infinite;   /* slower */
 }
-.btn-add:hover { background: #0066D6; animation-play-state: paused; }
+.btn-add:hover { background: #3F7460; animation-play-state: paused; }
 .btn-add:active { animation-play-state: paused; }
 
 

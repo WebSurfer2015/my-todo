@@ -37,63 +37,65 @@ export interface ThemeColors {
   statusBar: 'light-content' | 'dark-content'
 }
 
-// Turtle-brand palette: muted sage greens drawn from the turtle illustration.
-// Warm cream backgrounds, deep forest accents, soft blush warmth.
-// Stays low-saturation per the anxiety-conscious design guideline.
+// Sagely palette — drawn from the Mochi turtle illustration. Pale mint
+// pastels on a warm cream backdrop, with a teal outline color that doubles
+// as the primary action. Lower saturation than the original sage palette
+// per the anxiety-conscious design guideline.
 export const LIGHT: ThemeColors = {
-  bg: '#F5F1E8',        // warm cream — slightly more saturated than before
-  card: '#FFFEFB',      // near-white with a hint of warmth
-  surface: 'rgba(255, 254, 251, 0.65)',
-  surfaceAlt: 'rgba(255, 254, 251, 0.78)',
-  modal: '#FFFEFB',
-  label: '#1F2A26',     // deep teal-tinted near-black
-  label2: '#4E5F58',    // sage-tinted gray
-  label3: '#7A8A82',    // muted sage
-  separator: '#E5E8E1', // soft mint separator
-  border: '#E5E8E1',
-  primary: '#3D8870',         // turtle deep sage — primary action
-  primaryHover: '#2F6F5A',    // darker on press
-  primarySoft: '#E2EDE6',     // pale mint background
+  bg: '#F5F0E2',        // icon cream — warmer, slightly more yellow
+  card: '#FCFAF3',      // near-white with warm cast
+  surface: 'rgba(252, 250, 243, 0.65)',
+  surfaceAlt: 'rgba(252, 250, 243, 0.78)',
+  modal: '#FCFAF3',
+  label: '#2A3530',     // deep teal-tinted near-black
+  label2: '#5A6B62',    // sage-tinted gray
+  label3: '#8A998F',    // muted sage
+  separator: '#E5EAE0', // soft mint separator
+  border: '#E5EAE0',
+  primary: '#4F8A75',         // Mochi outline teal — primary action
+  primaryHover: '#3F7460',    // darker on press
+  primarySoft: '#E8F0E5',     // pale mint surface (matches icon body)
   primaryOn: '#FFFFFF',
-  blue: '#3D8870',      // primary sage (was muted blue; kept key name)
-  red: '#D87878',       // soft coral, slightly warmer
+  blue: '#4F8A75',      // alias of primary — kept for legacy key compat
+  red: '#D87878',       // soft coral
   orange: '#E8A964',
   yellow: '#C9B85F',
-  green: '#5A9B7E',     // brand sage (lighter than primary, used for "done")
+  green: '#7FB59E',     // softer mint (matches Mochi shell)
   purple: '#927AAE',
-  pink: '#D9A8AD',      // turtle blush accent
-  teal: '#4A9485',
-  gray: '#7A8A82',
-  gray3: '#C5CCC3',     // sage-tinted neutral
+  pink: '#EFB8AE',      // Mochi cheek peach
+  teal: '#4F8A75',      // aligned with primary
+  gray: '#8A998F',
+  gray3: '#CDD4C9',     // mint-tinted neutral
   statusBar: 'dark-content',
 }
 
-// Dark mode — lifted versions of the same sage hues on a warm dark surface.
+// Dark mode — lifted pastel mint on a warm dark surface, matching the
+// Sagely / Mochi palette but tuned for legibility against deep cream-dark.
 export const DARK: ThemeColors = {
-  bg: '#181712',        // warm dark
-  card: '#22201A',
-  surface: 'rgba(34, 32, 26, 0.65)',
-  surfaceAlt: 'rgba(34, 32, 26, 0.78)',
-  modal: '#22201A',
-  label: '#EAECE7',     // off-white with green tint
-  label2: '#B8C2BB',
-  label3: '#8C9A91',
-  separator: '#3A3D35',
-  border: '#3A3D35',
-  primary: '#7AB89D',         // lifted sage for dark mode contrast
-  primaryHover: '#8DC8AD',
-  primarySoft: '#2A4138',
-  primaryOn: '#181712',
-  blue: '#7AB89D',      // primary sage in dark
+  bg: '#1A1814',        // warm dark, slightly more cream-tinted
+  card: '#24211B',
+  surface: 'rgba(36, 33, 27, 0.65)',
+  surfaceAlt: 'rgba(36, 33, 27, 0.78)',
+  modal: '#24211B',
+  label: '#ECEEE6',     // off-white with mint tint
+  label2: '#B8C4BA',
+  label3: '#8FA095',
+  separator: '#3D3F37',
+  border: '#3D3F37',
+  primary: '#86C5A8',         // lifted mint for dark-mode contrast
+  primaryHover: '#9AD3B8',
+  primarySoft: '#2E4639',
+  primaryOn: '#1A1814',
+  blue: '#86C5A8',      // alias of primary
   red: '#E08A8A',
   orange: '#ECB178',
   yellow: '#D9C97A',
-  green: '#8AC2A2',     // slightly more saturated for "done" in dark
+  green: '#94C9AC',     // shell mint (slightly more saturated)
   purple: '#A89BC2',
-  pink: '#D9B0B5',
-  teal: '#7AAEB0',
-  gray: '#8C9A91',
-  gray3: '#4A4D45',
+  pink: '#E8B6AE',      // cheek peach lifted
+  teal: '#86C5A8',      // aligned with primary
+  gray: '#8FA095',
+  gray3: '#4D4F47',
   statusBar: 'light-content',
 }
 
