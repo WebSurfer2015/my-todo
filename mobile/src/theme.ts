@@ -43,9 +43,9 @@ export const LIGHT: ThemeColors = {
   label3: '#6B6862',
   separator: '#E5E1DC',
   border: '#E5E1DC',
-  blue: '#5B7C99',   // muted slate — primary action
-  red: '#A85B5B',    // muted, only true danger
-  orange: '#B89364', // warm sand
+  blue: '#7AA4D4',   // soft slate blue — primary
+  red: '#E07878',    // soft coral — overdue/danger
+  orange: '#E8A964', // soft amber
   yellow: '#C9B85F',
   green: '#6B8E66',  // sage
   purple: '#927AAE',
@@ -68,9 +68,9 @@ export const DARK: ThemeColors = {
   label3: '#969696',
   separator: '#383634',
   border: '#383634',
-  blue: '#8FA9BE',
-  red: '#C28080',
-  orange: '#C9A878',
+  blue: '#8AB4DD',
+  red: '#E58888',
+  orange: '#ECB178',
   yellow: '#D9C97A',
   green: '#8AA985',
   purple: '#A89BC2',

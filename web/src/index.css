@@ -13,10 +13,12 @@ html, body, #root { min-height: 100vh; }
    Added tokens: --motion-duration / --motion-easing / type scale.
    ─────────────────────────────────────────────────────────────────── */
 :root {
-  /* Accent palette — muted, sage/blue/sand vs neon iOS */
-  --blue:    #5B7C99;   /* primary action — muted slate blue */
-  --red:     #A85B5B;   /* genuine danger only — never a primary action */
-  --orange:  #B89364;   /* warm sand */
+  /* Accent palette — classic red/orange/blue cue, dialed back from iOS bright
+     so the same hues mean the same things across overdue, priority, danger
+     buttons, etc. without panic-red anxiety. */
+  --blue:    #7AA4D4;   /* soft slate blue — primary action */
+  --red:     #E07878;   /* soft coral — overdue, danger */
+  --orange:  #E8A964;   /* soft amber */
   --yellow:  #C9B85F;
   --green:   #6B8E66;   /* sage success */
   --teal:    #6A9999;
@@ -56,9 +58,9 @@ html, body, #root { min-height: 100vh; }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --blue:    #8FA9BE;
-    --red:     #C28080;
-    --orange:  #C9A878;
+    --blue:    #8AB4DD;
+    --red:     #E58888;   /* slightly lifted for dark-bg legibility */
+    --orange:  #ECB178;
     --yellow:  #D9C97A;
     --green:   #8AA985;
     --teal:    #7AAEB0;
