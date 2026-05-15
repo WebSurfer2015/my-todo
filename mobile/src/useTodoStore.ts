@@ -199,17 +199,48 @@ export function useTodoStore() {
       setTodos((prev) => todoToggle(prev, id));
       if (!beforeTodo) return;
       const afterTodo = todoToggle([beforeTodo], id)[0];
+
+      // Parent task transition.
       const wasDone = beforeTodo.done;
       const isDone = afterTodo.done;
-      const recurringCompletion = didEarnPebble(beforeTodo, afterTodo) && !wasDone && !isDone;
-      // Recurring tasks roll dueDate forward without flipping `done`; still
-      // counts as a completion for pebbles. We flag that case explicitly so
-      // we only increment, never decrement.
-      if (!wasDone && (isDone || recurringCompletion)) {
-        setProfile((p) => incrementPebble(p, todayLocal(), 'task'));
-      } else if (wasDone && !isDone) {
-        setProfile((p) => decrementPebble(p, todayLocal(), 'task'));
+      const recurringCompletion =
+        didEarnPebble(beforeTodo, afterTodo) && !wasDone && !isDone;
+      const taskDelta =
+        !wasDone && (isDone || recurringCompletion)
+          ? +1
+          : wasDone && !isDone
+            ? -1
+            : 0;
+
+      // Cascade: when a parent is toggled, all subtasks flip to the parent's
+      // new done state. Each subtask transition counts as one pebble. We
+      // batch every delta into a single setProfile so the UI sees one
+      // coalesced update.
+      const beforeSubs = beforeTodo.subtasks ?? [];
+      const afterSubs = afterTodo.subtasks ?? [];
+      let subtaskDelta = 0;
+      for (let i = 0; i < beforeSubs.length; i++) {
+        const b = beforeSubs[i];
+        const a = afterSubs[i];
+        if (!a) continue;
+        if (!b.done && a.done) subtaskDelta += 1;
+        else if (b.done && !a.done) subtaskDelta -= 1;
       }
+
+      if (taskDelta === 0 && subtaskDelta === 0) return;
+      setProfile((p) => {
+        const today = todayLocal();
+        let next = p;
+        if (taskDelta > 0) next = incrementPebble(next, today, 'task');
+        else if (taskDelta < 0) next = decrementPebble(next, today, 'task');
+        for (let i = 0; i < subtaskDelta; i++) {
+          next = incrementPebble(next, today, 'subtask');
+        }
+        for (let i = 0; i < -subtaskDelta; i++) {
+          next = decrementPebble(next, today, 'subtask');
+        }
+        return next;
+      });
     },
     [setTodos, setProfile],
   );
