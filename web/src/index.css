@@ -2104,14 +2104,23 @@ h1 { margin: 0; }
 .modal-meta-date.today { color: var(--orange); font-weight: 600; }
 .modal-meta-date.no-date { color: var(--label3); font-style: italic; }
 
-/* Modal subtask list re-uses .item from TaskItem for a uniform card design.
-   The `.item--sub` modifier just tones things down: smaller text, lighter shadow. */
-.subtask-card-list { gap: 6px; padding: 0; }
-.item.item--sub {
-  padding: 10px 12px 10px 15px;
-  box-shadow: 0 0 0 0.5px rgba(0,0,0,0.05);
-  background: var(--fill);
+/* Subtask list inside the details panel: borderless rows on the panel surface.
+   No competing card background — just whitespace + hover for affordance. */
+.subtask-card-list {
+  gap: 0;
+  padding: 0;
+  list-style: none;
+  margin: 0;
 }
+.item.item--sub {
+  padding: 10px 12px;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 10px;
+  animation: none;   /* don't slideIn each row inside the panel */
+}
+.item.item--sub::before { display: none; }   /* drop the cat-color stripe on subs */
+.item.item--sub:hover { background: var(--fill); }
 .item.item--sub .item-text { font-size: 15px; }
 
 /* Add-subtask row built as a card with priority/date controls inline. */
@@ -2156,6 +2165,51 @@ h1 { margin: 0; }
   width: min(94vw, 480px);
   max-height: 80vh;
   gap: 12px;
+}
+
+/* ── Task details: right-side sidecar (web) ──────────────────────── */
+.task-panel-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(40, 30, 20, 0.30);
+  z-index: 1000;
+  animation: fadeIn 0.18s ease-out;
+}
+.task-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(94vw, 460px);
+  background: var(--bg-card);
+  color: var(--label);
+  box-shadow: -8px 0 28px rgba(40, 30, 20, 0.10),
+              -2px 0 8px rgba(40, 30, 20, 0.05);
+  border-radius: 28px 0 0 28px;
+  padding: 28px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  animation: slideInRight var(--motion-duration) var(--motion-easing);
+}
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+/* Add-subtask add row spacing inside the panel — separates it from the sub list */
+.task-panel > .input-row {
+  margin: 0;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--separator);
+}
+.task-panel > .input-row > .btn-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 22px;
 }
 .modal-details-header {
   display: flex;

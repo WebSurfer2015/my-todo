@@ -152,9 +152,9 @@ export default function TaskDetailsModal({
   const parentToday = !!todo.dueDate && !todo.done && todo.dueDate === today
 
   return createPortal(
-    <div className="modal-backdrop" onMouseDown={onClose}>
-      <div
-        className="modal-card modal-card--details"
+    <div className="task-panel-overlay" onMouseDown={onClose}>
+      <aside
+        className="task-panel"
         onMouseDown={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -302,10 +302,11 @@ export default function TaskDetailsModal({
             onClick={commitNew}
             disabled={!newText.trim()}
           >
-            <Plus size={18} />
+            <Plus size={16} />
+            <span>{t.add}</span>
           </button>
         </div>
-      </div>
+      </aside>
     </div>,
     document.body,
   )
