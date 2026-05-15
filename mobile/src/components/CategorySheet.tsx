@@ -193,7 +193,7 @@ export default function CategorySheet({
           <StatusIcon id={s.id} size={18} color={statusColor(s.id, theme)} />
         </View>
         <Text style={styles.viewRowLabel}>{s.label}</Text>
-        {count > 0 && <Text style={styles.viewRowCount}>{count}</Text>}
+        <Text style={styles.viewRowCount}>{count}</Text>
         {active ? <Check size={18} color={theme.primary} strokeWidth={2.5} /> : <View style={styles.checkPlaceholder} />}
       </TouchableOpacity>
     );
@@ -213,7 +213,7 @@ export default function CategorySheet({
           <CategoryIcon icon={c.icon} color={c.color} size={18} />
         </View>
         <Text style={styles.viewRowLabel}>{categoryLabel(c, t)}</Text>
-        {count > 0 && <Text style={styles.viewRowCount}>{count}</Text>}
+        <Text style={styles.viewRowCount}>{count}</Text>
         {active ? <Check size={18} color={theme.primary} strokeWidth={2.5} /> : <View style={styles.checkPlaceholder} />}
       </TouchableOpacity>
     );
@@ -246,7 +246,7 @@ export default function CategorySheet({
                     <TouchableOpacity onPress={onClose} hitSlop={8}>
                       <Text style={styles.headerLeft}>{t.cancel}</Text>
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Show</Text>
+                    <Text style={styles.headerTitle}>Select Filter</Text>
                     <TouchableOpacity
                       onPress={() => setMode(isEditing ? { kind: "view" } : { kind: "edit" })}
                       hitSlop={8}
@@ -383,6 +383,14 @@ export default function CategorySheet({
                       </View>
                     </ScrollView>
                   )}
+
+                  <TouchableOpacity
+                    style={styles.bottomDoneBtn}
+                    onPress={onClose}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.bottomDoneBtnText}>{t.done}</Text>
+                  </TouchableOpacity>
                 </>
               ) : mode.kind === "editStatus" ? (
                 <>
@@ -489,6 +497,8 @@ export default function CategorySheet({
     </Modal>
   );
 }
+
+
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
@@ -652,5 +662,19 @@ function makeStyles(c: ThemeColors) {
     btnPrimary: { backgroundColor: c.primary },
     btnText: { fontSize: 14, fontWeight: "600", color: c.label },
     btnPrimaryText: { color: "#fff" },
+    bottomDoneBtn: {
+      marginTop: 12,
+      height: 50,
+      borderRadius: 12,
+      backgroundColor: c.primary,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    bottomDoneBtnText: {
+      color: "#fff",
+      fontSize: 16,
+      fontWeight: "600",
+      letterSpacing: -0.16,
+    },
   });
 }
