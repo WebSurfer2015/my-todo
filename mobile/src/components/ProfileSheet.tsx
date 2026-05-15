@@ -21,6 +21,7 @@ import {
   AVATAR_LIBRARY,
 } from "../profile";
 import Avatar from "./Avatar";
+import { CairnGlyph } from "./PebbleStrip";
 import { useLang } from "../LangContext";
 import { useNotify } from "../notify";
 import { useAuth } from "../AuthContext";
@@ -399,6 +400,7 @@ export default function ProfileSheet({
             </TouchableOpacity>
 
             <View style={styles.pebbleRow}>
+              <CairnGlyph size={22} />
               <Text style={styles.pebbleRowLabel}>Pebbles placed</Text>
               <Text style={styles.pebbleRowValue}>{profile.lifetimePebbles ?? 0}</Text>
             </View>
@@ -605,7 +607,7 @@ function makeStyles(c: ThemeColors) {
     pebbleRow: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "space-between",
+      gap: 10,
       paddingVertical: 14,
       paddingHorizontal: 14,
       marginTop: 12,
@@ -613,6 +615,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.primarySoft,
     },
     pebbleRowLabel: {
+      flex: 1,
       fontSize: 15,
       color: c.label,
       fontWeight: "500",

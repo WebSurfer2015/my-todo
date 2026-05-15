@@ -1,6 +1,46 @@
 import React, { useMemo } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import Svg, { Path } from 'react-native-svg'
 import { useTheme, ThemeColors } from '../theme'
+
+/**
+ * Three-leaf sage sprout — matches the small plant sprigs at Mochi's feet
+ * in the brand illustration. Used as the default empty-state mark to keep
+ * blank states feeling intentional, not broken.
+ */
+function Sprout({ color, size = 26 }: { color: string; size?: number }) {
+  // viewBox is 24x18; paths kept fillless so the outline reads at any size.
+  const w = size
+  const h = (size * 18) / 24
+  return (
+    <Svg width={w} height={h} viewBox="0 0 24 18">
+      {/* Center leaf, vertical */}
+      <Path
+        d="M12 16 C10 12 10 8 12 5 C14 8 14 12 12 16 Z"
+        fill="none"
+        stroke={color}
+        strokeWidth={1.4}
+        strokeLinejoin="round"
+      />
+      {/* Left leaf, tilted */}
+      <Path
+        d="M12 16 C8 13 5 10 4 7 C7 9 10 12 12 16 Z"
+        fill="none"
+        stroke={color}
+        strokeWidth={1.4}
+        strokeLinejoin="round"
+      />
+      {/* Right leaf, tilted */}
+      <Path
+        d="M12 16 C16 13 19 10 20 7 C17 9 14 12 12 16 Z"
+        fill="none"
+        stroke={color}
+        strokeWidth={1.4}
+        strokeLinejoin="round"
+      />
+    </Svg>
+  )
+}
 
 interface Props {
   /** Calm, descriptive title. No exclamation marks. */
@@ -24,7 +64,13 @@ export default function EmptyState({ title, hint, ctaLabel, onCta, variant = 'de
   const styles = useMemo(() => makeStyles(theme, variant), [theme, variant])
   return (
     <View style={styles.wrap}>
-      <View style={styles.mark} />
+      {variant === 'default' ? (
+        <View style={styles.sprout}>
+          <Sprout color={theme.primary} size={28} />
+        </View>
+      ) : (
+        <View style={styles.mark} />
+      )}
       <Text style={styles.title}>{title}</Text>
       {hint ? <Text style={styles.hint}>{hint}</Text> : null}
       {ctaLabel && onCta ? (
@@ -52,6 +98,10 @@ function makeStyles(c: ThemeColors, variant: 'default' | 'compact') {
       backgroundColor: c.label3,
       opacity: 0.3,
       marginBottom: 4,
+    },
+    sprout: {
+      marginBottom: 6,
+      opacity: 0.75,
     },
     title: {
       fontSize: compact ? 14 : 16,
