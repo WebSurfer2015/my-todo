@@ -1316,6 +1316,15 @@ h1 { margin: 0; }
   gap: 2px;
   margin-left: -4px;
 }
+/* Normalize chip baselines: SVG default is baseline-aligned which leaves a
+   sliver of space below; force block so flex centering works cleanly. */
+.item-meta .category-chip svg,
+.item-meta .date-chip svg { display: block; }
+.item-meta .category-edit,
+.item-meta .due-date-edit {
+  display: inline-flex;
+  align-items: center;
+}
 
 /* Priority icon button (in task item) */
 .priority-edit { position: relative; flex-shrink: 0; }

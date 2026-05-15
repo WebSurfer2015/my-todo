@@ -60,6 +60,7 @@ interface Props {
   inTrash: boolean
   selected?: boolean
   bulkSelecting?: boolean
+  /** @deprecated kept for backward compat; inline list always shows all subs now */
   subtaskVisibility?: SubtaskVisibility
   onToggleSelect?: (id: string, shiftKey: boolean) => void
   onToggle: (id: string) => void
@@ -80,7 +81,7 @@ interface Props {
 
 function TaskItem({
   todo, categories, inTrash, selected = false, bulkSelecting = false,
-  subtaskVisibility = 'all',
+  subtaskVisibility: _subtaskVisibility = 'all',
   onToggleSelect,
   onToggle, onMoveToTrash, onRestore, onPermanentDelete,
   onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateText,
@@ -110,12 +111,10 @@ function TaskItem({
   useCloseOnOutside(priorityRef, priorityOpen, () => setPriorityOpen(false))
   useCloseOnOutside(categoryRef, categoryOpen, () => setCategoryOpen(false))
 
-  const visibleSubs =
-    subtaskVisibility === 'open'
-      ? subs.filter((s) => !s.done)
-      : subtaskVisibility === 'done'
-        ? subs.filter((s) => s.done)
-        : subs
+  // Always show all subs inline — filtering inline by parent's view scope
+  // confused the user (subtasks vanishing from a single-task expansion).
+  // The modal still has the full list with editing tools.
+  const visibleSubs = subs
 
   async function handlePermanentDelete() {
     const ok = await notify.confirm({
@@ -394,7 +393,11 @@ function SubtaskInlineRow({
                       type="button"
                       className={`item-priority-option${priority === value ? ' selected' : ''}`}
                       style={{ color: PRIORITY_COLORS[value] }}
-                      onClick={() => { onUpdatePriority(parentId, subtask.id, value); setPriorityOpen(false) }}
+                      onClick={() => {
+                      console.log("[debug] SubtaskInlineRow priority option click", { parentId, subId: subtask.id, value, hasHandler: !!onUpdatePriority })
+                      onUpdatePriority(parentId, subtask.id, value)
+                      setPriorityOpen(false)
+                    }}
                     >
                       <span className="item-priority-icon"><PriorityBarsIcon level={value} /></span>
                       {t.priority[value]}
@@ -412,12 +415,18 @@ function SubtaskInlineRow({
               type="date"
               className="date-input-hidden"
               value={dueDate}
-              onChange={(e) => onUpdateDueDate(parentId, subtask.id, e.target.value)}
+              onChange={(e) => {
+                console.log("[debug] SubtaskInlineRow date onChange", { parentId, subId: subtask.id, value: e.target.value, hasHandler: !!onUpdateDueDate })
+                onUpdateDueDate(parentId, subtask.id, e.target.value)
+              }}
             />
             <button
               type="button"
               className={`date-chip${overdue ? ' overdue' : ''}${isToday ? ' today' : ''}${!dueDate ? ' no-date' : ''}`}
-              onClick={() => dateRef.current?.showPicker()}
+              onClick={() => {
+                console.log("[debug] SubtaskInlineRow date chip click — calling showPicker", { hasInput: !!dateRef.current, hasShowPicker: typeof dateRef.current?.showPicker === 'function' })
+                dateRef.current?.showPicker?.()
+              }}
               title={t.setDueDate}
               aria-label={t.setDueDate}
             >
