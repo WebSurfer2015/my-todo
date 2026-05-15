@@ -42,6 +42,11 @@ export function makeFirestoreAdapter(
     subscribe(key, callback) {
       const ref = doc(db, stateDocPath(uid, key));
       return onSnapshot(ref, (snap) => {
+        // Skip snapshots that fire while a local write is still pending —
+        // the SDK may serve a pre-write cache value here, which would
+        // clobber the user's just-applied optimistic update with stale
+        // data (the cause of "picked date reverts to parent date" bug).
+        if (snap.metadata.hasPendingWrites) return;
         if (!snap.exists()) return callback(null);
         const data = snap.data() as { value?: string };
         callback(data.value ?? null);
