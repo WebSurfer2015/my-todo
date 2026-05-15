@@ -14,6 +14,11 @@ export interface ThemeColors {
   // Lines
   separator: string
   border: string
+  // Headspace primary action color (warm sunset orange)
+  primary: string
+  primaryHover: string
+  primarySoft: string
+  primaryOn: string
   // Brand
   blue: string
   red: string
@@ -33,19 +38,23 @@ export interface ThemeColors {
 // warm neutrals (#FAFAF9 / #1A1A1A) instead of pure white/black. Mirrors the
 // web :root tokens in web/src/index.css so cross-device sync feels coherent.
 export const LIGHT: ThemeColors = {
-  bg: '#FAFAF9',
-  card: '#FFFFFF',
-  surface: 'rgba(255, 255, 255, 0.65)',
-  surfaceAlt: 'rgba(255, 255, 255, 0.78)',
-  modal: '#FFFFFF',
+  bg: '#FAF6EE',     // warm cream (Headspace)
+  card: '#FFFEFC',   // warm white
+  surface: 'rgba(255, 254, 252, 0.65)',
+  surfaceAlt: 'rgba(255, 254, 252, 0.78)',
+  modal: '#FFFEFC',
   label: '#1F1F1F',
   label2: '#4F4F4F',
   label3: '#6B6862',
-  separator: '#E5E1DC',
-  border: '#E5E1DC',
-  blue: '#7AA4D4',   // soft slate blue — primary
-  red: '#E07878',    // soft coral — overdue/danger
-  orange: '#E8A964', // soft amber
+  separator: '#ECE5D7',
+  border: '#ECE5D7',
+  primary: '#F89D43',       // Headspace sunset orange
+  primaryHover: '#F18B2C',
+  primarySoft: '#FFE7D0',
+  primaryOn: '#FFFFFF',
+  blue: '#7AA4D4',
+  red: '#E07878',
+  orange: '#E8A964',
   yellow: '#C9B85F',
   green: '#6B8E66',  // sage
   purple: '#927AAE',
@@ -58,16 +67,20 @@ export const LIGHT: ThemeColors = {
 
 // Native-dark palette — warm gray surfaces, never pure black, AAA text.
 export const DARK: ThemeColors = {
-  bg: '#1A1A1A',
-  card: '#232323',
-  surface: 'rgba(35, 35, 35, 0.65)',
-  surfaceAlt: 'rgba(35, 35, 35, 0.78)',
-  modal: '#232323',
+  bg: '#1A1815',     // warm dark
+  card: '#232017',
+  surface: 'rgba(35, 32, 23, 0.65)',
+  surfaceAlt: 'rgba(35, 32, 23, 0.78)',
+  modal: '#232017',
   label: '#ECECEC',
   label2: '#C4C4C4',
   label3: '#969696',
-  separator: '#383634',
-  border: '#383634',
+  separator: '#3A3530',
+  border: '#3A3530',
+  primary: '#F8B061',
+  primaryHover: '#FCC788',
+  primarySoft: '#4A3924',
+  primaryOn: '#1A1815',
   blue: '#8AB4DD',
   red: '#E58888',
   orange: '#ECB178',
