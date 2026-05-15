@@ -687,12 +687,16 @@ body {
 }
 
 .sidebar-item:hover { background: var(--fill); }
+/* Active filter: tonal container in the category/status accent color, NOT a
+   solid fill — keeps it visually subordinate to the primary "Add" CTA so
+   the two don't compete for the eye. */
 .sidebar-item.active {
-  background: var(--accent);
-  color: #fff;
+  background: color-mix(in oklab, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-weight: 600;
 }
-.sidebar-item.active .sidebar-item-icon { color: #fff !important; }
-.sidebar-item.active .sidebar-item-count { color: rgba(255,255,255,0.85); }
+.sidebar-item.active .sidebar-item-icon { color: var(--accent) !important; }
+.sidebar-item.active .sidebar-item-count { color: var(--accent); opacity: 0.85; }
 
 .sidebar-item-icon {
   display: flex;
