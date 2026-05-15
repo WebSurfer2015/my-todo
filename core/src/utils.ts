@@ -117,6 +117,84 @@ export function nextOccurrence(
   return isoDate(start)
 }
 
+/**
+ * Returns true if `iso` is a valid occurrence date for the given recurrence
+ * pattern. Used both to decide whether to include the start date in an
+ * expansion and to validate manually picked dates.
+ */
+function matchesRecurrence(
+  iso: string,
+  rec: {
+    freq: 'daily' | 'weekly' | 'monthly' | 'yearly'
+    byWeekday?: number[]
+    bySetPos?: number[]
+  },
+): boolean {
+  const [y, m, d] = iso.split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+
+  if (rec.freq === 'weekly' && rec.byWeekday && rec.byWeekday.length > 0) {
+    return rec.byWeekday.includes(date.getDay())
+  }
+
+  if (rec.freq === 'monthly' && rec.byWeekday && rec.byWeekday.length > 0) {
+    if (!rec.byWeekday.includes(date.getDay())) return false
+    if (!rec.bySetPos || rec.bySetPos.length === 0) return true
+    const dom = date.getDate()
+    const positionInMonth = Math.ceil(dom / 7) // 1..5
+    if (rec.bySetPos.includes(positionInMonth)) return true
+    if (rec.bySetPos.includes(-1)) {
+      const lastDay = new Date(y, m, 0).getDate()
+      if (lastDay - dom < 7) return true
+    }
+    return false
+  }
+
+  // Simple freq with no day filter — any anchor date matches.
+  return true
+}
+
+/**
+ * Expand a recurrence definition into a list of ISO dates from `start` to
+ * `end` inclusive. Capped at MAX_INSTANCES so a misclicked "daily for 10
+ * years" doesn't blow up the task list.
+ *
+ * If `start` itself doesn't match the recurrence pattern (e.g. weekly with
+ * byWeekday=[Tuesday] but start is a Monday), the first occurrence is the
+ * next matching date strictly after `start`.
+ */
+export const MAX_RECURRENCE_INSTANCES = 365
+
+export function expandRecurrence(
+  start: string,
+  end: string,
+  rec: {
+    freq: 'daily' | 'weekly' | 'monthly' | 'yearly'
+    interval?: number
+    byWeekday?: number[]
+    bySetPos?: number[]
+  },
+): string[] {
+  if (end < start) return []
+  const interval = rec.interval ?? 1
+  const dates: string[] = []
+
+  // First date — either start itself (if it matches) or the next valid date.
+  let cursor: string
+  if (matchesRecurrence(start, rec)) {
+    cursor = start
+  } else {
+    cursor = nextOccurrence(start, rec.freq, interval, rec.byWeekday, rec.bySetPos)
+  }
+
+  while (cursor <= end && dates.length < MAX_RECURRENCE_INSTANCES) {
+    dates.push(cursor)
+    cursor = nextOccurrence(cursor, rec.freq, interval, rec.byWeekday, rec.bySetPos)
+  }
+
+  return dates
+}
+
 /** Friendly summary like "Every Monday" or "2nd & 4th Thursday". */
 export function formatRecurrence(rec: {
   freq: 'daily' | 'weekly' | 'monthly' | 'yearly'

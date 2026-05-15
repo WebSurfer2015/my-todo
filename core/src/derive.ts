@@ -11,7 +11,7 @@ import {
 } from "./types";
 import { CategoryDef, categoryLabel } from "./categories";
 import { buildGroups, TodoGroup } from "./groups";
-import { genUuid, todayLocal, nextOccurrence } from "./utils";
+import { genUuid, todayLocal, nextOccurrence, expandRecurrence } from "./utils";
 import type { Strings } from "./i18n";
 
 export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
@@ -33,6 +33,7 @@ export function newTodo(input: {
   dueDate: string;
   category?: Category;
   recurrence?: Recurrence;
+  subtasks?: Subtask[];
 }): Todo {
   return {
     id: genUuid(),
@@ -44,7 +45,71 @@ export function newTodo(input: {
     trashed: false,
     updatedAt: Date.now(),
     ...(input.recurrence ? { recurrence: input.recurrence } : {}),
+    ...(input.subtasks && input.subtasks.length > 0 ? { subtasks: input.subtasks } : {}),
   };
+}
+
+/**
+ * Deep-clone a subtask list with fresh ids and `done: false`. Used when
+ * generating recurring instances so each copy starts blank and is
+ * independently togglable.
+ */
+function cloneSubtasksFresh(subs: Subtask[] | undefined): Subtask[] | undefined {
+  if (!subs || subs.length === 0) return undefined;
+  return subs.map((s) => ({ ...s, id: genUuid(), done: false }));
+}
+
+/**
+ * Generate one Todo per occurrence of a recurring task between dueDate and
+ * recurrence.endDate (inclusive). Each instance gets:
+ *  - a fresh id and updatedAt
+ *  - its own dueDate (from the expansion)
+ *  - a deep copy of the template's subtasks (with new ids, all undone)
+ *  - the recurrence definition copied verbatim (so the instance can show
+ *    "↻ Monthly · ends Aug 15" in its meta row)
+ *
+ * Falls back to a single rolling task when recurrence has no endDate
+ * (legacy / open-ended). Caps at MAX_RECURRENCE_INSTANCES (365) inside
+ * expandRecurrence.
+ */
+export function generateRecurringInstances(input: {
+  text: string;
+  priority: Priority;
+  dueDate: string;
+  category?: Category;
+  recurrence: Recurrence;
+  subtasks?: Subtask[];
+}): Todo[] {
+  if (!input.recurrence.endDate) {
+    // Open-ended series — one rolling task (legacy behavior preserved).
+    return [
+      newTodo({
+        text: input.text,
+        priority: input.priority,
+        dueDate: input.dueDate,
+        category: input.category,
+        recurrence: input.recurrence,
+        subtasks: cloneSubtasksFresh(input.subtasks),
+      }),
+    ];
+  }
+  const dates = expandRecurrence(input.dueDate, input.recurrence.endDate, input.recurrence);
+  if (dates.length === 0) return [];
+  const now = Date.now();
+  return dates.map((date) => ({
+    id: genUuid(),
+    text: input.text.slice(0, MAX_TODO_TEXT_LEN),
+    done: false,
+    priority: input.priority,
+    dueDate: date,
+    category: input.category,
+    trashed: false,
+    updatedAt: now,
+    recurrence: input.recurrence,
+    ...(input.subtasks && input.subtasks.length > 0
+      ? { subtasks: cloneSubtasksFresh(input.subtasks) }
+      : {}),
+  }));
 }
 
 /**
@@ -64,10 +129,15 @@ export function todoToggle(prev: Todo[], id: string): Todo[] {
   const now = Date.now();
   return prev.map((td) => {
     if (td.id !== id) return td;
-    // Recurring tasks: instead of completing, roll dueDate forward and reset
-    // subtasks. The same row keeps moving through time. To finish a series,
-    // remove the recurrence first.
-    if (!td.done && td.recurrence && td.dueDate) {
+    // Legacy rolling behavior: only when a recurring task has NO endDate.
+    // Multi-instance recurring tasks (with endDate) are pre-expanded at
+    // creation time, so each instance toggles like a normal task.
+    if (
+      !td.done &&
+      td.recurrence &&
+      !td.recurrence.endDate &&
+      td.dueDate
+    ) {
       const rolled = nextOccurrence(
         td.dueDate,
         td.recurrence.freq,

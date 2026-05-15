@@ -26,6 +26,14 @@ export interface Recurrence {
    * 2nd and 4th Thursday of the month.
    */
   bySetPos?: number[]
+  /**
+   * Inclusive ISO yyyy-mm-dd end date. When set, the recurrence is expanded
+   * into discrete Todo instances at creation time — one Todo per occurrence
+   * between dueDate and endDate. todoToggle treats each instance as a normal
+   * completion (no rolling). Legacy tasks without endDate keep the rolling
+   * behavior: dueDate advances forward on completion.
+   */
+  endDate?: string
 }
 export const RECURRENCE_FREQS: RecurrenceFreq[] = ['daily', 'weekly', 'monthly', 'yearly']
 /** Weekday short labels — Sun=0. */

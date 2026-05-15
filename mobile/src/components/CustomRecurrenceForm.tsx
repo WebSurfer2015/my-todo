@@ -1,8 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native'
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform } from 'react-native'
+import DateTimePicker from '@react-native-community/datetimepicker'
 import { Recurrence, RecurrenceFreq, WEEKDAY_SHORT } from '../types'
-import { formatRecurrence } from '../utils'
+import { formatRecurrence, isoDate } from '../utils'
 import { useTheme, ThemeColors } from '../theme'
+
+function defaultEndDate(): Date {
+  const d = new Date()
+  d.setDate(d.getDate() + 90)
+  return d
+}
 
 interface Props {
   initial?: Recurrence
@@ -30,11 +37,15 @@ export default function CustomRecurrenceForm({ initial, onDone, onBack }: Props)
   const [freq, setFreq] = useState<RecurrenceFreq>(initial?.freq === 'monthly' ? 'monthly' : 'weekly')
   const [weekdays, setWeekdays] = useState<Set<number>>(() => new Set(initial?.byWeekday ?? []))
   const [positions, setPositions] = useState<Set<number>>(() => new Set(initial?.bySetPos ?? []))
+  const [endDate, setEndDate] = useState<Date>(() =>
+    initial?.endDate ? new Date(`${initial.endDate}T00:00:00`) : defaultEndDate(),
+  )
 
   useEffect(() => {
     setFreq(initial?.freq === 'monthly' ? 'monthly' : 'weekly')
     setWeekdays(new Set(initial?.byWeekday ?? []))
     setPositions(new Set(initial?.bySetPos ?? []))
+    setEndDate(initial?.endDate ? new Date(`${initial.endDate}T00:00:00`) : defaultEndDate())
   }, [initial])
 
   function toggleWeekday(n: number) {
@@ -63,6 +74,7 @@ export default function CustomRecurrenceForm({ initial, onDone, onBack }: Props)
           ...(freq === 'monthly' && positions.size > 0
             ? { bySetPos: Array.from(positions).sort((a, b) => a - b) }
             : {}),
+          endDate: isoDate(endDate),
         }
       : undefined
 
@@ -140,10 +152,25 @@ export default function CustomRecurrenceForm({ initial, onDone, onBack }: Props)
           </>
         )}
 
+        <Text style={styles.sectionLabel}>ENDS ON</Text>
+        <View style={styles.dateBox}>
+          <DateTimePicker
+            value={endDate}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'compact' : 'default'}
+            themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
+            minimumDate={new Date()}
+            onChange={(e, d) => {
+              if (e.type === 'set' && d) setEndDate(d)
+            }}
+          />
+        </View>
+
         {previewRec && canSave && (
           <View style={styles.previewBox}>
             <Text style={styles.previewLabel}>Preview</Text>
             <Text style={styles.previewText}>{formatRecurrence(previewRec)}</Text>
+            <Text style={styles.previewSub}>Ends {isoDate(endDate)}</Text>
           </View>
         )}
       </ScrollView>
@@ -268,6 +295,21 @@ function makeStyles(c: ThemeColors) {
       fontSize: 15,
       color: c.label,
       fontWeight: '600',
+    },
+    previewSub: {
+      fontSize: 13,
+      color: c.label3,
+      marginTop: 4,
+    },
+    dateBox: {
+      backgroundColor: c.card,
+      borderRadius: 10,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      flexDirection: 'row',
+      alignItems: 'center',
     },
   })
 }

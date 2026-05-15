@@ -36,7 +36,18 @@ interface Props {
   onClose: () => void
 }
 
-type SubView = 'main' | 'category' | 'priority' | 'date' | 'repeat' | 'customRepeat'
+type SubView = 'main' | 'category' | 'priority' | 'date' | 'repeat' | 'repeatEndDate' | 'customRepeat'
+
+function defaultEndDateFor(freq: RecurrenceFreq): Date {
+  const d = new Date()
+  switch (freq) {
+    case 'daily':   d.setDate(d.getDate() + 30); break
+    case 'weekly':  d.setDate(d.getDate() + 84); break  // 12 weeks
+    case 'monthly': d.setMonth(d.getMonth() + 12); break
+    case 'yearly':  d.setFullYear(d.getFullYear() + 5); break
+  }
+  return d
+}
 
 const RECURRENCE_LABELS: Record<'none' | RecurrenceFreq, string> = {
   none: 'Never',
@@ -71,6 +82,10 @@ export default function ComposeSheet({
   const [dueDate, setDueDate] = useState('')
   const [pickerDate, setPickerDate] = useState<Date>(new Date())
   const [recurrence, setRecurrence] = useState<Recurrence | undefined>(undefined)
+  // Pending freq while the user is in the 'repeatEndDate' picker — committed
+  // to `recurrence` once they pick an end date.
+  const [pendingFreq, setPendingFreq] = useState<RecurrenceFreq | null>(null)
+  const [endDatePickerDate, setEndDatePickerDate] = useState<Date>(new Date())
 
   useEffect(() => { setCategory(defaultCategory) }, [defaultCategory])
 
@@ -298,12 +313,63 @@ export default function ComposeSheet({
                     setRecurrence(undefined)
                     setSubView('main')
                   } else {
-                    setRecurrence({ freq: k as RecurrenceFreq })
-                    setSubView('main')
+                    const freq = k as RecurrenceFreq
+                    setPendingFreq(freq)
+                    setEndDatePickerDate(
+                      recurrence?.endDate
+                        ? new Date(`${recurrence.endDate}T00:00:00`)
+                        : defaultEndDateFor(freq),
+                    )
+                    setSubView('repeatEndDate')
                   }
                 }}
                 onBack={() => setSubView('main')}
               />
+            )}
+
+            {subView === 'repeatEndDate' && pendingFreq && (
+              <>
+                <View style={styles.headerRow}>
+                  <TouchableOpacity onPress={() => setSubView('repeat')} hitSlop={10}>
+                    <Text style={styles.cancelText}>‹ Back</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.title}>Repeat ends on</Text>
+                  <View style={{ width: 56 }} />
+                </View>
+                <View style={styles.dateWrap}>
+                  <DateTimePicker
+                    value={endDatePickerDate}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                    themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
+                    minimumDate={new Date()}
+                    onChange={(e, d) => {
+                      if (e.type === 'set' && d) setEndDatePickerDate(d)
+                    }}
+                  />
+                </View>
+                <View style={styles.dateActions}>
+                  <TouchableOpacity
+                    onPress={() => setSubView('repeat')}
+                    style={styles.clearBtn}
+                  >
+                    <Text style={styles.clearBtnText}>{t.cancel}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setRecurrence({
+                        freq: pendingFreq,
+                        endDate: isoDate(endDatePickerDate),
+                      })
+                      setPendingFreq(null)
+                      setSubView('main')
+                    }}
+                    style={[styles.addBtn, styles.applyBtn]}
+                  >
+                    <Text style={styles.addBtnText}>{t.done}</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
             )}
 
             {subView === 'customRepeat' && (
