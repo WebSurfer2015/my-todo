@@ -2208,12 +2208,9 @@ h1 { margin: 0; }
   to   { transform: translateX(0);    opacity: 1; }
 }
 
-/* Add-subtask add row spacing inside the panel — separates it from the sub list */
+/* Add-subtask row sits naturally above the sub list — no separator line. */
 .task-panel > .input-row {
   margin: 0;
-  margin-top: 8px;
-  padding-top: 16px;
-  border-top: 1px solid var(--separator);
 }
 .task-panel > .input-row > .btn-add {
   display: inline-flex;

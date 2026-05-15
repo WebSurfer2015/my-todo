@@ -33,6 +33,17 @@ function Plus({ size = 16, strokeWidth = 2.4 }: IconProps) {
 }
 
 
+function CalendarIcon({ size = 14, strokeWidth = 1.8 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M16 2v4" />
+      <path d="M8 2v4" />
+      <path d="M3 10h18" />
+    </svg>
+  )
+}
+
 function Trash2({ size = 14, strokeWidth = 2 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -248,7 +259,7 @@ export default function TaskDetailsModal({
             <SubtaskCard
               key={s.id}
               parentId={todo.id}
-              parentColor={cat?.color}
+              parentDueDate={todo.dueDate}
               subtask={s}
               onToggle={onToggleSubtask}
               onUpdateText={onUpdateSubtaskText}
@@ -265,11 +276,11 @@ export default function TaskDetailsModal({
 }
 
 function SubtaskCard({
-  parentId, parentColor, subtask,
+  parentId, parentDueDate, subtask,
   onToggle, onUpdateText, onUpdatePriority, onUpdateDueDate, onRemove,
 }: {
   parentId: string
-  parentColor?: string
+  parentDueDate: string
   subtask: Subtask
   onToggle: (id: string, subId: string) => void
   onUpdateText: (id: string, subId: string, text: string) => void
@@ -287,7 +298,9 @@ function SubtaskCard({
   useCloseOnOutside(priorityRef, priorityOpen, () => setPriorityOpen(false))
 
   const priority: Priority = subtask.priority ?? 'medium'
-  const dueDate = subtask.dueDate ?? ''
+  const ownDate = subtask.dueDate ?? ''
+  // Display fallback to parent's date when sub has no own date.
+  const dueDate = ownDate || parentDueDate || ''
   const today = todayLocal()
   const overdue = !!dueDate && !subtask.done && dueDate < today
   const isToday = !!dueDate && !subtask.done && dueDate === today
@@ -312,22 +325,20 @@ function SubtaskCard({
   }
 
   return (
-    <li
-      className={`item item--sub${subtask.done ? ' done' : ''}`}
-      style={{ ['--cat-color' as string]: parentColor }}
-    >
+    <li className={`subtask-row-inline${subtask.done ? ' done' : ''}`}>
       <input
         type="checkbox"
+        className="subtask-inline-checkbox"
         checked={subtask.done}
         onChange={() => onToggle(parentId, subtask.id)}
         aria-label={subtask.text}
       />
-      <div className="item-body">
-        <div className="item-main">
+      <div className="subtask-inline-body">
+        <div className="subtask-inline-main">
           {editing ? (
             <input
               ref={inputRef}
-              className="item-text-edit"
+              className="subtask-inline-text"
               value={text}
               onChange={(e) => setText(e.target.value)}
               onBlur={commit}
@@ -339,7 +350,7 @@ function SubtaskCard({
             />
           ) : (
             <span
-              className="item-text"
+              className="subtask-inline-text clickable"
               onClick={() => setEditing(true)}
               title={t.editTask}
             >
@@ -376,39 +387,37 @@ function SubtaskCard({
             </div>
           )}
         </div>
-        <div className="item-meta">
-          {onUpdateDueDate && (
-            <div className="due-date-edit">
-              <input
-                ref={dateRef}
-                type="date"
-                className="date-input-hidden"
-                value={dueDate}
-                onChange={(e) => onUpdateDueDate(parentId, subtask.id, e.target.value)}
-              />
-              <button
-                type="button"
-                className={`date-chip${overdue ? ' overdue' : ''}${isToday ? ' today' : ''}${!dueDate ? ' no-date' : ''}`}
-                onClick={() => dateRef.current?.showPicker()}
-                title={t.setDueDate}
-                aria-label={t.setDueDate}
-              >
-                {dueDate ? formatDisplayDate(dueDate, t.locale) : t.noDate}
-              </button>
-            </div>
-          )}
-          <div className="item-actions">
+        {onUpdateDueDate && (
+          <div className="due-date-edit subtask-inline-meta">
+            <input
+              ref={dateRef}
+              type="date"
+              className="date-input-hidden"
+              value={ownDate}
+              onChange={(e) => onUpdateDueDate(parentId, subtask.id, e.target.value)}
+            />
             <button
               type="button"
-              className="item-action item-action--trash"
-              onClick={() => onRemove(parentId, subtask.id)}
-              title={t.deleteSubtask}
-              aria-label={t.deleteSubtask}
+              className={`date-chip${overdue ? ' overdue' : ''}${isToday ? ' today' : ''}${!dueDate ? ' icon-only' : ''}`}
+              onClick={() => dateRef.current?.showPicker?.()}
+              title={dueDate ? formatDisplayDate(dueDate, t.locale) : t.setDueDate}
+              aria-label={t.setDueDate}
             >
-              <Trash2 size={14} strokeWidth={2} />
+              {dueDate
+                ? formatDisplayDate(dueDate, t.locale)
+                : <CalendarIcon size={13} />}
             </button>
           </div>
-        </div>
+        )}
+        <button
+          type="button"
+          className="subtask-inline-remove"
+          onClick={() => onRemove(parentId, subtask.id)}
+          title={t.deleteSubtask}
+          aria-label={t.deleteSubtask}
+        >
+          <Trash2 size={13} />
+        </button>
       </div>
     </li>
   )
