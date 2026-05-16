@@ -64,6 +64,13 @@ export interface Profile {
   todaySubtaskPebbles?: number
   /** Local ISO date (yyyy-mm-dd) of the day the today counters belong to. */
   pebblesDate?: string
+  /**
+   * True once the user has seen (or skipped) the first-launch onboarding
+   * flow. Defaults to undefined for legacy profiles — we treat undefined
+   * as "needs onboarding" so existing users get the introduction once.
+   * Set to true the first time they finish or skip.
+   */
+  onboardingDone?: boolean
 }
 
 export type PebbleKind = 'task' | 'subtask'

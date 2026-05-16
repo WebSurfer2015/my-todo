@@ -29,6 +29,7 @@ import { useTodoStore } from "./src/useTodoStore";
 import SignIn from "./src/components/SignIn";
 import EmptyState from "./src/components/EmptyState";
 import PebbleStrip from "./src/components/PebbleStrip";
+import Onboarding from "./src/components/Onboarding";
 
 function SlidersIcon({ size = 18, color = "#3C3C43" }: { size?: number; color?: string }) {
   return (
@@ -84,6 +85,7 @@ function AppInner() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [carriedOverExpanded, setCarriedOverExpanded] = useState(false);
   const [upcomingExpanded, setUpcomingExpanded] = useState(false);
+  const onboardingNeeded = store.loaded && store.profile.onboardingDone !== true;
 
   if (authLoading)
     return <SafeAreaView style={styles.safe} edges={["top", "bottom"]} />;
@@ -410,6 +412,19 @@ function AppInner() {
         defaultCategory={store.defaultCategory}
         onAdd={store.addTask}
         onClose={() => setComposeOpen(false)}
+      />
+      <Onboarding
+        visible={onboardingNeeded}
+        onComplete={(intent) => {
+          store.saveProfile({ ...store.profile, onboardingDone: true });
+          if (intent === "firstTask") {
+            // Defer compose so the onboarding modal animates out first.
+            setTimeout(() => setComposeOpen(true), 250);
+          }
+        }}
+        onSkip={() => {
+          store.saveProfile({ ...store.profile, onboardingDone: true });
+        }}
       />
     </SafeAreaView>
   );
