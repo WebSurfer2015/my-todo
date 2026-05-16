@@ -410,6 +410,19 @@ export default function ProfileSheet({
               </Text>
             </View>
 
+            <Text style={styles.privacySectionLabel}>YOUR DATA</Text>
+            <View style={styles.privacyCard}>
+              <Text style={styles.privacyText}>
+                Your tasks live in your account. They're encrypted in
+                transit, scoped to you on every read, and never sold,
+                analyzed, or shared.
+              </Text>
+              <Text style={styles.privacyText}>
+                When you delete your account, everything you've added is
+                removed from the cloud the same moment.
+              </Text>
+            </View>
+
             <View style={styles.actions}>
               <TouchableOpacity
                 disabled={deleting}
@@ -642,6 +655,27 @@ function makeStyles(c: ThemeColors) {
       textAlign: "center",
       marginTop: 10,
       maxWidth: 260,
+    },
+    privacySectionLabel: {
+      fontSize: 11,
+      fontWeight: "700",
+      letterSpacing: 0.6,
+      color: c.label3,
+      marginTop: 18,
+      marginBottom: 8,
+      paddingHorizontal: 4,
+    },
+    privacyCard: {
+      backgroundColor: c.bg,
+      borderRadius: 12,
+      padding: 14,
+      gap: 8,
+      marginBottom: 8,
+    },
+    privacyText: {
+      fontSize: 13,
+      color: c.label2,
+      lineHeight: 19,
     },
     actions: {
       flexDirection: "row",
