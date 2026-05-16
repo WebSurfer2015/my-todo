@@ -253,10 +253,50 @@ export default function ComposeSheet({
                         ]}
                         numberOfLines={1}
                       >
-                        {recurrenceLabel(recurrence)}
+                        {recurrence
+                          ? (isCustomRecurrence(recurrence)
+                              ? formatRecurrence(recurrence)
+                              : RECURRENCE_LABELS[recurrence.freq])
+                          : RECURRENCE_LABELS.none}
                       </Text>
                       <Text style={styles.chevron}>›</Text>
                     </TouchableOpacity>
+
+                    {recurrence && (
+                      <>
+                        <View style={styles.divider} />
+                        <TouchableOpacity
+                          style={styles.fieldRow}
+                          onPress={() => {
+                            setEndDatePickerDate(
+                              recurrence.endDate
+                                ? new Date(`${recurrence.endDate}T00:00:00`)
+                                : defaultEndDateFor(recurrence.freq),
+                            )
+                            setPendingFreq(recurrence.freq)
+                            setSubView('repeatEndDate')
+                          }}
+                          activeOpacity={0.6}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Repeat ends on, ${recurrence.endDate ?? 'never'}. Tap to change.`}
+                        >
+                          <CalendarIcon size={18} color={recurrence.endDate ? theme.blue : theme.gray3} />
+                          <Text style={styles.fieldLabel}>Repeat ends</Text>
+                          <Text
+                            style={[
+                              styles.fieldValue,
+                              !recurrence.endDate && styles.fieldValueMuted,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {recurrence.endDate
+                              ? new Date(`${recurrence.endDate}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                              : 'No end'}
+                          </Text>
+                          <Text style={styles.chevron}>›</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
                   </View>
 
                   <TouchableOpacity

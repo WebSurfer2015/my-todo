@@ -168,7 +168,8 @@ export default function TaskDetailsSheet({
   const [editCategoryOpen, setEditCategoryOpen] = useState(false)
   const [editPickerDate, setEditPickerDate] = useState<Date>(new Date())
   const [editRecurrence, setEditRecurrence] = useState<Recurrence | undefined>(undefined)
-  const [parentEditView, setParentEditView] = useState<'main' | 'repeat' | 'customRepeat' | 'date'>('main')
+  const [parentEditView, setParentEditView] = useState<'main' | 'repeat' | 'customRepeat' | 'date' | 'recurEndDate'>('main')
+  const [endDatePickerDate, setEndDatePickerDate] = useState<Date>(new Date())
 
   // Subtask edit (in-sheet) — when set, renders the edit-subtask sub-view.
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null)
@@ -532,6 +533,45 @@ export default function TaskDetailsSheet({
                 />
               </View>
             </>
+          ) : parentEditView === 'recurEndDate' && editRecurrence ? (
+            <>
+              <View style={styles.editHeader}>
+                <TouchableOpacity onPress={() => setParentEditView('main')} hitSlop={10} style={styles.headerSideBtn}>
+                  <Text style={styles.cancelText}>‹ Back</Text>
+                </TouchableOpacity>
+                <Text style={styles.editHeaderTitle}>Repeat ends</Text>
+                {editRecurrence.endDate ? (
+                  <TouchableOpacity
+                    onPress={() => {
+                      const { endDate: _drop, ...rest } = editRecurrence
+                      applyRecurrence(rest)
+                      setParentEditView('main')
+                    }}
+                    hitSlop={10}
+                    style={styles.headerSideBtn}
+                  >
+                    <Text style={styles.dateClearBtnText}>{t.clear}</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.headerSideBtn} />
+                )}
+              </View>
+              <View style={styles.dateWrap}>
+                <DateTimePicker
+                  value={endDatePickerDate}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                  themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
+                  minimumDate={new Date()}
+                  onChange={(_e: DateTimePickerEvent, d?: Date) => {
+                    if (!d) return
+                    setEndDatePickerDate(d)
+                    applyRecurrence({ ...editRecurrence, endDate: isoDate(d) })
+                    setParentEditView('main')
+                  }}
+                />
+              </View>
+            </>
           ) : (
           <>
           <View style={styles.editHeader}>
@@ -612,10 +652,46 @@ export default function TaskDetailsSheet({
                     ]}
                     numberOfLines={1}
                   >
-                    {recurrenceLabel(editRecurrence)}
+                    {editRecurrence
+                      ? (editRecurrence.byWeekday && editRecurrence.byWeekday.length > 0
+                          ? formatRecurrence(editRecurrence)
+                          : RECURRENCE_LABELS[editRecurrence.freq])
+                      : RECURRENCE_LABELS.none}
                   </Text>
                   <Text style={styles.editChevron}>›</Text>
                 </TouchableOpacity>
+                {editRecurrence && (
+                  <>
+                    <View style={styles.editGroupDivider} />
+                    <TouchableOpacity
+                      style={styles.editFieldRowInGroup}
+                      onPress={() => {
+                        setEndDatePickerDate(
+                          editRecurrence.endDate
+                            ? new Date(`${editRecurrence.endDate}T00:00:00`)
+                            : new Date(),
+                        )
+                        setParentEditView('recurEndDate')
+                      }}
+                      activeOpacity={0.6}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Repeat ends, ${editRecurrence.endDate ? absoluteDateLabel(editRecurrence.endDate) : 'never'}. Tap to change.`}
+                    >
+                      <CalendarIcon size={18} color={editRecurrence.endDate ? theme.blue : theme.gray3} />
+                      <Text style={styles.editFieldLabel}>Repeat ends</Text>
+                      <Text
+                        style={[
+                          styles.editFieldValue,
+                          !editRecurrence.endDate && styles.editFieldValueMuted,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {editRecurrence.endDate ? absoluteDateLabel(editRecurrence.endDate) : 'No end'}
+                      </Text>
+                      <Text style={styles.editChevron}>›</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
 
               <Text style={styles.subtaskSectionHeader}>SUBTASKS</Text>
