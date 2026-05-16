@@ -450,13 +450,9 @@ export default function ComposeSheet({
                     <Text style={styles.cancelText}>‹ Back</Text>
                   </TouchableOpacity>
                   <Text style={styles.title}>Completed by</Text>
-                  {dueDate ? (
-                    <TouchableOpacity onPress={clearInlineDate} hitSlop={10}>
-                      <Text style={styles.clearBtnText}>{t.clear}</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <View style={{ width: 56 }} />
-                  )}
+                  <TouchableOpacity onPress={clearInlineDate} hitSlop={10}>
+                    <Text style={styles.clearBtnText}>Reset</Text>
+                  </TouchableOpacity>
                 </View>
                 <View style={styles.dateWrap}>
                   <DateTimePicker
