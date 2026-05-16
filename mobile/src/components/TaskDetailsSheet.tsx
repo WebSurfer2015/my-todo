@@ -44,6 +44,22 @@ function recurrenceLabel(rec: Recurrence | undefined): string {
   return RECURRENCE_LABELS[rec.freq] ?? RECURRENCE_LABELS.none
 }
 
+/**
+ * Absolute date label for "Completed by" — "May 17" (current year) or
+ * "May 17, 2027" (other year). Distinct from formatDisplayDate which
+ * gives a relative reading ("in 2 days") that's wrong for a target
+ * date the user explicitly picked.
+ */
+function absoluteDateLabel(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`)
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  })
+}
+
 function isCustomRecurrence(rec: Recurrence | undefined): boolean {
   return !!rec && Array.isArray(rec.byWeekday) && rec.byWeekday.length > 0
 }
@@ -132,10 +148,9 @@ export default function TaskDetailsSheet({
   const [editDueDate, setEditDueDate] = useState(todo.dueDate ?? '')
   const [editPriorityOpen, setEditPriorityOpen] = useState(false)
   const [editCategoryOpen, setEditCategoryOpen] = useState(false)
-  const [editDateOpen, setEditDateOpen] = useState(false)
   const [editPickerDate, setEditPickerDate] = useState<Date>(new Date())
   const [editRecurrence, setEditRecurrence] = useState<Recurrence | undefined>(undefined)
-  const [parentEditView, setParentEditView] = useState<'main' | 'repeat' | 'customRepeat'>('main')
+  const [parentEditView, setParentEditView] = useState<'main' | 'repeat' | 'customRepeat' | 'date'>('main')
 
   // Subtask edit (in-sheet) — when set, renders the edit-subtask sub-view.
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null)
@@ -210,24 +225,16 @@ export default function TaskDetailsSheet({
 
   function openEditDatePicker() {
     setEditPickerDate(editDueDate ? new Date(`${editDueDate}T00:00:00`) : new Date())
-    setEditDateOpen(true)
+    setParentEditView('date')
   }
 
   function commitEditDate() {
     applyDueDate(isoDate(editPickerDate))
-    setEditDateOpen(false)
+    setParentEditView('main')
   }
 
-  function handleEditDateChange(event: DateTimePickerEvent, selected?: Date) {
-    if (event.type === 'set' && selected) {
-      setEditPickerDate(selected)
-      if (Platform.OS === 'android') {
-        applyDueDate(isoDate(selected))
-        setEditDateOpen(false)
-      }
-    } else if (Platform.OS === 'android') {
-      setEditDateOpen(false)
-    }
+  function handleEditDateChange(_event: DateTimePickerEvent, selected?: Date) {
+    if (selected) setEditPickerDate(selected)
   }
 
   function openSubDate(s: Subtask) {
@@ -401,7 +408,7 @@ export default function TaskDetailsSheet({
                         ]}
                         numberOfLines={1}
                       >
-                        {editSubDueDate ? formatDisplayDate(editSubDueDate, t.locale) : t.noDate}
+                        {editSubDueDate ? absoluteDateLabel(editSubDueDate) : t.noDate}
                       </Text>
                       <Text style={styles.editChevron}>›</Text>
                     </TouchableOpacity>
@@ -478,6 +485,36 @@ export default function TaskDetailsSheet({
               }}
               onBack={() => setParentEditView('repeat')}
             />
+          ) : parentEditView === 'date' ? (
+            <>
+              <View style={styles.editHeader}>
+                <TouchableOpacity onPress={() => setParentEditView('main')} hitSlop={10} style={styles.headerSideBtn}>
+                  <Text style={styles.cancelText}>‹ Back</Text>
+                </TouchableOpacity>
+                <Text style={styles.editHeaderTitle}>Completed by</Text>
+                <View style={styles.headerSideBtn} />
+              </View>
+              <View style={styles.dateWrap}>
+                <DateTimePicker
+                  value={editPickerDate}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                  themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
+                  onChange={handleEditDateChange}
+                />
+              </View>
+              <View style={styles.dateActions}>
+                <TouchableOpacity
+                  onPress={() => { applyDueDate(''); setParentEditView('main') }}
+                  style={styles.dateClearBtn}
+                >
+                  <Text style={styles.dateClearBtnText}>{t.clear}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={commitEditDate} style={styles.dateDoneBtn}>
+                  <Text style={styles.dateDoneBtnText}>{t.done}</Text>
+                </TouchableOpacity>
+              </View>
+            </>
           ) : (
           <>
           <View style={styles.editHeader}>
@@ -533,7 +570,7 @@ export default function TaskDetailsSheet({
                     ]}
                     numberOfLines={1}
                   >
-                    {editDueDate ? formatDisplayDate(editDueDate, t.locale) : t.noDate}
+                    {editDueDate ? absoluteDateLabel(editDueDate) : t.noDate}
                   </Text>
                   <Text style={styles.editChevron}>›</Text>
                 </TouchableOpacity>
@@ -658,42 +695,8 @@ export default function TaskDetailsSheet({
             }))}
           />
 
-          {/* Parent task date picker (edit mode) */}
-          {editDateOpen && Platform.OS === 'ios' && (
-            <Modal visible transparent animationType="fade" onRequestClose={() => setEditDateOpen(false)}>
-              <TouchableOpacity
-                style={styles.dateOverlay}
-                onPress={() => setEditDateOpen(false)}
-                activeOpacity={1}
-              >
-                <View style={styles.dateSheet} onStartShouldSetResponder={() => true}>
-                  <DateTimePicker
-                    value={editPickerDate}
-                    mode="date"
-                    display="inline"
-                    themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
-                    onChange={handleEditDateChange}
-                  />
-                  <View style={styles.dateBtnRow}>
-                    <TouchableOpacity onPress={() => { setEditDueDate(''); setEditDateOpen(false) }}>
-                      <Text style={styles.dateClear}>{t.clear}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={commitEditDate}>
-                      <Text style={styles.dateDone}>{t.done}</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            </Modal>
-          )}
-          {editDateOpen && Platform.OS === 'android' && (
-            <DateTimePicker
-              value={editPickerDate}
-              mode="date"
-              display="default"
-              onChange={handleEditDateChange}
-            />
-          )}
+          {/* Parent task date picker now lives as an in-sheet sub-view
+              above (parentEditView === 'date'). No Modal-on-Modal. */}
 
           {/* Per-subtask priority picker */}
           {onUpdateSubtaskPriority && (
