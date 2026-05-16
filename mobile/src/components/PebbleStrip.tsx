@@ -76,7 +76,12 @@ export default function PebbleStrip({ count }: Props) {
 
   if (count === 0) {
     return (
-      <View style={styles.container}>
+      <View
+        style={styles.container}
+        accessible
+        accessibilityRole="text"
+        accessibilityLabel="No pebbles placed today yet. One pebble. That's it."
+      >
         <View style={styles.row}>
           <Svg width={26} height={16}>
             <Ellipse
@@ -112,7 +117,12 @@ export default function PebbleStrip({ count }: Props) {
   }
 
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={count === 1 ? '1 pebble placed today' : `${count} pebbles placed today`}
+    >
       <View style={styles.row}>
         {Array.from({ length: visible }).map((_, i) => (
           <View

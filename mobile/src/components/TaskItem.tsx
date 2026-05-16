@@ -421,8 +421,19 @@ function TaskItem({
               onPress={inTrash && onToggleSelect ? () => onToggleSelect(todo.id) : handleToggle}
               disabled={inTrash && !onToggleSelect}
               hitSlop={10}
-              accessibilityRole={inTrash && onToggleSelect ? 'checkbox' : 'button'}
-              accessibilityState={inTrash && onToggleSelect ? { checked: selected } : undefined}
+              accessibilityRole="checkbox"
+              accessibilityState={
+                inTrash && onToggleSelect
+                  ? { checked: selected }
+                  : { checked: todo.done }
+              }
+              accessibilityLabel={
+                inTrash && onToggleSelect
+                  ? `Select ${todo.text}`
+                  : todo.done
+                    ? `${todo.text}, completed. Mark as not done.`
+                    : `${todo.text}. Mark as done.`
+              }
             >
               {(todo.done || (inTrash && selected)) && <Text style={styles.checkmark}>✓</Text>}
             </TouchableOpacity>
@@ -504,6 +515,8 @@ function TaskItem({
               style={styles.priorityBtn}
               hitSlop={10}
               disabled={inTrash}
+              accessibilityRole="button"
+              accessibilityLabel={`Priority ${todo.priority}${todo.recurrence ? ', recurring' : ''}. Open task details.`}
             >
               <PriorityDot level={todo.priority} size={11} />
             </TouchableOpacity>
@@ -525,6 +538,13 @@ function TaskItem({
                       }}
                       hitSlop={10}
                       style={[styles.subCheckbox, s.done && styles.subCheckboxDone]}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: s.done }}
+                      accessibilityLabel={
+                        s.done
+                          ? `${s.text}, completed subtask. Mark as not done.`
+                          : `${s.text}, subtask. Mark as done.`
+                      }
                     >
                       {s.done && <Text style={styles.subCheckmark}>✓</Text>}
                     </TouchableOpacity>

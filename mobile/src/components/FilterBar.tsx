@@ -104,6 +104,9 @@ export default function FilterBar({
         style={[styles.pill, allActive && styles.pillActive]}
         onPress={() => onFilter('all')}
         activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityState={{ selected: allActive }}
+        accessibilityLabel={`All tasks, ${systemCounts.all}${allActive ? ', selected' : ''}`}
       >
         <Text style={[styles.pillLabel, allActive && styles.pillLabelActive]}>
           {t.filters.all}
@@ -123,6 +126,9 @@ export default function FilterBar({
           ]}
           onPress={() => onFilter(stickyFilter)}
           activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityState={{ selected: stickyActive }}
+          accessibilityLabel={`${stickyResolved.label}, ${stickyResolved.count}${stickyActive ? ', selected' : ''}`}
         >
           {stickyResolved.icon}
           <Text
