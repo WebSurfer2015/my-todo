@@ -14,3 +14,8 @@
 # Claude Code (user-local state)
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# Personal icon design WIP (kept locally, not committed). EAS requires
+# a clean tree so untracked design variants would block builds.
+icons/backup/
+icons/turtle-icon-5.jpg
