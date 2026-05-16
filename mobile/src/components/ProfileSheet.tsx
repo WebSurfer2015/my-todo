@@ -23,6 +23,20 @@ function formatHour12(h: number): string {
   const ampm = h < 12 ? "AM" : "PM";
   return `${hr}:00 ${ampm}`;
 }
+
+/**
+ * Defensive avatar normalizer — guarantees we render Mochi when the saved
+ * avatar is missing, malformed, or points to a preset that no longer exists
+ * (e.g. legacy 'turtle' emoji preset before the brand consolidated on Mochi).
+ */
+function normalizeAvatar(a: AvatarT | undefined | null): AvatarT {
+  const fallback: AvatarT = { kind: "preset", key: "mochi" };
+  if (!a) return fallback;
+  if (a.kind === "preset") {
+    if (!AVATAR_LIBRARY.find((p) => p.key === a.key)) return fallback;
+  }
+  return a;
+}
 import * as Haptics from "expo-haptics";
 import * as ImageManipulator from "expo-image-manipulator";
 import {
@@ -62,7 +76,7 @@ export default function ProfileSheet({
   const [firstName, setFirstName] = useState(profile.firstName ?? "");
   const [lastName, setLastName] = useState(profile.lastName ?? "");
   const [quote, setQuote] = useState(profile.quote ?? "");
-  const [avatar, setAvatar] = useState<AvatarT>(profile.avatar);
+  const [avatar, setAvatar] = useState<AvatarT>(normalizeAvatar(profile.avatar));
   const [deleting, setDeleting] = useState(false);
   const [pickingQuote, setPickingQuote] = useState(false);
   const [celebrateAnim, setCelebrateAnim] = useState<boolean>(
@@ -166,7 +180,7 @@ export default function ProfileSheet({
       setFirstName(profile.firstName ?? "");
       setLastName(profile.lastName ?? "");
       setQuote(profile.quote ?? "");
-      setAvatar(profile.avatar);
+      setAvatar(normalizeAvatar(profile.avatar));
       setCelebrateAnim(profile.completionAnimation !== false);
       setCelebrateSound(profile.completionSound !== false);
       setDailyCheckin(profile.dailyCheckinEnabled === true);
@@ -629,6 +643,7 @@ function makeStyles(c: ThemeColors) {
       fontSize: 17,
       fontWeight: "700",
       color: c.label,
+      letterSpacing: -0.2,
     },
     avatarRow: {
       flexDirection: "row",
@@ -920,7 +935,10 @@ function makeStyles(c: ThemeColors) {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      marginBottom: 14,
+      paddingBottom: 14,
+      marginBottom: 4,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.separator,
     },
     labelRow: {
       flexDirection: "row",
