@@ -12,6 +12,7 @@ import {
   ActionSheetIOS,
   Alert,
   Share,
+  ScrollView,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
@@ -302,6 +303,12 @@ export default function ProfileSheet({
               </TouchableOpacity>
             </View>
 
+            <ScrollView
+              style={styles.scrollBody}
+              contentContainerStyle={styles.scrollBodyContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
             <View style={styles.avatarRow}>
               <TouchableOpacity onPress={openAvatarPicker} activeOpacity={0.8}>
                 <Avatar avatar={avatar} size={72} />
@@ -586,6 +593,7 @@ export default function ProfileSheet({
               </Text>
               <Text style={styles.aboutVersion}>v1.0.1 · Mochi the turtle is the brand mascot.</Text>
             </View>
+            </ScrollView>
           </Pressable>
         </Pressable>
       </KeyboardAvoidingView>
@@ -822,6 +830,12 @@ function makeStyles(c: ThemeColors) {
       fontWeight: "600",
       color: c.primary,
       letterSpacing: -0.16,
+    },
+    scrollBody: {
+      flexShrink: 1,
+    },
+    scrollBodyContent: {
+      paddingBottom: 12,
     },
     aboutFooter: {
       paddingTop: 24,
