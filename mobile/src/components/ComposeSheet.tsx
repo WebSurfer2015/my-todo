@@ -499,7 +499,7 @@ function makeStyles(c: ThemeColors) {
       height: 4,
       borderRadius: 2,
       backgroundColor: c.gray3,
-      marginBottom: 8,
+      marginBottom: 12,
     },
     headerRow: {
       flexDirection: 'row',

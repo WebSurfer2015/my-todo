@@ -1052,9 +1052,10 @@ function makeStyles(c: ThemeColors) {
     },
     sheet: {
       backgroundColor: c.modal,
-      borderTopLeftRadius: 16,
-      borderTopRightRadius: 16,
-      paddingTop: 12,
+      // Sheet radius standardized to 18 across the app (was 16 here).
+      borderTopLeftRadius: 18,
+      borderTopRightRadius: 18,
+      paddingTop: 8,
       paddingBottom: Platform.OS === 'ios' ? 32 : 16,
       paddingHorizontal: 16,
       maxHeight: '90%',

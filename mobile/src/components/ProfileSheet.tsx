@@ -638,7 +638,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.modal,
       borderTopLeftRadius: 18,
       borderTopRightRadius: 18,
-      paddingHorizontal: 20,
+      paddingHorizontal: 16,
       paddingTop: 8,
       paddingBottom: 28,
     },
@@ -762,7 +762,7 @@ function makeStyles(c: ThemeColors) {
       // Hero card — the user's "look what I built" moment. Full-width
       // cairn glyph + large count + supporting copy, centered.
       alignItems: "center",
-      paddingVertical: 22,
+      paddingVertical: 24,
       paddingHorizontal: 16,
       marginTop: 16,
       marginBottom: 8,
