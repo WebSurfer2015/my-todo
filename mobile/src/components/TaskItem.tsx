@@ -768,9 +768,13 @@ function makeStyles(c: ThemeColors, density: Density) {
     },
     text: {
       flex: 1,
-      fontSize: compact ? 14 : 16,
+      // Bumped title weight so it carries the row visually; the meta
+      // chips below are intentionally smaller/dimmer so they read as
+      // secondary information.
+      fontSize: compact ? 15 : 17,
+      fontWeight: '500',
       color: c.label,
-      lineHeight: compact ? 19 : 21,
+      lineHeight: compact ? 20 : 22,
       letterSpacing: -0.3,
     },
     textDone: {
@@ -807,12 +811,13 @@ function makeStyles(c: ThemeColors, density: Density) {
       borderRadius: 5,
     },
     chipText: {
-      fontSize: 12,
+      // One step smaller than the title's secondary line so the meta
+      // row reads as supporting context, not headline content.
+      fontSize: 11,
       fontWeight: '500',
     },
     chipTextMuted: {
-      color: c.gray3,
-      fontStyle: 'italic',
+      color: c.label3,
       fontWeight: '500',
     },
     chipTextDate: {
@@ -821,11 +826,11 @@ function makeStyles(c: ThemeColors, density: Density) {
     },
     chipTextOverdue: {
       color: c.red,
-      fontWeight: '600',
+      fontWeight: '700',
     },
     chipTextToday: {
       color: c.orange,
-      fontWeight: '600',
+      fontWeight: '700',
     },
     expandToggle: {
       width: 22,
@@ -842,7 +847,7 @@ function makeStyles(c: ThemeColors, density: Density) {
     expandToggleArrowDone: {
       color: c.primary,
     },
-    metaSep: { color: c.label3, fontSize: 12, marginHorizontal: 2 },
+    metaSep: { color: c.label3, fontSize: 11, marginHorizontal: 2 },
     progressPill: {
       marginLeft: 'auto',
       paddingHorizontal: 8,
