@@ -257,9 +257,18 @@ export default function TaskDetailsSheet({
     }
   }
   function closeAndFlushText() {
-    // Final flush in case the user closed without blurring an input.
+    // "Save" path — final flush in case the user closed without
+    // blurring an input. Other fields (priority, date, category,
+    // recurrence) auto-save on pick, so they need no flush here.
     applyText(editText)
     applyNotes(editNotes)
+    onClose()
+  }
+  function closeWithoutFlush() {
+    // "Cancel" path — drop any unblurred text/notes edits and close.
+    // Picker-based fields that already auto-saved (priority, date,
+    // category, recurrence) cannot be cancelled here; that's a known
+    // tradeoff of the auto-save UX.
     onClose()
   }
 
@@ -596,10 +605,12 @@ export default function TaskDetailsSheet({
           ) : (
           <>
           <View style={styles.editHeader}>
-            <View style={styles.headerSideBtn} />
+            <TouchableOpacity onPress={closeWithoutFlush} hitSlop={10} style={styles.headerSideBtn}>
+              <Text style={styles.cancelHeaderText}>{t.cancel}</Text>
+            </TouchableOpacity>
             <Text style={styles.editHeaderTitle}>Edit to-do</Text>
             <TouchableOpacity onPress={closeAndFlushText} hitSlop={10} style={styles.headerSideBtn}>
-              <Text style={styles.saveHeaderText}>{t.done}</Text>
+              <Text style={styles.saveHeaderText}>{t.save}</Text>
             </TouchableOpacity>
           </View>
 
@@ -1257,6 +1268,12 @@ function makeStyles(c: ThemeColors) {
     },
     saveHeaderTextDisabled: {
       color: c.gray3,
+    },
+    cancelHeaderText: {
+      fontSize: 15,
+      fontWeight: '500',
+      color: c.label2,
+      textAlign: 'left',
     },
     /* Edit-mode body */
     editBody: {

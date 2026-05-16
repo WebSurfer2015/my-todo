@@ -575,28 +575,26 @@ export function useTodoStore() {
   }
 
   function clearDone() {
-    let trashedIds: string[] = [];
-    setTodos((prev) => {
-      const result = todoClearDone(prev);
-      trashedIds = result.trashedIds;
-      return result.todos;
-    });
-    if (trashedIds.length === 0) return;
-    notify.showSnackbar({
-      message: t.movedToTrashMany(trashedIds.length),
-      actionLabel: t.undoAll,
-      onAction: () => {
-        setTodos((prev) => {
-          const now = Date.now();
-          const idSet = new Set(trashedIds);
-          return prev.map((td) =>
-            idSet.has(td.id)
-              ? { ...td, trashed: false, trashedAt: undefined, updatedAt: now }
-              : td,
-          );
-        });
-      },
-    });
+    // Permanently delete every item in the bin (anything done OR
+    // trashed). Irreversible — undo via snackbar isn't possible because
+    // todoClearDone removes the items from the array entirely. Confirm
+    // the user really means it.
+    const count = todosRef.current.filter((td) => td.done || td.trashed).length;
+    if (count === 0) return;
+    Alert.alert(
+      t.clearAllCompleted,
+      t.emptyTrashConfirm(count),
+      [
+        { text: t.cancel, style: "cancel" },
+        {
+          text: t.deletePermanently,
+          style: "destructive",
+          onPress: () => {
+            setTodos((prev) => todoClearDone(prev).todos);
+          },
+        },
+      ],
+    );
   }
 
   function addCategory(data: { label: string; color: string; icon: string }) {

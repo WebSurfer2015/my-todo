@@ -51,7 +51,7 @@ export const strings = {
     total: 'Total',
     remaining: (n: number) => `${n} to-do${n !== 1 ? 's' : ''} remaining`,
     clearCompleted: 'Clear completed',
-    clearAllCompleted: 'Move all to trash',
+    clearAllCompleted: 'Delete all permanently',
     noDate: 'No date',
     composeCategoryLabel: 'Category',
     composePriorityLabel: 'Priority',

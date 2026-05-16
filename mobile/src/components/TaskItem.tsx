@@ -56,6 +56,13 @@ export type SubtaskVisibility = 'all' | 'open' | 'done'
 interface Props {
   todo: Todo
   inTrash?: boolean
+  /**
+   * True when this row renders inside the Done filter (the merged-bin
+   * view). Behaves like a normal row for tap/checkbox/expand, but the
+   * left-swipe and long-press menu shift to bin actions (Restore +
+   * Delete Permanently) since the item is already in the bin.
+   */
+  binFilterView?: boolean
   selected?: boolean
   onToggleSelect?: (id: string) => void
   categories: CategoryDef[]
@@ -90,7 +97,7 @@ interface Props {
 }
 
 function TaskItem({
-  todo, inTrash = false, selected = false, onToggleSelect,
+  todo, inTrash = false, binFilterView = false, selected = false, onToggleSelect,
   categories, density = 'comfortable', celebrate = true, playSound = true,
   subtaskVisibility = 'all',
   onToggle, onMoveToTrash, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onRestore, onPermanentDelete,
@@ -258,7 +265,7 @@ function TaskItem({
   function handleLongPress() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {})
     const cancel = t.cancel
-    if (inTrash) {
+    if (inTrash || binFilterView) {
       const opts = [t.restoreTask, t.deletePermanently, cancel]
       if (Platform.OS === 'ios') {
         ActionSheetIOS.showActionSheetWithOptions(
@@ -318,7 +325,10 @@ function TaskItem({
   }
 
   function renderRightActions(_progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) {
-    if (inTrash) {
+    if (inTrash || binFilterView) {
+      // In the bin (legacy trash filter or Done filter), swipe-left
+      // is irreversible delete, not "move to bin" — items are already
+      // in the bin. Confirm-dialog before destruction.
       return (
         <TouchableOpacity style={[styles.swipeAction, styles.swipeDelete]} onPress={confirmPermanentDelete}>
           <Trash2 size={20} color="#fff" strokeWidth={2} />

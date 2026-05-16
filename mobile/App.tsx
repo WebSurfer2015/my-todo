@@ -238,55 +238,75 @@ function AppInner() {
                 onCta={() => setComposeOpen(true)}
               />
             ) : store.filter === "overdue" || store.filter === "done" ? (
-              <View style={styles.groupSection}>
-                <View style={styles.groupCard}>
-                  {[...store.filtered]
-                    .sort((a, b) => {
-                      if (!a.dueDate && !b.dueDate) return 0;
-                      if (!a.dueDate) return 1;
-                      if (!b.dueDate) return -1;
-                      return a.dueDate.localeCompare(b.dueDate);
-                    })
-                    .map((td, i) => (
-                      <View key={td.id}>
-                        {i > 0 && <View style={styles.rowSeparator} />}
-                        <TaskItem
-                          todo={td}
-                          categories={store.categories}
-                          density={store.profile.density}
-                        celebrate={store.profile.completionAnimation !== false}
-                        playSound={store.profile.completionSound !== false}
-                          onToggle={store.toggle}
-                          onMoveToTrash={store.moveToTrash}
-                        onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
-                        onApplySeriesFutureEdits={store.applySeriesFutureEdits}
-                          onUpdatePriority={store.updatePriority}
-                          onUpdateDueDate={store.updateDueDate}
-                        onSnooze={store.snooze}
-                          onUpdateCategory={store.updateTaskCategory}
-                          onUpdateText={store.updateText}
-                              onUpdateNotes={store.updateNotes}
-                        onUpdateRecurrence={store.updateRecurrence}
-                          onAddSubtask={store.addSubtask}
-                          onToggleSubtask={store.toggleSubtask}
-                          onUpdateSubtaskText={store.updateSubtaskText}
-                          onUpdateSubtaskPriority={
-                            store.updateSubtaskPriority
-                          }
-                          onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
-                          onRemoveSubtask={store.removeSubtask}
-                          subtaskVisibility="all"
-                        />
-                      </View>
-                    ))}
+              <>
+                {store.filter === "done" && store.filtered.length > 0 && (
+                  <View style={styles.trashHeader}>
+                    <Text style={styles.trashNotice}>{t.trashRetention}</Text>
+                    <TouchableOpacity
+                      onPress={store.clearDone}
+                      style={styles.emptyTrashBtn}
+                    >
+                      <Text style={styles.emptyTrashText}>
+                        {t.clearAllCompleted}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+                <View style={styles.groupSection}>
+                  <View style={styles.groupCard}>
+                    {[...store.filtered]
+                      .sort((a, b) => {
+                        if (!a.dueDate && !b.dueDate) return 0;
+                        if (!a.dueDate) return 1;
+                        if (!b.dueDate) return -1;
+                        return a.dueDate.localeCompare(b.dueDate);
+                      })
+                      .map((td, i) => (
+                        <View key={td.id}>
+                          {i > 0 && <View style={styles.rowSeparator} />}
+                          <TaskItem
+                            todo={td}
+                            categories={store.categories}
+                            density={store.profile.density}
+                            celebrate={store.profile.completionAnimation !== false}
+                            playSound={store.profile.completionSound !== false}
+                            binFilterView={store.filter === "done"}
+                            onToggle={store.toggle}
+                            onMoveToTrash={store.moveToTrash}
+                            onRestore={store.restoreFromTrash}
+                            onPermanentDelete={store.permanentlyDelete}
+                            onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
+                            onApplySeriesFutureEdits={store.applySeriesFutureEdits}
+                            onUpdatePriority={store.updatePriority}
+                            onUpdateDueDate={store.updateDueDate}
+                            onSnooze={store.snooze}
+                            onUpdateCategory={store.updateTaskCategory}
+                            onUpdateText={store.updateText}
+                            onUpdateNotes={store.updateNotes}
+                            onUpdateRecurrence={store.updateRecurrence}
+                            onAddSubtask={store.addSubtask}
+                            onToggleSubtask={store.toggleSubtask}
+                            onUpdateSubtaskText={store.updateSubtaskText}
+                            onUpdateSubtaskPriority={
+                              store.updateSubtaskPriority
+                            }
+                            onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
+                            onRemoveSubtask={store.removeSubtask}
+                            subtaskVisibility="all"
+                          />
+                        </View>
+                      ))}
+                  </View>
                 </View>
-              </View>
+              </>
             ) : (
               store.groups.map((group) => {
-                // Collapse is only available in the All view — when a
-                // category or status filter is active, every group is
-                // expanded so the user always sees the full subset.
-                const toggleable = store.filter === "all";
+                // Collapse is available in the All and Open views, where
+                // the date-bucket grouping shows. Category and status-
+                // specific filters always render every group expanded so
+                // the user always sees the full subset.
+                const toggleable =
+                  store.filter === "all" || store.filter === "open";
                 const collapsed = toggleable && collapsedGroups.has(group.key);
                 const onToggle = toggleable
                   ? () => toggleGroupCollapsed(group.key)
