@@ -636,6 +636,9 @@ export function deriveState(input: DeriveInput): DerivedState {
   const active = todos.filter((td) => !td.trashed);
 
   const filtered = todos.filter((td) => {
+    // "All" shows everything: open, done, AND trashed in one combined list.
+    // Other filters honor the trashed/active split as before.
+    if (filter === "all") return true;
     if (filter === "trash") return td.trashed;
     if (td.trashed) return false;
     if (filter === "done") return td.done;
@@ -644,7 +647,6 @@ export function deriveState(input: DeriveInput): DerivedState {
     // whether it's still on schedule or already past due. The separate
     // "Overdue" filter still exists for the user who wants only past-due.
     if (filter === "open") return !td.done;
-    if (filter === "all") return true;
     if (isCategoryFilter(filter))
       return td.category === categoryIdFromFilter(filter);
     return true;
@@ -673,7 +675,9 @@ export function deriveState(input: DeriveInput): DerivedState {
   }
 
   const systemCounts = {
-    all: totalOpen,
+    // "All" includes open, done, and trashed — the total of every task in
+    // the store. Sub-filters still mirror their narrower scopes.
+    all: totalOpen + completedCount + trashCount,
     overdue: active.filter(isOverdue).length,
     open: active.filter((td) => !td.done).length,
     done: completedCount,

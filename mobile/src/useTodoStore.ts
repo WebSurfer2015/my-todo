@@ -566,7 +566,10 @@ export function useTodoStore() {
     loaded,
     lastSavedAt,
     ...derived,
-    byCategory: derived.byCategoryOpen,
+    // FilterBar + CategorySheet both want the full per-category count
+    // (open + done, excludes trashed) — matches the user mental model
+    // of "this category has N things in it, regardless of state".
+    byCategory: derived.byCategoryTotal,
     taskCountsForSheet: derived.byCategoryTotal,
     activeCount: derived.active.length,
     headerLine,
