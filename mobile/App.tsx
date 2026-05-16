@@ -398,6 +398,19 @@ function AppInner() {
       <ProfileSheet
         visible={profileOpen}
         profile={store.profile}
+        exportSnapshot={() =>
+          JSON.stringify(
+            {
+              version: 1,
+              exportedAt: new Date().toISOString(),
+              profile: store.profile,
+              categories: store.categories,
+              todos: store.todos,
+            },
+            null,
+            2,
+          )
+        }
         onSave={(p) => {
           store.saveProfile(p);
           setProfileOpen(false);

@@ -11,6 +11,7 @@ import {
   Platform,
   ActionSheetIOS,
   Alert,
+  Share,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
@@ -38,6 +39,9 @@ import { useTheme, ThemeColors } from "../theme";
 interface Props {
   visible: boolean;
   profile: Profile;
+  /** Snapshot of the user's todos + categories. Used by the data-export
+   * action; not modified by this sheet. */
+  exportSnapshot?: () => string;
   onSave: (p: Profile) => void;
   onClose: () => void;
 }
@@ -45,6 +49,7 @@ interface Props {
 export default function ProfileSheet({
   visible,
   profile,
+  exportSnapshot,
   onSave,
   onClose,
 }: Props) {
@@ -495,6 +500,27 @@ export default function ProfileSheet({
               </Text>
             </View>
 
+            {exportSnapshot && (
+              <TouchableOpacity
+                style={styles.exportBtn}
+                onPress={async () => {
+                  try {
+                    const json = exportSnapshot();
+                    await Share.share({
+                      title: 'Sagely export',
+                      message: json,
+                    });
+                  } catch {
+                    /* User dismissed or share failed — no-op */
+                  }
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Export my data as JSON"
+              >
+                <Text style={styles.exportBtnText}>Export my data</Text>
+              </TouchableOpacity>
+            )}
+
             <View style={styles.actions}>
               <TouchableOpacity
                 disabled={deleting}
@@ -777,6 +803,18 @@ function makeStyles(c: ThemeColors) {
       fontSize: 13,
       color: c.label2,
       lineHeight: 19,
+    },
+    exportBtn: {
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      marginBottom: 4,
+      alignItems: "flex-start",
+    },
+    exportBtnText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: c.primary,
+      letterSpacing: -0.16,
     },
     actions: {
       flexDirection: "row",
