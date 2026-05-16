@@ -111,7 +111,7 @@ function AppInner() {
             accessibilityLabel={t.editProfile}
             accessibilityRole="button"
           >
-            <Avatar avatar={store.profile.avatar} size={36} />
+            <Avatar avatar={store.profile.avatar} size={44} />
             <View style={styles.identityTextWrap}>
               <Text style={styles.identityGreeting} numberOfLines={1}>
                 {store.headerLine}
@@ -446,26 +446,28 @@ function makeStyles(c: ThemeColors) {
     identityRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 12,
+      gap: 14,
       paddingHorizontal: 20,
-      paddingTop: 12,
-      paddingBottom: 8,
+      paddingTop: 14,
+      paddingBottom: 10,
     },
     identityTextWrap: {
       flex: 1,
       minWidth: 0,
     },
     identityGreeting: {
-      fontSize: 15,
+      fontSize: 17,
       color: c.label,
       fontWeight: "700",
-      letterSpacing: -0.16,
+      letterSpacing: -0.2,
+      lineHeight: 21,
     },
     identityPlate: {
-      fontSize: 12,
+      fontSize: 13,
       color: c.label2,
       fontWeight: "500",
-      marginTop: 1,
+      marginTop: 2,
+      lineHeight: 18,
     },
     identityQuote: {
       fontStyle: "italic",
