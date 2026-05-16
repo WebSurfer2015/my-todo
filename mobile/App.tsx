@@ -12,6 +12,7 @@ import {
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Svg, { Line, Path, Circle, Rect } from "react-native-svg";
+import { ChevronRight, ChevronDown } from "lucide-react-native";
 import { useTheme, ThemeColors } from "./src/theme";
 import FilterBar from "./src/components/FilterBar";
 import Fab from "./src/components/Fab";
@@ -343,9 +344,15 @@ function AppInner() {
                         accessibilityRole="button"
                         accessibilityState={{ expanded: !collapsed }}
                         hitSlop={8}
+                        style={styles.groupHeaderRow}
                       >
+                        {collapsed ? (
+                          <ChevronRight size={14} color={theme.label3} strokeWidth={2.5} />
+                        ) : (
+                          <ChevronDown size={14} color={theme.label3} strokeWidth={2.5} />
+                        )}
                         <Text style={styles.groupHeader}>
-                          {collapsed ? "▸" : "▾"}  {headerLabel} ({headerCount})
+                          {headerLabel} ({headerCount})
                         </Text>
                       </TouchableOpacity>
                     ) : (
@@ -599,6 +606,12 @@ function makeStyles(c: ThemeColors) {
       textTransform: "uppercase",
       marginBottom: 8,
       marginLeft: 4,
+    },
+    groupHeaderRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      marginLeft: 0,
     },
     trashHeader: {
       flexDirection: "row",
