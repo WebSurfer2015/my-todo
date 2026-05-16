@@ -315,7 +315,7 @@ function TaskItem({
       <>
         <FullSwipeWatcher dragX={dragX} direction="left" onFullSwipe={handleMarkDone} />
         <TouchableOpacity style={[styles.swipeAction, styles.swipeMarkDone]} onPress={handleMarkDone}>
-          <Text style={styles.swipeActionText}>{todo.done ? 'Reopen' : 'Mark as Done'}</Text>
+          <Text style={styles.swipeActionText}>{todo.done ? t.markNotDone : t.markDone}</Text>
         </TouchableOpacity>
       </>
     )
