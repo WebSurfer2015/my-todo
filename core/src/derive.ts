@@ -747,7 +747,10 @@ export function deriveState(input: DeriveInput): DerivedState {
     // "All" includes open, done, and trashed — the total of every task in
     // the store. Sub-filters still mirror their narrower scopes.
     all: totalOpen + completedCount + trashCount,
-    overdue: active.filter(isOverdue).length,
+    // Carried-over count includes trashed past-due items too — matches the
+    // All pill's inclusive scope. The Carried-over filter view itself still
+    // excludes trashed (consistent with other status filters).
+    overdue: todos.filter(isOverdue).length,
     open: active.filter((td) => !td.done).length,
     done: completedCount,
     trash: trashCount,
