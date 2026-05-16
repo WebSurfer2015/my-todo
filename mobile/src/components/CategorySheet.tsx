@@ -274,19 +274,16 @@ export default function CategorySheet({
                             drag,
                             isActive,
                           }: RenderItemParams<StatusEntry>) => (
-                            <View style={[styles.editRow, isActive && styles.editRowActive]}>
+                            <TouchableOpacity
+                              activeOpacity={0.7}
+                              onPress={() => startEditStatus(s)}
+                              style={[styles.editRow, isActive && styles.editRowActive]}
+                            >
                               <StatusIcon id={s.id} size={18} color={statusColor(s.id, theme)} />
                               <Text style={[styles.editRowLabel, s.hidden && styles.editRowLabelHidden]}>
                                 {s.label}
                               </Text>
-                              <TouchableOpacity onPress={() => startEditStatus(s)} style={styles.rowBtn}>
-                                <Text style={styles.rowBtnText}>{t.editTask}</Text>
-                              </TouchableOpacity>
-                              <TouchableOpacity onPress={() => onToggleStatusHidden(s.id)} style={styles.rowBtn}>
-                                <Text style={styles.rowBtnText}>
-                                  {s.hidden ? t.showStatus : t.hideStatus}
-                                </Text>
-                              </TouchableOpacity>
+                              {s.hidden && <Text style={styles.editRowBadge}>hidden</Text>}
                               <TouchableOpacity
                                 onLongPress={drag}
                                 delayLongPress={150}
@@ -296,7 +293,7 @@ export default function CategorySheet({
                               >
                                 <Text style={styles.dragHandleIcon}>≡</Text>
                               </TouchableOpacity>
-                            </View>
+                            </TouchableOpacity>
                           )}
                         />
                       </View>
@@ -325,31 +322,13 @@ export default function CategorySheet({
                             drag,
                             isActive,
                           }: RenderItemParams<CategoryDef>) => (
-                            <View style={[styles.editRow, isActive && styles.editRowActive]}>
+                            <TouchableOpacity
+                              activeOpacity={0.7}
+                              onPress={() => startEditCategory(c)}
+                              style={[styles.editRow, isActive && styles.editRowActive]}
+                            >
                               <CategoryIcon icon={c.icon} color={c.color} size={18} />
                               <Text style={styles.editRowLabel}>{categoryLabel(c, t)}</Text>
-                              <TouchableOpacity onPress={() => startEditCategory(c)} style={styles.rowBtn}>
-                                <Text style={styles.rowBtnText}>{t.editTask}</Text>
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                onPress={() => handleDelete(c)}
-                                style={styles.rowBtn}
-                                disabled={categories.length <= 1}
-                              >
-                                <Text
-                                  style={[
-                                    styles.rowBtnText,
-                                    {
-                                      color:
-                                        categories.length <= 1
-                                          ? theme.gray3
-                                          : theme.red,
-                                    },
-                                  ]}
-                                >
-                                  {t.deleteCategoryAction}
-                                </Text>
-                              </TouchableOpacity>
                               <TouchableOpacity
                                 onLongPress={drag}
                                 delayLongPress={150}
@@ -359,7 +338,7 @@ export default function CategorySheet({
                               >
                                 <Text style={styles.dragHandleIcon}>≡</Text>
                               </TouchableOpacity>
-                            </View>
+                            </TouchableOpacity>
                           )}
                         />
                         <TouchableOpacity
@@ -414,6 +393,23 @@ export default function CategorySheet({
                       maxLength={40}
                     />
                   </View>
+                  {(() => {
+                    const editingStatus = orderedStatuses.find((s) => s.id === mode.id);
+                    const isHidden = editingStatus?.hidden ?? false;
+                    return (
+                      <TouchableOpacity
+                        style={styles.secondaryAction}
+                        onPress={() => {
+                          onToggleStatusHidden(mode.id);
+                          setMode({ kind: "edit" });
+                        }}
+                      >
+                        <Text style={styles.secondaryActionText}>
+                          {isHidden ? t.showStatus : t.hideStatus}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })()}
                   <View style={styles.actions}>
                     <TouchableOpacity
                       style={styles.btn}
@@ -481,6 +477,25 @@ export default function CategorySheet({
                       ))}
                     </View>
                   </View>
+                  {mode.id && (
+                    <TouchableOpacity
+                      style={styles.destructiveAction}
+                      onPress={() => {
+                        const c = categories.find((x) => x.id === mode.id);
+                        if (c) handleDelete(c);
+                      }}
+                      disabled={categories.length <= 1}
+                    >
+                      <Text
+                        style={[
+                          styles.destructiveActionText,
+                          categories.length <= 1 && { color: theme.gray3 },
+                        ]}
+                      >
+                        {t.deleteCategoryAction}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                   <View style={styles.actions}>
                     <TouchableOpacity
                       style={styles.btn}
@@ -611,6 +626,35 @@ function makeStyles(c: ThemeColors) {
     editRowLabelHidden: { color: c.label3, textDecorationLine: "line-through" },
     rowBtn: { paddingHorizontal: 8, paddingVertical: 4 },
     rowBtnText: { fontSize: 13, fontWeight: "600", color: c.primary },
+    editRowBadge: {
+      fontSize: 11,
+      fontWeight: "600",
+      color: c.label3,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 6,
+      backgroundColor: c.bg,
+    },
+    secondaryAction: {
+      paddingVertical: 12,
+      paddingHorizontal: 4,
+      alignItems: "flex-start",
+    },
+    secondaryActionText: {
+      fontSize: 14,
+      fontWeight: "500",
+      color: c.label2,
+    },
+    destructiveAction: {
+      paddingVertical: 12,
+      paddingHorizontal: 4,
+      alignItems: "flex-start",
+    },
+    destructiveActionText: {
+      fontSize: 14,
+      fontWeight: "500",
+      color: c.red,
+    },
     dragHandle: { paddingHorizontal: 8, paddingVertical: 4 },
     dragHandleIcon: { fontSize: 18, color: c.label3, fontWeight: "500" },
     addRow: {
