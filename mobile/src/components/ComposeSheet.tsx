@@ -133,14 +133,11 @@ export default function ComposeSheet({
     setSubView('date')
   }
 
-  function handleInlineDateChange(event: DateTimePickerEvent, selected?: Date) {
-    if (event.type === 'set' && selected) {
-      setPickerDate(selected)
-    }
-  }
-
-  function applyInlineDate() {
-    setDueDate(isoDate(pickerDate))
+  function handleInlineDateChange(_event: DateTimePickerEvent, selected?: Date) {
+    if (!selected) return
+    setPickerDate(selected)
+    // Auto-commit on date pick — feels like a normal date picker.
+    setDueDate(isoDate(selected))
     setSubView('main')
   }
 
@@ -413,7 +410,13 @@ export default function ComposeSheet({
                     <Text style={styles.cancelText}>‹ Back</Text>
                   </TouchableOpacity>
                   <Text style={styles.title}>Completed by</Text>
-                  <View style={{ width: 56 }} />
+                  {dueDate ? (
+                    <TouchableOpacity onPress={clearInlineDate} hitSlop={10}>
+                      <Text style={styles.clearBtnText}>{t.clear}</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={{ width: 56 }} />
+                  )}
                 </View>
                 <View style={styles.dateWrap}>
                   <DateTimePicker
@@ -423,17 +426,6 @@ export default function ComposeSheet({
                     themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
                     onChange={handleInlineDateChange}
                   />
-                </View>
-                <View style={styles.dateActions}>
-                  <TouchableOpacity onPress={clearInlineDate} style={styles.clearBtn}>
-                    <Text style={styles.clearBtnText}>{t.clear}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={applyInlineDate}
-                    style={[styles.addBtn, styles.applyBtn]}
-                  >
-                    <Text style={styles.addBtnText}>{t.done}</Text>
-                  </TouchableOpacity>
                 </View>
               </>
             )}

@@ -249,7 +249,13 @@ export default function TaskDetailsSheet({
   }
 
   function handleEditDateChange(_event: DateTimePickerEvent, selected?: Date) {
-    if (selected) setEditPickerDate(selected)
+    if (!selected) return
+    setEditPickerDate(selected)
+    // Auto-commit on date pick — feels like a normal date picker (tap day,
+    // it's saved). The Clear button up in the header is the explicit
+    // way out for users who want to remove the date entirely.
+    applyDueDate(isoDate(selected))
+    setParentEditView('main')
   }
 
   function openSubDate(s: Subtask) {
@@ -507,7 +513,17 @@ export default function TaskDetailsSheet({
                   <Text style={styles.cancelText}>‹ Back</Text>
                 </TouchableOpacity>
                 <Text style={styles.editHeaderTitle}>Completed by</Text>
-                <View style={styles.headerSideBtn} />
+                {editDueDate ? (
+                  <TouchableOpacity
+                    onPress={() => { applyDueDate(''); setParentEditView('main') }}
+                    hitSlop={10}
+                    style={styles.headerSideBtn}
+                  >
+                    <Text style={styles.dateClearBtnText}>{t.clear}</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.headerSideBtn} />
+                )}
               </View>
               <View style={styles.dateWrap}>
                 <DateTimePicker
@@ -517,17 +533,6 @@ export default function TaskDetailsSheet({
                   themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
                   onChange={handleEditDateChange}
                 />
-              </View>
-              <View style={styles.dateActions}>
-                <TouchableOpacity
-                  onPress={() => { applyDueDate(''); setParentEditView('main') }}
-                  style={styles.dateClearBtn}
-                >
-                  <Text style={styles.dateClearBtnText}>{t.clear}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={commitEditDate} style={styles.dateDoneBtn}>
-                  <Text style={styles.dateDoneBtnText}>{t.done}</Text>
-                </TouchableOpacity>
               </View>
             </>
           ) : (
