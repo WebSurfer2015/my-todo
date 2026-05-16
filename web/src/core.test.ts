@@ -245,12 +245,25 @@ describe("subtasks", () => {
     expect(state[0].subtasks!.every((s) => !s.done)).toBe(true);
   });
 
-  it("subtaskAdd defaults priority=medium and dueDate=''", () => {
+  it("subtaskAdd defaults priority=medium and dueDate='' when parent has no date", () => {
     let state = [makeTodo()];
     state = subtaskAdd(state, state[0].id, "with defaults");
     const sub = state[0].subtasks![0];
     expect(sub.priority).toBe("medium");
     expect(sub.dueDate).toBe("");
+  });
+
+  it("subtaskAdd inherits parent's dueDate when caller doesn't supply one", () => {
+    // Initial-only default: a fresh step takes the parent's date so the
+    // user doesn't have to repeat it. The edit path (subtaskUpdateDueDate)
+    // is not affected — clearing later stays cleared.
+    const parent = newTodo({ text: "p", priority: "medium", dueDate: "2026-12-31" });
+    let state = [parent];
+    state = subtaskAdd(state, parent.id, "step a");
+    expect(state[0].subtasks![0].dueDate).toBe("2026-12-31");
+    // An explicitly-passed dueDate still wins over the parent's.
+    state = subtaskAdd(state, parent.id, "step b", "high", "2026-11-15");
+    expect(state[0].subtasks![1].dueDate).toBe("2026-11-15");
   });
 
   it("subtaskUpdatePriority and subtaskUpdateDueDate edit a single subtask", () => {

@@ -209,19 +209,26 @@ export function subtaskAdd(
     if (td.id !== todoId) return td;
     const existing = td.subtasks ?? [];
     if (existing.length >= MAX_SUBTASKS_PER_TODO) return td;
+    // Default the new step's dueDate to the parent's when the caller
+    // didn't supply one. Initial-only — subtaskUpdateDueDate (the edit
+    // path) accepts empty without re-defaulting, so a user who clears
+    // the date later sees it stay cleared.
+    const effectiveDueDate = dueDate || td.dueDate || "";
     const newSub: Subtask = {
       id: genUuid(),
       text: trimmed,
       done: false,
       priority,
-      dueDate,
+      dueDate: effectiveDueDate,
     };
     const nextSubs = [...existing, newSub];
     // If the new sub's date is later than the parent's, push the parent's
     // dueDate forward so the parent never finishes before its sub. ISO
     // YYYY-MM-DD strings sort lexically.
     const nextParentDueDate =
-      dueDate && td.dueDate && dueDate > td.dueDate ? dueDate : td.dueDate;
+      effectiveDueDate && td.dueDate && effectiveDueDate > td.dueDate
+        ? effectiveDueDate
+        : td.dueDate;
     // Adding an open subtask invalidates a previously-done parent.
     const next: Todo = {
       ...td,
