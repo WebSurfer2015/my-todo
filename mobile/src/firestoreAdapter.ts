@@ -42,6 +42,17 @@ export function makeFirestoreAdapter(
     subscribe(key, callback) {
       const ref = doc(db, stateDocPath(uid, key));
       return onSnapshot(ref, (snap) => {
+        // Skip snapshots that fire while a local write is still pending —
+        // the SDK may serve a pre-write cache value here, which would
+        // clobber the user's just-applied optimistic update with stale
+        // data. This was the root cause of intermittent "checkbox toggle
+        // doesn't stick" / "subtask date reverts" reports. Web's adapter
+        // got this fix in c349374; mobile's was missed and inherited the
+        // bug. Once the server confirms the write, the next snapshot
+        // fires with hasPendingWrites=false and matches lastSerializedRef,
+        // so subscribe stays a no-op for our own echoes. Cross-device
+        // updates from other clients still come through normally.
+        if (snap.metadata.hasPendingWrites) return;
         if (!snap.exists()) return callback(null);
         const data = snap.data() as { value?: string } | undefined;
         callback(data?.value ?? null);
