@@ -579,6 +579,13 @@ export default function ProfileSheet({
                 <Text style={styles.signOutInlineText}>{t.signOut}</Text>
               </TouchableOpacity>
             </View>
+
+            <View style={styles.aboutFooter}>
+              <Text style={styles.aboutTagline}>
+                Sagely · for brains that get overwhelmed by to-do lists.
+              </Text>
+              <Text style={styles.aboutVersion}>v1.0.1 · Mochi the turtle is the brand mascot.</Text>
+            </View>
           </Pressable>
         </Pressable>
       </KeyboardAvoidingView>
@@ -815,6 +822,24 @@ function makeStyles(c: ThemeColors) {
       fontWeight: "600",
       color: c.primary,
       letterSpacing: -0.16,
+    },
+    aboutFooter: {
+      paddingTop: 24,
+      paddingBottom: 12,
+      alignItems: "center",
+      gap: 4,
+    },
+    aboutTagline: {
+      fontSize: 12,
+      color: c.label3,
+      fontStyle: "italic",
+      textAlign: "center",
+    },
+    aboutVersion: {
+      fontSize: 11,
+      color: c.label3,
+      textAlign: "center",
+      letterSpacing: 0.2,
     },
     actions: {
       flexDirection: "row",
