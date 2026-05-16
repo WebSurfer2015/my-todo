@@ -96,6 +96,9 @@ export function generateRecurringInstances(input: {
   const dates = expandRecurrence(input.dueDate, input.recurrence.endDate, input.recurrence);
   if (dates.length === 0) return [];
   const now = Date.now();
+  // One seriesId per generation pass — every instance shares it so we can
+  // bulk-delete future siblings without text matching.
+  const seriesId = genUuid();
   return dates.map((date) => ({
     id: genUuid(),
     text: input.text.slice(0, MAX_TODO_TEXT_LEN),
@@ -106,6 +109,7 @@ export function generateRecurringInstances(input: {
     trashed: false,
     updatedAt: now,
     recurrence: input.recurrence,
+    seriesId,
     ...(input.subtasks && input.subtasks.length > 0
       ? { subtasks: cloneSubtasksFresh(input.subtasks) }
       : {}),
@@ -332,6 +336,34 @@ export function todoMoveToTrash(prev: Todo[], id: string): Todo[] {
   return prev.map((td) =>
     td.id === id ? { ...td, trashed: true, trashedAt: now, updatedAt: now } : td,
   );
+}
+
+/**
+ * Trashes the targeted todo plus every other non-trashed todo in the same
+ * recurring series with a dueDate >= the target's dueDate. Past instances
+ * are intentionally left alone — the user is removing "this and the rest
+ * of the series", not rewriting history.
+ *
+ * Falls back to a single-todo trash when the target has no seriesId (e.g.
+ * legacy rolling recurrences or non-series todos).
+ */
+export function todoMoveToTrashFutureSeries(prev: Todo[], id: string): { next: Todo[]; affected: number } {
+  const target = prev.find((t) => t.id === id);
+  if (!target) return { next: prev, affected: 0 };
+  if (!target.seriesId) {
+    return { next: todoMoveToTrash(prev, id), affected: 1 };
+  }
+  const cutoff = target.dueDate;
+  const now = Date.now();
+  let affected = 0;
+  const next = prev.map((td) => {
+    if (td.seriesId !== target.seriesId) return td;
+    if (td.trashed) return td;
+    if (cutoff && td.dueDate && td.dueDate < cutoff) return td;
+    affected += 1;
+    return { ...td, trashed: true, trashedAt: now, updatedAt: now };
+  });
+  return { next, affected };
 }
 
 export function todoRestoreFromTrash(prev: Todo[], id: string): Todo[] {

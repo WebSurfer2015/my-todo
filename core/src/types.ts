@@ -77,6 +77,14 @@ export interface Todo {
    * through time.
    */
   recurrence?: Recurrence
+  /**
+   * Marks this Todo as one instance of a multi-instance recurring series.
+   * All instances generated together share the same seriesId, so "delete
+   * this and all future" can find siblings without text matching. Legacy
+   * recurring tasks (rolling, or pre-feature multi-instance) won't have
+   * a seriesId — they fall back to single-task delete.
+   */
+  seriesId?: string
 }
 
 export const PRIORITY_VALUES: Priority[] = ['high', 'medium', 'low']

@@ -238,6 +238,7 @@ function AppInner() {
                         onToggleSelect={store.toggleTrashSelection}
                         onToggle={store.toggle}
                         onMoveToTrash={store.moveToTrash}
+                        onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
                         onRestore={store.restoreFromTrash}
                         onPermanentDelete={store.permanentlyDelete}
                         onUpdatePriority={store.updatePriority}
@@ -278,6 +279,7 @@ function AppInner() {
                         playSound={store.profile.completionSound !== false}
                           onToggle={store.toggle}
                           onMoveToTrash={store.moveToTrash}
+                        onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
                           onUpdatePriority={store.updatePriority}
                           onUpdateDueDate={store.updateDueDate}
                           onUpdateCategory={store.updateTaskCategory}
@@ -357,6 +359,7 @@ function AppInner() {
                         playSound={store.profile.completionSound !== false}
                               onToggle={store.toggle}
                               onMoveToTrash={store.moveToTrash}
+                        onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
                               onUpdatePriority={store.updatePriority}
                               onUpdateDueDate={store.updateDueDate}
                               onUpdateCategory={store.updateTaskCategory}

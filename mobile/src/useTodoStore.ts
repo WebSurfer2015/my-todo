@@ -45,6 +45,7 @@ import {
   todoToggle,
   didEarnPebble,
   todoMoveToTrash,
+  todoMoveToTrashFutureSeries,
   todoRestoreFromTrash,
   todoPermanentlyDelete,
   todoEmptyTrash,
@@ -349,6 +350,26 @@ export function useTodoStore() {
       });
     },
     [setTodos, notify, t, restoreFromTrash],
+  );
+
+  const moveSeriesFutureToTrash = useCallback(
+    (id: string) => {
+      let affected = 0;
+      setTodos((prev) => {
+        const result = todoMoveToTrashFutureSeries(prev, id);
+        affected = result.affected;
+        return result.next;
+      });
+      // Snackbar copy reflects how many were trashed; falls back to single-
+      // task copy when the target wasn't part of a series.
+      notify.showSnackbar({
+        message:
+          affected > 1
+            ? `${affected} to-dos in this series tucked into trash.`
+            : t.movedToTrash,
+      });
+    },
+    [setTodos, notify, t],
   );
 
   const permanentlyDelete = useCallback(
@@ -674,6 +695,7 @@ export function useTodoStore() {
     reorderStatuses,
     toggle,
     moveToTrash,
+    moveSeriesFutureToTrash,
     restoreFromTrash,
     permanentlyDelete,
     updatePriority,

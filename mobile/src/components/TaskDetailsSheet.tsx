@@ -134,6 +134,9 @@ interface Props {
   onUpdateCategory: (id: string, category: Category) => void
   onUpdateRecurrence: (id: string, recurrence: Recurrence | undefined) => void
   onMoveToTrash: (id: string) => void
+  /** Optional — when provided, "Delete to-do" on a recurring instance with
+   * a seriesId offers a "Delete this and all future" option. */
+  onMoveSeriesFutureToTrash?: (id: string) => void
   onAddSubtask: (id: string, text: string, priority?: Priority, dueDate?: string) => void
   onToggleSubtask: (id: string, subId: string) => void
   onUpdateSubtaskText: (id: string, subId: string, text: string) => void
@@ -144,7 +147,7 @@ interface Props {
 
 export default function TaskDetailsSheet({
   visible, todo, categories, initialSubtaskEditId, onClose, onUpdateText,
-  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onMoveToTrash,
+  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onMoveToTrash, onMoveSeriesFutureToTrash,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
 }: Props) {
@@ -653,21 +656,48 @@ export default function TaskDetailsSheet({
               <TouchableOpacity
                 style={styles.destructiveAction}
                 onPress={() => {
-                  Alert.alert(
-                    t.moveToTrash,
-                    `Move "${todo.text}" to trash? You can restore it within 30 days.`,
-                    [
-                      { text: t.cancel, style: 'cancel' },
-                      {
-                        text: t.moveToTrash,
-                        style: 'destructive',
-                        onPress: () => {
-                          onMoveToTrash(todo.id)
-                          onClose()
+                  const isInSeries = !!todo.seriesId && !!onMoveSeriesFutureToTrash
+                  if (isInSeries) {
+                    // Multi-instance recurring — let the user choose scope.
+                    Alert.alert(
+                      'Delete to-do',
+                      'This is part of a recurring series.',
+                      [
+                        { text: t.cancel, style: 'cancel' },
+                        {
+                          text: 'Just this one',
+                          onPress: () => {
+                            onMoveToTrash(todo.id)
+                            onClose()
+                          },
                         },
-                      },
-                    ],
-                  )
+                        {
+                          text: 'This and all future',
+                          style: 'destructive',
+                          onPress: () => {
+                            onMoveSeriesFutureToTrash!(todo.id)
+                            onClose()
+                          },
+                        },
+                      ],
+                    )
+                  } else {
+                    Alert.alert(
+                      t.moveToTrash,
+                      `Move "${todo.text}" to trash? You can restore it within 30 days.`,
+                      [
+                        { text: t.cancel, style: 'cancel' },
+                        {
+                          text: t.moveToTrash,
+                          style: 'destructive',
+                          onPress: () => {
+                            onMoveToTrash(todo.id)
+                            onClose()
+                          },
+                        },
+                      ],
+                    )
+                  }
                 }}
                 activeOpacity={0.6}
               >

@@ -67,6 +67,7 @@ interface Props {
   subtaskVisibility?: SubtaskVisibility
   onToggle: (id: string) => void
   onMoveToTrash: (id: string) => void
+  onMoveSeriesFutureToTrash?: (id: string) => void
   onRestore?: (id: string) => void
   onPermanentDelete?: (id: string) => void
   onUpdatePriority: (id: string, priority: Priority) => void
@@ -115,7 +116,7 @@ function TaskItem({
   todo, inTrash = false, selected = false, onToggleSelect,
   categories, density = 'comfortable', celebrate = true, playSound = true,
   subtaskVisibility = 'all',
-  onToggle, onMoveToTrash, onRestore, onPermanentDelete,
+  onToggle, onMoveToTrash, onMoveSeriesFutureToTrash, onRestore, onPermanentDelete,
   onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateText, onUpdateRecurrence,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
@@ -752,6 +753,7 @@ function TaskItem({
             onUpdateCategory={onUpdateCategory}
             onUpdateRecurrence={onUpdateRecurrence ?? (() => {})}
             onMoveToTrash={onMoveToTrash}
+            onMoveSeriesFutureToTrash={onMoveSeriesFutureToTrash}
             onAddSubtask={onAddSubtask!}
             onToggleSubtask={onToggleSubtask!}
             onUpdateSubtaskText={onUpdateSubtaskText!}
