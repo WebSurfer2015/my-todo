@@ -631,8 +631,11 @@ export interface DeriveInput {
 export function deriveState(input: DeriveInput): DerivedState {
   const { todos, filter, categories, t, options = {} } = input;
   const today = todayLocal();
+  // "Carried over" / overdue counts every task whose dueDate is before today,
+  // including tasks the user already completed. The done state is meaningful
+  // history (you finished it, even if late), so it surfaces here too.
   const isOverdue = (td: Todo) =>
-    !td.done && !!td.dueDate && td.dueDate < today;
+    !!td.dueDate && td.dueDate < today;
   const active = todos.filter((td) => !td.trashed);
 
   const filtered = todos.filter((td) => {
