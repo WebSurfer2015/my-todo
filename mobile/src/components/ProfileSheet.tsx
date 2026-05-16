@@ -602,6 +602,17 @@ export default function ProfileSheet({
             </View>
 
             <View style={styles.aboutFooter}>
+              <TouchableOpacity
+                onPress={() => {
+                  onSave({ ...profile, onboardingDone: false });
+                  onClose();
+                }}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="View Mochi's intro again"
+              >
+                <Text style={styles.aboutLink}>View intro again</Text>
+              </TouchableOpacity>
               <Text style={styles.aboutTagline}>
                 Sagely · for brains that get overwhelmed by to-do lists.
               </Text>
@@ -856,7 +867,13 @@ function makeStyles(c: ThemeColors) {
       paddingTop: 24,
       paddingBottom: 12,
       alignItems: "center",
-      gap: 4,
+      gap: 6,
+    },
+    aboutLink: {
+      fontSize: 13,
+      color: c.primary,
+      fontWeight: "600",
+      paddingVertical: 4,
     },
     aboutTagline: {
       fontSize: 12,
