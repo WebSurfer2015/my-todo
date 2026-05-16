@@ -641,6 +641,9 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 16,
       paddingTop: 8,
       paddingBottom: 28,
+      // Cap the sheet so it can't push above the safe area; without this
+      // the title row hides behind the iOS status bar / notch.
+      maxHeight: "88%",
     },
     handle: {
       alignSelf: "center",
