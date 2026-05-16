@@ -172,6 +172,8 @@ export default function ComposeSheet({
                       style={styles.fieldRow}
                       onPress={() => setSubView('category')}
                       activeOpacity={0.6}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Category, ${activeCat ? categoryLabel(activeCat, t) : 'none'}. Tap to change.`}
                     >
                       {activeCat && <CategoryIcon icon={activeCat.icon} size={18} color={activeCat.color} />}
                       <Text style={styles.fieldLabel}>{t.composeCategoryLabel}</Text>
@@ -187,6 +189,8 @@ export default function ComposeSheet({
                       style={styles.fieldRow}
                       onPress={() => setSubView('priority')}
                       activeOpacity={0.6}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Priority, ${t.priority[priority]}. Tap to change.`}
                     >
                       <PriorityDot level={priority} size={14} />
                       <Text style={styles.fieldLabel}>{t.composePriorityLabel}</Text>
@@ -202,6 +206,8 @@ export default function ComposeSheet({
                       style={styles.fieldRow}
                       onPress={openDateView}
                       activeOpacity={0.6}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Due date, ${dueDate ? formatDisplayDate(dueDate, t.locale) : t.noDate}. Tap to change.`}
                     >
                       <CalendarIcon size={18} color={dueDate ? theme.blue : theme.gray3} />
                       <Text style={styles.fieldLabel}>{t.composeDateLabel}</Text>
@@ -223,6 +229,8 @@ export default function ComposeSheet({
                       style={styles.fieldRow}
                       onPress={() => setSubView('repeat')}
                       activeOpacity={0.6}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Repeat, ${recurrenceLabel(recurrence)}. Tap to change.`}
                     >
                       <Repeat size={18} color={recurrence ? theme.blue : theme.gray3} strokeWidth={2} />
                       <Text style={styles.fieldLabel}>Repeat</Text>

@@ -114,7 +114,12 @@ export default function Onboarding({ visible, onComplete, onSkip }: Props) {
         {/* Skip button — always available */}
         <View style={styles.topBar}>
           <View style={{ flex: 1 }} />
-          <TouchableOpacity onPress={onSkip} hitSlop={10}>
+          <TouchableOpacity
+            onPress={onSkip}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Skip onboarding"
+          >
             <Text style={styles.skipText}>Skip</Text>
           </TouchableOpacity>
         </View>
@@ -158,7 +163,12 @@ export default function Onboarding({ visible, onComplete, onSkip }: Props) {
           ))}
         </ScrollView>
 
-        <View style={styles.dots}>
+        <View
+          style={styles.dots}
+          accessible
+          accessibilityRole="text"
+          accessibilityLabel={`Page ${page + 1} of ${SCREENS.length}`}
+        >
           {SCREENS.map((_, i) => (
             <View
               key={i}
