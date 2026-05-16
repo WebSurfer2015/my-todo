@@ -38,11 +38,12 @@ interface Props {
 }
 
 // Subtle 3-stone cairn illustration — same shape as the brand glyph.
+// cy values keep the bottom stone (with its stroke) inside the SVG box.
 function CairnLarge({ size = 100, fill, stroke }: { size?: number; fill: string; stroke: string }) {
   const stones = [
-    { rx: 0.40, ry: 0.13, cy: 0.30 },
-    { rx: 0.50, ry: 0.15, cy: 0.55 },
-    { rx: 0.65, ry: 0.17, cy: 0.82 },
+    { rx: 0.40, ry: 0.13, cy: 0.25 },
+    { rx: 0.50, ry: 0.15, cy: 0.50 },
+    { rx: 0.65, ry: 0.17, cy: 0.78 },
   ]
   return (
     <Svg width={size} height={size}>

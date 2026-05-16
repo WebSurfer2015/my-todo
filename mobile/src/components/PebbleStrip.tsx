@@ -152,10 +152,12 @@ export default function PebbleStrip({ count }: Props) {
  */
 export function CairnGlyph({ size = 22 }: { size?: number }) {
   const theme = useTheme()
+  // cy values keep the bottom stone + its stroke inside the SVG box;
+  // the original 0.30/0.55/0.82 had the bottom stroke clipped.
   const stones = [
-    { rx: 0.45, ry: 0.18, cy: 0.30 },
-    { rx: 0.55, ry: 0.20, cy: 0.55 },
-    { rx: 0.70, ry: 0.22, cy: 0.82 },
+    { rx: 0.42, ry: 0.16, cy: 0.22 },
+    { rx: 0.52, ry: 0.18, cy: 0.48 },
+    { rx: 0.65, ry: 0.20, cy: 0.76 },
   ]
   return (
     <Svg width={size} height={size}>
