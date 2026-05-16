@@ -96,7 +96,8 @@ export default function FilterBar({
         accessibilityLabel="Filter"
         accessibilityRole="button"
       >
-        <FunnelIcon size={18} color={theme.label2} strokeWidth={2} />
+        <FunnelIcon size={16} color={theme.label2} strokeWidth={2} />
+        <Text style={styles.iconLabel}>Filter</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -159,11 +160,18 @@ function makeStyles(c: ThemeColors) {
       paddingVertical: 8,
     },
     iconBtn: {
-      width: 32,
-      height: 32,
+      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
+      gap: 4,
+      paddingHorizontal: 6,
+      paddingVertical: 6,
       borderRadius: 100,
+    },
+    iconLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: c.label2,
+      letterSpacing: -0.16,
     },
     pill: {
       flexDirection: 'row',

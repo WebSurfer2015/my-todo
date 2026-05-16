@@ -123,7 +123,7 @@ function AppInner() {
                 ]}
                 numberOfLines={2}
               >
-                {store.quoteLine || store.plateLine}
+                {store.quoteLine || store.mascotLine}
               </Text>
             </View>
           </TouchableOpacity>

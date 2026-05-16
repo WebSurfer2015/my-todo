@@ -122,6 +122,76 @@ async function migrateLocalToCloud(adapter: StorageAdapter): Promise<void> {
   }
 }
 
+/**
+ * Mochi-voice greeting tagline. Time-of-day + plate-aware variants picked
+ * deterministically from the day's date so the line stays the same across
+ * a session but rotates daily. Anxiety-friendly tone — no exclamation
+ * marks, no "let's crush it!", never goal-oriented.
+ */
+const MASCOT_LINES: Record<
+  "morning" | "afternoon" | "evening",
+  { fresh: string[]; going: string[] }
+> = {
+  morning: {
+    fresh: [
+      "Mochi's here. Take it slow today.",
+      "Quiet start. One thing at a time.",
+      "Mochi's stretching. So can you.",
+      "No rush. The day's just opening.",
+      "Mochi's waiting. Pick the smallest.",
+    ],
+    going: [
+      "Steady morning. Mochi's pacing.",
+      "Nice rhythm. Keep it gentle.",
+      "Mochi sees you. Carry on.",
+      "One pebble at a time.",
+    ],
+  },
+  afternoon: {
+    fresh: [
+      "Afternoon, Mochi-style. Slow is fine.",
+      "One small thing — that's enough for now.",
+      "Mochi's still pacing. No hurry.",
+      "Pick something tiny. The rest will keep.",
+    ],
+    going: [
+      "Mochi's halfway there. So are you.",
+      "Steady on. The rest can wait.",
+      "Quiet progress. Mochi approves.",
+      "Keep the pace. No need to push.",
+    ],
+  },
+  evening: {
+    fresh: [
+      "Evening. Mochi's curling up.",
+      "Wind down. Tomorrow has more time.",
+      "Slow now. Today did its part.",
+      "Mochi's resting. You can too.",
+    ],
+    going: [
+      "Mochi's settling. Save the rest.",
+      "Quiet end. Well done.",
+      "One last gentle thing — or none.",
+      "Tomorrow's pebbles can wait.",
+    ],
+  },
+};
+
+function pickMascotLine(
+  timeOfDay: "morning" | "afternoon" | "evening",
+  plateCount: number,
+): string {
+  const set = MASCOT_LINES[timeOfDay];
+  const variants = plateCount === 0 ? set.fresh : set.going;
+  // Day-stable seed from today's ISO date so the line rotates daily but
+  // stays steady across re-renders within a session.
+  const today = todayLocal();
+  const seed = today
+    .split("-")
+    .reduce((acc, part) => acc + Number(part), 0);
+  return variants[seed % variants.length];
+}
+
 export function useTodoStore() {
   const { t } = useLang();
   const { user } = useAuth();
@@ -549,6 +619,7 @@ export function useTodoStore() {
     (td) => !td.trashed && td.dueDate === todayDate,
   ).length;
   const plateLine = t.todayPlate(todayCount);
+  const mascotLine = pickMascotLine(greetingKey, todayCount);
   const orderedStatuses = getOrderedStatuses(profile, t);
   const orderedVisibleStatuses = getOrderedVisibleStatuses(profile, t);
   const todayPebbleCounts = getTodayPebbles(profile, todayDate);
@@ -575,6 +646,7 @@ export function useTodoStore() {
     headerLine,
     quoteLine,
     plateLine,
+    mascotLine,
     todayPebbles,
     todayTaskPebbles,
     todaySubtaskPebbles,

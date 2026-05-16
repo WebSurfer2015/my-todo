@@ -866,7 +866,8 @@ function makeStyles(c: ThemeColors, density: Density) {
       alignItems: 'center',
       gap: 8,
       paddingVertical: 4,
-      paddingLeft: 2,
+      // Indented to read as nested under the parent task, not as a peer.
+      paddingLeft: 28,
     },
     subPriorityBtn: {
       padding: 3,
@@ -902,7 +903,10 @@ function makeStyles(c: ThemeColors, density: Density) {
     subText: {
       flex: 1,
       fontSize: 14,
-      color: c.label,
+      // Lighter weight than the parent (which is 500/600) so the
+      // hierarchy reads correctly when expanded.
+      fontWeight: '400',
+      color: c.label2,
       lineHeight: 19,
     },
     subTextDone: {
