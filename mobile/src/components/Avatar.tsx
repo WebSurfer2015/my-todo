@@ -1,6 +1,7 @@
 import React from 'react'
 import { Image, Text, View, StyleSheet } from 'react-native'
 import { Avatar as AvatarT, findPreset } from '../profile'
+import { useTheme } from '../theme'
 
 /** Platform-resolved bundled images for presets with `imageKey`. */
 const PRESET_IMAGES: Record<string, ReturnType<typeof require>> = {
@@ -8,11 +9,20 @@ const PRESET_IMAGES: Record<string, ReturnType<typeof require>> = {
 }
 
 export default function Avatar({ avatar, size = 36 }: { avatar: AvatarT; size?: number }) {
+  const theme = useTheme()
+  // Brand-teal hairline ring around every avatar so the circle is visible
+  // even when its background tint blends into the page cream.
+  const ring = {
+    borderRadius: size / 2,
+    borderWidth: 1.5,
+    borderColor: theme.primary,
+  }
+
   if (avatar.kind === 'image') {
     return (
       <Image
         source={{ uri: avatar.uri }}
-        style={{ width: size, height: size, borderRadius: size / 2 }}
+        style={[{ width: size, height: size }, ring]}
       />
     )
   }
@@ -24,7 +34,8 @@ export default function Avatar({ avatar, size = 36 }: { avatar: AvatarT; size?: 
         <View
           style={[
             styles.preset,
-            { width: size, height: size, borderRadius: size / 2, backgroundColor: preset.bg, overflow: 'hidden' },
+            { width: size, height: size, backgroundColor: preset.bg, overflow: 'hidden' },
+            ring,
           ]}
         >
           <Image
@@ -40,7 +51,8 @@ export default function Avatar({ avatar, size = 36 }: { avatar: AvatarT; size?: 
       <View
         style={[
           styles.preset,
-          { width: size, height: size, borderRadius: size / 2, backgroundColor: preset.bg },
+          { width: size, height: size, backgroundColor: preset.bg },
+          ring,
         ]}
       >
         <Text
@@ -62,7 +74,8 @@ export default function Avatar({ avatar, size = 36 }: { avatar: AvatarT; size?: 
     <View
       style={[
         styles.preset,
-        { width: size, height: size, borderRadius: size / 2, backgroundColor: avatar.color },
+        { width: size, height: size, backgroundColor: avatar.color },
+        ring,
       ]}
     >
       <Text style={{ fontSize: size * 0.55, color: '#fff' }}>★</Text>
