@@ -243,10 +243,6 @@ export default function TaskDetailsSheet({
     setParentEditView('date')
   }
 
-  function commitEditDate() {
-    applyDueDate(isoDate(editPickerDate))
-    setParentEditView('main')
-  }
 
   function handleEditDateChange(_event: DateTimePickerEvent, selected?: Date) {
     if (!selected) return
@@ -276,20 +272,18 @@ export default function TaskDetailsSheet({
     setEditSubPickerView('date')
   }
 
-  function commitEditSubDate() {
-    applySubDueDate(isoDate(editSubPickerDate))
-    setEditSubPickerView('main')
-  }
 
   function clearEditSubDate() {
     applySubDueDate('')
     setEditSubPickerView('main')
   }
 
-  function handleEditSubDateChange(event: DateTimePickerEvent, selected?: Date) {
-    if (event.type === 'set' && selected) {
-      setEditSubPickerDate(selected)
-    }
+  function handleEditSubDateChange(_event: DateTimePickerEvent, selected?: Date) {
+    if (!selected) return
+    setEditSubPickerDate(selected)
+    // Auto-commit on date pick (matches the parent date pickers).
+    applySubDueDate(isoDate(selected))
+    setEditSubPickerView('main')
   }
 
   // Subtask auto-save helpers — same pattern as the parent.
@@ -357,9 +351,17 @@ export default function TaskDetailsSheet({
             ) : editSubPickerView === 'date' ? (
               <>
                 <View style={styles.editHeader}>
-                  <View style={styles.headerSideBtn} />
+                  <TouchableOpacity onPress={() => setEditSubPickerView('main')} hitSlop={10} style={styles.headerSideBtn}>
+                    <Text style={styles.cancelText}>‹ Back</Text>
+                  </TouchableOpacity>
                   <Text style={styles.editHeaderTitle}>Completed by</Text>
-                  <View style={styles.headerSideBtn} />
+                  {editSubDueDate ? (
+                    <TouchableOpacity onPress={clearEditSubDate} hitSlop={10} style={styles.headerSideBtn}>
+                      <Text style={styles.dateClearBtnText}>{t.clear}</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.headerSideBtn} />
+                  )}
                 </View>
                 <View style={styles.dateWrap}>
                   <DateTimePicker
@@ -369,14 +371,6 @@ export default function TaskDetailsSheet({
                     themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
                     onChange={handleEditSubDateChange}
                   />
-                </View>
-                <View style={styles.dateActions}>
-                  <TouchableOpacity onPress={clearEditSubDate} style={styles.dateClearBtn}>
-                    <Text style={styles.dateClearBtnText}>{t.clear}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={commitEditSubDate} style={styles.dateDoneBtn}>
-                    <Text style={styles.dateDoneBtnText}>{t.done}</Text>
-                  </TouchableOpacity>
                 </View>
               </>
             ) : (
