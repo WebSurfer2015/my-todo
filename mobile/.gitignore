@@ -35,6 +35,13 @@ yarn-error.*
 # stray local-only assets
 assets/avatar.jpg
 
+# App Store screenshot captures (regenerated per release). Anchored to
+# mobile/screenshots/ so the helper scripts under mobile/scripts/screenshots/
+# still get tracked.
+/screenshots/
+# Python bytecode cache from running the seed/upload scripts.
+scripts/__pycache__/
+
 # local env files
 .env*.local
 

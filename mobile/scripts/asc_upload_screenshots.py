@@ -39,7 +39,7 @@ from PIL import Image
 KEY_ID = "QD85GLBAA2"
 ISSUER_ID = "34c60769-93e6-4cda-9faf-010ca1a57725"
 KEY_PATH = "/Users/yingnming/.appstoreconnect/AuthKey_QD85GLBAA2.p8"
-APP_STORE_VERSION_ID = "5024a18a-6446-4818-8b94-a743314ef904"  # 1.0
+APP_STORE_VERSION_ID = "91b1fa8a-3c35-4cdc-ab26-7c7b659e8a7b"  # 1.1.0
 DEFAULT_LOCALE = "en-US"
 API = "https://api.appstoreconnect.apple.com"
 
