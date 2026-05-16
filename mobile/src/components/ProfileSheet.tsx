@@ -57,6 +57,9 @@ export default function ProfileSheet({
   const [celebrateSound, setCelebrateSound] = useState<boolean>(
     profile.completionSound !== false,
   );
+  const [dailyCheckin, setDailyCheckin] = useState<boolean>(
+    profile.dailyCheckinEnabled === true,
+  );
 
   // Short anxiety-aware quotes for subheader display. Grouped loosely by
   // intent: breath/grounding, permission/kindness, gentle action, perspective.
@@ -148,6 +151,7 @@ export default function ProfileSheet({
       setAvatar(profile.avatar);
       setCelebrateAnim(profile.completionAnimation !== false);
       setCelebrateSound(profile.completionSound !== false);
+      setDailyCheckin(profile.dailyCheckinEnabled === true);
     }
   }, [visible, profile]);
 
@@ -237,6 +241,7 @@ export default function ProfileSheet({
     const trimmedFirst = firstName.trim();
     if (!trimmedFirst) return;
     onSave({
+      ...profile,
       name: trimmedFirst,
       firstName: trimmedFirst,
       lastName: lastName.trim() || undefined,
@@ -247,6 +252,8 @@ export default function ProfileSheet({
       reduceMotion: true,
       completionAnimation: celebrateAnim,
       completionSound: celebrateSound,
+      dailyCheckinEnabled: dailyCheckin,
+      dailyCheckinHour: profile.dailyCheckinHour ?? 9,
     });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     showSnackbar({ message: t.profileSaved });
@@ -396,6 +403,24 @@ export default function ProfileSheet({
               </View>
               <View style={[styles.toggleTrack, celebrateSound && styles.toggleTrackOn]}>
                 <View style={[styles.toggleKnob, celebrateSound && styles.toggleKnobOn]} />
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.toggleRow}
+              onPress={() => setDailyCheckin((v) => !v)}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: dailyCheckin }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Daily check-in</Text>
+                <Text style={styles.toggleHint}>
+                  One quiet, mascot-voiced reminder around 9 AM. No alerts,
+                  no streaks. You can turn it off anytime.
+                </Text>
+              </View>
+              <View style={[styles.toggleTrack, dailyCheckin && styles.toggleTrackOn]}>
+                <View style={[styles.toggleKnob, dailyCheckin && styles.toggleKnobOn]} />
               </View>
             </TouchableOpacity>
 

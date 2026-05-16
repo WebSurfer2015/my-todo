@@ -63,7 +63,13 @@
       ],
       "./plugins/withFmtCxx17",
       "@react-native-firebase/crashlytics",
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      [
+        "expo-notifications",
+        {
+          "color": "#4F8A75"
+        }
+      ]
     ],
     "extra": {
       "eas": {

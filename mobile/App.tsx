@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -30,6 +30,7 @@ import SignIn from "./src/components/SignIn";
 import EmptyState from "./src/components/EmptyState";
 import PebbleStrip from "./src/components/PebbleStrip";
 import Onboarding from "./src/components/Onboarding";
+import { scheduleDailyCheckin, cancelDailyCheckin } from "./src/notifications";
 
 function SlidersIcon({ size = 18, color = "#3C3C43" }: { size?: number; color?: string }) {
   return (
@@ -86,6 +87,21 @@ function AppInner() {
   const [carriedOverExpanded, setCarriedOverExpanded] = useState(false);
   const [upcomingExpanded, setUpcomingExpanded] = useState(false);
   const onboardingNeeded = store.loaded && store.profile.onboardingDone !== true;
+
+  // Sync the daily-checkin notification to profile state. Schedules when
+  // enabled, cancels when disabled. Re-runs on hour change too.
+  useEffect(() => {
+    if (!store.loaded) return;
+    if (store.profile.dailyCheckinEnabled === true) {
+      scheduleDailyCheckin(store.profile.dailyCheckinHour ?? 9).catch(() => {});
+    } else {
+      cancelDailyCheckin().catch(() => {});
+    }
+  }, [
+    store.loaded,
+    store.profile.dailyCheckinEnabled,
+    store.profile.dailyCheckinHour,
+  ]);
 
   if (authLoading)
     return <SafeAreaView style={styles.safe} edges={["top", "bottom"]} />;

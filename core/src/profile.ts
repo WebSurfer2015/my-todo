@@ -71,6 +71,14 @@ export interface Profile {
    * Set to true the first time they finish or skip.
    */
   onboardingDone?: boolean
+  /**
+   * Daily check-in notification settings. When enabled, the app schedules
+   * a single repeating local notification at the chosen hour with a
+   * mascot-voice nudge. Hour is 0-23 in the user's local timezone;
+   * defaults to 9 (morning) when first enabled.
+   */
+  dailyCheckinEnabled?: boolean
+  dailyCheckinHour?: number
 }
 
 export type PebbleKind = 'task' | 'subtask'
