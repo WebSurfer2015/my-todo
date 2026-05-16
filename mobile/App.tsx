@@ -332,7 +332,7 @@ function AppInner() {
                   ? statusOverride.label
                   : t.groups[group.key];
                 const headerCount =
-                  group.key === "done"
+                  group.key === "done" || group.key === "overdue"
                     ? group.todos.length
                     : group.todos.filter((td) => !td.done).length;
                 return (

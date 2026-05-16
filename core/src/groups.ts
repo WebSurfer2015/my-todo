@@ -30,15 +30,23 @@ export function buildGroups(todos: Todo[], options: { separateDone?: boolean } =
   const buckets: Record<GroupKey, Todo[]> = { overdue: [], today: [], week: [], upcoming: [], done: [] }
 
   for (const t of todos) {
+    const d = t.dueDate
+    const isPastDue = !!d && d < today
+    // Past-due items always belong in Carried over — even if the user
+    // already marked them done. The user's mental model: "this was
+    // late" stays a fact regardless of completion. Done items that
+    // were never past-due flow to the bottom Done bucket as before.
+    if (isPastDue) {
+      buckets.overdue.push(t)
+      continue
+    }
     if (separateDone && t.done) {
       buckets.done.push(t)
       continue
     }
-    const d = t.dueDate
-    if (!d || d > endOfWeek)  buckets.upcoming.push(t)
-    else if (d < today)       buckets.overdue.push(t)
-    else if (d === today)     buckets.today.push(t)
-    else                      buckets.week.push(t)
+    if (!d || d > endOfWeek) buckets.upcoming.push(t)
+    else if (d === today)    buckets.today.push(t)
+    else                     buckets.week.push(t)
   }
 
   const groups: TodoGroup[] = []
