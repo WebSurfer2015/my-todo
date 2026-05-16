@@ -102,7 +102,7 @@ export default function FilterBar({
         accessibilityRole="button"
       >
         <FunnelIcon size={16} color={theme.label2} strokeWidth={2} />
-        <Text style={styles.iconLabel}>Filter</Text>
+        <Text style={styles.iconLabel} maxFontSizeMultiplier={1.3}>Filter</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -113,11 +113,17 @@ export default function FilterBar({
         accessibilityState={{ selected: allActive }}
         accessibilityLabel={`All tasks, ${systemCounts.all}${allActive ? ', selected' : ''}`}
       >
-        <Text style={[styles.pillLabel, allActive && styles.pillLabelActive]}>
+        <Text
+          style={[styles.pillLabel, allActive && styles.pillLabelActive]}
+          maxFontSizeMultiplier={1.3}
+        >
           {t.filters.all}
         </Text>
         {systemCounts.all > 0 && (
-          <Text style={[styles.pillCount, allActive && styles.pillCountActive]}>
+          <Text
+            style={[styles.pillCount, allActive && styles.pillCountActive]}
+            maxFontSizeMultiplier={1.3}
+          >
             {systemCounts.all}
           </Text>
         )}
