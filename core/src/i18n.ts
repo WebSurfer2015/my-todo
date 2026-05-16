@@ -145,7 +145,7 @@ export const strings = {
     emptyCategoryTitle: (label: string) => `Nothing in "${label}" yet`,
     emptyHint: 'Add a task to get started.',
     addFirstTask: 'Add a task',
-    trashRetention: 'Items in trash are permanently deleted after 30 days.',
+    trashRetention: 'Tucked away here for 30 days. Restore or remove anytime.',
     groups: { overdue: 'Carried over', today: 'Today', week: 'This Week', upcoming: 'Upcoming', done: 'Done' },
     dateToday: 'Today',
     dateTomorrow: 'Tomorrow',
