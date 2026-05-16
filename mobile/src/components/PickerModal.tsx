@@ -69,7 +69,7 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center',
       gap: 10,
       paddingHorizontal: 20,
-      paddingVertical: 15,
+      paddingVertical: 14,
     },
     itemBorder: {
       borderBottomWidth: StyleSheet.hairlineWidth,

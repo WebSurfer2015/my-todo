@@ -1268,7 +1268,7 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center',
       gap: 12,
       paddingHorizontal: 14,
-      paddingVertical: 13,
+      paddingVertical: 14,
     },
     subtaskSectionHeader: {
       fontSize: 11,
@@ -1283,7 +1283,7 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center',
       gap: 12,
       paddingHorizontal: 14,
-      paddingVertical: 13,
+      paddingVertical: 14,
     },
     editFieldLabel: {
       flex: 1,

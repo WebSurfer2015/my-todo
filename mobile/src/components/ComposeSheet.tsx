@@ -548,7 +548,7 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center',
       gap: 12,
       paddingHorizontal: 14,
-      paddingVertical: 13,
+      paddingVertical: 14,
     },
     fieldLabel: {
       flex: 1,
