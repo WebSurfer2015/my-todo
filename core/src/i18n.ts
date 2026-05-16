@@ -60,7 +60,7 @@ export const strings = {
     overdue: 'Overdue · ',
     deleteTask: 'Delete',
     editTask: 'Edit',
-    moveToTrash: 'Mark done',
+    moveToTrash: 'Bin',
     markDone: 'Mark done',
     markNotDone: 'Reopen',
     movedToTrash: 'Tucked into Done.',

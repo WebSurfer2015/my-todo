@@ -37,7 +37,7 @@ function FullSwipeWatcher({
 import { Swipeable } from 'react-native-gesture-handler'
 import * as Haptics from 'expo-haptics'
 import { Audio } from 'expo-av'
-import { Repeat as LucideRepeat } from 'lucide-react-native'
+import { Repeat as LucideRepeat, ChevronRight, ChevronDown } from 'lucide-react-native'
 import Svg, { Path, Polyline } from 'react-native-svg'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Category, Priority, Recurrence, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
@@ -275,34 +275,23 @@ function TaskItem({
     onRestore?.(todo.id)
   }
 
+  // Long-press is only useful in the bin view (Restore + Delete Permanently).
+  // For non-bin rows the right-swipe + tap-into-details cover everything; a
+  // single-option destructive sheet on long-press was redundant and jarring.
   function handleLongPress() {
+    if (!inTrash) return
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {})
     const cancel = t.cancel
-    if (inTrash) {
-      const opts = [t.restoreTask, t.deletePermanently, cancel]
-      if (Platform.OS === 'ios') {
-        ActionSheetIOS.showActionSheetWithOptions(
-          { options: opts, cancelButtonIndex: 2, destructiveButtonIndex: 1 },
-          (i) => { if (i === 0) handleRestore(); else if (i === 1) confirmPermanentDelete() },
-        )
-      } else {
-        Alert.alert(todo.text, undefined, [
-          { text: t.restoreTask, onPress: handleRestore },
-          { text: t.deletePermanently, style: 'destructive', onPress: confirmPermanentDelete },
-          { text: cancel, style: 'cancel' },
-        ])
-      }
-      return
-    }
-    const opts = [t.moveToTrash, cancel]
+    const opts = [t.restoreTask, t.deletePermanently, cancel]
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
-        { options: opts, cancelButtonIndex: 1, destructiveButtonIndex: 0 },
-        (i) => { if (i === 0) handleMoveToTrash() },
+        { options: opts, cancelButtonIndex: 2, destructiveButtonIndex: 1 },
+        (i) => { if (i === 0) handleRestore(); else if (i === 1) confirmPermanentDelete() },
       )
     } else {
       Alert.alert(todo.text, undefined, [
-        { text: t.moveToTrash, style: 'destructive', onPress: handleMoveToTrash },
+        { text: t.restoreTask, onPress: handleRestore },
+        { text: t.deletePermanently, style: 'destructive', onPress: confirmPermanentDelete },
         { text: cancel, style: 'cancel' },
       ])
     }
@@ -388,7 +377,7 @@ function TaskItem({
       onSwipeableWillClose={() => setSwipeOpen(false)}
     >
       <Pressable
-        onLongPress={swipeOpen ? undefined : handleLongPress}
+        onLongPress={swipeOpen || !inTrash ? undefined : handleLongPress}
         delayLongPress={350}
         style={({ pressed }) => [
           styles.row,
@@ -416,11 +405,14 @@ function TaskItem({
             onPress={() => setExpanded((v) => !v)}
             hitSlop={10}
             accessibilityLabel={t.subtasks}
+            accessibilityRole="button"
+            accessibilityState={{ expanded }}
           >
-            <Text style={[
-              styles.expandToggleArrow,
-              todo.done && styles.expandToggleArrowDone,
-            ]}>{expanded ? '⌄' : '›'}</Text>
+            {expanded ? (
+              <ChevronDown size={16} color={theme.label2} strokeWidth={2.5} />
+            ) : (
+              <ChevronRight size={16} color={theme.label2} strokeWidth={2.5} />
+            )}
           </TouchableOpacity>
         ) : (
           <Animated.View style={{ transform: [{ scale: checkboxScale }] }}>
@@ -905,15 +897,7 @@ function makeStyles(c: ThemeColors, density: Density) {
       height: compact ? 19 : 21,
       alignItems: 'center',
       justifyContent: 'center',
-    },
-    expandToggleArrow: {
-      fontSize: 18,
-      lineHeight: 20,
-      color: c.label2,
-      fontWeight: '600',
-    },
-    expandToggleArrowDone: {
-      color: c.primary,
+      marginTop: 2,
     },
     metaSep: { color: c.label3, fontSize: 11, marginHorizontal: 2 },
     progressPill: {
@@ -964,8 +948,8 @@ function makeStyles(c: ThemeColors, density: Density) {
       justifyContent: 'center',
     },
     subCheckboxDone: {
-      backgroundColor: c.primary,
-      borderColor: c.primary,
+      backgroundColor: c.blue,
+      borderColor: c.blue,
     },
     subCheckmark: {
       color: '#fff',
@@ -997,7 +981,10 @@ function makeStyles(c: ThemeColors, density: Density) {
     },
     swipeEdit:    { backgroundColor: c.blue },
     swipeMarkDone: { backgroundColor: c.green },
-    swipeTrash:   { backgroundColor: c.red },
+    // swipeTrash sends a row to the reversible 30-day bin (same destination
+    // as the checkbox/Mark-done). Calm muted sage — red is reserved for
+    // truly irreversible actions (Empty bin, Delete permanently).
+    swipeTrash:   { backgroundColor: c.gray },
     swipeRestore: { backgroundColor: c.green },
     swipeDelete:  { backgroundColor: c.red },
     swipeActionText: {
