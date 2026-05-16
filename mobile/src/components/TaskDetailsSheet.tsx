@@ -176,19 +176,35 @@ export default function TaskDetailsSheet({
   }, [visible, todo, initialSubtaskEditId])
 
   const editActiveCat = categories.find((c) => c.id === editCategory) ?? categories[0]
-  const editCanSubmit = editText.trim().length > 0 && !!editActiveCat
 
-  function saveEdit() {
-    const trimmed = editText.trim()
-    if (!trimmed || !editActiveCat) return
-    if (trimmed !== todo.text) onUpdateText(todo.id, trimmed)
-    if (editPriority !== todo.priority) onUpdatePriority(todo.id, editPriority)
-    if (editDueDate !== (todo.dueDate ?? '')) onUpdateDueDate(todo.id, editDueDate)
-    if (editActiveCat.id !== todo.category) onUpdateCategory(todo.id, editActiveCat.id)
-    if (JSON.stringify(editRecurrence ?? null) !== JSON.stringify(todo.recurrence ?? null)) {
-      onUpdateRecurrence(todo.id, editRecurrence)
+  // Auto-save helpers: every picker change calls the prop immediately
+  // (no Save button needed). Text saves on blur — calling on every
+  // keystroke would cause one Firestore write per character.
+  function applyText(next: string) {
+    const trimmed = next.trim()
+    if (trimmed && trimmed !== todo.text) onUpdateText(todo.id, trimmed)
+  }
+  function applyPriority(p: Priority) {
+    setEditPriority(p)
+    if (p !== todo.priority) onUpdatePriority(todo.id, p)
+  }
+  function applyCategory(cId: string) {
+    setEditCategory(cId)
+    if (cId !== todo.category) onUpdateCategory(todo.id, cId)
+  }
+  function applyDueDate(d: string) {
+    setEditDueDate(d)
+    if (d !== (todo.dueDate ?? '')) onUpdateDueDate(todo.id, d)
+  }
+  function applyRecurrence(r: Recurrence | undefined) {
+    setEditRecurrence(r)
+    if (JSON.stringify(r ?? null) !== JSON.stringify(todo.recurrence ?? null)) {
+      onUpdateRecurrence(todo.id, r)
     }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
+  }
+  function closeAndFlushText() {
+    // Final text flush in case the user closed without blurring the input.
+    applyText(editText)
     onClose()
   }
 
@@ -198,7 +214,7 @@ export default function TaskDetailsSheet({
   }
 
   function commitEditDate() {
-    setEditDueDate(isoDate(editPickerDate))
+    applyDueDate(isoDate(editPickerDate))
     setEditDateOpen(false)
   }
 
@@ -206,7 +222,7 @@ export default function TaskDetailsSheet({
     if (event.type === 'set' && selected) {
       setEditPickerDate(selected)
       if (Platform.OS === 'android') {
-        setEditDueDate(isoDate(selected))
+        applyDueDate(isoDate(selected))
         setEditDateOpen(false)
       }
     } else if (Platform.OS === 'android') {
@@ -227,23 +243,18 @@ export default function TaskDetailsSheet({
     setEditingSubtaskId(s.id)
   }
 
-  function cancelEditSubtask() {
-    setEditingSubtaskId(null)
-    setEditSubPickerView('main')
-  }
-
   function openEditSubDate() {
     setEditSubPickerDate(editSubDueDate ? new Date(`${editSubDueDate}T00:00:00`) : new Date())
     setEditSubPickerView('date')
   }
 
   function commitEditSubDate() {
-    setEditSubDueDate(isoDate(editSubPickerDate))
+    applySubDueDate(isoDate(editSubPickerDate))
     setEditSubPickerView('main')
   }
 
   function clearEditSubDate() {
-    setEditSubDueDate('')
+    applySubDueDate('')
     setEditSubPickerView('main')
   }
 
@@ -253,26 +264,38 @@ export default function TaskDetailsSheet({
     }
   }
 
-  function saveEditSubtask() {
+  // Subtask auto-save helpers — same pattern as the parent.
+  function applySubText(next: string) {
     if (!editingSubtaskId) return
-    const trimmed = editSubText.trim()
+    const trimmed = next.trim()
     if (!trimmed) return
     const current = subs.find((s) => s.id === editingSubtaskId)
-    if (!current) {
-      setEditingSubtaskId(null)
-      return
+    if (current && trimmed !== current.text) {
+      onUpdateSubtaskText(todo.id, editingSubtaskId, trimmed)
     }
-    if (trimmed !== current.text) onUpdateSubtaskText(todo.id, editingSubtaskId, trimmed)
-    if (onUpdateSubtaskPriority && editSubPriority !== (current.priority ?? 'medium'))
-      onUpdateSubtaskPriority(todo.id, editingSubtaskId, editSubPriority)
-    if (onUpdateSubtaskDueDate && editSubDueDate !== (current.dueDate ?? ''))
-      onUpdateSubtaskDueDate(todo.id, editingSubtaskId, editSubDueDate)
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
+  }
+  function applySubPriority(p: Priority) {
+    setEditSubPriority(p)
+    if (!editingSubtaskId || !onUpdateSubtaskPriority) return
+    const current = subs.find((s) => s.id === editingSubtaskId)
+    if (current && p !== (current.priority ?? 'medium')) {
+      onUpdateSubtaskPriority(todo.id, editingSubtaskId, p)
+    }
+  }
+  function applySubDueDate(d: string) {
+    setEditSubDueDate(d)
+    if (!editingSubtaskId || !onUpdateSubtaskDueDate) return
+    const current = subs.find((s) => s.id === editingSubtaskId)
+    if (current && d !== (current.dueDate ?? '')) {
+      onUpdateSubtaskDueDate(todo.id, editingSubtaskId, d)
+    }
+  }
+  function leaveSubtaskEdit() {
+    // Flush any pending text on the way out.
+    applySubText(editSubText)
     setEditingSubtaskId(null)
     setEditSubPickerView('main')
   }
-
-  const editSubCanSubmit = editSubText.trim().length > 0
 
   const cat = todo.category ? categories.find((c) => c.id === todo.category) : undefined
   const today = todayLocal()
@@ -299,7 +322,7 @@ export default function TaskDetailsSheet({
                 }))}
                 selectedKey={editSubPriority}
                 onSelect={(k) => {
-                  setEditSubPriority(k as Priority)
+                  applySubPriority(k as Priority)
                   setEditSubPickerView('main')
                 }}
               />
@@ -331,18 +354,11 @@ export default function TaskDetailsSheet({
             ) : (
               <>
                 <View style={styles.editHeader}>
-                  <TouchableOpacity onPress={cancelEditSubtask} hitSlop={10} style={styles.headerSideBtn}>
+                  <TouchableOpacity onPress={leaveSubtaskEdit} hitSlop={10} style={styles.headerSideBtn}>
                     <Text style={styles.cancelText}>‹ Back</Text>
                   </TouchableOpacity>
                   <Text style={styles.editHeaderTitle}>Edit Subtask</Text>
-                  <TouchableOpacity
-                    onPress={saveEditSubtask}
-                    hitSlop={10}
-                    style={styles.headerSideBtn}
-                    disabled={!editSubCanSubmit}
-                  >
-                    <Text style={[styles.saveHeaderText, !editSubCanSubmit && styles.saveHeaderTextDisabled]}>{t.save}</Text>
-                  </TouchableOpacity>
+                  <View style={styles.headerSideBtn} />
                 </View>
                 <ScrollView style={styles.list} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editBody}>
                   <View style={styles.editGroupCard}>
@@ -350,6 +366,7 @@ export default function TaskDetailsSheet({
                       style={styles.editTextInputInCard}
                       value={editSubText}
                       onChangeText={setEditSubText}
+                      onBlur={() => applySubText(editSubText)}
                       placeholder={t.addSubtask}
                       placeholderTextColor={theme.gray3}
                       multiline
@@ -443,10 +460,10 @@ export default function TaskDetailsSheet({
                 if (k === 'custom') {
                   setParentEditView('customRepeat')
                 } else if (k === 'none') {
-                  setEditRecurrence(undefined)
+                  applyRecurrence(undefined)
                   setParentEditView('main')
                 } else {
-                  setEditRecurrence({ freq: k as RecurrenceFreq })
+                  applyRecurrence({ freq: k as RecurrenceFreq })
                   setParentEditView('main')
                 }
               }}
@@ -456,7 +473,7 @@ export default function TaskDetailsSheet({
             <CustomRecurrenceForm
               initial={editRecurrence}
               onDone={(rec) => {
-                setEditRecurrence(rec)
+                applyRecurrence(rec)
                 setParentEditView('main')
               }}
               onBack={() => setParentEditView('repeat')}
@@ -464,17 +481,10 @@ export default function TaskDetailsSheet({
           ) : (
           <>
           <View style={styles.editHeader}>
-            <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.headerSideBtn}>
-              <Text style={styles.cancelText}>{t.cancel}</Text>
-            </TouchableOpacity>
+            <View style={styles.headerSideBtn} />
             <Text style={styles.editHeaderTitle}>Edit Task</Text>
-            <TouchableOpacity
-              onPress={saveEdit}
-              hitSlop={10}
-              style={styles.headerSideBtn}
-              disabled={!editCanSubmit}
-            >
-              <Text style={[styles.saveHeaderText, !editCanSubmit && styles.saveHeaderTextDisabled]}>{t.save}</Text>
+            <TouchableOpacity onPress={closeAndFlushText} hitSlop={10} style={styles.headerSideBtn}>
+              <Text style={styles.saveHeaderText}>{t.done}</Text>
             </TouchableOpacity>
           </View>
 
@@ -488,6 +498,7 @@ export default function TaskDetailsSheet({
                   style={styles.editTextInputInCard}
                   value={editText}
                   onChangeText={setEditText}
+                  onBlur={() => applyText(editText)}
                   placeholder={t.addPlaceholder}
                   placeholderTextColor={theme.gray3}
                   multiline
@@ -623,7 +634,7 @@ export default function TaskDetailsSheet({
           <PickerModal
             visible={editCategoryOpen}
             selectedKey={editCategory ?? ''}
-            onSelect={(k) => setEditCategory(k)}
+            onSelect={(k) => applyCategory(k)}
             onClose={() => setEditCategoryOpen(false)}
             options={categories.map((c) => ({
               key: c.id,
@@ -637,7 +648,7 @@ export default function TaskDetailsSheet({
           <PickerModal
             visible={editPriorityOpen}
             selectedKey={editPriority}
-            onSelect={(k) => setEditPriority(k as Priority)}
+            onSelect={(k) => applyPriority(k as Priority)}
             onClose={() => setEditPriorityOpen(false)}
             options={PRIORITY_VALUES.map((v) => ({
               key: v,
