@@ -76,6 +76,7 @@ interface Props {
   onPermanentDelete?: (id: string) => void
   onUpdatePriority: (id: string, priority: Priority) => void
   onUpdateDueDate: (id: string, dueDate: string) => void
+  onSnooze?: (id: string, daysFromToday: number) => void
   onUpdateCategory: (id: string, category: Category) => void
   onUpdateText: (id: string, text: string) => void
   onUpdateRecurrence?: (id: string, recurrence: Recurrence | undefined) => void
@@ -92,7 +93,7 @@ function TaskItem({
   categories, density = 'comfortable', celebrate = true, playSound = true,
   subtaskVisibility = 'all',
   onToggle, onMoveToTrash, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onRestore, onPermanentDelete,
-  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateText, onUpdateRecurrence,
+  onUpdatePriority, onUpdateDueDate, onSnooze, onUpdateCategory, onUpdateText, onUpdateRecurrence,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
 }: Props) {
@@ -249,23 +250,45 @@ function TaskItem({
     onRestore?.(todo.id)
   }
 
-  // Long-press is only useful in the bin view (Restore + Delete Permanently).
-  // For non-bin rows the right-swipe + tap-into-details cover everything; a
-  // single-option destructive sheet on long-press was redundant and jarring.
+  // Long-press menu. Bin rows get Restore + Delete Permanently. Non-bin
+  // rows get a snooze menu (Tomorrow / Next week / Pick a date) — the
+  // single-most-frequent affordance for procrastinators who can't face
+  // an item today but don't want to abandon it.
   function handleLongPress() {
-    if (!inTrash) return
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {})
     const cancel = t.cancel
-    const opts = [t.restoreTask, t.deletePermanently, cancel]
+    if (inTrash) {
+      const opts = [t.restoreTask, t.deletePermanently, cancel]
+      if (Platform.OS === 'ios') {
+        ActionSheetIOS.showActionSheetWithOptions(
+          { options: opts, cancelButtonIndex: 2, destructiveButtonIndex: 1 },
+          (i) => { if (i === 0) handleRestore(); else if (i === 1) confirmPermanentDelete() },
+        )
+      } else {
+        Alert.alert(todo.text, undefined, [
+          { text: t.restoreTask, onPress: handleRestore },
+          { text: t.deletePermanently, style: 'destructive', onPress: confirmPermanentDelete },
+          { text: cancel, style: 'cancel' },
+        ])
+      }
+      return
+    }
+    if (!onSnooze) return
+    const opts = ['Tomorrow', 'Next week', 'Pick a date…', cancel]
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
-        { options: opts, cancelButtonIndex: 2, destructiveButtonIndex: 1 },
-        (i) => { if (i === 0) handleRestore(); else if (i === 1) confirmPermanentDelete() },
+        { options: opts, cancelButtonIndex: 3, title: 'Snooze' },
+        (i) => {
+          if (i === 0) onSnooze(todo.id, 1)
+          else if (i === 1) onSnooze(todo.id, 7)
+          else if (i === 2) openDatePicker()
+        },
       )
     } else {
-      Alert.alert(todo.text, undefined, [
-        { text: t.restoreTask, onPress: handleRestore },
-        { text: t.deletePermanently, style: 'destructive', onPress: confirmPermanentDelete },
+      Alert.alert('Snooze', undefined, [
+        { text: 'Tomorrow', onPress: () => onSnooze(todo.id, 1) },
+        { text: 'Next week', onPress: () => onSnooze(todo.id, 7) },
+        { text: 'Pick a date…', onPress: openDatePicker },
         { text: cancel, style: 'cancel' },
       ])
     }
@@ -351,7 +374,7 @@ function TaskItem({
       onSwipeableWillClose={() => setSwipeOpen(false)}
     >
       <Pressable
-        onLongPress={swipeOpen || !inTrash ? undefined : handleLongPress}
+        onLongPress={swipeOpen ? undefined : handleLongPress}
         delayLongPress={350}
         style={({ pressed }) => [
           styles.row,

@@ -130,6 +130,56 @@ export function didEarnPebble(before: Todo | undefined, after: Todo | undefined)
 }
 
 /**
+ * Net pebble change for a single Todo's transition. Used by every mutation
+ * path that can affect pebble counts (toggle, moveToTrash, restoreFromTrash)
+ * so the math is one place — not duplicated across call sites where it can
+ * drift apart (root cause of B3, where moveToTrash silently skipped pebbles
+ * the toggle path awarded).
+ *
+ * `task` is the parent's contribution: -1 / 0 / +1.
+ *   • +1 on done false → true (any path)
+ *   • -1 on done true → false
+ *   • +1 on a recurring rolling completion (dueDate moved, done stays false)
+ *
+ * `subtask` is the net of every per-sub transition under this todo. Indexed
+ * by position in the subs array — added/removed subs don't contribute (an
+ * add isn't a completion; a remove deletes the pebble's source-of-truth too).
+ */
+export interface PebbleDelta {
+  task: -1 | 0 | 1;
+  subtask: number;
+}
+
+export function pebbleDelta(
+  before: Todo | undefined,
+  after: Todo | undefined,
+): PebbleDelta {
+  if (!before || !after) return { task: 0, subtask: 0 };
+  let task: -1 | 0 | 1 = 0;
+  if (!before.done && after.done) task = 1;
+  else if (before.done && !after.done) task = -1;
+  else if (
+    before.recurrence &&
+    after.recurrence &&
+    before.dueDate !== after.dueDate &&
+    !before.done &&
+    !after.done
+  )
+    task = 1;
+  const beforeSubs = before.subtasks ?? [];
+  const afterSubs = after.subtasks ?? [];
+  let subtask = 0;
+  for (let i = 0; i < beforeSubs.length; i++) {
+    const b = beforeSubs[i];
+    const a = afterSubs[i];
+    if (!a) continue;
+    if (!b.done && a.done) subtask += 1;
+    else if (b.done && !a.done) subtask -= 1;
+  }
+  return { task, subtask };
+}
+
+/**
  * Marks a Todo as done (or un-marks it). Done items also flip the
  * `trashed` flag with a `trashedAt` stamp — they sit in the 30-day
  * Done bin until either the user un-checks them (restored to open)

@@ -43,7 +43,8 @@ import {
   newTodo,
   generateRecurringInstances,
   todoToggle,
-  didEarnPebble,
+  pebbleDelta,
+  PebbleDelta,
   todoMoveToTrash,
   todoMoveToTrashFutureSeries,
   todoApplySeriesFutureEdits,
@@ -65,7 +66,7 @@ import {
   categoryReorder,
   deriveState,
 } from "../../core/src/derive";
-import { todayLocal } from "../../core/src/utils";
+import { todayLocal, isoDate } from "../../core/src/utils";
 
 const SCHEMA_VERSION = 1;
 
@@ -276,6 +277,28 @@ export function useTodoStore() {
 
   // ---- Stable callbacks ----
 
+  // Single chokepoint for pebble accounting. Every mutation that can
+  // earn or refund pebbles (toggle / moveToTrash / restoreFromTrash)
+  // computes a PebbleDelta in core and applies it here — so the math
+  // can't drift between paths the way it did pre-B3.
+  const applyPebbleDelta = useCallback(
+    (delta: PebbleDelta) => {
+      if (delta.task === 0 && delta.subtask === 0) return;
+      setProfile((p) => {
+        const today = todayLocal();
+        let next = p;
+        if (delta.task > 0) next = incrementPebble(next, today, "task");
+        else if (delta.task < 0) next = decrementPebble(next, today, "task");
+        for (let i = 0; i < delta.subtask; i++)
+          next = incrementPebble(next, today, "subtask");
+        for (let i = 0; i < -delta.subtask; i++)
+          next = decrementPebble(next, today, "subtask");
+        return next;
+      });
+    },
+    [setProfile],
+  );
+
   const toggle = useCallback(
     (id: string) => {
       // Detect transitions against the current todos via ref so setTodos +
@@ -285,75 +308,29 @@ export function useTodoStore() {
       setTodos((prev) => todoToggle(prev, id));
       if (!beforeTodo) return;
       const afterTodo = todoToggle([beforeTodo], id)[0];
-
-      // Parent task transition.
-      const wasDone = beforeTodo.done;
-      const isDone = afterTodo.done;
-      const recurringCompletion =
-        didEarnPebble(beforeTodo, afterTodo) && !wasDone && !isDone;
-      const taskDelta =
-        !wasDone && (isDone || recurringCompletion)
-          ? +1
-          : wasDone && !isDone
-            ? -1
-            : 0;
-
-      // Cascade: when a parent is toggled, all subtasks flip to the parent's
-      // new done state. Each subtask transition counts as one pebble. We
-      // batch every delta into a single setProfile so the UI sees one
-      // coalesced update.
-      const beforeSubs = beforeTodo.subtasks ?? [];
-      const afterSubs = afterTodo.subtasks ?? [];
-      let subtaskDelta = 0;
-      for (let i = 0; i < beforeSubs.length; i++) {
-        const b = beforeSubs[i];
-        const a = afterSubs[i];
-        if (!a) continue;
-        if (!b.done && a.done) subtaskDelta += 1;
-        else if (b.done && !a.done) subtaskDelta -= 1;
-      }
-
-      if (taskDelta === 0 && subtaskDelta === 0) return;
-      setProfile((p) => {
-        const today = todayLocal();
-        let next = p;
-        if (taskDelta > 0) next = incrementPebble(next, today, 'task');
-        else if (taskDelta < 0) next = decrementPebble(next, today, 'task');
-        for (let i = 0; i < subtaskDelta; i++) {
-          next = incrementPebble(next, today, 'subtask');
-        }
-        for (let i = 0; i < -subtaskDelta; i++) {
-          next = decrementPebble(next, today, 'subtask');
-        }
-        return next;
-      });
+      applyPebbleDelta(pebbleDelta(beforeTodo, afterTodo));
     },
-    [setTodos, setProfile],
+    [setTodos, applyPebbleDelta],
   );
 
   const restoreFromTrash = useCallback(
     (id: string) => {
-      // Mirror the toggle pebble math: restoring a done item is the
-      // inverse of completing it, so the day's pebble count decrements.
       const beforeTodo = todosRef.current.find((t) => t.id === id);
       setTodos((prev) => todoRestoreFromTrash(prev, id));
-      if (beforeTodo?.done) {
-        setProfile((p) => decrementPebble(p, todayLocal(), 'task'));
-      }
+      if (!beforeTodo) return;
+      const afterTodo = todoRestoreFromTrash([beforeTodo], id)[0];
+      applyPebbleDelta(pebbleDelta(beforeTodo, afterTodo));
     },
-    [setTodos, setProfile],
+    [setTodos, applyPebbleDelta],
   );
 
   const moveToTrash = useCallback(
     (id: string) => {
-      // Pebble parity with toggle: any transition from not-done → done
-      // earns a task pebble, regardless of which gesture caused it.
-      // Without this, swipe-left and "Mark done & close" silently
-      // skipped pebble accounting that the checkbox path applied.
       const beforeTodo = todosRef.current.find((t) => t.id === id);
       setTodos((prev) => todoMoveToTrash(prev, id));
-      if (beforeTodo && !beforeTodo.done) {
-        setProfile((p) => incrementPebble(p, todayLocal(), 'task'));
+      if (beforeTodo) {
+        const afterTodo = todoMoveToTrash([beforeTodo], id)[0];
+        applyPebbleDelta(pebbleDelta(beforeTodo, afterTodo));
       }
       notify.showSnackbar({
         message: t.movedToTrash,
@@ -364,7 +341,7 @@ export function useTodoStore() {
         mergedActionLabel: t.undoAll,
       });
     },
-    [setTodos, setProfile, notify, t, restoreFromTrash],
+    [setTodos, applyPebbleDelta, notify, t, restoreFromTrash],
   );
 
   const applySeriesFutureEdits = useCallback(
@@ -427,6 +404,81 @@ export function useTodoStore() {
       setTodos((prev) => todoSet(prev, id, "dueDate", dueDate));
     },
     [setTodos],
+  );
+
+  // Overwhelm-mode escape hatch. Shifts every open overdue item's
+  // dueDate forward by `daysFromToday` and shows an undo snackbar that
+  // captures each original date so the action is fully reversible.
+  // Skips done items (they don't need deferral) and trashed items.
+  const deferOverdue = useCallback(
+    (daysFromToday: number) => {
+      const today = todayLocal();
+      const d = new Date();
+      d.setDate(d.getDate() + daysFromToday);
+      const newDate = isoDate(d);
+      const overdue = todosRef.current.filter(
+        (td) => !td.trashed && !td.done && td.dueDate && td.dueDate < today,
+      );
+      if (overdue.length === 0) return;
+      const originals = new Map(overdue.map((td) => [td.id, td.dueDate]));
+      const now = Date.now();
+      setTodos((prev) =>
+        prev.map((td) =>
+          originals.has(td.id)
+            ? { ...td, dueDate: newDate, updatedAt: now }
+            : td,
+        ),
+      );
+      const message =
+        overdue.length === 1
+          ? `1 carried-over to-do deferred.`
+          : `${overdue.length} carried-over to-dos deferred.`;
+      notify.showSnackbar({
+        message,
+        actionLabel: t.undoAll,
+        onAction: () => {
+          const undoNow = Date.now();
+          setTodos((prev) =>
+            prev.map((td) => {
+              const orig = originals.get(td.id);
+              return orig !== undefined
+                ? { ...td, dueDate: orig, updatedAt: undoNow }
+                : td;
+            }),
+          );
+        },
+      });
+    },
+    [setTodos, notify, t],
+  );
+
+  // Quick "I can't face this today" affordance. Shifts the dueDate
+  // forward by `daysFromToday` (1 = tomorrow, 7 = next week) and shows
+  // an undo snackbar capturing the original date.
+  const snooze = useCallback(
+    (id: string, daysFromToday: number) => {
+      const beforeTodo = todosRef.current.find((t) => t.id === id);
+      if (!beforeTodo) return;
+      const originalDate = beforeTodo.dueDate;
+      const d = new Date();
+      d.setDate(d.getDate() + daysFromToday);
+      const newDate = isoDate(d);
+      setTodos((prev) => todoSet(prev, id, "dueDate", newDate));
+      const label =
+        daysFromToday === 1
+          ? "Snoozed to tomorrow."
+          : daysFromToday === 7
+            ? "Snoozed to next week."
+            : `Snoozed ${daysFromToday} days.`;
+      notify.showSnackbar({
+        message: label,
+        actionLabel: t.undo,
+        onAction: () => {
+          setTodos((prev) => todoSet(prev, id, "dueDate", originalDate));
+        },
+      });
+    },
+    [setTodos, notify, t],
   );
 
   const updateTaskCategory = useCallback(
@@ -736,6 +788,8 @@ export function useTodoStore() {
     permanentlyDelete,
     updatePriority,
     updateDueDate,
+    snooze,
+    deferOverdue,
     updateTaskCategory,
     updateText,
     addSubtask,

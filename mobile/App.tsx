@@ -220,6 +220,7 @@ function AppInner() {
                         onPermanentDelete={store.permanentlyDelete}
                         onUpdatePriority={store.updatePriority}
                         onUpdateDueDate={store.updateDueDate}
+                        onSnooze={store.snooze}
                         onUpdateCategory={store.updateTaskCategory}
                         onUpdateText={store.updateText}
                         onUpdateRecurrence={store.updateRecurrence}
@@ -260,6 +261,7 @@ function AppInner() {
                         onApplySeriesFutureEdits={store.applySeriesFutureEdits}
                           onUpdatePriority={store.updatePriority}
                           onUpdateDueDate={store.updateDueDate}
+                        onSnooze={store.snooze}
                           onUpdateCategory={store.updateTaskCategory}
                           onUpdateText={store.updateText}
                         onUpdateRecurrence={store.updateRecurrence}
@@ -297,6 +299,14 @@ function AppInner() {
                 // Header counts include every to-do in the bucket
                 // (open + done) so the number matches what's visible.
                 const headerCount = group.todos.length;
+                // Open overdue items inside the Carried Over group are
+                // candidates for the bulk-defer escape hatch (overwhelm
+                // mode). Done overdue items are skipped — deferring a
+                // completed item makes no sense.
+                const openOverdueCount =
+                  group.key === "overdue"
+                    ? group.todos.filter((td) => !td.done).length
+                    : 0;
                 return (
                   <View key={group.key} style={styles.groupSection}>
                     {toggleable ? (
@@ -322,6 +332,19 @@ function AppInner() {
                         {headerLabel} ({headerCount})
                       </Text>
                     )}
+                    {!collapsed && openOverdueCount > 0 && (
+                      <TouchableOpacity
+                        onPress={() => store.deferOverdue(7)}
+                        style={styles.deferAllRow}
+                        hitSlop={6}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Defer all ${openOverdueCount} carried-over to-dos to next week`}
+                      >
+                        <Text style={styles.deferAllText}>
+                          Defer all to next week →
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                     {!collapsed && (
                       <View style={styles.groupCard}>
                         {group.todos.map((td, i) => (
@@ -339,6 +362,7 @@ function AppInner() {
                         onApplySeriesFutureEdits={store.applySeriesFutureEdits}
                               onUpdatePriority={store.updatePriority}
                               onUpdateDueDate={store.updateDueDate}
+                        onSnooze={store.snooze}
                               onUpdateCategory={store.updateTaskCategory}
                               onUpdateText={store.updateText}
                         onUpdateRecurrence={store.updateRecurrence}
@@ -368,6 +392,25 @@ function AppInner() {
                 );
               })
             )}
+
+            {/* Bin discoverability — surface the 30-day safety net so
+                users know it exists. Only in non-bin views; tapping
+                jumps to the Done filter. */}
+            {!store.inTrashView &&
+              store.filter !== "done" &&
+              store.systemCounts.done > 0 && (
+                <TouchableOpacity
+                  onPress={() => store.setFilter("done")}
+                  style={styles.binFooter}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${store.systemCounts.done} to-dos tucked away in the bin. Tap to view.`}
+                >
+                  <Text style={styles.binFooterText}>
+                    {store.systemCounts.done} tucked away · tap to peek →
+                  </Text>
+                </TouchableOpacity>
+              )}
 
             {!store.inTrashView && (
               <Footer
@@ -580,6 +623,30 @@ function makeStyles(c: ThemeColors) {
       gap: 4,
       marginLeft: 0,
       marginBottom: 8,
+    },
+    deferAllRow: {
+      paddingHorizontal: 4,
+      paddingBottom: 8,
+      paddingTop: 0,
+      alignSelf: "flex-start",
+    },
+    deferAllText: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: c.blue,
+      letterSpacing: -0.1,
+    },
+    binFooter: {
+      alignSelf: "center",
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      marginTop: 8,
+    },
+    binFooterText: {
+      fontSize: 12,
+      fontWeight: "500",
+      color: c.label3,
+      letterSpacing: 0.1,
     },
     trashHeader: {
       flexDirection: "row",
