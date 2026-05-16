@@ -1,0 +1,18 @@
+# Jekyll config for GitHub Pages. Only public-facing docs in this folder
+# get rendered; internal/development docs are excluded so they don't end up
+# on the public site.
+
+title: Sagely
+description: A calm to-do app for days you can't be a productivity person.
+url: "https://websurfer2015.github.io"
+baseurl: "/my-todo"
+theme: jekyll-theme-minimal
+markdown: kramdown
+
+# Internal docs that live in /docs but should NOT be published. If you add
+# more public pages, drop their filenames into `include` or leave them
+# unlisted (Jekyll publishes by default unless excluded).
+exclude:
+  - ARCHITECTURE.md
+  - POSITIONING.md
+  - README.md
