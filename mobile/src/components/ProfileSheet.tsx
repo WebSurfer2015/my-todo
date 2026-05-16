@@ -399,14 +399,16 @@ export default function ProfileSheet({
               </View>
             </TouchableOpacity>
 
-            <View style={styles.pebbleRow}>
-              <CairnGlyph size={22} />
-              <Text style={styles.pebbleRowLabel}>Pebbles placed</Text>
-              <Text style={styles.pebbleRowValue}>{profile.lifetimePebbles ?? 0}</Text>
+            <View style={styles.pebbleHero}>
+              <View style={styles.pebbleHeroCairn}>
+                <CairnGlyph size={42} />
+              </View>
+              <Text style={styles.pebbleHeroValue}>{profile.lifetimePebbles ?? 0}</Text>
+              <Text style={styles.pebbleHeroLabel}>pebbles placed</Text>
+              <Text style={styles.pebbleHeroHint}>
+                Every task you've finished, since you started.
+              </Text>
             </View>
-            <Text style={styles.pebbleRowHint}>
-              Every task you've finished, since you started.
-            </Text>
 
             <View style={styles.actions}>
               <TouchableOpacity
@@ -604,35 +606,42 @@ function makeStyles(c: ThemeColors) {
     langBtnTextActive: {
       color: "#fff",
     },
-    pebbleRow: {
-      flexDirection: "row",
+    pebbleHero: {
+      // Hero card — the user's "look what I built" moment. Full-width
+      // cairn glyph + large count + supporting copy, centered.
       alignItems: "center",
-      gap: 10,
-      paddingVertical: 14,
-      paddingHorizontal: 14,
-      marginTop: 12,
-      borderRadius: 10,
+      paddingVertical: 22,
+      paddingHorizontal: 16,
+      marginTop: 16,
+      marginBottom: 8,
+      borderRadius: 16,
       backgroundColor: c.primarySoft,
     },
-    pebbleRowLabel: {
-      flex: 1,
-      fontSize: 15,
-      color: c.label,
-      fontWeight: "500",
+    pebbleHeroCairn: {
+      marginBottom: 8,
     },
-    pebbleRowValue: {
-      fontSize: 17,
+    pebbleHeroValue: {
+      fontSize: 36,
+      lineHeight: 40,
       color: c.primary,
       fontWeight: "700",
       fontVariant: ["tabular-nums"],
+      letterSpacing: -0.6,
     },
-    pebbleRowHint: {
+    pebbleHeroLabel: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: c.label2,
+      letterSpacing: 0.2,
+      marginTop: 2,
+    },
+    pebbleHeroHint: {
       fontSize: 12,
       color: c.label3,
-      paddingHorizontal: 14,
-      paddingTop: 6,
-      paddingBottom: 4,
       fontStyle: "italic",
+      textAlign: "center",
+      marginTop: 10,
+      maxWidth: 260,
     },
     actions: {
       flexDirection: "row",
