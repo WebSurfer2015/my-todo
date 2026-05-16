@@ -360,10 +360,10 @@ function AppInner() {
                         style={styles.deferAllRow}
                         hitSlop={6}
                         accessibilityRole="button"
-                        accessibilityLabel={`Defer all ${openOverdueCount} carried-over to-dos to next week`}
+                        accessibilityLabel={t.defer.allA11y(openOverdueCount)}
                       >
                         <Text style={styles.deferAllText}>
-                          Defer all to next week →
+                          {t.defer.allToNextWeek}
                         </Text>
                       </TouchableOpacity>
                     )}
@@ -427,10 +427,10 @@ function AppInner() {
                   style={styles.binFooter}
                   hitSlop={6}
                   accessibilityRole="button"
-                  accessibilityLabel={`${store.systemCounts.done} to-dos tucked away in the bin. Tap to view.`}
+                  accessibilityLabel={t.binFooter.a11y(store.systemCounts.done)}
                 >
                   <Text style={styles.binFooterText}>
-                    {store.systemCounts.done} tucked away · tap to peek →
+                    {t.binFooter.peek(store.systemCounts.done)}
                   </Text>
                 </TouchableOpacity>
               )}

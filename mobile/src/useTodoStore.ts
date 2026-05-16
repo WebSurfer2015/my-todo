@@ -277,8 +277,8 @@ export function useTodoStore() {
       notify.showSnackbar({
         message:
           affected > 0
-            ? `Applied to ${affected} future to-do${affected !== 1 ? "s" : ""} in this series.`
-            : "Nothing to apply.",
+            ? t.series.editsApplied(affected)
+            : t.series.editsNothing,
       });
     },
     [setTodos, notify],
@@ -295,10 +295,7 @@ export function useTodoStore() {
       // Snackbar copy reflects how many were tucked away; falls back to
       // single-task copy when the target wasn't part of a series.
       notify.showSnackbar({
-        message:
-          affected > 1
-            ? `${affected} to-dos in this series tucked into the bin.`
-            : t.movedToTrash,
+        message: affected > 1 ? t.series.trashedMany(affected) : t.movedToTrash,
       });
     },
     [setTodos, notify, t],
@@ -348,12 +345,8 @@ export function useTodoStore() {
             : td,
         ),
       );
-      const message =
-        overdue.length === 1
-          ? `1 carried-over to-do deferred.`
-          : `${overdue.length} carried-over to-dos deferred.`;
       notify.showSnackbar({
-        message,
+        message: t.defer.done(overdue.length),
         actionLabel: t.undoAll,
         onAction: () => {
           const undoNow = Date.now();
@@ -385,10 +378,10 @@ export function useTodoStore() {
       setTodos((prev) => todoSet(prev, id, "dueDate", newDate));
       const label =
         daysFromToday === 1
-          ? "Snoozed to tomorrow."
+          ? t.snooze.toTomorrow
           : daysFromToday === 7
-            ? "Snoozed to next week."
-            : `Snoozed ${daysFromToday} days.`;
+            ? t.snooze.toNextWeek
+            : t.snooze.toDays(daysFromToday);
       notify.showSnackbar({
         message: label,
         actionLabel: t.undo,

@@ -282,10 +282,10 @@ function TaskItem({
       return
     }
     if (!onSnooze) return
-    const opts = ['Tomorrow', 'Next week', 'Pick a date…', cancel]
+    const opts = [t.snooze.tomorrow, t.snooze.nextWeek, t.snooze.pickDate, cancel]
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
-        { options: opts, cancelButtonIndex: 3, title: 'Snooze' },
+        { options: opts, cancelButtonIndex: 3, title: t.snooze.title },
         (i) => {
           if (i === 0) onSnooze(todo.id, 1)
           else if (i === 1) onSnooze(todo.id, 7)
@@ -293,10 +293,10 @@ function TaskItem({
         },
       )
     } else {
-      Alert.alert('Snooze', undefined, [
-        { text: 'Tomorrow', onPress: () => onSnooze(todo.id, 1) },
-        { text: 'Next week', onPress: () => onSnooze(todo.id, 7) },
-        { text: 'Pick a date…', onPress: openDatePicker },
+      Alert.alert(t.snooze.title, undefined, [
+        { text: t.snooze.tomorrow, onPress: () => onSnooze(todo.id, 1) },
+        { text: t.snooze.nextWeek, onPress: () => onSnooze(todo.id, 7) },
+        { text: t.snooze.pickDate, onPress: openDatePicker },
         { text: cancel, style: 'cancel' },
       ])
     }

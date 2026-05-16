@@ -388,7 +388,7 @@ export default function TaskDetailsSheet({
                   <TouchableOpacity onPress={() => setEditSubPickerView('main')} hitSlop={10} style={styles.headerSideBtn}>
                     <Text style={styles.cancelText}>‹ Back</Text>
                   </TouchableOpacity>
-                  <Text style={styles.editHeaderTitle}>Completed by</Text>
+                  <Text style={styles.editHeaderTitle}>{t.edit.completedBy}</Text>
                   {editSubDueDate ? (
                     <TouchableOpacity onPress={clearEditSubDate} hitSlop={10} style={styles.headerSideBtn}>
                       <Text style={styles.dateClearBtnText}>{t.clear}</Text>
@@ -413,7 +413,7 @@ export default function TaskDetailsSheet({
                   <TouchableOpacity onPress={leaveSubtaskEdit} hitSlop={10} style={styles.headerSideBtn}>
                     <Text style={styles.cancelText}>‹ Back</Text>
                   </TouchableOpacity>
-                  <Text style={styles.editHeaderTitle}>Edit step</Text>
+                  <Text style={styles.editHeaderTitle}>{t.edit.step}</Text>
                   <View style={styles.headerSideBtn} />
                 </View>
                 <ScrollView style={styles.list} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editBody}>
@@ -449,7 +449,7 @@ export default function TaskDetailsSheet({
                       activeOpacity={0.6}
                     >
                       <CalendarIcon size={18} color={editSubDueDate ? theme.blue : theme.gray3} />
-                      <Text style={styles.editFieldLabel}>Completed by</Text>
+                      <Text style={styles.editFieldLabel}>{t.edit.completedBy}</Text>
                       <Text
                         style={[
                           styles.editFieldValue,
@@ -494,7 +494,7 @@ export default function TaskDetailsSheet({
             )
           ) : parentEditView === 'repeat' ? (
             <InlinePicker
-              title="Repeat"
+              title={t.edit.repeat}
               options={[
                 { key: 'none', label: RECURRENCE_LABELS.none, color: theme.label },
                 ...RECURRENCE_FREQS.map((f) => ({
@@ -569,7 +569,7 @@ export default function TaskDetailsSheet({
                 <TouchableOpacity onPress={() => setParentEditView('main')} hitSlop={10} style={styles.headerSideBtn}>
                   <Text style={styles.cancelText}>‹ Back</Text>
                 </TouchableOpacity>
-                <Text style={styles.editHeaderTitle}>Repeat ends</Text>
+                <Text style={styles.editHeaderTitle}>{t.edit.repeatEnds}</Text>
                 {editRecurrence.endDate ? (
                   <TouchableOpacity
                     onPress={() => {
@@ -608,7 +608,7 @@ export default function TaskDetailsSheet({
             <TouchableOpacity onPress={closeWithoutFlush} hitSlop={10} style={styles.headerSideBtn}>
               <Text style={styles.cancelHeaderText}>{t.cancel}</Text>
             </TouchableOpacity>
-            <Text style={styles.editHeaderTitle}>Edit to-do</Text>
+            <Text style={styles.editHeaderTitle}>{t.edit.toDo}</Text>
             <TouchableOpacity onPress={closeAndFlushText} hitSlop={10} style={styles.headerSideBtn}>
               <Text style={styles.saveHeaderText}>{t.save}</Text>
             </TouchableOpacity>
@@ -655,7 +655,7 @@ export default function TaskDetailsSheet({
                   accessibilityLabel={`Completed by, ${editDueDate ? absoluteDateLabel(editDueDate) : t.noDate}. Tap to change.`}
                 >
                   <CalendarIcon size={18} color={editDueDate ? theme.blue : theme.gray3} />
-                  <Text style={styles.editFieldLabel}>Completed by</Text>
+                  <Text style={styles.editFieldLabel}>{t.edit.completedBy}</Text>
                   <Text
                     style={[
                       styles.editFieldValue,
@@ -676,7 +676,7 @@ export default function TaskDetailsSheet({
                   accessibilityLabel={`Repeat, ${recurrenceLabel(editRecurrence)}. Tap to change.`}
                 >
                   <Repeat size={18} color={editRecurrence ? theme.blue : theme.gray3} strokeWidth={2} />
-                  <Text style={styles.editFieldLabel}>Repeat</Text>
+                  <Text style={styles.editFieldLabel}>{t.edit.repeat}</Text>
                   <Text
                     style={[
                       styles.editFieldValue,
@@ -710,7 +710,7 @@ export default function TaskDetailsSheet({
                       accessibilityLabel={`Repeat ends, ${editRecurrence.endDate ? absoluteDateLabel(editRecurrence.endDate) : 'never'}. Tap to change.`}
                     >
                       <CalendarIcon size={18} color={editRecurrence.endDate ? theme.blue : theme.gray3} />
-                      <Text style={styles.editFieldLabel}>Repeat ends</Text>
+                      <Text style={styles.editFieldLabel}>{t.edit.repeatEnds}</Text>
                       <Text
                         style={[
                           styles.editFieldValue,
@@ -718,7 +718,7 @@ export default function TaskDetailsSheet({
                         ]}
                         numberOfLines={1}
                       >
-                        {editRecurrence.endDate ? absoluteDateLabel(editRecurrence.endDate) : 'No end'}
+                        {editRecurrence.endDate ? absoluteDateLabel(editRecurrence.endDate) : t.edit.noEnd}
                       </Text>
                       <Text style={styles.editChevron}>›</Text>
                     </TouchableOpacity>
@@ -728,14 +728,14 @@ export default function TaskDetailsSheet({
 
               {onUpdateNotes && (
                 <>
-                  <Text style={styles.notesSectionHeader}>NOTES</Text>
+                  <Text style={styles.notesSectionHeader}>{t.notes.header}</Text>
                   <View style={styles.notesCard}>
                     <TextInput
                       style={styles.notesInput}
                       value={editNotes}
                       onChangeText={setEditNotes}
                       onBlur={() => applyNotes(editNotes)}
-                      placeholder="What's the smallest first step? What's blocking you? Why does this matter?"
+                      placeholder={t.notes.placeholder}
                       placeholderTextColor={theme.gray3}
                       multiline
                       maxLength={8192}
@@ -746,12 +746,12 @@ export default function TaskDetailsSheet({
                 </>
               )}
 
-              <Text style={styles.subtaskSectionHeader}>SUBTASKS</Text>
+              <Text style={styles.subtaskSectionHeader}>{t.steps.header}</Text>
               {subs.length === 0 ? (
                 <EmptyState
                   variant="compact"
-                  title="No steps yet"
-                  hint="Break this task into smaller steps when you're ready."
+                  title={t.steps.noneYet}
+                  hint={t.steps.noneHint}
                 />
               ) : (
                 <View style={styles.editSubtasks}>
@@ -805,7 +805,7 @@ export default function TaskDetailsSheet({
                   }}
                   activeOpacity={0.6}
                   accessibilityRole="button"
-                  accessibilityLabel="Apply this to-do's text, priority, and category to every future to-do in this series"
+                  accessibilityLabel={t.series.applyToFutureA11y}
                 >
                   <Text style={styles.seriesActionText}>Apply changes to all future in series</Text>
                 </TouchableOpacity>
@@ -845,7 +845,7 @@ export default function TaskDetailsSheet({
                 }}
                 activeOpacity={0.6}
               >
-                <Text style={styles.destructiveActionText}>Mark done & close</Text>
+                <Text style={styles.destructiveActionText}>{t.edit.markDoneAndClose}</Text>
               </TouchableOpacity>
             </ScrollView>
           </>
