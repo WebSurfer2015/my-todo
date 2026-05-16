@@ -16,6 +16,13 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import * as Haptics from "expo-haptics";
+import * as ImageManipulator from "expo-image-manipulator";
+import {
+  Profile,
+  Avatar as AvatarT,
+  AVATAR_LIBRARY,
+} from "../profile";
 
 /** "9:00 AM" / "1:30 PM" formatting for the daily-checkin time row. */
 function formatHour12(h: number): string {
@@ -37,13 +44,6 @@ function normalizeAvatar(a: AvatarT | undefined | null): AvatarT {
   }
   return a;
 }
-import * as Haptics from "expo-haptics";
-import * as ImageManipulator from "expo-image-manipulator";
-import {
-  Profile,
-  Avatar as AvatarT,
-  AVATAR_LIBRARY,
-} from "../profile";
 import Avatar from "./Avatar";
 import { CairnGlyph } from "./PebbleStrip";
 import { useLang } from "../LangContext";
