@@ -22,31 +22,24 @@ function sortTodos(ts: Todo[]): Todo[] {
   })
 }
 
-export function buildGroups(todos: Todo[], options: { separateDone?: boolean } = {}): TodoGroup[] {
-  const { separateDone = false } = options
+export function buildGroups(todos: Todo[], _options: { separateDone?: boolean } = {}): TodoGroup[] {
   const today = todayLocal()
   const endOfWeek = endOfWeekLocal()
 
   const buckets: Record<GroupKey, Todo[]> = { overdue: [], today: [], week: [], upcoming: [], done: [] }
 
+  // Every todo flows to its date bucket regardless of done state. Per the
+  // user's request, "Today / This Week / Upcoming" each show + count
+  // their entire date-window contents — done items stay in place rather
+  // than getting yanked to a separate Done bucket at the bottom. The
+  // dedicated Done filter view is the place to see only completed
+  // items; this is the All-view layout.
   for (const t of todos) {
     const d = t.dueDate
-    const isPastDue = !!d && d < today
-    // Past-due items always belong in Carried over — even if the user
-    // already marked them done. The user's mental model: "this was
-    // late" stays a fact regardless of completion. Done items that
-    // were never past-due flow to the bottom Done bucket as before.
-    if (isPastDue) {
-      buckets.overdue.push(t)
-      continue
-    }
-    if (separateDone && t.done) {
-      buckets.done.push(t)
-      continue
-    }
-    if (!d || d > endOfWeek) buckets.upcoming.push(t)
-    else if (d === today)    buckets.today.push(t)
-    else                     buckets.week.push(t)
+    if (d && d < today) buckets.overdue.push(t)
+    else if (!d || d > endOfWeek) buckets.upcoming.push(t)
+    else if (d === today) buckets.today.push(t)
+    else buckets.week.push(t)
   }
 
   const groups: TodoGroup[] = []

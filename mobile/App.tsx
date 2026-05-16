@@ -331,10 +331,9 @@ function AppInner() {
                 const headerLabel = statusOverride
                   ? statusOverride.label
                   : t.groups[group.key];
-                const headerCount =
-                  group.key === "done" || group.key === "overdue"
-                    ? group.todos.length
-                    : group.todos.filter((td) => !td.done).length;
+                // Header counts include every to-do in the bucket
+                // (open + done) so the number matches what's visible.
+                const headerCount = group.todos.length;
                 return (
                   <View key={group.key} style={styles.groupSection}>
                     {toggleable ? (
