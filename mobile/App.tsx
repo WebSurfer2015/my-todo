@@ -134,8 +134,9 @@ function AppInner() {
 
           <View style={styles.stickyFilter}>
             <FilterBar
-              filter={store.filter}
-              onFilter={store.setFilter}
+              compositeFilter={store.compositeFilter}
+              onClearStatus={() => store.setStatusFilter(undefined)}
+              onClearCategory={() => store.setCategoryFilter(undefined)}
               onOpenSheet={() => setCategorySheetOpen(true)}
               systemCounts={store.systemCounts}
               byCategory={store.byCategory}

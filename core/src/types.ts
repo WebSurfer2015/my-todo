@@ -9,6 +9,34 @@ export type Filter = SystemFilter | `cat:${string}`
 // as its own filter. Done covers everything in the 30-day bin.
 export const STATUS_FILTERS: StatusFilter[] = ['overdue', 'open', 'done']
 
+/**
+ * Composite filter: two independent dimensions ANDed together. Mobile
+ * uses this to support "[All] + [Open] + [Work]" pill stacks where the
+ * user can scope by status and/or category at the same time. Either
+ * dimension can be left undefined ("All" on that axis). Web is still
+ * on the legacy single-value Filter — the two models coexist via
+ * DeriveInput.
+ *
+ * NB: 'all' isn't representable in `status` because it's the absence-
+ * of-filter state. To express "all statuses, in Work category" you set
+ * status: undefined, categoryId: 'work'.
+ */
+export interface CompositeFilter {
+  status?: StatusFilter
+  categoryId?: string
+}
+
+/** Helpers for round-tripping the legacy single Filter ↔ CompositeFilter. */
+export function compositeToLegacy(c: CompositeFilter): Filter {
+  if (c.categoryId) return `cat:${c.categoryId}` as Filter
+  return c.status ?? 'all'
+}
+export function legacyToComposite(f: Filter): CompositeFilter {
+  if (f === 'all') return {}
+  if (isCategoryFilter(f)) return { categoryId: categoryIdFromFilter(f) }
+  return { status: f as StatusFilter }
+}
+
 export type Priority = 'high' | 'medium' | 'low'
 export type Category = string
 
