@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import Svg, { Line, Path, Circle, Rect } from "react-native-svg";
 import { ChevronRight, ChevronDown } from "lucide-react-native";
 import { useTheme, ThemeColors } from "./src/theme";
 import FilterBar from "./src/components/FilterBar";
@@ -33,48 +32,7 @@ import PebbleStrip from "./src/components/PebbleStrip";
 import Onboarding from "./src/components/Onboarding";
 import SplashOverlay from "./src/components/SplashOverlay";
 import { scheduleDailyCheckin, cancelDailyCheckin } from "./src/notifications";
-
-function SlidersIcon({ size = 18, color = "#3C3C43" }: { size?: number; color?: string }) {
-  return (
-    <Svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={color}
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <Line x1="3" y1="6" x2="21" y2="6" />
-      <Circle cx="8" cy="6" r="2.5" fill={color} stroke="none" />
-      <Line x1="3" y1="12" x2="21" y2="12" />
-      <Circle cx="16" cy="12" r="2.5" fill={color} stroke="none" />
-      <Line x1="3" y1="18" x2="21" y2="18" />
-      <Circle cx="10" cy="18" r="2.5" fill={color} stroke="none" />
-    </Svg>
-  );
-}
-
-function GridIcon({ size = 18, color = "#3C3C43" }: { size?: number; color?: string }) {
-  return (
-    <Svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={color}
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <Rect x="3" y="3" width="7" height="7" rx="1" />
-      <Rect x="14" y="3" width="7" height="7" rx="1" />
-      <Rect x="3" y="14" width="7" height="7" rx="1" />
-      <Rect x="14" y="14" width="7" height="7" rx="1" />
-    </Svg>
-  );
-}
+import { useReduceMotion } from "./src/useReduceMotion";
 
 function AppInner() {
   const { t } = useLang();
@@ -86,8 +44,19 @@ function AppInner() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [categorySheetOpen, setCategorySheetOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
-  const [carriedOverExpanded, setCarriedOverExpanded] = useState(false);
-  const [upcomingExpanded, setUpcomingExpanded] = useState(false);
+  // Collapse state for All-view group headers. All four groups
+  // (today/week/overdue/upcoming) are toggleable; today + week default
+  // open (focus), overdue + upcoming default closed (history/later).
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    () => new Set(["overdue", "upcoming"]),
+  );
+  const toggleGroupCollapsed = (key: string) =>
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   // One-time JS splash overlay shown when AppInner first mounts. Hides
   // itself after the breath + fade animation. Only blocks once per cold
   // launch.
@@ -97,6 +66,7 @@ function AppInner() {
   // the full strip back into view.
   const [pebbleStripScrolled, setPebbleStripScrolled] = useState(false);
   const onboardingNeeded = store.loaded && store.profile.onboardingDone !== true;
+  const reduceMotion = useReduceMotion();
 
   // Sync the daily-checkin notification to profile state. Schedules when
   // enabled, cancels when disabled. Re-runs on hour change too.
@@ -309,21 +279,14 @@ function AppInner() {
               </View>
             ) : (
               store.groups.map((group) => {
-                const isCarriedOver = group.key === "overdue";
-                const isUpcoming =
-                  group.key === "upcoming" && store.filter === "all";
-                const toggleable = isCarriedOver || isUpcoming;
-                const expanded = isCarriedOver
-                  ? carriedOverExpanded
-                  : isUpcoming
-                    ? upcomingExpanded
-                    : true;
-                const collapsed = toggleable && !expanded;
-                const onToggle = isCarriedOver
-                  ? () => setCarriedOverExpanded((v) => !v)
-                  : isUpcoming
-                    ? () => setUpcomingExpanded((v) => !v)
-                    : undefined;
+                // Collapse is only available in the All view — when a
+                // category or status filter is active, every group is
+                // expanded so the user always sees the full subset.
+                const toggleable = store.filter === "all";
+                const collapsed = toggleable && collapsedGroups.has(group.key);
+                const onToggle = toggleable
+                  ? () => toggleGroupCollapsed(group.key)
+                  : undefined;
                 const statusOverride =
                   group.key === "overdue" || group.key === "done"
                     ? store.orderedStatuses.find((s) => s.id === group.key)
@@ -487,7 +450,7 @@ function AppInner() {
       />
       {splashShown && (
         <SplashOverlay
-          reduceMotion={false}
+          reduceMotion={reduceMotion}
           onDismiss={() => setSplashShown(false)}
         />
       )}

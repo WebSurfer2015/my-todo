@@ -1322,7 +1322,7 @@ function makeStyles(c: ThemeColors) {
       justifyContent: 'center',
     },
     dateClearBtnText: {
-      color: c.red,
+      color: c.label2,
       fontSize: 16,
       fontWeight: '500',
     },
@@ -1407,7 +1407,7 @@ function makeStyles(c: ThemeColors) {
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: c.separator,
     },
-    dateClear: { color: c.red, fontSize: 16, fontWeight: '500' },
+    dateClear: { color: c.label2, fontSize: 16, fontWeight: '500' },
     dateDone: { color: c.blue, fontSize: 16, fontWeight: '600' },
   })
 }

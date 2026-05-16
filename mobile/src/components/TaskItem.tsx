@@ -37,8 +37,7 @@ function FullSwipeWatcher({
 import { Swipeable } from 'react-native-gesture-handler'
 import * as Haptics from 'expo-haptics'
 import { Audio } from 'expo-av'
-import { Repeat as LucideRepeat, ChevronRight, ChevronDown } from 'lucide-react-native'
-import Svg, { Path, Polyline } from 'react-native-svg'
+import { Repeat as LucideRepeat, ChevronRight, ChevronDown, Trash2, RotateCcw } from 'lucide-react-native'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Category, Priority, Recurrence, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
 import { CategoryDef, categoryLabel } from '../categories'
@@ -50,6 +49,7 @@ import CategoryIcon from './CategoryIcon'
 import PickerModal from './PickerModal'
 import TaskDetailsSheet from './TaskDetailsSheet'
 import { useLang } from '../LangContext'
+import { useReduceMotion } from '../useReduceMotion'
 
 export type SubtaskVisibility = 'all' | 'open' | 'done'
 
@@ -87,35 +87,6 @@ interface Props {
   onRemoveSubtask?: (id: string, subId: string) => void
 }
 
-function PencilIcon({ size = 20, color = '#fff' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M12 20h9" />
-      <Path d="M16.5 3.5a2.121 2.121 0 113 3L7 19l-4 1 1-4 12.5-12.5z" />
-    </Svg>
-  )
-}
-
-function TrashIcon({ size = 20, color = '#fff' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Polyline points="3,6 5,6 21,6" />
-      <Path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
-      <Path d="M10 11v6M14 11v6" />
-      <Path d="M9 6V4a2 2 0 012-2h2a2 2 0 012 2v2" />
-    </Svg>
-  )
-}
-
-function RestoreIcon({ size = 20, color = '#fff' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M9 14L4 9l5-5" />
-      <Path d="M4 9h11a5 5 0 010 10h-2" />
-    </Svg>
-  )
-}
-
 function TaskItem({
   todo, inTrash = false, selected = false, onToggleSelect,
   categories, density = 'comfortable', celebrate = true, playSound = true,
@@ -127,6 +98,7 @@ function TaskItem({
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
+  const reduceMotion = useReduceMotion()
   const styles = useMemo(() => makeStyles(theme, density), [theme, density])
   const [priorityOpen, setPriorityOpen] = useState(false)
   const [categoryOpen, setCategoryOpen] = useState(false)
@@ -156,43 +128,45 @@ function TaskItem({
   )
 
   // Calm completion animation + sound — fires when a task transitions to done.
-  // The row-flash always fires (even when celebrate is off) so users get
-  // *some* gentle visual acknowledgment besides the haptic.
+  // Both the row-flash and the checkbox bounce are skipped when the OS-level
+  // Reduce Motion accessibility setting is on; the haptic + sound still fire.
   const checkboxScale = useRef(new Animated.Value(1)).current
   const rowFlash = useRef(new Animated.Value(0)).current
   const prevDoneRef = useRef(todo.done)
   useEffect(() => {
     if (todo.done && !prevDoneRef.current) {
-      // Always-on subtle row flash — 100ms in, 240ms out, max opacity 0.45.
-      Animated.sequence([
-        Animated.timing(rowFlash, {
-          toValue: 1,
-          duration: 100,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(rowFlash, {
-          toValue: 0,
-          duration: 240,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-      ]).start()
-      if (celebrate) {
+      if (!reduceMotion) {
+        // Subtle row flash — 100ms in, 240ms out, max opacity 0.45.
         Animated.sequence([
-          Animated.timing(checkboxScale, {
-            toValue: 1.35,
-            duration: 140,
+          Animated.timing(rowFlash, {
+            toValue: 1,
+            duration: 100,
             easing: Easing.out(Easing.quad),
             useNativeDriver: true,
           }),
-          Animated.timing(checkboxScale, {
-            toValue: 1,
-            duration: 220,
-            easing: Easing.elastic(1.2),
+          Animated.timing(rowFlash, {
+            toValue: 0,
+            duration: 240,
+            easing: Easing.out(Easing.quad),
             useNativeDriver: true,
           }),
         ]).start()
+        if (celebrate) {
+          Animated.sequence([
+            Animated.timing(checkboxScale, {
+              toValue: 1.35,
+              duration: 140,
+              easing: Easing.out(Easing.quad),
+              useNativeDriver: true,
+            }),
+            Animated.timing(checkboxScale, {
+              toValue: 1,
+              duration: 220,
+              easing: Easing.elastic(1.2),
+              useNativeDriver: true,
+            }),
+          ]).start()
+        }
       }
       if (playSound) {
         // Replace assets/sounds/complete.wav with a calm chime for an audible cue.
@@ -210,7 +184,7 @@ function TaskItem({
       }
     }
     prevDoneRef.current = todo.done
-  }, [todo.done, celebrate, playSound, checkboxScale, rowFlash])
+  }, [todo.done, celebrate, playSound, reduceMotion, checkboxScale, rowFlash])
   const swipeableRef = useRef<Swipeable>(null)
   const [swipeOpen, setSwipeOpen] = useState(false)
 
@@ -304,7 +278,7 @@ function TaskItem({
     if (inTrash) {
       return (
         <TouchableOpacity style={[styles.swipeAction, styles.swipeRestore]} onPress={handleRestore}>
-          <RestoreIcon />
+          <RotateCcw size={20} color="#fff" strokeWidth={2} />
           <Text style={styles.swipeActionText}>{t.restoreTask}</Text>
         </TouchableOpacity>
       )
@@ -323,7 +297,7 @@ function TaskItem({
     if (inTrash) {
       return (
         <TouchableOpacity style={[styles.swipeAction, styles.swipeDelete]} onPress={confirmPermanentDelete}>
-          <TrashIcon />
+          <Trash2 size={20} color="#fff" strokeWidth={2} />
           <Text style={styles.swipeActionText}>{t.deletePermanently}</Text>
         </TouchableOpacity>
       )
@@ -332,7 +306,7 @@ function TaskItem({
       <>
         <FullSwipeWatcher dragX={dragX} direction="right" onFullSwipe={handleMoveToTrash} />
         <TouchableOpacity style={[styles.swipeAction, styles.swipeTrash]} onPress={handleMoveToTrash}>
-          <TrashIcon />
+          <Trash2 size={20} color="#fff" strokeWidth={2} />
           <Text style={styles.swipeActionText}>{t.moveToTrash}</Text>
         </TouchableOpacity>
       </>
@@ -563,7 +537,7 @@ function TaskItem({
                     {onUpdateSubtaskPriority && (
                       <TouchableOpacity
                         onPress={() => openSubtaskEdit(s.id)}
-                        hitSlop={8}
+                        hitSlop={12}
                         style={styles.subPriorityBtn}
                       >
                         <PriorityDot level={sPriority} size={9} />
@@ -572,7 +546,7 @@ function TaskItem({
                     {onUpdateSubtaskDueDate && (
                       <TouchableOpacity
                         onPress={() => openSubtaskEdit(s.id)}
-                        hitSlop={8}
+                        hitSlop={12}
                         style={styles.subChip}
                       >
                         <Text style={[
@@ -1024,7 +998,7 @@ function makeStyles(c: ThemeColors, density: Density) {
       borderTopColor: c.separator,
     },
     dateClear: {
-      color: c.red,
+      color: c.label2,
       fontSize: 16,
       fontWeight: '500',
     },

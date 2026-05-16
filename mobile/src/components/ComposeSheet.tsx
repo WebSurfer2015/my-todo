@@ -610,7 +610,7 @@ function makeStyles(c: ThemeColors) {
       justifyContent: 'center',
     },
     clearBtnText: {
-      color: c.red,
+      color: c.label2,
       fontSize: 16,
       fontWeight: '500',
     },
