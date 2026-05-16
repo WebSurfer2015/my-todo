@@ -125,88 +125,7 @@ async function migrateLocalToCloud(adapter: StorageAdapter): Promise<void> {
   }
 }
 
-/**
- * Mochi-voice greeting tagline. Time-of-day + plate-aware variants picked
- * deterministically from the day's date so the line stays the same across
- * a session but rotates daily. Anxiety-friendly tone — no exclamation
- * marks, no "let's crush it!", never goal-oriented.
- */
-const MASCOT_LINES: Record<
-  "morning" | "afternoon" | "evening",
-  { fresh: string[]; going: string[] }
-> = {
-  morning: {
-    fresh: [
-      "Mochi's here. Take it slow today.",
-      "Quiet start. One thing at a time.",
-      "Mochi's stretching. So can you.",
-      "No rush. The day's just opening.",
-      "Mochi's waiting. Pick the smallest.",
-      "A clean morning. Yours for the choosing.",
-      "Pace yourself. Mochi insists.",
-      "Light start, light steps.",
-    ],
-    going: [
-      "Steady morning. Mochi's pacing.",
-      "Nice rhythm. Keep it gentle.",
-      "Mochi sees you. Carry on.",
-      "One pebble at a time.",
-      "Easy does it. The day's wide open.",
-      "Soft start, real progress.",
-    ],
-  },
-  afternoon: {
-    fresh: [
-      "Afternoon, Mochi-style. Slow is fine.",
-      "One small thing — that's enough for now.",
-      "Mochi's still pacing. No hurry.",
-      "Pick something tiny. The rest will keep.",
-      "Quiet middle of the day. No agenda required.",
-      "Mochi's nearby. You can rest here too.",
-    ],
-    going: [
-      "Mochi's halfway there. So are you.",
-      "Steady on. The rest can wait.",
-      "Quiet progress. Mochi approves.",
-      "Keep the pace. No need to push.",
-      "Soft afternoon. You're moving fine.",
-      "One pebble more, then a breath.",
-    ],
-  },
-  evening: {
-    fresh: [
-      "Evening. Mochi's curling up.",
-      "Wind down. Tomorrow has more time.",
-      "Slow now. Today did its part.",
-      "Mochi's resting. You can too.",
-      "Quiet hour. Nothing else needs doing.",
-      "Day's almost done. So is Mochi.",
-    ],
-    going: [
-      "Mochi's settling. Save the rest.",
-      "Quiet end. Well done.",
-      "One last gentle thing — or none.",
-      "Tomorrow's pebbles can wait.",
-      "Light off the day. You've earned it.",
-      "Mochi's content. So can you be.",
-    ],
-  },
-};
-
-function pickMascotLine(
-  timeOfDay: "morning" | "afternoon" | "evening",
-  plateCount: number,
-): string {
-  const set = MASCOT_LINES[timeOfDay];
-  const variants = plateCount === 0 ? set.fresh : set.going;
-  // Day-stable seed from today's ISO date so the line rotates daily but
-  // stays steady across re-renders within a session.
-  const today = todayLocal();
-  const seed = today
-    .split("-")
-    .reduce((acc, part) => acc + Number(part), 0);
-  return variants[seed % variants.length];
-}
+import { pickMascotLine, dateSeed } from "./mascotLines";
 
 export function useTodoStore() {
   const { t } = useLang();
@@ -495,6 +414,13 @@ export function useTodoStore() {
     [setTodos],
   );
 
+  const updateNotes = useCallback(
+    (id: string, notes: string) => {
+      setTodos((prev) => todoSet(prev, id, "notes", notes));
+    },
+    [setTodos],
+  );
+
   const addSubtask = useCallback(
     (id: string, text: string, priority?: Priority, dueDate?: string) => {
       setTodos((prev) => subtaskAdd(prev, id, text, priority, dueDate));
@@ -734,13 +660,23 @@ export function useTodoStore() {
   const greetingName =
     profile.firstName?.trim() || profile.name.trim();
   const headerLine = `${t.greeting[greetingKey]}, ${greetingName}`;
-  const quoteLine = profile.quote && profile.quote.trim() ? profile.quote : '';
+  const trimmedQuote =
+    profile.quote && profile.quote.trim() ? profile.quote.trim() : '';
   const todayDate = todayLocal();
   const todayCount = todos.filter(
     (td) => !td.trashed && td.dueDate === todayDate,
   ).length;
   const plateLine = t.todayPlate(todayCount);
-  const mascotLine = pickMascotLine(greetingKey, todayCount);
+  const mascotLine = pickMascotLine(greetingKey, todayCount, todayDate);
+  // When the user has set a personal quote, alternate it with Mochi's
+  // line by day-stable seed so neither one permanently silences the
+  // other. Same seed mechanism as pickMascotLine — predictable rotation
+  // across days, steady within a session.
+  const identityLineIsQuote = !!trimmedQuote && dateSeed(todayDate) % 2 === 0;
+  const identityLine = identityLineIsQuote ? trimmedQuote : mascotLine;
+  // Legacy: still expose quoteLine for any caller that wants the raw
+  // value, but App.tsx now reads identityLine + identityLineIsQuote.
+  const quoteLine = trimmedQuote;
   const orderedStatuses = getOrderedStatuses(profile, t);
   const orderedVisibleStatuses = getOrderedVisibleStatuses(profile, t);
   const todayPebbleCounts = getTodayPebbles(profile, todayDate);
@@ -768,6 +704,8 @@ export function useTodoStore() {
     quoteLine,
     plateLine,
     mascotLine,
+    identityLine,
+    identityLineIsQuote,
     todayPebbles,
     todayTaskPebbles,
     todaySubtaskPebbles,
@@ -792,6 +730,7 @@ export function useTodoStore() {
     deferOverdue,
     updateTaskCategory,
     updateText,
+    updateNotes,
     addSubtask,
     toggleSubtask,
     updateSubtaskText,

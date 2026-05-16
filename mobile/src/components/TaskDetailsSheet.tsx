@@ -129,6 +129,7 @@ interface Props {
   initialSubtaskEditId?: string | null
   onClose: () => void
   onUpdateText: (id: string, text: string) => void
+  onUpdateNotes?: (id: string, notes: string) => void
   onUpdatePriority: (id: string, priority: Priority) => void
   onUpdateDueDate: (id: string, dueDate: string) => void
   onUpdateCategory: (id: string, category: Category) => void
@@ -155,7 +156,7 @@ interface Props {
 }
 
 export default function TaskDetailsSheet({
-  visible, todo, categories, initialSubtaskEditId, onClose, onUpdateText,
+  visible, todo, categories, initialSubtaskEditId, onClose, onUpdateText, onUpdateNotes,
   onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onMoveToTrash, onPermanentDelete, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
@@ -170,6 +171,7 @@ export default function TaskDetailsSheet({
 
   // Edit form state (sheet is always in edit mode for the parent task)
   const [editText, setEditText] = useState(todo.text)
+  const [editNotes, setEditNotes] = useState(todo.notes ?? '')
   const [editPriority, setEditPriority] = useState<Priority>(todo.priority)
   const [editCategory, setEditCategory] = useState<Category | undefined>(todo.category)
   const [editDueDate, setEditDueDate] = useState(todo.dueDate ?? '')
@@ -196,6 +198,7 @@ export default function TaskDetailsSheet({
   useEffect(() => {
     if (visible) {
       setEditText(todo.text)
+      setEditNotes(todo.notes ?? '')
       setEditPriority(todo.priority)
       setEditCategory(todo.category)
       setEditDueDate(todo.dueDate ?? '')
@@ -227,6 +230,14 @@ export default function TaskDetailsSheet({
     const trimmed = next.trim()
     if (trimmed && trimmed !== todo.text) onUpdateText(todo.id, trimmed)
   }
+  function applyNotes(next: string) {
+    // Notes are intentionally not trimmed — leading whitespace might be
+    // meaningful (e.g., a list with indentation). Empty/unchanged is a
+    // no-op so we don't churn updatedAt for nothing.
+    if (!onUpdateNotes) return
+    if (next === (todo.notes ?? '')) return
+    onUpdateNotes(todo.id, next)
+  }
   function applyPriority(p: Priority) {
     setEditPriority(p)
     if (p !== todo.priority) onUpdatePriority(todo.id, p)
@@ -246,8 +257,9 @@ export default function TaskDetailsSheet({
     }
   }
   function closeAndFlushText() {
-    // Final text flush in case the user closed without blurring the input.
+    // Final flush in case the user closed without blurring an input.
     applyText(editText)
+    applyNotes(editNotes)
     onClose()
   }
 
@@ -702,6 +714,26 @@ export default function TaskDetailsSheet({
                   </>
                 )}
               </View>
+
+              {onUpdateNotes && (
+                <>
+                  <Text style={styles.notesSectionHeader}>NOTES</Text>
+                  <View style={styles.notesCard}>
+                    <TextInput
+                      style={styles.notesInput}
+                      value={editNotes}
+                      onChangeText={setEditNotes}
+                      onBlur={() => applyNotes(editNotes)}
+                      placeholder="What's the smallest first step? What's blocking you? Why does this matter?"
+                      placeholderTextColor={theme.gray3}
+                      multiline
+                      maxLength={8192}
+                      textAlignVertical="top"
+                      accessibilityLabel="Notes — anything that helps you externalize the thinking around this task"
+                    />
+                  </View>
+                </>
+              )}
 
               <Text style={styles.subtaskSectionHeader}>SUBTASKS</Text>
               {subs.length === 0 ? (
@@ -1266,6 +1298,28 @@ function makeStyles(c: ThemeColors) {
       color: c.label3,
       marginTop: 4,
       marginBottom: 8,
+    },
+    notesSectionHeader: {
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 0.6,
+      color: c.label3,
+      marginTop: 16,
+      marginBottom: 8,
+    },
+    notesCard: {
+      backgroundColor: c.card,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      marginBottom: 4,
+    },
+    notesInput: {
+      fontSize: 15,
+      lineHeight: 21,
+      color: c.label,
+      minHeight: 84,
+      padding: 0,
     },
     editFieldRow: {
       flexDirection: 'row',

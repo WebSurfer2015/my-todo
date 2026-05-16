@@ -24,6 +24,10 @@ export const MAX_TODO_TEXT_LEN = 4096;
 export const MAX_TODOS_PER_USER = 10_000;
 export const MAX_SUBTASK_TEXT_LEN = 1024;
 export const MAX_SUBTASKS_PER_TODO = 100;
+// Notes are intentionally generous (a few pages of free-form text) — the
+// field is meant to absorb anxiety-driven externalization, not be a tight
+// metadata slot.
+export const MAX_TODO_NOTES_LEN = 8192;
 
 // ---- Pure mutation helpers ----------------------------------------------
 
@@ -533,6 +537,9 @@ export function todoSet<K extends keyof Todo>(
     if (field === "text" && typeof value === "string") {
       next.text = value.slice(0, MAX_TODO_TEXT_LEN);
     }
+    if (field === "notes" && typeof value === "string") {
+      next.notes = value.slice(0, MAX_TODO_NOTES_LEN);
+    }
     return next;
   });
 }
@@ -711,6 +718,11 @@ export function migrateTodos(
       }
     }
 
+    const notes =
+      typeof item.notes === "string"
+        ? item.notes.slice(0, MAX_TODO_NOTES_LEN)
+        : undefined;
+
     const merged: Todo = {
       id,
       text,
@@ -726,6 +738,7 @@ export function migrateTodos(
     if (updatedAt != null) merged.updatedAt = updatedAt;
     if (subtasks) merged.subtasks = subtasks;
     if (recurrence) merged.recurrence = recurrence;
+    if (notes && notes.length > 0) merged.notes = notes;
 
     // Dedupe by id — last write (or higher updatedAt) wins.
     const existing = seen.get(id);

@@ -10,7 +10,7 @@ This is the **mobile** workspace of `my-todo` — Expo SDK 54 + React Native 0.8
 - `npm start` — starts the Metro bundler only (use after a dev client is already installed).
 - `npm run typecheck` — `tsc --noEmit`. Strict mode is on via `expo/tsconfig.base` + `"strict": true`.
 - `npm run lint` — flat-config ESLint (`eslint.config.js`). `react-hooks` rules + `@typescript-eslint`.
-- No test runner. There is no `jest` config; tests live in `core/` (run from there with `npx vitest`) or `web/`.
+- `npm test` / `npm run test:watch` — Vitest (node env, no jsdom). Test files live under `mobile/src/__tests__/*.test.ts`. **Pure-logic tests only** — no React Native APIs (the node env can't load AccessibilityInfo, Animated, native modules, etc.). Anything platform-specific belongs in `core/` and gets exercised from `web/`'s vitest suite.
 
 ### EAS builds & submission
 

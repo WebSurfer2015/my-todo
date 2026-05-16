@@ -146,6 +146,20 @@ describe("migrateTodos", () => {
     expect(out.find((t) => t.id === "a")?.category).toBe("home");
     expect(out.find((t) => t.id === "b")?.category).toBeUndefined();
   });
+
+  it("preserves notes on round-trip and caps at MAX_TODO_NOTES_LEN", () => {
+    const longNote = "x".repeat(10_000);
+    const out = migrateTodos([
+      { id: "a", text: "with notes", priority: "low", dueDate: "", notes: "blocking: legal sign-off" },
+      { id: "b", text: "very long", priority: "low", dueDate: "", notes: longNote },
+      { id: "c", text: "no notes", priority: "low", dueDate: "" },
+      { id: "d", text: "garbage notes", priority: "low", dueDate: "", notes: 42 },
+    ]);
+    expect(out.find((t) => t.id === "a")?.notes).toBe("blocking: legal sign-off");
+    expect(out.find((t) => t.id === "b")?.notes?.length).toBe(8192);
+    expect(out.find((t) => t.id === "c")?.notes).toBeUndefined();
+    expect(out.find((t) => t.id === "d")?.notes).toBeUndefined();
+  });
 });
 
 // ---- newTodo + mutations -------------------------------------------------
@@ -195,6 +209,14 @@ describe("newTodo + mutations", () => {
       "x".repeat(MAX_TODO_TEXT_LEN + 200),
     );
     expect(after[0].text).toHaveLength(MAX_TODO_TEXT_LEN);
+  });
+
+  it("todoSet writes notes and caps at the notes-specific limit", () => {
+    const before = [newTodo({ text: "a", priority: "low", dueDate: "" })];
+    const after = todoSet(before, before[0].id, "notes", "what's blocking me");
+    expect(after[0].notes).toBe("what's blocking me");
+    const truncated = todoSet(after, before[0].id, "notes", "y".repeat(20_000));
+    expect(truncated[0].notes?.length).toBe(8192);
   });
 });
 

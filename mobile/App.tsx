@@ -123,11 +123,11 @@ function AppInner() {
               <Text
                 style={[
                   styles.identityPlate,
-                  store.quoteLine && styles.identityQuote,
+                  store.identityLineIsQuote && styles.identityQuote,
                 ]}
                 numberOfLines={2}
               >
-                {store.quoteLine || store.mascotLine}
+                {store.identityLine}
               </Text>
             </View>
           </TouchableOpacity>
@@ -223,6 +223,7 @@ function AppInner() {
                         onSnooze={store.snooze}
                         onUpdateCategory={store.updateTaskCategory}
                         onUpdateText={store.updateText}
+                              onUpdateNotes={store.updateNotes}
                         onUpdateRecurrence={store.updateRecurrence}
                       />
                     </View>
@@ -264,6 +265,7 @@ function AppInner() {
                         onSnooze={store.snooze}
                           onUpdateCategory={store.updateTaskCategory}
                           onUpdateText={store.updateText}
+                              onUpdateNotes={store.updateNotes}
                         onUpdateRecurrence={store.updateRecurrence}
                           onAddSubtask={store.addSubtask}
                           onToggleSubtask={store.toggleSubtask}
@@ -365,6 +367,7 @@ function AppInner() {
                         onSnooze={store.snooze}
                               onUpdateCategory={store.updateTaskCategory}
                               onUpdateText={store.updateText}
+                              onUpdateNotes={store.updateNotes}
                         onUpdateRecurrence={store.updateRecurrence}
                               onAddSubtask={store.addSubtask}
                               onToggleSubtask={store.toggleSubtask}

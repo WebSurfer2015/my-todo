@@ -88,6 +88,13 @@ export interface Todo {
    * a seriesId — they fall back to single-task delete.
    */
   seriesId?: string
+  /**
+   * Free-form notes for the task — what's blocking it, the smallest first
+   * step, why it matters, anything that helps the user externalize the
+   * thinking around a task instead of carrying it in their head. Capped
+   * at MAX_TODO_NOTES_LEN.
+   */
+  notes?: string
 }
 
 export const PRIORITY_VALUES: Priority[] = ['high', 'medium', 'low']

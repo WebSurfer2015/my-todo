@@ -79,6 +79,7 @@ interface Props {
   onSnooze?: (id: string, daysFromToday: number) => void
   onUpdateCategory: (id: string, category: Category) => void
   onUpdateText: (id: string, text: string) => void
+  onUpdateNotes?: (id: string, notes: string) => void
   onUpdateRecurrence?: (id: string, recurrence: Recurrence | undefined) => void
   onAddSubtask?: (id: string, text: string, priority?: Priority, dueDate?: string) => void
   onToggleSubtask?: (id: string, subId: string) => void
@@ -93,7 +94,7 @@ function TaskItem({
   categories, density = 'comfortable', celebrate = true, playSound = true,
   subtaskVisibility = 'all',
   onToggle, onMoveToTrash, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onRestore, onPermanentDelete,
-  onUpdatePriority, onUpdateDueDate, onSnooze, onUpdateCategory, onUpdateText, onUpdateRecurrence,
+  onUpdatePriority, onUpdateDueDate, onSnooze, onUpdateCategory, onUpdateText, onUpdateNotes, onUpdateRecurrence,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
 }: Props) {
@@ -748,6 +749,7 @@ function TaskItem({
               setPendingSubtaskEditId(null)
             }}
             onUpdateText={onUpdateText}
+            onUpdateNotes={onUpdateNotes}
             onUpdatePriority={onUpdatePriority}
             onUpdateDueDate={onUpdateDueDate}
             onUpdateCategory={onUpdateCategory}
