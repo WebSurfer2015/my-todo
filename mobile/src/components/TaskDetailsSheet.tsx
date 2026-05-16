@@ -137,6 +137,12 @@ interface Props {
   /** Optional — when provided, "Delete to-do" on a recurring instance with
    * a seriesId offers a "Delete this and all future" option. */
   onMoveSeriesFutureToTrash?: (id: string) => void
+  /** Optional — copies text/priority/category from this instance to every
+   * future non-trashed sibling in the same series. */
+  onApplySeriesFutureEdits?: (
+    id: string,
+    fields: { text?: string; priority?: Priority; category?: Category | undefined },
+  ) => void
   onAddSubtask: (id: string, text: string, priority?: Priority, dueDate?: string) => void
   onToggleSubtask: (id: string, subId: string) => void
   onUpdateSubtaskText: (id: string, subId: string, text: string) => void
@@ -147,7 +153,7 @@ interface Props {
 
 export default function TaskDetailsSheet({
   visible, todo, categories, initialSubtaskEditId, onClose, onUpdateText,
-  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onMoveToTrash, onMoveSeriesFutureToTrash,
+  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onMoveToTrash, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
 }: Props) {
@@ -728,6 +734,36 @@ export default function TaskDetailsSheet({
                 <PlusIcon size={16} color={theme.blue} />
                 <Text style={styles.addSubtaskLinkText}>{t.addSubtask}</Text>
               </TouchableOpacity>
+
+              {todo.seriesId && onApplySeriesFutureEdits && (
+                <TouchableOpacity
+                  style={styles.seriesAction}
+                  onPress={() => {
+                    Alert.alert(
+                      'Apply to all future?',
+                      'Copy this to-do\'s text, priority, and category to every future to-do in this recurring series. Past instances are not changed.',
+                      [
+                        { text: t.cancel, style: 'cancel' },
+                        {
+                          text: 'Apply to all future',
+                          onPress: () => {
+                            onApplySeriesFutureEdits!(todo.id, {
+                              text: editText.trim() || todo.text,
+                              priority: editPriority,
+                              category: editCategory,
+                            })
+                          },
+                        },
+                      ],
+                    )
+                  }}
+                  activeOpacity={0.6}
+                  accessibilityRole="button"
+                  accessibilityLabel="Apply this to-do's text, priority, and category to every future to-do in this series"
+                >
+                  <Text style={styles.seriesActionText}>Apply changes to all future in series</Text>
+                </TouchableOpacity>
+              )}
 
               <TouchableOpacity
                 style={styles.destructiveAction}
@@ -1330,6 +1366,18 @@ function makeStyles(c: ThemeColors) {
       color: c.label3,
       fontSize: 14,
       fontWeight: '500',
+      letterSpacing: -0.16,
+    },
+    seriesAction: {
+      alignItems: 'flex-start',
+      paddingVertical: 12,
+      paddingHorizontal: 4,
+      marginTop: 8,
+    },
+    seriesActionText: {
+      color: c.primary,
+      fontSize: 14,
+      fontWeight: '600',
       letterSpacing: -0.16,
     },
     addSubtaskLinkText: {

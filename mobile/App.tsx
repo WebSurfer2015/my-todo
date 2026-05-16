@@ -239,6 +239,7 @@ function AppInner() {
                         onToggle={store.toggle}
                         onMoveToTrash={store.moveToTrash}
                         onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
+                        onApplySeriesFutureEdits={store.applySeriesFutureEdits}
                         onRestore={store.restoreFromTrash}
                         onPermanentDelete={store.permanentlyDelete}
                         onUpdatePriority={store.updatePriority}
@@ -280,6 +281,7 @@ function AppInner() {
                           onToggle={store.toggle}
                           onMoveToTrash={store.moveToTrash}
                         onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
+                        onApplySeriesFutureEdits={store.applySeriesFutureEdits}
                           onUpdatePriority={store.updatePriority}
                           onUpdateDueDate={store.updateDueDate}
                           onUpdateCategory={store.updateTaskCategory}
@@ -360,6 +362,7 @@ function AppInner() {
                               onToggle={store.toggle}
                               onMoveToTrash={store.moveToTrash}
                         onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
+                        onApplySeriesFutureEdits={store.applySeriesFutureEdits}
                               onUpdatePriority={store.updatePriority}
                               onUpdateDueDate={store.updateDueDate}
                               onUpdateCategory={store.updateTaskCategory}

@@ -339,6 +339,37 @@ export function todoMoveToTrash(prev: Todo[], id: string): Todo[] {
 }
 
 /**
+ * Apply text / priority / category from a target instance to all future
+ * non-trashed siblings in the same series (dueDate >= target's). Past
+ * siblings are not touched — they're history. No-op when the target
+ * has no seriesId.
+ */
+export function todoApplySeriesFutureEdits(
+  prev: Todo[],
+  id: string,
+  fields: { text?: string; priority?: Priority; category?: Category | undefined },
+): { next: Todo[]; affected: number } {
+  const target = prev.find((t) => t.id === id);
+  if (!target || !target.seriesId) return { next: prev, affected: 0 };
+  const cutoff = target.dueDate;
+  const now = Date.now();
+  let affected = 0;
+  const next = prev.map((td) => {
+    if (td.id === id) return td;
+    if (td.seriesId !== target.seriesId) return td;
+    if (td.trashed) return td;
+    if (cutoff && td.dueDate && td.dueDate < cutoff) return td;
+    affected += 1;
+    const merged: Todo = { ...td, updatedAt: now };
+    if (fields.text !== undefined) merged.text = fields.text.slice(0, MAX_TODO_TEXT_LEN);
+    if (fields.priority !== undefined) merged.priority = fields.priority;
+    if (fields.category !== undefined) merged.category = fields.category;
+    return merged;
+  });
+  return { next, affected };
+}
+
+/**
  * Trashes the targeted todo plus every other non-trashed todo in the same
  * recurring series with a dueDate >= the target's dueDate. Past instances
  * are intentionally left alone — the user is removing "this and the rest

@@ -46,6 +46,7 @@ import {
   didEarnPebble,
   todoMoveToTrash,
   todoMoveToTrashFutureSeries,
+  todoApplySeriesFutureEdits,
   todoRestoreFromTrash,
   todoPermanentlyDelete,
   todoEmptyTrash,
@@ -350,6 +351,27 @@ export function useTodoStore() {
       });
     },
     [setTodos, notify, t, restoreFromTrash],
+  );
+
+  const applySeriesFutureEdits = useCallback(
+    (
+      id: string,
+      fields: { text?: string; priority?: Priority; category?: Category | undefined },
+    ) => {
+      let affected = 0;
+      setTodos((prev) => {
+        const result = todoApplySeriesFutureEdits(prev, id, fields);
+        affected = result.affected;
+        return result.next;
+      });
+      notify.showSnackbar({
+        message:
+          affected > 0
+            ? `Applied to ${affected} future to-do${affected !== 1 ? "s" : ""} in this series.`
+            : "Nothing to apply.",
+      });
+    },
+    [setTodos, notify],
   );
 
   const moveSeriesFutureToTrash = useCallback(
@@ -696,6 +718,7 @@ export function useTodoStore() {
     toggle,
     moveToTrash,
     moveSeriesFutureToTrash,
+    applySeriesFutureEdits,
     restoreFromTrash,
     permanentlyDelete,
     updatePriority,
