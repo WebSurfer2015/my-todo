@@ -157,7 +157,7 @@ export default function CustomRecurrenceForm({ initial, onDone, onBack }: Props)
           <DateTimePicker
             value={endDate}
             mode="date"
-            display={Platform.OS === 'ios' ? 'compact' : 'default'}
+            display={Platform.OS === 'ios' ? 'inline' : 'default'}
             themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
             minimumDate={new Date()}
             onChange={(e, d) => {
@@ -306,9 +306,8 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 10,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
-      paddingHorizontal: 14,
-      paddingVertical: 6,
-      flexDirection: 'row',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
       alignItems: 'center',
     },
   })
