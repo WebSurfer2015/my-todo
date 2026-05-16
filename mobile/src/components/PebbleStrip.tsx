@@ -18,6 +18,9 @@ const PEBBLE_SIZE = 15
 const GAP = 3
 // Side padding on the strip.
 const SIDE_PADDING = 4
+// Width reserved on the right for the inline "+N" indicator — only applied
+// when overflow actually exists, so small counts use the full row.
+const OVERFLOW_RESERVE = 32
 
 // Slight size variance per slot so the row reads like real stones.
 const SIZE_JITTER = [0, 1, -1, 0, 1, -1, 0, 1]
@@ -99,13 +102,19 @@ export default function PebbleStrip({ count }: Props) {
     )
   }
 
-  // Greedy fit. Stones beyond what the row can hold are simply truncated —
-  // we no longer show a "+N" overflow indicator (the cairn metaphor is
-  // ambient, not a count).
+  // Greedy fit. First try without reserving space for "+N" — if everything
+  // fits, render them all. Otherwise reserve and recompute so the inline
+  // overflow indicator has room on the same line as the pebble row.
   const screenW = Dimensions.get('window').width
   const usable = screenW - 32 /* App horizontal padding */ - SIDE_PADDING * 2
   const slot = pebbleWidth(PEBBLE_SIZE) + GAP
-  const visible = Math.min(count, Math.floor(usable / slot))
+
+  let visible = Math.min(count, Math.floor(usable / slot))
+  let overflow = count - visible
+  if (overflow > 0) {
+    visible = Math.min(count, Math.floor((usable - OVERFLOW_RESERVE) / slot))
+    overflow = count - visible
+  }
 
   return (
     <View
@@ -128,6 +137,7 @@ export default function PebbleStrip({ count }: Props) {
             />
           </View>
         ))}
+        {overflow > 0 && <Text style={styles.overflow}>+{overflow}</Text>}
       </View>
     </View>
   )
@@ -187,6 +197,13 @@ function makeStyles(c: ThemeColors) {
       color: c.label3,
       fontWeight: '500',
       letterSpacing: 0.1,
+    },
+    overflow: {
+      fontSize: 12,
+      color: c.label2,
+      fontWeight: '700',
+      marginLeft: 6,
+      fontVariant: ['tabular-nums'],
     },
   })
 }

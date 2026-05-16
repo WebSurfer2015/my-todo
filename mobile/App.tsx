@@ -318,7 +318,7 @@ function AppInner() {
                         </Text>
                       </TouchableOpacity>
                     ) : (
-                      <Text style={styles.groupHeader}>
+                      <Text style={[styles.groupHeader, styles.groupHeaderSpacing]}>
                         {headerLabel} ({headerCount})
                       </Text>
                     )}
@@ -566,14 +566,20 @@ function makeStyles(c: ThemeColors) {
       color: c.label3,
       letterSpacing: 0.4,
       textTransform: "uppercase",
-      marginBottom: 8,
       marginLeft: 4,
+    },
+    // Spacing below the header lives on the row container (or inline on the
+    // standalone Text) so the chevron + Text inside the row don't get
+    // pushed off-center by the Text's own marginBottom.
+    groupHeaderSpacing: {
+      marginBottom: 8,
     },
     groupHeaderRow: {
       flexDirection: "row",
       alignItems: "center",
       gap: 4,
       marginLeft: 0,
+      marginBottom: 8,
     },
     trashHeader: {
       flexDirection: "row",
