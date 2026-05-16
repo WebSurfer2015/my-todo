@@ -37,7 +37,7 @@ function FullSwipeWatcher({
 import { Swipeable } from 'react-native-gesture-handler'
 import * as Haptics from 'expo-haptics'
 import { Audio } from 'expo-av'
-import { Repeat as LucideRepeat, Trash2 as LucideTrash } from 'lucide-react-native'
+import { Repeat as LucideRepeat } from 'lucide-react-native'
 import Svg, { Path, Polyline } from 'react-native-svg'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Category, Priority, Recurrence, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
@@ -241,6 +241,10 @@ function TaskItem({
   function handleMoveToTrash() {
     swipeableRef.current?.close()
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {})
+    // In the merged Done-bin model, this routes through onMoveToTrash
+    // which marks the item done + trashed (sits in the bin for 30
+    // days). Same destination as tapping the checkbox; named "Mark
+    // done" in the swipe action so the user knows what happens.
     onMoveToTrash(todo.id)
   }
 
@@ -518,12 +522,6 @@ function TaskItem({
 
             <View style={{ flex: 1 }} />
 
-            {todo.trashed && !inTrash && (
-              <View style={styles.trashBadge} accessibilityLabel="In trash">
-                <LucideTrash size={11} color={theme.label3} strokeWidth={2} />
-              </View>
-            )}
-
             <TouchableOpacity
               onPress={openDetails}
               style={styles.priorityBtn}
@@ -766,6 +764,7 @@ function TaskItem({
             onUpdateCategory={onUpdateCategory}
             onUpdateRecurrence={onUpdateRecurrence ?? (() => {})}
             onMoveToTrash={onMoveToTrash}
+            onPermanentDelete={onPermanentDelete}
             onMoveSeriesFutureToTrash={onMoveSeriesFutureToTrash}
             onApplySeriesFutureEdits={onApplySeriesFutureEdits}
             onAddSubtask={onAddSubtask!}
@@ -801,13 +800,6 @@ function makeStyles(c: ThemeColors, density: Density) {
     },
     rowDone: {},
     rowTrashed: { opacity: 0.55 },
-    trashBadge: {
-      paddingHorizontal: 4,
-      paddingVertical: 2,
-      borderRadius: 4,
-      backgroundColor: c.bg,
-      marginRight: 4,
-    },
     rowPressed: { backgroundColor: c.bg },
     checkbox: {
       width: 22,

@@ -4,7 +4,10 @@ export type SystemFilter = 'all' | 'overdue' | 'open' | 'done' | 'trash'
 export type StatusFilter = Exclude<SystemFilter, 'all'>
 export type Filter = SystemFilter | `cat:${string}`
 
-export const STATUS_FILTERS: StatusFilter[] = ['overdue', 'open', 'done', 'trash']
+// `trash` is kept in the type for backward-compat with stored profiles
+// that may still reference it, but the picker UI no longer surfaces it
+// as its own filter. Done covers everything in the 30-day bin.
+export const STATUS_FILTERS: StatusFilter[] = ['overdue', 'open', 'done']
 
 export type Priority = 'high' | 'medium' | 'low'
 export type Category = string

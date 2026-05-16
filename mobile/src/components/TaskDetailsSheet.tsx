@@ -134,6 +134,9 @@ interface Props {
   onUpdateCategory: (id: string, category: Category) => void
   onUpdateRecurrence: (id: string, recurrence: Recurrence | undefined) => void
   onMoveToTrash: (id: string) => void
+  /** Optional — used by the "Delete to-do" action to permanently delete a
+   * done item (skipping the trash step). Open items still go to trash. */
+  onPermanentDelete?: (id: string) => void
   /** Optional — when provided, "Delete to-do" on a recurring instance with
    * a seriesId offers a "Delete this and all future" option. */
   onMoveSeriesFutureToTrash?: (id: string) => void
@@ -153,7 +156,7 @@ interface Props {
 
 export default function TaskDetailsSheet({
   visible, todo, categories, initialSubtaskEditId, onClose, onUpdateText,
-  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onMoveToTrash, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits,
+  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onMoveToTrash, onPermanentDelete, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
 }: Props) {
@@ -770,9 +773,8 @@ export default function TaskDetailsSheet({
                 onPress={() => {
                   const isInSeries = !!todo.seriesId && !!onMoveSeriesFutureToTrash
                   if (isInSeries) {
-                    // Multi-instance recurring — let the user choose scope.
                     Alert.alert(
-                      'Delete to-do',
+                      'Mark done',
                       'This is part of a recurring series.',
                       [
                         { text: t.cancel, style: 'cancel' },
@@ -794,26 +796,13 @@ export default function TaskDetailsSheet({
                       ],
                     )
                   } else {
-                    Alert.alert(
-                      t.moveToTrash,
-                      `Move "${todo.text}" to trash? You can restore it within 30 days.`,
-                      [
-                        { text: t.cancel, style: 'cancel' },
-                        {
-                          text: t.moveToTrash,
-                          style: 'destructive',
-                          onPress: () => {
-                            onMoveToTrash(todo.id)
-                            onClose()
-                          },
-                        },
-                      ],
-                    )
+                    onMoveToTrash(todo.id)
+                    onClose()
                   }
                 }}
                 activeOpacity={0.6}
               >
-                <Text style={styles.destructiveActionText}>Delete to-do</Text>
+                <Text style={styles.destructiveActionText}>Mark done & close</Text>
               </TouchableOpacity>
             </ScrollView>
           </>

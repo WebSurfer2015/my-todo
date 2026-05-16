@@ -129,6 +129,13 @@ export function didEarnPebble(before: Todo | undefined, after: Todo | undefined)
   return false;
 }
 
+/**
+ * Marks a Todo as done (or un-marks it). Done items also flip the
+ * `trashed` flag with a `trashedAt` stamp — they sit in the 30-day
+ * Done bin until either the user un-checks them (restored to open)
+ * or the auto-purge removes them. There's no separate Trash bucket
+ * any more; "done" and "removed" are one concept with one timeline.
+ */
 export function todoToggle(prev: Todo[], id: string): Todo[] {
   const now = Date.now();
   return prev.map((td) => {
@@ -159,19 +166,25 @@ export function todoToggle(prev: Todo[], id: string): Todo[] {
         ),
       };
     }
+    const nextDone = !td.done;
+    const next: Todo = {
+      ...td,
+      done: nextDone,
+      trashed: nextDone,
+      updatedAt: now,
+    };
+    if (nextDone) {
+      next.trashedAt = now;
+    } else {
+      delete next.trashedAt;
+    }
     // For tasks with subtasks: toggling the parent cascades to all subtasks.
     if (td.subtasks && td.subtasks.length > 0) {
-      const nextDone = !td.done;
-      return {
-        ...td,
-        done: nextDone,
-        updatedAt: now,
-        subtasks: td.subtasks.map((s) =>
-          s.done === nextDone ? s : { ...s, done: nextDone },
-        ),
-      };
+      next.subtasks = td.subtasks.map((s) =>
+        s.done === nextDone ? s : { ...s, done: nextDone },
+      );
     }
-    return { ...td, done: !td.done, updatedAt: now };
+    return next;
   });
 }
 
@@ -331,10 +344,18 @@ export function subtaskRemove(
   });
 }
 
+/**
+ * "Delete to-do" — sends the item to the merged Done bin (done +
+ * trashed flags both set). Sits there for 30 days. Same outcome as
+ * tapping the checkbox; named differently for the user who wants to
+ * "remove" rather than "complete." Both flow through the same bin.
+ */
 export function todoMoveToTrash(prev: Todo[], id: string): Todo[] {
   const now = Date.now();
   return prev.map((td) =>
-    td.id === id ? { ...td, trashed: true, trashedAt: now, updatedAt: now } : td,
+    td.id === id
+      ? { ...td, done: true, trashed: true, trashedAt: now, updatedAt: now }
+      : td,
   );
 }
 
@@ -402,7 +423,9 @@ export function todoRestoreFromTrash(prev: Todo[], id: string): Todo[] {
   return prev.map((td) => {
     if (td.id !== id) return td;
     const { trashedAt: _t, ...rest } = td;
-    return { ...rest, trashed: false, updatedAt: now };
+    // Restoring from the Done bin clears both flags so the row goes
+    // back to active.
+    return { ...rest, done: false, trashed: false, updatedAt: now };
   });
 }
 
@@ -415,21 +438,22 @@ export function todoEmptyTrash(prev: Todo[]): Todo[] {
 }
 
 /**
- * Move all completed-and-not-yet-trashed todos to trash (soft delete).
- * Consistent with moveToTrash — items live in the 30-day trash and can be
- * restored. Replaces the prior hard-delete behavior.
+ * Permanently delete every item already in the Done bin. The user
+ * uses this to manually empty the bin before the 30-day auto-purge.
+ * Items merely marked done (which already implies trashed in the
+ * merged model) all flow through here. Restored items aren't
+ * affected because they're no longer flagged.
  */
 export function todoClearDone(prev: Todo[]): { todos: Todo[]; trashedIds: string[] } {
-  const now = Date.now();
-  const trashedIds: string[] = [];
-  const todos = prev.map((td) => {
-    if (td.done && !td.trashed) {
-      trashedIds.push(td.id);
-      return { ...td, trashed: true, trashedAt: now, updatedAt: now };
+  const removedIds: string[] = [];
+  const todos = prev.filter((td) => {
+    if (td.done || td.trashed) {
+      removedIds.push(td.id);
+      return false;
     }
-    return td;
+    return true;
   });
-  return { todos, trashedIds };
+  return { todos, trashedIds: removedIds };
 }
 
 export function todoSet<K extends keyof Todo>(
@@ -702,16 +726,13 @@ export function deriveState(input: DeriveInput): DerivedState {
   const active = todos.filter((td) => !td.trashed);
 
   const filtered = todos.filter((td) => {
-    // "All" shows everything: open, done, AND trashed in one combined list.
-    // Other filters honor the trashed/active split as before.
+    // Done and Trash are merged into one bin: anything with done=true OR
+    // trashed=true. The legacy "trash" filter still works (returns the
+    // same set as "done" now) so old saved filters don't break.
     if (filter === "all") return true;
-    if (filter === "trash") return td.trashed;
+    if (filter === "done" || filter === "trash") return td.done || td.trashed;
     if (td.trashed) return false;
-    if (filter === "done") return td.done;
-    if (filter === "overdue") return isOverdue(td);
-    // "Open" includes carried-over (overdue) items — every unfinished task,
-    // whether it's still on schedule or already past due. The separate
-    // "Overdue" filter still exists for the user who wants only past-due.
+    if (filter === "overdue") return isOverdue(td) && !td.done;
     if (filter === "open") return !td.done;
     if (isCategoryFilter(filter))
       return td.category === categoryIdFromFilter(filter);
@@ -726,8 +747,9 @@ export function deriveState(input: DeriveInput): DerivedState {
       });
 
   const totalOpen = active.filter((td) => !td.done).length;
-  const completedCount = active.filter((td) => td.done).length;
-  const trashCount = todos.filter((td) => td.trashed).length;
+  // Done bin = done OR trashed (one merged 30-day bucket).
+  const completedCount = todos.filter((td) => td.done || td.trashed).length;
+  const trashCount = completedCount;
   const visibleRemaining = inTrashView
     ? filtered.length
     : filtered.filter((td) => !td.done).length;
@@ -744,12 +766,9 @@ export function deriveState(input: DeriveInput): DerivedState {
   }
 
   const systemCounts = {
-    // "All" includes open, done, and trashed — the total of every task in
-    // the store. Sub-filters still mirror their narrower scopes.
-    all: totalOpen + completedCount + trashCount,
-    // Carried-over count includes trashed past-due items too — matches the
-    // All pill's inclusive scope. The Carried-over filter view itself still
-    // excludes trashed (consistent with other status filters).
+    // "All" = open + everything in the merged Done bin.
+    all: totalOpen + completedCount,
+    // Carried-over count includes done past-due items too (history).
     overdue: todos.filter(isOverdue).length,
     open: active.filter((td) => !td.done).length,
     done: completedCount,
