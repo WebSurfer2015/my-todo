@@ -547,6 +547,8 @@ export default function TaskDetailsSheet({
                   style={styles.editFieldRowInGroup}
                   onPress={() => setEditCategoryOpen(true)}
                   activeOpacity={0.6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Category, ${editActiveCat ? categoryLabel(editActiveCat, t) : 'none'}. Tap to change.`}
                 >
                   {editActiveCat && <CategoryIcon icon={editActiveCat.icon} size={18} color={editActiveCat.color} />}
                   <Text style={styles.editFieldLabel}>{t.composeCategoryLabel}</Text>
@@ -560,6 +562,8 @@ export default function TaskDetailsSheet({
                   style={styles.editFieldRowInGroup}
                   onPress={openEditDatePicker}
                   activeOpacity={0.6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Completed by, ${editDueDate ? absoluteDateLabel(editDueDate) : t.noDate}. Tap to change.`}
                 >
                   <CalendarIcon size={18} color={editDueDate ? theme.blue : theme.gray3} />
                   <Text style={styles.editFieldLabel}>Completed by</Text>
@@ -579,6 +583,8 @@ export default function TaskDetailsSheet({
                   style={styles.editFieldRowInGroup}
                   onPress={() => setParentEditView('repeat')}
                   activeOpacity={0.6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Repeat, ${recurrenceLabel(editRecurrence)}. Tap to change.`}
                 >
                   <Repeat size={18} color={editRecurrence ? theme.blue : theme.gray3} strokeWidth={2} />
                   <Text style={styles.editFieldLabel}>Repeat</Text>
