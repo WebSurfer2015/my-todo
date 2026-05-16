@@ -37,7 +37,7 @@ function FullSwipeWatcher({
 import { Swipeable } from 'react-native-gesture-handler'
 import * as Haptics from 'expo-haptics'
 import { Audio } from 'expo-av'
-import { Repeat as LucideRepeat } from 'lucide-react-native'
+import { Repeat as LucideRepeat, Trash2 as LucideTrash } from 'lucide-react-native'
 import Svg, { Path, Polyline } from 'react-native-svg'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Category, Priority, Recurrence, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
@@ -389,7 +389,10 @@ function TaskItem({
         style={({ pressed }) => [
           styles.row,
           todo.done && styles.rowDone,
-          inTrash && styles.rowTrashed,
+          // Trashed rows render dimmed in any view (trash filter or
+          // mixed-in via the All filter), so the user can tell them
+          // apart from done items at a glance.
+          (inTrash || todo.trashed) && styles.rowTrashed,
           pressed && styles.rowPressed,
         ]}
       >
@@ -514,6 +517,12 @@ function TaskItem({
             </TouchableOpacity>
 
             <View style={{ flex: 1 }} />
+
+            {todo.trashed && !inTrash && (
+              <View style={styles.trashBadge} accessibilityLabel="In trash">
+                <LucideTrash size={11} color={theme.label3} strokeWidth={2} />
+              </View>
+            )}
 
             <TouchableOpacity
               onPress={openDetails}
@@ -791,7 +800,14 @@ function makeStyles(c: ThemeColors, density: Density) {
       overflow: 'hidden',
     },
     rowDone: {},
-    rowTrashed: { opacity: 0.7 },
+    rowTrashed: { opacity: 0.55 },
+    trashBadge: {
+      paddingHorizontal: 4,
+      paddingVertical: 2,
+      borderRadius: 4,
+      backgroundColor: c.bg,
+      marginRight: 4,
+    },
     rowPressed: { backgroundColor: c.bg },
     checkbox: {
       width: 22,
