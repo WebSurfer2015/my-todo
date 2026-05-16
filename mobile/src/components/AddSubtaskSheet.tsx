@@ -126,6 +126,8 @@ export default function AddSubtaskSheet({ visible, onAdd, onClose, defaultDueDat
                       style={styles.fieldRow}
                       onPress={() => setSubView('priority')}
                       activeOpacity={0.6}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Priority, ${t.priority[priority]}. Tap to change.`}
                     >
                       <PriorityDot level={priority} size={14} />
                       <Text style={styles.fieldLabel}>{t.composePriorityLabel}</Text>
@@ -141,6 +143,8 @@ export default function AddSubtaskSheet({ visible, onAdd, onClose, defaultDueDat
                       style={styles.fieldRow}
                       onPress={openDateView}
                       activeOpacity={0.6}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Due date, ${dueDate ? formatDisplayDate(dueDate, t.locale) : t.noDate}. Tap to change.`}
                     >
                       <CalendarIcon size={18} color={dueDate ? theme.blue : theme.gray3} />
                       <Text style={styles.fieldLabel}>{t.composeDateLabel}</Text>
