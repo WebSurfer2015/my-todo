@@ -151,10 +151,28 @@ function TaskItem({
   )
 
   // Calm completion animation + sound — fires when a task transitions to done.
+  // The row-flash always fires (even when celebrate is off) so users get
+  // *some* gentle visual acknowledgment besides the haptic.
   const checkboxScale = useRef(new Animated.Value(1)).current
+  const rowFlash = useRef(new Animated.Value(0)).current
   const prevDoneRef = useRef(todo.done)
   useEffect(() => {
     if (todo.done && !prevDoneRef.current) {
+      // Always-on subtle row flash — 100ms in, 240ms out, max opacity 0.45.
+      Animated.sequence([
+        Animated.timing(rowFlash, {
+          toValue: 1,
+          duration: 100,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(rowFlash, {
+          toValue: 0,
+          duration: 240,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]).start()
       if (celebrate) {
         Animated.sequence([
           Animated.timing(checkboxScale, {
@@ -187,7 +205,7 @@ function TaskItem({
       }
     }
     prevDoneRef.current = todo.done
-  }, [todo.done, celebrate, playSound, checkboxScale])
+  }, [todo.done, celebrate, playSound, checkboxScale, rowFlash])
   const swipeableRef = useRef<Swipeable>(null)
   const [swipeOpen, setSwipeOpen] = useState(false)
 
@@ -370,6 +388,16 @@ function TaskItem({
           pressed && styles.rowPressed,
         ]}
       >
+        {/* Always-on subtle row flash on done-transition. Sits above the
+            row content via absolute positioning + pointerEvents:none so it
+            doesn't intercept taps. */}
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.rowFlash,
+            { opacity: rowFlash.interpolate({ inputRange: [0, 1], outputRange: [0, 0.45] }) },
+          ]}
+        />
         {!inTrash && hasSubs ? (
           <TouchableOpacity
             style={styles.expandToggle}
@@ -720,6 +748,11 @@ function TaskItem({
 function makeStyles(c: ThemeColors, density: Density) {
   const compact = density === 'compact'
   return StyleSheet.create({
+    rowFlash: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: c.primarySoft,
+      borderRadius: 0,
+    },
     row: {
       flexDirection: 'row',
       alignItems: 'flex-start',
