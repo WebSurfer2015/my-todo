@@ -1,13 +1,11 @@
 import {
   Category,
-  CompositeFilter,
   Filter,
   Priority,
   Recurrence,
   RecurrenceFreq,
   Subtask,
   Todo,
-  compositeToLegacy,
   isCategoryFilter,
   categoryIdFromFilter,
 } from "./types";
@@ -788,27 +786,13 @@ export interface DerivedState {
 
 export interface DeriveInput {
   todos: Todo[];
-  /**
-   * Legacy single-value filter (web). Required for backward compat;
-   * mobile passes 'all' here and supplies `compositeFilter` instead.
-   */
   filter: Filter;
-  /**
-   * Optional dimensional filter (mobile). When provided, takes priority
-   * over `filter` for the actual filtering. The effective single Filter
-   * (via compositeToLegacy) is still used for sectionLabel / emptyState
-   * / defaultCategory — when both dims are set, category wins.
-   */
-  compositeFilter?: CompositeFilter;
   categories: CategoryDef[];
   t: Strings;
 }
 
 export function deriveState(input: DeriveInput): DerivedState {
-  const { todos, compositeFilter, categories, t } = input;
-  // Effective single filter — used for label / emptyState / defaultCategory
-  // and as the data source when no compositeFilter is supplied.
-  const filter = compositeFilter ? compositeToLegacy(compositeFilter) : input.filter;
+  const { todos, filter, categories, t } = input;
   const today = todayLocal();
   // "Carried over" / overdue counts every task whose dueDate is before today,
   // including tasks the user already completed. The done state is meaningful
@@ -818,28 +802,9 @@ export function deriveState(input: DeriveInput): DerivedState {
   const active = todos.filter((td) => !td.trashed);
 
   const filtered = todos.filter((td) => {
-    if (compositeFilter) {
-      // Status dimension — if unset, no status narrowing.
-      const s = compositeFilter.status;
-      if (s === "done" || s === "trash") {
-        if (!(td.done || td.trashed)) return false;
-      } else if (s === "open") {
-        if (td.trashed) return false;
-        if (td.done) return false;
-      } else if (s === "overdue") {
-        if (td.trashed) return false;
-        if (!(isOverdue(td) && !td.done)) return false;
-      }
-      // Category dimension — if unset, no category narrowing.
-      if (compositeFilter.categoryId && td.category !== compositeFilter.categoryId) {
-        return false;
-      }
-      return true;
-    }
-    // Legacy single-filter logic (web). Done and Trash are merged into one
-    // bin: anything with done=true OR trashed=true. The legacy "trash"
-    // filter still works (same set as "done" now) so old saved filters
-    // don't break.
+    // Done and Trash are merged into one bin: anything with done=true OR
+    // trashed=true. The legacy "trash" filter still works (returns the
+    // same set as "done" now) so old saved filters don't break.
     if (filter === "all") return true;
     if (filter === "done" || filter === "trash") return td.done || td.trashed;
     if (td.trashed) return false;

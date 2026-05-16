@@ -3,17 +3,14 @@ import { Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Category,
-  CompositeFilter,
   Filter,
   Priority,
   Recurrence,
   StatusFilter,
   Todo,
   ViewMode,
-  compositeToLegacy,
   isCategoryFilter,
   categoryIdFromFilter,
-  legacyToComposite,
 } from "./types";
 import {
   getOrderedStatuses,
@@ -178,37 +175,7 @@ export function useTodoStore() {
     onSaved,
   );
 
-  // Composite filter — two independent dimensions ANDed together.
-  // status: 'open' | 'overdue' | 'done' | 'trash' or undefined (no narrowing)
-  // categoryId: a category id or undefined (no narrowing)
-  // Both undefined → "All". The legacy single-value `filter` is derived
-  // for back-compat with the existing API surface (CategorySheet still
-  // pushes single-value updates; we translate at the boundary).
-  const [compositeFilter, setCompositeFilter] = useState<CompositeFilter>({});
-  const filter = useMemo<Filter>(() => compositeToLegacy(compositeFilter), [compositeFilter]);
-
-  const setFilter = useCallback((next: Filter) => {
-    // Single-value setter (legacy API). When the caller picks 'all',
-    // both dimensions clear. Otherwise the appropriate dimension is
-    // updated while the other dimension stays as-is — supporting
-    // additive picks (e.g., already filtered by Work, then pick Open).
-    setCompositeFilter((prev) => {
-      if (next === "all") return {};
-      const incoming = legacyToComposite(next);
-      return {
-        status: incoming.status ?? prev.status,
-        categoryId: incoming.categoryId ?? prev.categoryId,
-      };
-    });
-  }, []);
-
-  const setStatusFilter = useCallback((status?: StatusFilter) => {
-    setCompositeFilter((prev) => ({ ...prev, status }));
-  }, []);
-  const setCategoryFilter = useCallback((categoryId?: string) => {
-    setCompositeFilter((prev) => ({ ...prev, categoryId }));
-  }, []);
-
+  const [filter, setFilter] = useState<Filter>("all");
   const view: ViewMode = profile.view ?? "status";
   const [selectedTrashIds, setSelectedTrashIds] = useState<Set<string>>(
     new Set(),
@@ -679,11 +646,10 @@ export function useTodoStore() {
       deriveState({
         todos,
         filter,
-        compositeFilter,
         categories,
         t,
       }),
-    [todos, filter, compositeFilter, categories, t],
+    [todos, filter, categories, t],
   );
 
   const hour = new Date().getHours();
@@ -744,10 +710,7 @@ export function useTodoStore() {
     lifetimePebbles,
     orderedStatuses,
     orderedVisibleStatuses,
-    compositeFilter,
     setFilter,
-    setStatusFilter,
-    setCategoryFilter,
     saveProfile: setProfile,
     changeView,
     renameStatus,
