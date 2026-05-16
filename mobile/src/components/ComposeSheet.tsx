@@ -11,7 +11,7 @@ import { Category, Priority, PRIORITY_VALUES, PRIORITY_COLORS, Recurrence, Recur
 import { CategoryDef, categoryLabel } from '../categories'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
-import { formatDisplayDate, formatRecurrence, isoDate } from '../utils'
+import { formatDisplayDate, formatRecurrence, fullDateLabel, isoDate } from '../utils'
 import PriorityDot from './PriorityDot'
 import CategoryIcon from './CategoryIcon'
 import InlinePicker from './InlinePicker'
@@ -136,14 +136,11 @@ export default function ComposeSheet({
   function handleInlineDateChange(_event: DateTimePickerEvent, selected?: Date) {
     if (!selected) return
     setPickerDate(selected)
-    // Auto-commit on date pick — feels like a normal date picker.
     setDueDate(isoDate(selected))
-    setSubView('main')
   }
 
   function clearInlineDate() {
     setDueDate('')
-    setSubView('main')
   }
 
   return (
@@ -219,7 +216,7 @@ export default function ComposeSheet({
                       onPress={openDateView}
                       activeOpacity={0.6}
                       accessibilityRole="button"
-                      accessibilityLabel={`Due date, ${dueDate ? formatDisplayDate(dueDate, t.locale) : t.noDate}. Tap to change.`}
+                      accessibilityLabel={`Completed by, ${dueDate ? formatDisplayDate(dueDate, t.locale) : t.noDate}. Tap to change.`}
                     >
                       <CalendarIcon size={18} color={dueDate ? theme.blue : theme.gray3} />
                       <Text style={styles.fieldLabel}>{t.composeDateLabel}</Text>
@@ -397,6 +394,7 @@ export default function ComposeSheet({
                   <View style={{ width: 56 }} />
                 </View>
                 <View style={styles.dateWrap}>
+                  <Text style={styles.datePendingLabel}>{fullDateLabel(isoDate(endDatePickerDate))}</Text>
                   <DateTimePicker
                     value={endDatePickerDate}
                     mode="date"
@@ -451,10 +449,15 @@ export default function ComposeSheet({
                   </TouchableOpacity>
                   <Text style={styles.title}>Completed by</Text>
                   <TouchableOpacity onPress={clearInlineDate} hitSlop={10}>
-                    <Text style={styles.clearBtnText}>Reset</Text>
+                    <Text style={styles.clearBtnText}>{t.clear}</Text>
                   </TouchableOpacity>
                 </View>
                 <View style={styles.dateWrap}>
+                  {dueDate ? (
+                    <Text style={styles.datePendingLabel}>{fullDateLabel(dueDate)}</Text>
+                  ) : (
+                    <Text style={[styles.datePendingLabel, styles.datePendingLabelEmpty]}>{t.noDate}</Text>
+                  )}
                   <DateTimePicker
                     value={pickerDate}
                     mode="date"
@@ -462,6 +465,14 @@ export default function ComposeSheet({
                     themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
                     onChange={handleInlineDateChange}
                   />
+                </View>
+                <View style={styles.dateActions}>
+                  <TouchableOpacity
+                    onPress={() => setSubView('main')}
+                    style={[styles.addBtn, styles.applyBtn, { flex: 1 }]}
+                  >
+                    <Text style={styles.addBtnText}>{t.done}</Text>
+                  </TouchableOpacity>
                 </View>
               </>
             )}
@@ -484,7 +495,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.modal,
       borderTopLeftRadius: 18,
       borderTopRightRadius: 18,
-      paddingTop: 8,
+      paddingTop: 16,
       paddingBottom: 24,
       paddingHorizontal: 16,
       minHeight: 420,
@@ -592,6 +603,17 @@ function makeStyles(c: ThemeColors) {
     dateWrap: {
       paddingTop: 8,
       alignItems: 'center',
+    },
+    datePendingLabel: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: c.label2,
+      marginBottom: 8,
+    },
+    datePendingLabelEmpty: {
+      color: c.label3,
+      fontStyle: 'italic',
+      fontWeight: '500',
     },
     dateActions: {
       flexDirection: 'row',

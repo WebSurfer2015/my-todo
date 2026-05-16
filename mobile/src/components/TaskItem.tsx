@@ -37,12 +37,13 @@ function FullSwipeWatcher({
 import { Swipeable } from 'react-native-gesture-handler'
 import * as Haptics from 'expo-haptics'
 import { Audio } from 'expo-av'
-import { Repeat as LucideRepeat, ChevronRight, ChevronDown, Trash2, RotateCcw } from 'lucide-react-native'
+import { Repeat as LucideRepeat, ChevronRight, ChevronDown, Trash2, RotateCcw, XCircle } from 'lucide-react-native'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Category, Priority, Recurrence, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
 import { CategoryDef, categoryLabel } from '../categories'
 import type { Density } from '../profile'
-import { formatDisplayDate, todayLocal, isoDate } from '../utils'
+import { formatDisplayDate, fullDateLabel, todayLocal, isoDate } from '../utils'
+import { sortedSubs } from '../../../core/src/derive'
 import { useTheme, ThemeColors } from '../theme'
 import PriorityDot from './PriorityDot'
 import CategoryIcon from './CategoryIcon'
@@ -121,17 +122,22 @@ function TaskItem({
   const [subPriorityForId, setSubPriorityForId] = useState<string | null>(null)
   const [subDateForId, setSubDateForId] = useState<string | null>(null)
   const [subPickerDate, setSubPickerDate] = useState<Date>(new Date())
+  // Pending values while iOS date pickers are open. Commit happens on
+  // Done; Clear empties the pending value but keeps the modal open.
+  const [pendingDate, setPendingDate] = useState<string>('')
+  const [pendingSubDate, setPendingSubDate] = useState<string>('')
   const subs = todo.subtasks ?? []
   const hasSubs = subs.length > 0
   const subsDoneCount = subs.filter((s) => s.done).length
   const detailsAvailable =
     !!onAddSubtask && !!onToggleSubtask && !!onUpdateSubtaskText && !!onRemoveSubtask
-  const visibleSubs =
+  const visibleSubs = sortedSubs(
     subtaskVisibility === 'open'
       ? subs.filter((s) => !s.done)
       : subtaskVisibility === 'done'
         ? subs.filter((s) => s.done)
-        : subs
+        : subs,
+  )
   const [pickerDate, setPickerDate] = useState<Date>(() =>
     todo.dueDate ? new Date(`${todo.dueDate}T00:00:00`) : new Date()
   )
@@ -284,8 +290,12 @@ function TaskItem({
     if (!onSnooze) return
     const opts = [t.snooze.tomorrow, t.snooze.nextWeek, t.snooze.pickDate, cancel]
     if (Platform.OS === 'ios') {
+      // iOS 17+ ActionSheetIOS sometimes hides the dedicated Cancel
+      // (cancelButtonIndex) row, expecting tap-outside-to-dismiss. We want
+      // an explicit, visible Cancel pill, so render it as a regular option
+      // and ignore the tap.
       ActionSheetIOS.showActionSheetWithOptions(
-        { options: opts, cancelButtonIndex: 3, title: t.snooze.title },
+        { options: opts, title: t.snooze.title },
         (i) => {
           if (i === 0) onSnooze(todo.id, 1)
           else if (i === 1) onSnooze(todo.id, 7)
@@ -305,8 +315,14 @@ function TaskItem({
   // iOS conventions: leading swipe (rightward, reveals leftActions) → non-destructive.
   // Trailing swipe (leftward, reveals rightActions) → destructive.
   // Full-swipe auto-commit: dragging more than half the screen triggers the action.
+  // Trashed-not-done items always swipe to Restore (left) / Delete (right),
+  // regardless of which page they appear on (All shows trashed items inside
+  // their date buckets, Done view, legacy trash view, etc.). Active items
+  // keep the Mark-done / Move-to-bin behavior.
+  const trashedRow = todo.trashed && !todo.done
+
   function renderLeftActions(_progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) {
-    if (inTrash) {
+    if (inTrash || trashedRow) {
       return (
         <TouchableOpacity style={[styles.swipeAction, styles.swipeRestore]} onPress={handleRestore}>
           <RotateCcw size={20} color="#fff" strokeWidth={2} />
@@ -325,14 +341,14 @@ function TaskItem({
   }
 
   function renderRightActions(_progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) {
-    if (inTrash || binFilterView) {
-      // In the bin (legacy trash filter or Done filter), swipe-left
-      // is irreversible delete, not "move to bin" — items are already
-      // in the bin. Confirm-dialog before destruction.
+    if (inTrash || binFilterView || trashedRow) {
+      // Already in the bin (legacy trash view, Done filter, or a trashed
+      // row surfacing in any other page) — swipe-left is irreversible
+      // delete, not "move to bin." Confirm-dialog before destruction.
       return (
         <TouchableOpacity style={[styles.swipeAction, styles.swipeDelete]} onPress={confirmPermanentDelete}>
           <Trash2 size={20} color="#fff" strokeWidth={2} />
-          <Text style={styles.swipeActionText}>{t.deletePermanently}</Text>
+          <Text style={styles.swipeActionText}>{t.deleteTask}</Text>
         </TouchableOpacity>
       )
     }
@@ -340,7 +356,7 @@ function TaskItem({
       <>
         <FullSwipeWatcher dragX={dragX} direction="right" onFullSwipe={handleMoveToTrash} />
         <TouchableOpacity style={[styles.swipeAction, styles.swipeTrash]} onPress={handleMoveToTrash}>
-          <Trash2 size={20} color="#fff" strokeWidth={2} />
+          <XCircle size={20} color="#fff" strokeWidth={2} />
           <Text style={styles.swipeActionText}>{t.moveToTrash}</Text>
         </TouchableOpacity>
       </>
@@ -350,11 +366,12 @@ function TaskItem({
   function openDatePicker() {
     if (inTrash) return
     setPickerDate(todo.dueDate ? new Date(`${todo.dueDate}T00:00:00`) : new Date())
+    setPendingDate(todo.dueDate ?? '')
     setDateOpen(true)
   }
 
   function commitDate() {
-    onUpdateDueDate(todo.id, isoDate(pickerDate))
+    onUpdateDueDate(todo.id, pendingDate)
     setDateOpen(false)
   }
 
@@ -364,6 +381,8 @@ function TaskItem({
       if (Platform.OS === 'android') {
         onUpdateDueDate(todo.id, isoDate(selected))
         setDateOpen(false)
+      } else {
+        setPendingDate(isoDate(selected))
       }
     } else if (Platform.OS === 'android') {
       setDateOpen(false)
@@ -429,6 +448,7 @@ function TaskItem({
                 styles.checkbox,
                 todo.done && styles.checkboxDone,
                 inTrash && selected && styles.checkboxSelected,
+                todo.trashed && !todo.done && styles.checkboxRemoved,
               ]}
               onPress={inTrash && onToggleSelect ? () => onToggleSelect(todo.id) : handleToggle}
               disabled={inTrash && !onToggleSelect}
@@ -444,10 +464,16 @@ function TaskItem({
                   ? `Select ${todo.text}`
                   : todo.done
                     ? `${todo.text}, completed. Mark as not done.`
-                    : `${todo.text}. Mark as done.`
+                    : todo.trashed
+                      ? `${todo.text}, removed.`
+                      : `${todo.text}. Mark as done.`
               }
             >
-              {(todo.done || (inTrash && selected)) && <Text style={styles.checkmark}>✓</Text>}
+              {todo.done || (inTrash && selected) ? (
+                <Text style={styles.checkmark}>✓</Text>
+              ) : todo.trashed ? (
+                <Text style={styles.removedMark}>×</Text>
+              ) : null}
             </TouchableOpacity>
           </Animated.View>
         )}
@@ -455,7 +481,11 @@ function TaskItem({
         <View style={styles.body}>
           <View style={styles.mainLine}>
             <Text
-              style={[styles.text, todo.done && styles.textDone]}
+              style={[
+                styles.text,
+                todo.done && styles.textDone,
+                todo.trashed && !todo.done && styles.textRemoved,
+              ]}
               numberOfLines={3}
               onPress={openDetails}
               suppressHighlighting
@@ -497,20 +527,31 @@ function TaskItem({
               hitSlop={10}
               disabled={inTrash}
             >
-              <Text style={[
-                styles.chipText,
-                overdue
-                  ? styles.chipTextOverdue
-                  : isToday
-                    ? styles.chipTextToday
-                    : !todo.dueDate
-                      ? styles.chipTextMuted
-                      : styles.chipTextDate,
-              ]}>
-                {todo.dueDate
-                  ? formatDisplayDate(todo.dueDate, t.locale)
-                  : t.noDate}
-              </Text>
+              {binFilterView ? (
+                <Text style={[
+                  styles.chipText,
+                  todo.completionDate ? styles.chipTextDate : styles.chipTextMutedItalic,
+                ]}>
+                  {todo.completionDate
+                    ? `Done ${formatDisplayDate(todo.completionDate, t.locale).toLowerCase()}`
+                    : 'No completion date'}
+                </Text>
+              ) : (
+                <Text style={[
+                  styles.chipText,
+                  overdue
+                    ? styles.chipTextOverdue
+                    : isToday
+                      ? styles.chipTextToday
+                      : !todo.dueDate
+                        ? styles.chipTextMuted
+                        : styles.chipTextDate,
+                ]}>
+                  {todo.dueDate
+                    ? formatDisplayDate(todo.dueDate, t.locale)
+                    : t.noDate}
+                </Text>
+              )}
               {todo.recurrence && (
                 <LucideRepeat
                   size={11}
@@ -641,6 +682,11 @@ function TaskItem({
                 style={styles.dateSheet}
                 onStartShouldSetResponder={() => true}
               >
+                {pendingDate ? (
+                  <Text style={styles.datePendingLabel}>{fullDateLabel(pendingDate)}</Text>
+                ) : (
+                  <Text style={[styles.datePendingLabel, styles.datePendingLabelEmpty]}>{t.noDate}</Text>
+                )}
                 <DateTimePicker
                   value={pickerDate}
                   mode="date"
@@ -649,7 +695,7 @@ function TaskItem({
                   onChange={handleDateChange}
                 />
                 <View style={styles.dateBtnRow}>
-                  <TouchableOpacity onPress={() => { onUpdateDueDate(todo.id, ''); setDateOpen(false) }}>
+                  <TouchableOpacity onPress={() => setPendingDate('')}>
                     <Text style={styles.dateClear}>{t.clear}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={commitDate}>
@@ -820,11 +866,21 @@ function makeStyles(c: ThemeColors, density: Density) {
       backgroundColor: c.blue,
       borderColor: c.blue,
     },
+    checkboxRemoved: {
+      borderColor: c.label3,
+      borderStyle: 'dashed',
+    },
     checkmark: {
       color: '#fff',
       fontSize: 13,
       fontWeight: '700',
       lineHeight: 15,
+    },
+    removedMark: {
+      color: c.label3,
+      fontSize: 14,
+      fontWeight: '700',
+      lineHeight: 16,
     },
     body: {
       flex: 1,
@@ -849,6 +905,10 @@ function makeStyles(c: ThemeColors, density: Density) {
     textDone: {
       color: c.label3,
       textDecorationLine: 'line-through',
+    },
+    textRemoved: {
+      color: c.label3,
+      fontStyle: 'italic',
     },
     textEdit: {
       flex: 1,
@@ -888,6 +948,11 @@ function makeStyles(c: ThemeColors, density: Density) {
     chipTextMuted: {
       color: c.label3,
       fontWeight: '500',
+    },
+    chipTextMutedItalic: {
+      color: c.label3,
+      fontWeight: '500',
+      fontStyle: 'italic',
     },
     chipTextDate: {
       color: c.label3,
@@ -1041,6 +1106,19 @@ function makeStyles(c: ThemeColors, density: Density) {
       color: c.blue,
       fontSize: 16,
       fontWeight: '600',
+    },
+    datePendingLabel: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: c.label2,
+      textAlign: 'center',
+      paddingTop: 8,
+      paddingBottom: 4,
+    },
+    datePendingLabelEmpty: {
+      color: c.label3,
+      fontStyle: 'italic',
+      fontWeight: '500',
     },
   })
 }

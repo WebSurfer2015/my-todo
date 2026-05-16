@@ -95,6 +95,14 @@ export interface Todo {
    * at MAX_TODO_NOTES_LEN.
    */
   notes?: string
+  /**
+   * ISO yyyy-mm-dd local date set on the user-visible transition into the
+   * Done bin (toggle to done, or Mark done). Cleared on restore. Used to
+   * group the Done view by day. Distinct from `trashedAt` (ms timestamp,
+   * sync-layer concern); items predating this field stay legacy with no
+   * completionDate and surface in the "Earlier" group.
+   */
+  completionDate?: string
 }
 
 export const PRIORITY_VALUES: Priority[] = ['high', 'medium', 'low']

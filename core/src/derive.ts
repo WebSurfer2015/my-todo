@@ -242,8 +242,10 @@ export function todoToggle(prev: Todo[], id: string): Todo[] {
     };
     if (nextDone) {
       next.trashedAt = now;
+      next.completionDate = todayLocal();
     } else {
       delete next.trashedAt;
+      delete next.completionDate;
     }
     return next;
   });
@@ -342,17 +344,26 @@ export function subtaskToggle(
   subId: string,
 ): Todo[] {
   const now = Date.now();
+  const today = todayLocal();
   return prev.map((td) => {
     if (td.id !== todoId || !td.subtasks) return td;
     const nextSubs = td.subtasks.map((s) =>
       s.id === subId ? { ...s, done: !s.done } : s,
     );
-    return {
+    const nextDone = nextSubs.every((s) => s.done);
+    const wasDone = !!td.done;
+    const next: Todo = {
       ...td,
       subtasks: nextSubs,
-      done: nextSubs.every((s) => s.done),
+      done: nextDone,
       updatedAt: now,
     };
+    if (nextDone && !wasDone) {
+      next.completionDate = today;
+    } else if (!nextDone && wasDone) {
+      delete next.completionDate;
+    }
+    return next;
   });
 }
 
@@ -420,9 +431,10 @@ export function subtaskRemove(
  */
 export function todoMoveToTrash(prev: Todo[], id: string): Todo[] {
   const now = Date.now();
+  const today = todayLocal();
   return prev.map((td) =>
     td.id === id
-      ? { ...td, done: true, trashed: true, trashedAt: now, updatedAt: now }
+      ? { ...td, done: true, trashed: true, trashedAt: now, updatedAt: now, completionDate: today }
       : td,
   );
 }
@@ -475,13 +487,14 @@ export function todoMoveToTrashFutureSeries(prev: Todo[], id: string): { next: T
   }
   const cutoff = target.dueDate;
   const now = Date.now();
+  const today = todayLocal();
   let affected = 0;
   const next = prev.map((td) => {
     if (td.seriesId !== target.seriesId) return td;
     if (td.trashed) return td;
     if (cutoff && td.dueDate && td.dueDate < cutoff) return td;
     affected += 1;
-    return { ...td, trashed: true, trashedAt: now, updatedAt: now };
+    return { ...td, trashed: true, trashedAt: now, updatedAt: now, completionDate: today };
   });
   return { next, affected };
 }
@@ -490,7 +503,7 @@ export function todoRestoreFromTrash(prev: Todo[], id: string): Todo[] {
   const now = Date.now();
   return prev.map((td) => {
     if (td.id !== id) return td;
-    const { trashedAt: _t, ...rest } = td;
+    const { trashedAt: _t, completionDate: _c, ...rest } = td;
     // Restoring from the Done bin clears both flags so the row goes
     // back to active.
     return { ...rest, done: false, trashed: false, updatedAt: now };
@@ -723,6 +736,11 @@ export function migrateTodos(
         ? item.notes.slice(0, MAX_TODO_NOTES_LEN)
         : undefined;
 
+    const completionDate =
+      typeof item.completionDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(item.completionDate)
+        ? item.completionDate
+        : undefined;
+
     const merged: Todo = {
       id,
       text,
@@ -739,6 +757,7 @@ export function migrateTodos(
     if (subtasks) merged.subtasks = subtasks;
     if (recurrence) merged.recurrence = recurrence;
     if (notes && notes.length > 0) merged.notes = notes;
+    if (completionDate) merged.completionDate = completionDate;
 
     // Dedupe by id — last write (or higher updatedAt) wins.
     const existing = seen.get(id);

@@ -3,7 +3,7 @@ import { todayLocal, endOfWeekLocal } from './utils'
 
 const PRIORITY_RANK: Record<Priority, number> = { high: 0, medium: 1, low: 2 }
 
-export type GroupKey = 'overdue' | 'today' | 'week' | 'upcoming' | 'done'
+export type GroupKey = 'overdue' | 'today' | 'week' | 'upcoming' | 'noDate' | 'done'
 
 export interface TodoGroup {
   key: GroupKey
@@ -31,12 +31,13 @@ export function buildGroups(todos: Todo[]): TodoGroup[] {
   // the current implementation — every todo flows to its date bucket
   // regardless of done state. The dedicated "Done" filter view is where
   // users see only completed items; this is the All-view layout.
-  const buckets: Record<GroupKey, Todo[]> = { overdue: [], today: [], week: [], upcoming: [], done: [] }
+  const buckets: Record<GroupKey, Todo[]> = { overdue: [], today: [], week: [], upcoming: [], noDate: [], done: [] }
 
   for (const t of todos) {
     const d = t.dueDate
-    if (d && d < today) buckets.overdue.push(t)
-    else if (!d || d > endOfWeek) buckets.upcoming.push(t)
+    if (!d) buckets.noDate.push(t)
+    else if (d < today) buckets.overdue.push(t)
+    else if (d > endOfWeek) buckets.upcoming.push(t)
     else if (d === today) buckets.today.push(t)
     else buckets.week.push(t)
   }
@@ -46,6 +47,67 @@ export function buildGroups(todos: Todo[]): TodoGroup[] {
   if (buckets.overdue.length)  groups.push({ key: 'overdue',  overdue: true, todos: sortTodos(buckets.overdue) })
   if (buckets.week.length)     groups.push({ key: 'week',     todos: sortTodos(buckets.week) })
   if (buckets.upcoming.length) groups.push({ key: 'upcoming', todos: sortTodos(buckets.upcoming) })
+  if (buckets.noDate.length)   groups.push({ key: 'noDate',   todos: sortTodos(buckets.noDate) })
   if (buckets.done.length)     groups.push({ key: 'done',     todos: sortTodos(buckets.done) })
+  return groups
+}
+
+/**
+ * Group the Done bin by completion date. Items with `completionDate` are
+ * bucketed under that ISO yyyy-mm-dd; items without (pre-feature legacy)
+ * fall into a single 'earlier' bucket at the bottom. Bucket order:
+ * today → yesterday → recent dates desc → earlier.
+ */
+export interface DoneGroup {
+  /** ISO yyyy-mm-dd date for dated buckets, or 'earlier' for legacy items. */
+  key: string
+  /** True for the today bucket so callers can render "Today" specially. */
+  isToday?: boolean
+  /** True for the yesterday bucket so callers can render "Yesterday" specially. */
+  isYesterday?: boolean
+  /** True for the catch-all bucket of legacy items with no completionDate. */
+  isEarlier?: boolean
+  todos: Todo[]
+}
+
+function yesterdayLocalISO(): string {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+export function buildDoneGroups(todos: Todo[]): DoneGroup[] {
+  const today = todayLocal()
+  const yesterday = yesterdayLocalISO()
+  const byDate = new Map<string, Todo[]>()
+  const earlier: Todo[] = []
+  for (const t of todos) {
+    if (!t.completionDate) { earlier.push(t); continue }
+    const list = byDate.get(t.completionDate)
+    if (list) list.push(t)
+    else byDate.set(t.completionDate, [t])
+  }
+  // Sort each bucket: most recently trashed first (so the user's latest
+  // completion sits at the top of its day).
+  function withinDay(a: Todo, b: Todo) {
+    return (b.trashedAt ?? 0) - (a.trashedAt ?? 0)
+  }
+  const datedKeys = [...byDate.keys()].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
+  const groups: DoneGroup[] = []
+  for (const k of datedKeys) {
+    const todos = [...(byDate.get(k) ?? [])].sort(withinDay)
+    groups.push({
+      key: k,
+      isToday: k === today,
+      isYesterday: k === yesterday,
+      todos,
+    })
+  }
+  if (earlier.length) {
+    groups.push({ key: 'earlier', isEarlier: true, todos: [...earlier].sort(withinDay) })
+  }
   return groups
 }

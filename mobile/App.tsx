@@ -26,6 +26,8 @@ import { AuthProvider, useAuth } from "./src/AuthContext";
 import { NotifyProvider } from "./src/notify";
 import { ErrorBoundary } from "./src/ErrorBoundary";
 import { useTodoStore } from "./src/useTodoStore";
+import { buildDoneGroups } from "../core/src/groups";
+import { fullDateLabel } from "./src/utils";
 import SignIn from "./src/components/SignIn";
 import EmptyState from "./src/components/EmptyState";
 import PebbleStrip from "./src/components/PebbleStrip";
@@ -237,9 +239,9 @@ function AppInner() {
                 ctaLabel={store.emptyState.ctaLabel}
                 onCta={() => setComposeOpen(true)}
               />
-            ) : store.filter === "overdue" || store.filter === "done" ? (
+            ) : store.filter === "done" ? (
               <>
-                {store.filter === "done" && store.filtered.length > 0 && (
+                {store.filtered.length > 0 && (
                   <View style={styles.trashHeader}>
                     <Text style={styles.trashNotice}>{t.trashRetention}</Text>
                     <TouchableOpacity
@@ -252,7 +254,76 @@ function AppInner() {
                     </TouchableOpacity>
                   </View>
                 )}
+                {buildDoneGroups(store.filtered).map((g) => {
+                  const headerLabel = g.isToday
+                    ? t.doneGroups.today
+                    : g.isYesterday
+                      ? t.doneGroups.yesterday
+                      : g.isEarlier
+                        ? t.doneGroups.earlier
+                        : fullDateLabel(g.key);
+                  return (
+                    <View key={g.key} style={styles.groupSection}>
+                      <Text style={[styles.groupHeader, styles.groupHeaderSpacing]}>
+                        {headerLabel} ({g.todos.length})
+                      </Text>
+                      <View style={styles.groupCard}>
+                        {g.todos.map((td, i) => (
+                          <View key={td.id}>
+                            {i > 0 && <View style={styles.rowSeparator} />}
+                            <TaskItem
+                              todo={td}
+                              categories={store.categories}
+                              density={store.profile.density}
+                              celebrate={store.profile.completionAnimation !== false}
+                              playSound={store.profile.completionSound !== false}
+                              binFilterView
+                              onToggle={store.toggle}
+                              onMoveToTrash={store.moveToTrash}
+                              onRestore={store.restoreFromTrash}
+                              onPermanentDelete={store.permanentlyDelete}
+                              onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
+                              onApplySeriesFutureEdits={store.applySeriesFutureEdits}
+                              onUpdatePriority={store.updatePriority}
+                              onUpdateDueDate={store.updateDueDate}
+                              onSnooze={store.snooze}
+                              onUpdateCategory={store.updateTaskCategory}
+                              onUpdateText={store.updateText}
+                              onUpdateNotes={store.updateNotes}
+                              onUpdateRecurrence={store.updateRecurrence}
+                              onAddSubtask={store.addSubtask}
+                              onToggleSubtask={store.toggleSubtask}
+                              onUpdateSubtaskText={store.updateSubtaskText}
+                              onUpdateSubtaskPriority={store.updateSubtaskPriority}
+                              onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
+                              onRemoveSubtask={store.removeSubtask}
+                              subtaskVisibility="all"
+                            />
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  );
+                })}
+              </>
+            ) : store.filter === "overdue" ? (
+              <>
                 <View style={styles.groupSection}>
+                  {store.filtered.some((td) => !td.done) && (
+                    <TouchableOpacity
+                      onPress={() => store.deferOverdue(7)}
+                      style={styles.deferAllRow}
+                      hitSlop={6}
+                      accessibilityRole="button"
+                      accessibilityLabel={t.defer.allA11y(
+                        store.filtered.filter((td) => !td.done).length,
+                      )}
+                    >
+                      <Text style={styles.deferAllText}>
+                        {t.defer.allToNextWeek}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                   <View style={styles.groupCard}>
                     {[...store.filtered]
                       .sort((a, b) => {
@@ -270,7 +341,6 @@ function AppInner() {
                             density={store.profile.density}
                             celebrate={store.profile.completionAnimation !== false}
                             playSound={store.profile.completionSound !== false}
-                            binFilterView={store.filter === "done"}
                             onToggle={store.toggle}
                             onMoveToTrash={store.moveToTrash}
                             onRestore={store.restoreFromTrash}
@@ -287,9 +357,7 @@ function AppInner() {
                             onAddSubtask={store.addSubtask}
                             onToggleSubtask={store.toggleSubtask}
                             onUpdateSubtaskText={store.updateSubtaskText}
-                            onUpdateSubtaskPriority={
-                              store.updateSubtaskPriority
-                            }
+                            onUpdateSubtaskPriority={store.updateSubtaskPriority}
                             onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
                             onRemoveSubtask={store.removeSubtask}
                             subtaskVisibility="all"
@@ -382,6 +450,7 @@ function AppInner() {
                               onMoveToTrash={store.moveToTrash}
                         onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
                         onApplySeriesFutureEdits={store.applySeriesFutureEdits}
+                              onPermanentDelete={store.permanentlyDelete}
                               onUpdatePriority={store.updatePriority}
                               onUpdateDueDate={store.updateDueDate}
                         onSnooze={store.snooze}
@@ -439,7 +508,7 @@ function AppInner() {
               <Footer
                 completedCount={store.completedCount}
                 onClearDone={store.clearDone}
-                showClear={store.filter === "done"}
+                showClear={false}
               />
             )}
           </View>
@@ -651,7 +720,7 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 4,
       paddingBottom: 8,
       paddingTop: 0,
-      alignSelf: "flex-start",
+      alignSelf: "flex-end",
     },
     deferAllText: {
       fontSize: 12,

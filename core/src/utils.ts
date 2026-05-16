@@ -291,3 +291,17 @@ export function formatDisplayDate(iso: string, _locale = 'default', labels?: Dat
   const yu = years === 1 ? 'year' : 'years'
   return diffDays > 0 ? `in ${years} ${yu}` : `${years} ${yu} ago`
 }
+
+/**
+ * Absolute date with year always included — "May 17, 2026". Used as the
+ * pending label above calendar pickers so the user can verify both the
+ * date and the year before committing.
+ */
+export function fullDateLabel(iso: string, locale: string | undefined = undefined): string {
+  const d = new Date(`${iso}T00:00:00`);
+  return d.toLocaleDateString(locale ?? undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}

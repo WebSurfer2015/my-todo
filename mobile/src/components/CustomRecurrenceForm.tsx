@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform } from 'react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { Recurrence, RecurrenceFreq, WEEKDAY_SHORT } from '../types'
-import { formatRecurrence, isoDate } from '../utils'
+import { formatRecurrence, fullDateLabel, isoDate } from '../utils'
 import { useTheme, ThemeColors } from '../theme'
 
 function defaultEndDate(): Date {
@@ -154,6 +154,7 @@ export default function CustomRecurrenceForm({ initial, onDone, onBack }: Props)
 
         <Text style={styles.sectionLabel}>ENDS ON</Text>
         <View style={styles.dateBox}>
+          <Text style={styles.datePendingLabel}>{fullDateLabel(isoDate(endDate))}</Text>
           <DateTimePicker
             value={endDate}
             mode="date"
@@ -309,6 +310,13 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 8,
       paddingVertical: 4,
       alignItems: 'center',
+    },
+    datePendingLabel: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: c.label2,
+      paddingTop: 8,
+      paddingBottom: 4,
     },
   })
 }

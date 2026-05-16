@@ -537,7 +537,7 @@ function makeStyles(c: ThemeColors) {
       borderTopLeftRadius: 18,
       borderTopRightRadius: 18,
       paddingHorizontal: 16,
-      paddingTop: 8,
+      paddingTop: 16,
       paddingBottom: 28,
       maxHeight: "85%",
     },

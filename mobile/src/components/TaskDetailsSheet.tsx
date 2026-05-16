@@ -26,7 +26,7 @@ const RECURRENCE_LABELS: Record<'none' | RecurrenceFreq, string> = {
 }
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { CategoryDef, categoryLabel } from '../categories'
-import { formatDisplayDate, formatRecurrence, isoDate, todayLocal } from '../utils'
+import { formatDisplayDate, formatRecurrence, fullDateLabel, isoDate, todayLocal } from '../utils'
 import { sortedSubs } from '../../../core/src/derive'
 import { useTheme, ThemeColors } from '../theme'
 import { useLang } from '../LangContext'
@@ -178,21 +178,34 @@ export default function TaskDetailsSheet({
   const [editPriorityOpen, setEditPriorityOpen] = useState(false)
   const [editCategoryOpen, setEditCategoryOpen] = useState(false)
   const [editPickerDate, setEditPickerDate] = useState<Date>(new Date())
+  // Pending value while the "Completed by" page is open. Tapping a date or
+  // Clear updates this only; the field on the parent edit card is committed
+  // when the user taps the bottom Done action (or discarded on Back).
+  const [pendingEditDueDate, setPendingEditDueDate] = useState<string>('')
   const [editRecurrence, setEditRecurrence] = useState<Recurrence | undefined>(undefined)
   const [parentEditView, setParentEditView] = useState<'main' | 'repeat' | 'customRepeat' | 'date' | 'recurEndDate'>('main')
   const [endDatePickerDate, setEndDatePickerDate] = useState<Date>(new Date())
+  // Pending while the Repeat-ends page is open; same semantics as the
+  // other pending date states.
+  const [pendingRecurEndDate, setPendingRecurEndDate] = useState<string>('')
 
   // Subtask edit (in-sheet) — when set, renders the edit-subtask sub-view.
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null)
   const [editSubText, setEditSubText] = useState('')
   const [editSubPriority, setEditSubPriority] = useState<Priority>('medium')
   const [editSubDueDate, setEditSubDueDate] = useState('')
+  // Pending while the subtask Completed-by page is open; same semantics
+  // as pendingEditDueDate for the parent task.
+  const [pendingEditSubDueDate, setPendingEditSubDueDate] = useState<string>('')
   const [editSubPickerView, setEditSubPickerView] = useState<'main' | 'priority' | 'date'>('main')
   const [editSubPickerDate, setEditSubPickerDate] = useState<Date>(new Date())
 
   const [subPriorityForId, setSubPriorityForId] = useState<string | null>(null)
   const [subDateForId, setSubDateForId] = useState<string | null>(null)
   const [subPickerDate, setSubPickerDate] = useState<Date>(new Date())
+  // Pending value for the per-subtask iOS date modal (separate from the
+  // sub-page editor's pendingEditSubDueDate).
+  const [pendingSubModalDate, setPendingSubModalDate] = useState<string>('')
 
   // Re-seed form values when sheet opens or task changes.
   useEffect(() => {
@@ -274,6 +287,7 @@ export default function TaskDetailsSheet({
 
   function openEditDatePicker() {
     setEditPickerDate(editDueDate ? new Date(`${editDueDate}T00:00:00`) : new Date())
+    setPendingEditDueDate(editDueDate)
     setParentEditView('date')
   }
 
@@ -281,15 +295,12 @@ export default function TaskDetailsSheet({
   function handleEditDateChange(_event: DateTimePickerEvent, selected?: Date) {
     if (!selected) return
     setEditPickerDate(selected)
-    // Auto-commit on date pick — feels like a normal date picker (tap day,
-    // it's saved). The Clear button up in the header is the explicit
-    // way out for users who want to remove the date entirely.
-    applyDueDate(isoDate(selected))
-    setParentEditView('main')
+    setPendingEditDueDate(isoDate(selected))
   }
 
   function openSubDate(s: Subtask) {
     setSubPickerDate(s.dueDate ? new Date(`${s.dueDate}T00:00:00`) : new Date())
+    setPendingSubModalDate(s.dueDate ?? '')
     setSubDateForId(s.id)
   }
 
@@ -303,21 +314,19 @@ export default function TaskDetailsSheet({
 
   function openEditSubDate() {
     setEditSubPickerDate(editSubDueDate ? new Date(`${editSubDueDate}T00:00:00`) : new Date())
+    setPendingEditSubDueDate(editSubDueDate)
     setEditSubPickerView('date')
   }
 
 
   function clearEditSubDate() {
-    applySubDueDate('')
-    setEditSubPickerView('main')
+    setPendingEditSubDueDate('')
   }
 
   function handleEditSubDateChange(_event: DateTimePickerEvent, selected?: Date) {
     if (!selected) return
     setEditSubPickerDate(selected)
-    // Auto-commit on date pick (matches the parent date pickers).
-    applySubDueDate(isoDate(selected))
-    setEditSubPickerView('main')
+    setPendingEditSubDueDate(isoDate(selected))
   }
 
   // Subtask auto-save helpers — same pattern as the parent.
@@ -389,15 +398,16 @@ export default function TaskDetailsSheet({
                     <Text style={styles.cancelText}>‹ Back</Text>
                   </TouchableOpacity>
                   <Text style={styles.editHeaderTitle}>{t.edit.completedBy}</Text>
-                  {editSubDueDate ? (
-                    <TouchableOpacity onPress={clearEditSubDate} hitSlop={10} style={styles.headerSideBtn}>
-                      <Text style={styles.dateClearBtnText}>{t.clear}</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <View style={styles.headerSideBtn} />
-                  )}
+                  <TouchableOpacity onPress={clearEditSubDate} hitSlop={10} style={styles.headerSideBtn}>
+                    <Text style={styles.dateClearBtnText}>{t.clear}</Text>
+                  </TouchableOpacity>
                 </View>
                 <View style={styles.dateWrap}>
+                  {pendingEditSubDueDate ? (
+                    <Text style={styles.datePendingLabel}>{fullDateLabel(pendingEditSubDueDate)}</Text>
+                  ) : (
+                    <Text style={[styles.datePendingLabel, styles.datePendingLabelEmpty]}>{t.noDate}</Text>
+                  )}
                   <DateTimePicker
                     value={editSubPickerDate}
                     mode="date"
@@ -405,6 +415,20 @@ export default function TaskDetailsSheet({
                     themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
                     onChange={handleEditSubDateChange}
                   />
+                </View>
+                <View style={styles.dateActions}>
+                  <TouchableOpacity
+                    style={styles.dateDoneBtnSolo}
+                    onPress={() => {
+                      applySubDueDate(pendingEditSubDueDate)
+                      setEditSubPickerView('main')
+                    }}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={t.done}
+                  >
+                    <Text style={styles.dateDoneBtnText}>{t.done}</Text>
+                  </TouchableOpacity>
                 </View>
               </>
             ) : (
@@ -541,19 +565,20 @@ export default function TaskDetailsSheet({
                   <Text style={styles.cancelText}>‹ Back</Text>
                 </TouchableOpacity>
                 <Text style={styles.editHeaderTitle}>Completed by</Text>
-                {editDueDate ? (
-                  <TouchableOpacity
-                    onPress={() => { applyDueDate(''); setParentEditView('main') }}
-                    hitSlop={10}
-                    style={styles.headerSideBtn}
-                  >
-                    <Text style={styles.dateClearBtnText}>{t.clear}</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View style={styles.headerSideBtn} />
-                )}
+                <TouchableOpacity
+                  onPress={() => setPendingEditDueDate('')}
+                  hitSlop={10}
+                  style={styles.headerSideBtn}
+                >
+                  <Text style={styles.dateClearBtnText}>{t.clear}</Text>
+                </TouchableOpacity>
               </View>
               <View style={styles.dateWrap}>
+                {pendingEditDueDate ? (
+                  <Text style={styles.datePendingLabel}>{fullDateLabel(pendingEditDueDate)}</Text>
+                ) : (
+                  <Text style={[styles.datePendingLabel, styles.datePendingLabelEmpty]}>{t.noDate}</Text>
+                )}
                 <DateTimePicker
                   value={editPickerDate}
                   mode="date"
@@ -561,6 +586,20 @@ export default function TaskDetailsSheet({
                   themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
                   onChange={handleEditDateChange}
                 />
+              </View>
+              <View style={styles.dateActions}>
+                <TouchableOpacity
+                  style={styles.dateDoneBtnSolo}
+                  onPress={() => {
+                    applyDueDate(pendingEditDueDate)
+                    setParentEditView('main')
+                  }}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.done}
+                >
+                  <Text style={styles.dateDoneBtnText}>{t.done}</Text>
+                </TouchableOpacity>
               </View>
             </>
           ) : parentEditView === 'recurEndDate' && editRecurrence ? (
@@ -570,23 +609,20 @@ export default function TaskDetailsSheet({
                   <Text style={styles.cancelText}>‹ Back</Text>
                 </TouchableOpacity>
                 <Text style={styles.editHeaderTitle}>{t.edit.repeatEnds}</Text>
-                {editRecurrence.endDate ? (
-                  <TouchableOpacity
-                    onPress={() => {
-                      const { endDate: _drop, ...rest } = editRecurrence
-                      applyRecurrence(rest)
-                      setParentEditView('main')
-                    }}
-                    hitSlop={10}
-                    style={styles.headerSideBtn}
-                  >
-                    <Text style={styles.dateClearBtnText}>{t.clear}</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View style={styles.headerSideBtn} />
-                )}
+                <TouchableOpacity
+                  onPress={() => setPendingRecurEndDate('')}
+                  hitSlop={10}
+                  style={styles.headerSideBtn}
+                >
+                  <Text style={styles.dateClearBtnText}>{t.clear}</Text>
+                </TouchableOpacity>
               </View>
               <View style={styles.dateWrap}>
+                {pendingRecurEndDate ? (
+                  <Text style={styles.datePendingLabel}>{fullDateLabel(pendingRecurEndDate)}</Text>
+                ) : (
+                  <Text style={[styles.datePendingLabel, styles.datePendingLabelEmpty]}>{t.edit.noEnd}</Text>
+                )}
                 <DateTimePicker
                   value={endDatePickerDate}
                   mode="date"
@@ -596,10 +632,28 @@ export default function TaskDetailsSheet({
                   onChange={(_e: DateTimePickerEvent, d?: Date) => {
                     if (!d) return
                     setEndDatePickerDate(d)
-                    applyRecurrence({ ...editRecurrence, endDate: isoDate(d) })
-                    setParentEditView('main')
+                    setPendingRecurEndDate(isoDate(d))
                   }}
                 />
+              </View>
+              <View style={styles.dateActions}>
+                <TouchableOpacity
+                  style={styles.dateDoneBtnSolo}
+                  onPress={() => {
+                    if (pendingRecurEndDate) {
+                      applyRecurrence({ ...editRecurrence, endDate: pendingRecurEndDate })
+                    } else {
+                      const { endDate: _drop, ...rest } = editRecurrence
+                      applyRecurrence(rest)
+                    }
+                    setParentEditView('main')
+                  }}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.done}
+                >
+                  <Text style={styles.dateDoneBtnText}>{t.done}</Text>
+                </TouchableOpacity>
               </View>
             </>
           ) : (
@@ -703,6 +757,7 @@ export default function TaskDetailsSheet({
                             ? new Date(`${editRecurrence.endDate}T00:00:00`)
                             : new Date(),
                         )
+                        setPendingRecurEndDate(editRecurrence.endDate ?? '')
                         setParentEditView('recurEndDate')
                       }}
                       activeOpacity={0.6}
@@ -811,42 +866,75 @@ export default function TaskDetailsSheet({
                 </TouchableOpacity>
               )}
 
-              <TouchableOpacity
-                style={styles.destructiveAction}
-                onPress={() => {
-                  const isInSeries = !!todo.seriesId && !!onMoveSeriesFutureToTrash
-                  if (isInSeries) {
-                    Alert.alert(
-                      'Mark done',
-                      'This is part of a recurring series.',
-                      [
-                        { text: t.cancel, style: 'cancel' },
-                        {
-                          text: 'Just this one',
-                          onPress: () => {
-                            onMoveToTrash(todo.id)
-                            onClose()
+              <View style={styles.bottomActionRow}>
+                {onPermanentDelete ? (
+                  <TouchableOpacity
+                    style={styles.bottomActionButton}
+                    onPress={() => {
+                      Alert.alert(
+                        t.deletePermanently,
+                        t.deletePermanentlyConfirm(todo.text),
+                        [
+                          { text: t.cancel, style: 'cancel' },
+                          {
+                            text: t.deletePermanently,
+                            style: 'destructive',
+                            onPress: () => {
+                              onPermanentDelete(todo.id)
+                              onClose()
+                            },
                           },
-                        },
-                        {
-                          text: 'This and all future',
-                          style: 'destructive',
-                          onPress: () => {
-                            onMoveSeriesFutureToTrash!(todo.id)
-                            onClose()
+                        ],
+                      )
+                    }}
+                    activeOpacity={0.6}
+                    accessibilityRole="button"
+                    accessibilityLabel={t.deletePermanently}
+                  >
+                    <Text style={styles.deleteActionText}>{t.deleteTask}</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View />
+                )}
+                <TouchableOpacity
+                  style={styles.bottomActionButton}
+                  onPress={() => {
+                    const isInSeries = !!todo.seriesId && !!onMoveSeriesFutureToTrash
+                    if (isInSeries) {
+                      Alert.alert(
+                        t.markDone,
+                        'This is part of a recurring series.',
+                        [
+                          { text: t.cancel, style: 'cancel' },
+                          {
+                            text: 'Just this one',
+                            onPress: () => {
+                              onMoveToTrash(todo.id)
+                              onClose()
+                            },
                           },
-                        },
-                      ],
-                    )
-                  } else {
-                    onMoveToTrash(todo.id)
-                    onClose()
-                  }
-                }}
-                activeOpacity={0.6}
-              >
-                <Text style={styles.destructiveActionText}>{t.edit.markDoneAndClose}</Text>
-              </TouchableOpacity>
+                          {
+                            text: 'This and all future',
+                            style: 'destructive',
+                            onPress: () => {
+                              onMoveSeriesFutureToTrash!(todo.id)
+                              onClose()
+                            },
+                          },
+                        ],
+                      )
+                    } else {
+                      onMoveToTrash(todo.id)
+                      onClose()
+                    }
+                  }}
+                  activeOpacity={0.6}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.markDone}
+                >
+                  <Text style={styles.markDoneActionText}>{t.markDone}</Text>
+                </TouchableOpacity>
+              </View>
             </ScrollView>
           </>
           )}
@@ -926,27 +1014,30 @@ export default function TaskDetailsSheet({
                 activeOpacity={1}
               >
                 <View style={styles.dateSheet} onStartShouldSetResponder={() => true}>
+                  {pendingSubModalDate ? (
+                    <Text style={styles.datePendingLabel}>{fullDateLabel(pendingSubModalDate)}</Text>
+                  ) : (
+                    <Text style={[styles.datePendingLabel, styles.datePendingLabelEmpty]}>{t.noDate}</Text>
+                  )}
                   <DateTimePicker
                     value={subPickerDate}
                     mode="date"
                     display="inline"
                     themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
                     onChange={(e, d) => {
-                      if (e.type === 'set' && d) setSubPickerDate(d)
+                      if (e.type === 'set' && d) {
+                        setSubPickerDate(d)
+                        setPendingSubModalDate(isoDate(d))
+                      }
                     }}
                   />
                   <View style={styles.dateBtnRow}>
-                    <TouchableOpacity
-                      onPress={() => {
-                        if (subDateForId) onUpdateSubtaskDueDate(todo.id, subDateForId, '')
-                        setSubDateForId(null)
-                      }}
-                    >
+                    <TouchableOpacity onPress={() => setPendingSubModalDate('')}>
                       <Text style={styles.dateClear}>{t.clear}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => {
-                        if (subDateForId) onUpdateSubtaskDueDate(todo.id, subDateForId, isoDate(subPickerDate))
+                        if (subDateForId) onUpdateSubtaskDueDate(todo.id, subDateForId, pendingSubModalDate)
                         setSubDateForId(null)
                       }}
                     >
@@ -1087,7 +1178,7 @@ function makeStyles(c: ThemeColors) {
       // Sheet radius standardized to 18 across the app (was 16 here).
       borderTopLeftRadius: 18,
       borderTopRightRadius: 18,
-      paddingTop: 8,
+      paddingTop: 16,
       paddingBottom: Platform.OS === 'ios' ? 32 : 16,
       paddingHorizontal: 16,
       maxHeight: '90%',
@@ -1377,6 +1468,17 @@ function makeStyles(c: ThemeColors) {
       paddingTop: 8,
       alignItems: 'center',
     },
+    datePendingLabel: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: c.label2,
+      marginBottom: 8,
+    },
+    datePendingLabelEmpty: {
+      color: c.label3,
+      fontStyle: 'italic',
+      fontWeight: '500',
+    },
     dateActions: {
       flexDirection: 'row',
       gap: 12,
@@ -1405,6 +1507,14 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center',
       justifyContent: 'center',
     },
+    dateDoneBtnSolo: {
+      flex: 1,
+      height: 50,
+      borderRadius: 12,
+      backgroundColor: c.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     dateDoneBtnText: {
       color: '#fff',
       fontSize: 16,
@@ -1427,6 +1537,29 @@ function makeStyles(c: ThemeColors) {
       color: c.label3,
       fontSize: 14,
       fontWeight: '500',
+      letterSpacing: -0.16,
+    },
+    bottomActionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 12,
+      paddingHorizontal: 4,
+    },
+    bottomActionButton: {
+      paddingVertical: 14,
+      paddingHorizontal: 4,
+    },
+    deleteActionText: {
+      color: c.red,
+      fontSize: 15,
+      fontWeight: '600',
+      letterSpacing: -0.16,
+    },
+    markDoneActionText: {
+      color: c.primary,
+      fontSize: 15,
+      fontWeight: '600',
       letterSpacing: -0.16,
     },
     seriesAction: {

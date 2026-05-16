@@ -9,7 +9,7 @@ import Svg, { Rect, Path } from 'react-native-svg'
 import { Priority, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
-import { formatDisplayDate, isoDate } from '../utils'
+import { formatDisplayDate, fullDateLabel, isoDate } from '../utils'
 import PriorityDot from './PriorityDot'
 import InlinePicker from './InlinePicker'
 
@@ -75,16 +75,11 @@ export default function AddSubtaskSheet({ visible, onAdd, onClose, defaultDueDat
   function handleInlineDateChange(event: DateTimePickerEvent, selected?: Date) {
     if (event.type === 'set' && selected) {
       setPickerDate(selected)
+      setDueDate(isoDate(selected))
     }
   }
 
   function applyInlineDate() {
-    setDueDate(isoDate(pickerDate))
-    setSubView('main')
-  }
-
-  function clearInlineDate() {
-    setDueDate('')
     setSubView('main')
   }
 
@@ -144,7 +139,7 @@ export default function AddSubtaskSheet({ visible, onAdd, onClose, defaultDueDat
                       onPress={openDateView}
                       activeOpacity={0.6}
                       accessibilityRole="button"
-                      accessibilityLabel={`Due date, ${dueDate ? formatDisplayDate(dueDate, t.locale) : t.noDate}. Tap to change.`}
+                      accessibilityLabel={`Completed by, ${dueDate ? formatDisplayDate(dueDate, t.locale) : t.noDate}. Tap to change.`}
                     >
                       <CalendarIcon size={18} color={dueDate ? theme.blue : theme.gray3} />
                       <Text style={styles.fieldLabel}>{t.composeDateLabel}</Text>
@@ -199,6 +194,11 @@ export default function AddSubtaskSheet({ visible, onAdd, onClose, defaultDueDat
                   <View style={{ width: 56 }} />
                 </View>
                 <View style={styles.dateWrap}>
+                  {dueDate ? (
+                    <Text style={styles.datePendingLabel}>{fullDateLabel(dueDate)}</Text>
+                  ) : (
+                    <Text style={[styles.datePendingLabel, styles.datePendingLabelEmpty]}>{t.noDate}</Text>
+                  )}
                   <DateTimePicker
                     value={pickerDate}
                     mode="date"
@@ -208,7 +208,7 @@ export default function AddSubtaskSheet({ visible, onAdd, onClose, defaultDueDat
                   />
                 </View>
                 <View style={styles.dateActions}>
-                  <TouchableOpacity onPress={clearInlineDate} style={styles.clearBtn}>
+                  <TouchableOpacity onPress={() => setDueDate('')} style={styles.clearBtn}>
                     <Text style={styles.clearBtnText}>{t.clear}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -239,7 +239,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.modal,
       borderTopLeftRadius: 18,
       borderTopRightRadius: 18,
-      paddingTop: 8,
+      paddingTop: 16,
       paddingBottom: 24,
       paddingHorizontal: 16,
       minHeight: 380,
@@ -350,6 +350,17 @@ function makeStyles(c: ThemeColors) {
     dateWrap: {
       paddingTop: 8,
       alignItems: 'center',
+    },
+    datePendingLabel: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: c.label2,
+      marginBottom: 8,
+    },
+    datePendingLabelEmpty: {
+      color: c.label3,
+      fontStyle: 'italic',
+      fontWeight: '500',
     },
     dateActions: {
       flexDirection: 'row',

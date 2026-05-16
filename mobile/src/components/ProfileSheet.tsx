@@ -639,7 +639,7 @@ function makeStyles(c: ThemeColors) {
       borderTopLeftRadius: 18,
       borderTopRightRadius: 18,
       paddingHorizontal: 16,
-      paddingTop: 8,
+      paddingTop: 16,
       paddingBottom: 28,
       // Cap the sheet so it can't push above the safe area; without this
       // the title row hides behind the iOS status bar / notch.

@@ -570,7 +570,8 @@ describe("buildGroups", () => {
     expect(by.overdue).toEqual(["yesterday"]);
     expect(by.today).toEqual(["today"]);
     expect(by.week).toEqual(["thursday"]);
-    expect(by.upcoming?.sort()).toEqual(["nextmonth", "nodate"]);
+    expect(by.upcoming).toEqual(["nextmonth"]);
+    expect(by.noDate).toEqual(["nodate"]);
   });
 
   it("done todos stay in their date bucket (no separate done group)", () => {
