@@ -127,6 +127,9 @@ function TaskItem({
   const [categoryOpen, setCategoryOpen] = useState(false)
   const [dateOpen, setDateOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
+  // When set, TaskDetailsSheet opens jumped straight into the named
+  // subtask's edit view. Cleared on close.
+  const [pendingSubtaskEditId, setPendingSubtaskEditId] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
   // Shared per-subtask pickers — track which sub has the modal open.
   const [subPriorityForId, setSubPriorityForId] = useState<string | null>(null)
@@ -195,7 +198,15 @@ function TaskItem({
 
   function openDetails() {
     swipeableRef.current?.close()
+    setPendingSubtaskEditId(null)
     if (!inTrash && detailsAvailable) setDetailsOpen(true)
+  }
+
+  function openSubtaskEdit(subId: string) {
+    swipeableRef.current?.close()
+    if (inTrash || !detailsAvailable) return
+    setPendingSubtaskEditId(subId)
+    setDetailsOpen(true)
   }
 
   function handleToggle() {
@@ -492,14 +503,14 @@ function TaskItem({
                     <Text
                       style={[styles.subText, s.done && styles.subTextDone]}
                       numberOfLines={1}
-                      onPress={openDetails}
+                      onPress={() => openSubtaskEdit(s.id)}
                       suppressHighlighting
                     >
                       {s.text}
                     </Text>
                     {onUpdateSubtaskPriority && (
                       <TouchableOpacity
-                        onPress={() => setSubPriorityForId(s.id)}
+                        onPress={() => openSubtaskEdit(s.id)}
                         hitSlop={8}
                         style={styles.subPriorityBtn}
                       >
@@ -508,10 +519,7 @@ function TaskItem({
                     )}
                     {onUpdateSubtaskDueDate && (
                       <TouchableOpacity
-                        onPress={() => {
-                          setSubPickerDate(sDue ? new Date(`${sDue}T00:00:00`) : new Date())
-                          setSubDateForId(s.id)
-                        }}
+                        onPress={() => openSubtaskEdit(s.id)}
                         hitSlop={8}
                         style={styles.subChip}
                       >
@@ -685,7 +693,11 @@ function TaskItem({
             visible={detailsOpen}
             todo={todo}
             categories={categories}
-            onClose={() => setDetailsOpen(false)}
+            initialSubtaskEditId={pendingSubtaskEditId}
+            onClose={() => {
+              setDetailsOpen(false)
+              setPendingSubtaskEditId(null)
+            }}
             onUpdateText={onUpdateText}
             onUpdatePriority={onUpdatePriority}
             onUpdateDueDate={onUpdateDueDate}

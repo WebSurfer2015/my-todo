@@ -93,6 +93,9 @@ interface Props {
   visible: boolean
   todo: Todo
   categories: CategoryDef[]
+  /** When set, opening the sheet jumps directly into the subtask-edit
+   * sub-view for this subtask id (skipping the parent edit view). */
+  initialSubtaskEditId?: string | null
   onClose: () => void
   onUpdateText: (id: string, text: string) => void
   onUpdatePriority: (id: string, priority: Priority) => void
@@ -109,7 +112,7 @@ interface Props {
 }
 
 export default function TaskDetailsSheet({
-  visible, todo, categories, onClose, onUpdateText,
+  visible, todo, categories, initialSubtaskEditId, onClose, onUpdateText,
   onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onMoveToTrash,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
@@ -155,8 +158,22 @@ export default function TaskDetailsSheet({
       setEditDueDate(todo.dueDate ?? '')
       setEditRecurrence(todo.recurrence)
       setParentEditView('main')
+      // Honor an opener-provided "open into subtask edit" intent. If the
+      // caller passed a subtask id, jump straight into its edit form.
+      if (initialSubtaskEditId) {
+        const sub = todo.subtasks?.find((s) => s.id === initialSubtaskEditId)
+        if (sub) {
+          setEditSubText(sub.text)
+          setEditSubPriority(sub.priority ?? 'medium')
+          setEditSubDueDate(sub.dueDate ?? '')
+          setEditSubPickerView('main')
+          setEditingSubtaskId(sub.id)
+        }
+      } else {
+        setEditingSubtaskId(null)
+      }
     }
-  }, [visible, todo])
+  }, [visible, todo, initialSubtaskEditId])
 
   const editActiveCat = categories.find((c) => c.id === editCategory) ?? categories[0]
   const editCanSubmit = editText.trim().length > 0 && !!editActiveCat
