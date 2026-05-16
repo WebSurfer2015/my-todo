@@ -30,6 +30,7 @@ import SignIn from "./src/components/SignIn";
 import EmptyState from "./src/components/EmptyState";
 import PebbleStrip from "./src/components/PebbleStrip";
 import Onboarding from "./src/components/Onboarding";
+import SplashOverlay from "./src/components/SplashOverlay";
 import { scheduleDailyCheckin, cancelDailyCheckin } from "./src/notifications";
 
 function SlidersIcon({ size = 18, color = "#3C3C43" }: { size?: number; color?: string }) {
@@ -86,6 +87,10 @@ function AppInner() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [carriedOverExpanded, setCarriedOverExpanded] = useState(false);
   const [upcomingExpanded, setUpcomingExpanded] = useState(false);
+  // One-time JS splash overlay shown when AppInner first mounts. Hides
+  // itself after the breath + fade animation. Only blocks once per cold
+  // launch.
+  const [splashShown, setSplashShown] = useState(true);
   // True once the user has scrolled past the pebble strip — the FilterBar
   // shows a tiny pebble counter to keep progress visible without bringing
   // the full strip back into view.
@@ -474,6 +479,12 @@ function AppInner() {
           store.saveProfile({ ...store.profile, onboardingDone: true });
         }}
       />
+      {splashShown && (
+        <SplashOverlay
+          reduceMotion={false}
+          onDismiss={() => setSplashShown(false)}
+        />
+      )}
     </SafeAreaView>
   );
 }
