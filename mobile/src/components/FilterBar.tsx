@@ -137,7 +137,6 @@ export default function FilterBar({
           accessibilityLabel={`${scrolledPebbleCount} pebbles placed today`}
         >
           <CairnGlyph size={14} />
-          <Text style={styles.pebbleHintCount}>{scrolledPebbleCount}</Text>
         </View>
       )}
 
@@ -248,16 +247,9 @@ function makeStyles(c: ThemeColors) {
     pillCountSelected: { color: c.primary, opacity: 0.8 },
     pebbleHint: {
       marginLeft: 'auto',
-      flexDirection: 'row',
       alignItems: 'center',
-      gap: 4,
+      justifyContent: 'center',
       paddingLeft: 8,
-    },
-    pebbleHintCount: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: c.primary,
-      fontVariant: ['tabular-nums'],
     },
   })
 }
