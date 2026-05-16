@@ -29,7 +29,7 @@ export const strings = {
     sendResetEmail: 'Send reset email',
     resetEmailSent: 'Check your inbox for a password reset link.',
     backToSignIn: 'Back to sign in',
-    signInTagline: 'Get things done',
+    signInTagline: 'The calm to-do list.',
     emailLabel: 'Email',
     passwordLabel: 'Password',
     signInAction: 'Sign in',
