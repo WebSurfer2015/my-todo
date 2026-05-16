@@ -379,7 +379,7 @@ export default function TaskDetailsSheet({
                   <TouchableOpacity onPress={leaveSubtaskEdit} hitSlop={10} style={styles.headerSideBtn}>
                     <Text style={styles.cancelText}>‹ Back</Text>
                   </TouchableOpacity>
-                  <Text style={styles.editHeaderTitle}>Edit Subtask</Text>
+                  <Text style={styles.editHeaderTitle}>Edit step</Text>
                   <View style={styles.headerSideBtn} />
                 </View>
                 <ScrollView style={styles.list} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editBody}>
@@ -436,7 +436,7 @@ export default function TaskDetailsSheet({
                       if (!subId) return
                       Alert.alert(
                         t.deleteSubtask,
-                        'Delete this subtask?',
+                        'Delete this step?',
                         [
                           { text: t.cancel, style: 'cancel' },
                           {
@@ -453,7 +453,7 @@ export default function TaskDetailsSheet({
                     }}
                     activeOpacity={0.6}
                   >
-                    <Text style={styles.destructiveActionText}>Delete Subtask</Text>
+                    <Text style={styles.destructiveActionText}>Delete step</Text>
                   </TouchableOpacity>
                 </ScrollView>
               </>
@@ -533,7 +533,7 @@ export default function TaskDetailsSheet({
           <>
           <View style={styles.editHeader}>
             <View style={styles.headerSideBtn} />
-            <Text style={styles.editHeaderTitle}>Edit Task</Text>
+            <Text style={styles.editHeaderTitle}>Edit to-do</Text>
             <TouchableOpacity onPress={closeAndFlushText} hitSlop={10} style={styles.headerSideBtn}>
               <Text style={styles.saveHeaderText}>{t.done}</Text>
             </TouchableOpacity>
@@ -619,7 +619,7 @@ export default function TaskDetailsSheet({
               {subs.length === 0 ? (
                 <EmptyState
                   variant="compact"
-                  title="No subtasks yet"
+                  title="No steps yet"
                   hint="Break this task into smaller steps when you're ready."
                 />
               ) : (
@@ -671,7 +671,7 @@ export default function TaskDetailsSheet({
                 }}
                 activeOpacity={0.6}
               >
-                <Text style={styles.destructiveActionText}>Delete Task</Text>
+                <Text style={styles.destructiveActionText}>Delete to-do</Text>
               </TouchableOpacity>
             </ScrollView>
           </>
@@ -1064,7 +1064,7 @@ function makeStyles(c: ThemeColors) {
       fontWeight: '600',
       letterSpacing: -0.16,
     },
-    /* Header: Cancel | Edit Task | Save */
+    /* Header: Cancel | Edit to-do | Save */
     editHeader: {
       flexDirection: 'row',
       alignItems: 'center',
