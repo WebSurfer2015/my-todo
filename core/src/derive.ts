@@ -707,9 +707,12 @@ export function deriveState(input: DeriveInput): DerivedState {
   let emptyState: EmptyState;
   if (filter === "trash")
     emptyState = { title: t.emptyTrashTitle, hint: t.trashRetention };
-  else if (filter === "done") emptyState = { title: t.emptyDoneTitle };
-  else if (filter === "overdue") emptyState = { title: t.emptyOverdueTitle };
-  else if (filter === "open") emptyState = { title: t.emptyOpenTitle };
+  else if (filter === "done")
+    emptyState = { title: t.emptyDoneTitle, hint: t.emptyDoneHint };
+  else if (filter === "overdue")
+    emptyState = { title: t.emptyOverdueTitle, hint: t.emptyOverdueHint };
+  else if (filter === "open")
+    emptyState = { title: t.emptyOpenTitle, hint: t.emptyOpenHint };
   else if (filter === "all")
     emptyState = {
       title: t.emptyAllTitle,
