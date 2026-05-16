@@ -509,9 +509,11 @@ function makeStyles(c: ThemeColors) {
       elevation: 1,
     },
     rowSeparator: {
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: c.separator,
-      marginLeft: 48,
+      // Tiny visible gap between tasks. Painted in the page background so
+      // each row reads as its own card even though the group is one
+      // wrapping View.
+      height: 4,
+      backgroundColor: c.bg,
     },
     groupHeader: {
       fontSize: 12,
