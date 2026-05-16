@@ -40,8 +40,23 @@ import CustomRecurrenceForm from './CustomRecurrenceForm'
 
 function recurrenceLabel(rec: Recurrence | undefined): string {
   if (!rec) return RECURRENCE_LABELS.none
-  if (rec.byWeekday && rec.byWeekday.length > 0) return formatRecurrence(rec)
-  return RECURRENCE_LABELS[rec.freq] ?? RECURRENCE_LABELS.none
+  let base: string
+  if (rec.byWeekday && rec.byWeekday.length > 0) {
+    base = formatRecurrence(rec)
+  } else {
+    base = RECURRENCE_LABELS[rec.freq] ?? RECURRENCE_LABELS.none
+  }
+  if (rec.endDate) {
+    const d = new Date(`${rec.endDate}T00:00:00`)
+    const sameYear = d.getFullYear() === new Date().getFullYear()
+    const ends = d.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      ...(sameYear ? {} : { year: 'numeric' }),
+    })
+    return `${base} · ends ${ends}`
+  }
+  return base
 }
 
 /**
