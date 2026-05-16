@@ -86,6 +86,10 @@ function AppInner() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [carriedOverExpanded, setCarriedOverExpanded] = useState(false);
   const [upcomingExpanded, setUpcomingExpanded] = useState(false);
+  // True once the user has scrolled past the pebble strip — the FilterBar
+  // shows a tiny pebble counter to keep progress visible without bringing
+  // the full strip back into view.
+  const [pebbleStripScrolled, setPebbleStripScrolled] = useState(false);
   const onboardingNeeded = store.loaded && store.profile.onboardingDone !== true;
 
   // Sync the daily-checkin notification to profile state. Schedules when
@@ -121,6 +125,12 @@ function AppInner() {
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
           stickyHeaderIndices={[1]}
+          onScroll={(e) => {
+            const y = e.nativeEvent.contentOffset.y;
+            const next = y > 80;
+            if (next !== pebbleStripScrolled) setPebbleStripScrolled(next);
+          }}
+          scrollEventThrottle={32}
         >
           <TouchableOpacity
             style={styles.identityRow}
@@ -155,6 +165,9 @@ function AppInner() {
               byCategory={store.byCategory}
               categories={store.categories}
               orderedVisibleStatuses={store.orderedVisibleStatuses}
+              scrolledPebbleCount={
+                pebbleStripScrolled ? store.todayPebbles : 0
+              }
             />
           </View>
 

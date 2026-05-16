@@ -12,6 +12,7 @@ import CategoryIcon from './CategoryIcon'
 import StatusIcon, { statusColor } from './StatusIcon'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
+import { CairnGlyph } from './PebbleStrip'
 
 interface Props {
   filter: Filter
@@ -21,6 +22,9 @@ interface Props {
   orderedVisibleStatuses: { id: StatusFilter; label: string }[]
   systemCounts: { all: number; overdue: number; open: number; done: number; trash: number }
   byCategory: Record<string, number>
+  /** When > 0, shows a tiny cairn + count at the right end so the user
+   * keeps a sense of progress when scrolled past the full pebble strip. */
+  scrolledPebbleCount?: number
 }
 
 /**
@@ -39,6 +43,7 @@ export default function FilterBar({
   orderedVisibleStatuses,
   systemCounts,
   byCategory,
+  scrolledPebbleCount = 0,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
@@ -117,6 +122,18 @@ export default function FilterBar({
           </Text>
         )}
       </TouchableOpacity>
+
+      {scrolledPebbleCount > 0 && (
+        <View
+          style={styles.pebbleHint}
+          accessible
+          accessibilityRole="text"
+          accessibilityLabel={`${scrolledPebbleCount} pebbles placed today`}
+        >
+          <CairnGlyph size={14} />
+          <Text style={styles.pebbleHintCount}>{scrolledPebbleCount}</Text>
+        </View>
+      )}
 
       {stickyResolved && stickyFilter && (
         <TouchableOpacity
@@ -223,5 +240,18 @@ function makeStyles(c: ThemeColors) {
     },
     pillCountActive: { color: 'rgba(255,255,255,0.9)' },
     pillCountSelected: { color: c.primary, opacity: 0.8 },
+    pebbleHint: {
+      marginLeft: 'auto',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingLeft: 8,
+    },
+    pebbleHintCount: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: c.primary,
+      fontVariant: ['tabular-nums'],
+    },
   })
 }
