@@ -737,7 +737,10 @@ export function deriveState(input: DeriveInput): DerivedState {
   for (const c of categories) {
     const inCat = active.filter((td) => td.category === c.id);
     byCategoryOpen[c.id] = inCat.filter((td) => !td.done).length;
-    byCategoryTotal[c.id] = inCat.length;
+    // Total reflects every to-do ever placed in this category — open +
+    // done + trashed. Matches the All pill's inclusive scope so the
+    // counts in the picker sheet read consistently.
+    byCategoryTotal[c.id] = todos.filter((td) => td.category === c.id).length;
   }
 
   const systemCounts = {
