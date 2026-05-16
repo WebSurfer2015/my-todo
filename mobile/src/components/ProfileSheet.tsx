@@ -13,6 +13,14 @@ import {
   Alert,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+
+/** "9:00 AM" / "1:30 PM" formatting for the daily-checkin time row. */
+function formatHour12(h: number): string {
+  const hr = ((h + 11) % 12) + 1;
+  const ampm = h < 12 ? "AM" : "PM";
+  return `${hr}:00 ${ampm}`;
+}
 import * as Haptics from "expo-haptics";
 import * as ImageManipulator from "expo-image-manipulator";
 import {
@@ -60,6 +68,10 @@ export default function ProfileSheet({
   const [dailyCheckin, setDailyCheckin] = useState<boolean>(
     profile.dailyCheckinEnabled === true,
   );
+  const [dailyCheckinHour, setDailyCheckinHour] = useState<number>(
+    profile.dailyCheckinHour ?? 9,
+  );
+  const [checkinTimePickerOpen, setCheckinTimePickerOpen] = useState(false);
 
   // Short anxiety-aware quotes for subheader display. Grouped loosely by
   // intent: breath/grounding, permission/kindness, gentle action, perspective.
@@ -152,6 +164,7 @@ export default function ProfileSheet({
       setCelebrateAnim(profile.completionAnimation !== false);
       setCelebrateSound(profile.completionSound !== false);
       setDailyCheckin(profile.dailyCheckinEnabled === true);
+      setDailyCheckinHour(profile.dailyCheckinHour ?? 9);
     }
   }, [visible, profile]);
 
@@ -253,7 +266,7 @@ export default function ProfileSheet({
       completionAnimation: celebrateAnim,
       completionSound: celebrateSound,
       dailyCheckinEnabled: dailyCheckin,
-      dailyCheckinHour: profile.dailyCheckinHour ?? 9,
+      dailyCheckinHour,
     });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     showSnackbar({ message: t.profileSaved });
@@ -415,14 +428,48 @@ export default function ProfileSheet({
               <View style={{ flex: 1 }}>
                 <Text style={styles.label}>Daily check-in</Text>
                 <Text style={styles.toggleHint}>
-                  One quiet, mascot-voiced reminder around 9 AM. No alerts,
-                  no streaks. You can turn it off anytime.
+                  One quiet, mascot-voiced reminder. No alerts, no streaks.
+                  You can turn it off anytime.
                 </Text>
               </View>
               <View style={[styles.toggleTrack, dailyCheckin && styles.toggleTrackOn]}>
                 <View style={[styles.toggleKnob, dailyCheckin && styles.toggleKnobOn]} />
               </View>
             </TouchableOpacity>
+
+            {dailyCheckin && (
+              <TouchableOpacity
+                style={styles.checkinTimeRow}
+                onPress={() => setCheckinTimePickerOpen((v) => !v)}
+                accessibilityRole="button"
+                accessibilityLabel={`Reminder time, ${formatHour12(dailyCheckinHour)}. Tap to change.`}
+              >
+                <Text style={styles.checkinTimeLabel}>Reminder time</Text>
+                <Text style={styles.checkinTimeValue}>
+                  {formatHour12(dailyCheckinHour)}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {dailyCheckin && checkinTimePickerOpen && (
+              <View style={styles.checkinTimePickerWrap}>
+                <DateTimePicker
+                  value={(() => {
+                    const d = new Date();
+                    d.setHours(dailyCheckinHour, 0, 0, 0);
+                    return d;
+                  })()}
+                  mode="time"
+                  display={Platform.OS === "ios" ? "spinner" : "default"}
+                  themeVariant={theme.statusBar === "light-content" ? "dark" : "light"}
+                  minuteInterval={30}
+                  onChange={(_e: DateTimePickerEvent, d?: Date) => {
+                    if (d) setDailyCheckinHour(d.getHours());
+                    if (Platform.OS === "android") setCheckinTimePickerOpen(false);
+                  }}
+                />
+              </View>
+            )}
 
             <View style={styles.pebbleHero}>
               <View style={styles.pebbleHeroCairn}>
@@ -680,6 +727,35 @@ function makeStyles(c: ThemeColors) {
       textAlign: "center",
       marginTop: 10,
       maxWidth: 260,
+    },
+    checkinTimeRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      marginTop: -4,
+      marginBottom: 4,
+      borderRadius: 10,
+      backgroundColor: c.bg,
+    },
+    checkinTimeLabel: {
+      fontSize: 14,
+      fontWeight: "500",
+      color: c.label2,
+    },
+    checkinTimeValue: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: c.primary,
+      fontVariant: ["tabular-nums"],
+    },
+    checkinTimePickerWrap: {
+      backgroundColor: c.card,
+      borderRadius: 12,
+      paddingVertical: 4,
+      marginBottom: 8,
+      alignItems: "center",
     },
     privacySectionLabel: {
       fontSize: 11,
