@@ -135,6 +135,16 @@ export function didEarnPebble(before: Todo | undefined, after: Todo | undefined)
  * Done bin until either the user un-checks them (restored to open)
  * or the auto-purge removes them. There's no separate Trash bucket
  * any more; "done" and "removed" are one concept with one timeline.
+ *
+ * When the todo has subtasks, parent.done is a derived value (true iff
+ * every subtask is done). Direct toggling of the parent is therefore a
+ * no-op — the user must toggle subtasks individually. Locked in by
+ * core.test.ts ("todoToggle is a no-op when subs exist").
+ *
+ * The legacy rolling-recurrence path (open-ended series, no endDate)
+ * does keep its subs-reset behavior, since rolling forward is a
+ * different action — the parent is becoming a fresh occurrence, not
+ * being marked done.
  */
 export function todoToggle(prev: Todo[], id: string): Todo[] {
   const now = Date.now();
@@ -166,6 +176,9 @@ export function todoToggle(prev: Todo[], id: string): Todo[] {
         ),
       };
     }
+    // Parent.done is derived from subs — toggling the parent directly is
+    // a no-op. The user expands the row and toggles subs to mark progress.
+    if (td.subtasks && td.subtasks.length > 0) return td;
     const nextDone = !td.done;
     const next: Todo = {
       ...td,
@@ -177,12 +190,6 @@ export function todoToggle(prev: Todo[], id: string): Todo[] {
       next.trashedAt = now;
     } else {
       delete next.trashedAt;
-    }
-    // For tasks with subtasks: toggling the parent cascades to all subtasks.
-    if (td.subtasks && td.subtasks.length > 0) {
-      next.subtasks = td.subtasks.map((s) =>
-        s.done === nextDone ? s : { ...s, done: nextDone },
-      );
     }
     return next;
   });
@@ -712,11 +719,10 @@ export interface DeriveInput {
   filter: Filter;
   categories: CategoryDef[];
   t: Strings;
-  options?: { separateDone?: boolean };
 }
 
 export function deriveState(input: DeriveInput): DerivedState {
-  const { todos, filter, categories, t, options = {} } = input;
+  const { todos, filter, categories, t } = input;
   const today = todayLocal();
   // "Carried over" / overdue counts every task whose dueDate is before today,
   // including tasks the user already completed. The done state is meaningful
@@ -740,11 +746,7 @@ export function deriveState(input: DeriveInput): DerivedState {
   });
 
   const inTrashView = filter === "trash";
-  const groups = inTrashView
-    ? []
-    : buildGroups(filtered, {
-        separateDone: options.separateDone ?? filter !== "done",
-      });
+  const groups = inTrashView ? [] : buildGroups(filtered);
 
   const totalOpen = active.filter((td) => !td.done).length;
   // Done bin = done OR trashed (one merged 30-day bucket).

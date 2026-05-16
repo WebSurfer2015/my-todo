@@ -130,7 +130,7 @@ export const strings = {
     deleting: 'Deleting…',
     greeting: { morning: 'Good morning', afternoon: 'Good afternoon', evening: 'Good evening' },
     todayCount: (n: number) => n === 0 ? 'No to-dos today' : `${n} to-do${n !== 1 ? 's' : ''} today`,
-    todayPlate: (n: number) => n === 0 ? 'Today is open.' : "Here's your plate today.",
+    todayPlate: (n: number): string => n === 0 ? 'Today is open.' : "Here's your plate today.",
     listSubtitle: (done: number, toGo: number) => {
       if (done === 0 && toGo === 0) return 'All clear'
       if (done === 0) return `${toGo} ahead`

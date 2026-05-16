@@ -22,18 +22,17 @@ function sortTodos(ts: Todo[]): Todo[] {
   })
 }
 
-export function buildGroups(todos: Todo[], _options: { separateDone?: boolean } = {}): TodoGroup[] {
+export function buildGroups(todos: Todo[]): TodoGroup[] {
   const today = todayLocal()
   const endOfWeek = endOfWeekLocal()
 
+  // 'done' is kept in the GroupKey union for type compat with older callers
+  // and in case the bucket is reintroduced later. It is never populated by
+  // the current implementation — every todo flows to its date bucket
+  // regardless of done state. The dedicated "Done" filter view is where
+  // users see only completed items; this is the All-view layout.
   const buckets: Record<GroupKey, Todo[]> = { overdue: [], today: [], week: [], upcoming: [], done: [] }
 
-  // Every todo flows to its date bucket regardless of done state. Per the
-  // user's request, "Today / This Week / Upcoming" each show + count
-  // their entire date-window contents — done items stay in place rather
-  // than getting yanked to a separate Done bucket at the bottom. The
-  // dedicated Done filter view is the place to see only completed
-  // items; this is the All-view layout.
   for (const t of todos) {
     const d = t.dueDate
     if (d && d < today) buckets.overdue.push(t)

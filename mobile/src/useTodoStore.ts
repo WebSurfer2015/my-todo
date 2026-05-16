@@ -333,14 +333,28 @@ export function useTodoStore() {
 
   const restoreFromTrash = useCallback(
     (id: string) => {
+      // Mirror the toggle pebble math: restoring a done item is the
+      // inverse of completing it, so the day's pebble count decrements.
+      const beforeTodo = todosRef.current.find((t) => t.id === id);
       setTodos((prev) => todoRestoreFromTrash(prev, id));
+      if (beforeTodo?.done) {
+        setProfile((p) => decrementPebble(p, todayLocal(), 'task'));
+      }
     },
-    [setTodos],
+    [setTodos, setProfile],
   );
 
   const moveToTrash = useCallback(
     (id: string) => {
+      // Pebble parity with toggle: any transition from not-done → done
+      // earns a task pebble, regardless of which gesture caused it.
+      // Without this, swipe-left and "Mark done & close" silently
+      // skipped pebble accounting that the checkbox path applied.
+      const beforeTodo = todosRef.current.find((t) => t.id === id);
       setTodos((prev) => todoMoveToTrash(prev, id));
+      if (beforeTodo && !beforeTodo.done) {
+        setProfile((p) => incrementPebble(p, todayLocal(), 'task'));
+      }
       notify.showSnackbar({
         message: t.movedToTrash,
         actionLabel: t.undo,
@@ -350,7 +364,7 @@ export function useTodoStore() {
         mergedActionLabel: t.undoAll,
       });
     },
-    [setTodos, notify, t, restoreFromTrash],
+    [setTodos, setProfile, notify, t, restoreFromTrash],
   );
 
   const applySeriesFutureEdits = useCallback(
@@ -382,12 +396,12 @@ export function useTodoStore() {
         affected = result.affected;
         return result.next;
       });
-      // Snackbar copy reflects how many were trashed; falls back to single-
-      // task copy when the target wasn't part of a series.
+      // Snackbar copy reflects how many were tucked away; falls back to
+      // single-task copy when the target wasn't part of a series.
       notify.showSnackbar({
         message:
           affected > 1
-            ? `${affected} to-dos in this series tucked into trash.`
+            ? `${affected} to-dos in this series tucked into the bin.`
             : t.movedToTrash,
       });
     },
@@ -658,7 +672,6 @@ export function useTodoStore() {
         filter,
         categories,
         t,
-        options: { separateDone: false },
       }),
     [todos, filter, categories, t],
   );

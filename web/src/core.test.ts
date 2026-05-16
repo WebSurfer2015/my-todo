@@ -520,16 +520,13 @@ describe("buildGroups", () => {
   }
 
   it("groups overdue, today, week, upcoming correctly", () => {
-    const groups = buildGroups(
-      [
-        mk("yesterday", "2026-05-12"),
-        mk("today", "2026-05-13"),
-        mk("thursday", "2026-05-14"),
-        mk("nextmonth", "2026-06-15"),
-        mk("nodate", ""),
-      ],
-      { separateDone: true },
-    );
+    const groups = buildGroups([
+      mk("yesterday", "2026-05-12"),
+      mk("today", "2026-05-13"),
+      mk("thursday", "2026-05-14"),
+      mk("nextmonth", "2026-06-15"),
+      mk("nodate", ""),
+    ]);
     const by = Object.fromEntries(
       groups.map((g) => [g.key, g.todos.map((t) => t.id)]),
     );
@@ -539,23 +536,15 @@ describe("buildGroups", () => {
     expect(by.upcoming?.sort()).toEqual(["nextmonth", "nodate"]);
   });
 
-  it("done todos go to the done bucket when separateDone=true", () => {
-    const groups = buildGroups(
-      [
-        mk("a", "2026-05-13", true),
-        mk("b", "2026-05-13", false),
-      ],
-      { separateDone: true },
-    );
-    expect(groups.find((g) => g.key === "today")?.todos.map((t) => t.id)).toEqual(["b"]);
-    expect(groups.find((g) => g.key === "done")?.todos.map((t) => t.id)).toEqual(["a"]);
-  });
-
-  it("done todos stay in their date bucket when separateDone=false", () => {
-    const groups = buildGroups(
-      [mk("a", "2026-05-13", true), mk("b", "2026-05-13", false)],
-      { separateDone: false },
-    );
+  it("done todos stay in their date bucket (no separate done group)", () => {
+    // Per the calm-app model, every date bucket keeps + counts done items
+    // alongside open ones. The dedicated Done filter view is the place to
+    // see only completed items; the All-view never pulls done items out
+    // of their date bucket.
+    const groups = buildGroups([
+      mk("a", "2026-05-13", true),
+      mk("b", "2026-05-13", false),
+    ]);
     expect(groups.find((g) => g.key === "today")?.todos.map((t) => t.id).sort()).toEqual(["a", "b"]);
     expect(groups.find((g) => g.key === "done")).toBeUndefined();
   });
