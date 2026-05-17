@@ -3,9 +3,14 @@ import { Image, Text, View, StyleSheet } from 'react-native'
 import { Avatar as AvatarT, findPreset } from '../profile'
 import { useTheme } from '../theme'
 
-/** Platform-resolved bundled images for presets with `imageKey`. */
+/**
+ * Platform-resolved bundled images for presets with `imageKey`. Use the
+ * transparent-background mascot rather than the app icon — the icon is full-
+ * bleed (the turtle touches its edges) and gets corner-clipped by the
+ * circular avatar mask.
+ */
 const PRESET_IMAGES: Record<string, ReturnType<typeof require>> = {
-  mochi: require('../../assets/icon.png'),
+  mochi: require('../../assets/mochi-mascot.png'),
 }
 
 export default function Avatar({ avatar, size = 36 }: { avatar: AvatarT; size?: number }) {
@@ -30,6 +35,12 @@ export default function Avatar({ avatar, size = 36 }: { avatar: AvatarT; size?: 
     const preset = findPreset(avatar.key)
     const bundled = preset.imageKey ? PRESET_IMAGES[preset.imageKey] : undefined
     if (bundled) {
+      // mochi-mascot.png is square-ish with a centered turtle on a
+      // transparent background. Contain-fit at slightly less than full
+      // size so the turtle's outermost details (head, tail, accent
+      // bubble) sit comfortably inside the circular crop instead of
+      // pressing against the ring border.
+      const inset = Math.max(2, size * 0.08)
       return (
         <View
           style={[
@@ -40,8 +51,8 @@ export default function Avatar({ avatar, size = 36 }: { avatar: AvatarT; size?: 
         >
           <Image
             source={bundled}
-            style={{ width: size, height: size, borderRadius: size / 2 }}
-            resizeMode="cover"
+            style={{ width: size - inset * 2, height: size - inset * 2 }}
+            resizeMode="contain"
           />
         </View>
       )
