@@ -73,8 +73,11 @@ export function validateOperation(
     if (typeof a.category === 'string' && knownCategoryIds.has(a.category)) {
       op.args.category = a.category
     }
-    if (typeof a.notes === 'string' && a.notes.length > 0) {
-      op.args.notes = a.notes.slice(0, 8000)
+    if (typeof a.notes === 'string') {
+      const trimmed = a.notes.trim()
+      if (trimmed.length > 0) {
+        op.args.notes = trimmed.slice(0, 8000)
+      }
     }
     return op
   }

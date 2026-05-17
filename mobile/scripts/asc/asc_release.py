@@ -49,6 +49,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import stat
 import sys
 import time
 import urllib.error
@@ -90,6 +91,23 @@ def token() -> str:
     global _TOKEN, _TOKEN_EXP
     if _TOKEN and time.time() < _TOKEN_EXP - 30:
         return _TOKEN
+    # Fail loudly if the ASC private key is world- or group-readable.
+    # A leaked .p8 + the public key/issuer IDs in this file constitute
+    # full ASC API access, so we treat lax permissions as a hard error
+    # rather than silently signing JWTs against an unsafely-stored key.
+    try:
+        mode = os.stat(KEY_PATH).st_mode
+    except FileNotFoundError:
+        raise SystemExit(
+            f"ASC private key not found at {KEY_PATH}. "
+            "Download the .p8 from App Store Connect → Users and Access → Keys, "
+            "save it to that path, and chmod 600."
+        )
+    if mode & (stat.S_IRWXG | stat.S_IRWXO):
+        raise SystemExit(
+            f"ASC private key {KEY_PATH} is group/world-accessible "
+            f"(mode={oct(mode & 0o777)}). Run: chmod 600 {KEY_PATH}"
+        )
     with open(KEY_PATH, "rb") as f:
         pk = f.read()
     exp = time.time() + 1200

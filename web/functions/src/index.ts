@@ -94,11 +94,27 @@ export const agentChat = onCall(
     }
 
     const ctx = data?.context ?? {}
-    const today = typeof ctx.today === 'string' ? ctx.today : ''
+    // `today` is reflected into Claude's system prompt as natural-language
+    // context. Validate strictly to yyyy-mm-dd so a hostile client can't
+    // inject arbitrary text into the prompt via this field.
+    const today =
+      typeof ctx.today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(ctx.today)
+        ? ctx.today
+        : ''
+    // Category labels are user-controlled but already capped at 40 chars in
+    // core (CategoryDef). Re-cap to 32 here as defense-in-depth and to
+    // bound how much of the prompt budget the context block can consume
+    // (50 cats × 32 = 1600 chars at most).
+    const MAX_CATEGORY_LABEL_CHARS = 32
+    const MAX_CATEGORY_ID_CHARS = 64
     const categories = Array.isArray(ctx.categories)
       ? ctx.categories
           .filter((c) => c && typeof c.id === 'string' && typeof c.label === 'string')
           .slice(0, 50)
+          .map((c) => ({
+            id: c.id.slice(0, MAX_CATEGORY_ID_CHARS),
+            label: c.label.slice(0, MAX_CATEGORY_LABEL_CHARS),
+          }))
       : []
     const knownCategoryIds = new Set(categories.map((c) => c.id))
 
@@ -116,18 +132,27 @@ export const agentChat = onCall(
 
     const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() })
 
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      tools: AGENT_TOOLS as Anthropic.Tool[],
-      messages: [
-        {
-          role: 'user',
-          content: `Context:\n${contextBlock}\n\nRequest:\n${turn.trim()}`,
-        },
-      ],
-    })
+    let response
+    try {
+      response = await client.messages.create({
+        model: MODEL,
+        max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        tools: AGENT_TOOLS as Anthropic.Tool[],
+        messages: [
+          {
+            role: 'user',
+            content: `Context:\n${contextBlock}\n\nRequest:\n${turn.trim()}`,
+          },
+        ],
+      })
+    } catch (err) {
+      // Swallow upstream SDK errors so internal state (model name details,
+      // SDK stack frames, rate-limit messages) doesn't leak to the client
+      // via HttpsError. Log server-side for ops debugging.
+      console.error('agentChat: Anthropic SDK error', err)
+      throw new HttpsError('internal', "Mochi couldn't think just now.")
+    }
 
     // Walk the response: gather text reply + every validated tool call.
     const operations: ProposedOperation[] = []

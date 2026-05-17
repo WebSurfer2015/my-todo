@@ -1,16 +1,23 @@
 rules_version = '2';
 
-// Per-user state. Each authenticated user can read and write only their own
-// documents under users/{their-uid}/**. Everything else is denied.
+// Per-user state at the precise schema path. Each authenticated user can
+// read and write only their own per-key state docs at users/{uid}/state/{key}
+// where key ∈ {todos, categories, profile, agentUsage}. Anything else under
+// /users/{uid}/** is denied so future code that accidentally writes outside
+// this schema can't expose data on a path the rules forgot to cover.
 //
 // Paste these rules into Firebase Console → Firestore Database → Rules.
+// The same rules live in web/firestore.rules; keep them in sync.
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{uid}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+    match /users/{uid}/state/{key} {
+      allow read, write:
+        if request.auth != null && request.auth.uid == uid;
     }
 
-    // Default deny everything else
+    // Default deny — explicit so no future "match /{document=**}" elsewhere
+    // accidentally exposes data. Required even with the allow rule above.
     match /{document=**} {
       allow read, write: if false;
     }
