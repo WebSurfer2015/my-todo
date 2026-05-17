@@ -57,9 +57,11 @@ export interface Pair {
 }
 
 /**
- * Cream is the default, sitting first. Its `light.light` matches today's
- * `theme.bg` (`#F5F0E2`) and `dark.light` matches today's dark `theme.bg`
- * (`#1A1814`) — so an existing user on the default sees no visible change.
+ * Sea-glass is the current default (see DEFAULT_BACKGROUND below). Cream
+ * is kept as the first entry as the neutral "no-decoration" choice — its
+ * `light.light` matches today's `theme.bg` (`#F5F0E2`) and its `dark.light`
+ * matches the dark `theme.bg` (`#1A1814`), so picking Cream returns the
+ * app to its pre-background-feature look.
  *
  * Dark-mode tones are intentionally low-chroma: a Mochi-shell dark bg is just
  * a faintly-tinted dark cream, not a bright mint glow.
@@ -109,7 +111,7 @@ export const PAIRS: Pair[] = [
 
 export const DEFAULT_BACKGROUND = {
   pattern: 'solid' as PatternKey,
-  pairKey: 'cream',
+  pairKey: 'sea-glass',
 }
 
 export function lookupPair(key: string | undefined): Pair {

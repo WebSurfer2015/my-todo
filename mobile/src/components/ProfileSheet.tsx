@@ -13,7 +13,15 @@ import {
   Alert,
   Share,
   ScrollView,
+  useColorScheme,
 } from "react-native";
+import {
+  DEFAULT_BACKGROUND,
+  lookupPair,
+  lookupPattern,
+  tonesFor,
+} from "../backgrounds";
+import { renderPattern } from "./backgroundPatterns";
 import * as ImagePicker from "expo-image-picker";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import * as Haptics from "expo-haptics";
@@ -75,6 +83,11 @@ export default function ProfileSheet({
   const { t } = useLang();
   const { showSnackbar } = useNotify();
   const { signOut, deleteAccount } = useAuth();
+  const scheme = useColorScheme() === "dark" ? "dark" : "light";
+  const bgChoice = profile.background ?? DEFAULT_BACKGROUND;
+  const bgPair = lookupPair(bgChoice.pairKey);
+  const bgPattern = lookupPattern(bgChoice.pattern);
+  const bgTones = tonesFor(bgPair, scheme);
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const [firstName, setFirstName] = useState(profile.firstName ?? "");
@@ -420,6 +433,41 @@ export default function ProfileSheet({
               <Text style={styles.helper}>Shown under your greeting.</Text>
             </View>
 
+            {onOpenBackgrounds && (
+              <View style={styles.field}>
+                <Text style={styles.label}>Background</Text>
+                <TouchableOpacity
+                  style={styles.bgPickerRow}
+                  onPress={() => {
+                    onClose();
+                    // Defer so this modal can finish dismissing before the
+                    // picker modal slides up — iOS dislikes modal-on-modal.
+                    setTimeout(() => onOpenBackgrounds(), 280);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Background, ${bgPair.label}, ${bgPattern.label}. Tap to change.`}
+                  activeOpacity={0.6}
+                >
+                  <View style={styles.bgPreview}>
+                    {renderPattern(bgPattern.key, {
+                      tones: bgTones,
+                      width: 72,
+                      height: 44,
+                    })}
+                  </View>
+                  <View style={styles.bgPickerText}>
+                    <Text style={styles.bgPickerPrimary} numberOfLines={1}>
+                      {bgPair.label}
+                    </Text>
+                    <Text style={styles.bgPickerSecondary} numberOfLines={1}>
+                      {bgPattern.label}
+                    </Text>
+                  </View>
+                  <Text style={styles.bgPickerChevron}>›</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             <TouchableOpacity
               style={styles.toggleRow}
               onPress={() => setCelebrateAnim((v) => !v)}
@@ -548,22 +596,6 @@ export default function ProfileSheet({
                 removed from the cloud the same moment.
               </Text>
             </View>
-
-            {onOpenBackgrounds && (
-              <TouchableOpacity
-                style={styles.exportBtn}
-                onPress={() => {
-                  onClose();
-                  // Defer so the ProfileSheet modal can finish dismissing
-                  // before the next modal slides up — iOS hates modal-on-modal.
-                  setTimeout(() => onOpenBackgrounds(), 280);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Change app background"
-              >
-                <Text style={styles.exportBtnText}>Background</Text>
-              </TouchableOpacity>
-            )}
 
             {exportSnapshot && (
               <TouchableOpacity
@@ -780,6 +812,39 @@ function makeStyles(c: ThemeColors) {
       fontSize: 11,
       color: c.label3,
       lineHeight: 14,
+    },
+    bgPickerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      borderRadius: 10,
+      padding: 8,
+      backgroundColor: c.bg,
+    },
+    bgPreview: {
+      width: 72,
+      height: 44,
+      borderRadius: 6,
+      overflow: "hidden",
+    },
+    bgPickerText: { flex: 1 },
+    bgPickerPrimary: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: c.label,
+    },
+    bgPickerSecondary: {
+      fontSize: 12,
+      color: c.label3,
+      marginTop: 2,
+    },
+    bgPickerChevron: {
+      fontSize: 24,
+      color: c.label3,
+      lineHeight: 24,
+      marginRight: 4,
     },
     langRow: {
       flexDirection: "row",
