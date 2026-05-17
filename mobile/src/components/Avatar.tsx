@@ -13,14 +13,41 @@ const PRESET_IMAGES: Record<string, ReturnType<typeof require>> = {
   mochi: require('../../assets/mochi-mascot.png'),
 }
 
+/**
+ * Multiply each channel by (1 - amount) to produce a darker shade in the
+ * same hue family. Used so each avatar's ring picks up its own bg color
+ * instead of the global brand teal — keeps the avatar visually cohesive
+ * (a sage avatar gets a deeper-sage ring; a peach avatar gets a deeper
+ * peach ring).
+ */
+function darkenHex(hex: string, amount = 0.075): string {
+  const m = hex.match(/^#?([a-f0-9]{6})$/i)
+  if (!m) return hex
+  const n = parseInt(m[1], 16)
+  const r = (n >> 16) & 0xff
+  const g = (n >> 8) & 0xff
+  const b = n & 0xff
+  const f = (c: number) => Math.max(0, Math.min(255, Math.round(c * (1 - amount))))
+  const out = (f(r) << 16) | (f(g) << 8) | f(b)
+  return '#' + out.toString(16).padStart(6, '0')
+}
+
 export default function Avatar({ avatar, size = 36 }: { avatar: AvatarT; size?: number }) {
   const theme = useTheme()
-  // Brand-teal hairline ring around every avatar so the circle is visible
-  // even when its background tint blends into the page cream.
+  // Ring color follows the avatar's own bg — a few shades darker in the
+  // same hue. For user-uploaded photos we don't know the bg, so fall back
+  // to the brand teal so the circle is still visible against the cream
+  // page background.
+  const ringColor =
+    avatar.kind === 'preset'
+      ? darkenHex(findPreset(avatar.key).bg)
+      : avatar.kind === 'icon'
+        ? darkenHex(avatar.color)
+        : theme.primary
   const ring = {
     borderRadius: size / 2,
     borderWidth: 1.5,
-    borderColor: theme.primary,
+    borderColor: ringColor,
   }
 
   if (avatar.kind === 'image') {

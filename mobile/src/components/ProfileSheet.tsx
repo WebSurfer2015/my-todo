@@ -359,18 +359,20 @@ export default function ProfileSheet({
 
             <Text style={styles.sectionLabel}>{t.profilePresetLabel}</Text>
             <View style={styles.presetGrid}>
-              {AVATAR_LIBRARY.map((p) => {
-                const active = avatar.kind === "preset" && avatar.key === p.key;
-                return (
-                  <TouchableOpacity
-                    key={p.key}
-                    onPress={() => setAvatar({ kind: "preset", key: p.key })}
-                    style={[styles.presetItem, active && styles.presetActive]}
-                  >
-                    <Avatar avatar={{ kind: "preset", key: p.key }} size={40} />
-                  </TouchableOpacity>
-                );
-              })}
+              {AVATAR_LIBRARY.map((p) => (
+                <TouchableOpacity
+                  key={p.key}
+                  onPress={() => setAvatar({ kind: "preset", key: p.key })}
+                  style={styles.presetItem}
+                  accessibilityRole="button"
+                  accessibilityState={{
+                    selected:
+                      avatar.kind === "preset" && avatar.key === p.key,
+                  }}
+                >
+                  <Avatar avatar={{ kind: "preset", key: p.key }} size={40} />
+                </TouchableOpacity>
+              ))}
             </View>
 
             <View style={styles.fieldRow}>
@@ -767,13 +769,9 @@ function makeStyles(c: ThemeColors) {
       marginBottom: 14,
     },
     presetItem: {
+      // Just a tap target — the big avatar at the top of the sheet shows
+      // the current selection, so no per-tile border needed.
       padding: 2,
-      borderRadius: 22,
-      borderWidth: 2,
-      borderColor: "transparent",
-    },
-    presetActive: {
-      borderColor: c.label,
     },
     field: {
       marginBottom: 12,
