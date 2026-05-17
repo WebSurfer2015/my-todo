@@ -770,7 +770,7 @@ function makeStyles(c: ThemeColors) {
       // Tiny visible gap between tasks. Transparent so the user-chosen
       // AppBackground shows through the seam; each row still reads as its
       // own card thanks to its own card-color fill.
-      height: 4,
+      height: 8,
       backgroundColor: 'transparent',
     },
     groupHeader: {
