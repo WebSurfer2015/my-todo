@@ -19,6 +19,11 @@ USAGE
   python3 asc_release.py list-versions
   python3 asc_release.py list-builds
 
+  # Create a new appStoreVersion page (when ASC didn't auto-create one
+  # off the build upload). Idempotent — no-ops if the version already
+  # exists.
+  python3 asc_release.py create-version --version 1.2.0
+
   # Full pre-submit prep on the in-flight version (privacy URL + locale
   # copy + what's new + build link). Picks the editable version
   # automatically; can override with --version <uuid>.
@@ -249,6 +254,71 @@ def cmd_status(args):
           f"{'✓ set on all locales' if not locales_missing_privacy else '✗ missing on ' + ', '.join(l['attributes']['locale'] for l in locales_missing_privacy)}")
 
 
+def cmd_create_version(args):
+    """Create a new appStoreVersion page in PREPARE_FOR_SUBMISSION (e.g.
+    1.2.0, 1.2.1). Idempotent — if a version with this string already
+    exists for the app, prints its state + id and returns without
+    creating a duplicate.
+
+    Useful when ASC doesn't auto-create the App Store version page from
+    an EAS auto-submit (which puts the binary on TestFlight but
+    sometimes leaves no editable version on the App Store side).
+    """
+    target = args.version
+    body = asc("GET", f"/v1/apps/{APP_ID}/appStoreVersions?limit=50")
+    for v in body.get("data", []):
+        if v["attributes"].get("versionString") == target:
+            print(f"  version {target} already exists  "
+                  f"state={v['attributes'].get('appStoreState')}  "
+                  f"id={v['id']}")
+            return
+    resp = asc("POST", "/v1/appStoreVersions", {
+        "data": {
+            "type": "appStoreVersions",
+            "attributes": {
+                "versionString": target,
+                "platform": args.platform,
+                "releaseType": args.release_type,
+            },
+            "relationships": {
+                "app": {"data": {"type": "apps", "id": APP_ID}},
+            },
+        },
+    })
+    v = resp["data"]
+    print(f"  ✓ created version {target}  "
+          f"state={v['attributes'].get('appStoreState')}  "
+          f"id={v['id']}")
+    print(f"    platform={v['attributes'].get('platform')}  "
+          f"releaseType={v['attributes'].get('releaseType')}")
+    print(f"\nNext: python3 asc_release.py prepare --version {v['id']}")
+
+
+def cmd_rename_version(args):
+    """Change an existing version page's versionString. Useful when a
+    just-canceled review left an editable page on the old version (e.g.
+    1.1.0 → DEVELOPER_REJECTED) and you want to reuse it for the next
+    version (1.2.0) rather than create a fresh page. Defaults to the
+    single editable version if --version is omitted.
+    """
+    v = get_version(args.version)
+    current = v["attributes"].get("versionString")
+    target = args.to
+    print(f"  current: {current}  state={v['attributes'].get('appStoreState')}")
+    if current == target:
+        print(f"  already at {target}, no-op")
+        return
+    resp = asc("PATCH", f"/v1/appStoreVersions/{v['id']}", {
+        "data": {
+            "type": "appStoreVersions",
+            "id": v["id"],
+            "attributes": {"versionString": target},
+        },
+    })
+    new = resp["data"]
+    print(f"  ✓ renamed {current} → {new['attributes'].get('versionString')}")
+
+
 def cmd_link_build(args):
     """Wait for the latest (or specified) build to be VALID, then link
     it to the editable version."""
@@ -404,6 +474,21 @@ def main():
 
     sub.add_parser("list-versions", help="list app versions")
 
+    cv = sub.add_parser("create-version",
+                        help="create a new appStoreVersion page (idempotent)")
+    cv.add_argument("--version", required=True, help="e.g. 1.2.0")
+    cv.add_argument("--platform", default="IOS",
+                    choices=["IOS", "MAC_OS", "TV_OS", "VISION_OS"],
+                    help="default IOS")
+    cv.add_argument("--release-type", default="AFTER_APPROVAL",
+                    choices=["MANUAL", "AFTER_APPROVAL", "SCHEDULED"],
+                    help="default AFTER_APPROVAL (auto-release once Apple approves)")
+
+    rv = sub.add_parser("rename-version",
+                        help="change an editable version's versionString (e.g. 1.1.0 → 1.2.0 after a canceled review)")
+    rv.add_argument("--version", help="appStoreVersion uuid (default: editable one)")
+    rv.add_argument("--to", required=True, help="new version string e.g. 1.2.0")
+
     lb = sub.add_parser("list-builds", help="list recent builds")
     lb.add_argument("--limit", type=int, default=10)
 
@@ -441,6 +526,8 @@ def main():
     args = p.parse_args()
     handlers = {
         "list-versions": cmd_list_versions,
+        "create-version": cmd_create_version,
+        "rename-version": cmd_rename_version,
         "list-builds": cmd_list_builds,
         "status": cmd_status,
         "set-privacy": cmd_set_privacy,
