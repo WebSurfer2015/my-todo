@@ -36,6 +36,10 @@ USAGE
   python3 asc_release.py set-whats-new
   python3 asc_release.py status
 
+  # Submit the in-flight version to Apple review (after prepare + a
+  # manual eyeball of screenshots / age rating in ASC web UI)
+  python3 asc_release.py submit-for-review
+
 REQUIRES
   - /Users/yingnming/.appstoreconnect/AuthKey_<KEY_ID>.p8
   - System Python with pyjwt installed (the /usr/bin/python3 has it).
@@ -294,6 +298,64 @@ def cmd_create_version(args):
     print(f"\nNext: python3 asc_release.py prepare --version {v['id']}")
 
 
+def cmd_submit_for_review(args):
+    """Submit the editable appStoreVersion to Apple review using the
+    newer reviewSubmissions flow (the legacy
+    appStoreVersionSubmissions endpoint is soft-deprecated). Three API
+    hops: create draft submission → attach version as a submission item
+    → flip submitted=true.
+
+    Idempotent-ish: if Apple already has a non-COMPLETE submission for
+    this app, creating a new draft will fail with a clear ASC error
+    surfaced by the asc() helper. Cancel the in-flight one in the web
+    UI first.
+    """
+    v = get_version(args.version)
+    vid = v["id"]
+    print(f"Submitting {va_string(v)} ({vid}) for review…")
+
+    print("  1/3 create draft reviewSubmission")
+    resp = asc("POST", "/v1/reviewSubmissions", {
+        "data": {
+            "type": "reviewSubmissions",
+            "attributes": {"platform": "IOS"},
+            "relationships": {
+                "app": {"data": {"type": "apps", "id": APP_ID}},
+            },
+        },
+    })
+    sub_id = resp["data"]["id"]
+    print(f"      ✓ reviewSubmission {sub_id}")
+
+    print("  2/3 attach version as submission item")
+    asc("POST", "/v1/reviewSubmissionItems", {
+        "data": {
+            "type": "reviewSubmissionItems",
+            "relationships": {
+                "reviewSubmission": {
+                    "data": {"type": "reviewSubmissions", "id": sub_id},
+                },
+                "appStoreVersion": {
+                    "data": {"type": "appStoreVersions", "id": vid},
+                },
+            },
+        },
+    })
+    print(f"      ✓ attached {va_string(v)}")
+
+    print("  3/3 flip submitted=true")
+    asc("PATCH", f"/v1/reviewSubmissions/{sub_id}", {
+        "data": {
+            "type": "reviewSubmissions",
+            "id": sub_id,
+            "attributes": {"submitted": True},
+        },
+    })
+    print(f"      ✓ submitted")
+    print(f"\n{va_string(v)} is now in Apple's review queue. "
+          f"Watch ASC for status updates.")
+
+
 def cmd_rename_version(args):
     """Change an existing version page's versionString. Useful when a
     just-canceled review left an editable page on the old version (e.g.
@@ -489,6 +551,10 @@ def main():
     rv.add_argument("--version", help="appStoreVersion uuid (default: editable one)")
     rv.add_argument("--to", required=True, help="new version string e.g. 1.2.0")
 
+    sr = sub.add_parser("submit-for-review",
+                        help="submit the editable version to Apple review")
+    sr.add_argument("--version", help="appStoreVersion uuid (default: editable one)")
+
     lb = sub.add_parser("list-builds", help="list recent builds")
     lb.add_argument("--limit", type=int, default=10)
 
@@ -528,6 +594,7 @@ def main():
         "list-versions": cmd_list_versions,
         "create-version": cmd_create_version,
         "rename-version": cmd_rename_version,
+        "submit-for-review": cmd_submit_for_review,
         "list-builds": cmd_list_builds,
         "status": cmd_status,
         "set-privacy": cmd_set_privacy,
