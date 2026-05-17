@@ -127,3 +127,22 @@ export function lookupPattern(key: string | undefined): PatternMeta {
 export function tonesFor(pair: Pair, scheme: 'light' | 'dark'): PairTones {
   return scheme === 'dark' ? pair.dark : pair.light
 }
+
+/**
+ * Multiply each RGB channel by (1 - amount) to produce a slightly darker
+ * shade in the same hue. Used to derive accent colors that stay in the
+ * user's chosen color family — e.g. the avatar ring picks up a deeper
+ * shade of its own bg, and the page header bg picks up a deeper shade of
+ * the AppBackground tone.
+ */
+export function darkenHex(hex: string, amount = 0.08): string {
+  const m = hex.match(/^#?([a-f0-9]{6})$/i)
+  if (!m) return hex
+  const n = parseInt(m[1], 16)
+  const r = (n >> 16) & 0xff
+  const g = (n >> 8) & 0xff
+  const b = n & 0xff
+  const f = (c: number) => Math.max(0, Math.min(255, Math.round(c * (1 - amount))))
+  const out = (f(r) << 16) | (f(g) << 8) | f(b)
+  return '#' + out.toString(16).padStart(6, '0')
+}
