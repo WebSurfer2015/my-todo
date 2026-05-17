@@ -703,6 +703,21 @@ export default function TaskDetailsSheet({
                 <View style={styles.editGroupDivider} />
                 <TouchableOpacity
                   style={styles.editFieldRowInGroup}
+                  onPress={() => setEditPriorityOpen(true)}
+                  activeOpacity={0.6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Priority, ${t.priority[editPriority]}. Tap to change.`}
+                >
+                  <PriorityDot level={editPriority} size={14} />
+                  <Text style={styles.editFieldLabel}>{t.composePriorityLabel}</Text>
+                  <Text style={styles.editFieldValue} numberOfLines={1}>
+                    {t.priority[editPriority]}
+                  </Text>
+                  <Text style={styles.editChevron}>›</Text>
+                </TouchableOpacity>
+                <View style={styles.editGroupDivider} />
+                <TouchableOpacity
+                  style={styles.editFieldRowInGroup}
                   onPress={openEditDatePicker}
                   activeOpacity={0.6}
                   accessibilityRole="button"
