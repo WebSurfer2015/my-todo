@@ -12,6 +12,38 @@ For each new version page in ASC, before clicking **Add for Review**:
 - [ ] Export compliance / IDFA answers match the previous version's
 - [ ] Screenshots / metadata unchanged (or updated if the UI changed materially)
 
+## v1.1.0 — 2026-05-16
+
+A calmer, more customizable Sagely.
+
+- New **Mochi pebble flight** — when you mark a task done, Mochi gently
+  carries a pebble up to your cairn with a soft chime. Honors Reduce
+  Motion and the Completion animation / sound toggles in Profile.
+- **Pin filters** so they stay one tap away. Long-press any filter pill
+  to pin or unpin; pinned pills carry a little pin glyph and stick at
+  the top of your filter bar across launches. Up to 12.
+- **Configure Filter** sheet (was Edit) lets you rename statuses and
+  categories inline — just tap the label and type. Hide statuses you
+  don't use; delete categories you don't need.
+- **Done view groups by completion date** — Today, Yesterday, dated,
+  Earlier. Each tucked-away task shows when you finished it.
+- **All / Open views** get a "No Date" group so undated to-dos have a
+  proper home instead of being mixed into Upcoming.
+- **Cleaner edit sheet bottom action row** — Mark done on the right,
+  Delete on the left, with a confirmation before anything irreversible.
+- **Trashed items show a dashed × indicator** everywhere they appear, so
+  you can tell them apart from completed items at a glance.
+- **"Due date" renamed to "Completed by"** for a softer framing.
+- "Carried Over" view gains a one-tap **Defer all to next week** action.
+- iOS 26 fixes: snooze action sheet now reliably shows the Cancel
+  option; date pickers always show a year on the pending label.
+- Smoother swipe-to-mark-done — full-swipe now triggers comfortably in
+  a single pull instead of needing two.
+- Lots of small polish across the bottom sheets and the filter bar.
+
+Thanks for using Sagely. Feedback welcome at the support email on the
+listing.
+
 ## v1.0.1 (Build 20) — 2026-05-13
 
 - The app is now called "Todos for Everyone"

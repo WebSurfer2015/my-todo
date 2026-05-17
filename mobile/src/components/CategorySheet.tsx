@@ -12,7 +12,7 @@ import {
   Platform,
   Alert,
 } from "react-native";
-import { Check } from "lucide-react-native";
+import { Check, Pin, Pencil } from "lucide-react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import DraggableFlatList, {
   RenderItemParams,
@@ -40,7 +40,11 @@ export interface StatusEntry {
 interface Props {
   visible: boolean;
   currentFilter: Filter;
+  /** Ordered list of pinned filters (from Profile.pinnedFilters). Inline Pin
+   * buttons in Configure mode check this list to render the pinned state. */
+  pinnedFilters: Filter[];
   onSelectFilter: (f: Filter) => void;
+  onPinFilter: (f: Filter) => void;
   categories: CategoryDef[];
   /** Total task counts per category (used for delete confirm + row badges). */
   taskCounts: Record<string, number>;
@@ -65,8 +69,7 @@ interface Props {
 type Mode =
   | { kind: "view" }
   | { kind: "edit" }
-  | { kind: "editCategory"; id: string | null }
-  | { kind: "editStatus"; id: StatusFilter };
+  | { kind: "editCategory"; id: string | null };
 
 /**
  * Combined filter picker + management sheet.
@@ -83,7 +86,9 @@ type Mode =
 export default function CategorySheet({
   visible,
   currentFilter,
+  pinnedFilters,
   onSelectFilter,
+  onPinFilter,
   categories,
   taskCounts,
   systemCounts,
@@ -105,35 +110,40 @@ export default function CategorySheet({
   const [name, setName] = useState("");
   const [color, setColor] = useState(COLOR_PALETTE[5]);
   const [icon, setIcon] = useState<string>("tag");
-  const [statusLabel, setStatusLabel] = useState("");
+  // Inline label editing in Configure mode — tap a row's label to rename
+  // it in place. `inlineId` is the status/category id being edited (null
+  // when no row is open); `inlineText` is the staged new label.
+  const [inlineId, setInlineId] = useState<string | null>(null);
+  const [inlineText, setInlineText] = useState("");
+
+  function startInlineEdit(id: string, currentLabel: string) {
+    setInlineId(id);
+    setInlineText(currentLabel);
+  }
+
+  function commitInlineStatus(id: StatusFilter, original: string) {
+    const trimmed = inlineText.trim().slice(0, 40);
+    if (trimmed && trimmed !== original) onRenameStatus(id, trimmed);
+    setInlineId(null);
+  }
+
+  function commitInlineCategory(c: CategoryDef, original: string) {
+    const trimmed = inlineText.trim().slice(0, 40);
+    if (trimmed && trimmed !== original) {
+      onEdit(c.id, { label: trimmed, color: c.color, icon: c.icon });
+    }
+    setInlineId(null);
+  }
 
   useEffect(() => {
     if (visible) setMode({ kind: "view" });
   }, [visible]);
-
-  function startEditStatus(s: StatusEntry) {
-    setStatusLabel(s.label);
-    setMode({ kind: "editStatus", id: s.id });
-  }
-
-  function saveStatusLabel() {
-    if (mode.kind !== "editStatus") return;
-    onRenameStatus(mode.id, statusLabel.trim());
-    setMode({ kind: "edit" });
-  }
 
   function startAdd() {
     setName("");
     setColor(COLOR_PALETTE[5]);
     setIcon("tag");
     setMode({ kind: "editCategory", id: null });
-  }
-
-  function startEditCategory(c: CategoryDef) {
-    setName(categoryLabel(c, t));
-    setColor(c.color);
-    setIcon(c.icon);
-    setMode({ kind: "editCategory", id: c.id });
   }
 
   function handleSave() {
@@ -246,13 +256,13 @@ export default function CategorySheet({
                     <TouchableOpacity onPress={onClose} hitSlop={8}>
                       <Text style={styles.headerLeft}>{t.cancel}</Text>
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Select Filter</Text>
+                    <Text style={styles.headerTitle}>{isEditing ? t.configureFilter : 'Select Filter'}</Text>
                     <TouchableOpacity
                       onPress={() => setMode(isEditing ? { kind: "view" } : { kind: "edit" })}
                       hitSlop={8}
                     >
                       <Text style={styles.headerRight}>
-                        {isEditing ? t.done : t.editTask}
+                        {isEditing ? t.done : t.configure}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -273,28 +283,79 @@ export default function CategorySheet({
                             item: s,
                             drag,
                             isActive,
-                          }: RenderItemParams<StatusEntry>) => (
-                            <TouchableOpacity
-                              activeOpacity={0.7}
-                              onPress={() => startEditStatus(s)}
-                              style={[styles.editRow, isActive && styles.editRowActive]}
-                            >
-                              <StatusIcon id={s.id} size={18} color={statusColor(s.id, theme)} />
-                              <Text style={[styles.editRowLabel, s.hidden && styles.editRowLabelHidden]}>
-                                {s.label}
-                              </Text>
-                              {s.hidden && <Text style={styles.editRowBadge}>hidden</Text>}
-                              <TouchableOpacity
-                                onLongPress={drag}
-                                delayLongPress={150}
-                                disabled={isActive}
-                                style={styles.dragHandle}
-                                accessibilityLabel="Drag to reorder"
-                              >
-                                <Text style={styles.dragHandleIcon}>≡</Text>
-                              </TouchableOpacity>
-                            </TouchableOpacity>
-                          )}
+                          }: RenderItemParams<StatusEntry>) => {
+                            const isInline = inlineId === s.id;
+                            const isPinned = pinnedFilters.includes(s.id);
+                            return (
+                              <View style={[styles.editRow, isActive && styles.editRowActive]}>
+                                <StatusIcon id={s.id} size={18} color={statusColor(s.id, theme)} />
+                                {isInline ? (
+                                  <TextInput
+                                    style={[styles.editRowLabel, styles.inlineInput]}
+                                    value={inlineText}
+                                    onChangeText={setInlineText}
+                                    autoFocus
+                                    selectTextOnFocus
+                                    returnKeyType="done"
+                                    onBlur={() => commitInlineStatus(s.id, s.label)}
+                                    onSubmitEditing={() => commitInlineStatus(s.id, s.label)}
+                                    maxLength={40}
+                                  />
+                                ) : (
+                                  <TouchableOpacity
+                                    style={styles.editRowLabelTap}
+                                    onPress={() => startInlineEdit(s.id, s.label)}
+                                    activeOpacity={0.6}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Rename ${s.label}`}
+                                  >
+                                    <View style={styles.editRowLabelInner}>
+                                      <Text
+                                        style={[styles.editRowLabel, s.hidden && styles.editRowLabelHidden]}
+                                        numberOfLines={1}
+                                      >
+                                        {s.label}
+                                      </Text>
+                                      <Pencil size={11} color={theme.label3} strokeWidth={2} />
+                                    </View>
+                                  </TouchableOpacity>
+                                )}
+                                {s.hidden && !isInline && <Text style={styles.editRowBadge}>hidden</Text>}
+                                <TouchableOpacity
+                                  onPress={() => onToggleStatusHidden(s.id)}
+                                  hitSlop={6}
+                                  style={styles.rowAction}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`${s.hidden ? t.unhide : t.hide} ${s.label}`}
+                                >
+                                  <Text style={styles.rowActionText}>{s.hidden ? t.unhide : t.hide}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  onPress={() => onPinFilter(s.id)}
+                                  hitSlop={6}
+                                  style={styles.rowAction}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`${isPinned ? t.unpin : t.pin} ${s.label}`}
+                                >
+                                  <Pin
+                                    size={13}
+                                    color={isPinned ? theme.primary : theme.label2}
+                                    strokeWidth={2.2}
+                                    fill={isPinned ? theme.primary : 'none'}
+                                  />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  onLongPress={drag}
+                                  delayLongPress={150}
+                                  disabled={isActive}
+                                  style={styles.dragHandle}
+                                  accessibilityLabel="Drag to reorder"
+                                >
+                                  <Text style={styles.dragHandleIcon}>≡</Text>
+                                </TouchableOpacity>
+                              </View>
+                            );
+                          }}
                         />
                       </View>
 
@@ -321,25 +382,79 @@ export default function CategorySheet({
                             item: c,
                             drag,
                             isActive,
-                          }: RenderItemParams<CategoryDef>) => (
-                            <TouchableOpacity
-                              activeOpacity={0.7}
-                              onPress={() => startEditCategory(c)}
-                              style={[styles.editRow, isActive && styles.editRowActive]}
-                            >
-                              <CategoryIcon icon={c.icon} color={c.color} size={18} />
-                              <Text style={styles.editRowLabel}>{categoryLabel(c, t)}</Text>
-                              <TouchableOpacity
-                                onLongPress={drag}
-                                delayLongPress={150}
-                                disabled={isActive}
-                                style={styles.dragHandle}
-                                accessibilityLabel="Drag to reorder"
-                              >
-                                <Text style={styles.dragHandleIcon}>≡</Text>
-                              </TouchableOpacity>
-                            </TouchableOpacity>
-                          )}
+                          }: RenderItemParams<CategoryDef>) => {
+                            const label = categoryLabel(c, t);
+                            const isInline = inlineId === c.id;
+                            const catFilter = `cat:${c.id}` as Filter;
+                            const isPinned = pinnedFilters.includes(catFilter);
+                            return (
+                              <View style={[styles.editRow, isActive && styles.editRowActive]}>
+                                <CategoryIcon icon={c.icon} color={c.color} size={18} />
+                                {isInline ? (
+                                  <TextInput
+                                    style={[styles.editRowLabel, styles.inlineInput]}
+                                    value={inlineText}
+                                    onChangeText={setInlineText}
+                                    autoFocus
+                                    selectTextOnFocus
+                                    returnKeyType="done"
+                                    onBlur={() => commitInlineCategory(c, label)}
+                                    onSubmitEditing={() => commitInlineCategory(c, label)}
+                                    maxLength={40}
+                                  />
+                                ) : (
+                                  <TouchableOpacity
+                                    style={styles.editRowLabelTap}
+                                    onPress={() => startInlineEdit(c.id, label)}
+                                    activeOpacity={0.6}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Rename ${label}`}
+                                  >
+                                    <View style={styles.editRowLabelInner}>
+                                      <Text style={styles.editRowLabel} numberOfLines={1}>
+                                        {label}
+                                      </Text>
+                                      <Pencil size={11} color={theme.label3} strokeWidth={2} />
+                                    </View>
+                                  </TouchableOpacity>
+                                )}
+                                <TouchableOpacity
+                                  onPress={() => handleDelete(c)}
+                                  hitSlop={6}
+                                  style={styles.rowAction}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`${t.deleteTask} ${label}`}
+                                >
+                                  <Text style={[styles.rowActionText, styles.rowActionTextDanger]}>
+                                    {t.deleteTask}
+                                  </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  onPress={() => onPinFilter(catFilter)}
+                                  hitSlop={6}
+                                  style={styles.rowAction}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`${isPinned ? t.unpin : t.pin} ${label}`}
+                                >
+                                  <Pin
+                                    size={13}
+                                    color={isPinned ? theme.primary : theme.label2}
+                                    strokeWidth={2.2}
+                                    fill={isPinned ? theme.primary : 'none'}
+                                  />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  onLongPress={drag}
+                                  delayLongPress={150}
+                                  disabled={isActive}
+                                  style={styles.dragHandle}
+                                  accessibilityLabel="Drag to reorder"
+                                >
+                                  <Text style={styles.dragHandleIcon}>≡</Text>
+                                </TouchableOpacity>
+                              </View>
+                            );
+                          }}
                         />
                         <TouchableOpacity
                           style={styles.addRow}
@@ -379,53 +494,6 @@ export default function CategorySheet({
                       </View>
                     </ScrollView>
                   )}
-                </>
-              ) : mode.kind === "editStatus" ? (
-                <>
-                  <Text style={styles.title}>{t.editStatus}</Text>
-                  <View style={styles.field}>
-                    <Text style={styles.label}>{t.categoryNameLabel}</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={statusLabel}
-                      onChangeText={setStatusLabel}
-                      autoFocus
-                      maxLength={40}
-                    />
-                  </View>
-                  {(() => {
-                    const editingStatus = orderedStatuses.find((s) => s.id === mode.id);
-                    const isHidden = editingStatus?.hidden ?? false;
-                    return (
-                      <TouchableOpacity
-                        style={styles.secondaryAction}
-                        onPress={() => {
-                          onToggleStatusHidden(mode.id);
-                          setMode({ kind: "edit" });
-                        }}
-                      >
-                        <Text style={styles.secondaryActionText}>
-                          {isHidden ? t.showStatus : t.hideStatus}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })()}
-                  <View style={styles.actions}>
-                    <TouchableOpacity
-                      style={styles.btn}
-                      onPress={() => setMode({ kind: "edit" })}
-                    >
-                      <Text style={styles.btnText}>{t.back}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.btn, styles.btnPrimary]}
-                      onPress={saveStatusLabel}
-                    >
-                      <Text style={[styles.btnText, styles.btnPrimaryText]}>
-                        {t.save}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
                 </>
               ) : (
                 <>
@@ -622,10 +690,45 @@ function makeStyles(c: ThemeColors) {
       shadowRadius: 6,
       elevation: 4,
     },
-    editRowLabel: { flex: 1, fontSize: 15, color: c.label, fontWeight: "500" },
+    editRowLabel: { fontSize: 15, color: c.label, fontWeight: "500", flexShrink: 1 },
+    // Wrap the label in a flex:1 tap target so the row's whole label-area
+    // is the rename hit area, not just the visible glyphs.
+    editRowLabelTap: { flex: 1, justifyContent: "center", paddingVertical: 4 },
+    // Inner cluster — label + a small pencil glyph to signal the row is
+    // tap-to-rename. The pencil is dim by default and only present in
+    // Configure mode (this view is only rendered there).
+    editRowLabelInner: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+    },
+    // Subtle highlight to signal the field is in inline-edit mode.
+    inlineInput: {
+      backgroundColor: c.bg,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 6,
+      flex: 1,
+    },
     editRowLabelHidden: { color: c.label3, textDecorationLine: "line-through" },
     rowBtn: { paddingHorizontal: 8, paddingVertical: 4 },
     rowBtnText: { fontSize: 13, fontWeight: "600", color: c.primary },
+    // Inline action buttons inside an edit-mode row (Hide/Unhide/Pin/Unpin/
+    // Edit/Delete). Compact text so 3 actions plus the drag handle still
+    // fit on a single row at default density.
+    rowAction: { paddingHorizontal: 6, paddingVertical: 4 },
+    rowActionText: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: c.label2,
+      letterSpacing: -0.1,
+    },
+    rowActionTextActive: {
+      color: c.primary,
+    },
+    rowActionTextDanger: {
+      color: c.red,
+    },
     editRowBadge: {
       fontSize: 11,
       fontWeight: "600",

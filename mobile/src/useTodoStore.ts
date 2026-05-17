@@ -29,6 +29,8 @@ import { Profile, SEED_PROFILE, migrateProfile, getTodayPebbles, incrementPebble
 import { useLang } from "./LangContext";
 import { useAuth } from "./AuthContext";
 import { useNotify } from "./notify";
+import { useReduceMotion } from "./useReduceMotion";
+import { PEBBLE_DEFERRAL_MS } from "./components/PebbleFlight";
 import {
   toggleSelection,
   applyBulkRestore,
@@ -102,6 +104,11 @@ const parseCategories = (raw: string | null): CategoryDef[] => {
 };
 
 const parseTodos = (raw: string | null): Todo[] => migrateTodos(unwrap(raw));
+
+// Soft cap on pinned filters in the FilterBar quick-access row. Also
+// enforced by migratePinnedFilters in core, so the persisted profile
+// stays bounded even if the limit drifts between platforms.
+const PIN_LIMIT = 12;
 
 const parseProfile = (raw: string | null): Profile => {
   const data = unwrap(raw);
@@ -192,6 +199,29 @@ export function useTodoStore() {
     }
   }, [filter, selectedTrashIds.size]);
 
+  // Toggle a filter's pin in the FilterBar quick-access row. Adding
+  // appends to the end so newest pins are last; removing splices it out.
+  // Capped at PIN_LIMIT (also enforced in migratePinnedFilters); when the
+  // cap is reached on an add, surface a snackbar so the user isn't left
+  // with a silent no-op.
+  const pinFilter = useCallback(
+    (f: Filter) => {
+      setProfile((prev) => {
+        const current = prev.pinnedFilters ?? [];
+        if (current.includes(f)) {
+          const next = current.filter((x) => x !== f);
+          return { ...prev, pinnedFilters: next.length > 0 ? next : undefined };
+        }
+        if (current.length >= PIN_LIMIT) {
+          notify.showSnackbar({ message: t.pinCapReached(PIN_LIMIT) });
+          return prev;
+        }
+        return { ...prev, pinnedFilters: [...current, f] };
+      });
+    },
+    [setProfile, notify, t],
+  );
+
   const loaded = categoriesLoaded && todosLoaded && profileLoaded;
 
   // ---- Stable callbacks ----
@@ -218,6 +248,29 @@ export function useTodoStore() {
     [setProfile],
   );
 
+  // Positive pebble deltas (a fresh completion) are deferred so the cairn
+  // updates in sync with Mochi landing on it. Negative deltas (undoing a
+  // completion) fire immediately — the visible strikethrough comes off
+  // and the cairn should reflect that without a delay. The delay is
+  // skipped entirely when the user has reduce-motion on or has turned
+  // off completion animations in Profile — there's no Mochi to wait for
+  // and the 940ms gap between chime and pebble would just feel laggy.
+  const reduceMotion = useReduceMotion();
+  const animationOn = profile.completionAnimation !== false;
+  const applyPebbleDeltaTimed = useCallback(
+    (delta: PebbleDelta) => {
+      if (delta.task === 0 && delta.subtask === 0) return;
+      const shouldDefer =
+        (delta.task > 0 || delta.subtask > 0) && animationOn && !reduceMotion;
+      if (shouldDefer) {
+        setTimeout(() => applyPebbleDelta(delta), PEBBLE_DEFERRAL_MS);
+      } else {
+        applyPebbleDelta(delta);
+      }
+    },
+    [applyPebbleDelta, animationOn, reduceMotion],
+  );
+
   const toggle = useCallback(
     (id: string) => {
       // Detect transitions against the current todos via ref so setTodos +
@@ -227,9 +280,9 @@ export function useTodoStore() {
       setTodos((prev) => todoToggle(prev, id));
       if (!beforeTodo) return;
       const afterTodo = todoToggle([beforeTodo], id)[0];
-      applyPebbleDelta(pebbleDelta(beforeTodo, afterTodo));
+      applyPebbleDeltaTimed(pebbleDelta(beforeTodo, afterTodo));
     },
-    [setTodos, applyPebbleDelta],
+    [setTodos, applyPebbleDeltaTimed],
   );
 
   const restoreFromTrash = useCallback(
@@ -238,6 +291,8 @@ export function useTodoStore() {
       setTodos((prev) => todoRestoreFromTrash(prev, id));
       if (!beforeTodo) return;
       const afterTodo = todoRestoreFromTrash([beforeTodo], id)[0];
+      // Restore is a refund (negative delta) — apply immediately so the
+      // cairn count drops in sync with the visible un-strike.
       applyPebbleDelta(pebbleDelta(beforeTodo, afterTodo));
     },
     [setTodos, applyPebbleDelta],
@@ -249,7 +304,7 @@ export function useTodoStore() {
       setTodos((prev) => todoMoveToTrash(prev, id));
       if (beforeTodo) {
         const afterTodo = todoMoveToTrash([beforeTodo], id)[0];
-        applyPebbleDelta(pebbleDelta(beforeTodo, afterTodo));
+        applyPebbleDeltaTimed(pebbleDelta(beforeTodo, afterTodo));
       }
       notify.showSnackbar({
         message: t.movedToTrash,
@@ -260,7 +315,7 @@ export function useTodoStore() {
         mergedActionLabel: t.undoAll,
       });
     },
-    [setTodos, applyPebbleDelta, notify, t, restoreFromTrash],
+    [setTodos, applyPebbleDeltaTimed, notify, t, restoreFromTrash],
   );
 
   const applySeriesFutureEdits = useCallback(
@@ -609,6 +664,17 @@ export function useTodoStore() {
     setCategories(next.categories);
     if (isCategoryFilter(filter) && categoryIdFromFilter(filter) === id)
       setFilter("all");
+    // Strip any pinned filter that pointed at this category so the persisted
+    // profile doesn't accumulate stale `cat:<deleted-id>` entries that would
+    // show up as ghost pills if the category is later re-created with the
+    // same id (or just clutter the profile doc).
+    const ghostFilter = `cat:${id}`;
+    setProfile((prev) => {
+      const pinned = prev.pinnedFilters;
+      if (!pinned || !pinned.includes(ghostFilter)) return prev;
+      const cleaned = pinned.filter((f) => f !== ghostFilter);
+      return { ...prev, pinnedFilters: cleaned.length > 0 ? cleaned : undefined };
+    });
   }
 
   function changeView(v: ViewMode) {
@@ -625,7 +691,26 @@ export function useTodoStore() {
   }
 
   function toggleStatusHidden(id: StatusFilter) {
-    setProfile((prev) => statusToggleHidden(prev, id));
+    setProfile((prev) => {
+      const next = statusToggleHidden(prev, id);
+      // If the status was just hidden and is currently pinned, strip the
+      // pin so it doesn't sit invisibly in the profile (the FilterBar
+      // already filters hidden statuses out of its pinned-pill list).
+      const overrides = next.statuses ?? [];
+      const isNowHidden = overrides.find((s) => s.id === id)?.hidden === true;
+      if (
+        isNowHidden &&
+        next.pinnedFilters &&
+        next.pinnedFilters.includes(id)
+      ) {
+        const cleaned = next.pinnedFilters.filter((f) => f !== id);
+        return {
+          ...next,
+          pinnedFilters: cleaned.length > 0 ? cleaned : undefined,
+        };
+      }
+      return next;
+    });
   }
 
   function reorderStatuses(newOrder: StatusFilter[]) {
@@ -704,6 +789,7 @@ export function useTodoStore() {
     orderedStatuses,
     orderedVisibleStatuses,
     setFilter,
+    pinFilter,
     saveProfile: setProfile,
     changeView,
     renameStatus,

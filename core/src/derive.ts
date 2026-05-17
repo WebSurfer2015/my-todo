@@ -202,8 +202,9 @@ export function pebbleDelta(
  */
 export function todoToggle(prev: Todo[], id: string): Todo[] {
   const now = Date.now();
-  return prev.map((td) => {
-    if (td.id !== id) return td;
+  const today = todayLocal();
+  return prev.flatMap((td) => {
+    if (td.id !== id) return [td];
     // Legacy rolling behavior: only when a recurring task has NO endDate.
     // Multi-instance recurring tasks (with endDate) are pre-expanded at
     // creation time, so each instance toggles like a normal task.
@@ -220,7 +221,26 @@ export function todoToggle(prev: Todo[], id: string): Todo[] {
         td.recurrence.byWeekday,
         td.recurrence.bySetPos,
       );
-      return {
+      // Snapshot of the just-completed occurrence so it surfaces in the
+      // Done filter like any other completion. The original task rolls
+      // forward to its next occurrence (still recurring, still open).
+      // The snapshot is a one-time record — drop recurrence + seriesId
+      // and any nested subtasks (their done state belongs to the new
+      // occurrence, not this historical record).
+      const snapshot: Todo = {
+        id: genUuid(),
+        text: td.text,
+        done: true,
+        priority: td.priority,
+        dueDate: td.dueDate,
+        category: td.category,
+        trashed: true,
+        trashedAt: now,
+        updatedAt: now,
+        completionDate: today,
+      };
+      if (td.notes) snapshot.notes = td.notes;
+      const rolledNext: Todo = {
         ...td,
         dueDate: rolled,
         done: false,
@@ -229,10 +249,11 @@ export function todoToggle(prev: Todo[], id: string): Todo[] {
           s.done ? { ...s, done: false } : s,
         ),
       };
+      return [rolledNext, snapshot];
     }
     // Parent.done is derived from subs — toggling the parent directly is
     // a no-op. The user expands the row and toggles subs to mark progress.
-    if (td.subtasks && td.subtasks.length > 0) return td;
+    if (td.subtasks && td.subtasks.length > 0) return [td];
     const nextDone = !td.done;
     const next: Todo = {
       ...td,
@@ -242,12 +263,12 @@ export function todoToggle(prev: Todo[], id: string): Todo[] {
     };
     if (nextDone) {
       next.trashedAt = now;
-      next.completionDate = todayLocal();
+      next.completionDate = today;
     } else {
       delete next.trashedAt;
       delete next.completionDate;
     }
-    return next;
+    return [next];
   });
 }
 

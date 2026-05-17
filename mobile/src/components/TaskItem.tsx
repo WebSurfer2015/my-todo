@@ -2,7 +2,12 @@ import React, { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Modal, Alert, Pressable, ActionSheetIOS, Animated, Easing, Dimensions } from 'react-native'
 
 const SCREEN_WIDTH = Dimensions.get('window').width
-const FULL_SWIPE_THRESHOLD = SCREEN_WIDTH * 0.5
+// Trigger-to-commit threshold for full-swipe gestures. Pairs with the
+// Swipeable's `friction: 1` below so the finger-distance required to
+// reach the threshold is the same as the row offset: 30% of screen
+// width is comfortably reachable in a single pull on every iPhone size
+// (and matches iOS Mail/Notes full-swipe feel).
+const FULL_SWIPE_THRESHOLD = SCREEN_WIDTH * 0.3
 
 /** Listens to a Swipeable's drag animated value and fires onFullSwipe when |drag| exceeds the threshold. */
 function FullSwipeWatcher({
@@ -36,7 +41,6 @@ function FullSwipeWatcher({
 }
 import { Swipeable } from 'react-native-gesture-handler'
 import * as Haptics from 'expo-haptics'
-import { Audio } from 'expo-av'
 import { Repeat as LucideRepeat, ChevronRight, ChevronDown, Trash2, RotateCcw, XCircle } from 'lucide-react-native'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Category, Priority, Recurrence, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
@@ -44,6 +48,7 @@ import { CategoryDef, categoryLabel } from '../categories'
 import type { Density } from '../profile'
 import { formatDisplayDate, fullDateLabel, todayLocal, isoDate } from '../utils'
 import { sortedSubs } from '../../../core/src/derive'
+import { useTriggerPebbleFlight } from './PebbleFlight'
 import { useTheme, ThemeColors } from '../theme'
 import PriorityDot from './PriorityDot'
 import CategoryIcon from './CategoryIcon'
@@ -148,6 +153,12 @@ function TaskItem({
   const checkboxScale = useRef(new Animated.Value(1)).current
   const rowFlash = useRef(new Animated.Value(0)).current
   const prevDoneRef = useRef(todo.done)
+  // Mochi pebble-flight overlay — measures the row's screen position on
+  // every done transition and arcs a Mochi sprite up to the PebbleStrip
+  // cairn registered at the top of the app. Skips when reduce-motion is on
+  // (handled by the provider).
+  const triggerPebbleFlight = useTriggerPebbleFlight()
+  const rowRef = useRef<View>(null)
   useEffect(() => {
     if (todo.done && !prevDoneRef.current) {
       if (!reduceMotion) {
@@ -183,23 +194,24 @@ function TaskItem({
           ]).start()
         }
       }
-      if (playSound) {
-        // Replace assets/sounds/complete.wav with a calm chime for an audible cue.
-        Audio.Sound.createAsync(require('../../assets/sounds/complete.wav'), { shouldPlay: true })
-          .then(({ sound }) => {
-            sound.setOnPlaybackStatusUpdate((status) => {
-              if ('isLoaded' in status && status.isLoaded && status.didJustFinish) {
-                sound.unloadAsync().catch(() => {})
-              }
-            })
-          })
-          .catch(() => {
-            // Silent fail — sound is optional.
-          })
+      // Measure the row's screen position and launch a Mochi from its
+      // center up to the next-pebble slot. The flight overlay owns the
+      // chime + the pebble reveal so they sync to Mochi's landing rather
+      // than firing at the start of the done transition. The provider
+      // honors `celebrate` / `playSound` flags so users who toggle either
+      // off in Profile get the right subset (chime-only / Mochi-only /
+      // nothing).
+      if (playSound || celebrate) {
+        rowRef.current?.measureInWindow((x, y, w, h) => {
+          triggerPebbleFlight(
+            { x: x + w / 2, y: y + h / 2 },
+            { animate: celebrate, chime: playSound },
+          )
+        })
       }
     }
     prevDoneRef.current = todo.done
-  }, [todo.done, celebrate, playSound, reduceMotion, checkboxScale, rowFlash])
+  }, [todo.done, celebrate, playSound, reduceMotion, checkboxScale, rowFlash, triggerPebbleFlight])
   const swipeableRef = useRef<Swipeable>(null)
   const [swipeOpen, setSwipeOpen] = useState(false)
 
@@ -398,12 +410,13 @@ function TaskItem({
       rightThreshold={40}
       overshootLeft={true}
       overshootRight={true}
-      friction={2}
+      friction={1}
       containerStyle={styles.swipeContainer}
       onSwipeableWillOpen={() => setSwipeOpen(true)}
       onSwipeableWillClose={() => setSwipeOpen(false)}
     >
       <Pressable
+        ref={rowRef}
         onLongPress={swipeOpen ? undefined : handleLongPress}
         delayLongPress={350}
         style={({ pressed }) => [

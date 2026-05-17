@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import { View, Text, StyleSheet, Dimensions } from 'react-native'
 import Svg, { Ellipse } from 'react-native-svg'
 import { useTheme, ThemeColors } from '../theme'
+import { useRegisterCairn } from './PebbleFlight'
 
 /**
  * Live progress indicator. Each completed task or subtask adds one pebble.
@@ -74,9 +75,59 @@ export default function PebbleStrip({ count }: Props) {
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
 
+  // Publish the position of the NEXT pebble slot to the PebbleFlight
+  // overlay so flying Mochis land exactly where the new pebble materializes.
+  // Layout is deterministic (computed below), so we just remember the
+  // container's screen origin and offset by `count * slot + slot/2`. Re-
+  // measure on every layout pass + republish when count changes.
+  const registerCairn = useRegisterCairn()
+  const cairnRef = useRef<View>(null)
+  const rectRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null)
+
+  const publishTarget = useCallback(
+    (rect: { x: number; y: number; w: number; h: number }, c: number) => {
+      const slot = pebbleWidth(PEBBLE_SIZE) + GAP
+      // Cap the target index at the last fully-visible slot so Mochi
+      // never lands offscreen when the strip is overflowing. Past the
+      // cap, the new pebble is collapsed into the "+N" indicator anyway,
+      // so landing near the right edge of the strip is the most
+      // visually-honest target available.
+      const maxVisibleSlots = Math.max(
+        0,
+        Math.floor((rect.w - SIDE_PADDING * 2 - OVERFLOW_RESERVE) / slot),
+      )
+      const targetIdx = Math.min(c, maxVisibleSlots)
+      // Center of the slot — the position where the new pebble will
+      // render after the store's deferred increment fires. The first
+      // real pebble lands at the left even when count was 0 (and the
+      // dashed placeholder was centered), so we always target the slot
+      // position, not the placeholder's center.
+      const offsetX =
+        SIDE_PADDING + targetIdx * slot + pebbleWidth(PEBBLE_SIZE) / 2
+      registerCairn({ x: rect.x + offsetX, y: rect.y + rect.h / 2 })
+    },
+    [registerCairn],
+  )
+
+  const onCairnLayout = useCallback(() => {
+    cairnRef.current?.measureInWindow((x, y, w, h) => {
+      rectRef.current = { x, y, w, h }
+      publishTarget(rectRef.current, count)
+    })
+  }, [count, publishTarget])
+
+  // Republish when the count changes — handles the case where layout fires
+  // once on mount and the row content reflows internally without retriggering
+  // onLayout on the container.
+  useEffect(() => {
+    if (rectRef.current) publishTarget(rectRef.current, count)
+  }, [count, publishTarget])
+
   if (count === 0) {
     return (
       <View
+        ref={cairnRef}
+        onLayout={onCairnLayout}
         style={styles.container}
         accessible
         accessibilityRole="text"
@@ -118,6 +169,8 @@ export default function PebbleStrip({ count }: Props) {
 
   return (
     <View
+      ref={cairnRef}
+      onLayout={onCairnLayout}
       style={styles.container}
       accessible
       accessibilityRole="text"

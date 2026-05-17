@@ -21,9 +21,11 @@ import Footer from "./src/components/Footer";
 import Avatar from "./src/components/Avatar";
 import ProfileSheet from "./src/components/ProfileSheet";
 import CategorySheet from "./src/components/CategorySheet";
+import type { Filter } from "./src/types";
 import { LangProvider, useLang } from "./src/LangContext";
 import { AuthProvider, useAuth } from "./src/AuthContext";
 import { NotifyProvider } from "./src/notify";
+import { PebbleFlightProvider } from "./src/components/PebbleFlight";
 import { ErrorBoundary } from "./src/ErrorBoundary";
 import { useTodoStore } from "./src/useTodoStore";
 import { buildDoneGroups } from "../core/src/groups";
@@ -137,7 +139,9 @@ function AppInner() {
           <View style={styles.stickyFilter}>
             <FilterBar
               filter={store.filter}
+              pinnedFilters={(store.profile.pinnedFilters ?? []) as Filter[]}
               onFilter={store.setFilter}
+              onPinFilter={store.pinFilter}
               onOpenSheet={() => setCategorySheetOpen(true)}
               systemCounts={store.systemCounts}
               byCategory={store.byCategory}
@@ -548,7 +552,9 @@ function AppInner() {
       <CategorySheet
         visible={categorySheetOpen}
         currentFilter={store.filter}
+        pinnedFilters={(store.profile.pinnedFilters ?? []) as Filter[]}
         onSelectFilter={store.setFilter}
+        onPinFilter={store.pinFilter}
         categories={store.categories}
         taskCounts={store.taskCountsForSheet}
         systemCounts={store.systemCounts}
@@ -601,7 +607,9 @@ export default function App() {
           <AuthProvider>
             <LangProvider>
               <NotifyProvider>
-                <AppInner />
+                <PebbleFlightProvider>
+                  <AppInner />
+                </PebbleFlightProvider>
               </NotifyProvider>
             </LangProvider>
           </AuthProvider>

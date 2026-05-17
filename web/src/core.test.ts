@@ -258,6 +258,33 @@ describe("subtasks", () => {
     expect(state[0].done).toBe(false);
   });
 
+  it("todoToggle on a rolling recurrence rolls dueDate AND emits a Done snapshot", () => {
+    const td = makeTodo();
+    const withRec = {
+      ...td,
+      dueDate: "2026-05-10",
+      recurrence: { freq: "weekly" as const },
+    };
+    const out = todoToggle([withRec], withRec.id);
+    expect(out).toHaveLength(2);
+    const rolled = out.find((t) => t.id === withRec.id)!;
+    const snapshot = out.find((t) => t.id !== withRec.id)!;
+    // Rolled-forward original — still recurring, still open, new dueDate.
+    expect(rolled.done).toBe(false);
+    expect(rolled.trashed).toBe(false);
+    expect(rolled.dueDate).toBe("2026-05-17");
+    expect(rolled.recurrence?.freq).toBe("weekly");
+    // Snapshot — frozen at the just-completed dueDate, in the Done bin
+    // with a completionDate of today; no recurrence (it's a one-time
+    // historical record).
+    expect(snapshot.done).toBe(true);
+    expect(snapshot.trashed).toBe(true);
+    expect(snapshot.dueDate).toBe("2026-05-10");
+    expect(snapshot.recurrence).toBeUndefined();
+    expect(snapshot.completionDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(snapshot.text).toBe(withRec.text);
+  });
+
   it("todoToggle is a no-op when subs exist (parent done is derived)", () => {
     let state = [makeTodo()];
     state = subtaskAdd(state, state[0].id, "a");
@@ -530,6 +557,53 @@ describe("migrateProfile", () => {
       kind: "image",
       uri: "data:image/png;base64,abc",
     });
+  });
+
+  it("promotes legacy single `pinnedFilter` string to `pinnedFilters` array", () => {
+    const out = migrateProfile({
+      name: "X",
+      avatar: { kind: "preset", key: "smile" },
+      pinnedFilter: "open",
+    });
+    expect(out.pinnedFilters).toEqual(["open"]);
+  });
+
+  it("preserves `pinnedFilters` array and rejects garbage entries", () => {
+    const out = migrateProfile({
+      name: "X",
+      avatar: { kind: "preset", key: "smile" },
+      pinnedFilters: ["open", "cat:home", "not-a-filter", "", 42, "cat:work"],
+    });
+    expect(out.pinnedFilters).toEqual(["open", "cat:home", "cat:work"]);
+  });
+
+  it("caps `pinnedFilters` at 12 entries", () => {
+    const many = Array.from({ length: 20 }, (_, i) => `cat:c${i}`);
+    const out = migrateProfile({
+      name: "X",
+      avatar: { kind: "preset", key: "smile" },
+      pinnedFilters: many,
+    });
+    expect(out.pinnedFilters).toHaveLength(12);
+  });
+
+  it("preserves lifetime pebbles and onboarding flag (regression: were dropped)", () => {
+    const out = migrateProfile({
+      name: "X",
+      avatar: { kind: "preset", key: "smile" },
+      lifetimePebbles: 42,
+      todayTaskPebbles: 3,
+      pebblesDate: "2026-05-16",
+      onboardingDone: true,
+      dailyCheckinEnabled: true,
+      dailyCheckinHour: 9,
+    });
+    expect(out.lifetimePebbles).toBe(42);
+    expect(out.todayTaskPebbles).toBe(3);
+    expect(out.pebblesDate).toBe("2026-05-16");
+    expect(out.onboardingDone).toBe(true);
+    expect(out.dailyCheckinEnabled).toBe(true);
+    expect(out.dailyCheckinHour).toBe(9);
   });
 });
 

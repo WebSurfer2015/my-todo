@@ -79,6 +79,14 @@ export interface Profile {
    */
   dailyCheckinEnabled?: boolean
   dailyCheckinHour?: number
+  /**
+   * Filters the user has pinned as quick-access pills in the FilterBar.
+   * Stored as raw `Filter` strings (e.g. `'open'` or `'cat:home'`) so
+   * category pins follow the user even if the category list reorders.
+   * Order is preserved — first-pinned-first-shown. Launch always opens
+   * on `'all'`; pins are just shortcut pills.
+   */
+  pinnedFilters?: string[]
 }
 
 export type PebbleKind = 'task' | 'subtask'
@@ -241,7 +249,57 @@ export function migrateProfile(raw: unknown): Profile {
     statuses: migrateStatuses(p.statuses),
     completionAnimation: p.completionAnimation === false ? false : undefined,
     completionSound: p.completionSound === false ? false : undefined,
+    lifetimePebbles:
+      typeof p.lifetimePebbles === 'number' && p.lifetimePebbles >= 0
+        ? Math.floor(p.lifetimePebbles)
+        : undefined,
+    todayTaskPebbles:
+      typeof p.todayTaskPebbles === 'number' && p.todayTaskPebbles >= 0
+        ? Math.floor(p.todayTaskPebbles)
+        : undefined,
+    todaySubtaskPebbles:
+      typeof p.todaySubtaskPebbles === 'number' && p.todaySubtaskPebbles >= 0
+        ? Math.floor(p.todaySubtaskPebbles)
+        : undefined,
+    pebblesDate:
+      typeof p.pebblesDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.pebblesDate)
+        ? p.pebblesDate
+        : undefined,
+    onboardingDone: p.onboardingDone === true ? true : undefined,
+    dailyCheckinEnabled: p.dailyCheckinEnabled === true ? true : undefined,
+    dailyCheckinHour:
+      typeof p.dailyCheckinHour === 'number' &&
+      p.dailyCheckinHour >= 0 &&
+      p.dailyCheckinHour <= 23
+        ? Math.floor(p.dailyCheckinHour)
+        : undefined,
+    pinnedFilters: migratePinnedFilters(p.pinnedFilters ?? p.pinnedFilter),
   }
+}
+
+/** Filter validator for the persisted `pinnedFilters` list. Accepts the
+ * canonical system filters and `cat:<non-empty-id>`. Dedupes by first
+ * occurrence and caps at 12 (sane upper bound — the FilterBar row would
+ * scroll past viewport long before then). Falls back to a single-string
+ * legacy value (the field used to be `pinnedFilter`) for backward compat. */
+function migratePinnedFilters(raw: unknown): string[] | undefined {
+  const valid = (s: unknown): s is string => {
+    if (typeof s !== 'string' || s.length === 0) return false
+    if (s === 'all' || s === 'open' || s === 'overdue' || s === 'done' || s === 'trash') {
+      return true
+    }
+    return s.startsWith('cat:') && s.length > 4 && s.length <= 200
+  }
+  const items: string[] = []
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (valid(item) && !items.includes(item)) items.push(item)
+      if (items.length >= 12) break
+    }
+  } else if (valid(raw)) {
+    items.push(raw)
+  }
+  return items.length > 0 ? items : undefined
 }
 
 const VALID_STATUS_IDS: StatusFilter[] = ['overdue', 'open', 'done', 'trash']

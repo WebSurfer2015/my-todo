@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
-import { Filter as FunnelIcon } from 'lucide-react-native'
+import React, { useEffect, useMemo, useRef } from 'react'
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActionSheetIOS, Alert, Platform } from 'react-native'
+import { Filter as FunnelIcon, Pin } from 'lucide-react-native'
 import {
   Filter,
   StatusFilter,
@@ -16,7 +16,12 @@ import { CairnGlyph } from './PebbleStrip'
 
 interface Props {
   filter: Filter
+  /** Profile.pinnedFilters — ordered list of quick-access pills the user
+   * has pinned. Long-pressing any pill toggles its pin status. Each pinned
+   * pill renders with a small Pin icon next to its label. */
+  pinnedFilters: Filter[]
   onFilter: (f: Filter) => void
+  onPinFilter: (f: Filter) => void
   onOpenSheet: () => void
   categories: CategoryDef[]
   orderedVisibleStatuses: { id: StatusFilter; label: string }[]
@@ -27,17 +32,27 @@ interface Props {
   scrolledPebbleCount?: number
 }
 
+interface ResolvedPill {
+  filter: Filter
+  icon: React.ReactNode | null
+  label: string
+  count: number
+  /** Status/category accent color, used by the icon and (when pinned)
+   * the pin glyph so the cluster reads as one visual unit. */
+  color: string
+}
+
 /**
- * Three-piece filter row: funnel icon (opens the combined picker sheet),
- * the always-present "All" pill (taps clear any filter back to default),
- * and a sticky "last selected" pill that surfaces the most recent
- * non-All filter. When the active filter matches the sticky pill, it
- * renders highlighted; otherwise it stays visible (so the user can
- * one-tap re-apply the previous filter) but reads as inactive.
+ * Filter row: funnel icon (opens the Configure sheet), the always-present
+ * "All" pill, every pinned filter as a quick-access pill, and at most one
+ * trailing pill for the currently selected filter when it's neither All
+ * nor in the pinned list. Long-press any pill to pin/unpin.
  */
 export default function FilterBar({
   filter,
+  pinnedFilters,
   onFilter,
+  onPinFilter,
   onOpenSheet,
   categories,
   orderedVisibleStatuses,
@@ -49,48 +64,91 @@ export default function FilterBar({
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
 
-  // Remember the most recently picked non-All filter. Stays visible as a
-  // dim pill after tapping "All" so the user can re-apply it without
-  // reopening the sheet.
-  const [stickyFilter, setStickyFilter] = useState<Filter | null>(null)
+  // Auto-scroll the pill row so the currently-active pill is in view.
+  // The trailing "extra" pill for an unpinned current filter sits at the
+  // end of a row that can grow longer than the viewport once enough pins
+  // accumulate; this keeps it visible without the user having to swipe.
+  const scrollRef = useRef<ScrollView>(null)
+  const pillXRef = useRef<Record<string, number>>({})
   useEffect(() => {
-    if (filter !== 'all') setStickyFilter(filter)
-  }, [filter])
+    const x = pillXRef.current[filter]
+    if (x === undefined || !scrollRef.current) return
+    // Land the pill 16pt from the left edge of the viewport (matches the
+    // row's leading padding) and clamp at 0 so we don't bounce.
+    scrollRef.current.scrollTo({ x: Math.max(0, x - 16), animated: true })
+  }, [filter, pinnedFilters])
 
-  // Resolve display info (icon/label/color/count) for the sticky pill's
-  // target filter. If the underlying category was deleted or the status
-  // was hidden since we last saw it, fall back to null and don't render.
-  function resolveFilter(f: Filter): {
-    icon: React.ReactNode
-    label: string
-    color: string
-    count: number
-  } | null {
-    if (f === 'all') return null
+  // Resolve display info (icon/label/count/color) for any Filter. Returns
+  // null when the underlying status is hidden or the category was deleted.
+  function resolvePill(f: Filter): ResolvedPill | null {
+    if (f === 'all') {
+      return {
+        filter: 'all',
+        icon: null,
+        label: t.filters.all,
+        count: systemCounts.all,
+        color: theme.primary,
+      }
+    }
     if (isCategoryFilter(f)) {
       const id = categoryIdFromFilter(f)
       const c = categories.find((x) => x.id === id)
       if (!c) return null
       return {
+        filter: f,
         icon: <CategoryIcon icon={c.icon} size={15} color={c.color} />,
         label: categoryLabel(c, t),
-        color: c.color,
         count: byCategory[c.id] ?? 0,
+        color: c.color,
       }
     }
     const s = orderedVisibleStatuses.find((x) => x.id === f)
     if (!s) return null
     return {
+      filter: f,
       icon: <StatusIcon id={s.id} size={15} color={statusColor(s.id, theme)} />,
       label: s.label,
-      color: statusColor(s.id, theme),
       count: systemCounts[s.id] ?? 0,
+      color: statusColor(s.id, theme),
     }
   }
 
-  const stickyResolved = stickyFilter ? resolveFilter(stickyFilter) : null
-  const stickyActive = !!stickyFilter && filter === stickyFilter
-  const allActive = filter === 'all'
+  // Long-press any pill → action sheet to pin or unpin it as a quick-access
+  // pill in the filter bar. Toggle based on current pin state.
+  function promptPin(target: Filter, label: string) {
+    const isPinned = pinnedFilters.includes(target)
+    const actionLabel = isPinned ? t.unpin : t.pin
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: [actionLabel, t.cancel], title: label, cancelButtonIndex: 1 },
+        (i) => { if (i === 0) onPinFilter(target) },
+      )
+    } else {
+      Alert.alert(label, undefined, [
+        { text: actionLabel, onPress: () => onPinFilter(target) },
+        { text: t.cancel, style: 'cancel' },
+      ])
+    }
+  }
+
+  // Build the visible pill order: All, then each pinned filter (in pin
+  // order, skipping ones we couldn't resolve), then the current filter
+  // when it's neither All nor pinned (so the user can always see which
+  // filter is active).
+  const visiblePills: { pill: ResolvedPill; pinned: boolean }[] = []
+  const allPill = resolvePill('all')!
+  visiblePills.push({ pill: allPill, pinned: pinnedFilters.includes('all') })
+
+  for (const f of pinnedFilters) {
+    if (f === 'all') continue
+    const p = resolvePill(f)
+    if (p) visiblePills.push({ pill: p, pinned: true })
+  }
+
+  if (filter !== 'all' && !pinnedFilters.includes(filter)) {
+    const extra = resolvePill(filter)
+    if (extra) visiblePills.push({ pill: extra, pinned: false })
+  }
 
   return (
     <View style={styles.row}>
@@ -105,29 +163,62 @@ export default function FilterBar({
         <Text style={styles.iconLabel} maxFontSizeMultiplier={1.3}>Filter</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity
-        style={[styles.pill, allActive && styles.pillActive]}
-        onPress={() => onFilter('all')}
-        activeOpacity={0.75}
-        accessibilityRole="button"
-        accessibilityState={{ selected: allActive }}
-        accessibilityLabel={`All tasks, ${systemCounts.all}${allActive ? ', selected' : ''}`}
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.pillsScroll}
+        keyboardShouldPersistTaps="handled"
       >
-        <Text
-          style={[styles.pillLabel, allActive && styles.pillLabelActive]}
-          maxFontSizeMultiplier={1.3}
-        >
-          {t.filters.all}
-        </Text>
-        {systemCounts.all > 0 && (
-          <Text
-            style={[styles.pillCount, allActive && styles.pillCountActive]}
-            maxFontSizeMultiplier={1.3}
-          >
-            {systemCounts.all}
-          </Text>
-        )}
-      </TouchableOpacity>
+        {visiblePills.map(({ pill, pinned }) => {
+          const active = filter === pill.filter
+          // Pinned-and-active: filled primary (the canonical "current" look).
+          // Pinned-not-active: dim shortcut, gentle accent color.
+          // Not-pinned-and-active (the "extra" trailing pill): soft selected.
+          return (
+            <TouchableOpacity
+              key={pill.filter}
+              style={[
+                styles.pill,
+                active ? styles.pillActive : pinned ? styles.pillSticky : styles.pillExtra,
+              ]}
+              onLayout={(e) => { pillXRef.current[pill.filter] = e.nativeEvent.layout.x }}
+              onPress={() => onFilter(pill.filter)}
+              onLongPress={() => promptPin(pill.filter, pill.label)}
+              delayLongPress={350}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={`${pill.label}, ${pill.count}${active ? ', selected' : ''}${pinned ? ', pinned' : ''}`}
+              accessibilityHint="Long-press to pin or unpin"
+            >
+              {pinned && (
+                <Pin
+                  size={10}
+                  color={active ? '#fff' : theme.label3}
+                  strokeWidth={2.5}
+                />
+              )}
+              {pill.icon}
+              <Text
+                style={[styles.pillLabel, active && styles.pillLabelActive]}
+                numberOfLines={1}
+                maxFontSizeMultiplier={1.3}
+              >
+                {pill.label}
+              </Text>
+              {pill.count > 0 && (
+                <Text
+                  style={[styles.pillCount, active && styles.pillCountActive]}
+                  maxFontSizeMultiplier={1.3}
+                >
+                  {pill.count}
+                </Text>
+              )}
+            </TouchableOpacity>
+          )
+        })}
+      </ScrollView>
 
       {scrolledPebbleCount > 0 && (
         <View
@@ -138,41 +229,6 @@ export default function FilterBar({
         >
           <CairnGlyph size={14} />
         </View>
-      )}
-
-      {stickyResolved && stickyFilter && (
-        <TouchableOpacity
-          style={[
-            styles.pill,
-            stickyActive ? styles.pillSelected : styles.pillSticky,
-          ]}
-          onPress={() => onFilter(stickyFilter)}
-          activeOpacity={0.75}
-          accessibilityRole="button"
-          accessibilityState={{ selected: stickyActive }}
-          accessibilityLabel={`${stickyResolved.label}, ${stickyResolved.count}${stickyActive ? ', selected' : ''}`}
-        >
-          {stickyResolved.icon}
-          <Text
-            style={[
-              styles.pillLabel,
-              stickyActive ? styles.pillLabelSelected : null,
-            ]}
-            numberOfLines={1}
-          >
-            {stickyResolved.label}
-          </Text>
-          {stickyResolved.count > 0 && (
-            <Text
-              style={[
-                styles.pillCount,
-                stickyActive ? styles.pillCountSelected : null,
-              ]}
-            >
-              {stickyResolved.count}
-            </Text>
-          )}
-        </TouchableOpacity>
       )}
     </View>
   )
@@ -201,6 +257,12 @@ function makeStyles(c: ThemeColors) {
       color: c.label2,
       letterSpacing: -0.16,
     },
+    pillsScroll: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingRight: 4,
+    },
     pill: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -216,37 +278,39 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.primary,
       borderColor: c.primary,
     },
-    pillSelected: {
-      backgroundColor: c.primarySoft,
-      borderColor: c.primary,
-    },
     pillSticky: {
-      // Inactive "last selected" — visible but de-emphasized so the user
-      // can re-apply it with one tap without losing visual hierarchy.
+      // Inactive pinned pill — visible but de-emphasized.
       backgroundColor: c.card,
       borderColor: c.border,
-      opacity: 0.85,
+    },
+    pillExtra: {
+      // Currently-selected-but-not-pinned filter — mint outline on the
+      // default card background, distinct from the filled `pillActive`
+      // (filled mint + white text). Reads as "candidate" rather than
+      // "canonical default."
+      backgroundColor: c.card,
+      borderColor: c.primary,
+      borderWidth: 1.5,
     },
     pillLabel: {
       fontSize: 13,
       fontWeight: '600',
       letterSpacing: -0.16,
       color: c.label,
-      maxWidth: 140,
+      maxWidth: 180,
     },
     pillLabelActive: { color: '#fff' },
-    pillLabelSelected: { color: c.primary },
+    // Count chip — bumped up one weight step + tabular-nums so wide
+    // counts (e.g. "12") align consistently next to the label.
     pillCount: {
-      fontSize: 11,
+      fontSize: 12,
       fontWeight: '700',
-      color: c.label3,
+      color: c.label2,
       fontVariant: ['tabular-nums'],
       marginLeft: 2,
     },
-    pillCountActive: { color: 'rgba(255,255,255,0.9)' },
-    pillCountSelected: { color: c.primary, opacity: 0.8 },
+    pillCountActive: { color: 'rgba(255,255,255,0.95)' },
     pebbleHint: {
-      marginLeft: 'auto',
       alignItems: 'center',
       justifyContent: 'center',
       paddingLeft: 8,
