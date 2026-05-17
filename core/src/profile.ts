@@ -95,6 +95,19 @@ export interface Profile {
    * on `'all'`; pins are just shortcut pills.
    */
   pinnedFilters?: string[]
+  /**
+   * App background choice — pairs a pattern key (e.g. 'solid', 'gradient',
+   * 'blob') with a color-pair key (e.g. 'cream', 'mochi-shell'). Rendering
+   * lives in the mobile workspace; core stores raw strings and lets the
+   * renderer fall back to the default when a key is unknown. Missing field
+   * = the default cream-solid look (zero diff from v1.0.x).
+   */
+  background?: BackgroundChoice
+}
+
+export interface BackgroundChoice {
+  pattern: string
+  pairKey: string
 }
 
 export type PebbleKind = 'task' | 'subtask'
@@ -282,6 +295,20 @@ export function migrateProfile(raw: unknown): Profile {
         ? Math.floor(p.dailyCheckinHour)
         : undefined,
     pinnedFilters: migratePinnedFilters(p.pinnedFilters ?? p.pinnedFilter),
+    background: migrateBackground(p.background),
+  }
+}
+
+const MAX_BG_KEY_LEN = 48
+
+function migrateBackground(raw: unknown): BackgroundChoice | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const b = raw as Record<string, unknown>
+  if (typeof b.pattern !== 'string' || b.pattern.length === 0) return undefined
+  if (typeof b.pairKey !== 'string' || b.pairKey.length === 0) return undefined
+  return {
+    pattern: b.pattern.slice(0, MAX_BG_KEY_LEN),
+    pairKey: b.pairKey.slice(0, MAX_BG_KEY_LEN),
   }
 }
 

@@ -21,6 +21,8 @@ import TaskItem from "./src/components/TaskItem";
 import Footer from "./src/components/Footer";
 import Avatar from "./src/components/Avatar";
 import ProfileSheet from "./src/components/ProfileSheet";
+import BackgroundPicker from "./src/components/BackgroundPicker";
+import AppBackground from "./src/components/AppBackground";
 import CategorySheet from "./src/components/CategorySheet";
 import ChatSheet from "./src/components/ChatSheet";
 import type { Filter } from "./src/types";
@@ -49,6 +51,7 @@ function AppInner() {
   const safeArea = useSafeAreaInsets();
 
   const [profileOpen, setProfileOpen] = useState(false);
+  const [bgPickerOpen, setBgPickerOpen] = useState(false);
   const [categorySheetOpen, setCategorySheetOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -99,6 +102,7 @@ function AppInner() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+      <AppBackground choice={store.profile.background} />
       <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
       <KeyboardAvoidingView
         style={styles.kb}
@@ -569,6 +573,15 @@ function AppInner() {
           setProfileOpen(false);
         }}
         onClose={() => setProfileOpen(false)}
+        onOpenBackgrounds={() => setBgPickerOpen(true)}
+      />
+      <BackgroundPicker
+        visible={bgPickerOpen}
+        value={store.profile.background}
+        onChange={(next) =>
+          store.saveProfile({ ...store.profile, background: next })
+        }
+        onClose={() => setBgPickerOpen(false)}
       />
       <CategorySheet
         visible={categorySheetOpen}
@@ -754,11 +767,11 @@ function makeStyles(c: ThemeColors) {
       elevation: 1,
     },
     rowSeparator: {
-      // Tiny visible gap between tasks. Painted in the page background so
-      // each row reads as its own card even though the group is one
-      // wrapping View.
+      // Tiny visible gap between tasks. Transparent so the user-chosen
+      // AppBackground shows through the seam; each row still reads as its
+      // own card thanks to its own card-color fill.
       height: 4,
-      backgroundColor: c.bg,
+      backgroundColor: 'transparent',
     },
     groupHeader: {
       fontSize: 12,

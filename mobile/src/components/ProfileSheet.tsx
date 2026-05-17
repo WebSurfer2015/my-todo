@@ -57,6 +57,9 @@ interface Props {
   /** Snapshot of the user's todos + categories. Used by the data-export
    * action; not modified by this sheet. */
   exportSnapshot?: () => string;
+  /** Opens the app-background picker. Parent owns the modal so we avoid
+   * iOS modal-on-modal layering issues. */
+  onOpenBackgrounds?: () => void;
   onSave: (p: Profile) => void;
   onClose: () => void;
 }
@@ -65,6 +68,7 @@ export default function ProfileSheet({
   visible,
   profile,
   exportSnapshot,
+  onOpenBackgrounds,
   onSave,
   onClose,
 }: Props) {
@@ -544,6 +548,22 @@ export default function ProfileSheet({
                 removed from the cloud the same moment.
               </Text>
             </View>
+
+            {onOpenBackgrounds && (
+              <TouchableOpacity
+                style={styles.exportBtn}
+                onPress={() => {
+                  onClose();
+                  // Defer so the ProfileSheet modal can finish dismissing
+                  // before the next modal slides up — iOS hates modal-on-modal.
+                  setTimeout(() => onOpenBackgrounds(), 280);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Change app background"
+              >
+                <Text style={styles.exportBtnText}>Background</Text>
+              </TouchableOpacity>
+            )}
 
             {exportSnapshot && (
               <TouchableOpacity
