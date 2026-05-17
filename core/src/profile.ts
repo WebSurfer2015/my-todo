@@ -192,21 +192,32 @@ export interface PresetAvatar {
   imageKey?: string
 }
 
-/** Cross-platform emoji preset library. Stable keys so cross-device sync works. */
+/**
+ * Cross-platform emoji preset library — curated for the calm-app stance.
+ * Backgrounds are drawn from the Sagely pair palette (sage, mint, peach,
+ * sea-glass, lavender, honey, misty rose) so avatars match the rest of the
+ * UI instead of fighting it with bright system colors.
+ *
+ * Loud original presets (smile, rabbit, star, heart, sparkles, rocket) were
+ * dropped — they read as high-energy / achievement-y. Users who selected a
+ * dropped preset get migrated to a calmer equivalent in migrateAvatar.
+ *
+ * Stable keys so cross-device sync works.
+ */
 export const AVATAR_PRESET_LIBRARY: PresetAvatar[] = [
-  { key: 'mochi',    emoji: '🐢', bg: '#E8F0E5', imageKey: 'mochi' },  // Mochi illustration (brand mascot) — emoji is fallback only
-  { key: 'smile',    emoji: '😀', bg: '#FF9500' },
-  { key: 'cat',      emoji: '🐱', bg: '#34C759' },
-  { key: 'dog',      emoji: '🐶', bg: '#007AFF' },
-  { key: 'bird',     emoji: '🐦', bg: '#30B0C7' },
-  { key: 'rabbit',   emoji: '🐰', bg: '#FF2D92' },
-  { key: 'fish',     emoji: '🐠', bg: '#5856D6' },
-  { key: 'star',     emoji: '⭐', bg: '#FFCC00' },
-  { key: 'heart',    emoji: '❤️', bg: '#FF3B30' },
-  { key: 'sparkles', emoji: '✨', bg: '#AF52DE' },
-  { key: 'rocket',   emoji: '🚀', bg: '#0A84FF' },
-  { key: 'flower',   emoji: '🌸', bg: '#FF2D92' },
-  { key: 'sun',      emoji: '☀️', bg: '#FF9500' },
+  { key: 'mochi',     emoji: '🐢', bg: '#E8F0E5', imageKey: 'mochi' },  // brand mascot — emoji is fallback only
+  { key: 'cat',       emoji: '🐱', bg: '#C7D3CB' },  // sage
+  { key: 'dog',       emoji: '🐶', bg: '#E5D4A8' },  // honey
+  { key: 'bird',      emoji: '🐦', bg: '#C9DAD8' },  // sea-glass
+  { key: 'fish',      emoji: '🐠', bg: '#D6CFE1' },  // lavender
+  { key: 'flower',    emoji: '🌸', bg: '#EDD4D0' },  // misty rose
+  { key: 'sun',       emoji: '☀️', bg: '#F1D9C0' },  // peach
+  { key: 'leaf',      emoji: '🌿', bg: '#C2D9C9' },  // mint
+  { key: 'moon',      emoji: '🌙', bg: '#C8CFDA' },  // cool dawn
+  { key: 'butterfly', emoji: '🦋', bg: '#E0D2EA' },  // soft lavender
+  { key: 'cloud',     emoji: '☁️', bg: '#D6E0DF' },  // sea-glass light
+  { key: 'tree',      emoji: '🌲', bg: '#B9CCB4' },  // sage light
+  { key: 'owl',       emoji: '🦉', bg: '#D6C5A5' },  // warm sand
 ]
 
 /** Web's lucide-style icon avatars. Hex colors so they're cross-platform safe. */
@@ -376,7 +387,22 @@ function migrateAvatar(raw: unknown): Avatar | null {
     return { kind: 'icon', icon: a.icon.slice(0, 64), color: a.color.slice(0, 32) }
   }
   if (a.kind === 'preset' && typeof a.key === 'string') {
-    return { kind: 'preset', key: a.key.slice(0, 64) }
+    const key = a.key.slice(0, 64)
+    // Dropped-preset migration: the v1.2.x curation removed loud preset
+    // keys. Map each to a calmer cousin so an existing user doesn't
+    // silently flip to the global mochi fallback when their old choice
+    // disappears.
+    const mapped = DROPPED_PRESET_MIGRATIONS[key] ?? key
+    return { kind: 'preset', key: mapped }
   }
   return null
+}
+
+const DROPPED_PRESET_MIGRATIONS: Record<string, string> = {
+  smile:    'sun',
+  rabbit:   'cat',
+  star:     'sun',
+  heart:    'flower',
+  sparkles: 'moon',
+  rocket:   'bird',
 }
