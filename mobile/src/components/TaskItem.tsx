@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Modal, Alert, Pressable, ActionSheetIOS, Animated, Easing, Dimensions } from 'react-native'
 
 const SCREEN_WIDTH = Dimensions.get('window').width
@@ -153,12 +153,21 @@ function TaskItem({
   const checkboxScale = useRef(new Animated.Value(1)).current
   const rowFlash = useRef(new Animated.Value(0)).current
   const prevDoneRef = useRef(todo.done)
-  // Mochi pebble-flight overlay — measures the row's screen position on
-  // every done transition and arcs a Mochi sprite up to the PebbleStrip
-  // cairn registered at the top of the app. Skips when reduce-motion is on
-  // (handled by the provider).
+  // Mochi pebble-flight overlay — captures the row's screen position via
+  // onLayout (more reliable across RN versions / production bundles than
+  // measuring on a ref at trigger time) and arcs a Mochi sprite up to
+  // the PebbleStrip cairn registered at the top of the app. Skips when
+  // reduce-motion is on (handled by the provider).
   const triggerPebbleFlight = useTriggerPebbleFlight()
-  const rowRef = useRef<View>(null)
+  const rowCenterRef = useRef<{ x: number; y: number } | null>(null)
+  const rowMeasureRef = useRef<View>(null)
+  const onRowLayout = useCallback(() => {
+    rowMeasureRef.current?.measureInWindow((x, y, w, h) => {
+      if (typeof x === 'number' && typeof y === 'number' && w > 0 && h > 0) {
+        rowCenterRef.current = { x: x + w / 2, y: y + h / 2 }
+      }
+    })
+  }, [])
   useEffect(() => {
     if (todo.done && !prevDoneRef.current) {
       if (!reduceMotion) {
@@ -194,20 +203,18 @@ function TaskItem({
           ]).start()
         }
       }
-      // Measure the row's screen position and launch a Mochi from its
-      // center up to the next-pebble slot. The flight overlay owns the
-      // chime + the pebble reveal so they sync to Mochi's landing rather
-      // than firing at the start of the done transition. The provider
-      // honors `celebrate` / `playSound` flags so users who toggle either
-      // off in Profile get the right subset (chime-only / Mochi-only /
-      // nothing).
+      // Launch a Mochi from the row's pre-captured screen-center up to
+      // the next-pebble slot. Position was set in onRowLayout; if the
+      // layout pass hasn't fired yet (rare — first render of a brand-
+      // new row), fall back to the screen center so the flight still
+      // appears to come from somewhere visible.
       if (playSound || celebrate) {
-        rowRef.current?.measureInWindow((x, y, w, h) => {
-          triggerPebbleFlight(
-            { x: x + w / 2, y: y + h / 2 },
-            { animate: celebrate, chime: playSound },
-          )
-        })
+        const from =
+          rowCenterRef.current ?? {
+            x: Dimensions.get('window').width / 2,
+            y: Dimensions.get('window').height / 2,
+          }
+        triggerPebbleFlight(from, { animate: celebrate, chime: playSound })
       }
     }
     prevDoneRef.current = todo.done
@@ -416,7 +423,6 @@ function TaskItem({
       onSwipeableWillClose={() => setSwipeOpen(false)}
     >
       <Pressable
-        ref={rowRef}
         onLongPress={swipeOpen ? undefined : handleLongPress}
         delayLongPress={350}
         style={({ pressed }) => [
@@ -429,6 +435,18 @@ function TaskItem({
           pressed && styles.rowPressed,
         ]}
       >
+        {/* Layout-pass position capture for the Mochi pebble flight.
+            Absolute-fill so it follows the row's bounds without adding
+            layout, and pointerEvents:none so it never intercepts taps.
+            measureInWindow inside onLayout is bulletproof across RN
+            versions / production bundles, where ref-on-Pressable +
+            measure-at-trigger-time has had spotty support. */}
+        <View
+          ref={rowMeasureRef}
+          onLayout={onRowLayout}
+          pointerEvents="none"
+          style={StyleSheet.absoluteFill}
+        />
         {/* Always-on subtle row flash on done-transition. Sits above the
             row content via absolute positioning + pointerEvents:none so it
             doesn't intercept taps. */}

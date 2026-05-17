@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from 'react'
-import { Animated, Easing, Image, StyleSheet, View } from 'react-native'
+import { Animated, Dimensions, Easing, Image, StyleSheet, View } from 'react-native'
 import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from 'expo-audio'
 import { useReduceMotion } from '../useReduceMotion'
 
@@ -63,23 +63,29 @@ let sharedPlayer: AudioPlayer | null = null
 let audioModeReady = false
 
 function ensureSound() {
+  // Wrap each native call in its own try/catch — if the expo-audio
+  // native module didn't link into a production build, both
+  // setAudioModeAsync and createAudioPlayer can throw synchronously
+  // (not just reject a promise). We don't want that to take down the
+  // PebbleFlight provider; the animation should still work even with
+  // no sound.
   if (!audioModeReady) {
-    // Opt audio into iOS silent mode so the chime plays regardless of
-    // the ringer switch. expo-audio's setAudioModeAsync mirrors expo-av's.
-    setAudioModeAsync({
-      playsInSilentMode: true,
-      allowsRecording: false,
-      shouldPlayInBackground: false,
-      shouldRouteThroughEarpiece: false,
-      interruptionMode: 'mixWithOthers',
-      interruptionModeAndroid: 'duckOthers',
-    }).catch(() => {})
+    try {
+      setAudioModeAsync({
+        playsInSilentMode: true,
+        allowsRecording: false,
+        shouldPlayInBackground: false,
+        shouldRouteThroughEarpiece: false,
+        interruptionMode: 'mixWithOthers',
+        interruptionModeAndroid: 'duckOthers',
+      }).catch(() => {})
+    } catch {
+      // native module not linked or runtime mismatch — skip.
+    }
     audioModeReady = true
   }
   if (!sharedPlayer) {
     try {
-      // createAudioPlayer loads the asset synchronously into a player
-      // instance; subsequent play() calls are cheap and don't re-decode.
       sharedPlayer = createAudioPlayer(require('../../assets/sounds/complete.wav'))
       sharedPlayer.volume = 1.0
     } catch {
@@ -108,9 +114,16 @@ export function PebbleFlightProvider({ children }: { children: React.ReactNode }
   const reduceMotion = useReduceMotion()
 
   // Warm up the player on mount so the first chime doesn't lag while the
-  // WAV decodes.
+  // WAV decodes. Also seed a default cairn target near the top of the
+  // screen so flights have somewhere to land before PebbleStrip's
+  // onLayout fires (rare in dev, can happen on production cold-start
+  // before the All view's layout pass settles).
   useEffect(() => {
     ensureSound()
+    if (!cairnRef.current) {
+      const w = Dimensions.get('window').width
+      cairnRef.current = { x: w / 2, y: 70 }
+    }
   }, [])
 
   const registerCairn = useCallback((p: Point | null) => {
