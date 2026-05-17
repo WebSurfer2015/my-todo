@@ -192,6 +192,48 @@ export function useTodoStore() {
     todosRef.current = todos;
   }, [todos]);
 
+  // Post-hydrate pebble reconciliation. The stored today*Pebbles counters
+  // drive the cairn slot math during in-session animations (they're
+  // deferred so Mochi lands before the slot fills), but they can fall out
+  // of sync after sign-out → sign-in, a fresh install, or a midnight
+  // rollover — the user would see 0 pebbles even though today's todos
+  // clearly show several DONE items. Once per uid swap, after both
+  // profile + todos have loaded, walk today's `completionDate` timestamps
+  // on the live todos and bump the stored counter up if it's lagging.
+  // Subtasks don't carry a per-sub completion date so we leave their
+  // count alone here.
+  const reconciledForUidRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!profileLoaded || !todosLoaded) return;
+    const k = uid ?? "(local)";
+    if (reconciledForUidRef.current === k) return;
+    reconciledForUidRef.current = k;
+    const today = todayLocal();
+    const derivedTask = todos.filter(
+      (t) => !t.trashed && t.done && t.completionDate === today,
+    ).length;
+    const isToday = profile.pebblesDate === today;
+    const storedTask = isToday ? profile.todayTaskPebbles ?? 0 : 0;
+    const storedSub = isToday ? profile.todaySubtaskPebbles ?? 0 : 0;
+    if (!isToday || derivedTask > storedTask) {
+      setProfile((p) => ({
+        ...p,
+        pebblesDate: today,
+        todayTaskPebbles: Math.max(storedTask, derivedTask),
+        todaySubtaskPebbles: storedSub,
+      }));
+    }
+  }, [
+    profileLoaded,
+    todosLoaded,
+    uid,
+    todos,
+    profile.pebblesDate,
+    profile.todayTaskPebbles,
+    profile.todaySubtaskPebbles,
+    setProfile,
+  ]);
+
   // Auto-clear selection when leaving trash view
   useEffect(() => {
     if (filter !== "trash" && selectedTrashIds.size > 0) {
