@@ -12,6 +12,26 @@ For each new version page in ASC, before clicking **Add for Review**:
 - [ ] Export compliance / IDFA answers match the previous version's
 - [ ] Screenshots / metadata unchanged (or updated if the UI changed materially)
 
+## v1.2.0 — 2026-05-17
+
+A quieter home for your to-dos.
+
+- **Pick your own background.** A new Background row sits near the top
+  of your Profile sheet — choose a calm color (eight pairs, each tuned
+  for both light and dark mode) and a pattern: solid, gradient, blob,
+  wave, scatter, layered waves, stacked peaks, low-poly grid, circle
+  scatter, or scattered waves. The whole app shell takes on the look,
+  and your choice follows you across devices. Sea-glass solid is the
+  new default; Cream stays as the first option if you'd rather keep
+  the original look.
+- **Priority on the Edit to-do sheet.** The parent task's Edit view
+  now has a Priority row right under Category — matches how steps
+  already worked, so you don't drop back to the task row just to
+  switch it.
+
+Thanks for using Sagely. Feedback welcome at the support email on the
+listing.
+
 ## v1.1.0 — 2026-05-16
 
 A calmer, more customizable Sagely.
