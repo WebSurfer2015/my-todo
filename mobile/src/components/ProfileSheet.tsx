@@ -55,7 +55,6 @@ function normalizeAvatar(a: AvatarT | undefined | null): AvatarT {
 import Avatar from "./Avatar";
 import { CairnGlyph } from "./PebbleStrip";
 import { useLang } from "../LangContext";
-import { useNotify } from "../notify";
 import { useAuth } from "../AuthContext";
 import { useTheme, ThemeColors } from "../theme";
 
@@ -81,7 +80,6 @@ export default function ProfileSheet({
   onClose,
 }: Props) {
   const { t } = useLang();
-  const { showSnackbar } = useNotify();
   const { signOut, deleteAccount } = useAuth();
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
   const bgChoice = profile.background ?? DEFAULT_BACKGROUND;
@@ -311,7 +309,6 @@ export default function ProfileSheet({
       agentEnabled,
     });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    showSnackbar({ message: t.profileSaved });
     onClose();
   }
 

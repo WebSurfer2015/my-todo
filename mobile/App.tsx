@@ -215,8 +215,7 @@ function AppInner() {
               ) : (
                 <View style={styles.groupCard}>
                   {store.filtered.map((td, i) => (
-                    <View key={td.id}>
-                      {i > 0 && <View style={styles.rowSeparator} />}
+                    <View key={td.id} style={styles.taskCard}>
                       <TaskItem
                         todo={td}
                         categories={store.categories}
@@ -281,8 +280,7 @@ function AppInner() {
                       </Text>
                       <View style={styles.groupCard}>
                         {g.todos.map((td, i) => (
-                          <View key={td.id}>
-                            {i > 0 && <View style={styles.rowSeparator} />}
+                          <View key={td.id} style={styles.taskCard}>
                             <TaskItem
                               todo={td}
                               categories={store.categories}
@@ -345,8 +343,7 @@ function AppInner() {
                         return a.dueDate.localeCompare(b.dueDate);
                       })
                       .map((td, i) => (
-                        <View key={td.id}>
-                          {i > 0 && <View style={styles.rowSeparator} />}
+                        <View key={td.id} style={styles.taskCard}>
                           <TaskItem
                             todo={td}
                             categories={store.categories}
@@ -450,8 +447,7 @@ function AppInner() {
                     {!collapsed && (
                       <View style={styles.groupCard}>
                         {group.todos.map((td, i) => (
-                          <View key={td.id}>
-                            {i > 0 && <View style={styles.rowSeparator} />}
+                          <View key={td.id} style={styles.taskCard}>
                             <TaskItem
                               todo={td}
                               categories={store.categories}
@@ -757,6 +753,13 @@ function makeStyles(c: ThemeColors) {
       marginBottom: 18,
     },
     groupCard: {
+      // Transparent layout container — the card chrome moved to taskCard
+      // so each task reads as its own card with the AppBackground showing
+      // through the gap. `gap` spaces the children without needing
+      // separator <View>s in the JSX.
+      gap: 3,
+    },
+    taskCard: {
       backgroundColor: c.card,
       borderRadius: 12,
       overflow: "hidden",
@@ -765,13 +768,6 @@ function makeStyles(c: ThemeColors) {
       shadowOpacity: 0.04,
       shadowRadius: 3,
       elevation: 1,
-    },
-    rowSeparator: {
-      // Tiny visible gap between tasks. Transparent so the user-chosen
-      // AppBackground shows through the seam; each row still reads as its
-      // own card thanks to its own card-color fill.
-      height: 8,
-      backgroundColor: 'transparent',
     },
     groupHeader: {
       fontSize: 12,
