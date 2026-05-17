@@ -80,6 +80,14 @@ export interface Profile {
   dailyCheckinEnabled?: boolean
   dailyCheckinHour?: number
   /**
+   * Enables the Mochi agent (conversational helper that creates / edits
+   * to-dos from natural-language input). Off by default — opt-in via
+   * the Profile sheet. Server-side cap on free turns/day; details in
+   * the architecture doc. Storing on Profile so the choice syncs across
+   * the user's devices.
+   */
+  agentEnabled?: boolean
+  /**
    * Filters the user has pinned as quick-access pills in the FilterBar.
    * Stored as raw `Filter` strings (e.g. `'open'` or `'cat:home'`) so
    * category pins follow the user even if the category list reorders.

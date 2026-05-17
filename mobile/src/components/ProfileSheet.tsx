@@ -88,6 +88,9 @@ export default function ProfileSheet({
   const [dailyCheckin, setDailyCheckin] = useState<boolean>(
     profile.dailyCheckinEnabled === true,
   );
+  const [agentEnabled, setAgentEnabled] = useState<boolean>(
+    profile.agentEnabled === true,
+  );
   const [dailyCheckinHour, setDailyCheckinHour] = useState<number>(
     profile.dailyCheckinHour ?? 9,
   );
@@ -185,6 +188,7 @@ export default function ProfileSheet({
       setCelebrateSound(profile.completionSound !== false);
       setDailyCheckin(profile.dailyCheckinEnabled === true);
       setDailyCheckinHour(profile.dailyCheckinHour ?? 9);
+      setAgentEnabled(profile.agentEnabled === true);
     }
   }, [visible, profile]);
 
@@ -287,6 +291,7 @@ export default function ProfileSheet({
       completionSound: celebrateSound,
       dailyCheckinEnabled: dailyCheckin,
       dailyCheckinHour,
+      agentEnabled,
     });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     showSnackbar({ message: t.profileSaved });
@@ -460,6 +465,25 @@ export default function ProfileSheet({
               </View>
               <View style={[styles.toggleTrack, dailyCheckin && styles.toggleTrackOn]}>
                 <View style={[styles.toggleKnob, dailyCheckin && styles.toggleKnobOn]} />
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.toggleRow}
+              onPress={() => setAgentEnabled((v) => !v)}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: agentEnabled }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Ask Mochi (beta)</Text>
+                <Text style={styles.toggleHint}>
+                  Tell Mochi what to add or change in plain words. A small
+                  Mochi button appears on your list. Sends the text you type
+                  to a private AI service. Off by default.
+                </Text>
+              </View>
+              <View style={[styles.toggleTrack, agentEnabled && styles.toggleTrackOn]}>
+                <View style={[styles.toggleKnob, agentEnabled && styles.toggleKnobOn]} />
               </View>
             </TouchableOpacity>
 

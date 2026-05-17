@@ -8,8 +8,9 @@ import {
   StatusBar,
   Platform,
   KeyboardAvoidingView,
+  Image,
 } from "react-native";
-import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ChevronRight, ChevronDown } from "lucide-react-native";
 import { useTheme, ThemeColors } from "./src/theme";
@@ -21,6 +22,7 @@ import Footer from "./src/components/Footer";
 import Avatar from "./src/components/Avatar";
 import ProfileSheet from "./src/components/ProfileSheet";
 import CategorySheet from "./src/components/CategorySheet";
+import ChatSheet from "./src/components/ChatSheet";
 import type { Filter } from "./src/types";
 import { LangProvider, useLang } from "./src/LangContext";
 import { AuthProvider, useAuth } from "./src/AuthContext";
@@ -44,10 +46,12 @@ function AppInner() {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const store = useTodoStore();
+  const safeArea = useSafeAreaInsets();
 
   const [profileOpen, setProfileOpen] = useState(false);
   const [categorySheetOpen, setCategorySheetOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   // Collapse state for All-view group headers. All four groups
   // (today/week/overdue/upcoming) are toggleable; today + week default
   // open (focus), overdue + upcoming default closed (history/later).
@@ -526,6 +530,23 @@ function AppInner() {
             accessibilityLabel={t.addPlaceholder}
           />
         )}
+      {store.profile.agentEnabled && !store.inTrashView && (
+        <TouchableOpacity
+          style={[
+            styles.mochiFab,
+            { bottom: 16 + safeArea.bottom + 72 /* sits above the + FAB */ },
+          ]}
+          onPress={() => setChatOpen(true)}
+          accessibilityLabel="Ask Mochi"
+          accessibilityRole="button"
+        >
+          <Image
+            source={require("./assets/mochi-mascot.png")}
+            style={styles.mochiFabImage}
+            resizeMode="contain"
+          />
+        </TouchableOpacity>
+      )}
 
       <ProfileSheet
         visible={profileOpen}
@@ -576,6 +597,21 @@ function AppInner() {
         onAdd={store.addTask}
         onClose={() => setComposeOpen(false)}
       />
+      {store.profile.agentEnabled && (
+        <ChatSheet
+          visible={chatOpen}
+          onClose={() => setChatOpen(false)}
+          categories={store.categories}
+          onApplyCreateTodo={(op) =>
+            store.addTask(
+              op.args.text,
+              op.args.priority ?? "medium",
+              op.args.dueDate ?? "",
+              op.args.category,
+            )
+          }
+        />
+      )}
       <Onboarding
         visible={onboardingNeeded}
         onComplete={(intent) => {
@@ -621,6 +657,27 @@ export default function App() {
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
+    // Floating Mochi button — sits above the + FAB when the agent flag is
+    // on. Smaller than the + FAB and uses the transparent-turtle PNG so it
+    // reads as a mascot affordance rather than a generic action.
+    mochiFab: {
+      position: "absolute",
+      right: 22,
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      backgroundColor: c.card,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.18,
+      shadowRadius: 8,
+      elevation: 5,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+    },
+    mochiFabImage: { width: 42, height: 42 },
     safe: {
       flex: 1,
       backgroundColor: c.bg,
