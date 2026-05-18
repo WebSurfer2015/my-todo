@@ -36,7 +36,7 @@ service cloud.firestore {
       allow write:
         if request.auth != null
         && request.auth.uid == uid
-        && key in ['todos', 'categories', 'profile', 'groceries', 'groceryGroups']
+        && key in ['todos', 'categories', 'profile', 'groceries', 'groceryGroups', 'todoReferences']
         && request.resource.data.keys().hasOnly(['value', 'updatedAt'])
         && request.resource.data.value is string
         && request.resource.data.value.size() <= 524288

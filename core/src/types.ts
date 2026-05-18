@@ -105,6 +105,33 @@ export interface Todo {
   completionDate?: string
 }
 
+/**
+ * Lightweight historical record stored separately from `Todo[]`. Written
+ * to `users/{uid}/state/todoReferences` and queried by ComposeSheet to
+ * surface "you've added this before" auto-fill suggestions. Trimmed
+ * shape — just enough to repopulate a new compose with the same
+ * category / priority / recurrence the user originally picked.
+ *
+ * Dedupe key is `textLower`. Each new completion of the same text
+ * updates the existing entry in place (bumping `lastSeenAt`) so the
+ * suggestion list ranks by recency without bloating.
+ */
+export interface TodoReference {
+  /** Lowercased, trimmed text — the dedupe key. */
+  textLower: string
+  /** Original-case text from the most recent completion; what the
+   * suggestion row displays. */
+  text: string
+  category?: Category
+  priority?: Priority
+  /** Most recent ISO yyyy-mm-dd due date. Surfaced in the suggestion
+   * row so the user knows what they typically schedule for this item. */
+  dueDate?: string
+  recurrence?: Recurrence
+  /** ms since epoch — used for sort + eventual pruning. */
+  lastSeenAt: number
+}
+
 export const PRIORITY_VALUES: Priority[] = ['high', 'medium', 'low']
 
 /**

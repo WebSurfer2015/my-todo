@@ -413,7 +413,7 @@ function TodosScreen() {
                       accessibilityRole="button"
                       accessibilityLabel={`Defer ${displayFiltered.filter((td) => !td.done).length} carried-over to-dos`}
                     >
-                      <Text style={styles.deferAllText}>Defer all to →</Text>
+                      <Text style={styles.deferAllText}>Defer remaining →</Text>
                     </TouchableOpacity>
                   )}
                   <View style={styles.groupCard}>
@@ -527,7 +527,7 @@ function TodosScreen() {
                           accessibilityRole="button"
                           accessibilityLabel={`Defer ${openInGroupCount} to-dos in ${headerLabel}`}
                         >
-                          <Text style={styles.groupHeaderDeferText}>Defer all to →</Text>
+                          <Text style={styles.groupHeaderDeferText}>Defer remaining →</Text>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -668,7 +668,7 @@ function TodosScreen() {
         visible={composeOpen}
         categories={store.categories}
         defaultCategory={store.defaultCategory}
-        existingTodos={store.todos}
+        references={store.todoReferences}
         onAdd={store.addTask}
         onClose={() => setComposeOpen(false)}
       />

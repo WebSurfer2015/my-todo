@@ -6,6 +6,7 @@ import {
   RecurrenceFreq,
   Subtask,
   Todo,
+  TodoReference,
   isCategoryFilter,
   categoryIdFromFilter,
 } from "./types";
@@ -15,6 +16,15 @@ import { genUuid, todayLocal, nextOccurrence, expandRecurrence } from "./utils";
 import type { Strings } from "./i18n";
 
 export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Compose-suggestion history cap. Stored separately from `Todo[]`
+ * (see TodoReference + recordTodoReference) so it survives the 30-day
+ * trash purge and stays compact regardless of how active the user is.
+ * 500 entries covers ~a year of unique recurring/one-off items for a
+ * typical user; old entries fall off LRU-style as the cap is hit.
+ */
+export const MAX_TODO_REFERENCES = 500;
 
 // ---- Hard caps ----------------------------------------------------------
 // Defensive limits applied at hydration and on writes. These guard against
@@ -829,6 +839,96 @@ export interface DeriveInput {
   filter: Filter;
   categories: CategoryDef[];
   t: Strings;
+}
+
+/**
+ * Upsert a todo into the long-lived suggestion history. Called when a
+ * todo is checked off — we capture the user's chosen category /
+ * priority / recurrence so the same item, typed again later, can be
+ * auto-filled with the same metadata.
+ *
+ * Dedupe by lowercased text: re-completing the same item updates the
+ * existing entry in-place (most-recent values win) and bumps
+ * `lastSeenAt` so it ranks first in the suggestion list. The history
+ * is capped at MAX_TODO_REFERENCES on an LRU basis.
+ */
+export function recordTodoReference(
+  refs: TodoReference[],
+  todo: Pick<Todo, "text" | "category" | "priority" | "dueDate" | "recurrence">,
+): TodoReference[] {
+  const text = (todo.text ?? "").trim();
+  if (!text) return refs;
+  const textLower = text.toLowerCase();
+  const next: TodoReference = {
+    textLower,
+    text: text.slice(0, MAX_TODO_TEXT_LEN),
+    category: todo.category,
+    priority: todo.priority,
+    dueDate: todo.dueDate || undefined,
+    recurrence: todo.recurrence,
+    lastSeenAt: Date.now(),
+  };
+  // Drop any prior entry for the same text, then prepend the new
+  // version. Slicing to the cap evicts the oldest by sort position
+  // (which is recency, since we keep `next` at the head).
+  const filtered = refs.filter((r) => r.textLower !== textLower);
+  return [next, ...filtered].slice(0, MAX_TODO_REFERENCES);
+}
+
+/**
+ * Sanitize cloud / localStorage payloads of the suggestion history.
+ * Drops malformed entries silently so a corrupt write can't crash the
+ * compose sheet.
+ */
+export function migrateTodoReferences(raw: unknown): TodoReference[] {
+  if (!Array.isArray(raw)) return [];
+  const validPriorities = new Set<Priority>(["high", "medium", "low"]);
+  const out: TodoReference[] = [];
+  const seen = new Set<string>();
+  for (const r of raw.slice(0, MAX_TODO_REFERENCES)) {
+    if (typeof r !== "object" || r === null || Array.isArray(r)) continue;
+    const item = r as Partial<TodoReference>;
+    const text =
+      typeof item.text === "string"
+        ? item.text.slice(0, MAX_TODO_TEXT_LEN).trim()
+        : "";
+    if (!text) continue;
+    const textLower = text.toLowerCase();
+    if (seen.has(textLower)) continue;
+    seen.add(textLower);
+    out.push({
+      textLower,
+      text,
+      category:
+        typeof item.category === "string" && item.category.length > 0
+          ? item.category
+          : undefined,
+      priority: validPriorities.has(item.priority as Priority)
+        ? (item.priority as Priority)
+        : undefined,
+      dueDate:
+        typeof item.dueDate === "string" &&
+        /^\d{4}-\d{2}-\d{2}$/.test(item.dueDate)
+          ? item.dueDate
+          : undefined,
+      // Trust the shape of recurrence — same migrator as Todo would be
+      // overkill for this small suggestion list. Validation here just
+      // confirms it's a plain object with a known freq.
+      recurrence:
+        item.recurrence &&
+        typeof item.recurrence === "object" &&
+        typeof (item.recurrence as Recurrence).freq === "string"
+          ? (item.recurrence as Recurrence)
+          : undefined,
+      lastSeenAt:
+        typeof item.lastSeenAt === "number" && Number.isFinite(item.lastSeenAt)
+          ? item.lastSeenAt
+          : 0,
+    });
+  }
+  // Newest first so consumers don't need to sort.
+  out.sort((a, b) => b.lastSeenAt - a.lastSeenAt);
+  return out;
 }
 
 export function deriveState(input: DeriveInput): DerivedState {

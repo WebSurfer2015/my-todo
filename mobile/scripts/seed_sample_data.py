@@ -13,10 +13,17 @@ Layout written (matches firestoreAdapter.ts):
     updatedAt integerValue ms-since-epoch
 
 Counts:
-  2 today, 5 this week, 10 next week, 2 no date, 2 carried over (overdue),
+  Todos: 2 today, 5 this week, 10 next week, 2 no date, 2 carried over,
   2 completed (today, in Done bin), 2 trashed (legacy, no completionDate).
   Within the set: 2 todos have steps with their own due dates, and 2 use
   rolling recurrence (one weekly, one monthly).
+
+  Groceries: ~17 active items spread across the 8 seeded departments
+  + 3 checked items in Past Items, plus the 9 seeded grocery groups
+  (Produce, Meat & Seafood, Dairy & Eggs, Bakery, Frozen, Pantry,
+  Beverages, Household, Uncategorized). Profile pre-seeds the four
+  store filters (Costco, Trader Joe's, Stop & Shop, CVS) with Costco
+  + Trader Joe's pinned, and Produce + Dairy depts pinned.
 
 Usage:
   SAGELY_FIREBASE_WEB_API_KEY=<key> \\
@@ -198,6 +205,93 @@ def cluster_dates(start_offset: int, end_inclusive_offset: int,
             for i in range(count)]
 
 
+def build_grocery_groups() -> list[dict]:
+    """Mirror SEED_GROCERY_GROUPS in core/src/groceries.ts. The app's
+    migrator would auto-fill these on first read if we skipped the
+    write, but storing them explicitly makes the demo state lossless
+    across schema rev jumps."""
+    return [
+        {"id": "produce",   "label": "Produce"},
+        {"id": "meat",      "label": "Meat & Seafood"},
+        {"id": "dairy",     "label": "Dairy & Eggs"},
+        {"id": "bakery",    "label": "Bread & Bakery"},
+        {"id": "frozen",    "label": "Frozen"},
+        {"id": "pantry",    "label": "Pantry"},
+        {"id": "beverages", "label": "Beverages"},
+        {"id": "household", "label": "Household"},
+        {"id": "others",    "label": "Uncategorized"},
+    ]
+
+
+def build_groceries(today: date) -> list[dict]:
+    """Roughly two weeks' worth of typical household grocery items
+    spread across departments + stores, with a handful already
+    checked (which the app surfaces in the Past Items bucket so the
+    "tap to re-add" flow has something to demo)."""
+    now_ms = int(time.time() * 1000)
+    one_day_ms = 24 * 60 * 60 * 1000
+
+    def item(text, group, *, store=None, checked=False,
+             added_days_ago=0, checked_days_ago=None):
+        it = {
+            "id": newid(),
+            "text": text,
+            "groupId": group,
+            "checked": checked,
+            "addedAt": now_ms - added_days_ago * one_day_ms,
+        }
+        if store:
+            it["store"] = store
+        if checked:
+            it["checkedAt"] = now_ms - (checked_days_ago or 0) * one_day_ms
+        return it
+
+    return [
+        # — Produce —
+        item("Apples",       "produce", store="Costco",         added_days_ago=1),
+        item("Spinach",      "produce", store="Trader Joe's",   added_days_ago=2),
+        item("Bananas",      "produce",                         added_days_ago=0),
+        item("Avocados",     "produce", store="Trader Joe's",   added_days_ago=3),
+
+        # — Meat & Seafood —
+        item("Salmon",       "meat",    store="Costco",         added_days_ago=1),
+        item("Ground beef",  "meat",    store="Stop & Shop",    added_days_ago=4),
+
+        # — Dairy & Eggs —
+        item("Greek yogurt", "dairy",   store="Trader Joe's",   added_days_ago=2),
+        item("Eggs",         "dairy",   store="Costco",         added_days_ago=0),
+        item("Oat milk",     "dairy",   store="Trader Joe's",   added_days_ago=1),
+
+        # — Bread & Bakery —
+        item("Sourdough",    "bakery",  store="Trader Joe's",   added_days_ago=2),
+        item("Bagels",       "bakery",  store="Stop & Shop",    added_days_ago=5),
+
+        # — Frozen —
+        item("Frozen blueberries", "frozen", store="Costco",    added_days_ago=3),
+
+        # — Pantry —
+        item("Olive oil",    "pantry",  store="Costco",         added_days_ago=2),
+        item("Coffee beans", "pantry",                          added_days_ago=1),
+
+        # — Beverages —
+        item("Sparkling water", "beverages", store="Costco",    added_days_ago=3),
+
+        # — Household —
+        item("Paper towels", "household", store="Costco",       added_days_ago=4),
+        item("Toothpaste",   "household", store="CVS",          added_days_ago=2),
+
+        # — Past Items (checked, would appear in the "Past Items"
+        # bucket at the bottom of the list so the re-add affordance is
+        # visible in screenshots) —
+        item("Milk",     "dairy", store="Trader Joe's",
+             checked=True, added_days_ago=4, checked_days_ago=1),
+        item("Tomatoes", "produce", store="Stop & Shop",
+             checked=True, added_days_ago=6, checked_days_ago=2),
+        item("Dish soap", "household",
+             checked=True, added_days_ago=5, checked_days_ago=3),
+    ]
+
+
 def build_todos(today: date) -> list[dict]:
     now_ms = int(time.time() * 1000)
 
@@ -375,6 +469,8 @@ def main() -> int:
               "show up under Upcoming.")
     cats = build_categories()
     todos = build_todos(today)
+    grocery_groups = build_grocery_groups()
+    groceries = build_groceries(today)
 
     summary = {
         "today": 0, "thisWeek": 0, "nextWeek": 0, "noDate": 0,
@@ -436,11 +532,22 @@ def main() -> int:
     for k, v in summary.items():
         print(f"    {k:>14}: {v}")
 
+    # Grocery summary
+    grocery_active = sum(1 for g in groceries if not g["checked"])
+    grocery_past = sum(1 for g in groceries if g["checked"])
+    print(f"  {len(grocery_groups)} grocery groups, {len(groceries)} grocery items")
+    print(f"    {'active':>14}: {grocery_active}")
+    print(f"    {'past (checked)':>14}: {grocery_past}")
+
     print("Writing to Firestore…")
     firestore_put(uid, id_token, "categories",
                   {"version": SCHEMA_VERSION, "data": cats})
     firestore_put(uid, id_token, "todos",
                   {"version": SCHEMA_VERSION, "data": todos})
+    firestore_put(uid, id_token, "groceryGroups",
+                  {"version": SCHEMA_VERSION, "data": grocery_groups})
+    firestore_put(uid, id_token, "groceries",
+                  {"version": SCHEMA_VERSION, "data": groceries})
 
     # Merge pebble fields into the existing profile so we don't clobber
     # the user's name/avatar/quote. Missing profile → start from an empty
@@ -452,6 +559,16 @@ def main() -> int:
     profile["todayTaskPebbles"] = task_pebbles_today
     profile["todaySubtaskPebbles"] = subtask_pebbles_today
     profile["pebblesDate"] = today_iso
+    # Grocery-related profile defaults — explicit so the demo account
+    # always has the four seed stores in the filter sheet plus Costco
+    # pre-pinned to the pill row. Keeps the screenshots / first-run
+    # demo consistent across re-runs.
+    profile.setdefault(
+        "groceryStores",
+        ["Stop & Shop", "Costco", "CVS", "Trader Joe's"],
+    )
+    profile.setdefault("pinnedGroceryStores", ["Costco", "Trader Joe's"])
+    profile.setdefault("pinnedGroceryDepts", ["produce", "dairy"])
     firestore_put(uid, id_token, "profile",
                   {"version": SCHEMA_VERSION, "data": profile})
 

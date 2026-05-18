@@ -125,7 +125,7 @@ export default function DeferModal({
                   <Text style={styles.cancelText}>{t.cancel}</Text>
                 </TouchableOpacity>
                 <View style={styles.titleCenter}>
-                  <Text style={styles.title}>Defer remaining</Text>
+                  <Text style={styles.title}>Defer remaining to</Text>
                   {subtitle ? (
                     <Text style={styles.subtitle} numberOfLines={1}>
                       {subtitle}
@@ -140,21 +140,21 @@ export default function DeferModal({
               <View style={styles.card}>
                 <OptionRow
                   label={isTodayGroup ? 'Tomorrow' : 'Next day'}
-                  hint={formatTargetDate(tomorrow)}
+                  hint={isTodayGroup ? formatTargetDate(tomorrow) : undefined}
                   onPress={() => commit(tomorrow)}
                   styles={styles}
                 />
                 <Divider styles={styles} />
                 <OptionRow
                   label="A week later"
-                  hint={formatTargetDate(inAWeek)}
+                  hint={isTodayGroup ? formatTargetDate(inAWeek) : undefined}
                   onPress={() => commit(inAWeek)}
                   styles={styles}
                 />
                 <Divider styles={styles} />
                 <OptionRow
                   label="A month later"
-                  hint={formatTargetDate(inAMonth)}
+                  hint={isTodayGroup ? formatTargetDate(inAMonth) : undefined}
                   onPress={() => commit(inAMonth)}
                   styles={styles}
                 />
@@ -246,13 +246,19 @@ function OptionRow({
       accessibilityRole="button"
       accessibilityLabel={hint ? `${label}, ${hint}` : label}
     >
-      {icon}
-      <Text style={styles.rowLabel}>{label}</Text>
-      {hint ? (
-        <Text style={styles.rowHint} numberOfLines={1}>
-          {hint}
-        </Text>
-      ) : null}
+      {/* Icon + label (+ optional date hint) ride together as a single
+          centered cluster so the row reads symmetrical against the
+          trailing chevron. Date hint joins the cluster for the Today
+          group and is dropped for every other bucket. */}
+      <View style={styles.rowCenterCluster}>
+        {icon}
+        <Text style={styles.rowLabel}>{label}</Text>
+        {hint && (
+          <Text style={styles.rowHintInline} numberOfLines={1}>
+            · {hint}
+          </Text>
+        )}
+      </View>
       <ChevronRight size={14} color={styles.rowHint.color as string} strokeWidth={2} />
     </TouchableOpacity>
   )
@@ -263,39 +269,17 @@ function Divider({ styles }: { styles: ReturnType<typeof makeStyles> }) {
 }
 
 /**
- * Format a target Date as "tomorrow, Thursday, May 19" when it is
- * within ±1 day of today, otherwise "Thursday, May 19". Used in
- * option-row hints and the picker subtitle so the user sees what
- * lands when they commit.
+ * Format a target Date as "Thursday, May 19". The option-row label
+ * already carries the relative cue ("Tomorrow", "A week later"), so
+ * the hint stays purely calendrical to avoid redundancy.
  */
 function formatTargetDate(d: Date): string {
-  const today = startOfDay(new Date())
-  const target = startOfDay(d)
-  const diffDays = Math.round(
-    (target.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
-  )
-  const relative =
-    diffDays === 0
-      ? 'today'
-      : diffDays === 1
-        ? 'tomorrow'
-        : diffDays === -1
-          ? 'yesterday'
-          : null
   const weekday = d.toLocaleDateString(undefined, { weekday: 'long' })
   const monthDay = d.toLocaleDateString(undefined, {
     month: 'long',
     day: 'numeric',
   })
-  return relative
-    ? `${relative}, ${weekday}, ${monthDay}`
-    : `${weekday}, ${monthDay}`
-}
-
-function startOfDay(d: Date): Date {
-  const out = new Date(d)
-  out.setHours(0, 0, 0, 0)
-  return out
+  return `${weekday}, ${monthDay}`
 }
 
 function makeStyles(c: ThemeColors) {
@@ -358,6 +342,17 @@ function makeStyles(c: ThemeColors) {
       minHeight: 48,
     },
     rowLabel: { fontSize: 15, color: c.label, fontWeight: '500' },
+    rowCenterCluster: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    rowHintInline: {
+      fontSize: 13,
+      color: c.label3,
+    },
     rowHint: {
       flex: 1,
       fontSize: 13,

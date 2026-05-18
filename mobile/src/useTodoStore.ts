@@ -8,6 +8,7 @@ import {
   Recurrence,
   StatusFilter,
   Todo,
+  TodoReference,
   ViewMode,
   isCategoryFilter,
   categoryIdFromFilter,
@@ -69,6 +70,8 @@ import {
   todoClearDone,
   todoSet,
   migrateTodos,
+  migrateTodoReferences,
+  recordTodoReference,
   subtaskAdd,
   subtaskToggle,
   subtaskUpdateText,
@@ -117,6 +120,8 @@ const parseCategories = (raw: string | null): CategoryDef[] => {
 };
 
 const parseTodos = (raw: string | null): Todo[] => migrateTodos(unwrap(raw));
+const parseTodoReferences = (raw: string | null): TodoReference[] =>
+  migrateTodoReferences(unwrap(raw));
 
 // Soft cap on pinned filters in the FilterBar quick-access row. Also
 // enforced by migratePinnedFilters in core, so the persisted profile
@@ -219,6 +224,18 @@ export function useTodoStore() {
     "profile",
     SEED_PROFILE,
     parseProfile,
+    serializeAny,
+    onSaved,
+  );
+  // Long-lived compose-suggestion history. Stored separately from
+  // `todos` so it survives the 30-day done-bin purge — items the user
+  // checked off months ago can still surface as auto-fill suggestions
+  // when they type a familiar title.
+  const [todoReferences, setTodoReferences] = useSyncedState<TodoReference[]>(
+    adapter,
+    "todoReferences",
+    [],
+    parseTodoReferences,
     serializeAny,
     onSaved,
   );
@@ -369,8 +386,15 @@ export function useTodoStore() {
       if (!beforeTodo) return;
       const afterTodo = todoToggle([beforeTodo], id)[0];
       applyPebbleDeltaTimed(pebbleDelta(beforeTodo, afterTodo));
+      // Record a suggestion-history entry on the open→done transition so
+      // ComposeSheet can auto-fill category / priority / recurrence when
+      // the user types the same title again later. Un-checking (done→open)
+      // doesn't update the history.
+      if (afterTodo && afterTodo.done && !beforeTodo.done) {
+        setTodoReferences((prev) => recordTodoReference(prev, afterTodo));
+      }
     },
-    [setTodos, applyPebbleDeltaTimed],
+    [setTodos, setTodoReferences, applyPebbleDeltaTimed],
   );
 
   const restoreFromTrash = useCallback(
@@ -1052,6 +1076,7 @@ export function useTodoStore() {
 
   return {
     todos,
+    todoReferences,
     categories,
     groceries,
     setGroceries,

@@ -7,7 +7,7 @@ import * as Haptics from 'expo-haptics'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import Svg, { Rect, Path } from 'react-native-svg'
 import { Repeat } from 'lucide-react-native'
-import { Category, Priority, PRIORITY_VALUES, PRIORITY_COLORS, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, Todo } from '../types'
+import { Category, Priority, PRIORITY_VALUES, PRIORITY_COLORS, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, TodoReference } from '../types'
 import { CategoryDef, categoryLabel } from '../categories'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
@@ -32,10 +32,11 @@ interface Props {
   visible: boolean
   categories: CategoryDef[]
   defaultCategory: Category
-  /** Current todos used for duplicate suggestions. We pass the full
-   * list and filter inside the sheet — the parent shouldn't need to
-   * know about the threshold or match scheme. */
-  existingTodos: Todo[]
+  /** Long-lived suggestion history (see TodoReference + store
+   * `todoReferences`). Used to surface "you've added this before"
+   * picks when the user types — tap a row to auto-fill category,
+   * priority, recurrence, and dueDate from the historic entry. */
+  references: TodoReference[]
   onAdd: (text: string, priority: Priority, dueDate: string, category?: Category, recurrence?: Recurrence) => void
   onClose: () => void
 }
@@ -87,7 +88,7 @@ function isCustomRecurrence(rec: Recurrence | undefined): boolean {
 }
 
 export default function ComposeSheet({
-  visible, categories, defaultCategory, existingTodos, onAdd, onClose,
+  visible, categories, defaultCategory, references, onAdd, onClose,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
@@ -108,22 +109,38 @@ export default function ComposeSheet({
 
   useEffect(() => { setCategory(defaultCategory) }, [defaultCategory])
 
-  // Duplicate prompt — once the user has typed enough characters,
-  // surface existing non-trashed todos whose text contains the same
-  // substring so they can dismiss this compose and avoid creating a
-  // second copy. Threshold is 3 chars: shorter triggers too many
-  // false positives ("a", "the" etc.).
+  // Suggestion list — once the user has typed ≥3 chars, surface any
+  // historic completions (deduplicated by lowercased text, sorted by
+  // recency) so they can auto-fill category / priority / recurrence
+  // by tapping a row. The history is stored separately from the
+  // active todos so the lookup survives the 30-day done-bin purge.
+  // 3-char minimum keeps "a", "the", etc. from over-firing.
   const trimmedTextLower = text.trim().toLowerCase()
-  const duplicateMatches = useMemo(() => {
-    if (trimmedTextLower.length < 3) return [] as Todo[]
-    const out: Todo[] = []
-    for (const td of existingTodos) {
-      if (td.trashed) continue
-      if (td.text.toLowerCase().includes(trimmedTextLower)) out.push(td)
+  const referenceMatches = useMemo(() => {
+    if (trimmedTextLower.length < 3) return [] as TodoReference[]
+    const out: TodoReference[] = []
+    for (const ref of references) {
+      if (ref.textLower.includes(trimmedTextLower)) out.push(ref)
       if (out.length >= 5) break
     }
     return out
-  }, [existingTodos, trimmedTextLower])
+  }, [references, trimmedTextLower])
+
+  function applyReference(ref: TodoReference) {
+    setText(ref.text)
+    if (ref.category) setCategory(ref.category)
+    if (ref.priority) setPriority(ref.priority)
+    if (ref.recurrence) setRecurrence(ref.recurrence)
+    else setRecurrence(undefined)
+    if (ref.dueDate) {
+      setDueDate(ref.dueDate)
+      const parsed = new Date(`${ref.dueDate}T00:00:00`)
+      if (!isNaN(parsed.getTime())) setPickerDate(parsed)
+    } else {
+      setDueDate('')
+    }
+    Haptics.selectionAsync().catch(() => {})
+  }
 
   useEffect(() => {
     if (visible) {
@@ -197,48 +214,55 @@ export default function ComposeSheet({
                     textAlignVertical="top"
                   />
 
-                  {duplicateMatches.length > 0 && (
+                  {referenceMatches.length > 0 && (
                     <View style={styles.dupePanel}>
                       <Text style={styles.dupeHeader}>
-                        Already on your list
+                        You've added this before
                       </Text>
                       <View style={styles.dupeCard}>
-                        {duplicateMatches.map((td, i) => {
-                          const cat = td.category
-                            ? categories.find((c) => c.id === td.category)
+                        {referenceMatches.map((ref, i) => {
+                          const cat = ref.category
+                            ? categories.find((c) => c.id === ref.category)
                             : undefined
+                          const dueLabel = ref.dueDate
+                            ? formatDisplayDate(ref.dueDate, t.locale)
+                            : null
                           return (
-                            <View key={td.id}>
+                            <View key={ref.textLower}>
                               {i > 0 && <View style={styles.dupeDivider} />}
                               <TouchableOpacity
                                 style={styles.dupeRow}
-                                onPress={() => {
-                                  // User acknowledged the duplicate — close
-                                  // the compose without adding a new copy.
-                                  onClose()
-                                }}
+                                onPress={() => applyReference(ref)}
                                 activeOpacity={0.6}
                                 accessibilityRole="button"
-                                accessibilityLabel={`Use existing: ${td.text}`}
+                                accessibilityLabel={`Use settings from previous: ${ref.text}`}
                               >
-                                {cat && (
+                                {cat ? (
                                   <CategoryIcon
                                     icon={cat.icon}
                                     size={14}
                                     color={cat.color}
                                   />
+                                ) : (
+                                  <View style={styles.dupeRowIconSpacer} />
                                 )}
-                                <Text
-                                  style={[
-                                    styles.dupeRowText,
-                                    td.done && styles.dupeRowTextDone,
-                                  ]}
-                                  numberOfLines={1}
-                                >
-                                  {td.text}
+                                <Text style={styles.dupeRowText} numberOfLines={1}>
+                                  {ref.text}
                                 </Text>
-                                {td.done && (
-                                  <Text style={styles.dupeRowBadge}>done</Text>
+                                {ref.priority && (
+                                  <PriorityDot level={ref.priority} size={10} />
+                                )}
+                                {ref.recurrence && (
+                                  <Repeat
+                                    size={12}
+                                    color={theme.label3}
+                                    strokeWidth={2}
+                                  />
+                                )}
+                                {dueLabel && (
+                                  <Text style={styles.dupeRowMeta} numberOfLines={1}>
+                                    {dueLabel}
+                                  </Text>
                                 )}
                               </TouchableOpacity>
                             </View>
@@ -246,8 +270,8 @@ export default function ComposeSheet({
                         })}
                       </View>
                       <Text style={styles.dupeHint}>
-                        Tap one if it's the same — or keep typing to add a new
-                        item.
+                        Tap a row to reuse those settings, or keep typing for a
+                        fresh entry.
                       </Text>
                     </View>
                   )}
@@ -653,13 +677,11 @@ function makeStyles(c: ThemeColors) {
       minHeight: 40,
     },
     dupeRowText: { flex: 1, fontSize: 14, color: c.label },
-    dupeRowTextDone: { textDecorationLine: 'line-through', color: c.label3 },
-    dupeRowBadge: {
-      fontSize: 10,
-      fontWeight: '700',
-      letterSpacing: 0.6,
+    dupeRowIconSpacer: { width: 14 },
+    dupeRowMeta: {
+      fontSize: 12,
       color: c.label3,
-      textTransform: 'uppercase',
+      maxWidth: 110,
     },
     dupeDivider: {
       height: StyleSheet.hairlineWidth,
