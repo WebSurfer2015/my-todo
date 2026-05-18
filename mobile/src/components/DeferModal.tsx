@@ -1,0 +1,375 @@
+/**
+ * "Defer remaining todos to" — bottom-sheet date picker for bulk-
+ * deferring the open todos in a group.
+ *
+ * Layout:
+ *   ┌───────────────────────────────────────────────┐
+ *   │ Cancel        Defer remaining todos to   Done │
+ *   │              {filter name} ({count})          │
+ *   ├───────────────────────────────────────────────┤
+ *   │ Tomorrow / Next day      tomorrow, Thu, May 19│
+ *   │ A week later              Wed, May 25         │
+ *   │ A month later             Fri, Jun 17         │
+ *   │ Pick a date                                   │
+ *   └───────────────────────────────────────────────┘
+ *
+ * Each preset row commits on tap and dismisses. "Pick a date" swaps
+ * the body to an inline date picker — its own Done commits, Cancel
+ * goes BACK to the option list (not to the underlying screen).
+ *
+ * Date math is anchored on today so the label that's shown matches
+ * what actually lands on the todo: every item in the bucket is set
+ * to the same target ISO, mirroring the existing bulkDeferTodos
+ * contract.
+ */
+
+import React, { useMemo, useState } from 'react'
+import {
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native'
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
+import { ChevronRight, Calendar } from 'lucide-react-native'
+import { useTheme, ThemeColors } from '../theme'
+import { useLang } from '../LangContext'
+import { isoDate } from '../utils'
+
+interface Props {
+  visible: boolean
+  /** Human-readable bucket name shown in the subtitle. Bulk callers
+   * pass the group label ("Carried over"); single-todo callers pass
+   * the todo text. */
+  filterLabel?: string
+  /** Number of open todos that will be deferred — used for the
+   * subtitle's "(N)" suffix. Omit / 0 / 1 to hide the suffix (e.g.
+   * single-todo long-press doesn't need a count). */
+  count?: number
+  /** Tweaks the first option label: today's bucket says "Tomorrow",
+   * every other bucket says "Next day". Both target today + 1. */
+  isTodayGroup: boolean
+  onSelect: (targetISO: string) => void
+  onClose: () => void
+}
+
+type SubView = 'main' | 'picker'
+
+export default function DeferModal({
+  visible,
+  filterLabel,
+  count,
+  isTodayGroup,
+  onSelect,
+  onClose,
+}: Props) {
+  const theme = useTheme()
+  const { t } = useLang()
+  const styles = useMemo(() => makeStyles(theme), [theme])
+  const [subView, setSubView] = useState<SubView>('main')
+  const [pickerDate, setPickerDate] = useState<Date>(() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 1)
+    return d
+  })
+
+  // Reset to the main view every time the sheet (re)opens — so the
+  // picker doesn't auto-reappear if the user dismissed without choosing.
+  React.useEffect(() => {
+    if (visible) {
+      setSubView('main')
+      const d = new Date()
+      d.setDate(d.getDate() + 1)
+      setPickerDate(d)
+    }
+  }, [visible])
+
+  function offsetFromToday(days: number): Date {
+    const d = new Date()
+    d.setDate(d.getDate() + days)
+    return d
+  }
+  function commit(d: Date) {
+    onSelect(isoDate(d))
+    onClose()
+  }
+
+  const tomorrow = offsetFromToday(1)
+  const inAWeek = offsetFromToday(7)
+  const inAMonth = offsetFromToday(30)
+
+  const subtitle = filterLabel
+    ? count && count > 1
+      ? `${filterLabel} (${count})`
+      : filterLabel
+    : ''
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.backdrop} onPress={onClose}>
+        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.handle} />
+
+          {subView === 'main' && (
+            <>
+              <View style={styles.titleRow}>
+                <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.titleSideBtn}>
+                  <Text style={styles.cancelText}>{t.cancel}</Text>
+                </TouchableOpacity>
+                <View style={styles.titleCenter}>
+                  <Text style={styles.title}>Defer remaining</Text>
+                  {subtitle ? (
+                    <Text style={styles.subtitle} numberOfLines={1}>
+                      {subtitle}
+                    </Text>
+                  ) : null}
+                </View>
+                <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.titleSideBtn}>
+                  <Text style={styles.doneText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.card}>
+                <OptionRow
+                  label={isTodayGroup ? 'Tomorrow' : 'Next day'}
+                  hint={formatTargetDate(tomorrow)}
+                  onPress={() => commit(tomorrow)}
+                  styles={styles}
+                />
+                <Divider styles={styles} />
+                <OptionRow
+                  label="A week later"
+                  hint={formatTargetDate(inAWeek)}
+                  onPress={() => commit(inAWeek)}
+                  styles={styles}
+                />
+                <Divider styles={styles} />
+                <OptionRow
+                  label="A month later"
+                  hint={formatTargetDate(inAMonth)}
+                  onPress={() => commit(inAMonth)}
+                  styles={styles}
+                />
+                <Divider styles={styles} />
+                <OptionRow
+                  label="Pick a date"
+                  icon={<Calendar size={16} color={theme.label3} strokeWidth={2} />}
+                  onPress={() => setSubView('picker')}
+                  styles={styles}
+                />
+              </View>
+              <View style={{ height: 16 }} />
+            </>
+          )}
+
+          {subView === 'picker' && (
+            <>
+              <View style={styles.titleRow}>
+                <TouchableOpacity
+                  onPress={() => setSubView('main')}
+                  hitSlop={10}
+                  style={styles.titleSideBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Back to defer options"
+                >
+                  <Text style={styles.cancelText}>{t.cancel}</Text>
+                </TouchableOpacity>
+                <View style={styles.titleCenter}>
+                  <Text style={styles.title}>Pick a date</Text>
+                  <Text style={styles.subtitle} numberOfLines={1}>
+                    {formatTargetDate(pickerDate)}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => commit(pickerDate)}
+                  hitSlop={10}
+                  style={styles.titleSideBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Apply selected date"
+                >
+                  <Text style={styles.doneText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.pickerWrap}>
+                <DateTimePicker
+                  value={pickerDate}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                  minimumDate={new Date()}
+                  onChange={(e: DateTimePickerEvent, d?: Date) => {
+                    if (Platform.OS === 'android') {
+                      // Android picker dismisses itself; treat set as
+                      // commit, dismiss as cancel.
+                      if (e.type === 'set' && d) commit(d)
+                      else setSubView('main')
+                    } else if (d) {
+                      setPickerDate(d)
+                    }
+                  }}
+                />
+              </View>
+              <View style={{ height: 16 }} />
+            </>
+          )}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  )
+}
+
+function OptionRow({
+  label,
+  hint,
+  icon,
+  onPress,
+  styles,
+}: {
+  label: string
+  hint?: string
+  icon?: React.ReactNode
+  onPress: () => void
+  styles: ReturnType<typeof makeStyles>
+}) {
+  return (
+    <TouchableOpacity
+      style={styles.row}
+      onPress={onPress}
+      activeOpacity={0.65}
+      accessibilityRole="button"
+      accessibilityLabel={hint ? `${label}, ${hint}` : label}
+    >
+      {icon}
+      <Text style={styles.rowLabel}>{label}</Text>
+      {hint ? (
+        <Text style={styles.rowHint} numberOfLines={1}>
+          {hint}
+        </Text>
+      ) : null}
+      <ChevronRight size={14} color={styles.rowHint.color as string} strokeWidth={2} />
+    </TouchableOpacity>
+  )
+}
+
+function Divider({ styles }: { styles: ReturnType<typeof makeStyles> }) {
+  return <View style={styles.divider} />
+}
+
+/**
+ * Format a target Date as "tomorrow, Thursday, May 19" when it is
+ * within ±1 day of today, otherwise "Thursday, May 19". Used in
+ * option-row hints and the picker subtitle so the user sees what
+ * lands when they commit.
+ */
+function formatTargetDate(d: Date): string {
+  const today = startOfDay(new Date())
+  const target = startOfDay(d)
+  const diffDays = Math.round(
+    (target.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
+  )
+  const relative =
+    diffDays === 0
+      ? 'today'
+      : diffDays === 1
+        ? 'tomorrow'
+        : diffDays === -1
+          ? 'yesterday'
+          : null
+  const weekday = d.toLocaleDateString(undefined, { weekday: 'long' })
+  const monthDay = d.toLocaleDateString(undefined, {
+    month: 'long',
+    day: 'numeric',
+  })
+  return relative
+    ? `${relative}, ${weekday}, ${monthDay}`
+    : `${weekday}, ${monthDay}`
+}
+
+function startOfDay(d: Date): Date {
+  const out = new Date(d)
+  out.setHours(0, 0, 0, 0)
+  return out
+}
+
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      justifyContent: 'flex-end',
+    },
+    sheet: {
+      backgroundColor: c.modal,
+      borderTopLeftRadius: 18,
+      borderTopRightRadius: 18,
+      paddingTop: 6,
+      paddingBottom: 8,
+    },
+    handle: {
+      alignSelf: 'center',
+      width: 36,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: c.gray3,
+      marginVertical: 6,
+    },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingBottom: 10,
+    },
+    titleSideBtn: { width: 72, paddingTop: 2 },
+    titleCenter: { flex: 1, alignItems: 'center' },
+    title: { fontSize: 17, fontWeight: '700', color: c.label, textAlign: 'center' },
+    subtitle: {
+      fontSize: 12,
+      color: c.label3,
+      marginTop: 2,
+      textAlign: 'center',
+    },
+    cancelText: { fontSize: 15, fontWeight: '500', color: c.primary },
+    doneText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: c.primary,
+      textAlign: 'right',
+    },
+    card: {
+      marginHorizontal: 16,
+      backgroundColor: c.card,
+      borderRadius: 12,
+      overflow: 'hidden',
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingVertical: 14,
+      paddingHorizontal: 14,
+      minHeight: 48,
+    },
+    rowLabel: { fontSize: 15, color: c.label, fontWeight: '500' },
+    rowHint: {
+      flex: 1,
+      fontSize: 13,
+      color: c.label3,
+      textAlign: 'right',
+      marginRight: 4,
+    },
+    divider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: c.separator,
+      marginLeft: 14,
+    },
+    pickerWrap: { paddingHorizontal: 16 },
+  })
+}

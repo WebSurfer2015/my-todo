@@ -27,6 +27,13 @@ interface Props {
   orderedVisibleStatuses: { id: StatusFilter; label: string }[]
   systemCounts: { all: number; overdue: number; open: number; done: number; trash: number }
   byCategory: Record<string, number>
+  /** Active (unchecked) grocery item count for the Groceries pill badge.
+   * The Groceries pill is the leftmost pill in the row when the user has
+   * the feature enabled (profile.groceriesEnabled !== false). */
+  groceriesActiveCount?: number
+  /** When false, hides the Groceries pill entirely (used when the user
+   * has turned the feature off in Settings). Defaults to true. */
+  groceriesEnabled?: boolean
   /** When > 0, shows a tiny cairn + count at the right end so the user
    * keeps a sense of progress when scrolled past the full pebble strip. */
   scrolledPebbleCount?: number
@@ -58,6 +65,8 @@ export default function FilterBar({
   orderedVisibleStatuses,
   systemCounts,
   byCategory,
+  groceriesActiveCount = 0,
+  groceriesEnabled = true,
   scrolledPebbleCount = 0,
 }: Props) {
   const { t } = useLang()
@@ -81,6 +90,15 @@ export default function FilterBar({
   // Resolve display info (icon/label/count/color) for any Filter. Returns
   // null when the underlying status is hidden or the category was deleted.
   function resolvePill(f: Filter): ResolvedPill | null {
+    if (f === 'groceries') {
+      return {
+        filter: 'groceries',
+        icon: null,
+        label: t.filters.groceries,
+        count: groceriesActiveCount,
+        color: theme.primary,
+      }
+    }
     if (f === 'all') {
       return {
         filter: 'all',
@@ -131,21 +149,27 @@ export default function FilterBar({
     }
   }
 
-  // Build the visible pill order: All, then each pinned filter (in pin
-  // order, skipping ones we couldn't resolve), then the current filter
-  // when it's neither All nor pinned (so the user can always see which
-  // filter is active).
+  // Build the scrollable pill order. The "All" pill is intentionally
+  // rendered OUTSIDE this list (pinned to the left of the row, next to
+  // the funnel) so it's always visible no matter how far the user has
+  // scrolled through their pinned filters.
   const visiblePills: { pill: ResolvedPill; pinned: boolean }[] = []
   const allPill = resolvePill('all')!
-  visiblePills.push({ pill: allPill, pinned: pinnedFilters.includes('all') })
+  // Groceries pill removed in v1.3 — Groceries is its own bottom tab
+  // now. The `groceries` filter value + resolver stay for back-compat
+  // with any persisted state; they just don't render as a pill.
 
   for (const f of pinnedFilters) {
-    if (f === 'all') continue
+    if (f === 'all' || f === 'groceries') continue
     const p = resolvePill(f)
     if (p) visiblePills.push({ pill: p, pinned: true })
   }
 
-  if (filter !== 'all' && !pinnedFilters.includes(filter)) {
+  if (
+    filter !== 'all' &&
+    filter !== 'groceries' &&
+    !pinnedFilters.includes(filter)
+  ) {
     const extra = resolvePill(filter)
     if (extra) visiblePills.push({ pill: extra, pinned: false })
   }
@@ -161,6 +185,57 @@ export default function FilterBar({
       >
         <FunnelIcon size={16} color={theme.label2} strokeWidth={2} />
         <Text style={styles.iconLabel} maxFontSizeMultiplier={1.3}>Filter</Text>
+      </TouchableOpacity>
+
+      {/* "All" pill stays anchored to the left, outside the scroll —
+          so the user can always tap it to reset, no matter how many
+          pinned pills crowd the right side. */}
+      <TouchableOpacity
+        style={[
+          styles.pill,
+          filter === allPill.filter
+            ? styles.pillActive
+            : pinnedFilters.includes('all')
+              ? styles.pillSticky
+              : styles.pillExtra,
+        ]}
+        onPress={() => onFilter(allPill.filter)}
+        onLongPress={() => promptPin(allPill.filter, allPill.label)}
+        delayLongPress={350}
+        activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityState={{ selected: filter === allPill.filter }}
+        accessibilityLabel={`${allPill.label}, ${allPill.count}${filter === allPill.filter ? ', selected' : ''}`}
+        accessibilityHint="Long-press to pin or unpin"
+      >
+        {pinnedFilters.includes('all') && (
+          <Pin
+            size={10}
+            color={filter === allPill.filter ? '#fff' : theme.label3}
+            strokeWidth={2.5}
+          />
+        )}
+        <Text
+          style={[
+            styles.pillLabel,
+            filter === allPill.filter && styles.pillLabelActive,
+          ]}
+          numberOfLines={1}
+          maxFontSizeMultiplier={1.3}
+        >
+          {allPill.label}
+        </Text>
+        {allPill.count > 0 && (
+          <Text
+            style={[
+              styles.pillCount,
+              filter === allPill.filter && styles.pillCountActive,
+            ]}
+            maxFontSizeMultiplier={1.3}
+          >
+            {allPill.count}
+          </Text>
+        )}
       </TouchableOpacity>
 
       <ScrollView

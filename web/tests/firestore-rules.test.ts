@@ -112,4 +112,97 @@ describe('users/{uid}/state/{key} access control', () => {
       setDoc(doc(alice, 'random/collection/abc'), { foo: 'bar' }),
     )
   })
+
+  // --- Shape + key-whitelist hardening (added with the rate-limit work). ---
+
+  it('rejects writes to non-whitelisted state keys (e.g. agentUsage)', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(
+      setDoc(doc(alice, 'users/alice/state/agentUsage'), {
+        value: '{"version":1,"data":{}}',
+        updatedAt: Date.now(),
+      }),
+    )
+  })
+
+  it('allows writes to grocery state keys (mobile)', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertSucceeds(
+      setDoc(doc(alice, 'users/alice/state/groceries'), {
+        value: '{"version":1,"data":[]}',
+        updatedAt: Date.now(),
+      }),
+    )
+    await assertSucceeds(
+      setDoc(doc(alice, 'users/alice/state/groceryGroups'), {
+        value: '{"version":1,"data":[]}',
+        updatedAt: Date.now(),
+      }),
+    )
+  })
+
+  it('rejects writes to arbitrary state keys', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(
+      setDoc(doc(alice, 'users/alice/state/something_else'), {
+        value: '{"version":1,"data":[]}',
+        updatedAt: Date.now(),
+      }),
+    )
+  })
+
+  it('rejects writes with extra top-level fields', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(
+      setDoc(doc(alice, 'users/alice/state/todos'), {
+        value: '{"version":1,"data":[]}',
+        updatedAt: Date.now(),
+        extra: 'should-not-be-allowed',
+      }),
+    )
+  })
+
+  it('rejects writes where value is not a string', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(
+      setDoc(doc(alice, 'users/alice/state/todos'), {
+        value: { version: 1, data: [] }, // map instead of serialized string
+        updatedAt: Date.now(),
+      }),
+    )
+  })
+
+  it('rejects writes where updatedAt is not an int', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(
+      setDoc(doc(alice, 'users/alice/state/todos'), {
+        value: '{"version":1,"data":[]}',
+        updatedAt: 'now', // string instead of int
+      }),
+    )
+  })
+
+  it('rejects writes with oversized value (> 512 KiB)', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    const oversized = 'x'.repeat(524289) // 1 byte over the cap
+    await assertFails(
+      setDoc(doc(alice, 'users/alice/state/todos'), {
+        value: oversized,
+        updatedAt: Date.now(),
+      }),
+    )
+  })
+
+  it('reading agentUsage IS allowed (client surfaces quota UX)', async () => {
+    // Function-only key — admin writes it, client only reads it. The
+    // rules allow READ for any state key under the user's subtree.
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/alice/state/agentUsage'), {
+        value: '{"version":1,"data":{"date":"2026-05-18","calls":1}}',
+        updatedAt: Date.now(),
+      })
+    })
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertSucceeds(getDoc(doc(alice, 'users/alice/state/agentUsage')))
+  })
 })

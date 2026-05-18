@@ -51,8 +51,16 @@ interface TriggerOptions {
   chime?: boolean
 }
 
+/**
+ * Resolver that, on call, measures the current cairn rect in screen
+ * space and returns the next-pebble landing point. Returning null
+ * means the cairn isn't measurable right now (sheet closed, hidden,
+ * etc.) — the trigger falls back to the seed point.
+ */
+type CairnResolver = (cb: (p: Point | null) => void) => void
+
 interface Ctx {
-  registerCairn: (p: Point | null) => void
+  registerCairn: (resolver: CairnResolver | null) => void
   trigger: (from: Point, opts?: TriggerOptions) => void
 }
 
@@ -108,45 +116,63 @@ function playChime() {
 }
 
 export function PebbleFlightProvider({ children }: { children: React.ReactNode }) {
-  const cairnRef = useRef<Point | null>(null)
+  const cairnResolverRef = useRef<CairnResolver | null>(null)
+  const fallbackPointRef = useRef<Point>({
+    x: Dimensions.get('window').width / 2,
+    y: 70,
+  })
   const [flights, setFlights] = useState<Flight[]>([])
   const nextIdRef = useRef(0)
   const reduceMotion = useReduceMotion()
 
   // Warm up the player on mount so the first chime doesn't lag while the
-  // WAV decodes. Also seed a default cairn target near the top of the
-  // screen so flights have somewhere to land before PebbleStrip's
-  // onLayout fires (rare in dev, can happen on production cold-start
-  // before the All view's layout pass settles).
+  // WAV decodes.
   useEffect(() => {
     ensureSound()
-    if (!cairnRef.current) {
-      const w = Dimensions.get('window').width
-      cairnRef.current = { x: w / 2, y: 70 }
-    }
   }, [])
 
-  const registerCairn = useCallback((p: Point | null) => {
-    cairnRef.current = p
+  const registerCairn = useCallback((resolver: CairnResolver | null) => {
+    cairnResolverRef.current = resolver
   }, [])
+
+  const launchFlight = useCallback(
+    (from: Point, to: Point, chime: boolean) => {
+      const id = nextIdRef.current++
+      // FlyingMochi owns the chime when an animation is running so it
+      // syncs to landing; suppress it here if chime is opted out.
+      setFlights((prev) => [...prev, { id, from, to, chime }])
+    },
+    [],
+  )
 
   const trigger = useCallback(
     (from: Point, opts?: TriggerOptions) => {
       const wantsAnimate = opts?.animate !== false && !reduceMotion
       const wantsChime = opts?.chime !== false
-      const to = cairnRef.current
-      if (!wantsAnimate || !to) {
-        // Reduce-motion / animation off / no cairn registered yet → just
-        // play the chime so the user still gets feedback.
+      if (!wantsAnimate) {
+        // Reduce-motion / animation off → just play the chime so the
+        // user still gets feedback.
         if (wantsChime) playChime()
         return
       }
-      const id = nextIdRef.current++
-      // FlyingMochi owns the chime when an animation is running so it
-      // syncs to landing; suppress it here if chime is opted out.
-      setFlights((prev) => [...prev, { id, from, to, chime: wantsChime }])
+      const resolver = cairnResolverRef.current
+      const fallback = fallbackPointRef.current
+      if (!resolver) {
+        // PebbleStrip not yet registered (cold-start on a non-Todos tab,
+        // tests, etc). Fall back to the seed point so the animation
+        // still runs from a sane location.
+        launchFlight(from, fallback, wantsChime)
+        return
+      }
+      // Resolve the cairn position LIVE — measureInWindow on the strip's
+      // current bounds. Done at trigger time so layout shifts from the
+      // search top-sheet, scrolling, or filter changes can't leave the
+      // target stale.
+      resolver((to) => {
+        launchFlight(from, to ?? fallback, wantsChime)
+      })
     },
-    [reduceMotion],
+    [reduceMotion, launchFlight],
   )
 
   const finish = useCallback((id: number) => {

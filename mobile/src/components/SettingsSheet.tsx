@@ -224,9 +224,17 @@ export default function SettingsSheet({
                 />
               </View>
 
-              {/* "View intro again" sits in its own card just above
-                  About — it's a help/onboarding action, not an app fact. */}
-              <View style={[styles.card, styles.cardWithTopGap]}>
+              {/* ABOUT — Sagely version + a "View intro again" row
+                  underneath. The intro re-open is the only thing in
+                  About that's actionable; keeping it next to the
+                  version groups all app-meta together. */}
+              <Text style={styles.sectionLabel}>ABOUT</Text>
+              <View style={styles.card}>
+                <View style={styles.rowStatic}>
+                  <Text style={styles.rowLabel}>Sagely</Text>
+                  <Text style={styles.rowValue}>v1.2.0</Text>
+                </View>
+                <View style={styles.divider} />
                 <TouchableOpacity
                   style={styles.row}
                   onPress={() => {
@@ -239,15 +247,6 @@ export default function SettingsSheet({
                   <Text style={styles.rowLabel}>View intro again</Text>
                   <Text style={styles.rowChevron}>›</Text>
                 </TouchableOpacity>
-              </View>
-
-              {/* ABOUT */}
-              <Text style={styles.sectionLabel}>ABOUT</Text>
-              <View style={styles.card}>
-                <View style={styles.rowStatic}>
-                  <Text style={styles.rowLabel}>Sagely</Text>
-                  <Text style={styles.rowValue}>v1.2.0</Text>
-                </View>
               </View>
 
               <View style={{ height: 24 }} />

@@ -36,7 +36,6 @@ function normalizeAvatar(a: AvatarT | undefined | null): AvatarT {
   return a;
 }
 import Avatar from "./Avatar";
-import { CairnGlyph } from "./PebbleStrip";
 import { useLang } from "../LangContext";
 import { useAuth } from "../AuthContext";
 import { useTheme, ThemeColors } from "../theme";
@@ -271,17 +270,8 @@ export default function ProfileSheet({
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
             <View style={styles.handle} />
             <View style={styles.titleRow}>
-              <TouchableOpacity
-                onPress={() => {
-                  onClose();
-                  signOut();
-                }}
-                hitSlop={10}
-                style={styles.titleSideBtn}
-                accessibilityRole="button"
-                accessibilityLabel={t.signOut}
-              >
-                <Text style={styles.signOutHeaderText}>{t.signOut}</Text>
+              <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.titleSideBtn}>
+                <Text style={styles.cancelHeaderText}>{t.cancel}</Text>
               </TouchableOpacity>
               <Text style={styles.title}>{t.editProfile}</Text>
               <TouchableOpacity onPress={handleSave} hitSlop={10} style={styles.titleSideBtn}>
@@ -397,37 +387,32 @@ export default function ProfileSheet({
               </View>
             </View>
 
-            {/* YOUR JOURNEY — sits below the identity fields so the
-                pebble count reads as a reward beneath the editable form. */}
-            <Text style={styles.sectionLabel}>YOUR JOURNEY</Text>
-            <View style={styles.pebbleHero}>
-              <View style={styles.pebbleHeroCairn}>
-                <CairnGlyph size={42} />
-              </View>
-              <Text style={styles.pebbleHeroValue}>{profile.lifetimePebbles ?? 0}</Text>
-              <Text style={styles.pebbleHeroLabel}>pebbles placed</Text>
-              <Text style={styles.pebbleHeroHint}>
-                Every task you've finished, since you started.
-              </Text>
-            </View>
-
-            {/* ACCOUNT */}
+            {/* ACCOUNT — email-only card. Lifetime pebbles now live on
+                the Home tab, so YOUR JOURNEY was removed from here. */}
             <Text style={styles.sectionLabel}>ACCOUNT</Text>
             <View style={styles.card}>
-              {user?.email && (
-                <>
-                  <View style={styles.accountRowStatic}>
-                    <Text style={styles.accountRowLabel}>Signed in as</Text>
-                    <Text style={styles.accountRowValue} numberOfLines={1}>
-                      {user.email}
-                    </Text>
-                  </View>
-                  <View style={styles.cardDivider} />
-                </>
+              {user?.email ? (
+                <View style={styles.accountRowStatic}>
+                  <Text style={styles.accountRowLabel}>Signed in as</Text>
+                  <Text style={styles.accountRowValue} numberOfLines={1}>
+                    {user.email}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.accountRowStatic}>
+                  <Text style={styles.accountRowLabel}>Not signed in</Text>
+                </View>
               )}
+            </View>
+
+            {/* Bottom action row — Delete account on the left
+                (destructive), Sign out on the right (neutral). Sits
+                outside the ACCOUNT card so destructive copy doesn't
+                stay inside the visual grouped block. */}
+            <View style={styles.bottomActionsRow}>
               <TouchableOpacity
-                style={styles.accountRow}
                 disabled={deleting}
+                hitSlop={8}
                 onPress={() => {
                   Alert.alert(
                     t.deleteAccount,
@@ -466,12 +451,23 @@ export default function ProfileSheet({
               >
                 <Text
                   style={[
-                    styles.accountRowDestructive,
+                    styles.bottomActionDestructive,
                     deleting && styles.deleteInlineTextDisabled,
                   ]}
                 >
                   {deleting ? t.deleting : t.deleteAccount}
                 </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  onClose();
+                  signOut();
+                }}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t.signOut}
+              >
+                <Text style={styles.bottomActionNeutral}>{t.signOut}</Text>
               </TouchableOpacity>
             </View>
 
@@ -961,10 +957,24 @@ function makeStyles(c: ThemeColors) {
       color: c.blue,
       fontWeight: "500",
     },
-    signOutHeaderText: {
-      fontSize: 15,
+    bottomActionsRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 4,
+      marginTop: 18,
+    },
+    bottomActionDestructive: {
+      fontSize: 14,
+      color: c.red,
+      fontWeight: "600",
+      paddingVertical: 8,
+    },
+    bottomActionNeutral: {
+      fontSize: 14,
       color: c.label2,
       fontWeight: "500",
+      paddingVertical: 8,
     },
     saveHeaderText: {
       fontSize: 15,

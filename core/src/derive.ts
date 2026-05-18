@@ -841,15 +841,28 @@ export function deriveState(input: DeriveInput): DerivedState {
     !!td.dueDate && td.dueDate < today;
   const active = todos.filter((td) => !td.trashed);
 
+  // Items just completed today linger in the open / overdue / category
+  // views so the user sees the strike-through before they navigate away
+  // — checking off a task shouldn't make it instantly vanish out from
+  // under them. Older done items drop out so the active view doesn't
+  // accumulate cruft over weeks. Because checking off a todo also
+  // sets `trashed: true` (done + trash are one merged bin), this
+  // predicate gates BOTH the trash-exclusion and the per-filter rule.
+  const completedToday = (td: Todo) =>
+    td.done && td.completionDate === today;
+
   const filtered = todos.filter((td) => {
     // Done and Trash are merged into one bin: anything with done=true OR
     // trashed=true. The legacy "trash" filter still works (returns the
     // same set as "done" now) so old saved filters don't break.
     if (filter === "all") return true;
     if (filter === "done" || filter === "trash") return td.done || td.trashed;
-    if (td.trashed) return false;
-    if (filter === "overdue") return isOverdue(td) && !td.done;
-    if (filter === "open") return !td.done;
+    // Trashed items normally drop out of active views, but
+    // just-checked-off items get a one-day grace period so the strike-
+    // through is visible to the user before the row leaves the list.
+    if (td.trashed && !completedToday(td)) return false;
+    if (filter === "overdue") return isOverdue(td);
+    if (filter === "open") return !td.done || completedToday(td);
     if (isCategoryFilter(filter))
       return td.category === categoryIdFromFilter(filter);
     return true;
@@ -919,7 +932,12 @@ export function deriveState(input: DeriveInput): DerivedState {
       hint: t.emptyHint,
       ctaLabel: t.addFirstTask,
     };
-  else {
+  else if (filter === "groceries")
+    // Grocery view owns its own empty state; the deriveState empty
+    // copy is a fallback that won't actually render because App.tsx
+    // branches on filter === 'groceries' before consuming this.
+    emptyState = { title: "", hint: "" };
+  else if (isCategoryFilter(filter)) {
     const id = categoryIdFromFilter(filter);
     const cat = categories.find((c) => c.id === id);
     emptyState = {
@@ -927,6 +945,8 @@ export function deriveState(input: DeriveInput): DerivedState {
       hint: t.emptyHint,
       ctaLabel: t.addFirstTask,
     };
+  } else {
+    emptyState = { title: "", hint: "" };
   }
 
   const defaultCategory: Category = isCategoryFilter(filter)

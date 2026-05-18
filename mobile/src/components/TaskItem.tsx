@@ -90,6 +90,11 @@ interface Props {
   onUpdatePriority: (id: string, priority: Priority) => void
   onUpdateDueDate: (id: string, dueDate: string) => void
   onSnooze?: (id: string, daysFromToday: number) => void
+  /** Long-press defer handler — opens the same bottom-sheet picker
+   * the group "Defer all to" action uses, scoped to this single todo.
+   * If omitted, the long-press snooze action sheet is used as
+   * fallback. No-op on done items. */
+  onLongPressDefer?: (todo: Todo) => void
   onUpdateCategory: (id: string, category: Category) => void
   onUpdateText: (id: string, text: string) => void
   onUpdateNotes?: (id: string, notes: string) => void
@@ -107,7 +112,7 @@ function TaskItem({
   categories, density = 'comfortable', celebrate = true, playSound = true,
   subtaskVisibility = 'all',
   onToggle, onMoveToTrash, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onRestore, onPermanentDelete,
-  onUpdatePriority, onUpdateDueDate, onSnooze, onUpdateCategory, onUpdateText, onUpdateNotes, onUpdateRecurrence,
+  onUpdatePriority, onUpdateDueDate, onSnooze, onLongPressDefer, onUpdateCategory, onUpdateText, onUpdateNotes, onUpdateRecurrence,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
 }: Props) {
@@ -159,15 +164,7 @@ function TaskItem({
   // the PebbleStrip cairn registered at the top of the app. Skips when
   // reduce-motion is on (handled by the provider).
   const triggerPebbleFlight = useTriggerPebbleFlight()
-  const rowCenterRef = useRef<{ x: number; y: number } | null>(null)
   const rowMeasureRef = useRef<View>(null)
-  const onRowLayout = useCallback(() => {
-    rowMeasureRef.current?.measureInWindow((x, y, w, h) => {
-      if (typeof x === 'number' && typeof y === 'number' && w > 0 && h > 0) {
-        rowCenterRef.current = { x: x + w / 2, y: y + h / 2 }
-      }
-    })
-  }, [])
   useEffect(() => {
     if (todo.done && !prevDoneRef.current) {
       if (!reduceMotion) {
@@ -203,18 +200,28 @@ function TaskItem({
           ]).start()
         }
       }
-      // Launch a Mochi from the row's pre-captured screen-center up to
-      // the next-pebble slot. Position was set in onRowLayout; if the
-      // layout pass hasn't fired yet (rare — first render of a brand-
-      // new row), fall back to the screen center so the flight still
-      // appears to come from somewhere visible.
+      // Launch a Mochi from the row's CURRENT screen-center up to the
+      // next-pebble slot. We measure the row at trigger time (not at
+      // layout time) so list reorders, sort, scroll, and category
+      // changes that move this row between layout passes don't leave
+      // the animation flying out of an empty spot.
       if (playSound || celebrate) {
-        const from =
-          rowCenterRef.current ?? {
-            x: Dimensions.get('window').width / 2,
-            y: Dimensions.get('window').height / 2,
-          }
-        triggerPebbleFlight(from, { animate: celebrate, chime: playSound })
+        const fallback = {
+          x: Dimensions.get('window').width / 2,
+          y: Dimensions.get('window').height / 2,
+        }
+        const measure = rowMeasureRef.current
+        if (measure) {
+          measure.measureInWindow((x, y, w, h) => {
+            const from =
+              typeof x === 'number' && typeof y === 'number' && w > 0 && h > 0
+                ? { x: x + w / 2, y: y + h / 2 }
+                : fallback
+            triggerPebbleFlight(from, { animate: celebrate, chime: playSound })
+          })
+        } else {
+          triggerPebbleFlight(fallback, { animate: celebrate, chime: playSound })
+        }
       }
     }
     prevDoneRef.current = todo.done
@@ -284,13 +291,13 @@ function TaskItem({
   }
 
   // Long-press menu. Bin rows get Restore + Delete Permanently. Non-bin
-  // rows get a snooze menu (Tomorrow / Next week / Pick a date) — the
-  // single-most-frequent affordance for procrastinators who can't face
-  // an item today but don't want to abandon it.
+  // rows open the same bottom-sheet defer picker the group "Defer all
+  // to" action uses (scoped to this single todo). Completed todos no-op
+  // — they don't need to be deferred.
   function handleLongPress() {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {})
     const cancel = t.cancel
     if (inTrash || binFilterView) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {})
       const opts = [t.restoreTask, t.deletePermanently, cancel]
       if (Platform.OS === 'ios') {
         ActionSheetIOS.showActionSheetWithOptions(
@@ -306,7 +313,15 @@ function TaskItem({
       }
       return
     }
+    // Already-completed todos don't need to be deferred — silent no-op.
+    if (todo.done) return
+    if (onLongPressDefer) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {})
+      onLongPressDefer(todo)
+      return
+    }
     if (!onSnooze) return
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {})
     const opts = [t.snooze.tomorrow, t.snooze.nextWeek, t.snooze.pickDate, cancel]
     if (Platform.OS === 'ios') {
       // iOS 17+ ActionSheetIOS sometimes hides the dedicated Cancel
@@ -443,7 +458,6 @@ function TaskItem({
             measure-at-trigger-time has had spotty support. */}
         <View
           ref={rowMeasureRef}
-          onLayout={onRowLayout}
           pointerEvents="none"
           style={StyleSheet.absoluteFill}
         />

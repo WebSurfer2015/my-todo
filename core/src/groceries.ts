@@ -47,6 +47,13 @@ export interface GroceryGroup {
   /** When true, group is hidden from the grocery view (items still
    * exist, just not visible). The OTHERS_GROUP can't be hidden. */
   hidden?: boolean
+  /** Optional hex color. When set, overrides the per-id default in the
+   * GroceryIcon renderer. Custom user-added departments use this so
+   * they don't all share the fallback sage tone. */
+  color?: string
+  /** Optional icon key (one of GROCERY_DEPT_ICONS in the mobile
+   * registry). When set, overrides the per-id default. */
+  icon?: string
 }
 
 /** The catch-all group id — always exists, always last, never deletable
@@ -62,7 +69,18 @@ export const SEED_GROCERY_GROUPS: GroceryGroup[] = [
   { id: 'pantry',    label: 'Pantry' },
   { id: 'beverages', label: 'Beverages' },
   { id: 'household', label: 'Household' },
-  { id: OTHERS_GROUP_ID, label: 'Others' },
+  { id: OTHERS_GROUP_ID, label: 'Uncategorized' },
+]
+
+/** Seeded stores shown to new users so the STORES list isn't empty on
+ * first open. Users can delete any of them and the explicit empty
+ * state will then stick. Used as the fallback when
+ * profile.groceryStores is undefined (never touched). */
+export const SEED_GROCERY_STORES: string[] = [
+  'Stop & Shop',
+  'Costco',
+  'CVS',
+  'Trader Joe\'s',
 ]
 
 // ── Hard caps (defense against malicious cloud writes) ──────────────
@@ -162,13 +180,27 @@ export function migrateGroceryGroups(raw: unknown): GroceryGroup[] {
     if (o.hidden === true && o.id !== OTHERS_GROUP_ID) {
       group.hidden = true
     }
+    if (typeof o.color === 'string' && /^#[0-9a-f]{6}$/i.test(o.color)) {
+      group.color = o.color
+    }
+    if (typeof o.icon === 'string' && o.icon.length > 0 && o.icon.length <= 32) {
+      group.icon = o.icon
+    }
     out.push(group)
     if (out.length >= MAX_GROCERY_GROUPS) break
   }
-  // Guarantee OTHERS exists, and that it sits last.
+  // Guarantee the reserved catch-all exists, and that it sits last.
+  // Upgrade the legacy default label "Others" → "Uncategorized" so
+  // existing users see the new name; user-renamed labels are preserved.
   const withoutOthers = out.filter((g) => g.id !== OTHERS_GROUP_ID)
   const othersFromInput = out.find((g) => g.id === OTHERS_GROUP_ID)
-  withoutOthers.push(othersFromInput ?? { id: OTHERS_GROUP_ID, label: 'Others' })
+  const others =
+    othersFromInput
+      ? othersFromInput.label === 'Others'
+        ? { ...othersFromInput, label: 'Uncategorized' }
+        : othersFromInput
+      : { id: OTHERS_GROUP_ID, label: 'Uncategorized' }
+  withoutOthers.push(others)
   return withoutOthers
 }
 

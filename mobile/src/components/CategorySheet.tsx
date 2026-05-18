@@ -12,7 +12,7 @@ import {
   Platform,
   Alert,
 } from "react-native";
-import { Check, Pin, Pencil } from "lucide-react-native";
+import { Check, Pin, Pencil, Eye, EyeOff, Trash2 } from "lucide-react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import DraggableFlatList, {
   RenderItemParams,
@@ -320,15 +320,19 @@ export default function CategorySheet({
                                     </View>
                                   </TouchableOpacity>
                                 )}
-                                {s.hidden && !isInline && <Text style={styles.editRowBadge}>hidden</Text>}
                                 <TouchableOpacity
                                   onPress={() => onToggleStatusHidden(s.id)}
                                   hitSlop={6}
                                   style={styles.rowAction}
-                                  accessibilityRole="button"
+                                  accessibilityRole="switch"
+                                  accessibilityState={{ checked: !s.hidden }}
                                   accessibilityLabel={`${s.hidden ? t.unhide : t.hide} ${s.label}`}
                                 >
-                                  <Text style={styles.rowActionText}>{s.hidden ? t.unhide : t.hide}</Text>
+                                  {s.hidden ? (
+                                    <EyeOff size={16} color={theme.label3} strokeWidth={2} />
+                                  ) : (
+                                    <Eye size={16} color={theme.label2} strokeWidth={2} />
+                                  )}
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                   onPress={() => onPinFilter(s.id)}
@@ -425,9 +429,7 @@ export default function CategorySheet({
                                   accessibilityRole="button"
                                   accessibilityLabel={`${t.deleteTask} ${label}`}
                                 >
-                                  <Text style={[styles.rowActionText, styles.rowActionTextDanger]}>
-                                    {t.deleteTask}
-                                  </Text>
+                                  <Trash2 size={14} color={theme.red} strokeWidth={2} />
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                   onPress={() => onPinFilter(catFilter)}

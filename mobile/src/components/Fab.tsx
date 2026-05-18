@@ -1,5 +1,11 @@
-import React, { useMemo } from 'react'
-import { TouchableOpacity, StyleSheet } from 'react-native'
+import React, { useEffect, useMemo, useState } from 'react'
+import {
+  Keyboard,
+  KeyboardEvent,
+  Platform,
+  TouchableOpacity,
+  StyleSheet,
+} from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Line } from 'react-native-svg'
 import { useTheme, ThemeColors } from '../theme'
@@ -12,7 +18,36 @@ interface Props {
 export default function Fab({ onPress, accessibilityLabel }: Props) {
   const theme = useTheme()
   const insets = useSafeAreaInsets()
-  const styles = useMemo(() => makeStyles(theme, insets.bottom), [theme, insets.bottom])
+
+  // Track the keyboard height so the FAB lifts above the keyboard
+  // instead of sitting behind it. This matters for the search top-sheet
+  // flow — when a search returns no matches, the user needs to tap the
+  // FAB to add a new item without first dismissing the keyboard. iOS
+  // fires `keyboardWillShow` synchronously with the animation; Android
+  // only fires `keyboardDidShow`.
+  const [kbHeight, setKbHeight] = useState(0)
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow'
+    const hideEvent =
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide'
+    const showSub = Keyboard.addListener(showEvent, (e: KeyboardEvent) => {
+      setKbHeight(e.endCoordinates.height)
+    })
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKbHeight(0)
+    })
+    return () => {
+      showSub.remove()
+      hideSub.remove()
+    }
+  }, [])
+
+  // With keyboard up: sit 12pt above the keyboard. Closed: sit on the
+  // safe-area baseline + 4pt the design uses.
+  const bottom = kbHeight > 0 ? kbHeight + 12 : 4 + insets.bottom
+  const styles = useMemo(() => makeStyles(theme, bottom), [theme, bottom])
+
   return (
     <TouchableOpacity
       style={styles.fab}
@@ -29,12 +64,12 @@ export default function Fab({ onPress, accessibilityLabel }: Props) {
   )
 }
 
-function makeStyles(c: ThemeColors, bottomInset: number) {
+function makeStyles(c: ThemeColors, bottom: number) {
   return StyleSheet.create({
     fab: {
       position: 'absolute',
       right: 20,
-      bottom: 16 + bottomInset,
+      bottom,
       width: 56,
       height: 56,
       borderRadius: 28,
@@ -43,7 +78,7 @@ function makeStyles(c: ThemeColors, bottomInset: number) {
       justifyContent: 'center',
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.20,
+      shadowOpacity: 0.2,
       shadowRadius: 10,
       elevation: 6,
     },

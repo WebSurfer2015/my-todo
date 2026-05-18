@@ -1,10 +1,16 @@
 rules_version = '2';
 
 // Per-user state at the precise schema path. Each authenticated user can
-// read and write only their own per-key state docs at users/{uid}/state/{key}
-// where key ∈ {todos, categories, profile, agentUsage}. Anything else under
-// /users/{uid}/** is denied so future code that accidentally writes outside
-// this schema can't expose data on a path the rules forgot to cover.
+// read and write only their own per-key state docs at users/{uid}/state/{key}.
+//
+// Key whitelist:
+//   • Client-writable:  todos, categories, profile,
+//                       groceries, groceryGroups (mobile-only)
+//   • Function-only:    agentUsage (admin SDK bypasses rules)
+//
+// Anything else under /users/{uid}/** is denied so future code that
+// accidentally writes outside this schema can't expose data on a path
+// the rules forgot to cover.
 //
 // Paste these rules into Firebase Console → Firestore Database → Rules.
 // The same rules live in web/firestore.rules; keep them in sync.
@@ -12,8 +18,29 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     match /users/{uid}/state/{key} {
-      allow read, write:
+      // Read: any state key including agentUsage so the client can
+      // surface remaining-quota UX without a second roundtrip.
+      allow read:
         if request.auth != null && request.auth.uid == uid;
+
+      // Write: only the three client-owned keys, only the envelope shape.
+      // agentUsage is intentionally absent — only the agentChat Cloud
+      // Function (which uses admin credentials) is allowed to mutate it,
+      // so a hostile client can't reset its own daily counter.
+      //
+      // `value` is the serialized `{version,data}` envelope as a JSON
+      // string (see core/src/persistence.ts → writeVersioned). Capping
+      // its length at 512 KiB stays well under Firestore's hard 1 MiB
+      // per-doc limit while bounding what a compromised client can
+      // upload in a single write.
+      allow write:
+        if request.auth != null
+        && request.auth.uid == uid
+        && key in ['todos', 'categories', 'profile', 'groceries', 'groceryGroups']
+        && request.resource.data.keys().hasOnly(['value', 'updatedAt'])
+        && request.resource.data.value is string
+        && request.resource.data.value.size() <= 524288
+        && request.resource.data.updatedAt is int;
     }
 
     // Default deny — explicit so no future "match /{document=**}" elsewhere

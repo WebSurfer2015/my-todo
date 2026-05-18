@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -20,13 +20,14 @@ import ComposeSheet from "./src/components/ComposeSheet";
 import TaskItem from "./src/components/TaskItem";
 import Footer from "./src/components/Footer";
 import Avatar from "./src/components/Avatar";
-import ProfileSheet from "./src/components/ProfileSheet";
-import SettingsSheet from "./src/components/SettingsSheet";
-import BackgroundPicker from "./src/components/BackgroundPicker";
+import GroceryView from "./src/components/GroceryView";
 import AppBackground from "./src/components/AppBackground";
-import { Settings as SettingsIcon } from "lucide-react-native";
 import CategorySheet from "./src/components/CategorySheet";
 import ChatSheet from "./src/components/ChatSheet";
+import SearchTopSheet from "./src/components/SearchTopSheet";
+import SearchPill from "./src/components/SearchPill";
+import DeferModal from "./src/components/DeferModal";
+import { SEED_GROCERY_STORES } from "./src/groceries";
 import type { Filter } from "./src/types";
 import { LangProvider, useLang } from "./src/LangContext";
 import { AuthProvider, useAuth } from "./src/AuthContext";
@@ -36,6 +37,8 @@ import { ErrorBoundary } from "./src/ErrorBoundary";
 import { useTodoStore } from "./src/useTodoStore";
 import { buildDoneGroups } from "../core/src/groups";
 import { fullDateLabel } from "./src/utils";
+import { todayLocal } from "../core/src/utils";
+import type { Todo } from "./src/types";
 import SignIn from "./src/components/SignIn";
 import EmptyState from "./src/components/EmptyState";
 import PebbleStrip from "./src/components/PebbleStrip";
@@ -43,21 +46,49 @@ import Onboarding from "./src/components/Onboarding";
 import SplashOverlay from "./src/components/SplashOverlay";
 import { scheduleDailyCheckin, cancelDailyCheckin } from "./src/notifications";
 import { useReduceMotion } from "./src/useReduceMotion";
+import { NavigationContainer } from "@react-navigation/native";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { House, ListTodo, ShoppingBag } from "lucide-react-native";
+import * as Haptics from "expo-haptics";
+import { StoreProvider, useStore } from "./src/StoreContext";
+import { SheetProvider, useSheets } from "./src/SheetContext";
+import HomeScreen from "./src/screens/HomeScreen";
+import GroceriesScreen from "./src/screens/GroceriesScreen";
+import AppHeader from "./src/components/AppHeader";
 
-function AppInner() {
+function TodosScreen() {
   const { t } = useLang();
   const { user, loading: authLoading } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
-  const store = useTodoStore();
+  const store = useStore();
   const safeArea = useSafeAreaInsets();
 
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [bgPickerOpen, setBgPickerOpen] = useState(false);
+  // Profile / Settings / Background picker now live in SheetContext at
+  // the app shell so they're reachable from any tab. Per-tab sheets
+  // (CategorySheet / ComposeSheet / ChatSheet) stay here.
+  const sheets = useSheets();
   const [categorySheetOpen, setCategorySheetOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  // Defer modal: which group is being deferred (label for the
+  // sub-title) and the open-todo ids in that bucket.
+  const [deferTarget, setDeferTarget] = useState<{
+    label: string
+    ids: string[]
+    isTodayGroup: boolean
+  } | null>(null);
+  // Stable callback for the per-row long-press defer. Opens the same
+  // bottom-sheet picker the group action uses, scoped to one todo.
+  const openSingleDefer = useCallback((todo: Todo) => {
+    setDeferTarget({
+      label: todo.text,
+      ids: [todo.id],
+      isTodayGroup: !!todo.dueDate && todo.dueDate === todayLocal(),
+    });
+  }, []);
   // Collapse state for All-view group headers. All four groups
   // (today/week/overdue/upcoming) are toggleable; today + week default
   // open (focus), overdue + upcoming default closed (history/later).
@@ -82,6 +113,43 @@ function AppInner() {
   const onboardingNeeded = store.loaded && store.profile.onboardingDone !== true;
   const reduceMotion = useReduceMotion();
 
+  // Search narrows the already-filtered + grouped view. Case-insensitive
+  // substring against todo text, subtask text, and notes. We compute
+  // both flat (`displayFiltered`) and grouped (`displayGroups`)
+  // projections so every render path that previously referenced
+  // store.filtered / store.groups stays in sync.
+  const searchNeedle = searchQuery.trim().toLowerCase();
+  const displayFiltered = useMemo(() => {
+    if (!searchNeedle) return store.filtered;
+    return store.filtered.filter((td) => {
+      if (td.text.toLowerCase().includes(searchNeedle)) return true;
+      if (td.subtasks?.some((s) => s.text.toLowerCase().includes(searchNeedle)))
+        return true;
+      if (typeof td.notes === "string" && td.notes.toLowerCase().includes(searchNeedle))
+        return true;
+      return false;
+    });
+  }, [store.filtered, searchNeedle]);
+  const displayGroups = useMemo(() => {
+    if (!searchNeedle) return store.groups;
+    return store.groups
+      .map((g) => ({
+        ...g,
+        todos: g.todos.filter((td) => {
+          if (td.text.toLowerCase().includes(searchNeedle)) return true;
+          if (td.subtasks?.some((s) => s.text.toLowerCase().includes(searchNeedle)))
+            return true;
+          if (
+            typeof td.notes === "string" &&
+            td.notes.toLowerCase().includes(searchNeedle)
+          )
+            return true;
+          return false;
+        }),
+      }))
+      .filter((g) => g.todos.length > 0);
+  }, [store.groups, searchNeedle]);
+
   // Sync the daily-checkin notification to profile state. Schedules when
   // enabled, cancels when disabled. Re-runs on hour change too.
   useEffect(() => {
@@ -97,15 +165,12 @@ function AppInner() {
     store.profile.dailyCheckinHour,
   ]);
 
-  if (authLoading)
-    return <SafeAreaView style={styles.safe} edges={["top", "bottom"]} />;
-  if (!user) return <SignIn />;
-  if (!store.loaded)
-    return <SafeAreaView style={styles.safe} edges={["top", "bottom"]} />;
+  // Auth + store-hydration + onboarding gates moved to AppGate, which
+  // wraps the whole tab navigator. By the time this screen mounts those
+  // are all guaranteed satisfied.
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-      <AppBackground choice={store.profile.background} />
       <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
       <KeyboardAvoidingView
         style={styles.kb}
@@ -123,42 +188,32 @@ function AppInner() {
           }}
           scrollEventThrottle={32}
         >
-          <View style={styles.identityRow}>
-            <TouchableOpacity
-              style={styles.identityProfileTouch}
-              onPress={() => setProfileOpen(true)}
-              activeOpacity={0.7}
-              accessibilityLabel={t.editProfile}
-              accessibilityRole="button"
-            >
-              <Avatar avatar={store.profile.avatar} size={44} />
-              <View style={styles.identityTextWrap}>
-                <Text style={styles.identityGreeting} numberOfLines={1}>
-                  {store.headerLine}
-                </Text>
-                <Text
-                  style={[
-                    styles.identityPlate,
-                    store.identityLineIsQuote && styles.identityQuote,
-                  ]}
-                  numberOfLines={2}
-                >
-                  {store.identityLine}
-                </Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setSettingsOpen(true)}
-              style={styles.settingsBtn}
-              hitSlop={12}
-              accessibilityRole="button"
-              accessibilityLabel="Settings"
-            >
-              <SettingsIcon size={22} color={theme.label3} strokeWidth={1.8} />
-            </TouchableOpacity>
-          </View>
+          <AppHeader
+            title="Todos"
+            onSearchPress={() => setSearchOpen(true)}
+          />
 
           <View style={styles.stickyFilter}>
+            <SearchTopSheet
+              visible={searchOpen}
+              placeholder="Search todos"
+              query={searchQuery}
+              onQueryChange={setSearchQuery}
+              onCancel={() => {
+                setSearchQuery("");
+                setSearchOpen(false);
+              }}
+              onSubmit={() => setSearchOpen(false)}
+            />
+            {!searchOpen && searchQuery.trim().length > 0 && (
+              <View style={styles.searchPillRow}>
+                <SearchPill
+                  query={searchQuery.trim()}
+                  onPress={() => setSearchOpen(true)}
+                  onClear={() => setSearchQuery("")}
+                />
+              </View>
+            )}
             <FilterBar
               filter={store.filter}
               pinnedFilters={(store.profile.pinnedFilters ?? []) as Filter[]}
@@ -169,6 +224,10 @@ function AppInner() {
               byCategory={store.byCategory}
               categories={store.categories}
               orderedVisibleStatuses={store.orderedVisibleStatuses}
+              groceriesActiveCount={
+                store.groceries.filter((g) => !g.checked).length
+              }
+              groceriesEnabled={store.profile.groceriesEnabled !== false}
               scrolledPebbleCount={
                 pebbleStripScrolled ? store.todayPebbles : 0
               }
@@ -176,6 +235,9 @@ function AppInner() {
           </View>
 
           <View style={styles.body}>
+            {/* Groceries now lives in its own tab; the inline branch
+                that handled filter==='groceries' here is gone. */}
+            <>
             {store.inTrashView && store.trashCount > 0 && (
               store.selectedTrashIds.size > 0 ? (
                 <View style={styles.bulkBar}>
@@ -221,14 +283,14 @@ function AppInner() {
             )}
 
             {store.inTrashView ? (
-              store.filtered.length === 0 ? (
+              displayFiltered.length === 0 ? (
                 <EmptyState
                   title={store.emptyState.title}
                   hint={store.emptyState.hint}
                 />
               ) : (
                 <View style={styles.groupCard}>
-                  {store.filtered.map((td, i) => (
+                  {displayFiltered.map((td, i) => (
                     <View key={td.id} style={styles.taskCard}>
                       <TaskItem
                         todo={td}
@@ -248,6 +310,7 @@ function AppInner() {
                         onUpdatePriority={store.updatePriority}
                         onUpdateDueDate={store.updateDueDate}
                         onSnooze={store.snooze}
+                        onLongPressDefer={openSingleDefer}
                         onUpdateCategory={store.updateTaskCategory}
                         onUpdateText={store.updateText}
                               onUpdateNotes={store.updateNotes}
@@ -257,7 +320,7 @@ function AppInner() {
                   ))}
                 </View>
               )
-            ) : store.groups.length === 0 ? (
+            ) : displayGroups.length === 0 ? (
               <EmptyState
                 title={store.emptyState.title}
                 hint={store.emptyState.hint}
@@ -266,7 +329,7 @@ function AppInner() {
               />
             ) : store.filter === "done" ? (
               <>
-                {store.filtered.length > 0 && (
+                {displayFiltered.length > 0 && (
                   <View style={styles.trashHeader}>
                     <Text style={styles.trashNotice}>{t.trashRetention}</Text>
                     <TouchableOpacity
@@ -279,7 +342,7 @@ function AppInner() {
                     </TouchableOpacity>
                   </View>
                 )}
-                {buildDoneGroups(store.filtered).map((g) => {
+                {buildDoneGroups(displayFiltered).map((g) => {
                   const headerLabel = g.isToday
                     ? t.doneGroups.today
                     : g.isYesterday
@@ -311,6 +374,7 @@ function AppInner() {
                               onUpdatePriority={store.updatePriority}
                               onUpdateDueDate={store.updateDueDate}
                               onSnooze={store.snooze}
+                        onLongPressDefer={openSingleDefer}
                               onUpdateCategory={store.updateTaskCategory}
                               onUpdateText={store.updateText}
                               onUpdateNotes={store.updateNotes}
@@ -333,23 +397,27 @@ function AppInner() {
             ) : store.filter === "overdue" ? (
               <>
                 <View style={styles.groupSection}>
-                  {store.filtered.some((td) => !td.done) && (
+                  {displayFiltered.some((td) => !td.done) && (
                     <TouchableOpacity
-                      onPress={() => store.deferOverdue(7)}
+                      onPress={() =>
+                        setDeferTarget({
+                          label: t.filters.overdue,
+                          ids: displayFiltered
+                            .filter((td) => !td.done)
+                            .map((td) => td.id),
+                          isTodayGroup: false,
+                        })
+                      }
                       style={styles.deferAllRow}
                       hitSlop={6}
                       accessibilityRole="button"
-                      accessibilityLabel={t.defer.allA11y(
-                        store.filtered.filter((td) => !td.done).length,
-                      )}
+                      accessibilityLabel={`Defer ${displayFiltered.filter((td) => !td.done).length} carried-over to-dos`}
                     >
-                      <Text style={styles.deferAllText}>
-                        {t.defer.allToNextWeek}
-                      </Text>
+                      <Text style={styles.deferAllText}>Defer all to →</Text>
                     </TouchableOpacity>
                   )}
                   <View style={styles.groupCard}>
-                    {[...store.filtered]
+                    {[...displayFiltered]
                       .sort((a, b) => {
                         if (!a.dueDate && !b.dueDate) return 0;
                         if (!a.dueDate) return 1;
@@ -373,6 +441,7 @@ function AppInner() {
                             onUpdatePriority={store.updatePriority}
                             onUpdateDueDate={store.updateDueDate}
                             onSnooze={store.snooze}
+                        onLongPressDefer={openSingleDefer}
                             onUpdateCategory={store.updateTaskCategory}
                             onUpdateText={store.updateText}
                             onUpdateNotes={store.updateNotes}
@@ -391,7 +460,7 @@ function AppInner() {
                 </View>
               </>
             ) : (
-              store.groups.map((group) => {
+              displayGroups.map((group) => {
                 // Collapse is available in the All and Open views, where
                 // the date-bucket grouping shows. Category and status-
                 // specific filters always render every group expanded so
@@ -412,52 +481,56 @@ function AppInner() {
                 // Header counts include every to-do in the bucket
                 // (open + done) so the number matches what's visible.
                 const headerCount = group.todos.length;
-                // Open overdue items inside the Carried Over group are
-                // candidates for the bulk-defer escape hatch (overwhelm
-                // mode). Done overdue items are skipped — deferring a
-                // completed item makes no sense.
-                const openOverdueCount =
-                  group.key === "overdue"
-                    ? group.todos.filter((td) => !td.done).length
-                    : 0;
+                // Only OPEN todos in the bucket can be deferred. Done
+                // items skip — they don't have a dueDate semantics that
+                // needs shifting. Hidden when zero so the "Defer to"
+                // affordance doesn't dangle on a fully-completed bucket.
+                const openInGroup = group.todos.filter((td) => !td.done);
+                const openInGroupCount = openInGroup.length;
                 return (
                   <View key={group.key} style={styles.groupSection}>
-                    {toggleable ? (
-                      <TouchableOpacity
-                        onPress={onToggle}
-                        activeOpacity={0.7}
-                        accessibilityRole="button"
-                        accessibilityState={{ expanded: !collapsed }}
-                        hitSlop={8}
-                        style={styles.groupHeaderRow}
-                      >
-                        {collapsed ? (
-                          <ChevronRight size={14} color={theme.label3} strokeWidth={2.5} />
-                        ) : (
-                          <ChevronDown size={14} color={theme.label3} strokeWidth={2.5} />
-                        )}
-                        <Text style={styles.groupHeader}>
+                    <View style={styles.groupHeaderContainer}>
+                      {toggleable ? (
+                        <TouchableOpacity
+                          onPress={onToggle}
+                          activeOpacity={0.7}
+                          accessibilityRole="button"
+                          accessibilityState={{ expanded: !collapsed }}
+                          hitSlop={8}
+                          style={styles.groupHeaderRow}
+                        >
+                          {collapsed ? (
+                            <ChevronRight size={14} color={theme.label3} strokeWidth={2.5} />
+                          ) : (
+                            <ChevronDown size={14} color={theme.label3} strokeWidth={2.5} />
+                          )}
+                          <Text style={styles.groupHeader}>
+                            {headerLabel} ({headerCount})
+                          </Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <Text style={[styles.groupHeader, styles.groupHeaderSpacing]}>
                           {headerLabel} ({headerCount})
                         </Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <Text style={[styles.groupHeader, styles.groupHeaderSpacing]}>
-                        {headerLabel} ({headerCount})
-                      </Text>
-                    )}
-                    {!collapsed && openOverdueCount > 0 && (
-                      <TouchableOpacity
-                        onPress={() => store.deferOverdue(7)}
-                        style={styles.deferAllRow}
-                        hitSlop={6}
-                        accessibilityRole="button"
-                        accessibilityLabel={t.defer.allA11y(openOverdueCount)}
-                      >
-                        <Text style={styles.deferAllText}>
-                          {t.defer.allToNextWeek}
-                        </Text>
-                      </TouchableOpacity>
-                    )}
+                      )}
+                      {openInGroupCount > 0 && (
+                        <TouchableOpacity
+                          onPress={() =>
+                            setDeferTarget({
+                              label: headerLabel,
+                              ids: openInGroup.map((td) => td.id),
+                              isTodayGroup: group.key === 'today',
+                            })
+                          }
+                          style={styles.groupHeaderDeferBtn}
+                          hitSlop={6}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Defer ${openInGroupCount} to-dos in ${headerLabel}`}
+                        >
+                          <Text style={styles.groupHeaderDeferText}>Defer all to →</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                     {!collapsed && (
                       <View style={styles.groupCard}>
                         {group.todos.map((td, i) => (
@@ -476,6 +549,7 @@ function AppInner() {
                               onUpdatePriority={store.updatePriority}
                               onUpdateDueDate={store.updateDueDate}
                         onSnooze={store.snooze}
+                        onLongPressDefer={openSingleDefer}
                               onUpdateCategory={store.updateTaskCategory}
                               onUpdateText={store.updateText}
                               onUpdateNotes={store.updateNotes}
@@ -533,22 +607,27 @@ function AppInner() {
                 showClear={false}
               />
             )}
+            </>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
       {!store.inTrashView &&
         store.filter !== "done" &&
+        store.filter !== "groceries" &&
         store.activeCount > 0 && (
           <Fab
             onPress={() => setComposeOpen(true)}
             accessibilityLabel={t.addPlaceholder}
           />
         )}
-      {store.profile.agentEnabled && !store.inTrashView && (
+      {store.profile.agentEnabled &&
+        !store.inTrashView &&
+        store.filter !== "groceries" &&
+        !searchOpen && (
         <TouchableOpacity
           style={[
             styles.mochiFab,
-            { bottom: 16 + safeArea.bottom + 72 /* sits above the + FAB */ },
+            { bottom: 4 + safeArea.bottom + 72 /* sits above the + FAB */ },
           ]}
           onPress={() => setChatOpen(true)}
           accessibilityLabel="Ask Mochi"
@@ -562,35 +641,9 @@ function AppInner() {
         </TouchableOpacity>
       )}
 
-      <ProfileSheet
-        visible={profileOpen}
-        profile={store.profile}
-        onSave={(p) => {
-          store.saveProfile(p);
-          setProfileOpen(false);
-        }}
-        onClose={() => setProfileOpen(false)}
-      />
-      <SettingsSheet
-        visible={settingsOpen}
-        profile={store.profile}
-        onSavePartial={(patch) =>
-          store.saveProfile({ ...store.profile, ...patch })
-        }
-        onOpenBackgrounds={() => setBgPickerOpen(true)}
-        onShowIntro={() =>
-          store.saveProfile({ ...store.profile, onboardingDone: false })
-        }
-        onClose={() => setSettingsOpen(false)}
-      />
-      <BackgroundPicker
-        visible={bgPickerOpen}
-        value={store.profile.background}
-        onChange={(next) =>
-          store.saveProfile({ ...store.profile, background: next })
-        }
-        onClose={() => setBgPickerOpen(false)}
-      />
+      {/* ProfileSheet / SettingsSheet / BackgroundPicker mounted in
+          SheetProvider at the app shell — reachable from any tab via
+          useSheets() in AppHeader. */}
       <CategorySheet
         visible={categorySheetOpen}
         currentFilter={store.filter}
@@ -615,8 +668,19 @@ function AppInner() {
         visible={composeOpen}
         categories={store.categories}
         defaultCategory={store.defaultCategory}
+        existingTodos={store.todos}
         onAdd={store.addTask}
         onClose={() => setComposeOpen(false)}
+      />
+      <DeferModal
+        visible={deferTarget !== null}
+        filterLabel={deferTarget?.label}
+        count={deferTarget?.ids.length ?? 0}
+        isTodayGroup={deferTarget?.isTodayGroup ?? false}
+        onSelect={(targetISO) => {
+          if (deferTarget) store.bulkDeferTodos(deferTarget.ids, targetISO);
+        }}
+        onClose={() => setDeferTarget(null)}
       />
       {store.profile.agentEnabled && (
         <ChatSheet
@@ -656,6 +720,94 @@ function AppInner() {
   );
 }
 
+const Tab = createBottomTabNavigator();
+
+function AppGate() {
+  const { user, loading } = useAuth();
+  const store = useStore();
+  const theme = useTheme();
+
+  // Splash + sign-in + hydration + onboarding gates run BEFORE the tab
+  // navigator mounts, so screens can assume store + user are ready.
+  if (loading) {
+    return <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }} edges={["top", "bottom"]} />;
+  }
+  if (!user) return <SignIn />;
+  if (!store.loaded) {
+    return <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }} edges={["top", "bottom"]} />;
+  }
+
+  // Calm-app stance: no badge counters on the bottom tabs. Numbers in a
+  // chrome badge are easy to read as nagging / "something is unfinished",
+  // and we explicitly don't keep score in the rest of the app — the tab
+  // bar shouldn't either.
+
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
+      {/* AppBackground paints the user-chosen wallpaper across every
+          tab. Mounted here (not per-screen) so Home, Todos, and
+          Groceries all share the same backdrop. */}
+      <AppBackground choice={store.profile.background} />
+      <NavigationContainer>
+        <Tab.Navigator
+          initialRouteName="Todos"
+          screenOptions={{
+            headerShown: false,
+            // Per-screen container must be transparent so the shared
+            // AppBackground (mounted above the navigator) shows through
+            // every tab. Without this, react-navigation paints an
+            // opaque scene bg that covers the wallpaper.
+            sceneStyle: { backgroundColor: 'transparent' },
+          tabBarActiveTintColor: theme.primary,
+          tabBarInactiveTintColor: theme.label3,
+          tabBarStyle: {
+            backgroundColor: theme.card,
+            borderTopColor: theme.separator,
+            borderTopWidth: StyleSheet.hairlineWidth,
+          },
+          tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
+        }}
+        screenListeners={{
+          // Light tap haptic on tab switch so the change registers in the
+          // body, not just the eyes. Silent failure if haptics blocked.
+          tabPress: () => {
+            Haptics.selectionAsync().catch(() => {});
+          },
+        }}
+      >
+        <Tab.Screen
+          name="Home"
+          component={HomeScreen}
+          options={{
+            tabBarIcon: ({ color, size }) => (
+              <House size={size ?? 22} color={color} strokeWidth={2} />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="Todos"
+          component={TodosScreen}
+          options={{
+            tabBarIcon: ({ color, size }) => (
+              <ListTodo size={size ?? 22} color={color} strokeWidth={2} />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="Groceries"
+          component={GroceriesScreen}
+          options={{
+            tabBarIcon: ({ color, size }) => (
+              <ShoppingBag size={size ?? 22} color={color} strokeWidth={2} />
+            ),
+          }}
+        />
+        </Tab.Navigator>
+      </NavigationContainer>
+    </View>
+  );
+}
+
 export default function App() {
   return (
     <SafeAreaProvider>
@@ -665,7 +817,11 @@ export default function App() {
             <LangProvider>
               <NotifyProvider>
                 <PebbleFlightProvider>
-                  <AppInner />
+                  <StoreProvider>
+                    <SheetProvider>
+                      <AppGate />
+                    </SheetProvider>
+                  </StoreProvider>
                 </PebbleFlightProvider>
               </NotifyProvider>
             </LangProvider>
@@ -701,7 +857,10 @@ function makeStyles(c: ThemeColors) {
     mochiFabImage: { width: 42, height: 42 },
     safe: {
       flex: 1,
-      backgroundColor: c.bg,
+      // AppBackground is mounted once at the AppGate level and shines
+      // through every tab — leave the safe-area wrapper transparent
+      // so the wallpaper isn't covered by an opaque bg here.
+      backgroundColor: 'transparent',
     },
     kb: { flex: 1 },
     container: {
@@ -753,6 +912,11 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surface,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.separator,
+    },
+    searchPillRow: {
+      flexDirection: "row",
+      paddingHorizontal: 16,
+      paddingTop: 8,
     },
     filterRow: {
       flexDirection: "row",
@@ -813,6 +977,27 @@ function makeStyles(c: ThemeColors) {
       gap: 4,
       marginLeft: 0,
       marginBottom: 8,
+      flexShrink: 1,
+    },
+    // Wraps the toggleable header (chevron + label) and the "Defer to"
+    // action so they sit on one line — header text floats left, Defer
+    // floats right. Used by every visible group when the group has at
+    // least one open todo to defer.
+    groupHeaderContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    groupHeaderDeferBtn: {
+      paddingHorizontal: 4,
+      paddingVertical: 4,
+      marginBottom: 8,
+    },
+    groupHeaderDeferText: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: c.blue,
+      letterSpacing: -0.1,
     },
     deferAllRow: {
       paddingHorizontal: 4,

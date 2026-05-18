@@ -1,7 +1,7 @@
 export type ViewMode = 'category' | 'status'
 
-export type SystemFilter = 'all' | 'overdue' | 'open' | 'done' | 'trash'
-export type StatusFilter = Exclude<SystemFilter, 'all'>
+export type SystemFilter = 'groceries' | 'all' | 'overdue' | 'open' | 'done' | 'trash'
+export type StatusFilter = Exclude<SystemFilter, 'all' | 'groceries'>
 export type Filter = SystemFilter | `cat:${string}`
 
 // `trash` is kept in the type for backward-compat with stored profiles
@@ -120,6 +120,10 @@ export const PRIORITY_COLORS: Record<Priority, string> = {
 
 export function isStatusFilter(f: Filter): f is StatusFilter {
   return f === 'overdue' || f === 'open' || f === 'done' || f === 'trash'
+}
+
+export function isGroceryFilter(f: Filter): f is 'groceries' {
+  return f === 'groceries'
 }
 
 export function isCategoryFilter(f: Filter): f is `cat:${string}` {

@@ -116,6 +116,44 @@ export interface Profile {
    * Groceries view doesn't reset to the all-stores view every time.
    */
   activeGroceryStore?: string
+  /**
+   * Ordered, explicit list of grocery store names. Auto-registered when
+   * the user adds a grocery item with a new store. Editable in the
+   * Configure Filter sheet → Groceries tab → STORES section (rename,
+   * reorder, delete). Storing the order explicitly lets the user pick
+   * how the store-switcher dropdown sorts.
+   */
+  groceryStores?: string[]
+  /**
+   * Stores the user has hidden from the STORES list (still in
+   * groceryStores so their items survive, but suppressed from view-mode
+   * picker rows). Names that are no longer in groceryStores get cleaned
+   * out on migration.
+   */
+  hiddenGroceryStores?: string[]
+  /**
+   * Stores the user has pinned to the Groceries filter pill row.
+   * Pinned stores always render as pills (with a pin glyph) regardless
+   * of the active filter; non-pinned stores stay reachable via the
+   * Manage Filter sheet. Mirrors `pinnedFilters` for Todos.
+   */
+  pinnedGroceryStores?: string[]
+  /**
+   * Active department-id filter for the grocery view. When set, the
+   * list narrows to items in that department (in addition to the
+   * activeGroceryStore filter). Undefined / empty means "all
+   * departments". Pickable from the Select-Filter sheet's
+   * DEPARTMENTS section.
+   */
+  activeGroceryDept?: string
+  /**
+   * Department-ids the user has pinned to the Groceries filter pill
+   * row. Pinned depts render alongside pinned stores so common
+   * categories (Dairy, Produce) are reachable in one tap without
+   * opening the Select-Filter sheet. Mirrors `pinnedGroceryStores`.
+   * Toggled via long-press on any visible dept pill.
+   */
+  pinnedGroceryDepts?: string[]
 }
 
 export interface BackgroundChoice {
@@ -325,7 +363,33 @@ export function migrateProfile(raw: unknown): Profile {
       typeof p.activeGroceryStore === 'string' && p.activeGroceryStore.length > 0
         ? p.activeGroceryStore.slice(0, 64)
         : undefined,
+    groceryStores: migrateGroceryStores(p.groceryStores),
+    hiddenGroceryStores: migrateGroceryStores(p.hiddenGroceryStores),
+    pinnedGroceryStores: migrateGroceryStores(p.pinnedGroceryStores),
+    activeGroceryDept:
+      typeof p.activeGroceryDept === 'string' && p.activeGroceryDept.length > 0
+        ? p.activeGroceryDept.slice(0, 64)
+        : undefined,
+    pinnedGroceryDepts: migrateGroceryStores(p.pinnedGroceryDepts),
   }
+}
+
+const MAX_GROCERY_STORES = 30
+const MAX_GROCERY_STORE_NAME_LEN = 64
+
+function migrateGroceryStores(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const r of raw) {
+    if (typeof r !== 'string') continue
+    const s = r.trim().slice(0, MAX_GROCERY_STORE_NAME_LEN)
+    if (s.length === 0 || seen.has(s)) continue
+    seen.add(s)
+    out.push(s)
+    if (out.length >= MAX_GROCERY_STORES) break
+  }
+  return out.length > 0 ? out : undefined
 }
 
 const MAX_BG_KEY_LEN = 48

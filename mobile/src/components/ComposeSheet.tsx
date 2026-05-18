@@ -7,7 +7,7 @@ import * as Haptics from 'expo-haptics'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import Svg, { Rect, Path } from 'react-native-svg'
 import { Repeat } from 'lucide-react-native'
-import { Category, Priority, PRIORITY_VALUES, PRIORITY_COLORS, Recurrence, RecurrenceFreq, RECURRENCE_FREQS } from '../types'
+import { Category, Priority, PRIORITY_VALUES, PRIORITY_COLORS, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, Todo } from '../types'
 import { CategoryDef, categoryLabel } from '../categories'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
@@ -32,6 +32,10 @@ interface Props {
   visible: boolean
   categories: CategoryDef[]
   defaultCategory: Category
+  /** Current todos used for duplicate suggestions. We pass the full
+   * list and filter inside the sheet — the parent shouldn't need to
+   * know about the threshold or match scheme. */
+  existingTodos: Todo[]
   onAdd: (text: string, priority: Priority, dueDate: string, category?: Category, recurrence?: Recurrence) => void
   onClose: () => void
 }
@@ -83,7 +87,7 @@ function isCustomRecurrence(rec: Recurrence | undefined): boolean {
 }
 
 export default function ComposeSheet({
-  visible, categories, defaultCategory, onAdd, onClose,
+  visible, categories, defaultCategory, existingTodos, onAdd, onClose,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
@@ -103,6 +107,23 @@ export default function ComposeSheet({
   const [endDatePickerDate, setEndDatePickerDate] = useState<Date>(new Date())
 
   useEffect(() => { setCategory(defaultCategory) }, [defaultCategory])
+
+  // Duplicate prompt — once the user has typed enough characters,
+  // surface existing non-trashed todos whose text contains the same
+  // substring so they can dismiss this compose and avoid creating a
+  // second copy. Threshold is 3 chars: shorter triggers too many
+  // false positives ("a", "the" etc.).
+  const trimmedTextLower = text.trim().toLowerCase()
+  const duplicateMatches = useMemo(() => {
+    if (trimmedTextLower.length < 3) return [] as Todo[]
+    const out: Todo[] = []
+    for (const td of existingTodos) {
+      if (td.trashed) continue
+      if (td.text.toLowerCase().includes(trimmedTextLower)) out.push(td)
+      if (out.length >= 5) break
+    }
+    return out
+  }, [existingTodos, trimmedTextLower])
 
   useEffect(() => {
     if (visible) {
@@ -175,6 +196,61 @@ export default function ComposeSheet({
                     maxLength={4096}
                     textAlignVertical="top"
                   />
+
+                  {duplicateMatches.length > 0 && (
+                    <View style={styles.dupePanel}>
+                      <Text style={styles.dupeHeader}>
+                        Already on your list
+                      </Text>
+                      <View style={styles.dupeCard}>
+                        {duplicateMatches.map((td, i) => {
+                          const cat = td.category
+                            ? categories.find((c) => c.id === td.category)
+                            : undefined
+                          return (
+                            <View key={td.id}>
+                              {i > 0 && <View style={styles.dupeDivider} />}
+                              <TouchableOpacity
+                                style={styles.dupeRow}
+                                onPress={() => {
+                                  // User acknowledged the duplicate — close
+                                  // the compose without adding a new copy.
+                                  onClose()
+                                }}
+                                activeOpacity={0.6}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Use existing: ${td.text}`}
+                              >
+                                {cat && (
+                                  <CategoryIcon
+                                    icon={cat.icon}
+                                    size={14}
+                                    color={cat.color}
+                                  />
+                                )}
+                                <Text
+                                  style={[
+                                    styles.dupeRowText,
+                                    td.done && styles.dupeRowTextDone,
+                                  ]}
+                                  numberOfLines={1}
+                                >
+                                  {td.text}
+                                </Text>
+                                {td.done && (
+                                  <Text style={styles.dupeRowBadge}>done</Text>
+                                )}
+                              </TouchableOpacity>
+                            </View>
+                          )
+                        })}
+                      </View>
+                      <Text style={styles.dupeHint}>
+                        Tap one if it's the same — or keep typing to add a new
+                        item.
+                      </Text>
+                    </View>
+                  )}
 
                   <View style={styles.fieldGroup}>
                     <TouchableOpacity
@@ -549,6 +625,53 @@ function makeStyles(c: ThemeColors) {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
       overflow: 'hidden',
+    },
+    dupePanel: {
+      marginTop: 12,
+    },
+    dupeHeader: {
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 0.6,
+      color: c.label3,
+      paddingHorizontal: 4,
+      paddingBottom: 6,
+    },
+    dupeCard: {
+      backgroundColor: c.card,
+      borderRadius: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      overflow: 'hidden',
+    },
+    dupeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      minHeight: 40,
+    },
+    dupeRowText: { flex: 1, fontSize: 14, color: c.label },
+    dupeRowTextDone: { textDecorationLine: 'line-through', color: c.label3 },
+    dupeRowBadge: {
+      fontSize: 10,
+      fontWeight: '700',
+      letterSpacing: 0.6,
+      color: c.label3,
+      textTransform: 'uppercase',
+    },
+    dupeDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: c.separator,
+      marginLeft: 38,
+    },
+    dupeHint: {
+      fontSize: 12,
+      color: c.label3,
+      marginTop: 6,
+      paddingHorizontal: 4,
+      lineHeight: 16,
     },
     fieldRow: {
       flexDirection: 'row',

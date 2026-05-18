@@ -30,8 +30,14 @@ import {
   GroceryItem,
   GroceryGroup,
   SEED_GROCERY_GROUPS,
+  SEED_GROCERY_STORES,
   migrateGroceries,
   migrateGroceryGroups,
+  newGroceryItem,
+  groceryToggleChecked,
+  groceryEdit,
+  groceryDelete,
+  MAX_GROCERY_ITEMS,
 } from "./groceries";
 import { useLang } from "./LangContext";
 import { useAuth } from "./AuthContext";
@@ -501,6 +507,50 @@ export function useTodoStore() {
     [setTodos, notify, t],
   );
 
+  // Bulk-defer a specific set of open todos to an absolute target
+  // date (ISO yyyy-mm-dd). Used by the group-header "Defer to" action
+  // so the user can move an entire bucket (Today / Week / Upcoming /
+  // Carried Over / …) forward in one tap. Same undo + skip semantics
+  // as `deferOverdue` — done + trashed items are excluded.
+  const bulkDeferTodos = useCallback(
+    (ids: string[], targetISO: string) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(targetISO)) return;
+      const want = new Set(ids);
+      const candidates = todosRef.current.filter(
+        (td) => want.has(td.id) && !td.trashed && !td.done,
+      );
+      if (candidates.length === 0) return;
+      const originals = new Map(candidates.map((td) => [td.id, td.dueDate]));
+      const now = Date.now();
+      setTodos((prev) =>
+        prev.map((td) =>
+          originals.has(td.id)
+            ? { ...td, dueDate: targetISO, updatedAt: now }
+            : td,
+        ),
+      );
+      notify.showSnackbar({
+        message:
+          candidates.length === 1
+            ? '1 to-do deferred.'
+            : `${candidates.length} to-dos deferred.`,
+        actionLabel: t.undoAll,
+        onAction: () => {
+          const undoNow = Date.now();
+          setTodos((prev) =>
+            prev.map((td) => {
+              const orig = originals.get(td.id);
+              return orig !== undefined
+                ? { ...td, dueDate: orig, updatedAt: undoNow }
+                : td;
+            }),
+          );
+        },
+      });
+    },
+    [setTodos, notify, t],
+  );
+
   // Quick "I can't face this today" affordance. Shifts the dueDate
   // forward by `daysFromToday` (1 = tomorrow, 7 = next week) and shows
   // an undo snackbar capturing the original date.
@@ -843,11 +893,181 @@ export function useTodoStore() {
   const todayPebbles = todayTaskPebbles + todaySubtaskPebbles;
   const lifetimePebbles = profile.lifetimePebbles ?? 0;
 
+  // ---- Grocery mutations (stable callbacks) ------------------------
+  const addGrocery = useCallback(
+    (args: { text: string; groupId?: string; store?: string }) => {
+      const text = args.text.trim();
+      if (!text) return;
+      setGroceries((prev) => {
+        if (prev.length >= MAX_GROCERY_ITEMS) return prev;
+        return [newGroceryItem({ ...args, text }), ...prev];
+      });
+      // Auto-register the store on first use so the Configure Filter
+      // sheet shows it in the STORES section even before the user goes
+      // there to add it explicitly.
+      const store = args.store?.trim();
+      if (store) {
+        setProfile((p) => {
+          const list = p.groceryStores ?? SEED_GROCERY_STORES;
+          if (list.includes(store)) return p;
+          return { ...p, groceryStores: [...list, store] };
+        });
+      }
+    },
+    [setGroceries, setProfile],
+  );
+
+  const renameGroceryStore = useCallback(
+    (oldName: string, newName: string) => {
+      const next = newName.trim();
+      if (!next || next === oldName) return;
+      // Replace in profile list (preserve position; dedupe).
+      setProfile((p) => {
+        const list = p.groceryStores ?? SEED_GROCERY_STORES;
+        const updated: string[] = [];
+        for (const s of list) {
+          const replaced = s === oldName ? next : s;
+          if (!updated.includes(replaced)) updated.push(replaced);
+        }
+        const activeUpdated =
+          p.activeGroceryStore === oldName ? next : p.activeGroceryStore;
+        return { ...p, groceryStores: updated, activeGroceryStore: activeUpdated };
+      });
+      // Batch-update items that carried the old store name.
+      setGroceries((prev) =>
+        prev.map((it) => (it.store === oldName ? { ...it, store: next } : it)),
+      );
+    },
+    [setProfile, setGroceries],
+  );
+
+  const deleteGroceryStore = useCallback(
+    (name: string) => {
+      setProfile((p) => {
+        const list = (p.groceryStores ?? SEED_GROCERY_STORES).filter((s) => s !== name);
+        const active =
+          p.activeGroceryStore === name ? undefined : p.activeGroceryStore;
+        return { ...p, groceryStores: list, activeGroceryStore: active };
+      });
+      setGroceries((prev) =>
+        prev.map((it) => (it.store === name ? { ...it, store: undefined } : it)),
+      );
+    },
+    [setProfile, setGroceries],
+  );
+
+  const reorderGroceryStores = useCallback(
+    (next: string[]) => {
+      setProfile((p) => ({ ...p, groceryStores: next.filter((s) => s.trim().length > 0) }));
+    },
+    [setProfile],
+  );
+
+  const addGroceryStore = useCallback(
+    (name: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      setProfile((p) => {
+        const list = p.groceryStores ?? SEED_GROCERY_STORES;
+        if (list.includes(trimmed)) return p;
+        return { ...p, groceryStores: [...list, trimmed] };
+      });
+    },
+    [setProfile],
+  );
+
+  const toggleGroceryStoreHidden = useCallback(
+    (name: string) => {
+      setProfile((p) => {
+        const hidden = p.hiddenGroceryStores ?? [];
+        const next = hidden.includes(name)
+          ? hidden.filter((s) => s !== name)
+          : [...hidden, name];
+        return { ...p, hiddenGroceryStores: next };
+      });
+    },
+    [setProfile],
+  );
+
+  const pinGroceryStore = useCallback(
+    (name: string) => {
+      setProfile((p) => {
+        const pinned = p.pinnedGroceryStores ?? [];
+        const next = pinned.includes(name)
+          ? pinned.filter((s) => s !== name)
+          : [...pinned, name];
+        return { ...p, pinnedGroceryStores: next };
+      });
+    },
+    [setProfile],
+  );
+
+  const toggleGroceryChecked = useCallback(
+    (id: string) => {
+      setGroceries((prev) => groceryToggleChecked(prev, id));
+    },
+    [setGroceries],
+  );
+
+  const editGrocery = useCallback(
+    (id: string, patch: { text?: string; groupId?: string; store?: string | null }) => {
+      setGroceries((prev) => groceryEdit(prev, id, patch));
+    },
+    [setGroceries],
+  );
+
+  const deleteGrocery = useCallback(
+    (id: string) => {
+      setGroceries((prev) => groceryDelete(prev, id));
+    },
+    [setGroceries],
+  );
+
+  const setActiveGroceryStore = useCallback(
+    (store: string | undefined) => {
+      setProfile((p) => ({ ...p, activeGroceryStore: store || undefined }));
+    },
+    [setProfile],
+  );
+
+  const setActiveGroceryDept = useCallback(
+    (deptId: string | undefined) => {
+      setProfile((p) => ({ ...p, activeGroceryDept: deptId || undefined }));
+    },
+    [setProfile],
+  );
+
+  const pinGroceryDept = useCallback(
+    (deptId: string) => {
+      setProfile((p) => {
+        const pinned = p.pinnedGroceryDepts ?? [];
+        const next = pinned.includes(deptId)
+          ? pinned.filter((d) => d !== deptId)
+          : [...pinned, deptId];
+        return { ...p, pinnedGroceryDepts: next };
+      });
+    },
+    [setProfile],
+  );
+
   return {
     todos,
     categories,
     groceries,
     setGroceries,
+    addGrocery,
+    toggleGroceryChecked,
+    editGrocery,
+    deleteGrocery,
+    setActiveGroceryStore,
+    setActiveGroceryDept,
+    pinGroceryDept,
+    addGroceryStore,
+    renameGroceryStore,
+    deleteGroceryStore,
+    reorderGroceryStores,
+    toggleGroceryStoreHidden,
+    pinGroceryStore,
     groceryGroups,
     setGroceryGroups,
     profile,
@@ -889,6 +1109,7 @@ export function useTodoStore() {
     permanentlyDelete,
     updatePriority,
     updateDueDate,
+    bulkDeferTodos,
     snooze,
     deferOverdue,
     updateTaskCategory,
