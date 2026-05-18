@@ -21,8 +21,10 @@ import TaskItem from "./src/components/TaskItem";
 import Footer from "./src/components/Footer";
 import Avatar from "./src/components/Avatar";
 import ProfileSheet from "./src/components/ProfileSheet";
+import SettingsSheet from "./src/components/SettingsSheet";
 import BackgroundPicker from "./src/components/BackgroundPicker";
 import AppBackground from "./src/components/AppBackground";
+import { Settings as SettingsIcon } from "lucide-react-native";
 import CategorySheet from "./src/components/CategorySheet";
 import ChatSheet from "./src/components/ChatSheet";
 import type { Filter } from "./src/types";
@@ -51,6 +53,7 @@ function AppInner() {
   const safeArea = useSafeAreaInsets();
 
   const [profileOpen, setProfileOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [bgPickerOpen, setBgPickerOpen] = useState(false);
   const [categorySheetOpen, setCategorySheetOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
@@ -120,29 +123,40 @@ function AppInner() {
           }}
           scrollEventThrottle={32}
         >
-          <TouchableOpacity
-            style={styles.identityRow}
-            onPress={() => setProfileOpen(true)}
-            activeOpacity={0.7}
-            accessibilityLabel={t.editProfile}
-            accessibilityRole="button"
-          >
-            <Avatar avatar={store.profile.avatar} size={44} />
-            <View style={styles.identityTextWrap}>
-              <Text style={styles.identityGreeting} numberOfLines={1}>
-                {store.headerLine}
-              </Text>
-              <Text
-                style={[
-                  styles.identityPlate,
-                  store.identityLineIsQuote && styles.identityQuote,
-                ]}
-                numberOfLines={2}
-              >
-                {store.identityLine}
-              </Text>
-            </View>
-          </TouchableOpacity>
+          <View style={styles.identityRow}>
+            <TouchableOpacity
+              style={styles.identityProfileTouch}
+              onPress={() => setProfileOpen(true)}
+              activeOpacity={0.7}
+              accessibilityLabel={t.editProfile}
+              accessibilityRole="button"
+            >
+              <Avatar avatar={store.profile.avatar} size={44} />
+              <View style={styles.identityTextWrap}>
+                <Text style={styles.identityGreeting} numberOfLines={1}>
+                  {store.headerLine}
+                </Text>
+                <Text
+                  style={[
+                    styles.identityPlate,
+                    store.identityLineIsQuote && styles.identityQuote,
+                  ]}
+                  numberOfLines={2}
+                >
+                  {store.identityLine}
+                </Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setSettingsOpen(true)}
+              style={styles.settingsBtn}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Settings"
+            >
+              <SettingsIcon size={22} color={theme.label3} strokeWidth={1.8} />
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.stickyFilter}>
             <FilterBar
@@ -551,25 +565,23 @@ function AppInner() {
       <ProfileSheet
         visible={profileOpen}
         profile={store.profile}
-        exportSnapshot={() =>
-          JSON.stringify(
-            {
-              version: 1,
-              exportedAt: new Date().toISOString(),
-              profile: store.profile,
-              categories: store.categories,
-              todos: store.todos,
-            },
-            null,
-            2,
-          )
-        }
         onSave={(p) => {
           store.saveProfile(p);
           setProfileOpen(false);
         }}
         onClose={() => setProfileOpen(false)}
+      />
+      <SettingsSheet
+        visible={settingsOpen}
+        profile={store.profile}
+        onSavePartial={(patch) =>
+          store.saveProfile({ ...store.profile, ...patch })
+        }
         onOpenBackgrounds={() => setBgPickerOpen(true)}
+        onShowIntro={() =>
+          store.saveProfile({ ...store.profile, onboardingDone: false })
+        }
+        onClose={() => setSettingsOpen(false)}
       />
       <BackgroundPicker
         visible={bgPickerOpen}
@@ -698,10 +710,22 @@ function makeStyles(c: ThemeColors) {
     identityRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 14,
       paddingHorizontal: 20,
       paddingTop: 14,
       paddingBottom: 10,
+    },
+    identityProfileTouch: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 14,
+    },
+    settingsBtn: {
+      width: 36,
+      height: 36,
+      alignItems: "center",
+      justifyContent: "center",
+      marginLeft: 8,
     },
     identityTextWrap: {
       flex: 1,

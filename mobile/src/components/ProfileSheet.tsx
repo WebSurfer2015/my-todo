@@ -11,19 +11,9 @@ import {
   Platform,
   ActionSheetIOS,
   Alert,
-  Share,
   ScrollView,
-  useColorScheme,
 } from "react-native";
-import {
-  DEFAULT_BACKGROUND,
-  lookupPair,
-  lookupPattern,
-  tonesFor,
-} from "../backgrounds";
-import { renderPattern } from "./backgroundPatterns";
 import * as ImagePicker from "expo-image-picker";
-import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import * as Haptics from "expo-haptics";
 import * as ImageManipulator from "expo-image-manipulator";
 import {
@@ -31,13 +21,6 @@ import {
   Avatar as AvatarT,
   AVATAR_LIBRARY,
 } from "../profile";
-
-/** "9:00 AM" / "1:30 PM" formatting for the daily-checkin time row. */
-function formatHour12(h: number): string {
-  const hr = ((h + 11) % 12) + 1;
-  const ampm = h < 12 ? "AM" : "PM";
-  return `${hr}:00 ${ampm}`;
-}
 
 /**
  * Defensive avatar normalizer — guarantees we render Mochi when the saved
@@ -61,12 +44,6 @@ import { useTheme, ThemeColors } from "../theme";
 interface Props {
   visible: boolean;
   profile: Profile;
-  /** Snapshot of the user's todos + categories. Used by the data-export
-   * action; not modified by this sheet. */
-  exportSnapshot?: () => string;
-  /** Opens the app-background picker. Parent owns the modal so we avoid
-   * iOS modal-on-modal layering issues. */
-  onOpenBackgrounds?: () => void;
   onSave: (p: Profile) => void;
   onClose: () => void;
 }
@@ -74,18 +51,11 @@ interface Props {
 export default function ProfileSheet({
   visible,
   profile,
-  exportSnapshot,
-  onOpenBackgrounds,
   onSave,
   onClose,
 }: Props) {
   const { t } = useLang();
-  const { signOut, deleteAccount } = useAuth();
-  const scheme = useColorScheme() === "dark" ? "dark" : "light";
-  const bgChoice = profile.background ?? DEFAULT_BACKGROUND;
-  const bgPair = lookupPair(bgChoice.pairKey);
-  const bgPattern = lookupPattern(bgChoice.pattern);
-  const bgTones = tonesFor(bgPair, scheme);
+  const { user, signOut, deleteAccount } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const [firstName, setFirstName] = useState(profile.firstName ?? "");
@@ -94,22 +64,6 @@ export default function ProfileSheet({
   const [avatar, setAvatar] = useState<AvatarT>(normalizeAvatar(profile.avatar));
   const [deleting, setDeleting] = useState(false);
   const [pickingQuote, setPickingQuote] = useState(false);
-  const [celebrateAnim, setCelebrateAnim] = useState<boolean>(
-    profile.completionAnimation !== false,
-  );
-  const [celebrateSound, setCelebrateSound] = useState<boolean>(
-    profile.completionSound !== false,
-  );
-  const [dailyCheckin, setDailyCheckin] = useState<boolean>(
-    profile.dailyCheckinEnabled === true,
-  );
-  const [agentEnabled, setAgentEnabled] = useState<boolean>(
-    profile.agentEnabled === true,
-  );
-  const [dailyCheckinHour, setDailyCheckinHour] = useState<number>(
-    profile.dailyCheckinHour ?? 9,
-  );
-  const [checkinTimePickerOpen, setCheckinTimePickerOpen] = useState(false);
 
   // Short anxiety-aware quotes for subheader display. Grouped loosely by
   // intent: breath/grounding, permission/kindness, gentle action, perspective.
@@ -199,11 +153,6 @@ export default function ProfileSheet({
       setLastName(profile.lastName ?? "");
       setQuote(profile.quote ?? "");
       setAvatar(normalizeAvatar(profile.avatar));
-      setCelebrateAnim(profile.completionAnimation !== false);
-      setCelebrateSound(profile.completionSound !== false);
-      setDailyCheckin(profile.dailyCheckinEnabled === true);
-      setDailyCheckinHour(profile.dailyCheckinHour ?? 9);
-      setAgentEnabled(profile.agentEnabled === true);
     }
   }, [visible, profile]);
 
@@ -302,11 +251,6 @@ export default function ProfileSheet({
       density: "comfortable",
       title: profile.title,
       reduceMotion: true,
-      completionAnimation: celebrateAnim,
-      completionSound: celebrateSound,
-      dailyCheckinEnabled: dailyCheckin,
-      dailyCheckinHour,
-      agentEnabled,
     });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     onClose();
@@ -327,8 +271,17 @@ export default function ProfileSheet({
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
             <View style={styles.handle} />
             <View style={styles.titleRow}>
-              <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.titleSideBtn}>
-                <Text style={styles.cancelHeaderText}>{t.cancel}</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  onClose();
+                  signOut();
+                }}
+                hitSlop={10}
+                style={styles.titleSideBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t.signOut}
+              >
+                <Text style={styles.signOutHeaderText}>{t.signOut}</Text>
               </TouchableOpacity>
               <Text style={styles.title}>{t.editProfile}</Text>
               <TouchableOpacity onPress={handleSave} hitSlop={10} style={styles.titleSideBtn}>
@@ -342,6 +295,7 @@ export default function ProfileSheet({
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
+            {/* Avatar header */}
             <View style={styles.avatarRow}>
               <TouchableOpacity onPress={openAvatarPicker} activeOpacity={0.8}>
                 <Avatar avatar={avatar} size={72} />
@@ -354,224 +308,98 @@ export default function ProfileSheet({
               </TouchableOpacity>
             </View>
 
+            {/* AVATAR PRESETS — sits directly under the big avatar so all
+                avatar-related choices are colocated. */}
             <Text style={styles.sectionLabel}>{t.profilePresetLabel}</Text>
-            <View style={styles.presetGrid}>
-              {AVATAR_LIBRARY.map((p) => (
-                <TouchableOpacity
-                  key={p.key}
-                  onPress={() => setAvatar({ kind: "preset", key: p.key })}
-                  style={styles.presetItem}
-                  accessibilityRole="button"
-                  accessibilityState={{
-                    selected:
-                      avatar.kind === "preset" && avatar.key === p.key,
-                  }}
-                >
-                  <Avatar avatar={{ kind: "preset", key: p.key }} size={40} />
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={styles.fieldRow}>
-              <View style={[styles.field, styles.fieldHalf]}>
-                <Text style={styles.label}>
-                  {t.profileFirstNameLabel}
-                  <Text style={{ color: theme.red }}> *</Text>
-                </Text>
-                <TextInput
-                  style={styles.input}
-                  value={firstName}
-                  onChangeText={setFirstName}
-                  maxLength={40}
-                  autoComplete="given-name"
-                  autoCapitalize="words"
-                  returnKeyType="done"
-                />
-              </View>
-              <View style={[styles.field, styles.fieldHalf]}>
-                <Text style={styles.label}>{t.profileLastNameLabel}</Text>
-                <TextInput
-                  style={styles.input}
-                  value={lastName}
-                  onChangeText={setLastName}
-                  maxLength={40}
-                  autoComplete="family-name"
-                  autoCapitalize="words"
-                  returnKeyType="done"
-                />
-              </View>
-            </View>
-
-            <View style={styles.field}>
-              <View style={styles.labelRow}>
-                <Text style={styles.label}>Quote</Text>
-                <TouchableOpacity
-                  onPress={pickQuoteForMe}
-                  disabled={pickingQuote}
-                  hitSlop={8}
-                >
-                  <Text
-                    style={[
-                      styles.pickForMeText,
-                      pickingQuote && styles.pickForMeTextDisabled,
-                    ]}
+            <View style={[styles.card, styles.presetCard]}>
+              <View style={styles.presetGrid}>
+                {AVATAR_LIBRARY.map((p) => (
+                  <TouchableOpacity
+                    key={p.key}
+                    onPress={() => setAvatar({ kind: "preset", key: p.key })}
+                    style={styles.presetItem}
+                    accessibilityRole="button"
+                    accessibilityState={{
+                      selected:
+                        avatar.kind === "preset" && avatar.key === p.key,
+                    }}
                   >
-                    {pickingQuote ? "Picking…" : "Pick it for me"}
-                  </Text>
-                </TouchableOpacity>
+                    <Avatar avatar={{ kind: "preset", key: p.key }} size={40} />
+                  </TouchableOpacity>
+                ))}
               </View>
-              <TextInput
-                style={[styles.input, styles.inputMulti, styles.inputItalic]}
-                value={quote}
-                onChangeText={setQuote}
-                placeholder={t.profileQuotePlaceholder}
-                placeholderTextColor={theme.gray3}
-                multiline
-                maxLength={128}
-              />
-              <Text style={styles.helper}>Shown under your greeting.</Text>
             </View>
 
-            {onOpenBackgrounds && (
-              <View style={styles.field}>
-                <Text style={styles.label}>Background</Text>
-                <TouchableOpacity
-                  style={styles.bgPickerRow}
-                  onPress={() => {
-                    onClose();
-                    // Defer so this modal can finish dismissing before the
-                    // picker modal slides up — iOS dislikes modal-on-modal.
-                    setTimeout(() => onOpenBackgrounds(), 280);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Background, ${bgPair.label}, ${bgPattern.label}. Tap to change.`}
-                  activeOpacity={0.6}
-                >
-                  <View style={styles.bgPreview}>
-                    {renderPattern(bgPattern.key, {
-                      tones: bgTones,
-                      width: 72,
-                      height: 44,
-                    })}
-                  </View>
-                  <View style={styles.bgPickerText}>
-                    <Text style={styles.bgPickerPrimary} numberOfLines={1}>
-                      {bgPair.label}
+            {/* IDENTITY (first+last on one row, then quote) — no section
+                label; the fields speak for themselves. Sits above YOUR
+                JOURNEY so the user lands on editable name fields first
+                and the pebble hero feels like a reward below. */}
+            <View style={[styles.card, styles.cardWithTopGap]}>
+              <View style={styles.cardFieldRow}>
+                <View style={[styles.cardField, styles.cardFieldHalf]}>
+                  <Text style={styles.cardFieldLabel}>
+                    {t.profileFirstNameLabel}
+                    <Text style={{ color: theme.red }}> *</Text>
+                  </Text>
+                  <TextInput
+                    style={styles.cardFieldInput}
+                    value={firstName}
+                    onChangeText={setFirstName}
+                    maxLength={40}
+                    autoComplete="given-name"
+                    autoCapitalize="words"
+                    returnKeyType="done"
+                  />
+                </View>
+                <View style={styles.cardFieldVDivider} />
+                <View style={[styles.cardField, styles.cardFieldHalf]}>
+                  <Text style={styles.cardFieldLabel}>{t.profileLastNameLabel}</Text>
+                  <TextInput
+                    style={styles.cardFieldInput}
+                    value={lastName}
+                    onChangeText={setLastName}
+                    maxLength={40}
+                    autoComplete="family-name"
+                    autoCapitalize="words"
+                    returnKeyType="done"
+                  />
+                </View>
+              </View>
+              <View style={styles.cardDivider} />
+              <View style={styles.cardField}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.cardFieldLabel}>Quote</Text>
+                  <TouchableOpacity
+                    onPress={pickQuoteForMe}
+                    disabled={pickingQuote}
+                    hitSlop={8}
+                  >
+                    <Text
+                      style={[
+                        styles.pickForMeText,
+                        pickingQuote && styles.pickForMeTextDisabled,
+                      ]}
+                    >
+                      {pickingQuote ? "Picking…" : "Pick it for me"}
                     </Text>
-                    <Text style={styles.bgPickerSecondary} numberOfLines={1}>
-                      {bgPattern.label}
-                    </Text>
-                  </View>
-                  <Text style={styles.bgPickerChevron}>›</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            <TouchableOpacity
-              style={styles.toggleRow}
-              onPress={() => setCelebrateAnim((v) => !v)}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: celebrateAnim }}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.label}>Completion animation</Text>
-                <Text style={styles.toggleHint}>
-                  A calm scale pulse when you mark a task done.
-                </Text>
-              </View>
-              <View style={[styles.toggleTrack, celebrateAnim && styles.toggleTrackOn]}>
-                <View style={[styles.toggleKnob, celebrateAnim && styles.toggleKnobOn]} />
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.toggleRow}
-              onPress={() => setCelebrateSound((v) => !v)}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: celebrateSound }}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.label}>Completion sound</Text>
-                <Text style={styles.toggleHint}>
-                  A soft chime when you mark a task done. (Coming soon.)
-                </Text>
-              </View>
-              <View style={[styles.toggleTrack, celebrateSound && styles.toggleTrackOn]}>
-                <View style={[styles.toggleKnob, celebrateSound && styles.toggleKnobOn]} />
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.toggleRow}
-              onPress={() => setDailyCheckin((v) => !v)}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: dailyCheckin }}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.label}>Daily check-in</Text>
-                <Text style={styles.toggleHint}>
-                  One quiet, mascot-voiced reminder. No alerts, no streaks.
-                  You can turn it off anytime.
-                </Text>
-              </View>
-              <View style={[styles.toggleTrack, dailyCheckin && styles.toggleTrackOn]}>
-                <View style={[styles.toggleKnob, dailyCheckin && styles.toggleKnobOn]} />
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.toggleRow}
-              onPress={() => setAgentEnabled((v) => !v)}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: agentEnabled }}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.label}>Ask Mochi (beta)</Text>
-                <Text style={styles.toggleHint}>
-                  Tell Mochi what to add or change in plain words. A small
-                  Mochi button appears on your list. Sends the text you type
-                  to a private AI service. Off by default.
-                </Text>
-              </View>
-              <View style={[styles.toggleTrack, agentEnabled && styles.toggleTrackOn]}>
-                <View style={[styles.toggleKnob, agentEnabled && styles.toggleKnobOn]} />
-              </View>
-            </TouchableOpacity>
-
-            {dailyCheckin && (
-              <TouchableOpacity
-                style={styles.checkinTimeRow}
-                onPress={() => setCheckinTimePickerOpen((v) => !v)}
-                accessibilityRole="button"
-                accessibilityLabel={`Reminder time, ${formatHour12(dailyCheckinHour)}. Tap to change.`}
-              >
-                <Text style={styles.checkinTimeLabel}>Reminder time</Text>
-                <Text style={styles.checkinTimeValue}>
-                  {formatHour12(dailyCheckinHour)}
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            {dailyCheckin && checkinTimePickerOpen && (
-              <View style={styles.checkinTimePickerWrap}>
-                <DateTimePicker
-                  value={(() => {
-                    const d = new Date();
-                    d.setHours(dailyCheckinHour, 0, 0, 0);
-                    return d;
-                  })()}
-                  mode="time"
-                  display={Platform.OS === "ios" ? "spinner" : "default"}
-                  themeVariant={theme.statusBar === "light-content" ? "dark" : "light"}
-                  minuteInterval={30}
-                  onChange={(_e: DateTimePickerEvent, d?: Date) => {
-                    if (d) setDailyCheckinHour(d.getHours());
-                    if (Platform.OS === "android") setCheckinTimePickerOpen(false);
-                  }}
+                  </TouchableOpacity>
+                </View>
+                <TextInput
+                  style={[styles.cardFieldInput, styles.cardFieldInputMulti, styles.inputItalic]}
+                  value={quote}
+                  onChangeText={setQuote}
+                  placeholder={t.profileQuotePlaceholder}
+                  placeholderTextColor={theme.gray3}
+                  multiline
+                  maxLength={128}
                 />
+                <Text style={styles.helper}>Shown under your greeting.</Text>
               </View>
-            )}
+            </View>
 
+            {/* YOUR JOURNEY — sits below the identity fields so the
+                pebble count reads as a reward beneath the editable form. */}
+            <Text style={styles.sectionLabel}>YOUR JOURNEY</Text>
             <View style={styles.pebbleHero}>
               <View style={styles.pebbleHeroCairn}>
                 <CairnGlyph size={42} />
@@ -583,44 +411,23 @@ export default function ProfileSheet({
               </Text>
             </View>
 
-            <Text style={styles.privacySectionLabel}>YOUR DATA</Text>
-            <View style={styles.privacyCard}>
-              <Text style={styles.privacyText}>
-                Your tasks live in your account. They're encrypted in
-                transit, scoped to you on every read, and never sold,
-                analyzed, or shared.
-              </Text>
-              <Text style={styles.privacyText}>
-                When you delete your account, everything you've added is
-                removed from the cloud the same moment.
-              </Text>
-            </View>
-
-            {exportSnapshot && (
+            {/* ACCOUNT */}
+            <Text style={styles.sectionLabel}>ACCOUNT</Text>
+            <View style={styles.card}>
+              {user?.email && (
+                <>
+                  <View style={styles.accountRowStatic}>
+                    <Text style={styles.accountRowLabel}>Signed in as</Text>
+                    <Text style={styles.accountRowValue} numberOfLines={1}>
+                      {user.email}
+                    </Text>
+                  </View>
+                  <View style={styles.cardDivider} />
+                </>
+              )}
               <TouchableOpacity
-                style={styles.exportBtn}
-                onPress={async () => {
-                  try {
-                    const json = exportSnapshot();
-                    await Share.share({
-                      title: 'Sagely export',
-                      message: json,
-                    });
-                  } catch {
-                    /* User dismissed or share failed — no-op */
-                  }
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Export my data as JSON"
-              >
-                <Text style={styles.exportBtnText}>Export my data</Text>
-              </TouchableOpacity>
-            )}
-
-            <View style={styles.actions}>
-              <TouchableOpacity
+                style={styles.accountRow}
                 disabled={deleting}
-                hitSlop={10}
                 onPress={() => {
                   Alert.alert(
                     t.deleteAccount,
@@ -654,45 +461,21 @@ export default function ProfileSheet({
                     { cancelable: true },
                   );
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={t.deleteAccount}
               >
                 <Text
                   style={[
-                    styles.deleteInlineText,
+                    styles.accountRowDestructive,
                     deleting && styles.deleteInlineTextDisabled,
                   ]}
                 >
                   {deleting ? t.deleting : t.deleteAccount}
                 </Text>
               </TouchableOpacity>
-              <View style={{ flex: 1 }} />
-              <TouchableOpacity
-                onPress={() => {
-                  onClose();
-                  signOut();
-                }}
-                hitSlop={10}
-              >
-                <Text style={styles.signOutInlineText}>{t.signOut}</Text>
-              </TouchableOpacity>
             </View>
 
-            <View style={styles.aboutFooter}>
-              <TouchableOpacity
-                onPress={() => {
-                  onSave({ ...profile, onboardingDone: false });
-                  onClose();
-                }}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="View Mochi's intro again"
-              >
-                <Text style={styles.aboutLink}>View intro again</Text>
-              </TouchableOpacity>
-              <Text style={styles.aboutTagline}>
-                Sagely · for brains that get overwhelmed by to-do lists.
-              </Text>
-              <Text style={styles.aboutVersion}>v1.0.1 · Mochi the turtle is the brand mascot.</Text>
-            </View>
+            <View style={{ height: 24 }} />
             </ScrollView>
           </Pressable>
         </Pressable>
@@ -752,12 +535,104 @@ function makeStyles(c: ThemeColors) {
       color: c.blue,
     },
     sectionLabel: {
-      fontSize: 11,
+      fontSize: 12,
       fontWeight: "700",
-      textTransform: "none",
       letterSpacing: 0.6,
       color: c.label3,
+      marginTop: 18,
       marginBottom: 8,
+      paddingHorizontal: 4,
+    },
+    card: {
+      borderRadius: 12,
+      backgroundColor: c.card,
+      overflow: "hidden",
+      marginBottom: 4,
+    },
+    cardWithTopGap: {
+      // For a card that sits without its own section label above it —
+      // restore the breathing room a label would normally provide.
+      marginTop: 18,
+    },
+    cardField: {
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+    },
+    cardFieldRow: {
+      flexDirection: "row",
+      alignItems: "stretch",
+    },
+    cardFieldHalf: {
+      flex: 1,
+    },
+    cardFieldVDivider: {
+      width: StyleSheet.hairlineWidth,
+      backgroundColor: c.separator,
+      marginVertical: 6,
+    },
+    cardFieldLabel: {
+      fontSize: 11,
+      fontWeight: "700",
+      letterSpacing: 0.6,
+      color: c.label3,
+      marginBottom: 6,
+    },
+    cardFieldInput: {
+      fontSize: 15,
+      color: c.label,
+      paddingVertical: 4,
+      paddingHorizontal: 0,
+    },
+    cardFieldInputMulti: {
+      minHeight: 36,
+      textAlignVertical: "top",
+    },
+    cardDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: c.separator,
+      marginLeft: 14,
+    },
+    presetCard: {
+      paddingHorizontal: 10,
+      paddingVertical: 10,
+    },
+    accountRowStatic: {
+      paddingVertical: 14,
+      paddingHorizontal: 14,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      minHeight: 48,
+    },
+    accountRow: {
+      paddingVertical: 14,
+      paddingHorizontal: 14,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      minHeight: 48,
+    },
+    accountRowLabel: {
+      fontSize: 15,
+      color: c.label,
+      flexShrink: 0,
+    },
+    accountRowValue: {
+      fontSize: 14,
+      color: c.label3,
+      marginLeft: "auto",
+      textAlign: "right",
+      flexShrink: 1,
+    },
+    accountRowAction: {
+      fontSize: 15,
+      color: c.primary,
+      fontWeight: "600",
+    },
+    accountRowDestructive: {
+      fontSize: 15,
+      color: c.red,
+      fontWeight: "600",
     },
     presetGrid: {
       flexDirection: "row",
@@ -1084,6 +959,11 @@ function makeStyles(c: ThemeColors) {
     cancelHeaderText: {
       fontSize: 15,
       color: c.blue,
+      fontWeight: "500",
+    },
+    signOutHeaderText: {
+      fontSize: 15,
+      color: c.label2,
       fontWeight: "500",
     },
     saveHeaderText: {
