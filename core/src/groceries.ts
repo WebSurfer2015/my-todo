@@ -1,0 +1,251 @@
+/**
+ * Grocery list — second top-level data type alongside `Todo`, with its
+ * own lifecycle:
+ *
+ * - Items are grouped by department (Produce, Meat & Seafood, etc.).
+ * - Checking an item moves it to a derived "Future" bucket (not deleted,
+ *   not in any group). The user can re-add it later from Future and it
+ *   bounces back to its original group.
+ * - Items are NEVER auto-purged. Permanent deletion is manual-only.
+ * - Items carry an optional `store` (typed by the user — "Costco",
+ *   "Trader Joe's", "Safeway"). The view filters by active store.
+ *
+ * Groups are user-configurable (rename, reorder, hide) except for a
+ * reserved "Others" catch-all group that always exists and can't be
+ * deleted — it's where items land when an item's group is removed or
+ * unrecognized.
+ *
+ * The "Future" bucket is derived (checked items), not a stored group.
+ */
+import { genUuid } from './utils'
+
+export interface GroceryItem {
+  /** Stable UUID, like Todo.id. */
+  id: string
+  text: string
+  /** FK to GroceryGroup.id. Falls back to OTHERS_GROUP_ID on read if
+   * the group has been deleted. */
+  groupId: string
+  /** Optional store hint ("Costco", "Trader Joe's"). Drives the
+   * view's store-filter dropdown. Empty / undefined = no specific store. */
+  store?: string
+  /** True once the user has checked the item off. Checked items live
+   * in the derived "Future" bucket. */
+  checked: boolean
+  /** ms timestamp — sets sort order within a group (newest first). */
+  addedAt: number
+  /** ms timestamp set when `checked` flips true. Cleared on re-add. */
+  checkedAt?: number
+}
+
+export interface GroceryGroup {
+  /** Stable id; required for cross-device sync. Built-in groups use
+   * fixed string ids (see SEED_GROCERY_GROUPS); custom groups use UUIDs. */
+  id: string
+  /** Display label. User-editable. */
+  label: string
+  /** When true, group is hidden from the grocery view (items still
+   * exist, just not visible). The OTHERS_GROUP can't be hidden. */
+  hidden?: boolean
+}
+
+/** The catch-all group id — always exists, always last, never deletable
+ * or hideable. Items with an unknown groupId fall back to this. */
+export const OTHERS_GROUP_ID = 'others'
+
+export const SEED_GROCERY_GROUPS: GroceryGroup[] = [
+  { id: 'produce',   label: 'Produce' },
+  { id: 'meat',      label: 'Meat & Seafood' },
+  { id: 'dairy',     label: 'Dairy & Eggs' },
+  { id: 'bakery',    label: 'Bread & Bakery' },
+  { id: 'frozen',    label: 'Frozen' },
+  { id: 'pantry',    label: 'Pantry' },
+  { id: 'beverages', label: 'Beverages' },
+  { id: 'household', label: 'Household' },
+  { id: OTHERS_GROUP_ID, label: 'Others' },
+]
+
+// ── Hard caps (defense against malicious cloud writes) ──────────────
+export const MAX_GROCERY_TEXT_LEN = 200
+export const MAX_GROCERY_STORE_LEN = 64
+export const MAX_GROCERY_GROUP_LABEL_LEN = 40
+export const MAX_GROCERY_GROUP_ID_LEN = 64
+export const MAX_GROCERY_ITEMS = 2000
+export const MAX_GROCERY_GROUPS = 30
+
+// ── Constructors ────────────────────────────────────────────────────
+
+export function newGroceryItem(args: {
+  text: string
+  groupId?: string
+  store?: string
+}): GroceryItem {
+  return {
+    id: genUuid(),
+    text: args.text.slice(0, MAX_GROCERY_TEXT_LEN),
+    groupId: args.groupId?.slice(0, MAX_GROCERY_GROUP_ID_LEN) || OTHERS_GROUP_ID,
+    store: args.store ? args.store.slice(0, MAX_GROCERY_STORE_LEN) : undefined,
+    checked: false,
+    addedAt: Date.now(),
+  }
+}
+
+export function newGroceryGroup(label: string): GroceryGroup {
+  return {
+    id: genUuid(),
+    label: label.slice(0, MAX_GROCERY_GROUP_LABEL_LEN),
+  }
+}
+
+// ── Migrations ──────────────────────────────────────────────────────
+
+/**
+ * Read-time migrator for a stored groceries list. Drops anything that
+ * doesn't shape-check, caps strings, dedupes by id, caps the total
+ * count. On any structural failure returns [] — better empty than
+ * malformed.
+ */
+export function migrateGroceries(raw: unknown): GroceryItem[] {
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  const out: GroceryItem[] = []
+  for (const r of raw) {
+    if (!r || typeof r !== 'object') continue
+    const o = r as Record<string, unknown>
+    if (typeof o.id !== 'string' || o.id.length === 0) continue
+    if (typeof o.text !== 'string' || o.text.length === 0) continue
+    if (typeof o.groupId !== 'string' || o.groupId.length === 0) continue
+    if (seen.has(o.id)) continue
+    seen.add(o.id)
+    const item: GroceryItem = {
+      id: o.id.slice(0, 64),
+      text: o.text.slice(0, MAX_GROCERY_TEXT_LEN),
+      groupId: o.groupId.slice(0, MAX_GROCERY_GROUP_ID_LEN),
+      checked: o.checked === true,
+      addedAt:
+        typeof o.addedAt === 'number' && o.addedAt > 0
+          ? Math.floor(o.addedAt)
+          : Date.now(),
+    }
+    if (typeof o.store === 'string' && o.store.length > 0) {
+      item.store = o.store.slice(0, MAX_GROCERY_STORE_LEN)
+    }
+    if (typeof o.checkedAt === 'number' && o.checkedAt > 0) {
+      item.checkedAt = Math.floor(o.checkedAt)
+    }
+    out.push(item)
+    if (out.length >= MAX_GROCERY_ITEMS) break
+  }
+  return out
+}
+
+/**
+ * Read-time migrator for the stored grocery groups config. Always
+ * guarantees the OTHERS catch-all group exists at the end. Drops
+ * duplicates, caps strings, caps count.
+ */
+export function migrateGroceryGroups(raw: unknown): GroceryGroup[] {
+  if (!Array.isArray(raw)) return [...SEED_GROCERY_GROUPS]
+  const seen = new Set<string>()
+  const out: GroceryGroup[] = []
+  for (const r of raw) {
+    if (!r || typeof r !== 'object') continue
+    const o = r as Record<string, unknown>
+    if (typeof o.id !== 'string' || o.id.length === 0) continue
+    if (typeof o.label !== 'string' || o.label.length === 0) continue
+    if (seen.has(o.id)) continue
+    seen.add(o.id)
+    const group: GroceryGroup = {
+      id: o.id.slice(0, MAX_GROCERY_GROUP_ID_LEN),
+      label: o.label.slice(0, MAX_GROCERY_GROUP_LABEL_LEN),
+    }
+    if (o.hidden === true && o.id !== OTHERS_GROUP_ID) {
+      group.hidden = true
+    }
+    out.push(group)
+    if (out.length >= MAX_GROCERY_GROUPS) break
+  }
+  // Guarantee OTHERS exists, and that it sits last.
+  const withoutOthers = out.filter((g) => g.id !== OTHERS_GROUP_ID)
+  const othersFromInput = out.find((g) => g.id === OTHERS_GROUP_ID)
+  withoutOthers.push(othersFromInput ?? { id: OTHERS_GROUP_ID, label: 'Others' })
+  return withoutOthers
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────
+
+/** Resolve an item's group, falling back to Others if the stored id is
+ * no longer in the groups list. */
+export function resolveGroup(
+  groupId: string,
+  groups: GroceryGroup[],
+): GroceryGroup {
+  return (
+    groups.find((g) => g.id === groupId) ??
+    groups.find((g) => g.id === OTHERS_GROUP_ID) ??
+    SEED_GROCERY_GROUPS[SEED_GROCERY_GROUPS.length - 1]
+  )
+}
+
+/** Stable list of stores the user has typed at least once, sorted by
+ * most-recent-use first. Drawn from the items list (no separate stored
+ * config — store names are emergent). */
+export function deriveStores(items: GroceryItem[]): string[] {
+  const seen = new Map<string, number>() // store → most-recent ms
+  for (const it of items) {
+    if (!it.store) continue
+    const prev = seen.get(it.store) ?? 0
+    const ts = Math.max(it.checkedAt ?? 0, it.addedAt)
+    if (ts > prev) seen.set(it.store, ts)
+  }
+  return [...seen.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([s]) => s)
+}
+
+// ── Mutation helpers (pure) ─────────────────────────────────────────
+
+/** Toggle an item's checked state. Sets checkedAt on flip-to-checked,
+ * clears it on re-add, and bumps addedAt on re-add so the item floats
+ * to the top of its group. */
+export function groceryToggleChecked(
+  items: GroceryItem[],
+  id: string,
+): GroceryItem[] {
+  return items.map((it) => {
+    if (it.id !== id) return it
+    if (it.checked) {
+      // Re-add: clear checked, bump addedAt so it surfaces in its group
+      return { ...it, checked: false, checkedAt: undefined, addedAt: Date.now() }
+    }
+    // Check off: move to Future
+    return { ...it, checked: true, checkedAt: Date.now() }
+  })
+}
+
+/** Apply text/group/store edits to a single item. Caps strings. */
+export function groceryEdit(
+  items: GroceryItem[],
+  id: string,
+  patch: { text?: string; groupId?: string; store?: string | null },
+): GroceryItem[] {
+  return items.map((it) => {
+    if (it.id !== id) return it
+    const next: GroceryItem = { ...it }
+    if (patch.text !== undefined) {
+      next.text = patch.text.slice(0, MAX_GROCERY_TEXT_LEN)
+    }
+    if (patch.groupId !== undefined) {
+      next.groupId = patch.groupId.slice(0, MAX_GROCERY_GROUP_ID_LEN)
+    }
+    if (patch.store !== undefined) {
+      next.store = patch.store ? patch.store.slice(0, MAX_GROCERY_STORE_LEN) : undefined
+    }
+    return next
+  })
+}
+
+/** Permanent delete — manual-only path. */
+export function groceryDelete(items: GroceryItem[], id: string): GroceryItem[] {
+  return items.filter((it) => it.id !== id)
+}

@@ -103,6 +103,19 @@ export interface Profile {
    * = the default cream-solid look (zero diff from v1.0.x).
    */
   background?: BackgroundChoice
+  /**
+   * Show the Groceries view toggle at the top of the home screen.
+   * Defaults to true (the feature is discoverable on first launch).
+   * Users who don't want it can hide it in Settings — the toggle
+   * disappears and the screen renders Todos only.
+   */
+  groceriesEnabled?: boolean
+  /**
+   * Last-active grocery store filter ("Costco", "Trader Joe's"). Empty /
+   * undefined means "show all stores". Persisted so switching to
+   * Groceries view doesn't reset to the all-stores view every time.
+   */
+  activeGroceryStore?: string
 }
 
 export interface BackgroundChoice {
@@ -307,6 +320,11 @@ export function migrateProfile(raw: unknown): Profile {
         : undefined,
     pinnedFilters: migratePinnedFilters(p.pinnedFilters ?? p.pinnedFilter),
     background: migrateBackground(p.background),
+    groceriesEnabled: p.groceriesEnabled === false ? false : undefined,
+    activeGroceryStore:
+      typeof p.activeGroceryStore === 'string' && p.activeGroceryStore.length > 0
+        ? p.activeGroceryStore.slice(0, 64)
+        : undefined,
   }
 }
 

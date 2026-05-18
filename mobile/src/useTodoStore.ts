@@ -26,6 +26,13 @@ import {
   newCategoryId,
 } from "./categories";
 import { Profile, SEED_PROFILE, migrateProfile, getTodayPebbles, incrementPebble, decrementPebble } from "./profile";
+import {
+  GroceryItem,
+  GroceryGroup,
+  SEED_GROCERY_GROUPS,
+  migrateGroceries,
+  migrateGroceryGroups,
+} from "./groceries";
 import { useLang } from "./LangContext";
 import { useAuth } from "./AuthContext";
 import { useNotify } from "./notify";
@@ -115,6 +122,12 @@ const parseProfile = (raw: string | null): Profile => {
   return data ? migrateProfile(data) : SEED_PROFILE;
 };
 
+const parseGroceries = (raw: string | null): GroceryItem[] =>
+  migrateGroceries(unwrap(raw));
+
+const parseGroceryGroups = (raw: string | null): GroceryGroup[] =>
+  migrateGroceryGroups(unwrap(raw));
+
 const serializeAny = (v: unknown): string => wrap(v);
 
 /**
@@ -124,7 +137,13 @@ const serializeAny = (v: unknown): string => wrap(v);
  * profile happens to have been deleted or never written.
  */
 async function migrateLocalToCloud(adapter: StorageAdapter): Promise<void> {
-  for (const key of ["todos", "categories", "profile"] as const) {
+  for (const key of [
+    "todos",
+    "categories",
+    "profile",
+    "groceries",
+    "groceryGroups",
+  ] as const) {
     const cloudVal = await adapter.getItem(key);
     if (cloudVal != null) continue;
     const raw = await AsyncStorage.getItem(key);
@@ -165,6 +184,22 @@ export function useTodoStore() {
   const [categories, setCategories, categoriesLoaded] = useSyncedState<
     CategoryDef[]
   >(adapter, "categories", SEED_CATEGORIES, parseCategories, serializeAny, onSaved);
+  const [groceries, setGroceries, groceriesLoaded] = useSyncedState<GroceryItem[]>(
+    adapter,
+    "groceries",
+    [],
+    parseGroceries,
+    serializeAny,
+    onSaved,
+  );
+  const [groceryGroups, setGroceryGroups, groceryGroupsLoaded] = useSyncedState<GroceryGroup[]>(
+    adapter,
+    "groceryGroups",
+    SEED_GROCERY_GROUPS,
+    parseGroceryGroups,
+    serializeAny,
+    onSaved,
+  );
   const [todos, setTodos, todosLoaded] = useSyncedState<Todo[]>(
     adapter,
     "todos",
@@ -264,7 +299,12 @@ export function useTodoStore() {
     [setProfile, notify, t],
   );
 
-  const loaded = categoriesLoaded && todosLoaded && profileLoaded;
+  const loaded =
+    categoriesLoaded &&
+    todosLoaded &&
+    profileLoaded &&
+    groceriesLoaded &&
+    groceryGroupsLoaded;
 
   // ---- Stable callbacks ----
 
@@ -806,6 +846,10 @@ export function useTodoStore() {
   return {
     todos,
     categories,
+    groceries,
+    setGroceries,
+    groceryGroups,
+    setGroceryGroups,
     profile,
     filter,
     view,
