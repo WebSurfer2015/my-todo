@@ -19,8 +19,16 @@ Counts:
   rolling recurrence (one weekly, one monthly).
 
 Usage:
-  SAGELY_DEMO_PASSWORD=<password> python3 scripts/seed_sample_data.py
-  # or omit and it'll prompt interactively.
+  SAGELY_FIREBASE_WEB_API_KEY=<key> \\
+  SAGELY_DEMO_EMAIL=<email> \\
+  SAGELY_DEMO_PASSWORD=<password> \\
+  python3 scripts/seed_sample_data.py
+  # Password can be omitted — it'll prompt interactively.
+  # API key + email MUST be set; the script no longer carries a fallback
+  # so a leaked literal can't drift back into source. The key is the
+  # Firebase Web API key for the project (Cloud Console → APIs &
+  # Services → Credentials). Restrict it to Identity Toolkit + Firestore
+  # APIs and to your iOS bundle / Android package / web referrer.
 """
 from __future__ import annotations
 
@@ -34,14 +42,25 @@ import urllib.request
 import uuid
 from datetime import date, datetime, timedelta
 
-# Pulled from mobile/GoogleService-Info.plist (iOS client) and
-# mobile/google-services.json (Android). Either key works for the
-# Identity Toolkit + Firestore REST endpoints since they're rate-limited
-# per project, not per platform. Project is the dev/prod merged
-# `my-todos-1b079` Firestore.
+# Secrets / identifiers are loaded from env so a leaked literal can't
+# drift back into source. WEB_API_KEY is the Firebase Web API key for
+# the project; same key as the value in mobile/GoogleService-Info.plist
+# / google-services.json but kept out of this file so the script can be
+# committed to a public repo without tripping GitHub secret scanning.
 PROJECT_ID = "my-todos-1b079"
-WEB_API_KEY = "AIzaSyBJatuUC6_j78Sa29BzNCuAmyJi_gYmREw"
-EMAIL = "sagely.todo@gmail.com"
+WEB_API_KEY = os.environ.get("SAGELY_FIREBASE_WEB_API_KEY")
+EMAIL = os.environ.get("SAGELY_DEMO_EMAIL")
+if not WEB_API_KEY:
+    raise SystemExit(
+        "SAGELY_FIREBASE_WEB_API_KEY env var is required. "
+        "Get it from Firebase Console → Project settings → General → "
+        "Your apps → Web API Key, restrict it in Cloud Console, then re-run."
+    )
+if not EMAIL:
+    raise SystemExit(
+        "SAGELY_DEMO_EMAIL env var is required "
+        "(the email of the demo account whose data to seed)."
+    )
 
 SCHEMA_VERSION = 1
 
