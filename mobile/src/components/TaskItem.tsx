@@ -9,6 +9,30 @@ const SCREEN_WIDTH = Dimensions.get('window').width
 // (and matches iOS Mail/Notes full-swipe feel).
 const FULL_SWIPE_THRESHOLD = SCREEN_WIDTH * 0.3
 
+// Module-level tracker so any TaskItem can close another row's open
+// swipe menu on tap — Reminders.app convention. Single-open-at-a-time
+// across all TaskItem instances. Reset when the open row's swipe
+// closes itself.
+let openSwipeable: { ref: React.RefObject<Swipeable | null>; id: string } | null = null
+function trackOpenSwipeable(
+  ref: React.RefObject<Swipeable | null>,
+  id: string,
+): void {
+  if (openSwipeable && openSwipeable.id !== id) {
+    openSwipeable.ref.current?.close()
+  }
+  openSwipeable = { ref, id }
+}
+function clearOpenSwipeable(id: string): void {
+  if (openSwipeable?.id === id) openSwipeable = null
+}
+function closeOtherSwipeables(id: string): void {
+  if (openSwipeable && openSwipeable.id !== id) {
+    openSwipeable.ref.current?.close()
+    openSwipeable = null
+  }
+}
+
 /** Listens to a Swipeable's drag animated value and fires onFullSwipe when |drag| exceeds the threshold. */
 function FullSwipeWatcher({
   dragX,
@@ -47,7 +71,6 @@ import {
   ChevronDown,
   Trash2,
   RotateCcw,
-  XCircle,
   Pencil,
   Check,
   Calendar,
@@ -115,6 +138,22 @@ interface Props {
   onUpdateSubtaskPriority?: (id: string, subId: string, priority: Priority) => void
   onUpdateSubtaskDueDate?: (id: string, subId: string, dueDate: string) => void
   onRemoveSubtask?: (id: string, subId: string) => void
+  /** Home-specific date chip rendering: hide the "Today" label for
+   * items due today, swap the formatted past date for a "carried over"
+   * label on overdue items. Default rendering shows the full
+   * formatted date for every row. */
+  dateChipFormat?: 'default' | 'home-today'
+  /** Default 'toggle' — tap row toggles done. 'expandIfHasSubs' makes
+   * tap on a parent-with-subs row toggle the expand chevron instead
+   * (since the parent's done state is derived and tap-to-toggle is a
+   * no-op). Plain rows still toggle. Home uses this. */
+  tapBehavior?: 'toggle' | 'expandIfHasSubs'
+  /** When 'due-today', filter the rendered subtasks to those with a
+   * dueDate today or earlier, auto-expand the row so the user sees
+   * those steps without tapping, and dim the row when every visible
+   * (today-or-earlier) sub is done but future subs are still open —
+   * the "today's work is finished" state. Home uses this. */
+  subtaskDateFilter?: 'due-today'
 }
 
 function TaskItem({
@@ -125,6 +164,7 @@ function TaskItem({
   onUpdatePriority, onUpdateDueDate, onSnooze, onLongPressDefer, onUpdateCategory, onUpdateText, onUpdateNotes, onUpdateRecurrence,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
+  dateChipFormat = 'default', tapBehavior = 'toggle', subtaskDateFilter,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
@@ -137,6 +177,8 @@ function TaskItem({
   // When set, TaskDetailsSheet opens jumped straight into the named
   // subtask's edit view. Cleared on close.
   const [pendingSubtaskEditId, setPendingSubtaskEditId] = useState<string | null>(null)
+  // Rows start collapsed; user taps the chevron (or the row body when
+  // tapBehavior='expandIfHasSubs') to reveal subtasks.
   const [expanded, setExpanded] = useState(false)
   // Shared per-subtask pickers — track which sub has the modal open.
   const [subPriorityForId, setSubPriorityForId] = useState<string | null>(null)
@@ -151,13 +193,28 @@ function TaskItem({
   const subsDoneCount = subs.filter((s) => s.done).length
   const detailsAvailable =
     !!onAddSubtask && !!onToggleSubtask && !!onUpdateSubtaskText && !!onRemoveSubtask
+  const today = todayLocal()
   const visibleSubs = sortedSubs(
-    subtaskVisibility === 'open'
-      ? subs.filter((s) => !s.done)
-      : subtaskVisibility === 'done'
-        ? subs.filter((s) => s.done)
-        : subs,
+    subtaskDateFilter === 'due-today'
+      ? // Home's TODAY rendering: only render subs whose due-date is
+        // today or earlier. Future subs and no-date subs stay hidden.
+        subs.filter((s) => !!s.dueDate && s.dueDate <= today)
+      : subtaskVisibility === 'open'
+        ? subs.filter((s) => !s.done)
+        : subtaskVisibility === 'done'
+          ? subs.filter((s) => s.done)
+          : subs,
   )
+  // "Today's work is done" — every visible (today-or-earlier) sub is
+  // done, but at least one future sub remains open. Distinct from the
+  // fully-done parent state. Drives a dimmed row on Home so the user
+  // can tell at a glance which rows still have actionable steps today.
+  const partiallyDoneToday =
+    subtaskDateFilter === 'due-today' &&
+    hasSubs &&
+    visibleSubs.length > 0 &&
+    visibleSubs.every((s) => s.done) &&
+    !todo.done
   const [pickerDate, setPickerDate] = useState<Date>(() =>
     todo.dueDate ? new Date(`${todo.dueDate}T00:00:00`) : new Date()
   )
@@ -238,8 +295,34 @@ function TaskItem({
   }, [todo.done, celebrate, playSound, reduceMotion, checkboxScale, rowFlash, triggerPebbleFlight])
   const swipeableRef = useRef<Swipeable>(null)
   const [swipeOpen, setSwipeOpen] = useState(false)
+  // Suppress the row Pressable's onPress / onLongPress when the touch
+  // includes any horizontal drag — Pressable's built-in cancellation
+  // only triggers when the finger leaves the Pressable's bounds, but
+  // a swipe slides inside the row's width and would otherwise toggle
+  // the row on release alongside opening the swipe menu.
+  const touchStartXRef = useRef(0)
+  const touchStartYRef = useRef(0)
+  const touchMovedRef = useRef(false)
+  function onRowTouchStart(e: { nativeEvent: { touches: Array<{ pageX: number; pageY: number }> } }) {
+    const t = e.nativeEvent.touches[0]
+    if (!t) return
+    touchStartXRef.current = t.pageX
+    touchStartYRef.current = t.pageY
+    touchMovedRef.current = false
+  }
+  function onRowTouchMove(e: { nativeEvent: { touches: Array<{ pageX: number; pageY: number }> } }) {
+    const t = e.nativeEvent.touches[0]
+    if (!t) return
+    const dx = Math.abs(t.pageX - touchStartXRef.current)
+    const dy = Math.abs(t.pageY - touchStartYRef.current)
+    if (dx > 8 || dy > 8) touchMovedRef.current = true
+  }
+  // Single-open-swipe coordination — sync this row's swipe state into
+  // the module-level tracker so a tap elsewhere closes us.
+  useEffect(() => {
+    return () => clearOpenSwipeable(todo.id)
+  }, [todo.id])
 
-  const today = todayLocal()
   const overdue = !!todo.dueDate && !todo.done && todo.dueDate < today
   const isToday = !!todo.dueDate && !todo.done && todo.dueDate === today
   const cat = todo.category ? categories.find((c) => c.id === todo.category) : undefined
@@ -432,7 +515,12 @@ function TaskItem({
           <Text style={styles.swipeActionText}>{t.deferTask}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.swipeAction, styles.swipeTrash]} onPress={handleMoveToTrash}>
-          <XCircle size={20} color="#fff" strokeWidth={2} />
+          {/* Solid white disc + dark X — lucide's XCircle outline reads
+              as "dotted" / thin at button scale, so we draw a filled
+              circle with a contrasting ✕ glyph instead. */}
+          <View style={styles.notDoIcon}>
+            <Text style={styles.notDoIconX}>✕</Text>
+          </View>
           <Text style={styles.swipeActionText}>{t.notDo}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.swipeAction, styles.swipeDelete]} onPress={confirmPermanentDelete}>
@@ -480,18 +568,38 @@ function TaskItem({
       overshootRight={true}
       friction={1}
       containerStyle={styles.swipeContainer}
-      onSwipeableWillOpen={() => setSwipeOpen(true)}
-      onSwipeableWillClose={() => setSwipeOpen(false)}
+      onSwipeableWillOpen={() => {
+        setSwipeOpen(true)
+        trackOpenSwipeable(swipeableRef, todo.id)
+      }}
+      onSwipeableWillClose={() => {
+        setSwipeOpen(false)
+        clearOpenSwipeable(todo.id)
+      }}
     >
       <Pressable
-        onPress={
-          swipeOpen
-            ? undefined
-            : inTrash && onToggleSelect
-              ? () => onToggleSelect(todo.id)
-              : handleToggle
-        }
-        onLongPress={swipeOpen ? undefined : openDetails}
+        onTouchStart={onRowTouchStart}
+        onTouchMove={onRowTouchMove}
+        onPress={() => {
+          if (touchMovedRef.current || swipeOpen) return
+          // Reminders.app convention: tap on any row closes other rows'
+          // open swipe menus before the tap action runs.
+          closeOtherSwipeables(todo.id)
+          if (inTrash && onToggleSelect) {
+            onToggleSelect(todo.id)
+            return
+          }
+          if (tapBehavior === 'expandIfHasSubs' && hasSubs) {
+            setExpanded((v) => !v)
+            return
+          }
+          handleToggle()
+        }}
+        onLongPress={() => {
+          if (touchMovedRef.current || swipeOpen) return
+          closeOtherSwipeables(todo.id)
+          openDetails()
+        }}
         delayLongPress={350}
         style={({ pressed }) => [
           styles.row,
@@ -500,6 +608,10 @@ function TaskItem({
           // mixed-in via the All filter), so the user can tell them
           // apart from done items at a glance.
           (inTrash || todo.trashed) && styles.rowTrashed,
+          // Home "today's work done" — every today-or-earlier sub is
+          // done but future subs remain. Dim so the user can scan past
+          // it but still sees what's been accomplished.
+          partiallyDoneToday && styles.rowPartialDone,
           pressed && styles.rowPressed,
         ]}
       >
@@ -611,8 +723,15 @@ function TaskItem({
               </Text>
             </View>
 
-            <Text style={styles.metaSep}>·</Text>
+            {/* Date chip + separator are suppressed for today's rows on
+                Home (the section header already says TODAY). Overdue
+                rows on Home swap the formatted past date for a calm
+                "carried over" label. */}
+            {!(dateChipFormat === 'home-today' && (isToday || hasSubs)) && (
+              <Text style={styles.metaSep}>·</Text>
+            )}
 
+            {!(dateChipFormat === 'home-today' && (isToday || hasSubs)) && (
             <View style={styles.chip}>
               {binFilterView ? (
                 <Text style={[
@@ -622,6 +741,10 @@ function TaskItem({
                   {todo.completionDate
                     ? `Done ${formatDisplayDate(todo.completionDate, t.locale).toLowerCase()}`
                     : 'No completion date'}
+                </Text>
+              ) : dateChipFormat === 'home-today' && overdue ? (
+                <Text style={[styles.chipText, styles.chipTextOverdue]}>
+                  carried over
                 </Text>
               ) : (
                 <Text style={[
@@ -647,6 +770,7 @@ function TaskItem({
                 />
               )}
             </View>
+            )}
 
             <View style={{ flex: 1 }} />
 
@@ -701,7 +825,12 @@ function TaskItem({
                         <PriorityDot level={sPriority} size={9} />
                       </TouchableOpacity>
                     )}
-                    {onUpdateSubtaskDueDate && (
+                    {onUpdateSubtaskDueDate &&
+                      // Home's due-today mode hides the date chip on
+                      // sub rows that are already done — the chip
+                      // reads as redundant noise once the work is
+                      // complete. Open subs still show their date.
+                      !(subtaskDateFilter === 'due-today' && s.done) && (
                       <TouchableOpacity
                         onPress={() => openSubtaskEdit(s.id)}
                         hitSlop={12}
@@ -930,6 +1059,7 @@ function makeStyles(c: ThemeColors, density: Density) {
     },
     rowDone: {},
     rowTrashed: { opacity: 0.55 },
+    rowPartialDone: { opacity: 0.65 },
     rowPressed: { backgroundColor: c.bg },
     checkbox: {
       width: 22,
@@ -1137,6 +1267,20 @@ function makeStyles(c: ThemeColors, density: Density) {
       gap: 4,
     },
     swipeActionsRow: { flexDirection: 'row' },
+    notDoIcon: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: '#fff',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    notDoIconX: {
+      color: c.gray,
+      fontSize: 14,
+      fontWeight: '800',
+      lineHeight: 14,
+    },
     swipeEdit:    { backgroundColor: c.blue },
     swipeDefer:   { backgroundColor: c.orange },
     swipeMarkDone: { backgroundColor: c.green },

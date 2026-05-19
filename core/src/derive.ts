@@ -957,7 +957,11 @@ export function deriveState(input: DeriveInput): DerivedState {
     // through is visible to the user before the row leaves the list.
     if (td.trashed && !completedToday(td)) return false;
     if (filter === "overdue") return isOverdue(td);
-    if (filter === "open") return !td.done || completedToday(td);
+    // Open filter is strict — no completedToday grace. Done and
+    // Not-Do (trashed) rows leave the list as soon as they flip,
+    // matching the user's mental model of "Open = still actionable".
+    // The Done bin is one tap away if they need to undo.
+    if (filter === "open") return !td.done && !td.trashed;
     if (isCategoryFilter(filter))
       return td.category === categoryIdFromFilter(filter);
     return true;

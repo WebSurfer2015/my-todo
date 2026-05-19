@@ -391,7 +391,13 @@ function TodosScreen() {
                               onUpdateSubtaskPriority={store.updateSubtaskPriority}
                               onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
                               onRemoveSubtask={store.removeSubtask}
-                              subtaskVisibility="all"
+                              subtaskVisibility={
+                                store.filter === "open"
+                                  ? "open"
+                                  : store.filter === "done"
+                                    ? "done"
+                                    : "all"
+                              }
                             />
                           </View>
                         ))}
@@ -458,7 +464,13 @@ function TodosScreen() {
                             onUpdateSubtaskPriority={store.updateSubtaskPriority}
                             onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
                             onRemoveSubtask={store.removeSubtask}
-                            subtaskVisibility="all"
+                            subtaskVisibility={
+                              store.filter === "open"
+                                ? "open"
+                                : store.filter === "done"
+                                  ? "done"
+                                  : "all"
+                            }
                           />
                         </View>
                       ))}

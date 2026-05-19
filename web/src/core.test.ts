@@ -890,14 +890,16 @@ describe("deriveState", () => {
     expect(state.filtered.map((x) => x.id).sort()).toEqual(["done", "open", "trashed"]);
   });
 
-  it("open filter shows !done plus completedToday grace items", () => {
+  it("open filter is strict — hides done and Not-Do rows including grace items", () => {
     const todos = [
       mk({ id: "open" }),
       mk({ id: "doneOld", done: true, trashed: true, completionDate: "2026-05-12" }),
       mk({ id: "doneToday", done: true, trashed: true, completionDate: "2026-05-13" }),
+      mk({ id: "notDo", done: false, trashed: true, trashedAt: Date.now() }),
     ];
     const state = deriveState({ todos, filter: "open", categories: cats, t });
-    expect(state.filtered.map((x) => x.id).sort()).toEqual(["doneToday", "open"]);
+    // Only the truly-open row remains. No completedToday grace.
+    expect(state.filtered.map((x) => x.id)).toEqual(["open"]);
   });
 
   it("done filter merges done + trashed (one bin)", () => {
