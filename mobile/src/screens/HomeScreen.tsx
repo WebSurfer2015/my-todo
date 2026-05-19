@@ -20,7 +20,7 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useNavigation } from '@react-navigation/native'
-import { CheckCircle2, ChevronRight } from 'lucide-react-native'
+import { CheckCircle2, ChevronRight, Repeat as LucideRepeat } from 'lucide-react-native'
 import { useStore } from '../StoreContext'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
@@ -76,28 +76,38 @@ export default function HomeScreen() {
     return { dToday, dYesterday, dWeek, dMonth }
   }, [store.todos, today])
 
-  // Today bucket — open todos due today or earlier. Includes carried-
-  // over so the user sees the full "what's actionable now" picture
-  // without having to mentally combine two groups.
+  // Today bucket — open todos due today or earlier, plus items just
+  // checked off today (one-day grace period so the strike-through is
+  // visible before the row leaves the list — same rule deriveState's
+  // Open filter uses on the Todos tab).
   const todayBucket = useMemo(() => {
+    const completedToday = (td: typeof store.todos[number]) =>
+      td.done && td.completionDate === today
     return store.todos
-      .filter(
-        (td) =>
-          !td.trashed &&
-          !td.done &&
-          !!td.dueDate &&
-          td.dueDate <= today,
-      )
+      .filter((td) => {
+        if (td.trashed && !completedToday(td)) return false
+        if (!td.dueDate) return false
+        if (td.dueDate > today) return false
+        return !td.done || completedToday(td)
+      })
       .sort((a, b) => {
-        // Overdue first (earliest dueDate), then today's items.
-        if (a.dueDate !== b.dueDate) {
-          return (a.dueDate ?? '').localeCompare(b.dueDate ?? '')
-        }
-        // Same day → by priority (high first).
+        // Open first, done (grace) at the bottom. Within each group,
+        // priority leads (high > medium > low), then earliest dueDate.
+        if (a.done !== b.done) return a.done ? 1 : -1
         const rank: Record<string, number> = { high: 0, medium: 1, low: 2 }
-        return (rank[a.priority] ?? 1) - (rank[b.priority] ?? 1)
+        const pa = rank[a.priority] ?? 1
+        const pb = rank[b.priority] ?? 1
+        if (pa !== pb) return pa - pb
+        return (a.dueDate ?? '').localeCompare(b.dueDate ?? '')
       })
   }, [store.todos, today])
+
+  // Count for the section header — excludes just-done grace items so
+  // "N to do" reflects what's still actionable.
+  const openCount = useMemo(
+    () => todayBucket.filter((td) => !td.done).length,
+    [todayBucket],
+  )
 
   const overflow = Math.max(0, todayBucket.length - TODAY_PREVIEW_CAP)
   const previewItems = todayBucket.slice(0, TODAY_PREVIEW_CAP)
@@ -124,16 +134,16 @@ export default function HomeScreen() {
           onPress={() => openTodos('open')}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel={`Open Todos showing ${todayBucket.length} items`}
+          accessibilityLabel={`Open Todos showing ${openCount} items`}
         >
           <Text style={styles.sectionHeader}>TODAY</Text>
           <View style={styles.sectionRight}>
             <Text style={styles.sectionCount}>
-              {todayBucket.length === 0
+              {openCount === 0
                 ? 'all clear'
-                : todayBucket.length === 1
+                : openCount === 1
                   ? '1 to do'
-                  : `${todayBucket.length} to do`}
+                  : `${openCount} to do`}
             </Text>
             <ChevronRight size={14} color={theme.label3} strokeWidth={2.5} />
           </View>
@@ -167,12 +177,32 @@ export default function HomeScreen() {
                       onPress={() => store.toggle(td.id)}
                       hitSlop={10}
                       accessibilityRole="checkbox"
-                      accessibilityLabel={`Mark ${td.text} done`}
+                      accessibilityState={{ checked: !!td.done }}
+                      accessibilityLabel={
+                        td.done
+                          ? `${td.text}, completed. Mark as not done.`
+                          : `Mark ${td.text} done`
+                      }
                     >
-                      <View style={styles.todayCheckbox} />
+                      <View
+                        style={[
+                          styles.todayCheckbox,
+                          td.done && styles.todayCheckboxDone,
+                        ]}
+                      >
+                        {td.done && (
+                          <Text style={styles.todayCheckmark}>✓</Text>
+                        )}
+                      </View>
                     </TouchableOpacity>
                     <View style={styles.todayBody}>
-                      <Text style={styles.todayText} numberOfLines={2}>
+                      <Text
+                        style={[
+                          styles.todayText,
+                          td.done && styles.todayTextDone,
+                        ]}
+                        numberOfLines={2}
+                      >
                         {td.text}
                       </Text>
                       <View style={styles.todayMetaRow}>
@@ -188,12 +218,21 @@ export default function HomeScreen() {
                             </Text>
                           </>
                         ) : null}
-                        {td.priority !== 'medium' && (
-                          <PriorityDot level={td.priority} size={8} />
+                        {td.recurrence && (
+                          <LucideRepeat
+                            size={11}
+                            color={theme.label3}
+                            strokeWidth={2}
+                          />
+                        )}
+                        {(cat || td.recurrence) && overdue && (
+                          <Text style={styles.todayMetaSep}>·</Text>
                         )}
                         {overdue && (
                           <Text style={styles.todayOverdue}>carried over</Text>
                         )}
+                        <View style={{ flex: 1 }} />
+                        <PriorityDot level={td.priority} size={8} />
                       </View>
                     </View>
                   </TouchableOpacity>
@@ -338,12 +377,28 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 11,
       borderWidth: 1.5,
       borderColor: c.gray3,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    todayCheckboxDone: {
+      backgroundColor: c.primary,
+      borderColor: c.primary,
+    },
+    todayCheckmark: {
+      color: '#fff',
+      fontSize: 13,
+      fontWeight: '700',
+      lineHeight: 14,
     },
     todayBody: { flex: 1, gap: 2 },
     todayText: {
       fontSize: 15,
       color: c.label,
       lineHeight: 20,
+    },
+    todayTextDone: {
+      color: c.label3,
+      textDecorationLine: 'line-through',
     },
     todayMetaRow: {
       flexDirection: 'row',
@@ -355,6 +410,10 @@ function makeStyles(c: ThemeColors) {
       fontSize: 12,
       color: c.label3,
       maxWidth: 120,
+    },
+    todayMetaSep: {
+      fontSize: 12,
+      color: c.label3,
     },
     todayOverdue: {
       fontSize: 11,
