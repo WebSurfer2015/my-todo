@@ -21,13 +21,21 @@ What Maestro does NOT cover:
 ## Install
 
 ```sh
-brew install maestro
-# or:
 curl -Ls "https://get.maestro.mobile.dev" | bash
+# then either: source ~/.zshrc   (or open a new terminal)
 ```
 
-Both install to userspace (Homebrew prefix or `~/.maestro/bin/`); neither
-needs sudo.
+Installs to `~/.maestro/bin/maestro` and adds it to your PATH. No sudo.
+
+**Do NOT use `brew install maestro`** — that Homebrew cask is an
+unrelated **Maestro GUI app** (no-code testing IDE) and won't give you
+the `maestro` CLI this directory expects. If you'd rather use Homebrew,
+the CLI lives in a tap:
+
+```sh
+brew tap mobile-dev-inc/tap
+brew install --HEAD maestro
+```
 
 ## Preconditions for every flow
 
