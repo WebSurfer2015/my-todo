@@ -7,6 +7,7 @@ import {
   Priority,
   Recurrence,
   StatusFilter,
+  Subtask,
   Todo,
   TodoReference,
   ViewMode,
@@ -249,6 +250,13 @@ export function useTodoStore() {
   useEffect(() => {
     todosRef.current = todos;
   }, [todos]);
+  // Mirror `filter` into a ref so TaskItem-bound callbacks can read it
+  // without re-firing on every filter change (which would break the
+  // React.memo on TaskItem — see the store-stability rules).
+  const filterRef = useRef<Filter>(filter);
+  useEffect(() => {
+    filterRef.current = filter;
+  }, [filter]);
 
   // Post-hydrate pebble reconciliation. The stored today*Pebbles counters
   // drive the cairn slot math during in-session animations (they're
@@ -384,17 +392,39 @@ export function useTodoStore() {
       const beforeTodo = todosRef.current.find((t) => t.id === id);
       setTodos((prev) => todoToggle(prev, id));
       if (!beforeTodo) return;
-      const afterTodo = todoToggle([beforeTodo], id)[0];
+      // todoToggle returns either [next] (normal toggle) or
+      // [rolledNext, snapshot] (rolling recurrence). For pebble math
+      // and reference recording we want the row that represents the
+      // completion: the snapshot when it exists, otherwise the
+      // single result.
+      const out = todoToggle([beforeTodo], id);
+      const afterTodo = out[0];
+      const snapshot = out.length > 1 ? out[1] : null;
       applyPebbleDeltaTimed(pebbleDelta(beforeTodo, afterTodo));
       // Record a suggestion-history entry on the open→done transition so
       // ComposeSheet can auto-fill category / priority / recurrence when
       // the user types the same title again later. Un-checking (done→open)
-      // doesn't update the history.
-      if (afterTodo && afterTodo.done && !beforeTodo.done) {
-        setTodoReferences((prev) => recordTodoReference(prev, afterTodo));
+      // doesn't update the history. For rolling-recurrence completion,
+      // the SNAPSHOT carries the completion, not the rolled row.
+      const completionRow =
+        snapshot && snapshot.done ? snapshot : afterTodo;
+      if (completionRow && completionRow.done && !beforeTodo.done) {
+        setTodoReferences((prev) => recordTodoReference(prev, completionRow));
+      }
+      // Un-checking inside the Done bin makes the row disappear from
+      // the current view (it's now `open` again). Surface a snackbar
+      // so the user understands where the row went — easy to miss
+      // without context.
+      if (
+        beforeTodo.done &&
+        afterTodo &&
+        !afterTodo.done &&
+        (filterRef.current === "done" || filterRef.current === "trash")
+      ) {
+        notify.showSnackbar({ message: "Moved back to your open list." });
       }
     },
-    [setTodos, setTodoReferences, applyPebbleDeltaTimed],
+    [setTodos, setTodoReferences, applyPebbleDeltaTimed, notify],
   );
 
   const restoreFromTrash = useCallback(
@@ -688,7 +718,18 @@ export function useTodoStore() {
     dueDate: string,
     category?: Category,
     recurrence?: Recurrence,
+    extras?: { notes?: string; subtasks?: Subtask[] },
   ) {
+    const notes = extras?.notes;
+    const subtasks = extras?.subtasks;
+    // Record a suggestion-history reference for every added todo —
+    // not just completed ones. The dedupe key is lowercased text, so
+    // re-adding the same item just refreshes the existing reference
+    // with the latest category/priority/recurrence. Cap stays at
+    // MAX_TODO_REFERENCES via recordTodoReference's LRU eviction.
+    setTodoReferences((prev) =>
+      recordTodoReference(prev, { text, priority, category, recurrence }),
+    );
     // When recurrence has an endDate, expand into one Todo per occurrence.
     // Otherwise create a single task (which may roll forward via the legacy
     // todoToggle path if recurrence is set without endDate).
@@ -699,13 +740,15 @@ export function useTodoStore() {
         dueDate,
         category,
         recurrence,
+        subtasks,
+        notes,
       });
       if (instances.length === 0) return;
       setTodos((prev) => [...instances, ...prev]);
       return;
     }
     setTodos((prev) => [
-      newTodo({ text, priority, dueDate, category, recurrence }),
+      newTodo({ text, priority, dueDate, category, recurrence, subtasks, notes }),
       ...prev,
     ]);
   }

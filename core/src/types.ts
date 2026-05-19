@@ -124,11 +124,10 @@ export interface TodoReference {
   text: string
   category?: Category
   priority?: Priority
-  /** Most recent ISO yyyy-mm-dd due date. Surfaced in the suggestion
-   * row so the user knows what they typically schedule for this item. */
-  dueDate?: string
   recurrence?: Recurrence
-  /** ms since epoch — used for sort + eventual pruning. */
+  /** ms since epoch — used for sort + eventual pruning. dueDate is
+   * intentionally NOT stored here: it's a per-instance scheduling
+   * choice, not a property of the recurring task identity. */
   lastSeenAt: number
 }
 

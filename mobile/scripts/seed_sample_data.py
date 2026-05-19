@@ -548,6 +548,12 @@ def main() -> int:
                   {"version": SCHEMA_VERSION, "data": grocery_groups})
     firestore_put(uid, id_token, "groceries",
                   {"version": SCHEMA_VERSION, "data": groceries})
+    # Reset the compose-suggestion history so manual test entries
+    # don't linger in ComposeSheet autofill after a re-seed. App
+    # repopulates this organically as the user completes / adds
+    # tasks again.
+    firestore_put(uid, id_token, "todoReferences",
+                  {"version": SCHEMA_VERSION, "data": []})
 
     # Merge pebble fields into the existing profile so we don't clobber
     # the user's name/avatar/quote. Missing profile → start from an empty

@@ -80,6 +80,13 @@ export default function FilterBar({
   const scrollRef = useRef<ScrollView>(null)
   const pillXRef = useRef<Record<string, number>>({})
   useEffect(() => {
+    // The All pill lives OUTSIDE the scrollable row (pinned to the
+    // left next to the funnel), so its x never lands in pillXRef.
+    // Picking All should just rewind the scroll to the start.
+    if (filter === 'all') {
+      scrollRef.current?.scrollTo({ x: 0, animated: true })
+      return
+    }
     const x = pillXRef.current[filter]
     if (x === undefined || !scrollRef.current) return
     // Land the pill 16pt from the left edge of the viewport (matches the

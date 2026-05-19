@@ -48,7 +48,12 @@ export function newTodo(input: {
   category?: Category;
   recurrence?: Recurrence;
   subtasks?: Subtask[];
+  notes?: string;
 }): Todo {
+  const notes =
+    typeof input.notes === "string" && input.notes.length > 0
+      ? input.notes.slice(0, MAX_TODO_NOTES_LEN)
+      : undefined;
   return {
     id: genUuid(),
     text: input.text.slice(0, MAX_TODO_TEXT_LEN),
@@ -60,6 +65,7 @@ export function newTodo(input: {
     updatedAt: Date.now(),
     ...(input.recurrence ? { recurrence: input.recurrence } : {}),
     ...(input.subtasks && input.subtasks.length > 0 ? { subtasks: input.subtasks } : {}),
+    ...(notes ? { notes } : {}),
   };
 }
 
@@ -93,6 +99,7 @@ export function generateRecurringInstances(input: {
   category?: Category;
   recurrence: Recurrence;
   subtasks?: Subtask[];
+  notes?: string;
 }): Todo[] {
   if (!input.recurrence.endDate) {
     // Open-ended series — one rolling task (legacy behavior preserved).
@@ -104,6 +111,7 @@ export function generateRecurringInstances(input: {
         category: input.category,
         recurrence: input.recurrence,
         subtasks: cloneSubtasksFresh(input.subtasks),
+        notes: input.notes,
       }),
     ];
   }
@@ -113,6 +121,10 @@ export function generateRecurringInstances(input: {
   // One seriesId per generation pass — every instance shares it so we can
   // bulk-delete future siblings without text matching.
   const seriesId = genUuid();
+  const notes =
+    typeof input.notes === "string" && input.notes.length > 0
+      ? input.notes.slice(0, MAX_TODO_NOTES_LEN)
+      : undefined;
   return dates.map((date) => ({
     id: genUuid(),
     text: input.text.slice(0, MAX_TODO_TEXT_LEN),
@@ -127,6 +139,7 @@ export function generateRecurringInstances(input: {
     ...(input.subtasks && input.subtasks.length > 0
       ? { subtasks: cloneSubtasksFresh(input.subtasks) }
       : {}),
+    ...(notes ? { notes } : {}),
   }));
 }
 
@@ -224,6 +237,11 @@ export function todoToggle(prev: Todo[], id: string): Todo[] {
       !td.recurrence.endDate &&
       td.dueDate
     ) {
+      // The recurring task stays alive as a single row — its dueDate
+      // advances to the NEXT occurrence per the recurrence pattern
+      // (e.g., weekly Mon → next Monday). The user still sees one row
+      // in the active list with the repeat icon, now showing the
+      // upcoming date.
       const rolled = nextOccurrence(
         td.dueDate,
         td.recurrence.freq,
@@ -231,12 +249,12 @@ export function todoToggle(prev: Todo[], id: string): Todo[] {
         td.recurrence.byWeekday,
         td.recurrence.bySetPos,
       );
-      // Snapshot of the just-completed occurrence so it surfaces in the
-      // Done filter like any other completion. The original task rolls
-      // forward to its next occurrence (still recurring, still open).
-      // The snapshot is a one-time record — drop recurrence + seriesId
-      // and any nested subtasks (their done state belongs to the new
-      // occurrence, not this historical record).
+      // Snapshot of the just-completed occurrence so it surfaces in
+      // the Done bin. The snapshot keeps the recurrence shape but
+      // caps it with `endDate = the completed dueDate` — a one-day
+      // "series of one" record. That makes the snapshot also show the
+      // repeat icon so the user can see at a glance that this was
+      // completed as part of a recurring habit.
       const snapshot: Todo = {
         id: genUuid(),
         text: td.text,
@@ -248,6 +266,7 @@ export function todoToggle(prev: Todo[], id: string): Todo[] {
         trashedAt: now,
         updatedAt: now,
         completionDate: today,
+        recurrence: { ...td.recurrence, endDate: td.dueDate },
       };
       if (td.notes) snapshot.notes = td.notes;
       const rolledNext: Todo = {
@@ -389,10 +408,19 @@ export function subtaskToggle(
       done: nextDone,
       updatedAt: now,
     };
+    // Mirror todoToggle's Done-bin merge: a fully-done parent should
+    // also be `trashed: true` with a `trashedAt` so every filter and
+    // sync layer treats it identically to a directly-checked todo.
+    // Un-cascading (a sub goes from done back to open) clears all
+    // three flags so the parent comes back to the active list.
     if (nextDone && !wasDone) {
       next.completionDate = today;
+      next.trashed = true;
+      next.trashedAt = now;
     } else if (!nextDone && wasDone) {
       delete next.completionDate;
+      next.trashed = false;
+      delete next.trashedAt;
     }
     return next;
   });
@@ -462,10 +490,14 @@ export function subtaskRemove(
  */
 export function todoMoveToTrash(prev: Todo[], id: string): Todo[] {
   const now = Date.now();
-  const today = todayLocal();
   return prev.map((td) =>
     td.id === id
-      ? { ...td, done: true, trashed: true, trashedAt: now, updatedAt: now, completionDate: today }
+      ? // Trashing is "I discarded this", not "I finished it". Preserve
+        // the existing `done` + `completionDate` so a user who completes
+        // an item then later trashes the row still reads as completed in
+        // the Done bin, while an item trashed without ever being checked
+        // off stays !done (no pebble earned, no "Today" Done group).
+        { ...td, trashed: true, trashedAt: now, updatedAt: now }
       : td,
   );
 }
@@ -518,14 +550,15 @@ export function todoMoveToTrashFutureSeries(prev: Todo[], id: string): { next: T
   }
   const cutoff = target.dueDate;
   const now = Date.now();
-  const today = todayLocal();
   let affected = 0;
   const next = prev.map((td) => {
     if (td.seriesId !== target.seriesId) return td;
     if (td.trashed) return td;
     if (cutoff && td.dueDate && td.dueDate < cutoff) return td;
     affected += 1;
-    return { ...td, trashed: true, trashedAt: now, updatedAt: now, completionDate: today };
+    // Preserve existing done/completionDate — see todoMoveToTrash for
+    // the rationale (trashing is "discarded", not "completed").
+    return { ...td, trashed: true, trashedAt: now, updatedAt: now };
   });
   return { next, affected };
 }
@@ -854,7 +887,7 @@ export interface DeriveInput {
  */
 export function recordTodoReference(
   refs: TodoReference[],
-  todo: Pick<Todo, "text" | "category" | "priority" | "dueDate" | "recurrence">,
+  todo: Pick<Todo, "text" | "category" | "priority" | "recurrence">,
 ): TodoReference[] {
   const text = (todo.text ?? "").trim();
   if (!text) return refs;
@@ -864,7 +897,6 @@ export function recordTodoReference(
     text: text.slice(0, MAX_TODO_TEXT_LEN),
     category: todo.category,
     priority: todo.priority,
-    dueDate: todo.dueDate || undefined,
     recurrence: todo.recurrence,
     lastSeenAt: Date.now(),
   };
@@ -906,11 +938,6 @@ export function migrateTodoReferences(raw: unknown): TodoReference[] {
       priority: validPriorities.has(item.priority as Priority)
         ? (item.priority as Priority)
         : undefined,
-      dueDate:
-        typeof item.dueDate === "string" &&
-        /^\d{4}-\d{2}-\d{2}$/.test(item.dueDate)
-          ? item.dueDate
-          : undefined,
       // Trust the shape of recurrence — same migrator as Todo would be
       // overkill for this small suggestion list. Validation here just
       // confirms it's a plain object with a known freq.

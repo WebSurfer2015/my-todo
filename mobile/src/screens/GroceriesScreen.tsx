@@ -8,6 +8,7 @@
 import React, { useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useIsFocused } from '@react-navigation/native'
 import { useStore } from '../StoreContext'
 import { SEED_GROCERY_STORES } from '../groceries'
 import GroceryView from '../components/GroceryView'
@@ -19,6 +20,11 @@ export default function GroceriesScreen() {
   const insets = useSafeAreaInsets()
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  // Suppress the search Modal whenever this tab isn't focused so it
+  // doesn't render on top of Home / Todos when the user switches away
+  // mid-search. The state (query + open flag) persists, so coming
+  // back restores the same view.
+  const isFocused = useIsFocused()
 
   return (
     <View style={[styles.flex, { paddingTop: insets.top }]}>
@@ -27,7 +33,7 @@ export default function GroceriesScreen() {
         onSearchPress={() => setSearchOpen(true)}
       />
       <SearchTopSheet
-        visible={searchOpen}
+        visible={isFocused && searchOpen}
         placeholder="Search groceries"
         query={searchQuery}
         onQueryChange={setSearchQuery}

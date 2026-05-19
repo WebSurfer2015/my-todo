@@ -1,21 +1,24 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Modal, View, Text, TextInput, TouchableOpacity, StyleSheet,
-  Pressable, KeyboardAvoidingView, Platform,
+  Pressable, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native'
 import * as Haptics from 'expo-haptics'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import Svg, { Rect, Path } from 'react-native-svg'
 import { Repeat } from 'lucide-react-native'
-import { Category, Priority, PRIORITY_VALUES, PRIORITY_COLORS, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, TodoReference } from '../types'
+import { Category, Priority, PRIORITY_VALUES, PRIORITY_COLORS, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, Subtask, TodoReference } from '../types'
+import { genUuid } from '../../../core/src/utils'
 import { CategoryDef, categoryLabel } from '../categories'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
 import { formatDisplayDate, formatRecurrence, fullDateLabel, isoDate } from '../utils'
+import { todayLocal } from '../../../core/src/utils'
 import PriorityDot from './PriorityDot'
 import CategoryIcon from './CategoryIcon'
 import InlinePicker from './InlinePicker'
 import CustomRecurrenceForm from './CustomRecurrenceForm'
+import AddSubtaskSheet from './AddSubtaskSheet'
 
 function CalendarIcon({ size = 18, color = '#8E8E93' }: { size?: number; color?: string }) {
   return (
@@ -37,7 +40,14 @@ interface Props {
    * picks when the user types — tap a row to auto-fill category,
    * priority, recurrence, and dueDate from the historic entry. */
   references: TodoReference[]
-  onAdd: (text: string, priority: Priority, dueDate: string, category?: Category, recurrence?: Recurrence) => void
+  onAdd: (
+    text: string,
+    priority: Priority,
+    dueDate: string,
+    category?: Category,
+    recurrence?: Recurrence,
+    extras?: { notes?: string; subtasks?: Subtask[] },
+  ) => void
   onClose: () => void
 }
 
@@ -99,13 +109,29 @@ export default function ComposeSheet({
   const [text, setText] = useState('')
   const [priority, setPriority] = useState<Priority>('medium')
   const [category, setCategory] = useState<Category>(defaultCategory)
-  const [dueDate, setDueDate] = useState('')
+  // Defaults to today so the compose opens with a sensible
+  // "Completed by" — the user can clear it from the date sub-view if
+  // they want a no-date task. Matches the spec for the Add flow.
+  const [dueDate, setDueDate] = useState(todayLocal())
   const [pickerDate, setPickerDate] = useState<Date>(new Date())
   const [recurrence, setRecurrence] = useState<Recurrence | undefined>(undefined)
   // Pending freq while the user is in the 'repeatEndDate' picker — committed
   // to `recurrence` once they pick an end date.
   const [pendingFreq, setPendingFreq] = useState<RecurrenceFreq | null>(null)
   const [endDatePickerDate, setEndDatePickerDate] = useState<Date>(new Date())
+  // Notes + queued subtasks: collected in local state so the user can
+  // capture everything in one pass, then bulk-attached to the new todo
+  // when they tap Add. Mirrors the Edit-Todo sheet's layout.
+  const [notes, setNotes] = useState('')
+  const [pendingSubtasks, setPendingSubtasks] = useState<Subtask[]>([])
+  const [addSubtaskOpen, setAddSubtaskOpen] = useState(false)
+  // Track the lowercased text that the user just APPLIED from the
+  // suggestion overlay. The overlay hides while `text` (lowercased)
+  // equals this marker, and re-engages once the user edits the input
+  // to something else. Robust against the iOS multiline TextInput
+  // re-emitting onChangeText with the same value after a programmatic
+  // setText — which was making the overlay flicker back on first tap.
+  const [appliedTextLower, setAppliedTextLower] = useState('')
 
   useEffect(() => { setCategory(defaultCategory) }, [defaultCategory])
 
@@ -121,7 +147,10 @@ export default function ComposeSheet({
     const out: TodoReference[] = []
     for (const ref of references) {
       if (ref.textLower.includes(trimmedTextLower)) out.push(ref)
-      if (out.length >= 5) break
+      // Cap at 50 — beyond this the dropdown becomes a wall of text
+      // even with internal scrolling. The overlay panel itself uses
+      // an internal ScrollView so the user can reach the cap entries.
+      if (out.length >= 50) break
     }
     return out
   }, [references, trimmedTextLower])
@@ -130,15 +159,11 @@ export default function ComposeSheet({
     setText(ref.text)
     if (ref.category) setCategory(ref.category)
     if (ref.priority) setPriority(ref.priority)
-    if (ref.recurrence) setRecurrence(ref.recurrence)
-    else setRecurrence(undefined)
-    if (ref.dueDate) {
-      setDueDate(ref.dueDate)
-      const parsed = new Date(`${ref.dueDate}T00:00:00`)
-      if (!isNaN(parsed.getTime())) setPickerDate(parsed)
-    } else {
-      setDueDate('')
-    }
+    setRecurrence(ref.recurrence)
+    // dueDate is intentionally NOT pulled from the reference — it's a
+    // per-instance scheduling choice. The user picks the date fresh
+    // for the new entry.
+    setAppliedTextLower(ref.textLower)
     Haptics.selectionAsync().catch(() => {})
   }
 
@@ -148,8 +173,18 @@ export default function ComposeSheet({
       setText('')
       setPriority('medium')
       setCategory(defaultCategory)
-      setDueDate('')
+      // Default "Completed by" → today, matching the initial state +
+      // user spec. Users can clear from the date sub-view if they
+      // want a no-date task.
+      setDueDate(todayLocal())
       setRecurrence(undefined)
+      setNotes('')
+      setPendingSubtasks([])
+      // Clear the suggestion-overlay suppression so it re-engages on
+      // the next compose session.
+      setAppliedTextLower('')
+      // Clean up the recurrence-end-date scratch state.
+      setPendingFreq(null)
       const id = setTimeout(() => inputRef.current?.focus(), 120)
       return () => clearTimeout(id)
     }
@@ -162,7 +197,15 @@ export default function ComposeSheet({
     const trimmed = text.trim()
     if (!trimmed || !activeCat) return
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
-    onAdd(trimmed, priority, dueDate, activeCat.id, recurrence)
+    const trimmedNotes = notes.trim()
+    onAdd(trimmed, priority, dueDate, activeCat.id, recurrence, {
+      notes: trimmedNotes || undefined,
+      subtasks: pendingSubtasks.length > 0 ? pendingSubtasks : undefined,
+    })
+    // Reset compose state so the next open starts clean.
+    setText('')
+    setNotes('')
+    setPendingSubtasks([])
     onClose()
   }
 
@@ -194,39 +237,78 @@ export default function ComposeSheet({
             {subView === 'main' && (
               <>
                 <View style={styles.headerRow}>
-                  <TouchableOpacity onPress={onClose} hitSlop={10}>
+                  <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.headerSideBtn}>
                     <Text style={styles.cancelText}>{t.cancel}</Text>
                   </TouchableOpacity>
-                  <Text style={styles.title}>{t.addPlaceholder}</Text>
-                  <View style={{ width: 56 }} />
+                  <Text style={styles.title}>Add to-do</Text>
+                  <TouchableOpacity
+                    onPress={submit}
+                    disabled={!canSubmit}
+                    hitSlop={10}
+                    style={styles.headerSideBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={t.done}
+                  >
+                    <Text style={[styles.saveHeaderText, !canSubmit && styles.saveHeaderTextDisabled]}>
+                      {t.done}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
 
-                <View style={styles.body}>
-                  <TextInput
-                    ref={inputRef}
-                    style={styles.textInput}
-                    placeholder={t.addPlaceholder}
-                    placeholderTextColor={theme.gray3}
-                    value={text}
-                    onChangeText={setText}
-                    multiline
-                    maxLength={4096}
-                    textAlignVertical="top"
-                  />
-
-                  {referenceMatches.length > 0 && (
-                    <View style={styles.dupePanel}>
-                      <Text style={styles.dupeHeader}>
-                        You've added this before
-                      </Text>
+                {/* Title card lives OUTSIDE the scroll so the
+                    suggestion-overlay can pin to its bottom edge and
+                    visually float over the form below — the form
+                    underneath stays scrollable but isn't pushed
+                    down by the panel. */}
+                <View style={styles.titleAnchor}>
+                  <View style={styles.titleCard}>
+                    <TextInput
+                      ref={inputRef}
+                      style={styles.textInputInCard}
+                      placeholder={t.addPlaceholder}
+                      placeholderTextColor={theme.gray3}
+                      value={text}
+                      onChangeText={(next) => {
+                        setText(next)
+                        // Clear the applied marker only when the text
+                        // actually differs from what was applied —
+                        // multiline TextInput on iOS can re-emit
+                        // onChangeText with the same value after a
+                        // programmatic setText, which we must ignore
+                        // so the overlay stays dismissed.
+                        if (
+                          appliedTextLower &&
+                          next.toLowerCase() !== appliedTextLower
+                        ) {
+                          setAppliedTextLower('')
+                        }
+                      }}
+                      multiline
+                      maxLength={4096}
+                      textAlignVertical="top"
+                    />
+                  </View>
+                  {appliedTextLower !== trimmedTextLower &&
+                    referenceMatches.length > 0 && (
+                    <View style={styles.dupeOverlay} pointerEvents="box-none">
                       <View style={styles.dupeCard}>
+                        <View style={styles.dupeHeaderRow}>
+                          <Text style={styles.dupeHeader}>
+                            You've added this before
+                          </Text>
+                        </View>
+                        <View style={styles.dupeDividerFull} />
+                        <ScrollView
+                          style={styles.dupeScroll}
+                          contentContainerStyle={styles.dupeScrollContent}
+                          keyboardShouldPersistTaps="handled"
+                          nestedScrollEnabled
+                          showsVerticalScrollIndicator
+                        >
                         {referenceMatches.map((ref, i) => {
                           const cat = ref.category
                             ? categories.find((c) => c.id === ref.category)
                             : undefined
-                          const dueLabel = ref.dueDate
-                            ? formatDisplayDate(ref.dueDate, t.locale)
-                            : null
                           return (
                             <View key={ref.textLower}>
                               {i > 0 && <View style={styles.dupeDivider} />}
@@ -253,29 +335,46 @@ export default function ComposeSheet({
                                   <PriorityDot level={ref.priority} size={10} />
                                 )}
                                 {ref.recurrence && (
-                                  <Repeat
-                                    size={12}
-                                    color={theme.label3}
-                                    strokeWidth={2}
-                                  />
-                                )}
-                                {dueLabel && (
-                                  <Text style={styles.dupeRowMeta} numberOfLines={1}>
-                                    {dueLabel}
-                                  </Text>
+                                  <View style={styles.dupeRowRecur}>
+                                    <Repeat
+                                      size={11}
+                                      color={theme.label3}
+                                      strokeWidth={2}
+                                    />
+                                    <Text
+                                      style={styles.dupeRowMeta}
+                                      numberOfLines={1}
+                                    >
+                                      {ref.recurrence.byWeekday &&
+                                      ref.recurrence.byWeekday.length > 0
+                                        ? formatRecurrence(ref.recurrence)
+                                        : RECURRENCE_LABELS[
+                                            ref.recurrence.freq
+                                          ] ?? ref.recurrence.freq}
+                                    </Text>
+                                  </View>
                                 )}
                               </TouchableOpacity>
                             </View>
                           )
                         })}
+                        </ScrollView>
+                        <View style={styles.dupeDividerFull} />
+                        <Text style={styles.dupeHint}>
+                          Tap a row to reuse those settings, or keep typing for a
+                          fresh entry.
+                        </Text>
                       </View>
-                      <Text style={styles.dupeHint}>
-                        Tap a row to reuse those settings, or keep typing for a
-                        fresh entry.
-                      </Text>
                     </View>
                   )}
+                </View>
 
+                <ScrollView
+                  style={styles.body}
+                  contentContainerStyle={styles.bodyContent}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                >
                   <View style={styles.fieldGroup}>
                     <TouchableOpacity
                       style={styles.fieldRow}
@@ -396,14 +495,79 @@ export default function ComposeSheet({
                     )}
                   </View>
 
-                  <TouchableOpacity
-                    style={[styles.addBtn, !canSubmit && styles.addBtnDisabled]}
-                    onPress={submit}
-                    disabled={!canSubmit}
-                  >
-                    <Text style={styles.addBtnText}>{t.add}</Text>
-                  </TouchableOpacity>
-                </View>
+                  {/* Notes — free-form description, same role as the
+                      Notes block in Edit-Todo. */}
+                  <Text style={styles.sectionHeader}>NOTES</Text>
+                  <View style={styles.notesCard}>
+                    <TextInput
+                      style={styles.notesInput}
+                      value={notes}
+                      onChangeText={setNotes}
+                      placeholder={t.notes.placeholder}
+                      placeholderTextColor={theme.gray3}
+                      multiline
+                      maxLength={8192}
+                      textAlignVertical="top"
+                    />
+                  </View>
+
+                  {/* Steps — queued locally and attached when the user
+                      taps Add. Empty state mirrors Edit-Todo. */}
+                  <Text style={styles.sectionHeader}>STEPS</Text>
+                  <View style={styles.stepsCard}>
+                    {pendingSubtasks.length === 0 ? (
+                      <View style={styles.stepsEmpty}>
+                        <View style={styles.stepsEmptyDot} />
+                        <Text style={styles.stepsEmptyTitle}>No steps yet</Text>
+                        <Text style={styles.stepsEmptyHint}>
+                          Break this task into smaller steps when you're ready.
+                        </Text>
+                      </View>
+                    ) : (
+                      pendingSubtasks.map((s, i) => (
+                        <View key={s.id}>
+                          {i > 0 && <View style={styles.divider} />}
+                          <View style={styles.stepRow}>
+                            <View style={styles.stepCheckbox} />
+                            <View style={styles.stepBody}>
+                              <Text style={styles.stepText} numberOfLines={2}>
+                                {s.text}
+                              </Text>
+                              {s.dueDate ? (
+                                <Text style={styles.stepMeta}>
+                                  {formatDisplayDate(s.dueDate, t.locale)}
+                                </Text>
+                              ) : null}
+                            </View>
+                            <TouchableOpacity
+                              onPress={() =>
+                                setPendingSubtasks((prev) =>
+                                  prev.filter((x) => x.id !== s.id),
+                                )
+                              }
+                              hitSlop={10}
+                              style={styles.stepRemoveBtn}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Remove step: ${s.text}`}
+                            >
+                              <Text style={styles.stepRemoveText}>×</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ))
+                    )}
+                    <View style={styles.divider} />
+                    <TouchableOpacity
+                      style={styles.addStepRow}
+                      onPress={() => setAddSubtaskOpen(true)}
+                      activeOpacity={0.65}
+                      accessibilityRole="button"
+                      accessibilityLabel="Add a step"
+                    >
+                      <Text style={styles.addStepText}>+ Add a step…</Text>
+                    </TouchableOpacity>
+                  </View>
+                </ScrollView>
               </>
             )}
 
@@ -568,7 +732,15 @@ export default function ComposeSheet({
                 </View>
                 <View style={styles.dateActions}>
                   <TouchableOpacity
-                    onPress={() => setSubView('main')}
+                    onPress={() => {
+                      // Commit the picker's current value even when the
+                      // user didn't interact (e.g., today was already
+                      // pre-selected and they just tapped Done) — the
+                      // DateTimePicker's onChange doesn't fire for a
+                      // no-op tap, so we sync it explicitly here.
+                      setDueDate(isoDate(pickerDate))
+                      setSubView('main')
+                    }}
                     style={[styles.addBtn, styles.applyBtn, { flex: 1 }]}
                   >
                     <Text style={styles.addBtnText}>{t.done}</Text>
@@ -579,6 +751,23 @@ export default function ComposeSheet({
           </Pressable>
         </Pressable>
       </KeyboardAvoidingView>
+      <AddSubtaskSheet
+        visible={addSubtaskOpen}
+        onAdd={(stepText, stepPriority, stepDue) => {
+          setPendingSubtasks((prev) => [
+            ...prev,
+            {
+              id: genUuid(),
+              text: stepText,
+              done: false,
+              priority: stepPriority,
+              dueDate: stepDue || undefined,
+            },
+          ])
+        }}
+        onClose={() => setAddSubtaskOpen(false)}
+        defaultDueDate={dueDate}
+      />
     </Modal>
   )
 }
@@ -626,7 +815,11 @@ function makeStyles(c: ThemeColors) {
       color: c.label,
     },
     body: {
+      flexGrow: 0,
+    },
+    bodyContent: {
       paddingTop: 4,
+      paddingBottom: 16,
     },
     textInput: {
       minHeight: 96,
@@ -642,6 +835,105 @@ function makeStyles(c: ThemeColors) {
       letterSpacing: -0.16,
       lineHeight: 22,
     },
+    // Variant of textInput that lives inside the same card as the
+    // field rows (mirrors Edit-Todo layout). No border/corners since
+    // the wrapping fieldGroup card handles those.
+    textInputInCard: {
+      minHeight: 64,
+      fontSize: 16,
+      color: c.label,
+      paddingHorizontal: 14,
+      paddingTop: 12,
+      paddingBottom: 12,
+      letterSpacing: -0.16,
+      lineHeight: 22,
+    },
+    headerSideBtn: { width: 60 },
+    saveHeaderText: {
+      fontSize: 15,
+      color: c.blue,
+      fontWeight: '700',
+      textAlign: 'right',
+    },
+    saveHeaderTextDisabled: { color: c.gray3 },
+    sectionHeader: {
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 0.6,
+      color: c.label3,
+      marginTop: 20,
+      marginBottom: 8,
+      paddingHorizontal: 4,
+    },
+    notesCard: {
+      backgroundColor: c.card,
+      borderRadius: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      padding: 12,
+      minHeight: 96,
+    },
+    notesInput: {
+      fontSize: 15,
+      color: c.label,
+      minHeight: 72,
+      lineHeight: 22,
+    },
+    stepsCard: {
+      backgroundColor: c.card,
+      borderRadius: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      overflow: 'hidden',
+    },
+    stepsEmpty: {
+      paddingVertical: 18,
+      paddingHorizontal: 16,
+      alignItems: 'center',
+    },
+    stepsEmptyDot: {
+      width: 4,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: c.label3,
+      marginBottom: 8,
+    },
+    stepsEmptyTitle: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: c.label,
+      marginBottom: 4,
+    },
+    stepsEmptyHint: {
+      fontSize: 12,
+      color: c.label3,
+      textAlign: 'center',
+    },
+    stepRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+    },
+    stepCheckbox: {
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+      borderWidth: 1.5,
+      borderColor: c.gray3,
+    },
+    stepBody: { flex: 1 },
+    stepText: { fontSize: 14, color: c.label },
+    stepMeta: { fontSize: 11, color: c.label3, marginTop: 2 },
+    stepRemoveBtn: { paddingHorizontal: 6 },
+    stepRemoveText: { fontSize: 20, color: c.label3, lineHeight: 22 },
+    addStepRow: {
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      alignItems: 'center',
+    },
+    addStepText: { fontSize: 14, color: c.blue, fontWeight: '600' },
     fieldGroup: {
       marginTop: 16,
       backgroundColor: c.card,
@@ -650,22 +942,72 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.border,
       overflow: 'hidden',
     },
+    // Title-only card — sits above the suggestion list so the user's
+    // typing surface is anchored at the top of the sheet, mirroring
+    // the first row of the Edit-Todo card.
+    titleCard: {
+      backgroundColor: c.card,
+      borderRadius: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      overflow: 'hidden',
+    },
+    // Anchor wrapper for the title input + floating overlay. position:
+    // relative so the overlay can absolute-position itself against
+    // this container without escaping the parent sheet's coordinate
+    // system. zIndex pulls the wrapper above the body ScrollView so
+    // the overlay clip path covers form content underneath.
+    titleAnchor: {
+      position: 'relative',
+      zIndex: 10,
+    },
+    // Suggestion overlay — anchored to the bottom edge of the title
+    // card (top: 100%) so it appears to drop down from where the
+    // user is typing. Doesn't push the form below; just floats over
+    // it. The inner ScrollView caps tall lists at maxHeight.
+    dupeOverlay: {
+      position: 'absolute',
+      top: '100%',
+      left: 0,
+      right: 0,
+      marginTop: 8,
+      zIndex: 11,
+      elevation: 8,
+      shadowColor: '#000',
+      shadowOpacity: 0.15,
+      shadowOffset: { width: 0, height: 4 },
+      shadowRadius: 10,
+    },
+    dupeScroll: {
+      maxHeight: 240,
+    },
+    dupeScrollContent: {
+      paddingBottom: 0,
+    },
     dupePanel: {
-      marginTop: 12,
+      marginTop: 14,
+      marginBottom: 4,
+    },
+    dupeHeaderRow: {
+      paddingHorizontal: 12,
+      paddingTop: 10,
+      paddingBottom: 8,
     },
     dupeHeader: {
       fontSize: 11,
       fontWeight: '700',
       letterSpacing: 0.6,
-      color: c.label3,
-      paddingHorizontal: 4,
-      paddingBottom: 6,
+      color: c.primary,
     },
+    // Suggestion list reads as a distinct surface — mint-tinted
+    // background + primary-tinted border + slight inner shadow so the
+    // user immediately registers it as "history / past entries", not
+    // part of the new-todo form being composed below.
     dupeCard: {
-      backgroundColor: c.card,
+      backgroundColor: c.primarySoft,
       borderRadius: 12,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: c.border,
+      borderColor: c.primary,
       overflow: 'hidden',
     },
     dupeRow: {
@@ -683,17 +1025,29 @@ function makeStyles(c: ThemeColors) {
       color: c.label3,
       maxWidth: 110,
     },
+    dupeRowRecur: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+    },
     dupeDivider: {
       height: StyleSheet.hairlineWidth,
-      backgroundColor: c.separator,
+      backgroundColor: c.primary,
+      opacity: 0.18,
       marginLeft: 38,
+    },
+    dupeDividerFull: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: c.primary,
+      opacity: 0.18,
     },
     dupeHint: {
       fontSize: 12,
-      color: c.label3,
-      marginTop: 6,
-      paddingHorizontal: 4,
+      color: c.label2,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
       lineHeight: 16,
+      fontStyle: 'italic',
     },
     fieldRow: {
       flexDirection: 'row',

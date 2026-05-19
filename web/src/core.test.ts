@@ -269,18 +269,23 @@ describe("subtasks", () => {
     expect(out).toHaveLength(2);
     const rolled = out.find((t) => t.id === withRec.id)!;
     const snapshot = out.find((t) => t.id !== withRec.id)!;
-    // Rolled-forward original — still recurring, still open, new dueDate.
+    // Rolled-forward original — still recurring, still open, dueDate
+    // advances to the next occurrence per the recurrence pattern
+    // (weekly => +7 days).
     expect(rolled.done).toBe(false);
     expect(rolled.trashed).toBe(false);
     expect(rolled.dueDate).toBe("2026-05-17");
     expect(rolled.recurrence?.freq).toBe("weekly");
-    // Snapshot — frozen at the just-completed dueDate, in the Done bin
-    // with a completionDate of today; no recurrence (it's a one-time
-    // historical record).
+    // Snapshot — frozen at the just-completed dueDate, in the Done
+    // bin with a completionDate of today. Recurrence is preserved
+    // but capped with endDate = the completed dueDate, so the
+    // snapshot reads as a self-contained "one-day series" record
+    // (and still shows the repeat icon in the Done bin).
     expect(snapshot.done).toBe(true);
     expect(snapshot.trashed).toBe(true);
     expect(snapshot.dueDate).toBe("2026-05-10");
-    expect(snapshot.recurrence).toBeUndefined();
+    expect(snapshot.recurrence?.freq).toBe("weekly");
+    expect(snapshot.recurrence?.endDate).toBe("2026-05-10");
     expect(snapshot.completionDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(snapshot.text).toBe(withRec.text);
   });

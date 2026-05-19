@@ -17,6 +17,7 @@
 
 import React, { useEffect, useMemo, useRef } from 'react'
 import {
+  Keyboard,
   StyleSheet,
   Text,
   TextInput,
@@ -67,7 +68,10 @@ export default function SearchTopSheet({
   return (
     <View style={styles.sheet}>
       <TouchableOpacity
-        onPress={onCancel}
+        onPress={() => {
+          Keyboard.dismiss()
+          onCancel()
+        }}
         hitSlop={10}
         style={styles.sideBtn}
         accessibilityRole="button"
@@ -116,7 +120,10 @@ export default function SearchTopSheet({
       </View>
 
       <TouchableOpacity
-        onPress={onSubmit}
+        onPress={() => {
+          Keyboard.dismiss()
+          onSubmit()
+        }}
         disabled={!canSubmit}
         hitSlop={10}
         style={styles.sideBtn}

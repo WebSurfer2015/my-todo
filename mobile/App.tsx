@@ -46,7 +46,7 @@ import Onboarding from "./src/components/Onboarding";
 import SplashOverlay from "./src/components/SplashOverlay";
 import { scheduleDailyCheckin, cancelDailyCheckin } from "./src/notifications";
 import { useReduceMotion } from "./src/useReduceMotion";
-import { NavigationContainer } from "@react-navigation/native";
+import { NavigationContainer, useIsFocused } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { House, ListTodo, ShoppingBag } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
@@ -63,6 +63,12 @@ function TodosScreen() {
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const store = useStore();
   const safeArea = useSafeAreaInsets();
+  // True only while the Todos tab is the active tab in the bottom
+  // navigator. Used to gate the search top-sheet's <Modal> visibility
+  // so it doesn't leak above Home / Groceries when the user switches
+  // tabs mid-search. State (searchOpen + searchQuery) persists across
+  // tab switches; only the rendered Modal is suppressed when blurred.
+  const isFocused = useIsFocused();
 
   // Profile / Settings / Background picker now live in SheetContext at
   // the app shell so they're reachable from any tab. Per-tab sheets
@@ -195,7 +201,7 @@ function TodosScreen() {
 
           <View style={styles.stickyFilter}>
             <SearchTopSheet
-              visible={searchOpen}
+              visible={isFocused && searchOpen}
               placeholder="Search todos"
               query={searchQuery}
               onQueryChange={setSearchQuery}

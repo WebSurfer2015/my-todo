@@ -124,9 +124,14 @@ export default function StorePicker({
     if (g.id === OTHERS_GROUP_ID) return
     const i = groups.findIndex((x) => x.id === g.id)
     if (i < 0) return
+    const nextHidden = !g.hidden
     const updated = [...groups]
-    updated[i] = { ...g, hidden: !g.hidden }
+    updated[i] = { ...g, hidden: nextHidden }
     commitGroups(updated)
+    // Hiding the currently-active dept would leave an orphan filter
+    // pointing at an invisible bucket — clear it so the pill row
+    // doesn't dangle and the list shows everything again.
+    if (nextHidden && activeDept === g.id) onSelectDept(undefined)
   }
 
   function deleteDept(g: GroceryGroup) {
@@ -139,7 +144,13 @@ export default function StorePicker({
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => commitGroups(groups.filter((x) => x.id !== g.id)),
+          onPress: () => {
+            commitGroups(groups.filter((x) => x.id !== g.id))
+            // Clear the active filter if it was pointing at the just-
+            // deleted dept (otherwise profile.activeGroceryDept keeps
+            // a stale id forever).
+            if (activeDept === g.id) onSelectDept(undefined)
+          },
         },
       ],
     )
