@@ -129,11 +129,17 @@ export default function FilterBar({
     }
     const s = orderedVisibleStatuses.find((x) => x.id === f)
     if (!s) return null
+    // Carried Over (overdue) is calm-design-sensitive: surfacing a
+    // running count on the pill turns it into a guilt counter for
+    // users who already feel behind. The actual count is still
+    // visible in the section header inside the bucket and in the
+    // Defer modal, so we omit it here.
+    const count = s.id === 'overdue' ? 0 : (systemCounts[s.id] ?? 0)
     return {
       filter: f,
       icon: <StatusIcon id={s.id} size={15} color={statusColor(s.id, theme)} />,
       label: s.label,
-      count: systemCounts[s.id] ?? 0,
+      count,
       color: statusColor(s.id, theme),
     }
   }

@@ -287,6 +287,18 @@ export default function ComposeSheet({
                       maxLength={4096}
                       textAlignVertical="top"
                     />
+                    <View style={styles.titleCardDivider} />
+                    <TextInput
+                      style={styles.notesInputInline}
+                      value={notes}
+                      onChangeText={setNotes}
+                      placeholder={t.notes.placeholder}
+                      placeholderTextColor={theme.gray3}
+                      multiline
+                      maxLength={8192}
+                      textAlignVertical="top"
+                      accessibilityLabel="Notes — anything that helps you externalize the thinking around this task"
+                    />
                   </View>
                   {appliedTextLower !== trimmedTextLower &&
                     referenceMatches.length > 0 && (
@@ -495,21 +507,9 @@ export default function ComposeSheet({
                     )}
                   </View>
 
-                  {/* Notes — free-form description, same role as the
-                      Notes block in Edit-Todo. */}
-                  <Text style={styles.sectionHeader}>NOTES</Text>
-                  <View style={styles.notesCard}>
-                    <TextInput
-                      style={styles.notesInput}
-                      value={notes}
-                      onChangeText={setNotes}
-                      placeholder={t.notes.placeholder}
-                      placeholderTextColor={theme.gray3}
-                      multiline
-                      maxLength={8192}
-                      textAlignVertical="top"
-                    />
-                  </View>
+                  {/* Notes moved into the title card (top of sheet)
+                      so users don't have to scroll past every field
+                      row to add a quick context note. */}
 
                   {/* Steps — queued locally and attached when the user
                       taps Add. Empty state mirrors Edit-Todo. */}
@@ -865,20 +865,6 @@ function makeStyles(c: ThemeColors) {
       marginBottom: 8,
       paddingHorizontal: 4,
     },
-    notesCard: {
-      backgroundColor: c.card,
-      borderRadius: 12,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: c.border,
-      padding: 12,
-      minHeight: 96,
-    },
-    notesInput: {
-      fontSize: 15,
-      color: c.label,
-      minHeight: 72,
-      lineHeight: 22,
-    },
     stepsCard: {
       backgroundColor: c.card,
       borderRadius: 12,
@@ -942,15 +928,30 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.border,
       overflow: 'hidden',
     },
-    // Title-only card — sits above the suggestion list so the user's
-    // typing surface is anchored at the top of the sheet, mirroring
-    // the first row of the Edit-Todo card.
+    // Title + inline notes — sits above the suggestion list so the
+    // user's typing surface is anchored at the top of the sheet.
+    // Notes lives inside the same card under a hairline so quick
+    // context capture doesn't require scrolling past every field row.
     titleCard: {
       backgroundColor: c.card,
       borderRadius: 12,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
       overflow: 'hidden',
+    },
+    titleCardDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: c.separator,
+      marginHorizontal: 14,
+    },
+    notesInputInline: {
+      minHeight: 56,
+      fontSize: 14,
+      color: c.label,
+      paddingHorizontal: 14,
+      paddingTop: 10,
+      paddingBottom: 12,
+      lineHeight: 19,
     },
     // Anchor wrapper for the title input + floating overlay. position:
     // relative so the overlay can absolute-position itself against
