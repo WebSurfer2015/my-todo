@@ -4,8 +4,7 @@ appId: com.websurfer.mytodo
 ---
 - launchApp
 - tapOn:
-    text: "Todos"
-    index: 0
+    text: "Todos, tab.*"
 # Swipe-right on a known seed row to reveal the trash action.
 - swipe:
     from:

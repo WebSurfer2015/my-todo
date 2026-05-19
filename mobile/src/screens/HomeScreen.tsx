@@ -10,8 +10,9 @@
  * actionable rows.
  */
 
-import React, { useCallback, useMemo } from 'react'
+import React, { useCallback, useMemo, useRef, useState } from 'react'
 import {
+  Dimensions,
   ScrollView,
   StyleSheet,
   Text,
@@ -27,9 +28,11 @@ import { useTheme, ThemeColors } from '../theme'
 import { todayLocal } from '../../../core/src/utils'
 import { categoryLabel } from '../categories'
 import { CairnGlyph } from '../components/PebbleStrip'
+import { useTriggerPebbleFlight } from '../components/PebbleFlight'
 import CategoryIcon from '../components/CategoryIcon'
 import PriorityDot from '../components/PriorityDot'
 import AppHeader from '../components/AppHeader'
+import TaskDetailsSheet from '../components/TaskDetailsSheet'
 
 function isoDate(d: Date): string {
   const y = d.getFullYear()
@@ -120,6 +123,55 @@ export default function HomeScreen() {
     [navigation, store],
   )
 
+  // Edit-sheet state. Row body taps on open items open the same
+  // TaskDetailsSheet the Todos tab uses, so editing works inline
+  // without leaving Home. Done rows route through store.toggle on
+  // body tap (the natural undo-completion gesture).
+  const [editingTodoId, setEditingTodoId] = useState<string | null>(null)
+  const editingTodo = useMemo(
+    () =>
+      editingTodoId
+        ? store.todos.find((td) => td.id === editingTodoId) ?? null
+        : null,
+    [editingTodoId, store.todos],
+  )
+
+  // Pebble-flight wiring. Each row registers an absolute-fill measure
+  // view; on done-transition we measureInWindow that view and launch a
+  // Mochi from the row's center toward the registered cairn (or the
+  // window-center fallback when no cairn is registered — e.g. when
+  // PebbleStrip isn't mounted on Home).
+  const triggerPebbleFlight = useTriggerPebbleFlight()
+  const rowMeasureRefs = useRef<Map<string, View>>(new Map())
+  const celebrate = store.profile.completionAnimation !== false
+  const playSound = store.profile.completionSound !== false
+
+  const handleCheckboxToggle = useCallback(
+    (td: (typeof store.todos)[number]) => {
+      const willBeDone = !td.done
+      store.toggle(td.id)
+      if (!willBeDone) return
+      if (!celebrate && !playSound) return
+      const fallback = {
+        x: Dimensions.get('window').width / 2,
+        y: Dimensions.get('window').height / 2,
+      }
+      const measure = rowMeasureRefs.current.get(td.id)
+      if (measure) {
+        measure.measureInWindow((x, y, w, h) => {
+          const from =
+            typeof x === 'number' && typeof y === 'number' && w > 0 && h > 0
+              ? { x: x + w / 2, y: y + h / 2 }
+              : fallback
+          triggerPebbleFlight(from, { animate: celebrate, chime: playSound })
+        })
+      } else {
+        triggerPebbleFlight(fallback, { animate: celebrate, chime: playSound })
+      }
+    },
+    [store, celebrate, playSound, triggerPebbleFlight],
+  )
+
   return (
     <View style={[styles.flex, { paddingTop: insets.top }]}>
       <AppHeader />
@@ -168,13 +220,30 @@ export default function HomeScreen() {
                   {i > 0 && <View style={styles.todayDivider} />}
                   <TouchableOpacity
                     style={styles.todayRow}
-                    onPress={() => openTodos()}
+                    onPress={() => handleCheckboxToggle(td)}
+                    onLongPress={() => setEditingTodoId(td.id)}
+                    delayLongPress={350}
                     activeOpacity={0.6}
                     accessibilityRole="button"
-                    accessibilityLabel={`${td.text}. Tap to open in Todos.`}
+                    accessibilityLabel={
+                      td.done
+                        ? `${td.text}, completed. Tap to un-check, long-press to edit.`
+                        : `${td.text}. Tap to mark done, long-press to edit.`
+                    }
                   >
+                    {/* Absolute-fill measure target for the pebble flight.
+                        pointerEvents:none so it never intercepts the row's
+                        own taps. */}
+                    <View
+                      ref={(r) => {
+                        if (r) rowMeasureRefs.current.set(td.id, r)
+                        else rowMeasureRefs.current.delete(td.id)
+                      }}
+                      pointerEvents="none"
+                      style={StyleSheet.absoluteFill}
+                    />
                     <TouchableOpacity
-                      onPress={() => store.toggle(td.id)}
+                      onPress={() => handleCheckboxToggle(td)}
                       hitSlop={10}
                       accessibilityRole="checkbox"
                       accessibilityState={{ checked: !!td.done }}
@@ -283,6 +352,39 @@ export default function HomeScreen() {
           </Text>
         )}
       </ScrollView>
+      {editingTodo && (
+        <TaskDetailsSheet
+          visible={editingTodoId !== null}
+          todo={editingTodo}
+          categories={store.categories}
+          onClose={() => setEditingTodoId(null)}
+          onUpdateText={store.updateText}
+          onUpdateNotes={store.updateNotes}
+          onUpdatePriority={store.updatePriority}
+          onUpdateDueDate={store.updateDueDate}
+          onUpdateCategory={store.updateTaskCategory}
+          onUpdateRecurrence={store.updateRecurrence}
+          onMoveToTrash={(id) => {
+            setEditingTodoId(null)
+            store.moveToTrash(id)
+          }}
+          onPermanentDelete={(id) => {
+            setEditingTodoId(null)
+            store.permanentlyDelete(id)
+          }}
+          onMoveSeriesFutureToTrash={(id) => {
+            setEditingTodoId(null)
+            store.moveSeriesFutureToTrash(id)
+          }}
+          onApplySeriesFutureEdits={store.applySeriesFutureEdits}
+          onAddSubtask={store.addSubtask}
+          onToggleSubtask={store.toggleSubtask}
+          onUpdateSubtaskText={store.updateSubtaskText}
+          onUpdateSubtaskPriority={store.updateSubtaskPriority}
+          onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
+          onRemoveSubtask={store.removeSubtask}
+        />
+      )}
     </View>
   )
 }

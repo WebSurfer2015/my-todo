@@ -8,8 +8,7 @@ appId: com.websurfer.mytodo
 ---
 - launchApp
 - tapOn:
-    text: "Todos"
-    index: 0
+    text: "Todos, tab.*"
 # Tap the FAB by region (bottom-right). The FAB is the only tappable
 # element in this quadrant on the Todos screen.
 - tapOn:

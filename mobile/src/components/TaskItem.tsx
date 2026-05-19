@@ -41,7 +41,17 @@ function FullSwipeWatcher({
 }
 import { Swipeable } from 'react-native-gesture-handler'
 import * as Haptics from 'expo-haptics'
-import { Repeat as LucideRepeat, ChevronRight, ChevronDown, Trash2, RotateCcw, XCircle } from 'lucide-react-native'
+import {
+  Repeat as LucideRepeat,
+  ChevronRight,
+  ChevronDown,
+  Trash2,
+  RotateCcw,
+  XCircle,
+  Pencil,
+  Check,
+  Calendar,
+} from 'lucide-react-native'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Category, Priority, Recurrence, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
 import { CategoryDef, categoryLabel } from '../categories'
@@ -237,17 +247,10 @@ function TaskItem({
   function openDetails() {
     swipeableRef.current?.close()
     setPendingSubtaskEditId(null)
-    if (inTrash) return
-    // On a struck-through done row (grace-period item showing in Open /
-    // All / category views), the natural gesture is "tap to un-check"
-    // — editing a completed item is unusual. Route body taps to the
-    // toggle path so the user doesn't have to aim at the small
-    // checkbox to undo a completion. Done rows shown in the Done bin
-    // itself (inTrash=true) already early-return above.
-    if (todo.done) {
-      handleToggle()
-      return
-    }
+    // Unified model: long-press always opens the edit sheet (including
+    // in the bin), so the user can correct a row's metadata without
+    // first restoring. Tap on the row body toggles done — that's the
+    // un-check path; this function is for the long-press/edit path.
     if (detailsAvailable) setDetailsOpen(true)
   }
 
@@ -259,7 +262,6 @@ function TaskItem({
   }
 
   function handleToggle() {
-    if (inTrash) return
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {})
     onToggle(todo.id)
   }
@@ -366,45 +368,78 @@ function TaskItem({
   // keep the Mark-done / Move-to-bin behavior.
   const trashedRow = todo.trashed && !todo.done
 
+  // Unified swipe model (2026-05-19):
+  //   Right swipe (drag right, reveals leftActions):
+  //     - Open: Edit + Mark Done, full-swipe-right = Mark Done
+  //     - Done / Not-Do: Edit only
+  //   Left swipe (drag left, reveals rightActions):
+  //     - Open: Defer + Not Do + Delete (no full-swipe shortcut — too many
+  //       destructive options to auto-commit one)
+  //     - Done / Not-Do: Restore + Delete
+  const isBin = inTrash || binFilterView || trashedRow
+
   function renderLeftActions(_progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) {
-    if (inTrash || trashedRow) {
+    if (isBin) {
       return (
-        <TouchableOpacity style={[styles.swipeAction, styles.swipeRestore]} onPress={handleRestore}>
-          <RotateCcw size={20} color="#fff" strokeWidth={2} />
-          <Text style={styles.swipeActionText}>{t.restoreTask}</Text>
-        </TouchableOpacity>
+        <View style={styles.swipeActionsRow}>
+          <TouchableOpacity style={[styles.swipeAction, styles.swipeEdit]} onPress={openDetails}>
+            <Pencil size={20} color="#fff" strokeWidth={2} />
+            <Text style={styles.swipeActionText}>{t.editTask}</Text>
+          </TouchableOpacity>
+        </View>
       )
     }
     return (
-      <>
+      <View style={styles.swipeActionsRow}>
         <FullSwipeWatcher dragX={dragX} direction="left" onFullSwipe={handleMarkDone} />
+        <TouchableOpacity style={[styles.swipeAction, styles.swipeEdit]} onPress={openDetails}>
+          <Pencil size={20} color="#fff" strokeWidth={2} />
+          <Text style={styles.swipeActionText}>{t.editTask}</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={[styles.swipeAction, styles.swipeMarkDone]} onPress={handleMarkDone}>
+          <Check size={20} color="#fff" strokeWidth={2} />
           <Text style={styles.swipeActionText}>{todo.done ? t.markNotDone : t.markDone}</Text>
         </TouchableOpacity>
-      </>
+      </View>
     )
   }
 
-  function renderRightActions(_progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) {
-    if (inTrash || binFilterView || trashedRow) {
-      // Already in the bin (legacy trash view, Done filter, or a trashed
-      // row surfacing in any other page) — swipe-left is irreversible
-      // delete, not "move to bin." Confirm-dialog before destruction.
+  function renderRightActions(_progress: Animated.AnimatedInterpolation<number>, _dragX: Animated.AnimatedInterpolation<number>) {
+    if (isBin) {
       return (
+        <View style={styles.swipeActionsRow}>
+          <TouchableOpacity style={[styles.swipeAction, styles.swipeRestore]} onPress={handleRestore}>
+            <RotateCcw size={20} color="#fff" strokeWidth={2} />
+            <Text style={styles.swipeActionText}>{t.restoreTask}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.swipeAction, styles.swipeDelete]} onPress={confirmPermanentDelete}>
+            <Trash2 size={20} color="#fff" strokeWidth={2} />
+            <Text style={styles.swipeActionText}>{t.deleteTask}</Text>
+          </TouchableOpacity>
+        </View>
+      )
+    }
+    return (
+      <View style={styles.swipeActionsRow}>
+        <TouchableOpacity
+          style={[styles.swipeAction, styles.swipeDefer]}
+          onPress={() => {
+            swipeableRef.current?.close()
+            onLongPressDefer?.(todo)
+          }}
+        >
+          <Calendar size={20} color="#fff" strokeWidth={2} />
+          <Text style={styles.swipeActionText}>{t.deferTask}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.swipeAction, styles.swipeTrash]} onPress={handleMoveToTrash}>
+          <XCircle size={20} color="#fff" strokeWidth={2} />
+          <Text style={styles.swipeActionText}>{t.notDo}</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={[styles.swipeAction, styles.swipeDelete]} onPress={confirmPermanentDelete}>
           <Trash2 size={20} color="#fff" strokeWidth={2} />
           <Text style={styles.swipeActionText}>{t.deleteTask}</Text>
         </TouchableOpacity>
-      )
-    }
-    return (
-      <>
-        <FullSwipeWatcher dragX={dragX} direction="right" onFullSwipe={handleMoveToTrash} />
-        <TouchableOpacity style={[styles.swipeAction, styles.swipeTrash]} onPress={handleMoveToTrash}>
-          <XCircle size={20} color="#fff" strokeWidth={2} />
-          <Text style={styles.swipeActionText}>{t.moveToTrash}</Text>
-        </TouchableOpacity>
-      </>
+      </View>
     )
   }
 
@@ -449,7 +484,14 @@ function TaskItem({
       onSwipeableWillClose={() => setSwipeOpen(false)}
     >
       <Pressable
-        onLongPress={swipeOpen ? undefined : handleLongPress}
+        onPress={
+          swipeOpen
+            ? undefined
+            : inTrash && onToggleSelect
+              ? () => onToggleSelect(todo.id)
+              : handleToggle
+        }
+        onLongPress={swipeOpen ? undefined : openDetails}
         delayLongPress={350}
         style={({ pressed }) => [
           styles.row,
@@ -543,7 +585,6 @@ function TaskItem({
                 todo.trashed && !todo.done && styles.textRemoved,
               ]}
               numberOfLines={3}
-              onPress={openDetails}
               suppressHighlighting
             >
               {todo.text}
@@ -558,12 +599,7 @@ function TaskItem({
           </View>
 
           <View style={styles.metaLine}>
-            <TouchableOpacity
-              style={styles.chip}
-              onPress={openDetails}
-              hitSlop={10}
-              disabled={inTrash}
-            >
+            <View style={styles.chip}>
               {cat && <CategoryIcon icon={cat.icon} size={11} color={cat.color} />}
               <Text style={[
                 styles.chipText,
@@ -573,16 +609,11 @@ function TaskItem({
               ]}>
                 {cat ? categoryLabel(cat, t) : t.noCategory}
               </Text>
-            </TouchableOpacity>
+            </View>
 
             <Text style={styles.metaSep}>·</Text>
 
-            <TouchableOpacity
-              style={styles.chip}
-              onPress={openDetails}
-              hitSlop={10}
-              disabled={inTrash}
-            >
+            <View style={styles.chip}>
               {binFilterView ? (
                 <Text style={[
                   styles.chipText,
@@ -615,20 +646,16 @@ function TaskItem({
                   strokeWidth={2}
                 />
               )}
-            </TouchableOpacity>
+            </View>
 
             <View style={{ flex: 1 }} />
 
-            <TouchableOpacity
-              onPress={openDetails}
+            <View
               style={styles.priorityBtn}
-              hitSlop={10}
-              disabled={inTrash}
-              accessibilityRole="button"
-              accessibilityLabel={`Priority ${todo.priority}${todo.recurrence ? ', recurring' : ''}. Open task details.`}
+              accessibilityLabel={`Priority ${todo.priority}${todo.recurrence ? ', recurring' : ''}`}
             >
               <PriorityDot level={todo.priority} size={11} />
-            </TouchableOpacity>
+            </View>
           </View>
 
           {expanded && detailsAvailable && !inTrash && visibleSubs.length > 0 && (
@@ -1109,7 +1136,9 @@ function makeStyles(c: ThemeColors, density: Density) {
       justifyContent: 'center',
       gap: 4,
     },
+    swipeActionsRow: { flexDirection: 'row' },
     swipeEdit:    { backgroundColor: c.blue },
+    swipeDefer:   { backgroundColor: c.orange },
     swipeMarkDone: { backgroundColor: c.green },
     // swipeTrash sends a row to the reversible 30-day bin (same destination
     // as the checkbox/Mark-done). Calm muted sage — red is reserved for

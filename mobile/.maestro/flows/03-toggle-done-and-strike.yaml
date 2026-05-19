@@ -8,8 +8,7 @@ appId: com.websurfer.mytodo
 ---
 - launchApp
 - tapOn:
-    text: "Todos"
-    index: 0
+    text: "Todos, tab.*"
 # Step 1: tap a row's title to OPEN the edit sheet (open row, body tap
 # opens details — current behavior). Use Pick up dry-cleaning from the
 # seed.

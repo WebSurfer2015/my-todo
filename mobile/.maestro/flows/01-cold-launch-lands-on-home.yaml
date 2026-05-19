@@ -1,19 +1,22 @@
 # Flow 01 — Cold launch lands on Home tab.
 # Manual-plan test 1.1 + 3.1.
 #
-# Preconditions: dev client installed, signed in as sagely.todo@gmail.com,
-# seed data present. Flow stops the app first so we exercise cold launch,
-# not a foreground resume.
+# Selector notes: Maestro matches against the iOS accessibility tree,
+# not raw React Native Text content. Raw <Text>TODAY</Text> isn't
+# searchable because the wrapping Pressable's accessibilityLabel
+# ("Open Todos showing N items") shadows it. We target tree-visible
+# strings instead: the Home tab's "tab, 1 of 3" axId and the section
+# wrapper's accessibilityLabel.
 appId: com.websurfer.mytodo
 ---
 - stopApp
 - launchApp
-# Home tab is selected by default (initialRouteName="Home"). The TODAY
-# section header is unique to Home — verifying it confirms the tab.
-- assertVisible: "TODAY"
-# TODAY count chip — wording is "N to do" or "all clear", both signal
-# the section rendered correctly.
+# Home tab is the active one of three.
+- assertVisible: "Home, tab, 1 of 3"
+# TODAY section is rendered — the wrapping Pressable has this aria
+# label. Bare strings in assertVisible match exactly; switch to the
+# `text:` form for regex/substring.
 - assertVisible:
-    text: "to do|all clear"
-- assertVisible:
-    text: "pebbles placed"
+    text: "Open Todos showing.*"
+# Lifetime cairn footer — unique to Home.
+- assertVisible: "pebbles placed"

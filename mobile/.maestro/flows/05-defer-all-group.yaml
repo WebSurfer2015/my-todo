@@ -4,8 +4,7 @@ appId: com.websurfer.mytodo
 ---
 - launchApp
 - tapOn:
-    text: "Todos"
-    index: 0
+    text: "Todos, tab.*"
 # Filter to Carried Over so the bulk-defer target group is unambiguous.
 - tapOn:
     text: "Carried Over"
