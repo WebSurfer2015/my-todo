@@ -419,7 +419,7 @@ function TodosScreen() {
                       accessibilityRole="button"
                       accessibilityLabel={`Defer ${displayFiltered.filter((td) => !td.done).length} carried-over to-dos`}
                     >
-                      <Text style={styles.deferAllText}>Defer remaining →</Text>
+                      <Text style={styles.deferAllText}>Defer all →</Text>
                     </TouchableOpacity>
                   )}
                   <View style={styles.groupCard}>
@@ -533,7 +533,7 @@ function TodosScreen() {
                           accessibilityRole="button"
                           accessibilityLabel={`Defer ${openInGroupCount} to-dos in ${headerLabel}`}
                         >
-                          <Text style={styles.groupHeaderDeferText}>Defer remaining →</Text>
+                          <Text style={styles.groupHeaderDeferText}>Defer all →</Text>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -756,7 +756,7 @@ function AppGate() {
       <AppBackground choice={store.profile.background} />
       <NavigationContainer>
         <Tab.Navigator
-          initialRouteName="Todos"
+          initialRouteName="Home"
           screenOptions={{
             headerShown: false,
             // Per-screen container must be transparent so the shared

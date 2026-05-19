@@ -237,7 +237,18 @@ function TaskItem({
   function openDetails() {
     swipeableRef.current?.close()
     setPendingSubtaskEditId(null)
-    if (!inTrash && detailsAvailable) setDetailsOpen(true)
+    if (inTrash) return
+    // On a struck-through done row (grace-period item showing in Open /
+    // All / category views), the natural gesture is "tap to un-check"
+    // — editing a completed item is unusual. Route body taps to the
+    // toggle path so the user doesn't have to aim at the small
+    // checkbox to undo a completion. Done rows shown in the Done bin
+    // itself (inTrash=true) already early-return above.
+    if (todo.done) {
+      handleToggle()
+      return
+    }
+    if (detailsAvailable) setDetailsOpen(true)
   }
 
   function openSubtaskEdit(subId: string) {

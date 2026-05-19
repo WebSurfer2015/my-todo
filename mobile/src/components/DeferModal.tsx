@@ -1,10 +1,10 @@
 /**
- * "Defer remaining todos to" — bottom-sheet date picker for bulk-
- * deferring the open todos in a group.
+ * "Defer all to" — bottom-sheet date picker for bulk-deferring the
+ * open todos in a group.
  *
  * Layout:
  *   ┌───────────────────────────────────────────────┐
- *   │ Cancel        Defer remaining todos to   Done │
+ *   │ Cancel              Defer all to         Done │
  *   │              {filter name} ({count})          │
  *   ├───────────────────────────────────────────────┤
  *   │ Tomorrow / Next day      tomorrow, Thu, May 19│
@@ -125,7 +125,7 @@ export default function DeferModal({
                   <Text style={styles.cancelText}>{t.cancel}</Text>
                 </TouchableOpacity>
                 <View style={styles.titleCenter}>
-                  <Text style={styles.title}>Defer remaining to</Text>
+                  <Text style={styles.title}>Defer all to</Text>
                   {subtitle ? (
                     <Text style={styles.subtitle} numberOfLines={1}>
                       {subtitle}
