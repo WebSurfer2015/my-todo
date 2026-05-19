@@ -225,6 +225,10 @@ function TaskItem({
   const checkboxScale = useRef(new Animated.Value(1)).current
   const rowFlash = useRef(new Animated.Value(0)).current
   const prevDoneRef = useRef(todo.done)
+  // Track dueDate too so rolling-recurrence completions fire the pebble
+  // flight — todoToggle preserves done=false on the rolled-forward row
+  // and only advances dueDate, so a done-only watcher misses these.
+  const prevDueDateRef = useRef(todo.dueDate)
   // Mochi pebble-flight overlay — captures the row's screen position via
   // onLayout (more reliable across RN versions / production bundles than
   // measuring on a ref at trigger time) and arcs a Mochi sprite up to
@@ -232,8 +236,41 @@ function TaskItem({
   // reduce-motion is on (handled by the provider).
   const triggerPebbleFlight = useTriggerPebbleFlight()
   const rowMeasureRef = useRef<View>(null)
+  // Per-sub measure refs so a checked-off step fires the pebble flight
+  // from its own screen position, not the parent row's. Cleared on
+  // unmount via the ref callback's null branch.
+  const subMeasureRefs = useRef<Map<string, View>>(new Map())
+  const fireSubFlight = useCallback(
+    (subId: string) => {
+      if (!celebrate && !playSound) return
+      const fallback = {
+        x: Dimensions.get('window').width / 2,
+        y: Dimensions.get('window').height / 2,
+      }
+      const measure = subMeasureRefs.current.get(subId)
+      if (measure) {
+        measure.measureInWindow((x, y, w, h) => {
+          const from =
+            typeof x === 'number' && typeof y === 'number' && w > 0 && h > 0
+              ? { x: x + w / 2, y: y + h / 2 }
+              : fallback
+          triggerPebbleFlight(from, { animate: celebrate, chime: playSound })
+        })
+      } else {
+        triggerPebbleFlight(fallback, { animate: celebrate, chime: playSound })
+      }
+    },
+    [celebrate, playSound, triggerPebbleFlight],
+  )
   useEffect(() => {
-    if (todo.done && !prevDoneRef.current) {
+    const becameDone = todo.done && !prevDoneRef.current
+    const rolledForward =
+      !!todo.recurrence &&
+      !todo.done &&
+      !prevDoneRef.current &&
+      prevDueDateRef.current !== todo.dueDate &&
+      !!prevDueDateRef.current
+    if (becameDone || rolledForward) {
       if (!reduceMotion) {
         // Subtle row flash — 100ms in, 240ms out, max opacity 0.45.
         Animated.sequence([
@@ -292,7 +329,8 @@ function TaskItem({
       }
     }
     prevDoneRef.current = todo.done
-  }, [todo.done, celebrate, playSound, reduceMotion, checkboxScale, rowFlash, triggerPebbleFlight])
+    prevDueDateRef.current = todo.dueDate
+  }, [todo.done, todo.dueDate, todo.recurrence, celebrate, playSound, reduceMotion, checkboxScale, rowFlash, triggerPebbleFlight])
   const swipeableRef = useRef<Swipeable>(null)
   const [swipeOpen, setSwipeOpen] = useState(false)
   // Suppress the row Pressable's onPress / onLongPress when the touch
@@ -790,10 +828,22 @@ function TaskItem({
                 const sOverdue = !!sDue && !s.done && sDue < today
                 const sIsToday = !!sDue && !s.done && sDue === today
                 return (
-                  <View key={s.id} style={styles.subRow}>
+                  <View
+                    key={s.id}
+                    ref={(r) => {
+                      if (r) subMeasureRefs.current.set(s.id, r)
+                      else subMeasureRefs.current.delete(s.id)
+                    }}
+                    collapsable={false}
+                    style={styles.subRow}
+                  >
                     <TouchableOpacity
                       onPress={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {})
+                        // Fire the pebble flight from this sub's screen
+                        // position when it's about to become done.
+                        // sub.done reflects the PRE-toggle state here.
+                        if (!s.done) fireSubFlight(s.id)
                         onToggleSubtask!(todo.id, s.id)
                       }}
                       hitSlop={10}

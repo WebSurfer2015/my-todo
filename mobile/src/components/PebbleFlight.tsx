@@ -150,24 +150,15 @@ export function PebbleFlightProvider({ children }: { children: React.ReactNode }
       const wantsAnimate = opts?.animate !== false && !reduceMotion
       const wantsChime = opts?.chime !== false
       if (!wantsAnimate) {
-        // Reduce-motion / animation off → just play the chime so the
-        // user still gets feedback.
         if (wantsChime) playChime()
         return
       }
       const resolver = cairnResolverRef.current
       const fallback = fallbackPointRef.current
       if (!resolver) {
-        // PebbleStrip not yet registered (cold-start on a non-Todos tab,
-        // tests, etc). Fall back to the seed point so the animation
-        // still runs from a sane location.
         launchFlight(from, fallback, wantsChime)
         return
       }
-      // Resolve the cairn position LIVE — measureInWindow on the strip's
-      // current bounds. Done at trigger time so layout shifts from the
-      // search top-sheet, scrolling, or filter changes can't leave the
-      // target stale.
       resolver((to) => {
         launchFlight(from, to ?? fallback, wantsChime)
       })

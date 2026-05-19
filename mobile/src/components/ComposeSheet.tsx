@@ -634,14 +634,12 @@ export default function ComposeSheet({
                     setRecurrence(undefined)
                     setSubView('main')
                   } else {
-                    const freq = k as RecurrenceFreq
-                    setPendingFreq(freq)
-                    setEndDatePickerDate(
-                      recurrence?.endDate
-                        ? new Date(`${recurrence.endDate}T00:00:00`)
-                        : defaultEndDateFor(freq),
-                    )
-                    setSubView('repeatEndDate')
+                    // Picking a frequency commits just the freq — the
+                    // user can then optionally tap the separate
+                    // "Repeat ends" row on the main sheet to set an
+                    // end date, mirroring TaskDetailsSheet's flow.
+                    setRecurrence({ freq: k as RecurrenceFreq })
+                    setSubView('main')
                   }
                 }}
                 onBack={() => setSubView('main')}

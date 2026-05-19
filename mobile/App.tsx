@@ -284,7 +284,7 @@ function TodosScreen() {
               )
             )}
 
-            {!store.inTrashView && store.filter !== "done" && (
+            {isFocused && !store.inTrashView && store.filter !== "done" && (
               <PebbleStrip count={store.todayPebbles} />
             )}
 

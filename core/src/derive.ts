@@ -365,9 +365,15 @@ export function subtaskToggle(
   const today = todayLocal();
   return prev.map((td) => {
     if (td.id !== todoId || !td.subtasks) return td;
-    const nextSubs = td.subtasks.map((s) =>
-      s.id === subId ? { ...s, done: !s.done } : s,
-    );
+    const nextSubs = td.subtasks.map((s) => {
+      if (s.id !== subId) return s;
+      const nextS = { ...s, done: !s.done };
+      // Stamp per-sub completionDate so Home's daily / weekly / monthly
+      // stats can bucket sub completions alongside parent completions.
+      if (nextS.done) nextS.completionDate = today;
+      else delete nextS.completionDate;
+      return nextS;
+    });
     const nextDone = nextSubs.every((s) => s.done);
     const wasDone = !!td.done;
     const next: Todo = {
@@ -725,13 +731,20 @@ export function migrateTodos(
           ? (s.priority as Priority)
           : "medium";
         const sDueDate = typeof s.dueDate === "string" ? s.dueDate : "";
-        cleaned.push({
+        const sCompletionDate =
+          typeof s.completionDate === "string" &&
+          /^\d{4}-\d{2}-\d{2}$/.test(s.completionDate)
+            ? s.completionDate
+            : undefined;
+        const cleanedSub: Subtask = {
           id: sid,
           text: sText,
           done: !!s.done,
           priority: sPriority,
           dueDate: sDueDate,
-        });
+        };
+        if (sCompletionDate) cleanedSub.completionDate = sCompletionDate;
+        cleaned.push(cleanedSub);
       }
       if (cleaned.length > 0) subtasks = cleaned;
     }

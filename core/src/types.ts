@@ -51,6 +51,10 @@ export interface Subtask {
   priority?: Priority
   /** Optional ISO yyyy-mm-dd date string. Empty string when unset. */
   dueDate?: string
+  /** ISO yyyy-mm-dd, stamped when `done` flips true via subtaskToggle.
+   * Powers the Home dToday / dWeek / dMonth stats — sub completions
+   * contribute alongside parent completions. Cleared on un-check. */
+  completionDate?: string
 }
 
 export interface Todo {

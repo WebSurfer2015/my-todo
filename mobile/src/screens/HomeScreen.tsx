@@ -10,7 +10,7 @@
  * actionable rows.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import {
   ScrollView,
   StyleSheet,
@@ -26,8 +26,7 @@ import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
 import { todayLocal } from '../../../core/src/utils'
 import type { Todo } from '../../../core/src/types'
-import { CairnGlyph } from '../components/PebbleStrip'
-import { useRegisterCairn } from '../components/PebbleFlight'
+import PebbleStrip, { CairnGlyph } from '../components/PebbleStrip'
 import AppHeader from '../components/AppHeader'
 import TaskItem from '../components/TaskItem'
 import DeferModal from '../components/DeferModal'
@@ -66,38 +65,48 @@ export default function HomeScreen() {
     let dYesterday = 0
     let dWeek = 0
     let dMonth = 0
-    for (const t of store.todos) {
-      if (!t.done || !t.completionDate) continue
-      const cd = t.completionDate
+    const bumpFor = (cd: string) => {
       if (cd === today) dToday += 1
       if (cd === yesterday) dYesterday += 1
       if (cd >= weekStart) dWeek += 1
       if (cd >= monthStart) dMonth += 1
     }
+    for (const t of store.todos) {
+      // Parent completion contributes whenever the row carries a
+      // completionDate (regardless of trashed-state — done items live
+      // in the merged Done bin so trashed:true is expected).
+      if (t.done && t.completionDate) bumpFor(t.completionDate)
+      // Per-sub completion dates (added 2026-05-19) — each done sub
+      // contributes independently of its parent's done state, so
+      // checking off steps updates the stats even when the parent
+      // isn't fully done yet.
+      const subs = t.subtasks ?? []
+      for (const s of subs) {
+        if (s.done && s.completionDate) bumpFor(s.completionDate)
+      }
+    }
     return { dToday, dYesterday, dWeek, dMonth }
   }, [store.todos, today])
 
-  // Today bucket — three shapes are included:
-  //   1. Open todos with the parent's own dueDate <= today.
-  //   2. Open todos whose subtasks include at least one with
-  //      dueDate <= today (the parent shows even if the parent's own
-  //      dueDate is future or absent — the today-subs drive presence).
-  //   3. Just-checked-off items (parent.done with completionDate
-  //      === today) so the strike-through is visible until the next
-  //      day's reload — same one-day grace deriveState uses.
+  // Today bucket — Open-only (parent.done=false, !trashed). Two
+  // inclusion shapes:
+  //   1. Parent's own dueDate <= today.
+  //   2. Parent has at least one open subtask whose dueDate <= today
+  //      (the parent shows even if its own dueDate is future or
+  //      absent — the today-subs drive presence).
+  // No grace period here — done rows leave the section as soon as
+  // they flip, matching the Todos-tab Open filter's behavior.
   const todayBucket = useMemo(() => {
-    const completedToday = (td: typeof store.todos[number]) =>
-      td.done && td.completionDate === today
+    // Include any sub whose dueDate <= today regardless of done state,
+    // so a parent whose today-subs are all checked off (partial-done)
+    // stays in the section with the dim styling instead of vanishing.
     const hasTodaySub = (td: typeof store.todos[number]) => {
       const subs = td.subtasks ?? []
-      return subs.some(
-        (s) => !!s.dueDate && s.dueDate <= today && !s.done,
-      )
+      return subs.some((s) => !!s.dueDate && s.dueDate <= today)
     }
     return store.todos
       .filter((td) => {
-        if (td.trashed && !completedToday(td)) return false
-        if (completedToday(td)) return true
+        if (td.trashed) return false
         if (td.done) return false
         if (!!td.dueDate && td.dueDate <= today) return true
         if (hasTodaySub(td)) return true
@@ -193,37 +202,31 @@ export default function HomeScreen() {
     setDeferTarget(todo)
   }, [])
 
-  // Register Home's CairnGlyph as the pebble-flight target while this
-  // screen is focused, so a Mochi launched from a Home row lands on
-  // the visible cairn instead of the PebbleStrip mounted on Todos.
-  // Re-register on every focus (React Navigation keeps both tabs
-  // mounted; last-register-wins inside PebbleFlight context).
-  const registerCairn = useRegisterCairn()
-  const cairnTargetRef = useRef<View>(null)
+  // PebbleStrip on Home is rendered conditionally when this screen is
+  // focused — its useEffect handles flight-target registration on
+  // mount, so simply mounting/unmounting it as focus shifts gives us
+  // the correct cairn target without manual register/clear plumbing
+  // here. Todos has the same focus-gate pattern.
   const isFocused = useIsFocused()
-  useEffect(() => {
-    if (!isFocused) return
-    const resolver = (cb: (p: { x: number; y: number } | null) => void) => {
-      const node = cairnTargetRef.current
-      if (!node) {
-        cb(null)
-        return
-      }
-      node.measureInWindow((x, y, w, h) => {
-        if (typeof x === 'number' && typeof y === 'number' && w > 0 && h > 0) {
-          cb({ x: x + w / 2, y: y + h / 2 })
-        } else {
-          cb(null)
-        }
-      })
-    }
-    registerCairn(resolver)
-    return () => registerCairn(null)
-  }, [isFocused, registerCairn])
+
+
 
   return (
     <View style={[styles.flex, { paddingTop: insets.top }]}>
       <AppHeader />
+      {/* Home strip row: PebbleStrip pinned left at the same x as the
+          TODAY header text (paddingHorizontal:20 matches the body), with
+          a max-width of 60% so a long today-count collapses to "+N"
+          before the strip overlaps the Mochi. Bobbing Mochi mascot on
+          the right. The wrapper's negative marginBottom pulls the
+          TODAY header closer to reduce the gap. */}
+      {isFocused && (
+        <View style={styles.homeStripRow}>
+          <View style={styles.homeStripPebbles}>
+            <PebbleStrip count={store.todayPebbles} />
+          </View>
+        </View>
+      )}
       <ScrollView
         style={styles.flex}
         contentContainerStyle={[styles.body, { paddingBottom: 120 }]}
@@ -232,7 +235,7 @@ export default function HomeScreen() {
         {/* Today section — actionable focus right at the top. */}
         <TouchableOpacity
           style={styles.sectionHeaderRow}
-          onPress={() => openTodos('open')}
+          onPress={() => openTodos('all')}
           activeOpacity={0.7}
           accessibilityRole="button"
           accessibilityLabel={`Open Todos showing ${openCount} items`}
@@ -358,7 +361,7 @@ export default function HomeScreen() {
 
         {/* Cairn / lifetime */}
         <View style={styles.cairnCard}>
-          <View ref={cairnTargetRef} collapsable={false} style={styles.cairnGlyph}>
+          <View style={styles.cairnGlyph}>
             <CairnGlyph size={52} />
           </View>
           <Text style={styles.cairnValue}>{store.lifetimePebbles}</Text>
@@ -548,6 +551,21 @@ function makeStyles(c: ThemeColors) {
       paddingVertical: 10,
       paddingHorizontal: 8,
       minWidth: 80,
+    },
+    homeStripRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      // Match body paddingHorizontal so the strip's left edge aligns
+      // with the TODAY section header text.
+      paddingHorizontal: 20,
+      // Pull TODAY up — PebbleStrip's own marginBottom is 14, this
+      // negative margin counters most of it for tighter spacing.
+      marginBottom: -10,
+    },
+    homeStripPebbles: {
+      // Cap the pebble row at 60% of the screen width so a high count
+      // collapses into "+N" before encroaching on the Mochi.
+      maxWidth: '60%',
     },
     todayPaginatorCenter: {
       flex: 1,
