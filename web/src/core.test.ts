@@ -18,6 +18,16 @@ import {
   subtaskUpdatePriority,
   subtaskUpdateDueDate,
   subtaskRemove,
+  deriveState,
+  categoryAdd,
+  categoryEdit,
+  categoryDelete,
+  categoryReorder,
+  todoApplySeriesFutureEdits,
+  todoMoveToTrashFutureSeries,
+  recordTodoReference,
+  migrateTodoReferences,
+  MAX_TODO_REFERENCES,
   TRASH_RETENTION_MS,
   MAX_TODO_TEXT_LEN,
   MAX_TODOS_PER_USER,
@@ -36,6 +46,21 @@ import {
   MAX_PROFILE_NAME_LEN,
   MAX_AVATAR_URI_LEN,
 } from "../../core/src/profile";
+import {
+  newGroceryItem,
+  groceryToggleChecked,
+  groceryEdit,
+  groceryDelete,
+  migrateGroceries,
+  MAX_GROCERY_ITEMS,
+} from "../../core/src/groceries";
+import {
+  nextOccurrence,
+  expandRecurrence,
+  MAX_RECURRENCE_INSTANCES,
+} from "../../core/src/utils";
+import { strings } from "../../core/src/i18n";
+import type { Todo, Filter } from "../../core/src/types";
 
 // ---- migrateTodos --------------------------------------------------------
 
@@ -820,5 +845,472 @@ describe("pebbleDelta", () => {
     const restoreDelta = pebbleDelta(afterTrash[0], afterRestore[0]);
     expect(trashDelta.task + restoreDelta.task).toBe(0);
     expect(trashDelta.subtask + restoreDelta.subtask).toBe(0);
+  });
+});
+
+// ---- deriveState (filter + count semantics) -----------------------------
+// Locks in the calm-app filter rules: open/done/overdue/category, the
+// completedToday grace period (just-done items linger in open views for
+// the day), and the "all" filter is the union of open + the merged Done
+// bin. systemCounts is the source of truth for filter pill badges.
+
+describe("deriveState", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-13T09:00:00")); // Wed
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const cats = [
+    { id: "home", color: "#34C759", icon: "home" },
+    { id: "work", color: "#007AFF", icon: "briefcase" },
+  ];
+  const t = strings.en;
+
+  function mk(overrides: Partial<Todo> & { id?: string } = {}): Todo {
+    return {
+      id: overrides.id ?? Math.random().toString(36).slice(2),
+      text: overrides.text ?? "x",
+      done: overrides.done ?? false,
+      priority: overrides.priority ?? "medium",
+      dueDate: overrides.dueDate ?? "",
+      category: "category" in overrides ? overrides.category : "home",
+      trashed: overrides.trashed ?? false,
+      ...overrides,
+    };
+  }
+
+  it("all filter shows everything including done + trashed", () => {
+    const todos = [
+      mk({ id: "open" }),
+      mk({ id: "done", done: true, trashed: true, completionDate: "2026-05-13" }),
+      mk({ id: "trashed", trashed: true, trashedAt: Date.now() }),
+    ];
+    const state = deriveState({ todos, filter: "all", categories: cats, t });
+    expect(state.filtered.map((x) => x.id).sort()).toEqual(["done", "open", "trashed"]);
+  });
+
+  it("open filter shows !done plus completedToday grace items", () => {
+    const todos = [
+      mk({ id: "open" }),
+      mk({ id: "doneOld", done: true, trashed: true, completionDate: "2026-05-12" }),
+      mk({ id: "doneToday", done: true, trashed: true, completionDate: "2026-05-13" }),
+    ];
+    const state = deriveState({ todos, filter: "open", categories: cats, t });
+    expect(state.filtered.map((x) => x.id).sort()).toEqual(["doneToday", "open"]);
+  });
+
+  it("done filter merges done + trashed (one bin)", () => {
+    const todos = [
+      mk({ id: "open" }),
+      mk({ id: "done", done: true, trashed: true }),
+      mk({ id: "trashedOnly", trashed: true }),
+    ];
+    const state = deriveState({ todos, filter: "done", categories: cats, t });
+    expect(state.filtered.map((x) => x.id).sort()).toEqual(["done", "trashedOnly"]);
+  });
+
+  it("overdue (Carried Over) counts include done past-due items as history", () => {
+    const todos = [
+      mk({ id: "overdue", dueDate: "2026-05-10" }),
+      mk({
+        id: "overdueDone",
+        dueDate: "2026-05-10",
+        done: true,
+        trashed: true,
+        completionDate: "2026-05-13",
+      }),
+      mk({ id: "today", dueDate: "2026-05-13" }),
+      mk({ id: "future", dueDate: "2026-05-20" }),
+    ];
+    const state = deriveState({ todos, filter: "overdue", categories: cats, t });
+    // Trashed past-due items aren't filtered into the view, but the
+    // carried-over COUNT includes history (done past-due items count).
+    expect(state.filtered.map((x) => x.id)).toContain("overdue");
+    expect(state.filtered.map((x) => x.id)).not.toContain("today");
+    expect(state.systemCounts.overdue).toBe(2); // open overdue + done overdue
+  });
+
+  it("category filter shows only that category", () => {
+    const todos = [
+      mk({ id: "h1", category: "home" }),
+      mk({ id: "w1", category: "work" }),
+      mk({
+        id: "h2",
+        category: "home",
+        done: true,
+        trashed: true,
+        completionDate: "2026-05-13",
+      }),
+    ];
+    const state = deriveState({
+      todos,
+      filter: "cat:home" as Filter,
+      categories: cats,
+      t,
+    });
+    expect(state.filtered.map((x) => x.id).sort()).toEqual(["h1", "h2"]);
+  });
+
+  it("systemCounts: all is open + merged Done bin", () => {
+    const todos = [
+      mk({ id: "a" }),
+      mk({ id: "b", done: true, trashed: true }),
+      mk({ id: "c", trashed: true }),
+    ];
+    const state = deriveState({ todos, filter: "all", categories: cats, t });
+    expect(state.systemCounts.open).toBe(1);
+    expect(state.systemCounts.done).toBe(2);
+    expect(state.systemCounts.all).toBe(3);
+  });
+
+  it("byCategoryOpen counts only active (non-trashed, non-done) items per category", () => {
+    const todos = [
+      mk({ id: "h1", category: "home" }),
+      mk({ id: "h2", category: "home" }),
+      mk({ id: "h3", category: "home", done: true, trashed: true }),
+      mk({ id: "w1", category: "work" }),
+    ];
+    const state = deriveState({ todos, filter: "all", categories: cats, t });
+    expect(state.byCategoryOpen.home).toBe(2);
+    expect(state.byCategoryOpen.work).toBe(1);
+  });
+
+  it("defaultCategory falls back through preferred order (school first, then [0])", () => {
+    // school > [0] > 'home' fallback. With no school in the list, [0] wins.
+    const justOther = [{ id: "other", color: "#8E8E93", icon: "tag" }];
+    const state = deriveState({
+      todos: [],
+      filter: "all",
+      categories: justOther,
+      t,
+    });
+    expect(state.defaultCategory).toBe("other");
+  });
+
+  it("section label resolves for system filters and category filters", () => {
+    const cats2 = [{ id: "home", label: "House", color: "#34C759", icon: "home" }];
+    const sOverdue = deriveState({
+      todos: [],
+      filter: "overdue",
+      categories: cats2,
+      t,
+    });
+    expect(sOverdue.sectionLabel).toBe(t.filters.overdue);
+    const sCat = deriveState({
+      todos: [],
+      filter: "cat:home" as Filter,
+      categories: cats2,
+      t,
+    });
+    expect(sCat.sectionLabel).toBe("House");
+  });
+});
+
+// ---- Category mutations -------------------------------------------------
+
+describe("category mutations", () => {
+  function mkCat(id: string, label?: string) {
+    return label
+      ? { id, label, color: "#34C759", icon: "tag" }
+      : { id, color: "#34C759", icon: "tag" };
+  }
+
+  it("categoryAdd appends with the requested fields", () => {
+    const next = categoryAdd([mkCat("a")], "b", {
+      label: "B",
+      color: "#FF3B30",
+      icon: "x",
+    });
+    expect(next.map((c) => c.id)).toEqual(["a", "b"]);
+    expect(next[1].label).toBe("B");
+    expect(next[1].color).toBe("#FF3B30");
+  });
+
+  it("categoryEdit updates only the targeted entry", () => {
+    const before = [mkCat("a"), mkCat("b")];
+    const next = categoryEdit(before, "a", {
+      label: "Alpha",
+      color: "#FF3B30",
+      icon: "y",
+    });
+    expect(next[0].label).toBe("Alpha");
+    expect(next[0].color).toBe("#FF3B30");
+    expect(next[1]).toBe(before[1]);
+  });
+
+  it("categoryReorder moves an item from->to", () => {
+    const next = categoryReorder(
+      [mkCat("a"), mkCat("b"), mkCat("c")],
+      0,
+      2,
+    );
+    expect(next.map((c) => c.id)).toEqual(["b", "c", "a"]);
+  });
+
+  it("categoryReorder is a no-op when from === to", () => {
+    const before = [mkCat("a"), mkCat("b")];
+    expect(categoryReorder(before, 1, 1)).toBe(before);
+  });
+
+  it("categoryDelete trashes affected todos and removes the category", () => {
+    const cats = [mkCat("home"), mkCat("work")];
+    const todos = [
+      newTodo({ text: "h1", priority: "low", dueDate: "", category: "home" }),
+      newTodo({ text: "w1", priority: "low", dueDate: "", category: "work" }),
+    ];
+    const result = categoryDelete(todos, cats, "home");
+    expect(result.deleted).toBe(true);
+    expect(result.categories.map((c) => c.id)).toEqual(["work"]);
+    // h1 trashed (was in deleted cat); w1 untouched.
+    expect(result.todos.find((t) => t.text === "h1")?.trashed).toBe(true);
+    expect(result.todos.find((t) => t.text === "w1")?.trashed).toBe(false);
+  });
+
+  it("categoryDelete refuses to delete the last remaining category", () => {
+    const cats = [mkCat("solo")];
+    const result = categoryDelete([], cats, "solo");
+    expect(result.deleted).toBe(false);
+    expect(result.categories).toBe(cats);
+  });
+});
+
+// ---- Series helpers (legacy multi-instance recurrence) ------------------
+// New recurrences after 2026-05-19 use the rolling model and don't carry
+// a seriesId; these helpers still operate on pre-existing multi-instance
+// series, so we lock in their behavior for that data path.
+
+describe("series helpers", () => {
+  function mkSeriesTodo(
+    seriesId: string,
+    dueDate: string,
+    overrides: Partial<Todo> & { id: string },
+  ): Todo {
+    return {
+      ...newTodo({ text: "weekly chore", priority: "low", dueDate }),
+      seriesId,
+      ...overrides,
+    };
+  }
+
+  it("todoApplySeriesFutureEdits updates text+priority on future siblings only", () => {
+    const todos = [
+      mkSeriesTodo("s1", "2026-05-01", { id: "past" }),
+      mkSeriesTodo("s1", "2026-05-15", { id: "target" }),
+      mkSeriesTodo("s1", "2026-05-22", { id: "future" }),
+      mkSeriesTodo("s2", "2026-05-15", { id: "other-series" }),
+    ];
+    const result = todoApplySeriesFutureEdits(todos, "target", {
+      text: "renamed",
+      priority: "high",
+    });
+    expect(result.affected).toBe(1); // future only
+    expect(result.next.find((t) => t.id === "past")?.text).toBe("weekly chore");
+    expect(result.next.find((t) => t.id === "target")?.text).toBe("weekly chore");
+    expect(result.next.find((t) => t.id === "future")?.text).toBe("renamed");
+    expect(result.next.find((t) => t.id === "future")?.priority).toBe("high");
+    expect(result.next.find((t) => t.id === "other-series")?.text).toBe(
+      "weekly chore",
+    );
+  });
+
+  it("todoApplySeriesFutureEdits is a no-op when target has no seriesId", () => {
+    const todos = [newTodo({ text: "lone", priority: "low", dueDate: "" })];
+    const result = todoApplySeriesFutureEdits(todos, todos[0].id, {
+      text: "renamed",
+    });
+    expect(result.affected).toBe(0);
+    expect(result.next).toBe(todos);
+  });
+
+  it("todoMoveToTrashFutureSeries trashes target + future siblings, leaves past", () => {
+    const todos = [
+      mkSeriesTodo("s1", "2026-05-01", { id: "past" }),
+      mkSeriesTodo("s1", "2026-05-15", { id: "target" }),
+      mkSeriesTodo("s1", "2026-05-22", { id: "future" }),
+    ];
+    const result = todoMoveToTrashFutureSeries(todos, "target");
+    expect(result.affected).toBe(2);
+    expect(result.next.find((t) => t.id === "past")?.trashed).toBe(false);
+    expect(result.next.find((t) => t.id === "target")?.trashed).toBe(true);
+    expect(result.next.find((t) => t.id === "future")?.trashed).toBe(true);
+  });
+
+  it("todoMoveToTrashFutureSeries falls back to single-todo trash when no seriesId", () => {
+    const todos = [newTodo({ text: "lone", priority: "low", dueDate: "" })];
+    const result = todoMoveToTrashFutureSeries(todos, todos[0].id);
+    expect(result.affected).toBe(1);
+    expect(result.next[0].trashed).toBe(true);
+  });
+});
+
+// ---- todoReferences (compose-sheet suggestion history) ------------------
+
+describe("todoReferences", () => {
+  it("recordTodoReference dedupes by lowercased text and prefers latest values", () => {
+    const ref1 = recordTodoReference([], { text: "Buy milk", priority: "medium" });
+    expect(ref1).toHaveLength(1);
+    const ref2 = recordTodoReference(ref1, {
+      text: "buy milk", // same textLower
+      priority: "high",
+      category: "home",
+    });
+    expect(ref2).toHaveLength(1);
+    expect(ref2[0].priority).toBe("high");
+    expect(ref2[0].category).toBe("home");
+  });
+
+  it("recordTodoReference puts the most-recent entry at the head", () => {
+    let refs = recordTodoReference([], { text: "Milk", priority: "low" });
+    refs = recordTodoReference(refs, { text: "Eggs", priority: "low" });
+    expect(refs.map((r) => r.text)).toEqual(["Eggs", "Milk"]);
+    refs = recordTodoReference(refs, { text: "Milk", priority: "low" });
+    expect(refs.map((r) => r.text)).toEqual(["Milk", "Eggs"]);
+  });
+
+  it("recordTodoReference enforces MAX_TODO_REFERENCES via LRU eviction", () => {
+    let refs: ReturnType<typeof recordTodoReference> = [];
+    for (let i = 0; i < MAX_TODO_REFERENCES + 50; i++) {
+      refs = recordTodoReference(refs, { text: `item-${i}`, priority: "low" });
+    }
+    expect(refs.length).toBe(MAX_TODO_REFERENCES);
+    expect(refs[0].text).toBe(`item-${MAX_TODO_REFERENCES + 49}`);
+  });
+
+  it("recordTodoReference ignores empty / whitespace-only text", () => {
+    expect(recordTodoReference([], { text: "", priority: "low" })).toEqual([]);
+    expect(recordTodoReference([], { text: "   ", priority: "low" })).toEqual([]);
+  });
+
+  it("migrateTodoReferences drops malformed entries and sorts by recency desc", () => {
+    const raw = [
+      { text: "old", priority: "low", lastSeenAt: 100 },
+      { text: "new", priority: "low", lastSeenAt: 300 },
+      { text: "mid", priority: "low", lastSeenAt: 200 },
+      null,
+      { text: "" }, // empty text — dropped
+      "garbage",
+    ];
+    const out = migrateTodoReferences(raw);
+    expect(out.map((r) => r.text)).toEqual(["new", "mid", "old"]);
+  });
+});
+
+// ---- Recurrence math edge cases ----------------------------------------
+
+describe("recurrence math", () => {
+  it("nextOccurrence: daily +N", () => {
+    expect(nextOccurrence("2026-05-13", "daily", 1)).toBe("2026-05-14");
+    expect(nextOccurrence("2026-05-13", "daily", 7)).toBe("2026-05-20");
+  });
+
+  it("nextOccurrence: weekly +N", () => {
+    expect(nextOccurrence("2026-05-13", "weekly", 1)).toBe("2026-05-20");
+    expect(nextOccurrence("2026-05-13", "weekly", 2)).toBe("2026-05-27");
+  });
+
+  it("nextOccurrence: monthly", () => {
+    expect(nextOccurrence("2026-01-15", "monthly", 1)).toBe("2026-02-15");
+  });
+
+  it("nextOccurrence: yearly", () => {
+    expect(nextOccurrence("2026-05-13", "yearly", 1)).toBe("2027-05-13");
+  });
+
+  it("nextOccurrence: monthly day-of-month rolls over via JS Date.setMonth (NOT clamp)", () => {
+    // Jan 31 + 1 month: JS Date.setMonth puts you at "Feb 31" which
+    // normalizes to Mar 3 (2026 is non-leap). This is the documented
+    // behavior, NOT a clamp to Feb 28. If a future refactor wants to
+    // clamp (more conventional rrule behavior), this test will tell
+    // you exactly what you'd be changing.
+    expect(nextOccurrence("2026-01-31", "monthly", 1)).toBe("2026-03-03");
+  });
+
+  it("nextOccurrence: yearly Feb 29 rolls to Mar 1 in non-leap year (NOT clamp to Feb 28)", () => {
+    // Same setMonth/setFullYear semantics as the monthly case. Locks in
+    // the surprising-but-current behavior.
+    expect(nextOccurrence("2024-02-29", "yearly", 1)).toBe("2025-03-01");
+  });
+
+  it("nextOccurrence: weekly with byWeekday picks the next matching weekday", () => {
+    // 2026-05-13 is Wed (day 3). byWeekday=[5] (Friday).
+    expect(nextOccurrence("2026-05-13", "weekly", 1, [5])).toBe("2026-05-15");
+  });
+
+  it("expandRecurrence: enumerates dates between dueDate and endDate inclusive", () => {
+    const dates = expandRecurrence("2026-05-13", "2026-06-03", {
+      freq: "weekly",
+    });
+    expect(dates).toEqual([
+      "2026-05-13",
+      "2026-05-20",
+      "2026-05-27",
+      "2026-06-03",
+    ]);
+  });
+
+  it("expandRecurrence: caps at MAX_RECURRENCE_INSTANCES", () => {
+    const dates = expandRecurrence("2026-01-01", "2999-01-01", {
+      freq: "daily",
+    });
+    expect(dates.length).toBeLessThanOrEqual(MAX_RECURRENCE_INSTANCES);
+  });
+});
+
+// ---- Grocery helpers ----------------------------------------------------
+
+describe("grocery helpers", () => {
+  function mkItem(text: string) {
+    return newGroceryItem({ text });
+  }
+
+  it("newGroceryItem starts unchecked with addedAt", () => {
+    const item = mkItem("Milk");
+    expect(item.checked).toBe(false);
+    expect(item.text).toBe("Milk");
+    expect(item.addedAt).toBeTypeOf("number");
+  });
+
+  it("groceryToggleChecked flips checked and stamps checkedAt", () => {
+    const items = [mkItem("Milk")];
+    const after = groceryToggleChecked(items, items[0].id);
+    expect(after[0].checked).toBe(true);
+    expect(after[0].checkedAt).toBeTypeOf("number");
+  });
+
+  it("groceryToggleChecked back to unchecked clears checkedAt and refreshes addedAt", () => {
+    const items = [mkItem("Milk")];
+    const checked = groceryToggleChecked(items, items[0].id);
+    const unchecked = groceryToggleChecked(checked, items[0].id);
+    expect(unchecked[0].checked).toBe(false);
+    expect(unchecked[0].checkedAt).toBeUndefined();
+    expect(unchecked[0].addedAt).toBeGreaterThanOrEqual(items[0].addedAt);
+  });
+
+  it("groceryEdit applies a partial patch", () => {
+    const items = [mkItem("Milk")];
+    const after = groceryEdit(items, items[0].id, { text: "Whole Milk" });
+    expect(after[0].text).toBe("Whole Milk");
+  });
+
+  it("groceryDelete removes the matching item", () => {
+    const items = [mkItem("a"), mkItem("b")];
+    const after = groceryDelete(items, items[0].id);
+    expect(after).toHaveLength(1);
+    expect(after[0].text).toBe("b");
+  });
+
+  it("migrateGroceries rejects non-array input", () => {
+    expect(migrateGroceries(null)).toEqual([]);
+    expect(migrateGroceries({})).toEqual([]);
+  });
+
+  it("migrateGroceries caps at MAX_GROCERY_ITEMS", () => {
+    const huge = Array.from({ length: MAX_GROCERY_ITEMS + 50 }, (_, i) => ({
+      id: `g-${i}`,
+      text: `item-${i}`,
+      addedAt: Date.now(),
+    }));
+    expect(migrateGroceries(huge).length).toBeLessThanOrEqual(MAX_GROCERY_ITEMS);
   });
 });

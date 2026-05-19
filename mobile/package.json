@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "check:firebase": "node scripts/check-firebase-config.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "e2e": "maestro test .maestro/flows",
+    "e2e:flow": "maestro test"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",

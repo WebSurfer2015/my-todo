@@ -1,0 +1,25 @@
+# Flow 02 — Add a todo via FAB → ComposeSheet → Done.
+# Manual-plan tests 4.1–4.3.
+#
+# Note: the FAB has no accessibilityIdentifier today. This flow taps
+# the bottom-right region; once a TestID is added to the FAB, swap to
+# `id:` for robustness. (See README "Tips when flows fail".)
+appId: com.websurfer.mytodo
+---
+- launchApp
+- tapOn:
+    text: "Todos"
+    index: 0
+# Tap the FAB by region (bottom-right). The FAB is the only tappable
+# element in this quadrant on the Todos screen.
+- tapOn:
+    point: 88%, 88%
+# ComposeSheet should be visible — the "Done" header button is unique
+# to it within this app.
+- assertVisible: "Done"
+- inputText: "Maestro smoke test row"
+- tapOn:
+    text: "Done"
+    index: 0
+# Compose closes; row appears in the active list.
+- assertVisible: "Maestro smoke test row"

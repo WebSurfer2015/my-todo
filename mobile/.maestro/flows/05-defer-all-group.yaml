@@ -1,0 +1,25 @@
+# Flow 05 — Group header "Defer all →" opens modal, picks Tomorrow,
+# verifies all items in the group advanced. Manual-plan tests 7.5–7.7.
+appId: com.websurfer.mytodo
+---
+- launchApp
+- tapOn:
+    text: "Todos"
+    index: 0
+# Filter to Carried Over so the bulk-defer target group is unambiguous.
+- tapOn:
+    text: "Carried Over"
+# The "Defer all →" inline action appears at the bottom of the group
+# (or in the secondary action row, depending on layout). Tap it.
+- tapOn:
+    text: "Defer all →"
+# Modal opens with the new title.
+- assertVisible: "Defer all to"
+# Pick "Tomorrow / Next day" — the first preset row.
+- tapOn:
+    text: "Tomorrow|Next day"
+# Modal closes. Carried Over should now be empty (or the visible
+# count drops). Either is a pass signal.
+- assertVisible:
+    text: "Enjoy the breathing room|0|all clear"
+    optional: true

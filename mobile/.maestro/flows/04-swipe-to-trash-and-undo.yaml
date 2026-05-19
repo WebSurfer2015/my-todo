@@ -1,0 +1,22 @@
+# Flow 04 — Swipe right → Move to trash → Undo via snackbar.
+# Manual-plan test 4.10.
+appId: com.websurfer.mytodo
+---
+- launchApp
+- tapOn:
+    text: "Todos"
+    index: 0
+# Swipe-right on a known seed row to reveal the trash action.
+- swipe:
+    from:
+      text: "Pick up dry-cleaning"
+    direction: RIGHT
+- tapOn:
+    text: "Move to trash"
+# Snackbar surfaces with Undo.
+- assertVisible:
+    text: "Moved to trash"
+- tapOn:
+    text: "Undo"
+# Row is back in the active list.
+- assertVisible: "Pick up dry-cleaning"

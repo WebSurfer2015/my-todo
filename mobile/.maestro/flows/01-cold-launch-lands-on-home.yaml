@@ -1,0 +1,19 @@
+# Flow 01 — Cold launch lands on Home tab.
+# Manual-plan test 1.1 + 3.1.
+#
+# Preconditions: dev client installed, signed in as sagely.todo@gmail.com,
+# seed data present. Flow stops the app first so we exercise cold launch,
+# not a foreground resume.
+appId: com.websurfer.mytodo
+---
+- stopApp
+- launchApp
+# Home tab is selected by default (initialRouteName="Home"). The TODAY
+# section header is unique to Home — verifying it confirms the tab.
+- assertVisible: "TODAY"
+# TODAY count chip — wording is "N to do" or "all clear", both signal
+# the section rendered correctly.
+- assertVisible:
+    text: "to do|all clear"
+- assertVisible:
+    text: "pebbles placed"
