@@ -221,6 +221,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (result.type === "cancelled") return;
       const idToken = result.data?.idToken;
       if (!idToken) throw new Error("Google Sign-In returned no idToken");
+      // Decode the idToken's audience claim (non-secret) so future
+      // auth/internal-error events are diagnosable from logs alone — the
+      // aud value tells us which OAuth web client ID Google issued the
+      // token for; that must match what Firebase has registered.
+      try {
+        const payload = JSON.parse(
+          atob(idToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")),
+        );
+        console.log("[auth] google idToken aud:", payload.aud, "iss:", payload.iss);
+      } catch {
+        // best-effort diagnostic; never fail sign-in on log decode
+      }
       const fbCredential = GoogleAuthProvider.credential(idToken);
       const cred = await signInWithCredential(auth, fbCredential);
       const givenName = result.data?.user?.givenName ?? undefined;

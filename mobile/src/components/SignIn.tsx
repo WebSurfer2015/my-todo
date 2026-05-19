@@ -14,10 +14,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as AppleAuthentication from "expo-apple-authentication";
+import crashlytics from "@react-native-firebase/crashlytics";
 import { useAuth } from "../AuthContext";
 import { useLang } from "../LangContext";
 import { useTheme, ThemeColors } from "../theme";
 import { Lang, LANG_NAMES, LANG_ORDER } from "../../../core/src/i18n";
+import { mapAuthError, AuthFlow } from "../authErrors";
 
 type Mode = "social" | "signin" | "signup" | "reset";
 
@@ -65,13 +67,19 @@ export default function SignIn() {
         setResetSent(true);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      console.error("[auth] email sign-in failed", err);
+      try {
+        crashlytics().recordError(err instanceof Error ? err : new Error(String(err)));
+      } catch {
+        // best-effort
+      }
+      setError(mapAuthError(err, "email"));
     } finally {
       setBusy(false);
     }
   }
 
-  async function withProvider(fn: () => Promise<void>) {
+  async function withProvider(fn: () => Promise<void>, flow: AuthFlow) {
     setError(null);
     setBusy(true);
     try {
@@ -86,7 +94,13 @@ export default function SignIn() {
       ) {
         return;
       }
-      setError(err instanceof Error ? err.message : String(err));
+      console.error("[auth] sign-in failed", { flow, code, err });
+      try {
+        crashlytics().recordError(err instanceof Error ? err : new Error(String(err)));
+      } catch {
+        // never let crash reporting take down sign-in
+      }
+      setError(mapAuthError(err, flow));
     } finally {
       setBusy(false);
     }
@@ -118,6 +132,7 @@ export default function SignIn() {
             {/* SOCIAL PROVIDERS — Apple, Google */}
             {mode !== "reset" && mode === "social" && (
               <View style={styles.providers}>
+                {error && <Text style={styles.error}>{error}</Text>}
                 {appleAvailable && (
                   <AppleAuthentication.AppleAuthenticationButton
                     buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
@@ -128,13 +143,13 @@ export default function SignIn() {
                     }
                     cornerRadius={10}
                     style={styles.appleButton}
-                    onPress={() => withProvider(signInWithApple)}
+                    onPress={() => withProvider(signInWithApple, "apple")}
                   />
                 )}
 
                 <TouchableOpacity
                   style={[styles.socialBtn, styles.googleBtn]}
-                  onPress={() => withProvider(signInWithGoogle)}
+                  onPress={() => withProvider(signInWithGoogle, "google")}
                   disabled={busy}
                   activeOpacity={0.8}
                 >
