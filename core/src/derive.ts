@@ -12,7 +12,7 @@ import {
 } from "./types";
 import { CategoryDef, categoryLabel } from "./categories";
 import { buildGroups, TodoGroup } from "./groups";
-import { genUuid, todayLocal, nextOccurrence, expandRecurrence } from "./utils";
+import { genUuid, todayLocal, nextOccurrence } from "./utils";
 import type { Strings } from "./i18n";
 
 export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
@@ -80,17 +80,17 @@ function cloneSubtasksFresh(subs: Subtask[] | undefined): Subtask[] | undefined 
 }
 
 /**
- * Generate one Todo per occurrence of a recurring task between dueDate and
- * recurrence.endDate (inclusive). Each instance gets:
- *  - a fresh id and updatedAt
- *  - its own dueDate (from the expansion)
- *  - a deep copy of the template's subtasks (with new ids, all undone)
- *  - the recurrence definition copied verbatim (so the instance can show
- *    "↻ Monthly · ends Aug 15" in its meta row)
+ * Build the initial Todo for a recurring series. Always one rolling
+ * instance, regardless of whether the recurrence has an endDate —
+ * todoToggle advances dueDate to the next occurrence on each completion
+ * and caps the series when the next occurrence would exceed endDate.
  *
- * Falls back to a single rolling task when recurrence has no endDate
- * (legacy / open-ended). Caps at MAX_RECURRENCE_INSTANCES (365) inside
- * expandRecurrence.
+ * Previously (before 2026-05-19) endDate triggered a full expansion at
+ * creation time, dumping every future instance into the list at once.
+ * That overwhelmed the active view for any non-trivial series and made
+ * "I finished one" feel indistinguishable from "I finished none". The
+ * rolling model surfaces exactly one actionable row, with the Done bin
+ * showing one capped snapshot per completed occurrence.
  */
 export function generateRecurringInstances(input: {
   text: string;
@@ -101,46 +101,17 @@ export function generateRecurringInstances(input: {
   subtasks?: Subtask[];
   notes?: string;
 }): Todo[] {
-  if (!input.recurrence.endDate) {
-    // Open-ended series — one rolling task (legacy behavior preserved).
-    return [
-      newTodo({
-        text: input.text,
-        priority: input.priority,
-        dueDate: input.dueDate,
-        category: input.category,
-        recurrence: input.recurrence,
-        subtasks: cloneSubtasksFresh(input.subtasks),
-        notes: input.notes,
-      }),
-    ];
-  }
-  const dates = expandRecurrence(input.dueDate, input.recurrence.endDate, input.recurrence);
-  if (dates.length === 0) return [];
-  const now = Date.now();
-  // One seriesId per generation pass — every instance shares it so we can
-  // bulk-delete future siblings without text matching.
-  const seriesId = genUuid();
-  const notes =
-    typeof input.notes === "string" && input.notes.length > 0
-      ? input.notes.slice(0, MAX_TODO_NOTES_LEN)
-      : undefined;
-  return dates.map((date) => ({
-    id: genUuid(),
-    text: input.text.slice(0, MAX_TODO_TEXT_LEN),
-    done: false,
-    priority: input.priority,
-    dueDate: date,
-    category: input.category,
-    trashed: false,
-    updatedAt: now,
-    recurrence: input.recurrence,
-    seriesId,
-    ...(input.subtasks && input.subtasks.length > 0
-      ? { subtasks: cloneSubtasksFresh(input.subtasks) }
-      : {}),
-    ...(notes ? { notes } : {}),
-  }));
+  return [
+    newTodo({
+      text: input.text,
+      priority: input.priority,
+      dueDate: input.dueDate,
+      category: input.category,
+      recurrence: input.recurrence,
+      subtasks: cloneSubtasksFresh(input.subtasks),
+      notes: input.notes,
+    }),
+  ];
 }
 
 /**
@@ -218,30 +189,23 @@ export function pebbleDelta(
  * no-op — the user must toggle subtasks individually. Locked in by
  * core.test.ts ("todoToggle is a no-op when subs exist").
  *
- * The legacy rolling-recurrence path (open-ended series, no endDate)
- * does keep its subs-reset behavior, since rolling forward is a
- * different action — the parent is becoming a fresh occurrence, not
- * being marked done.
+ * Recurring tasks always roll: the active row's dueDate advances to
+ * the next occurrence and a Done-bin snapshot of the just-completed
+ * date is emitted alongside. When recurrence.endDate is set and the
+ * next occurrence would exceed it, only the snapshot is emitted — the
+ * series is finished. Subs are reset to undone on the rolled row since
+ * rolling forward is a new occurrence, not a completion of the parent.
  */
 export function todoToggle(prev: Todo[], id: string): Todo[] {
   const now = Date.now();
   const today = todayLocal();
   return prev.flatMap((td) => {
     if (td.id !== id) return [td];
-    // Legacy rolling behavior: only when a recurring task has NO endDate.
-    // Multi-instance recurring tasks (with endDate) are pre-expanded at
-    // creation time, so each instance toggles like a normal task.
     if (
       !td.done &&
       td.recurrence &&
-      !td.recurrence.endDate &&
       td.dueDate
     ) {
-      // The recurring task stays alive as a single row — its dueDate
-      // advances to the NEXT occurrence per the recurrence pattern
-      // (e.g., weekly Mon → next Monday). The user still sees one row
-      // in the active list with the repeat icon, now showing the
-      // upcoming date.
       const rolled = nextOccurrence(
         td.dueDate,
         td.recurrence.freq,
@@ -249,12 +213,10 @@ export function todoToggle(prev: Todo[], id: string): Todo[] {
         td.recurrence.byWeekday,
         td.recurrence.bySetPos,
       );
-      // Snapshot of the just-completed occurrence so it surfaces in
-      // the Done bin. The snapshot keeps the recurrence shape but
-      // caps it with `endDate = the completed dueDate` — a one-day
-      // "series of one" record. That makes the snapshot also show the
-      // repeat icon so the user can see at a glance that this was
-      // completed as part of a recurring habit.
+      // Snapshot of the just-completed occurrence — frozen at the
+      // completed dueDate, in the Done bin, with the recurrence capped
+      // at that date so the snapshot still shows the repeat icon as a
+      // self-contained "series of one" record.
       const snapshot: Todo = {
         id: genUuid(),
         text: td.text,
@@ -269,6 +231,12 @@ export function todoToggle(prev: Todo[], id: string): Todo[] {
         recurrence: { ...td.recurrence, endDate: td.dueDate },
       };
       if (td.notes) snapshot.notes = td.notes;
+      // If endDate caps the series and the next occurrence is past it,
+      // we're done — emit only the snapshot. Otherwise roll forward as
+      // a fresh open instance.
+      if (td.recurrence.endDate && rolled > td.recurrence.endDate) {
+        return [snapshot];
+      }
       const rolledNext: Todo = {
         ...td,
         dueDate: rolled,

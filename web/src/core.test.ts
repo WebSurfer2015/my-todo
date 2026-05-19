@@ -290,6 +290,48 @@ describe("subtasks", () => {
     expect(snapshot.text).toBe(withRec.text);
   });
 
+  it("todoToggle on a bounded recurrence rolls forward when next occurrence <= endDate", () => {
+    const td = makeTodo();
+    const withRec = {
+      ...td,
+      dueDate: "2026-05-10",
+      recurrence: { freq: "weekly" as const, endDate: "2026-05-31" },
+    };
+    const out = todoToggle([withRec], withRec.id);
+    expect(out).toHaveLength(2);
+    const rolled = out.find((t) => t.id === withRec.id)!;
+    const snapshot = out.find((t) => t.id !== withRec.id)!;
+    // Active row advances to next weekly occurrence; preserves the
+    // series endDate so subsequent toggles know when to stop.
+    expect(rolled.done).toBe(false);
+    expect(rolled.dueDate).toBe("2026-05-17");
+    expect(rolled.recurrence?.endDate).toBe("2026-05-31");
+    // Snapshot is capped at the just-completed date.
+    expect(snapshot.dueDate).toBe("2026-05-10");
+    expect(snapshot.recurrence?.endDate).toBe("2026-05-10");
+  });
+
+  it("todoToggle on a bounded recurrence stops rolling once next occurrence exceeds endDate", () => {
+    const td = makeTodo();
+    const withRec = {
+      ...td,
+      dueDate: "2026-05-24",
+      // Next weekly occurrence is 2026-05-31 — exactly endDate, still
+      // inside the series → previous test covers that. Here endDate
+      // is BEFORE the next occurrence so the series is finished.
+      recurrence: { freq: "weekly" as const, endDate: "2026-05-26" },
+    };
+    const out = todoToggle([withRec], withRec.id);
+    // Only the snapshot — no rolled-forward sibling because the next
+    // occurrence (2026-05-31) is after endDate (2026-05-26).
+    expect(out).toHaveLength(1);
+    const snapshot = out[0];
+    expect(snapshot.done).toBe(true);
+    expect(snapshot.trashed).toBe(true);
+    expect(snapshot.dueDate).toBe("2026-05-24");
+    expect(snapshot.recurrence?.endDate).toBe("2026-05-24");
+  });
+
   it("todoToggle is a no-op when subs exist (parent done is derived)", () => {
     let state = [makeTodo()];
     state = subtaskAdd(state, state[0].id, "a");

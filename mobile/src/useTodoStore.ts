@@ -58,7 +58,6 @@ import { useSyncedState } from "./useSyncedState";
 import { StorageAdapter } from "../../core/src/persistence";
 import {
   newTodo,
-  generateRecurringInstances,
   todoToggle,
   pebbleDelta,
   PebbleDelta,
@@ -730,23 +729,6 @@ export function useTodoStore() {
     setTodoReferences((prev) =>
       recordTodoReference(prev, { text, priority, category, recurrence }),
     );
-    // When recurrence has an endDate, expand into one Todo per occurrence.
-    // Otherwise create a single task (which may roll forward via the legacy
-    // todoToggle path if recurrence is set without endDate).
-    if (recurrence?.endDate) {
-      const instances = generateRecurringInstances({
-        text,
-        priority,
-        dueDate,
-        category,
-        recurrence,
-        subtasks,
-        notes,
-      });
-      if (instances.length === 0) return;
-      setTodos((prev) => [...instances, ...prev]);
-      return;
-    }
     setTodos((prev) => [
       newTodo({ text, priority, dueDate, category, recurrence, subtasks, notes }),
       ...prev,
