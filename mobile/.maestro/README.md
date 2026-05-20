@@ -62,9 +62,12 @@ at the running sim and it'll show element selectors live.
 | --- | --- | --- |
 | `flows/01-cold-launch-lands-on-home.yaml` | App launches to Home tab; TODAY section renders | 1.1, 3.1 |
 | `flows/02-add-todo.yaml` | FAB → Compose → Done → row appears in list | 4.1–4.3 |
-| `flows/03-toggle-done-and-strike.yaml` | Tap checkbox → strike-through + pebble flight | 4.7, 3.2 |
-| `flows/04-swipe-to-trash-and-undo.yaml` | Swipe right → Move to trash → Undo via snackbar | 4.10 |
+| `flows/03-toggle-done-and-strike.yaml` | Tap open row → toggles done → drops from Open filter | 4.7, 3.2 |
+| `flows/04-swipe-to-trash-and-undo.yaml` | Swipe-right → Not Do → snackbar Undo restores row | 4.10 |
 | `flows/05-defer-all-group.yaml` | Group header "Defer all →" → modal title check → Tomorrow | 7.5–7.7 |
+| `flows/06-pebble-rises-on-completion.yaml` | Complete a today task → pebble appears on Home strip | 3.2, 3.3 |
+| `flows/07-defer-single-via-swipe.yaml` | Swipe-right → Defer → modal "Defer to" → Tomorrow | 7.1–7.3 |
+| `flows/08-recurring-rolling.yaml` | Tap recurring → snapshot in Done bin + rolled-forward instance | 9.1–9.3 |
 
 ## Tips when flows fail
 

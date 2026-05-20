@@ -1,22 +1,23 @@
-# Flow 03 — Tap a todo checkbox; verify it un-checks via body tap.
-# Manual-plan tests 4.7, 3.2, and the new body-tap-un-checks-done rule.
+# Flow 03 — Tap an open row → it toggles to done (strike-through).
+# Manual-plan tests 4.7, 3.2.
 #
-# Note: targeting a checkbox precisely without a TestID is brittle. This
-# flow uses the body-tap rule: tap the row title text → done items
-# un-check. That gives us a reliable selector (the visible text).
+# Current behavior: body-tap toggles done; long-press opens edit. We
+# tap a seeded open row and assert it disappears from the Open filter
+# (strict Open filter unmounts done items immediately).
 appId: com.websurfer.mytodo
 ---
 - launchApp
 - tapOn:
     text: "Todos, tab.*"
-# Step 1: tap a row's title to OPEN the edit sheet (open row, body tap
-# opens details — current behavior). Use Pick up dry-cleaning from the
-# seed.
-- tapOn: "Pick up dry-cleaning"
-# Edit sheet header shows "Done" — we don't actually want to edit, so
-# bail out via Cancel.
-- assertVisible: "Done"
+# Make sure we're on the Open filter so the strict-Open unmount rule
+# applies — tapping a row will remove it from view.
 - tapOn:
-    text: "Cancel"
-    index: 0
-- assertVisible: "Pick up dry-cleaning"
+    text: "Open"
+    optional: true
+# Tap the row body — this is the toggle gesture.
+- tapOn: "Pick up dry-cleaning"
+# Row should drop out of the Open filter view. Allow a brief settle
+# for the Mochi flight animation (~1.8s) before checking.
+- waitForAnimationToEnd:
+    timeout: 2500
+- assertNotVisible: "Pick up dry-cleaning"

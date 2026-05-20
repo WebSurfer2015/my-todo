@@ -181,25 +181,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!credential.identityToken) {
       throw new Error("Apple Sign-In returned no identity token");
     }
+    // PERSIST THE NAME IMMEDIATELY — Apple sends fullName ONLY on the
+    // very first sign-in. If anything between here and the Firestore
+    // write fails (network, auth/credential, rules), Apple won't send
+    // the name on the next call and it's lost forever. Stash it keyed
+    // by Apple's persistent user id so we can read it back below.
+    const givenName = credential.fullName?.givenName?.trim() ?? "";
+    const familyName = credential.fullName?.familyName?.trim() ?? "";
+    if (givenName || familyName) {
+      await AsyncStorage.setItem(
+        `apple_pending_name_${credential.user}`,
+        JSON.stringify({ givenName, familyName }),
+      ).catch(() => {});
+    }
     const fbCredential = AppleAuthProvider.credential(
       credential.identityToken,
       rawNonce,
     );
     const cred = await signInWithCredential(auth, fbCredential);
     // First-time Apple sign-in: seed a profile doc using the name Apple
-    // provided in the credential (Apple sends fullName ONLY on the very
-    // first sign-in). Returning users are skipped.
+    // provided in the credential. Returning users are skipped.
     const profileRef = doc(db, stateDocPath(cred.user.uid, "profile"));
     const snap = await getDoc(profileRef);
     if (!snap.exists()) {
-      const givenName = credential.fullName?.givenName?.trim() ?? "";
-      const familyName = credential.fullName?.familyName?.trim() ?? "";
+      // Source the name from the credential first, then fall back to
+      // the AsyncStorage stash (covers the case where a previous
+      // attempt got the name but failed to persist the profile doc).
+      let effectiveGiven = givenName;
+      let effectiveFamily = familyName;
+      if (!effectiveGiven && !effectiveFamily) {
+        try {
+          const stash = await AsyncStorage.getItem(
+            `apple_pending_name_${credential.user}`,
+          );
+          if (stash) {
+            const parsed = JSON.parse(stash) as {
+              givenName?: string;
+              familyName?: string;
+            };
+            effectiveGiven = parsed.givenName?.trim() ?? "";
+            effectiveFamily = parsed.familyName?.trim() ?? "";
+          }
+        } catch {
+          // ignore — fall through to the displayName/email fallback.
+        }
+      }
       const firstName =
-        givenName ||
+        effectiveGiven ||
         cred.user.displayName?.trim().split(/\s+/)[0] ||
         cred.user.email?.split("@")[0] ||
         SEED_PROFILE.name;
-      const lastName = familyName || undefined;
+      const lastName = effectiveFamily || undefined;
       const profile: Profile = {
         ...SEED_PROFILE,
         name: firstName.slice(0, MAX_PROFILE_NAME_LEN),
@@ -211,6 +243,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updatedAt: Date.now(),
       });
     }
+    // Profile is persisted (or pre-existed) — safe to clear the stash.
+    // If the setDoc above threw, we keep the stash for the next attempt.
+    await AsyncStorage.removeItem(
+      `apple_pending_name_${credential.user}`,
+    ).catch(() => {});
   }, []);
 
   const signInWithGoogle = useCallback(async () => {

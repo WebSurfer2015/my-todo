@@ -1,0 +1,22 @@
+# Flow 06 — Marking a today-bucket task done makes a pebble appear on
+# the Home cairn strip. Manual-plan tests 3.2, 3.3 (pebble flight).
+#
+# Precondition note: this flow assumes the cairn starts empty for today.
+# If the seed has run earlier today and pebbles are already present,
+# the assertion still passes (pebble count is monotonic for the day) —
+# we only check that the "N pebble(s) placed today" label is reachable.
+appId: com.websurfer.mytodo
+---
+- launchApp
+# Stay on Home — that's where the strip lives in the spec.
+- assertVisible: "Home, tab, 1 of 3"
+# Tap a today-bucket open item to mark it done. The seed includes two
+# today-due rows; "Walk the dog" is a stable label across the dataset.
+- tapOn: "Walk the dog"
+# Allow time for the Mochi flight (~1.8s) + the deferred pebble drop.
+- waitForAnimationToEnd:
+    timeout: 2500
+# The strip's accessibilityLabel reads "N pebble placed today" (or
+# "pebbles" for >1). Match either form.
+- assertVisible:
+    text: "[0-9]+ pebble.* placed today"

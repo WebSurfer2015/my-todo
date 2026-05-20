@@ -46,6 +46,12 @@ import PebbleStrip from "./src/components/PebbleStrip";
 import Onboarding from "./src/components/Onboarding";
 import SplashOverlay from "./src/components/SplashOverlay";
 import { cancelDailyCheckin } from "./src/notifications";
+import { installCrashReporters } from "./src/crashReporting";
+
+// Install crash reporters before any React code runs so even very early
+// failures get forwarded to Crashlytics. Idempotent — safe to call once
+// at module-load.
+installCrashReporters();
 import { NavigationContainer, useIsFocused } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { House, ListTodo, ShoppingBag } from "lucide-react-native";
@@ -670,7 +676,8 @@ function TodosScreen() {
             accessibilityLabel={t.addPlaceholder}
           />
         )}
-      {store.profile.agentEnabled &&
+      {false /* Mochi agent paused — see Settings "Ask Mochi (coming soon)" */ &&
+        store.profile.agentEnabled &&
         !store.inTrashView &&
         store.filter !== "groceries" &&
         !searchOpen && (
@@ -732,7 +739,8 @@ function TodosScreen() {
         }}
         onClose={() => setDeferTarget(null)}
       />
-      {store.profile.agentEnabled && (
+      {false /* Mochi agent paused — see Settings "Ask Mochi (coming soon)" */ &&
+        store.profile.agentEnabled && (
         <ChatSheet
           visible={chatOpen}
           onClose={() => setChatOpen(false)}

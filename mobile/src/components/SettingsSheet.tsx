@@ -175,10 +175,11 @@ export default function SettingsSheet({
               </Text>
               <View style={styles.card}>
                 <ToggleRow
-                  label="Ask Mochi (beta)"
-                  hint="Tell Mochi what to add or change in plain words. Sends the text you type to a private AI service. Off by default."
-                  value={agentOn}
-                  onChange={(v) => patch({ agentEnabled: v })}
+                  label="Ask Mochi (coming soon)"
+                  hint="Plain-language helper that adds and edits to-dos for you. Not available yet — we'll flip this on once it's ready."
+                  value={false}
+                  onChange={() => {}}
+                  disabled
                   styles={styles}
                 />
               </View>

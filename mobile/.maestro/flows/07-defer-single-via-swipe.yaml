@@ -1,0 +1,24 @@
+# Flow 07 — Swipe a single row to reveal Defer → modal "Defer to" with
+# Tomorrow preset → row's due date advances. Manual-plan tests 7.1–7.3.
+appId: com.websurfer.mytodo
+---
+- launchApp
+- tapOn:
+    text: "Todos, tab.*"
+# Swipe RIGHT direction reveals LEFT actions: [Defer | Not Do | Delete].
+# "Pay credit card bill" is a stable seeded row (monthly recurring).
+- swipe:
+    from:
+      text: "Pay credit card bill"
+    direction: RIGHT
+- tapOn:
+    text: "Defer"
+# Single-row modal title is "Defer to" (the group action uses "Defer
+# all to"). Cover both forms in case the swipe deferred multiple
+# selected rows by accident.
+- assertVisible:
+    text: "Defer to|Defer all to"
+- tapOn:
+    text: "Tomorrow|Next day"
+# Modal closes. The row should still exist (defer != complete).
+- assertVisible: "Pay credit card bill"

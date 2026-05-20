@@ -1,0 +1,30 @@
+# Flow 08 — Tap a recurring task → snapshot moves to the Done bin and
+# the rolling instance advances to its next occurrence. Manual-plan
+# tests 9.1–9.3 (recurrence).
+#
+# The seed includes two recurring tasks: "Pay credit card bill"
+# (monthly) and "Yoga class" (weekly). We exercise the weekly one
+# because the next-occurrence date is reliably visible inside the
+# 7-day Upcoming bucket — easier to assert than a +1 month jump.
+appId: com.websurfer.mytodo
+---
+- launchApp
+- tapOn:
+    text: "Todos, tab.*"
+- tapOn:
+    text: "Open"
+    optional: true
+# Body-tap a recurring open row to roll it forward. The act of
+# tapping marks the just-completed instance done (snapshot) and
+# advances the active row's dueDate by one freq interval.
+- tapOn: "Yoga class"
+- waitForAnimationToEnd:
+    timeout: 2500
+# The active row is still labeled "Yoga class" — only its due chip
+# advances. Assert the row remains visible in the Open list (it
+# reappears at the rolled-forward date).
+- assertVisible: "Yoga class"
+# Switch to Done filter and confirm the snapshot landed there.
+- tapOn:
+    text: "Done"
+- assertVisible: "Yoga class"
