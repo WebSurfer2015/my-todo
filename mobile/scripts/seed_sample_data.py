@@ -294,6 +294,7 @@ def build_groceries(today: date) -> list[dict]:
 
 def build_todos(today: date) -> list[dict]:
     now_ms = int(time.time() * 1000)
+    today_iso = iso(today)
 
     def base(text, *, priority="medium", category=None, due="", done=False,
              trashed=False, trashed_at=None, completion_date=None,
@@ -426,7 +427,6 @@ def build_todos(today: date) -> list[dict]:
                       category="home", due=iso(today - timedelta(days=2))))
 
     # — 2 completed (today; will land in the "Today" Done group) —
-    today_iso = iso(today)
     todos.append(base("Morning meditation", priority="low",
                       category="home", due=today_iso,
                       done=True, trashed=True,

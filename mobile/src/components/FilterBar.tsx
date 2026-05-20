@@ -12,7 +12,6 @@ import CategoryIcon from './CategoryIcon'
 import StatusIcon, { statusColor } from './StatusIcon'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
-import { CairnGlyph } from './PebbleStrip'
 
 interface Props {
   filter: Filter
@@ -309,16 +308,11 @@ export default function FilterBar({
         })}
       </ScrollView>
 
-      {scrolledPebbleCount > 0 && (
-        <View
-          style={styles.pebbleHint}
-          accessible
-          accessibilityRole="text"
-          accessibilityLabel={`${scrolledPebbleCount} pebbles placed today`}
-        >
-          <CairnGlyph size={14} />
-        </View>
-      )}
+      {/* The trailing CairnGlyph hint was removed — the pebble strip
+          now lives inside the same sticky container as this filter row
+          (see App.tsx stickyHeaderIndices), so a duplicate mini cairn
+          here is redundant. scrolledPebbleCount kept on the props
+          shape for back-compat but no longer rendered. */}
     </View>
   )
 }

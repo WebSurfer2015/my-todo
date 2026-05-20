@@ -126,10 +126,6 @@ function TodosScreen() {
   // itself after the breath + fade animation. Only blocks once per cold
   // launch.
   const [splashShown, setSplashShown] = useState(true);
-  // True once the user has scrolled past the pebble strip — the FilterBar
-  // shows a tiny pebble counter to keep progress visible without bringing
-  // the full strip back into view.
-  const [pebbleStripScrolled, setPebbleStripScrolled] = useState(false);
   const onboardingNeeded = store.loaded && store.profile.onboardingDone !== true;
 
   // Search narrows the already-filtered + grouped view. Case-insensitive
@@ -193,13 +189,7 @@ function TodosScreen() {
         <ScrollView
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
-          stickyHeaderIndices={[1, 2]}
-          onScroll={(e) => {
-            const y = e.nativeEvent.contentOffset.y;
-            const next = y > 80;
-            if (next !== pebbleStripScrolled) setPebbleStripScrolled(next);
-          }}
-          scrollEventThrottle={32}
+          stickyHeaderIndices={[1]}
         >
           <AppHeader
             title="Todos"
@@ -207,6 +197,13 @@ function TodosScreen() {
             onFilterPress={() => setCategorySheetOpen(true)}
           />
 
+          {/* Single sticky container — filter row + pebble strip stack
+              together so neither displaces the other during scroll.
+              Earlier setup used stickyHeaderIndices=[1,2] which caused
+              the strip to push the filter offscreen, and if strip's
+              height was shorter than the filter's, list content
+              briefly peeked through the gap during the transition.
+              One-region sticky avoids the issue entirely. */}
           <View style={styles.stickyFilter}>
             <SearchTopSheet
               visible={isFocused && searchOpen}
@@ -242,17 +239,7 @@ function TodosScreen() {
                 store.groceries.filter((g) => !g.checked).length
               }
               groceriesEnabled={store.profile.groceriesEnabled !== false}
-              scrolledPebbleCount={
-                pebbleStripScrolled ? store.todayPebbles : 0
-              }
             />
-          </View>
-
-          {/* Sticky pebble strip — index 2 in stickyHeaderIndices.
-              Always-rendered wrapper keeps the index stable when the
-              strip itself is conditionally hidden (Done filter / trash
-              view). theme.bg background prevents see-through scroll. */}
-          <View style={styles.stickyStrip}>
             {!store.inTrashView && store.filter !== "done" && (
               <PebbleStrip count={store.todayPebbles} active={isFocused} />
             )}

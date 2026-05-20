@@ -382,15 +382,31 @@ export default function GroceryView({
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={0}
     >
-      {/* Store filter row — horizontal scrolling pills, no funnel.
-          First pill is always "All" (clears every filter). Selected
-          store sits next, then pinned stores in pin order, then the
-          selected dept + pinned depts. The funnel action moved to
-          AppHeader's top-right filter icon, matching Todos. */}
+      {/* Store filter row — All pinned on the left (no horizontal
+          scroll touches it), then a horizontal scrolling group for
+          selected + pinned pills. Same layout idiom Todos' FilterBar
+          uses for its All pill: TouchableOpacity sibling, no inner
+          wrapper, parent row provides gap + horizontal padding. */}
       <View style={styles.pillsRow}>
-        {/* Funnel button moved out of this row into AppHeader's
-            top-right filter icon — matches the Todos pattern. The
-            ScrollView is now the only child of pillsRow. */}
+        <StorePill
+          label="All"
+          count={allActiveCount}
+          active={activeStore === undefined && effectiveDept === undefined}
+          pinned={false}
+          // When unselected, render the "candidate" outline style
+          // (mint border on white card bg) so the All pill matches
+          // Todos' FilterBar `pillExtra` look exactly.
+          inactiveOutline
+          onPress={() => {
+            onSetActiveStore(undefined)
+            onSetActiveDept(undefined)
+          }}
+          onLongPress={undefined}
+          onLayoutX={(x) => {
+            pillXRef.current['_all'] = x
+          }}
+          styles={styles}
+        />
         <ScrollView
           ref={pillScrollRef}
           horizontal
@@ -404,21 +420,6 @@ export default function GroceryView({
               onClear={onSearchClear}
             />
           )}
-          <StorePill
-            label="All"
-            count={allActiveCount}
-            active={activeStore === undefined && effectiveDept === undefined}
-            pinned={false}
-            onPress={() => {
-              onSetActiveStore(undefined)
-              onSetActiveDept(undefined)
-            }}
-            onLongPress={undefined}
-            onLayoutX={(x) => {
-              pillXRef.current['_all'] = x
-            }}
-            styles={styles}
-          />
           {/* Leading active filters — whichever filter the user just
               picked (store, dept, or both) sits IMMEDIATELY after "All"
               before any pinned-only pills. This is the rule the user
@@ -524,6 +525,7 @@ export default function GroceryView({
       </View>
 
       <ScrollView
+        style={styles.flex}
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -698,6 +700,10 @@ interface StorePillProps {
   onPress: () => void
   onLongPress: (() => void) | undefined
   styles: ReturnType<typeof makeStyles>
+  /** When true and `active` is false, render the mint-outline
+   * "candidate" style — mirrors Todos FilterBar's `pillExtra` look
+   * for the unselected All pill. */
+  inactiveOutline?: boolean
 }
 
 function StorePill({
@@ -711,12 +717,17 @@ function StorePill({
   onPress,
   onLongPress,
   styles,
+  inactiveOutline,
 }: StorePillProps) {
   const pinColor =
     pinIconColor ?? (active ? '#fff' : (styles.storePillLabel.color as string))
   return (
     <TouchableOpacity
-      style={[styles.storePill, active && styles.storePillActive]}
+      style={[
+        styles.storePill,
+        active && styles.storePillActive,
+        !active && inactiveOutline && styles.storePillExtra,
+      ]}
       onPress={onPress}
       onLongPress={onLongPress}
       onLayout={
@@ -827,14 +838,20 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surface,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.separator,
-      paddingTop: 8,
-      paddingBottom: 8,
+      // Mirror Todos' FilterBar row exactly so the All pill's spacing
+      // matches between the two tabs: 16px horizontal page padding +
+      // 8px gap between All and the scrollable pill group.
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      gap: 8,
     },
     pillsScroll: {
       flexDirection: 'row',
       gap: 8,
-      paddingRight: 16,
-      paddingLeft: 16,
+      // Right padding only — left padding + spacing-to-All are
+      // provided by the parent pillsRow's paddingHorizontal + gap.
+      paddingRight: 0,
+      paddingLeft: 0,
     },
     storePill: {
       // Chrome mirrors the Todos FilterBar pill: round, slim padding,
@@ -856,6 +873,14 @@ function makeStyles(c: ThemeColors) {
     storePillActive: {
       backgroundColor: c.primary,
       borderColor: c.primary,
+    },
+    // Unselected "candidate" outline — mirrors Todos FilterBar's
+    // pillExtra so the unselected All pill reads identically across
+    // the two tabs (white card bg + mint 1.5px border).
+    storePillExtra: {
+      backgroundColor: c.card,
+      borderColor: c.primary,
+      borderWidth: 1.5,
     },
     storePillLabel: {
       fontSize: 13,
