@@ -7,18 +7,25 @@ EAS + ASC API key flow documented in `mobile/CLAUDE.md`.
 ## Current Play Store state (2026-05-20)
 
 - **App package**: `com.websurfer.mytodo`
-- **Status**: not yet listed in Play Console (account-verification
-  pending — Google requires hands-on test from a real Android device
+- **App version**: 1.3.0 (matches iOS; `versionCode: 1` in `mobile/app.json`)
+- **Status**: not yet listed in Play Console — account-verification
+  pending (Google requires hands-on test from a real Android device
   for new developer accounts)
-- **AAB build**: BLOCKED on Android. `react-native-reanimated@3.17.5`
-  fails to compile against RN 0.81 with three Java errors
-  (`LengthPercentage.resolve` signature change + two removed
-  `Systrace.TRACE_TAG_REACT_JAVA_BRIDGE` references in the
-  Reanimated source). Reanimated 4.x fixes them but requires
-  `newArchEnabled: true`. iOS 1.3.0 shipped with `newArchEnabled:
-  false`. Two unblock paths in "Build pipeline" below.
-- **Submit pipeline**: NOT wired in `eas.json`. Uploads are manual until
-  a Google Cloud service account is in place.
+- **AAB build**: ✅ Unblocked. Path B was taken in commit `302c1ac`:
+  `react-native-reanimated@3.17.5` is patched via `patch-package`
+  (`mobile/patches/react-native-reanimated+3.17.5.patch`), reapplied
+  on every `npm install` / EAS build. `expo run:android` produces a
+  working APK on Pixel_10 in ~32s. Old arch retained
+  (`newArchEnabled: false`) for parity with iOS 1.3.0. See "Build
+  pipeline" below for the patch contents and the deferred Path A
+  cleanup.
+- **Submit pipeline**: NOT wired in `eas.json`. First upload will be
+  manual via Play Console until a Google Cloud service account is in
+  place.
+- **Listing copy**: source of truth in `docs/POSITIONING.md` →
+  "Play Store metadata" section (English + zh/es/fr/de/ja short
+  descriptions, tags, category, "What's new" v1.3.0 in 6 locales).
+  Full descriptions reuse the App Store text in the same file.
 
 ## One-time setup (do before the first submission)
 
@@ -81,45 +88,63 @@ service account with Play Console upload permissions:
 promote to closed/open testing or production from Play Console once the
 AAB processes.
 
-## Build pipeline — current blocker
+## Build pipeline — Path B in place (was the blocker)
 
-`eas build --platform android --profile production` aborts with three
-Java compile errors in `react-native-reanimated@3.17.5` against
-RN 0.81. The two unblock paths:
+The original blocker: `eas build --platform android --profile production`
+aborted with three Java compile errors in
+`react-native-reanimated@3.17.5` against RN 0.81. Path B was taken in
+commit `302c1ac` to unblock Android without forcing a new-arch
+migration on iOS in the same release.
 
-### Path A — enable the new architecture across the codebase
+### Path B (current, shipped) — old arch + `patch-package` on Reanimated 3.17.5
 
-- Set `newArchEnabled: true` in `app.json`
-- Upgrade `react-native-reanimated` to `~4.1.x` and install
+Implemented:
+- `react-native-reanimated` pinned to `3.17.5` (was `~3.17.0`).
+  Reanimated 4 requires `newArchEnabled` which we explicitly want to
+  avoid until a dedicated migration cycle.
+- `patch-package` + `postinstall-postinstall` added as devDependencies.
+  `npm install` runs `patch-package` via `postinstall`, so the patch
+  reapplies automatically on fresh installs and inside EAS builders.
+- `mobile/patches/react-native-reanimated+3.17.5.patch` applies three
+  targeted edits in
+  `node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/`:
+  - `ReanimatedPackage.java` — swap `Systrace.TRACE_TAG_REACT_JAVA_BRIDGE`
+    (removed in RN 0.81) for `Systrace.TRACE_TAG_REACT`, 2 sites
+  - `BorderRadiiDrawableUtils.java` — adapt to RN 0.81's
+    `LengthPercentage.resolve(Float): Float` signature; the old API
+    returned a wrapper with `.toPixelFromDIP().getHorizontal()`, the
+    new one returns a Float in DIP, so we convert via
+    `PixelUtil.toPixelFromDIP()` to preserve the old semantics.
+- `npx expo install --fix` realigned SDK 54 deps that had drifted
+  (`expo-constants`, `expo-notifications`, `babel-preset-expo`,
+  `expo-*` packages back to `~54.x.y` from a stray `55.x` cluster).
+
+Verified: `expo run:android` produces a working APK on Pixel_10 in
+~32s. Legacy-architecture deprecation warnings during the build are
+expected and not a regression.
+
+Brittle: any future Reanimated bump re-breaks the patch. Treat the
+patch file as load-bearing infra, not docs noise. The remaining
+permanent fix is Path A.
+
+### Path A (deferred) — new-arch migration
+
+For a future release cycle, retire the patch by migrating both
+platforms to `newArchEnabled: true`:
+
+- Set `newArchEnabled: true` in `mobile/app.json`
+- Upgrade `react-native-reanimated` to `~4.1.x` and add
   `react-native-worklets@~0.5.x` as its peer
-- Bump `expo-constants` + `expo-notifications` to SDK-54-aligned
-  versions via `npx expo install --fix`
+- `npx expo install --fix`
 - `expo prebuild --clean` for both iOS and Android
 - Test iOS thoroughly on new arch in the sim (gestures, sticky
-  filters, sheets, Mochi flight) before the next App Store build
+  filters, sheets, Mochi pebble flight) before the next App Store
+  build
 - Test Android dev client end-to-end (sign-in, todos, groceries)
 
 This is the path Expo SDK 54 expects long-term. The first attempt
 during the v1.3 cycle worked locally for Android once Expo deps were
 aligned. iOS hasn't been retested on new arch since the rollback.
-
-### Path B — stay on old arch by patching Reanimated 3.17.5
-
-- Use `patch-package` to apply three targeted edits in
-  `node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/`:
-  - `ReanimatedPackage.java` — replace `Systrace.beginSection(
-    Systrace.TRACE_TAG_REACT_JAVA_BRIDGE, ...)` with the no-tag
-    overload (removed in RN 0.81)
-  - `BorderRadiiDrawableUtils.java` — adapt the
-    `LengthPercentage.resolve(width, height)` call to the single-arg
-    form
-- Commit the patch file under `mobile/patches/` so the patch survives
-  `npm install`
-- Brittle: any future Reanimated bump re-breaks. Buys time but isn't
-  a long-term home.
-
-Recommendation: Path A on the next release cycle. Stay on the iOS-only
-1.3.0 release until Android is ready.
 
 ## Data safety form — what Sagely declares
 
@@ -153,8 +178,19 @@ Required:
 | 7" tablet screenshots | 1-8, same constraints | Optional; reuse iPad captures at `mobile/screenshots/ipad-129/processed/*.png` (2048×2732) ✓ |
 | 10" tablet screenshots | 1-8, same constraints | Same iPad set ✓ |
 
-Localized listing copy lives in `docs/POSITIONING.md`. Reuse those
-strings — the App Store and Play Store text are deliberately aligned.
+Listing copy lives in `docs/POSITIONING.md`:
+- App Store + Play Store metadata are deliberately aligned where the
+  fields overlap (Full description, localized descriptions).
+- Play-specific fields (Short description ≤80 chars, Tags, Category,
+  "What's new" ≤500 chars) live in their own
+  "Play Store metadata" section, with English + zh-Hans/es/fr/de/ja
+  variants for short descriptions and v1.3.0 "What's new."
+- ASC-length "What's new" copy (≤4000 chars, used by ASC's release
+  notes field) lives in `mobile/scripts/asc/whats_new.json` and is too
+  long to paste into Play. The Play-sized variants in
+  `docs/POSITIONING.md` are the ones to paste into Play Console for
+  v1.3.0; future versions should copy that pattern into a
+  `mobile/scripts/play/whats_new.json` once submission is automated.
 
 ## Releasing a new version
 
@@ -178,20 +214,26 @@ After the AAB is processed (Play takes ~30 min to a few hours):
 
 ## What's actually ready right now
 
-- ✅ app.json android config (package, googleServicesFile, blocked
+- ✅ Build pipeline — `expo run:android` produces a working APK on
+  Pixel_10 in ~32s via Path B (see "Build pipeline" above)
+- ✅ Feature graphic (1024×500) — generated via
+  `mobile/scripts/screenshots/generate_feature_graphic.py`, output at
+  `mobile/screenshots/feature-graphic.png`
+- ✅ `app.json` android config (package, `googleServicesFile`, blocked
   permissions, edge-to-edge)
-- ✅ Firebase android config (`google-services.json`) present and
-  pointing at the right project
+- ✅ Firebase android config (`google-services.json`) refreshed with
+  the production keystore SHA-1 (commit `d2e5da9`) so Google Sign-In
+  works in both dev and EAS-signed prod builds
 - ✅ Privacy policy live at GitHub Pages URL
 - ✅ Phone + tablet screenshots captured at the right resolutions
 - ✅ Data-safety questionnaire answers drafted (above table)
-- ✅ Listing copy in `docs/POSITIONING.md` and `docs/release_copy.json`-
-  adjacent files
-- ❌ Build pipeline (reanimated incompat, see Path A/B)
-- ❌ Feature graphic (1024×500) — needs design
-- ❌ Service account JSON for `eas submit android`
+- ✅ Store listing copy + tags + "What's new" v1.3.0 in 6 locales —
+  `docs/POSITIONING.md` § "Play Store metadata"
+- ❌ Service account JSON for `eas submit android` (manual upload via
+  Play Console is fine for the first submission)
 - ❌ Play Console listing itself (not created)
-- ❌ Developer account verification step
+- ❌ Developer account verification step (real-device hands-on test
+  blocking)
 
 ## After publishing
 
