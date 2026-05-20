@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActionSheetIOS, Alert, Platform } from 'react-native'
-import { Filter as FunnelIcon, Pin } from 'lucide-react-native'
+import { Pin } from 'lucide-react-native'
 import {
   Filter,
   StatusFilter,
@@ -172,34 +172,35 @@ export default function FilterBar({
   // now. The `groceries` filter value + resolver stay for back-compat
   // with any persisted state; they just don't render as a pill.
 
+  // The selected filter always sits FIRST in the scroll row (right
+  // next to the anchored "All" pill), regardless of whether it's
+  // pinned. That way the user always sees their current scope
+  // without scrolling, and the leftmost cluster is "All ⟷ active".
+  // Other pinned filters follow.
+  if (filter !== 'all' && filter !== 'groceries') {
+    const sel = resolvePill(filter)
+    if (sel) {
+      visiblePills.push({
+        pill: sel,
+        pinned: pinnedFilters.includes(filter),
+      })
+    }
+  }
   for (const f of pinnedFilters) {
-    if (f === 'all' || f === 'groceries') continue
+    if (f === 'all' || f === 'groceries' || f === filter) continue
     const p = resolvePill(f)
     if (p) visiblePills.push({ pill: p, pinned: true })
   }
 
-  if (
-    filter !== 'all' &&
-    filter !== 'groceries' &&
-    !pinnedFilters.includes(filter)
-  ) {
-    const extra = resolvePill(filter)
-    if (extra) visiblePills.push({ pill: extra, pinned: false })
-  }
+  // onOpenSheet kept in the prop signature (parent still passes it)
+  // but the funnel button moved out of FilterBar and into AppHeader
+  // on 2026-05-19. Reference it here so noUnusedLocals stays happy
+  // on the lint pass without us having to thread a removal through
+  // every call site.
+  void onOpenSheet
 
   return (
     <View style={styles.row}>
-      <TouchableOpacity
-        onPress={onOpenSheet}
-        style={styles.iconBtn}
-        hitSlop={8}
-        accessibilityLabel="Filter"
-        accessibilityRole="button"
-      >
-        <FunnelIcon size={16} color={theme.label2} strokeWidth={2} />
-        <Text style={styles.iconLabel} maxFontSizeMultiplier={1.3}>Filter</Text>
-      </TouchableOpacity>
-
       {/* "All" pill stays anchored to the left, outside the scroll —
           so the user can always tap it to reset, no matter how many
           pinned pills crowd the right side. */}

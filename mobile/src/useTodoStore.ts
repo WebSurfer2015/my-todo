@@ -44,7 +44,6 @@ import {
 import { useLang } from "./LangContext";
 import { useAuth } from "./AuthContext";
 import { useNotify } from "./notify";
-import { useReduceMotion } from "./useReduceMotion";
 import { PEBBLE_DEFERRAL_MS } from "./components/PebbleFlight";
 import {
   toggleSelection,
@@ -367,20 +366,19 @@ export function useTodoStore() {
   // skipped entirely when the user has reduce-motion on or has turned
   // off completion animations in Profile — there's no Mochi to wait for
   // and the 940ms gap between chime and pebble would just feel laggy.
-  const reduceMotion = useReduceMotion();
   const animationOn = profile.completionAnimation !== false;
   const applyPebbleDeltaTimed = useCallback(
     (delta: PebbleDelta) => {
       if (delta.task === 0 && delta.subtask === 0) return;
       const shouldDefer =
-        (delta.task > 0 || delta.subtask > 0) && animationOn && !reduceMotion;
+        (delta.task > 0 || delta.subtask > 0) && animationOn;
       if (shouldDefer) {
         setTimeout(() => applyPebbleDelta(delta), PEBBLE_DEFERRAL_MS);
       } else {
         applyPebbleDelta(delta);
       }
     },
-    [applyPebbleDelta, animationOn, reduceMotion],
+    [applyPebbleDelta, animationOn],
   );
 
   const toggle = useCallback(
@@ -693,7 +691,7 @@ export function useTodoStore() {
       // PEBBLE_DEFERRAL_MS so the pebble strip's count materializes the
       // moment Mochi lands, not before it leaves. Negative deltas (undo)
       // refund immediately.
-      const shouldDefer = becameDone && animationOn && !reduceMotion;
+      const shouldDefer = becameDone && animationOn;
       const apply = () =>
         setProfile((p) =>
           becameDone
@@ -706,7 +704,7 @@ export function useTodoStore() {
         apply();
       }
     },
-    [setTodos, setProfile, animationOn, reduceMotion, notify],
+    [setTodos, setProfile, animationOn, notify],
   );
 
   const updateSubtaskText = useCallback(

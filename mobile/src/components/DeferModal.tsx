@@ -125,7 +125,13 @@ export default function DeferModal({
                   <Text style={styles.cancelText}>{t.cancel}</Text>
                 </TouchableOpacity>
                 <View style={styles.titleCenter}>
-                  <Text style={styles.title}>Defer all to</Text>
+                  {/* "Defer to" for a single todo (swipe action),
+                      "Defer all to" for bulk deferrals (group header
+                      action). count is the only signal we have for the
+                      mode — undefined or 1 means single-todo. */}
+                  <Text style={styles.title}>
+                    {count && count > 1 ? 'Defer all to' : 'Defer to'}
+                  </Text>
                   {subtitle ? (
                     <Text style={styles.subtitle} numberOfLines={1}>
                       {subtitle}
@@ -343,10 +349,12 @@ function makeStyles(c: ThemeColors) {
     },
     rowLabel: { fontSize: 15, color: c.label, fontWeight: '500' },
     rowCenterCluster: {
+      // Left-align icon + label + hint within the row so the day/date
+      // hint hugs the left edge instead of floating in the middle.
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
+      justifyContent: 'flex-start',
       gap: 8,
     },
     rowHintInline: {

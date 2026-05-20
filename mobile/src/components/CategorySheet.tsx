@@ -146,6 +146,13 @@ export default function CategorySheet({
     setMode({ kind: "editCategory", id: null });
   }
 
+  function startEditCategory(c: CategoryDef) {
+    setName(categoryLabel(c, t));
+    setColor(c.color);
+    setIcon(c.icon);
+    setMode({ kind: "editCategory", id: c.id });
+  }
+
   function handleSave() {
     const trimmed = name.trim();
     if (!trimmed) return;
@@ -217,6 +224,8 @@ export default function CategorySheet({
         key={c.id}
         style={styles.viewRow}
         onPress={() => pickFilter(categoryFilter(c.id))}
+        onLongPress={() => startEditCategory(c)}
+        delayLongPress={350}
         activeOpacity={0.65}
       >
         <View style={styles.rowIcon}>
@@ -224,6 +233,17 @@ export default function CategorySheet({
         </View>
         <Text style={styles.viewRowLabel}>{categoryLabel(c, t)}</Text>
         <Text style={styles.viewRowCount}>{count}</Text>
+        {/* Pencil — same action as long-press, gives users a visible
+            affordance for editing color/icon/label without bulk-edit. */}
+        <TouchableOpacity
+          onPress={() => startEditCategory(c)}
+          hitSlop={8}
+          style={styles.viewRowEdit}
+          accessibilityRole="button"
+          accessibilityLabel={`Edit ${categoryLabel(c, t)}`}
+        >
+          <Pencil size={14} color={theme.label3} strokeWidth={2} />
+        </TouchableOpacity>
         {active ? <Check size={18} color={theme.primary} strokeWidth={2.5} /> : <View style={styles.checkPlaceholder} />}
       </TouchableOpacity>
     );
@@ -494,14 +514,55 @@ export default function CategorySheet({
                       <View style={styles.listCard}>
                         {categories.map(viewCategoryRow)}
                       </View>
+                      <TouchableOpacity
+                        style={styles.viewDoneBtn}
+                        onPress={onClose}
+                        activeOpacity={0.85}
+                        accessibilityRole="button"
+                        accessibilityLabel={t.done}
+                      >
+                        <Text style={styles.viewDoneText}>{t.done}</Text>
+                      </TouchableOpacity>
                     </ScrollView>
                   )}
                 </>
               ) : (
                 <>
-                  <Text style={styles.title}>
-                    {mode.id ? t.editCategory : t.addCategory}
-                  </Text>
+                  {/* Header row matches the unified sheet pattern:
+                      Cancel/Back left, title center, Delete icon
+                      top-right (only when editing an existing
+                      category). Old in-body destructive Text was
+                      removed in favor of this icon. */}
+                  <View style={styles.editCatHeader}>
+                    <TouchableOpacity
+                      onPress={() => setMode({ kind: "edit" })}
+                      hitSlop={10}
+                      style={styles.editCatHeaderSide}
+                      accessibilityRole="button"
+                      accessibilityLabel={t.back}
+                    >
+                      <Text style={styles.cancelText}>‹ {t.back}</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.editCatTitle}>
+                      {mode.id ? t.editCategory : t.addCategory}
+                    </Text>
+                    {mode.id && categories.length > 1 ? (
+                      <TouchableOpacity
+                        onPress={() => {
+                          const c = categories.find((x) => x.id === mode.id);
+                          if (c) handleDelete(c);
+                        }}
+                        hitSlop={10}
+                        style={styles.editCatHeaderSide}
+                        accessibilityRole="button"
+                        accessibilityLabel={t.deleteCategoryAction}
+                      >
+                        <Trash2 size={20} color={theme.red} strokeWidth={2} />
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={styles.editCatHeaderSide} />
+                    )}
+                  </View>
                   <View style={styles.field}>
                     <Text style={styles.label}>{t.categoryNameLabel}</Text>
                     <TextInput
@@ -547,41 +608,18 @@ export default function CategorySheet({
                       ))}
                     </View>
                   </View>
-                  {mode.id && (
-                    <TouchableOpacity
-                      style={styles.destructiveAction}
-                      onPress={() => {
-                        const c = categories.find((x) => x.id === mode.id);
-                        if (c) handleDelete(c);
-                      }}
-                      disabled={categories.length <= 1}
-                    >
-                      <Text
-                        style={[
-                          styles.destructiveActionText,
-                          categories.length <= 1 && { color: theme.gray3 },
-                        ]}
-                      >
-                        {t.deleteCategoryAction}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                  <View style={styles.actions}>
-                    <TouchableOpacity
-                      style={styles.btn}
-                      onPress={() => setMode({ kind: "edit" })}
-                    >
-                      <Text style={styles.btnText}>{t.back}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.btn, styles.btnPrimary]}
-                      onPress={handleSave}
-                    >
-                      <Text style={[styles.btnText, styles.btnPrimaryText]}>
-                        {t.save}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
+                  {/* Delete moved into the header (top-right trash
+                      icon). Bottom is now a single primary Save
+                      button — consistent with the Edit Step sheet. */}
+                  <TouchableOpacity
+                    style={styles.editCatSaveBtn}
+                    onPress={handleSave}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel={t.save}
+                  >
+                    <Text style={styles.editCatSaveText}>{t.save}</Text>
+                  </TouchableOpacity>
                 </>
               )}
             </Pressable>
@@ -673,6 +711,67 @@ function makeStyles(c: ThemeColors) {
       textAlign: "right",
     },
     checkPlaceholder: { width: 18 },
+    viewRowEdit: {
+      width: 28,
+      height: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 4,
+    },
+    editCatHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 4,
+      paddingBottom: 12,
+    },
+    cancelText: {
+      fontSize: 15,
+      color: c.label2,
+      fontWeight: '500',
+    },
+    editCatHeaderSide: {
+      width: 64,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    editCatTitle: {
+      fontSize: 17,
+      fontWeight: '600',
+      color: c.label,
+      letterSpacing: -0.2,
+    },
+    editCatSaveBtn: {
+      marginTop: 16,
+      marginBottom: 8,
+      paddingVertical: 12,
+      borderRadius: 12,
+      backgroundColor: c.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    editCatSaveText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '600',
+      letterSpacing: -0.2,
+    },
+    viewDoneBtn: {
+      marginHorizontal: 16,
+      marginTop: 12,
+      marginBottom: 24,
+      paddingVertical: 12,
+      borderRadius: 12,
+      backgroundColor: c.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    viewDoneText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '600',
+      letterSpacing: -0.2,
+    },
     editRow: {
       flexDirection: "row",
       alignItems: "center",

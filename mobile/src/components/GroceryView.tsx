@@ -21,7 +21,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import { ChevronDown, ChevronRight, Filter as FunnelIcon, Pin } from 'lucide-react-native'
+import { ChevronDown, ChevronRight, Pin } from 'lucide-react-native'
 import { ActionSheetIOS, Alert } from 'react-native'
 import { GroceryItem, GroceryGroup } from '../groceries'
 import { useTheme, ThemeColors } from '../theme'
@@ -81,6 +81,12 @@ interface Props {
   // Department management — wired through to StorePicker (manage
   // section) and GroceryComposeSheet (pick).
   onSetGroceryGroups: (next: GroceryGroup[]) => void
+  /** Optional controlled state for the StorePicker sheet, so a parent
+   * (e.g. GroceriesScreen) can open it from the AppHeader filter
+   * icon. When omitted, GroceryView falls back to its internal
+   * inline funnel state. */
+  storePickerOpen?: boolean
+  onStorePickerOpenChange?: (open: boolean) => void
 }
 
 
@@ -111,6 +117,8 @@ export default function GroceryView({
   onTogglePinnedStore,
   onTogglePinnedDept,
   onSetGroceryGroups,
+  storePickerOpen: storePickerOpenProp,
+  onStorePickerOpenChange,
 }: Props) {
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
@@ -118,12 +126,25 @@ export default function GroceryView({
   // Compose-sheet visibility — opened by the bottom-right FAB,
   // mirrors the Todos compose flow.
   const [composeOpen, setComposeOpen] = useState(false)
+  // Sticky default for the Add Item sheet's store field — starts as
+  // "Any" (undefined) so the first new item isn't auto-scoped to a
+  // specific store, then carries the most recent picked store across
+  // subsequent adds in this session.
+  const [lastAddedStore, setLastAddedStore] = useState<string | undefined>(
+    undefined,
+  )
 
   // Edit-sheet state — tap a row's text opens this for the underlying item.
   const [editingId, setEditingId] = useState<string | null>(null)
-  // Bottom-sheet picker visibility — each picker has its own pick/manage
-  // modes internally.
-  const [storePickerOpen, setStorePickerOpen] = useState(false)
+  // Bottom-sheet picker visibility. Either controlled by the parent
+  // (GroceriesScreen, so the AppHeader filter icon can open it) or
+  // an internal fallback when no controlled props are passed.
+  const [storePickerOpenInternal, setStorePickerOpenInternal] = useState(false)
+  const storePickerOpen = storePickerOpenProp ?? storePickerOpenInternal
+  const setStorePickerOpen = (v: boolean) => {
+    if (onStorePickerOpenChange) onStorePickerOpenChange(v)
+    else setStorePickerOpenInternal(v)
+  }
   // Per-department + Past-items collapse state. PAST_KEY is a synthetic
   // id so the Past Items bucket can share the same Set. Past Items
   // defaults to collapsed because it's history the user rarely scans.
@@ -282,31 +303,56 @@ export default function GroceryView({
     pillScrollRef.current.scrollTo({ x: Math.max(0, x - 16), animated: true })
   }, [activePillKey])
 
-  // Same idiom as the Todos FilterBar: All + each pinned store (in
-  // pin order) + the currently active store when it's neither All nor
-  // already pinned (so the active filter is always visible). Hidden
-  // stores never appear here; they live in Manage Filter.
+  // Pinned-only stores, excluding the currently active one. The active
+  // store gets rendered as a SEPARATE leading pill (see render below)
+  // so it sits right after "All" regardless of whether the active
+  // filter is a store or a dept — selected always sits adjacent to All.
+  // Hidden stores never appear here; they live in Manage Filter.
   const pillStores = useMemo(() => {
     const visible = configuredStores.filter((s) => !hiddenStores.includes(s))
-    const pinned = pinnedStores.filter((s) => visible.includes(s))
-    const out: string[] = [...pinned]
-    if (
-      activeStore !== undefined &&
-      visible.includes(activeStore) &&
-      !out.includes(activeStore)
-    ) {
-      out.push(activeStore)
+    const out: string[] = []
+    for (const s of pinnedStores) {
+      if (!visible.includes(s)) continue
+      if (s === activeStore) continue
+      out.push(s)
     }
     return out
   }, [configuredStores, hiddenStores, pinnedStores, activeStore])
 
-  // Pinned dept ids that still resolve to a visible (non-hidden) group.
-  // Stale ids (deleted / hidden) drop silently — the pill row should
-  // never render a phantom dept.
+  // Pinned-only depts, excluding the currently active one. Same idea as
+  // pillStores: the active dept is rendered as a SEPARATE leading pill
+  // so the selected filter (whether store or dept) always sits next to
+  // "All". Stale ids (deleted / hidden) drop silently.
   const pillDepts = useMemo(() => {
     const visibleIds = new Set(visibleGroups.map((g) => g.id))
-    return pinnedDepts.filter((id) => visibleIds.has(id))
-  }, [pinnedDepts, visibleGroups])
+    const out: string[] = []
+    for (const id of pinnedDepts) {
+      if (!visibleIds.has(id)) continue
+      if (id === effectiveDept) continue
+      out.push(id)
+    }
+    return out
+  }, [pinnedDepts, visibleGroups, effectiveDept])
+
+  // The active store pill renders ahead of all pinned pills (right
+  // after "All") when one is selected and visible — even if it isn't
+  // pinned. Lifted out of pillStores so it sits before pillDepts/
+  // pillStores rather than interleaving with them.
+  const leadingActiveStore = useMemo(() => {
+    if (activeStore === undefined) return null
+    if (hiddenStores.includes(activeStore)) return null
+    if (!configuredStores.includes(activeStore)) return null
+    return activeStore
+  }, [activeStore, configuredStores, hiddenStores])
+
+  // The active dept pill renders right after the active store (or right
+  // after "All" if no store is selected) so the user's most recent
+  // filter choice always sits adjacent to "All".
+  const leadingActiveDept = useMemo(() => {
+    if (!effectiveDept) return null
+    const g = visibleGroups.find((x) => x.id === effectiveDept)
+    return g ?? null
+  }, [effectiveDept, visibleGroups])
 
   function promptPin(name: string, kind: 'store' | 'dept', label: string) {
     const isPinned =
@@ -336,23 +382,15 @@ export default function GroceryView({
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={0}
     >
-      {/* Store filter row — mirrors the Todos FilterBar chrome: a funnel
-          button on the left, then a horizontal scrolling row of pills.
-          The first pill is always "All" (clears every filter). Pinned
-          stores follow in pin order. When a dept filter is set, an
-          extra dept pill renders trailing so the user sees the
-          narrowing and can tap to clear. */}
+      {/* Store filter row — horizontal scrolling pills, no funnel.
+          First pill is always "All" (clears every filter). Selected
+          store sits next, then pinned stores in pin order, then the
+          selected dept + pinned depts. The funnel action moved to
+          AppHeader's top-right filter icon, matching Todos. */}
       <View style={styles.pillsRow}>
-        <TouchableOpacity
-          onPress={openStoreSwitcher}
-          style={styles.funnelBtn}
-          hitSlop={8}
-          accessibilityLabel="Manage stores"
-          accessibilityRole="button"
-        >
-          <FunnelIcon size={16} color={theme.label2} strokeWidth={2} />
-          <Text style={styles.funnelLabel} maxFontSizeMultiplier={1.3}>Filter</Text>
-        </TouchableOpacity>
+        {/* Funnel button moved out of this row into AppHeader's
+            top-right filter icon — matches the Todos pattern. The
+            ScrollView is now the only child of pillsRow. */}
         <ScrollView
           ref={pillScrollRef}
           horizontal
@@ -381,6 +419,56 @@ export default function GroceryView({
             }}
             styles={styles}
           />
+          {/* Leading active filters — whichever filter the user just
+              picked (store, dept, or both) sits IMMEDIATELY after "All"
+              before any pinned-only pills. This is the rule the user
+              explicitly asked for: "selected filter moves to the front
+              next to All even if it is not pinned." */}
+          {leadingActiveStore !== null && (
+            <StorePill
+              key={`store-${leadingActiveStore}`}
+              label={leadingActiveStore}
+              count={perStoreActiveCount.get(leadingActiveStore) ?? 0}
+              active
+              pinned={pinnedStores.includes(leadingActiveStore)}
+              onPress={() => onSetActiveStore(leadingActiveStore)}
+              onLongPress={() =>
+                promptPin(leadingActiveStore, 'store', leadingActiveStore)
+              }
+              onLayoutX={(x) => {
+                pillXRef.current[`store-${leadingActiveStore}`] = x
+              }}
+              styles={styles}
+            />
+          )}
+          {leadingActiveDept !== null && (
+            <StorePill
+              key={`dept-${leadingActiveDept.id}`}
+              label={leadingActiveDept.label}
+              count={deptActiveCounts.get(leadingActiveDept.id) ?? 0}
+              active
+              pinned={pinnedDepts.includes(leadingActiveDept.id)}
+              deptIcon={
+                <GroceryIcon
+                  kind="department"
+                  id={leadingActiveDept.id}
+                  customIcon={leadingActiveDept.icon}
+                  customColor={leadingActiveDept.color}
+                  size={14}
+                  color="#fff"
+                />
+              }
+              pinIconColor="#fff"
+              onPress={() => onSetActiveDept(undefined)}
+              onLayoutX={(x) => {
+                pillXRef.current[`dept-${leadingActiveDept.id}`] = x
+              }}
+              onLongPress={() =>
+                promptPin(leadingActiveDept.id, 'dept', leadingActiveDept.label)
+              }
+              styles={styles}
+            />
+          )}
           {pillStores.map((s) => (
             <StorePill
               key={`store-${s}`}
@@ -428,33 +516,10 @@ export default function GroceryView({
               />
             )
           })}
-          {activeDeptGroup && !pinnedDepts.includes(activeDeptGroup.id) && (
-            <StorePill
-              key={`dept-active-${activeDeptGroup.id}`}
-              label={activeDeptGroup.label}
-              count={activeDeptCount}
-              active
-              pinned={false}
-              deptIcon={
-                <GroceryIcon
-                  kind="department"
-                  id={activeDeptGroup.id}
-                  customIcon={activeDeptGroup.icon}
-                  customColor={activeDeptGroup.color}
-                  size={14}
-                  color="#fff"
-                />
-              }
-              onPress={() => onSetActiveDept(undefined)}
-              onLongPress={() =>
-                promptPin(activeDeptGroup.id, 'dept', activeDeptGroup.label)
-              }
-              onLayoutX={(x) => {
-                pillXRef.current[`dept-${activeDeptGroup.id}`] = x
-              }}
-              styles={styles}
-            />
-          )}
+          {/* Active-dept-not-pinned trailing pill removed — pillDepts
+              now prepends the active dept (whether pinned or not),
+              keeping the row order: All, active store, pinned stores,
+              active dept, pinned depts. */}
         </ScrollView>
       </View>
 
@@ -586,9 +651,12 @@ export default function GroceryView({
       visible={composeOpen}
       groups={groceryGroups}
       stores={configuredStores.filter((s) => !hiddenStores.includes(s))}
-      initialStore={activeStore}
+      initialStore={lastAddedStore}
       initialDepartmentId={effectiveDept}
-      onAdd={({ text, groupId, store }) => onAdd({ text, groupId, store })}
+      onAdd={({ text, groupId, store }) => {
+        setLastAddedStore(store)
+        onAdd({ text, groupId, store })
+      }}
       onClose={() => setComposeOpen(false)}
     />
     <Fab
@@ -717,10 +785,17 @@ function Row({ item, onToggle, onOpenEdit, styles, futureMode }: RowProps) {
       <TouchableOpacity
         style={styles.rowBody}
         activeOpacity={0.6}
-        onPress={onOpenEdit}
+        onPress={onToggle}
         onLongPress={onOpenEdit}
+        delayLongPress={350}
         accessibilityRole="button"
-        accessibilityLabel={`${item.text}. Tap to edit.`}
+        accessibilityLabel={
+          futureMode
+            ? `${item.text}. Tap to add back, long-press to edit.`
+            : item.checked
+              ? `${item.text}, checked. Tap to un-check, long-press to edit.`
+              : `${item.text}. Tap to check off, long-press to edit.`
+        }
       >
         <Text
           style={[
@@ -755,19 +830,11 @@ function makeStyles(c: ThemeColors) {
       paddingTop: 8,
       paddingBottom: 8,
     },
-    funnelBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      paddingHorizontal: 16,
-      paddingVertical: 6,
-    },
-    funnelLabel: { fontSize: 12, color: c.label2, fontWeight: '600' },
     pillsScroll: {
       flexDirection: 'row',
       gap: 8,
       paddingRight: 16,
-      paddingLeft: 4,
+      paddingLeft: 16,
     },
     storePill: {
       // Chrome mirrors the Todos FilterBar pill: round, slim padding,

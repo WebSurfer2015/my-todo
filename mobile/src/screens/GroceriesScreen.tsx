@@ -20,6 +20,9 @@ export default function GroceriesScreen() {
   const insets = useSafeAreaInsets()
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  // Lifted from GroceryView so the AppHeader filter icon can open the
+  // StorePicker, matching the Todos pattern.
+  const [storePickerOpen, setStorePickerOpen] = useState(false)
   // Suppress the search Modal whenever this tab isn't focused so it
   // doesn't render on top of Home / Todos when the user switches away
   // mid-search. The state (query + open flag) persists, so coming
@@ -31,6 +34,7 @@ export default function GroceriesScreen() {
       <AppHeader
         title="Groceries"
         onSearchPress={() => setSearchOpen(true)}
+        onFilterPress={() => setStorePickerOpen(true)}
       />
       <SearchTopSheet
         visible={isFocused && searchOpen}
@@ -70,6 +74,8 @@ export default function GroceriesScreen() {
         onTogglePinnedStore={store.pinGroceryStore}
         onTogglePinnedDept={store.pinGroceryDept}
         onSetGroceryGroups={store.setGroceryGroups}
+        storePickerOpen={storePickerOpen}
+        onStorePickerOpenChange={setStorePickerOpen}
       />
     </View>
   )

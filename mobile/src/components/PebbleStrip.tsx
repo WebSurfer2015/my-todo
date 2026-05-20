@@ -25,7 +25,11 @@ const OVERFLOW_RESERVE = 32
 
 // Slight size variance per slot so the row reads like real stones.
 const SIZE_JITTER = [0, 1, -1, 0, 1, -1, 0, 1]
-const Y_JITTER = [0, 1, -1, 0, 1, 0, -1, 1]
+// Pebbles align on a single baseline now — the previous per-index
+// Y-jitter (~±1 px) read as misalignment instead of organic
+// variation. Keep the array for back-compat with any imports but
+// fix every offset to 0.
+const Y_JITTER = [0, 0, 0, 0, 0, 0, 0, 0]
 
 interface PebbleProps {
   size: number
@@ -233,12 +237,21 @@ export function CairnGlyph({ size = 22 }: { size?: number }) {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: {
-      paddingTop: 2,
-      paddingBottom: 8,
+      // Symmetric vertical padding so the pebble row sits in the
+      // visual middle of the strip instead of hugging the top.
+      paddingVertical: 6,
       paddingHorizontal: SIDE_PADDING,
-      marginBottom: 14,
+      // marginBottom dropped — when the surrounding wrapper has a
+      // background color the same as this container, the wrapper's
+      // bg bleeds through margin space, making the strip look taller
+      // and the pebbles look top-aligned. Spacing to the next sibling
+      // is now the parent's responsibility.
       alignItems: 'flex-start',
+      justifyContent: 'center',
       gap: 4,
+      // Explicit page-background fill so the strip blends with the
+      // surrounding view (Home + Todos both render on theme.bg).
+      backgroundColor: c.bg,
     },
     row: {
       flexDirection: 'row',

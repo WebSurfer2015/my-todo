@@ -88,7 +88,6 @@ import CategoryIcon from './CategoryIcon'
 import PickerModal from './PickerModal'
 import TaskDetailsSheet from './TaskDetailsSheet'
 import { useLang } from '../LangContext'
-import { useReduceMotion } from '../useReduceMotion'
 
 export type SubtaskVisibility = 'all' | 'open' | 'done'
 
@@ -168,7 +167,6 @@ function TaskItem({
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
-  const reduceMotion = useReduceMotion()
   const styles = useMemo(() => makeStyles(theme, density), [theme, density])
   const [priorityOpen, setPriorityOpen] = useState(false)
   const [categoryOpen, setCategoryOpen] = useState(false)
@@ -294,8 +292,8 @@ function TaskItem({
       prevDueDateRef.current !== todo.dueDate &&
       !!prevDueDateRef.current
     if (becameDone || rolledForward) {
-      if (!reduceMotion) {
-        // Subtle row flash — 100ms in, 240ms out, max opacity 0.45.
+      // Subtle row flash — 100ms in, 240ms out, max opacity 0.45.
+      {
         Animated.sequence([
           Animated.timing(rowFlash, {
             toValue: 1,
@@ -334,7 +332,7 @@ function TaskItem({
     }
     prevDoneRef.current = todo.done
     prevDueDateRef.current = todo.dueDate
-  }, [todo.done, todo.dueDate, todo.recurrence, celebrate, reduceMotion, checkboxScale, rowFlash])
+  }, [todo.done, todo.dueDate, todo.recurrence, celebrate, checkboxScale, rowFlash])
   const swipeableRef = useRef<Swipeable>(null)
   const [swipeOpen, setSwipeOpen] = useState(false)
   // Suppress the row Pressable's onPress / onLongPress when the touch
@@ -393,6 +391,11 @@ function TaskItem({
       onRestore?.(todo.id)
       return
     }
+    // Parent rows with subtasks: parent.done is derived from subs, so
+    // a tap-toggle is a no-op at the data layer. Skip the flight too
+    // so the user doesn't see a pebble fly for "nothing happened".
+    // Step rows still toggle individually via their own checkbox.
+    if (hasSubs) return
     // Tap that COMPLETES (or rolls a recurring row forward) measures
     // the row's position FIRST, then fires the pebble flight, then
     // calls onToggle. The serialization matters because the row may
@@ -691,10 +694,6 @@ function TaskItem({
           // mixed-in via the All filter), so the user can tell them
           // apart from done items at a glance.
           (inTrash || todo.trashed) && styles.rowTrashed,
-          // Home "today's work done" — every today-or-earlier sub is
-          // done but future subs remain. Dim so the user can scan past
-          // it but still sees what's been accomplished.
-          partiallyDoneToday && styles.rowPartialDone,
           pressed && styles.rowPressed,
         ]}
       >
@@ -1006,7 +1005,7 @@ function TaskItem({
                     <Text style={styles.dateClear}>{t.clear}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={commitDate}>
-                    <Text style={styles.dateDone}>{t.done}</Text>
+                    <Text style={styles.dateDone}>Save</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1080,7 +1079,7 @@ function TaskItem({
                       setSubDateForId(null)
                     }}
                   >
-                    <Text style={styles.dateDone}>{t.done}</Text>
+                    <Text style={styles.dateDone}>Save</Text>
                   </TouchableOpacity>
                 </View>
               </View>

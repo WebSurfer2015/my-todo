@@ -39,7 +39,7 @@ export default function Avatar({ avatar, size = 36 }: { avatar: AvatarT; size?: 
     return (
       <Image
         source={{ uri: avatar.uri }}
-        style={[{ width: size, height: size }, ring]}
+        style={[{ width: size, height: size, overflow: 'hidden' }, ring]}
       />
     )
   }
@@ -74,7 +74,7 @@ export default function Avatar({ avatar, size = 36 }: { avatar: AvatarT; size?: 
       <View
         style={[
           styles.preset,
-          { width: size, height: size, backgroundColor: preset.bg },
+          { width: size, height: size, backgroundColor: preset.bg, overflow: 'hidden' },
           ring,
         ]}
       >
@@ -97,7 +97,7 @@ export default function Avatar({ avatar, size = 36 }: { avatar: AvatarT; size?: 
     <View
       style={[
         styles.preset,
-        { width: size, height: size, backgroundColor: avatar.color },
+        { width: size, height: size, backgroundColor: avatar.color, overflow: 'hidden' },
         ring,
       ]}
     >

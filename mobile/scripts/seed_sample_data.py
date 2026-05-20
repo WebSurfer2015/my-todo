@@ -364,7 +364,8 @@ def build_todos(today: date) -> list[dict]:
              "done": False, "priority": "low",
              "dueDate": iso(grocery_due + timedelta(days=1))},
             {"id": newid(), "text": "Bread",
-             "done": True, "priority": "low", "dueDate": iso(grocery_due)},
+             "done": True, "priority": "low", "dueDate": iso(grocery_due),
+             "completionDate": today_iso},
         ],
     ))
     # 1st recurring — monthly bill

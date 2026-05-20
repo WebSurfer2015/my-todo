@@ -8,7 +8,6 @@ import React, {
 } from 'react'
 import { Animated, Dimensions, Easing, Image, StyleSheet, View } from 'react-native'
 import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from 'expo-audio'
-import { useReduceMotion } from '../useReduceMotion'
 
 /**
  * Cross-component overlay: when a task transitions to done, a Mochi sprite
@@ -123,7 +122,6 @@ export function PebbleFlightProvider({ children }: { children: React.ReactNode }
   })
   const [flights, setFlights] = useState<Flight[]>([])
   const nextIdRef = useRef(0)
-  const reduceMotion = useReduceMotion()
 
   // Warm up the player on mount so the first chime doesn't lag while the
   // WAV decodes.
@@ -147,7 +145,7 @@ export function PebbleFlightProvider({ children }: { children: React.ReactNode }
 
   const trigger = useCallback(
     (from: Point, opts?: TriggerOptions) => {
-      const wantsAnimate = opts?.animate !== false && !reduceMotion
+      const wantsAnimate = opts?.animate !== false
       const wantsChime = opts?.chime !== false
       if (!wantsAnimate) {
         if (wantsChime) playChime()
@@ -163,7 +161,7 @@ export function PebbleFlightProvider({ children }: { children: React.ReactNode }
         launchFlight(from, to ?? fallback, wantsChime)
       })
     },
-    [reduceMotion, launchFlight],
+    [launchFlight],
   )
 
   const finish = useCallback((id: number) => {

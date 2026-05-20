@@ -642,7 +642,8 @@ export default function ComposeSheet({
                     setSubView('main')
                   }
                 }}
-                onBack={() => setSubView('main')}
+                // No back button — every option commits and returns to
+                // main, so a back affordance reads as redundant.
               />
             )}
 
@@ -741,7 +742,7 @@ export default function ComposeSheet({
                     }}
                     style={[styles.addBtn, styles.applyBtn, { flex: 1 }]}
                   >
-                    <Text style={styles.addBtnText}>{t.done}</Text>
+                    <Text style={styles.addBtnText}>Save</Text>
                   </TouchableOpacity>
                 </View>
               </>

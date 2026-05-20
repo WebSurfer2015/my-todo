@@ -343,10 +343,15 @@ export function subtaskUpdateDueDate(
     const nextSubs = td.subtasks.map((s) =>
       s.id === subId ? { ...s, dueDate } : s,
     );
-    // Push parent's dueDate forward if the new sub date is later.
-    // (Parent with no date stays empty — comparison is undefined.)
-    const nextParentDueDate =
-      dueDate && td.dueDate && dueDate > td.dueDate ? dueDate : td.dueDate;
+    // Parent's dueDate tracks the LATEST sub due date — every change
+    // to any sub recalculates the max across all subs. ISO yyyy-mm-dd
+    // strings sort lexically. If no sub has a date, the parent keeps
+    // its existing date so we don't accidentally clear it.
+    const maxSubDate = nextSubs.reduce<string>((acc, s) => {
+      if (s.dueDate && s.dueDate > acc) return s.dueDate;
+      return acc;
+    }, '');
+    const nextParentDueDate = maxSubDate || td.dueDate;
     return {
       ...td,
       subtasks: nextSubs,

@@ -9,6 +9,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   Image,
+  Alert,
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -45,7 +46,6 @@ import PebbleStrip from "./src/components/PebbleStrip";
 import Onboarding from "./src/components/Onboarding";
 import SplashOverlay from "./src/components/SplashOverlay";
 import { scheduleDailyCheckin, cancelDailyCheckin } from "./src/notifications";
-import { useReduceMotion } from "./src/useReduceMotion";
 import { NavigationContainer, useIsFocused } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { House, ListTodo, ShoppingBag } from "lucide-react-native";
@@ -117,7 +117,6 @@ function TodosScreen() {
   // the full strip back into view.
   const [pebbleStripScrolled, setPebbleStripScrolled] = useState(false);
   const onboardingNeeded = store.loaded && store.profile.onboardingDone !== true;
-  const reduceMotion = useReduceMotion();
 
   // Search narrows the already-filtered + grouped view. Case-insensitive
   // substring against todo text, subtask text, and notes. We compute
@@ -197,6 +196,7 @@ function TodosScreen() {
           <AppHeader
             title="Todos"
             onSearchPress={() => setSearchOpen(true)}
+            onFilterPress={() => setCategorySheetOpen(true)}
           />
 
           <View style={styles.stickyFilter}>
@@ -364,9 +364,41 @@ function TodosScreen() {
                         : fullDateLabel(g.key);
                   return (
                     <View key={g.key} style={styles.groupSection}>
-                      <Text style={[styles.groupHeader, styles.groupHeaderSpacing]}>
-                        {headerLabel} ({g.todos.length})
-                      </Text>
+                      <View style={[styles.groupHeaderRow, styles.groupHeaderSpacing]}>
+                        <Text style={styles.groupHeader}>
+                          {headerLabel} ({g.todos.length})
+                        </Text>
+                        {g.isEarlier && g.todos.length > 0 && (
+                          <TouchableOpacity
+                            onPress={() => {
+                              const ids = g.todos.map((td) => td.id);
+                              Alert.alert(
+                                t.deletePermanently,
+                                t.deletePermanentlyConfirm(
+                                  `${ids.length} ${ids.length === 1 ? 'item' : 'items'}`,
+                                ),
+                                [
+                                  { text: t.cancel, style: 'cancel' },
+                                  {
+                                    text: t.deletePermanently,
+                                    style: 'destructive',
+                                    onPress: () => {
+                                      for (const id of ids) {
+                                        store.permanentlyDelete(id);
+                                      }
+                                    },
+                                  },
+                                ],
+                              );
+                            }}
+                            activeOpacity={0.6}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Delete all ${g.todos.length} items in Earlier`}
+                          >
+                            <Text style={styles.groupHeaderDeleteText}>Delete all →</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
                       <View style={styles.groupCard}>
                         {g.todos.map((td, i) => (
                           <View key={td.id} style={styles.taskCard}>
@@ -736,7 +768,7 @@ function TodosScreen() {
       />
       {splashShown && (
         <SplashOverlay
-          reduceMotion={reduceMotion}
+          reduceMotion={false}
           onDismiss={() => setSplashShown(false)}
         />
       )}
@@ -933,7 +965,10 @@ function makeStyles(c: ThemeColors) {
       color: c.label3,
     },
     stickyFilter: {
-      backgroundColor: c.surface,
+      // Opaque bg so scrolled content doesn't bleed through this
+      // pinned row. Combined with the also-opaque stickyStrip below
+      // it, the pair stays solidly persistent during scroll.
+      backgroundColor: c.bg,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.separator,
     },
@@ -1019,6 +1054,12 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 4,
       paddingVertical: 4,
       marginBottom: 8,
+    },
+    groupHeaderDeleteText: {
+      fontSize: 12,
+      color: c.red,
+      fontWeight: '600',
+      letterSpacing: 0.2,
     },
     groupHeaderDeferText: {
       fontSize: 12,

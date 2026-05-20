@@ -12,7 +12,7 @@ import {
   Alert,
 } from 'react-native'
 import Svg, { Path, Line, Polyline, Rect } from 'react-native-svg'
-import { Repeat } from 'lucide-react-native'
+import { Repeat, Trash2 } from 'lucide-react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import * as Haptics from 'expo-haptics'
 import { Category, Priority, Subtask, Todo, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
@@ -425,20 +425,48 @@ export default function TaskDetailsSheet({
                     }}
                     activeOpacity={0.8}
                     accessibilityRole="button"
-                    accessibilityLabel={t.done}
+                    accessibilityLabel="Save"
                   >
-                    <Text style={styles.dateDoneBtnText}>{t.done}</Text>
+                    <Text style={styles.dateDoneBtnText}>Save</Text>
                   </TouchableOpacity>
                 </View>
               </>
             ) : (
               <>
                 <View style={styles.editHeader}>
-                  <TouchableOpacity onPress={leaveSubtaskEdit} hitSlop={10} style={styles.headerSideBtn}>
-                    <Text style={styles.cancelText}>‹ Back</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.editHeaderTitle}>{t.edit.step}</Text>
+                  {/* No back button — bottom "Done" closes the sheet.
+                      Top-right "Delete" replaces the previous in-body
+                      destructive action. */}
                   <View style={styles.headerSideBtn} />
+                  <Text style={styles.editHeaderTitle}>{t.edit.step}</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const subId = editingSubtaskId
+                      if (!subId) return
+                      Alert.alert(
+                        t.deleteSubtask,
+                        'Delete this step?',
+                        [
+                          { text: t.cancel, style: 'cancel' },
+                          {
+                            text: t.deleteSubtask,
+                            style: 'destructive',
+                            onPress: () => {
+                              onRemoveSubtask(todo.id, subId)
+                              setEditingSubtaskId(null)
+                              setEditSubPickerView('main')
+                            },
+                          },
+                        ],
+                      )
+                    }}
+                    hitSlop={10}
+                    style={styles.headerSideBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={t.deleteSubtask}
+                  >
+                    <Trash2 size={20} color={theme.red} strokeWidth={2} />
+                  </TouchableOpacity>
                 </View>
                 <ScrollView style={styles.list} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editBody}>
                   <View style={styles.editGroupCard}>
@@ -488,30 +516,13 @@ export default function TaskDetailsSheet({
                   </View>
 
                   <TouchableOpacity
-                    style={styles.destructiveAction}
-                    onPress={() => {
-                      const subId = editingSubtaskId
-                      if (!subId) return
-                      Alert.alert(
-                        t.deleteSubtask,
-                        'Delete this step?',
-                        [
-                          { text: t.cancel, style: 'cancel' },
-                          {
-                            text: t.deleteSubtask,
-                            style: 'destructive',
-                            onPress: () => {
-                              onRemoveSubtask(todo.id, subId)
-                              setEditingSubtaskId(null)
-                              setEditSubPickerView('main')
-                            },
-                          },
-                        ],
-                      )
-                    }}
-                    activeOpacity={0.6}
+                    style={styles.subEditDoneBtn}
+                    onPress={leaveSubtaskEdit}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel={t.done}
                   >
-                    <Text style={styles.destructiveActionText}>Delete step</Text>
+                    <Text style={styles.subEditDoneText}>{t.done}</Text>
                   </TouchableOpacity>
                 </ScrollView>
               </>
@@ -547,7 +558,8 @@ export default function TaskDetailsSheet({
                   setParentEditView('main')
                 }
               }}
-              onBack={() => setParentEditView('main')}
+              // No back button — every option commits and returns to
+              // main, so a back affordance reads as redundant.
             />
           ) : parentEditView === 'customRepeat' ? (
             <CustomRecurrenceForm
@@ -596,9 +608,9 @@ export default function TaskDetailsSheet({
                   }}
                   activeOpacity={0.8}
                   accessibilityRole="button"
-                  accessibilityLabel={t.done}
+                  accessibilityLabel="Save"
                 >
-                  <Text style={styles.dateDoneBtnText}>{t.done}</Text>
+                  <Text style={styles.dateDoneBtnText}>Save</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -1056,7 +1068,7 @@ export default function TaskDetailsSheet({
                         setSubDateForId(null)
                       }}
                     >
-                      <Text style={styles.dateDone}>{t.done}</Text>
+                      <Text style={styles.dateDone}>Save</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1553,6 +1565,21 @@ function makeStyles(c: ThemeColors) {
       fontSize: 14,
       fontWeight: '500',
       letterSpacing: -0.16,
+    },
+    subEditDoneBtn: {
+      marginTop: 16,
+      alignSelf: 'stretch',
+      backgroundColor: c.primary,
+      paddingVertical: 12,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    subEditDoneText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '600',
+      letterSpacing: -0.2,
     },
     bottomActionRow: {
       flexDirection: 'row',

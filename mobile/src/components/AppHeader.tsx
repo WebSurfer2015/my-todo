@@ -12,7 +12,7 @@
 
 import React, { useMemo } from 'react'
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
-import { Settings as SettingsIcon, Search as SearchIcon } from 'lucide-react-native'
+import { Settings as SettingsIcon, Search as SearchIcon, Filter as FilterIcon } from 'lucide-react-native'
 import { useStore } from '../StoreContext'
 import { useSheets } from '../SheetContext'
 import { useLang } from '../LangContext'
@@ -30,9 +30,14 @@ interface Props {
    * + Groceries (settings is reached from the Home tab instead, so
    * we don't lose access entirely). */
   onSearchPress?: () => void
+  /** When provided, a filter (funnel) icon renders to the left of the
+   * search/gear icon. Used by Todos to surface the Configure /
+   * category-picker sheet from the header instead of the in-list
+   * FilterBar pill. */
+  onFilterPress?: () => void
 }
 
-export default function AppHeader({ title, onSearchPress }: Props) {
+export default function AppHeader({ title, onSearchPress, onFilterPress }: Props) {
   const store = useStore()
   const sheets = useSheets()
   const { t } = useLang()
@@ -72,6 +77,17 @@ export default function AppHeader({ title, onSearchPress }: Props) {
           )}
         </View>
       </TouchableOpacity>
+      {onFilterPress && (
+        <TouchableOpacity
+          onPress={onFilterPress}
+          style={styles.headerRightIcon}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Filter"
+        >
+          <FilterIcon size={22} color={theme.label3} strokeWidth={1.8} />
+        </TouchableOpacity>
+      )}
       {onSearchPress ? (
         <TouchableOpacity
           onPress={onSearchPress}
@@ -139,6 +155,13 @@ function makeStyles(c: ThemeColors) {
       color: c.label3,
     },
     gearTouch: {
+      width: 36,
+      height: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: 8,
+    },
+    headerRightIcon: {
       width: 36,
       height: 36,
       alignItems: 'center',

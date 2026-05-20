@@ -483,14 +483,18 @@ describe("subtasks", () => {
     expect(state[0].dueDate).toBe("2026-07-10"); // pushed
   });
 
-  it("subtaskUpdateDueDate leaves parent dueDate alone when changed earlier", () => {
+  it("subtaskUpdateDueDate tracks the latest sub date — parent drops when the latest sub moves earlier", () => {
+    // Parent's date now follows max(all sub dates) on every sub-date
+    // change. Even if the new sub date is earlier than parent's prior
+    // date, parent moves to match the latest sub.
     let state = [
       { ...newTodo({ text: "trip", priority: "low", dueDate: "2026-06-01" }) },
     ];
     state = subtaskAdd(state, state[0].id, "step", "medium", "2026-05-20");
     const subId = state[0].subtasks![0].id;
     state = subtaskUpdateDueDate(state, state[0].id, subId, "2026-05-10");
-    expect(state[0].dueDate).toBe("2026-06-01");
+    // Only one sub with date '2026-05-10' → parent matches.
+    expect(state[0].dueDate).toBe("2026-05-10");
   });
 
   it("subtaskAdd respects MAX_SUBTASKS_PER_TODO cap", () => {

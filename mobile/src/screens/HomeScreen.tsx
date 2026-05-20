@@ -97,39 +97,32 @@ export default function HomeScreen() {
   // No grace period here — done rows leave the section as soon as
   // they flip, matching the Todos-tab Open filter's behavior.
   const todayBucket = useMemo(() => {
-    // Include any sub whose dueDate <= today regardless of done state,
-    // so a parent whose today-subs are all checked off (partial-done)
-    // stays in the section with the dim styling instead of vanishing.
-    const hasTodaySub = (td: typeof store.todos[number]) => {
+    // TODAY-actionable rule: a row appears only when there's still
+    // work to do TODAY.
+    //   • Parents with subs: at least one OPEN sub has dueDate <= today.
+    //     Once every today-or-earlier sub is checked off, the parent
+    //     leaves TODAY even if future-dated / no-date subs remain
+    //     (those are tomorrow's problem).
+    //   • Parents without subs: parent's own dueDate <= today.
+    const hasOpenTodaySub = (td: typeof store.todos[number]) => {
       const subs = td.subtasks ?? []
-      return subs.some((s) => !!s.dueDate && s.dueDate <= today)
+      return subs.some(
+        (s) => !s.done && !!s.dueDate && s.dueDate <= today,
+      )
     }
     return store.todos
       .filter((td) => {
         if (td.trashed) return false
         if (td.done) return false
-        if (!!td.dueDate && td.dueDate <= today) return true
-        if (hasTodaySub(td)) return true
-        return false
+        const subs = td.subtasks ?? []
+        if (subs.length > 0) return hasOpenTodaySub(td)
+        return !!td.dueDate && td.dueDate <= today
       })
       .sort((a, b) => {
-        // Bucket by today-progress state, then by priority/dueDate.
-        const stateRank = (td: typeof store.todos[number]) => {
-          if (td.done) return 2 // fully done (grace) → bottom
-          const subs = td.subtasks ?? []
-          if (subs.length > 0) {
-            const todaySubs = subs.filter(
-              (s) => !!s.dueDate && s.dueDate <= today,
-            )
-            if (todaySubs.length > 0 && todaySubs.every((s) => s.done)) {
-              return 1 // partially done today → middle
-            }
-          }
-          return 0 // open / actionable → top
-        }
-        const ra = stateRank(a)
-        const rb = stateRank(b)
-        if (ra !== rb) return ra - rb
+        // Done rows sink to the bottom; everything else (including
+        // partial-done parents with future subs remaining) sorts as
+        // open. Within the open group: priority then earliest dueDate.
+        if (a.done !== b.done) return a.done ? 1 : -1
         const rank: Record<string, number> = { high: 0, medium: 1, low: 2 }
         const pa = rank[a.priority] ?? 1
         const pb = rank[b.priority] ?? 1
@@ -138,23 +131,12 @@ export default function HomeScreen() {
       })
   }, [store.todos, today])
 
-  // Count for the section header — only items still actionable today
-  // (not done, not partially-done with no remaining today-subs).
-  const openCount = useMemo(() => {
-    return todayBucket.filter((td) => {
-      if (td.done) return false
-      const subs = td.subtasks ?? []
-      if (subs.length > 0) {
-        const todaySubs = subs.filter(
-          (s) => !!s.dueDate && s.dueDate <= today,
-        )
-        if (todaySubs.length > 0 && todaySubs.every((s) => s.done)) {
-          return false
-        }
-      }
-      return true
-    }).length
-  }, [todayBucket, today])
+  // Section count — every non-done item in the bucket is still "to do"
+  // even if today's steps are done (future steps keep the parent live).
+  const openCount = useMemo(
+    () => todayBucket.filter((td) => !td.done).length,
+    [todayBucket],
+  )
 
   // Pagination on Home — "+ N more" cycles to the next page in place
   // instead of jumping to Todos, so the user can scan all today-actionable
