@@ -62,6 +62,14 @@ import HomeScreen from "./src/screens/HomeScreen";
 import GroceriesScreen from "./src/screens/GroceriesScreen";
 import AppHeader from "./src/components/AppHeader";
 
+/**
+ * Master kill-switch for the Mochi agent / "Ask Mochi" chat surface.
+ * Set to `false` while the feature is paused; flipping it back on
+ * re-enables the in-app FAB + chat sheet without further edits.
+ * Mirrors the "Ask Mochi (coming soon)" disabled toggle in Settings.
+ */
+const MOCHI_AGENT_ENABLED = false;
+
 function TodosScreen() {
   const { t } = useLang();
   const { user, loading: authLoading } = useAuth();
@@ -676,7 +684,10 @@ function TodosScreen() {
             accessibilityLabel={t.addPlaceholder}
           />
         )}
-      {false /* Mochi agent paused — see Settings "Ask Mochi (coming soon)" */ &&
+      {/* Mochi agent paused — see Settings "Ask Mochi (coming soon)".
+          The MOCHI_AGENT_ENABLED constant lives at the top of this
+          file so flipping the feature on is a one-line change. */}
+      {MOCHI_AGENT_ENABLED &&
         store.profile.agentEnabled &&
         !store.inTrashView &&
         store.filter !== "groceries" &&
@@ -739,7 +750,10 @@ function TodosScreen() {
         }}
         onClose={() => setDeferTarget(null)}
       />
-      {false /* Mochi agent paused — see Settings "Ask Mochi (coming soon)" */ &&
+      {/* Mochi agent paused — see Settings "Ask Mochi (coming soon)".
+          The MOCHI_AGENT_ENABLED constant lives at the top of this
+          file so flipping the feature on is a one-line change. */}
+      {MOCHI_AGENT_ENABLED &&
         store.profile.agentEnabled && (
         <ChatSheet
           visible={chatOpen}
