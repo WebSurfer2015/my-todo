@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "maestro test .maestro/flows",
-    "e2e:flow": "maestro test"
+    "e2e:flow": "maestro test",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -36,7 +37,7 @@
     "expo-image-manipulator": "~14.0.8",
     "expo-image-picker": "~17.0.11",
     "expo-linear-gradient": "~15.0.8",
-    "expo-notifications": "^55.0.23",
+    "expo-notifications": "~0.32.17",
     "expo-status-bar": "~3.0.9",
     "expo-updates": "~29.0.17",
     "lucide-react-native": "^1.16.0",
@@ -44,7 +45,7 @@
     "react-native": "0.81.5",
     "react-native-draggable-flatlist": "^4.0.3",
     "react-native-gesture-handler": "~2.28.0",
-    "react-native-reanimated": "~3.17.0",
+    "react-native-reanimated": "3.17.5",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-svg": "15.12.1"
@@ -52,12 +53,14 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/react": "~19.1.0",
-    "babel-preset-expo": "^55.0.21",
+    "babel-preset-expo": "~54.0.10",
     "eslint": "^9.39.4",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-native": "^5.0.0",
     "globals": "^17.6.0",
+    "patch-package": "^8.0.1",
+    "postinstall-postinstall": "^2.1.0",
     "typescript": "~5.9.2",
     "typescript-eslint": "^8.59.2",
     "vitest": "^4.1.6"

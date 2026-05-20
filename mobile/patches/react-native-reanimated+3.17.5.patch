@@ -1,0 +1,4138 @@
+diff --git a/node_modules/react-native-reanimated/android/build/generated/source/buildConfig/debug/com/swmansion/reanimated/BuildConfig.java b/node_modules/react-native-reanimated/android/build/generated/source/buildConfig/debug/com/swmansion/reanimated/BuildConfig.java
+new file mode 100644
+index 0000000..a04dba9
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/generated/source/buildConfig/debug/com/swmansion/reanimated/BuildConfig.java
+@@ -0,0 +1,20 @@
++/**
++ * Automatically generated file. DO NOT MODIFY
++ */
++package com.swmansion.reanimated;
++
++public final class BuildConfig {
++  public static final boolean DEBUG = Boolean.parseBoolean("true");
++  public static final String LIBRARY_PACKAGE_NAME = "com.swmansion.reanimated";
++  public static final String BUILD_TYPE = "debug";
++  // Field from default config.
++  public static final int EXOPACKAGE_FLAGS = 0;
++  // Field from default config.
++  public static final boolean IS_INTERNAL_BUILD = false;
++  // Field from default config.
++  public static final boolean IS_NEW_ARCHITECTURE_ENABLED = false;
++  // Field from default config.
++  public static final int REACT_NATIVE_MINOR_VERSION = 81;
++  // Field from default config.
++  public static final String REANIMATED_VERSION_JAVA = "3.17.5";
++}
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/AndroidManifest.xml b/node_modules/react-native-reanimated/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/AndroidManifest.xml
+new file mode 100644
+index 0000000..ed5d55a
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/AndroidManifest.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="com.swmansion.reanimated" >
++
++    <uses-sdk android:minSdkVersion="24" />
++
++</manifest>
+\ No newline at end of file
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/output-metadata.json b/node_modules/react-native-reanimated/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/output-metadata.json
+new file mode 100644
+index 0000000..0c0f867
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/output-metadata.json
+@@ -0,0 +1,18 @@
++{
++  "version": 3,
++  "artifactType": {
++    "type": "AAPT_FRIENDLY_MERGED_MANIFESTS",
++    "kind": "Directory"
++  },
++  "applicationId": "com.swmansion.reanimated",
++  "variantName": "debug",
++  "elements": [
++    {
++      "type": "SINGLE",
++      "filters": [],
++      "attributes": [],
++      "outputFile": "AndroidManifest.xml"
++    }
++  ],
++  "elementType": "File"
++}
+\ No newline at end of file
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/aar_metadata/debug/writeDebugAarMetadata/aar-metadata.properties b/node_modules/react-native-reanimated/android/build/intermediates/aar_metadata/debug/writeDebugAarMetadata/aar-metadata.properties
+new file mode 100644
+index 0000000..1211b1e
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/intermediates/aar_metadata/debug/writeDebugAarMetadata/aar-metadata.properties
+@@ -0,0 +1,6 @@
++aarFormatVersion=1.0
++aarMetadataVersion=1.0
++minCompileSdk=1
++minCompileSdkExtension=0
++minAndroidGradlePluginVersion=1.0.0
++coreLibraryDesugaringEnabled=false
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/annotation_processor_list/debug/javaPreCompileDebug/annotationProcessors.json b/node_modules/react-native-reanimated/android/build/intermediates/annotation_processor_list/debug/javaPreCompileDebug/annotationProcessors.json
+new file mode 100644
+index 0000000..9e26dfe
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/intermediates/annotation_processor_list/debug/javaPreCompileDebug/annotationProcessors.json
+@@ -0,0 +1 @@
++{}
+\ No newline at end of file
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar b/node_modules/react-native-reanimated/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar
+new file mode 100644
+index 0000000..7a4f2e0
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/compile_symbol_list/debug/generateDebugRFile/R.txt b/node_modules/react-native-reanimated/android/build/intermediates/compile_symbol_list/debug/generateDebugRFile/R.txt
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties b/node_modules/react-native-reanimated/android/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties
+new file mode 100644
+index 0000000..94ff307
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties
+@@ -0,0 +1 @@
++#Wed May 20 00:02:25 EDT 2026
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml b/node_modules/react-native-reanimated/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml
+new file mode 100644
+index 0000000..3d223e5
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/yingnming/AIProjects/my-todo/mobile/node_modules/react-native-reanimated/android/src/main/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main" generated-set="main$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/yingnming/AIProjects/my-todo/mobile/node_modules/react-native-reanimated/android/src/main/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="debug$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/yingnming/AIProjects/my-todo/mobile/node_modules/react-native-reanimated/android/src/debug/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="debug" generated-set="debug$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/yingnming/AIProjects/my-todo/mobile/node_modules/react-native-reanimated/android/src/debug/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/yingnming/AIProjects/my-todo/mobile/node_modules/react-native-reanimated/android/build/generated/res/resValues/debug"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated" generated-set="generated$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/yingnming/AIProjects/my-todo/mobile/node_modules/react-native-reanimated/android/build/generated/res/resValues/debug"/></dataSet><mergedItems/></merger>
+\ No newline at end of file
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/facebook/react/uimanager/ReanimatedUIImplementation.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/facebook/react/uimanager/ReanimatedUIImplementation.class
+new file mode 100644
+index 0000000..5ccf53a
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/facebook/react/uimanager/ReanimatedUIImplementation.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/facebook/react/uimanager/ReanimatedUIManager.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/facebook/react/uimanager/ReanimatedUIManager.class
+new file mode 100644
+index 0000000..c863245
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/facebook/react/uimanager/ReanimatedUIManager.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/facebook/react/uimanager/UIManagerReanimatedHelper.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/facebook/react/uimanager/UIManagerReanimatedHelper.class
+new file mode 100644
+index 0000000..78c82c3
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/facebook/react/uimanager/UIManagerReanimatedHelper.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/common/GestureHandlerStateManager.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/common/GestureHandlerStateManager.class
+new file mode 100644
+index 0000000..25bb987
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/common/GestureHandlerStateManager.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/CopiedEvent$1.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/CopiedEvent$1.class
+new file mode 100644
+index 0000000..318a4b8
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/CopiedEvent$1.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/CopiedEvent.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/CopiedEvent.class
+new file mode 100644
+index 0000000..f74e033
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/CopiedEvent.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/DevMenuUtils.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/DevMenuUtils.class
+new file mode 100644
+index 0000000..0b72740
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/DevMenuUtils.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/MapUtils.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/MapUtils.class
+new file mode 100644
+index 0000000..dfe568b
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/MapUtils.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NativeMethodsHelper.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NativeMethodsHelper.class
+new file mode 100644
+index 0000000..9f808b6
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NativeMethodsHelper.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NativeProxy$1.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NativeProxy$1.class
+new file mode 100644
+index 0000000..a4203fc
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NativeProxy$1.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NativeProxy.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NativeProxy.class
+new file mode 100644
+index 0000000..aa7bf55
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NativeProxy.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NativeReanimatedModuleSpec.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NativeReanimatedModuleSpec.class
+new file mode 100644
+index 0000000..7310031
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NativeReanimatedModuleSpec.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NativeWorkletsModuleSpec.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NativeWorkletsModuleSpec.class
+new file mode 100644
+index 0000000..ff16abb
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NativeWorkletsModuleSpec.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NodesManager$1.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NodesManager$1.class
+new file mode 100644
+index 0000000..7704e8d
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NodesManager$1.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NodesManager$2.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NodesManager$2.class
+new file mode 100644
+index 0000000..4e1403f
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NodesManager$2.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NodesManager$3.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NodesManager$3.class
+new file mode 100644
+index 0000000..6c33d14
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NodesManager$3.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NodesManager$4.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NodesManager$4.class
+new file mode 100644
+index 0000000..9166e3d
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NodesManager$4.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NodesManager$NativeUpdateOperation.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NodesManager$NativeUpdateOperation.class
+new file mode 100644
+index 0000000..abe6cc7
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NodesManager$NativeUpdateOperation.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NodesManager$OnAnimationFrame.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NodesManager$OnAnimationFrame.class
+new file mode 100644
+index 0000000..872bf6a
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NodesManager$OnAnimationFrame.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NodesManager.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NodesManager.class
+new file mode 100644
+index 0000000..c2cb879
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/NodesManager.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/ReaCompatibility.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/ReaCompatibility.class
+new file mode 100644
+index 0000000..fbd30bd
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/ReaCompatibility.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/ReactNativeUtils$BorderRadii.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/ReactNativeUtils$BorderRadii.class
+new file mode 100644
+index 0000000..fef5723
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/ReactNativeUtils$BorderRadii.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/ReactNativeUtils.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/ReactNativeUtils.class
+new file mode 100644
+index 0000000..4eb6bcc
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/ReactNativeUtils.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/ReanimatedModule$UIThreadOperation.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/ReanimatedModule$UIThreadOperation.class
+new file mode 100644
+index 0000000..9052b83
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/ReanimatedModule$UIThreadOperation.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/ReanimatedModule.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/ReanimatedModule.class
+new file mode 100644
+index 0000000..4c99d11
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/ReanimatedModule.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/ReanimatedPackage.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/ReanimatedPackage.class
+new file mode 100644
+index 0000000..2b7753e
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/ReanimatedPackage.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/ReanimatedUIManagerFactory.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/ReanimatedUIManagerFactory.class
+new file mode 100644
+index 0000000..a13ea39
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/ReanimatedUIManagerFactory.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/Utils$1.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/Utils$1.class
+new file mode 100644
+index 0000000..a80b442
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/Utils$1.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/Utils.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/Utils.class
+new file mode 100644
+index 0000000..c330175
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/Utils.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/keyboard/Keyboard.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/keyboard/Keyboard.class
+new file mode 100644
+index 0000000..bb4604d
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/keyboard/Keyboard.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/keyboard/KeyboardAnimationCallback.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/keyboard/KeyboardAnimationCallback.class
+new file mode 100644
+index 0000000..8fdb012
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/keyboard/KeyboardAnimationCallback.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/keyboard/KeyboardAnimationManager.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/keyboard/KeyboardAnimationManager.class
+new file mode 100644
+index 0000000..bae195e
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/keyboard/KeyboardAnimationManager.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/keyboard/KeyboardState.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/keyboard/KeyboardState.class
+new file mode 100644
+index 0000000..4819270
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/keyboard/KeyboardState.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/keyboard/KeyboardWorkletWrapper.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/keyboard/KeyboardWorkletWrapper.class
+new file mode 100644
+index 0000000..367c1a6
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/keyboard/KeyboardWorkletWrapper.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/keyboard/NotifyAboutKeyboardChangeFunction.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/keyboard/NotifyAboutKeyboardChangeFunction.class
+new file mode 100644
+index 0000000..67b0338
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/keyboard/NotifyAboutKeyboardChangeFunction.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/keyboard/WindowsInsetsManager.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/keyboard/WindowsInsetsManager.class
+new file mode 100644
+index 0000000..72ef476
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/keyboard/WindowsInsetsManager.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/AnimationsManager.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/AnimationsManager.class
+new file mode 100644
+index 0000000..6740f75
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/AnimationsManager.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/LayoutAnimations$Types.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/LayoutAnimations$Types.class
+new file mode 100644
+index 0000000..2f9e8c0
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/LayoutAnimations$Types.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/LayoutAnimations.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/LayoutAnimations.class
+new file mode 100644
+index 0000000..51ea969
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/LayoutAnimations.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/NativeMethodsHolder.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/NativeMethodsHolder.class
+new file mode 100644
+index 0000000..b0cdc1b
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/NativeMethodsHolder.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/ReaLayoutAnimator.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/ReaLayoutAnimator.class
+new file mode 100644
+index 0000000..eb6cdd9
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/ReaLayoutAnimator.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/ReanimatedNativeHierarchyManager.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/ReanimatedNativeHierarchyManager.class
+new file mode 100644
+index 0000000..ccc9424
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/ReanimatedNativeHierarchyManager.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/ReanimatedNativeHierarchyManagerBase.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/ReanimatedNativeHierarchyManagerBase.class
+new file mode 100644
+index 0000000..ed2a0df
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/ReanimatedNativeHierarchyManagerBase.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/ScreensHelper.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/ScreensHelper.class
+new file mode 100644
+index 0000000..7740161
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/ScreensHelper.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/SharedElement.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/SharedElement.class
+new file mode 100644
+index 0000000..5225268
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/SharedElement.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/SharedTransitionManager$PrepareConfigCleanupTreeVisitor.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/SharedTransitionManager$PrepareConfigCleanupTreeVisitor.class
+new file mode 100644
+index 0000000..1be8175
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/SharedTransitionManager$PrepareConfigCleanupTreeVisitor.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/SharedTransitionManager$SnapshotTreeVisitor.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/SharedTransitionManager$SnapshotTreeVisitor.class
+new file mode 100644
+index 0000000..7becace
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/SharedTransitionManager$SnapshotTreeVisitor.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/SharedTransitionManager$TopWillAppearListener.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/SharedTransitionManager$TopWillAppearListener.class
+new file mode 100644
+index 0000000..0afa6b2
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/SharedTransitionManager$TopWillAppearListener.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/SharedTransitionManager$TreeVisitor.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/SharedTransitionManager$TreeVisitor.class
+new file mode 100644
+index 0000000..b030d52
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/SharedTransitionManager$TreeVisitor.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/SharedTransitionManager.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/SharedTransitionManager.class
+new file mode 100644
+index 0000000..82dc4b0
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/SharedTransitionManager.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/Snapshot.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/Snapshot.class
+new file mode 100644
+index 0000000..e267e66
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/Snapshot.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/TabNavigatorObserver$FragmentLifecycleCallbacks.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/TabNavigatorObserver$FragmentLifecycleCallbacks.class
+new file mode 100644
+index 0000000..534c0df
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/TabNavigatorObserver$FragmentLifecycleCallbacks.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/TabNavigatorObserver$OnAttachStateChangeListener.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/TabNavigatorObserver$OnAttachStateChangeListener.class
+new file mode 100644
+index 0000000..7ef069b
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/TabNavigatorObserver$OnAttachStateChangeListener.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/TabNavigatorObserver.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/TabNavigatorObserver.class
+new file mode 100644
+index 0000000..4ee5412
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/TabNavigatorObserver.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/ViewHierarchyObserver.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/ViewHierarchyObserver.class
+new file mode 100644
+index 0000000..0417cc3
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/layoutReanimation/ViewHierarchyObserver.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/nativeProxy/AnimationFrameCallback.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/nativeProxy/AnimationFrameCallback.class
+new file mode 100644
+index 0000000..d45cd1a
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/nativeProxy/AnimationFrameCallback.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/nativeProxy/EventHandler.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/nativeProxy/EventHandler.class
+new file mode 100644
+index 0000000..cff463f
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/nativeProxy/EventHandler.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/nativeProxy/NativeProxyCommon.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/nativeProxy/NativeProxyCommon.class
+new file mode 100644
+index 0000000..e54c374
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/nativeProxy/NativeProxyCommon.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/nativeProxy/NoopEventHandler.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/nativeProxy/NoopEventHandler.class
+new file mode 100644
+index 0000000..dd47f6a
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/nativeProxy/NoopEventHandler.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/nativeProxy/SensorSetter.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/nativeProxy/SensorSetter.class
+new file mode 100644
+index 0000000..7aefac3
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/nativeProxy/SensorSetter.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/sensor/ReanimatedSensor.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/sensor/ReanimatedSensor.class
+new file mode 100644
+index 0000000..34ae9ab
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/sensor/ReanimatedSensor.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/sensor/ReanimatedSensorContainer.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/sensor/ReanimatedSensorContainer.class
+new file mode 100644
+index 0000000..987353f
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/sensor/ReanimatedSensorContainer.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/sensor/ReanimatedSensorListener.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/sensor/ReanimatedSensorListener.class
+new file mode 100644
+index 0000000..3fdb42f
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/sensor/ReanimatedSensorListener.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/sensor/ReanimatedSensorType.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/sensor/ReanimatedSensorType.class
+new file mode 100644
+index 0000000..5faa711
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/reanimated/sensor/ReanimatedSensorType.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/worklets/AndroidUIScheduler$1.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/worklets/AndroidUIScheduler$1.class
+new file mode 100644
+index 0000000..f8e0a06
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/worklets/AndroidUIScheduler$1.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/worklets/AndroidUIScheduler.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/worklets/AndroidUIScheduler.class
+new file mode 100644
+index 0000000..505d410
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/worklets/AndroidUIScheduler.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/worklets/JSCallInvokerResolver.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/worklets/JSCallInvokerResolver.class
+new file mode 100644
+index 0000000..61a9f56
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/worklets/JSCallInvokerResolver.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/worklets/WorkletsMessageQueueThread.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/worklets/WorkletsMessageQueueThread.class
+new file mode 100644
+index 0000000..a9cec11
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/worklets/WorkletsMessageQueueThread.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/worklets/WorkletsMessageQueueThreadBase.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/worklets/WorkletsMessageQueueThreadBase.class
+new file mode 100644
+index 0000000..b20c235
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/worklets/WorkletsMessageQueueThreadBase.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/worklets/WorkletsModule.class b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/worklets/WorkletsModule.class
+new file mode 100644
+index 0000000..9280bca
+Binary files /dev/null and b/node_modules/react-native-reanimated/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/swmansion/worklets/WorkletsModule.class differ
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt b/node_modules/react-native-reanimated/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt
+new file mode 100644
+index 0000000..78ac5b8
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt
+@@ -0,0 +1,2 @@
++R_DEF: Internal format may change without notice
++local
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/manifest_merge_blame_file/debug/processDebugManifest/manifest-merger-blame-debug-report.txt b/node_modules/react-native-reanimated/android/build/intermediates/manifest_merge_blame_file/debug/processDebugManifest/manifest-merger-blame-debug-report.txt
+new file mode 100644
+index 0000000..1fd95ff
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/intermediates/manifest_merge_blame_file/debug/processDebugManifest/manifest-merger-blame-debug-report.txt
+@@ -0,0 +1,7 @@
++1<?xml version="1.0" encoding="utf-8"?>
++2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++3    package="com.swmansion.reanimated" >
++4
++5    <uses-sdk android:minSdkVersion="24" />
++6
++7</manifest>
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml b/node_modules/react-native-reanimated/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml
+new file mode 100644
+index 0000000..ed5d55a
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="com.swmansion.reanimated" >
++
++    <uses-sdk android:minSdkVersion="24" />
++
++</manifest>
+\ No newline at end of file
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/navigation_json/debug/extractDeepLinksDebug/navigation.json b/node_modules/react-native-reanimated/android/build/intermediates/navigation_json/debug/extractDeepLinksDebug/navigation.json
+new file mode 100644
+index 0000000..0637a08
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/intermediates/navigation_json/debug/extractDeepLinksDebug/navigation.json
+@@ -0,0 +1 @@
++[]
+\ No newline at end of file
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/nested_resources_validation_report/debug/generateDebugResources/nestedResourcesValidationReport.txt b/node_modules/react-native-reanimated/android/build/intermediates/nested_resources_validation_report/debug/generateDebugResources/nestedResourcesValidationReport.txt
+new file mode 100644
+index 0000000..08f4ebe
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/intermediates/nested_resources_validation_report/debug/generateDebugResources/nestedResourcesValidationReport.txt
+@@ -0,0 +1 @@
++0 Warning/Error
+\ No newline at end of file
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/prefab_package_header_only/prefab_publication.json/debug b/node_modules/react-native-reanimated/android/build/intermediates/prefab_package_header_only/prefab_publication.json/debug
+new file mode 100644
+index 0000000..f0c9c9f
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/intermediates/prefab_package_header_only/prefab_publication.json/debug
+@@ -0,0 +1,24 @@
++{
++  "installationFolder": "/Users/yingnming/AIProjects/my-todo/mobile/node_modules/react-native-reanimated/android/build/intermediates/prefab_package/debug/prefab",
++  "gradlePath": ":react-native-reanimated",
++  "packageInfo": {
++    "packageName": "react-native-reanimated",
++    "packageVersion": "3.17.5",
++    "packageSchemaVersion": 2,
++    "packageDependencies": [],
++    "modules": [
++      {
++        "moduleName": "reanimated",
++        "moduleHeaders": "/Users/yingnming/AIProjects/my-todo/mobile/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated",
++        "moduleExportLibraries": [],
++        "abis": []
++      },
++      {
++        "moduleName": "worklets",
++        "moduleHeaders": "/Users/yingnming/AIProjects/my-todo/mobile/node_modules/react-native-reanimated/android/build/prefab-headers/worklets",
++        "moduleExportLibraries": [],
++        "abis": []
++      }
++    ]
++  }
++}
+\ No newline at end of file
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/prefab_package_header_only/prefab_publication.json/release b/node_modules/react-native-reanimated/android/build/intermediates/prefab_package_header_only/prefab_publication.json/release
+new file mode 100644
+index 0000000..45fa0cf
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/intermediates/prefab_package_header_only/prefab_publication.json/release
+@@ -0,0 +1,24 @@
++{
++  "installationFolder": "/Users/yingnming/AIProjects/my-todo/mobile/node_modules/react-native-reanimated/android/build/intermediates/prefab_package/release/prefab",
++  "gradlePath": ":react-native-reanimated",
++  "packageInfo": {
++    "packageName": "react-native-reanimated",
++    "packageVersion": "3.17.5",
++    "packageSchemaVersion": 2,
++    "packageDependencies": [],
++    "modules": [
++      {
++        "moduleName": "reanimated",
++        "moduleHeaders": "/Users/yingnming/AIProjects/my-todo/mobile/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated",
++        "moduleExportLibraries": [],
++        "abis": []
++      },
++      {
++        "moduleName": "worklets",
++        "moduleHeaders": "/Users/yingnming/AIProjects/my-todo/mobile/node_modules/react-native-reanimated/android/build/prefab-headers/worklets",
++        "moduleExportLibraries": [],
++        "abis": []
++      }
++    ]
++  }
++}
+\ No newline at end of file
+diff --git a/node_modules/react-native-reanimated/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt b/node_modules/react-native-reanimated/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt
+new file mode 100644
+index 0000000..212ed29
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt
+@@ -0,0 +1 @@
++com.swmansion.reanimated
+diff --git a/node_modules/react-native-reanimated/android/build/outputs/logs/manifest-merger-debug-report.txt b/node_modules/react-native-reanimated/android/build/outputs/logs/manifest-merger-debug-report.txt
+new file mode 100644
+index 0000000..0efec53
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/outputs/logs/manifest-merger-debug-report.txt
+@@ -0,0 +1,16 @@
++-- Merging decision tree log ---
++manifest
++ADDED from /Users/yingnming/AIProjects/my-todo/mobile/node_modules/react-native-reanimated/android/src/main/AndroidManifest.xml:2:1-71
++INJECTED from /Users/yingnming/AIProjects/my-todo/mobile/node_modules/react-native-reanimated/android/src/main/AndroidManifest.xml:2:1-71
++	package
++		INJECTED from /Users/yingnming/AIProjects/my-todo/mobile/node_modules/react-native-reanimated/android/src/main/AndroidManifest.xml
++	xmlns:android
++		ADDED from /Users/yingnming/AIProjects/my-todo/mobile/node_modules/react-native-reanimated/android/src/main/AndroidManifest.xml:2:11-69
++uses-sdk
++INJECTED from /Users/yingnming/AIProjects/my-todo/mobile/node_modules/react-native-reanimated/android/src/main/AndroidManifest.xml reason: use-sdk injection requested
++INJECTED from /Users/yingnming/AIProjects/my-todo/mobile/node_modules/react-native-reanimated/android/src/main/AndroidManifest.xml
++INJECTED from /Users/yingnming/AIProjects/my-todo/mobile/node_modules/react-native-reanimated/android/src/main/AndroidManifest.xml
++	android:targetSdkVersion
++		INJECTED from /Users/yingnming/AIProjects/my-todo/mobile/node_modules/react-native-reanimated/android/src/main/AndroidManifest.xml
++	android:minSdkVersion
++		INJECTED from /Users/yingnming/AIProjects/my-todo/mobile/node_modules/react-native-reanimated/android/src/main/AndroidManifest.xml
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/AnimatedSensor/AnimatedSensorModule.h b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/AnimatedSensor/AnimatedSensorModule.h
+new file mode 100644
+index 0000000..4a79578
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/AnimatedSensor/AnimatedSensorModule.h
+@@ -0,0 +1,47 @@
++#pragma once
++
++#include <reanimated/Tools/PlatformDepMethodsHolder.h>
++
++#include <worklets/SharedItems/Shareables.h>
++#include <worklets/WorkletRuntime/WorkletRuntime.h>
++
++#include <jsi/jsi.h>
++
++#include <memory>
++#include <unordered_set>
++
++namespace reanimated {
++
++using namespace facebook;
++using namespace worklets;
++
++enum SensorType {
++  ACCELEROMETER = 1,
++  GYROSCOPE = 2,
++  GRAVITY = 3,
++  MAGNETIC_FIELD = 4,
++  ROTATION_VECTOR = 5,
++};
++
++class AnimatedSensorModule {
++  std::unordered_set<int> sensorsIds_;
++  RegisterSensorFunction platformRegisterSensorFunction_;
++  UnregisterSensorFunction platformUnregisterSensorFunction_;
++
++ public:
++  AnimatedSensorModule(
++      const PlatformDepMethodsHolder &platformDepMethodsHolder);
++  ~AnimatedSensorModule();
++
++  jsi::Value registerSensor(
++      jsi::Runtime &rt,
++      const std::shared_ptr<WorkletRuntime> &uiWorkletRuntime,
++      const jsi::Value &sensorType,
++      const jsi::Value &interval,
++      const jsi::Value &iosReferenceFrame,
++      const jsi::Value &sensorDataContainer);
++  void unregisterSensor(const jsi::Value &sensorId);
++  void unregisterAllSensors();
++};
++
++} // namespace reanimated
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Fabric/PropsRegistry.h b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Fabric/PropsRegistry.h
+new file mode 100644
+index 0000000..42a29b2
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Fabric/PropsRegistry.h
+@@ -0,0 +1,68 @@
++#pragma once
++#ifdef RCT_NEW_ARCH_ENABLED
++
++#include <react/renderer/components/root/RootShadowNode.h>
++#include <react/renderer/core/ShadowNode.h>
++
++#include <unordered_map>
++#include <utility>
++
++using namespace facebook;
++using namespace react;
++
++namespace reanimated {
++
++class PropsRegistry {
++ public:
++  std::lock_guard<std::mutex> createLock() const;
++  // returns a lock you need to hold when calling any of the methods below
++
++  void update(const ShadowNode::Shared &shadowNode, folly::dynamic &&props);
++
++  void for_each(std::function<void(
++                    const ShadowNodeFamily &family,
++                    const folly::dynamic &props)> callback) const;
++
++  void remove(const Tag tag);
++
++  void pauseReanimatedCommits() {
++    isPaused_ = true;
++  }
++
++  bool shouldReanimatedSkipCommit() {
++    return isPaused_;
++  }
++
++  void unpauseReanimatedCommits() {
++    isPaused_ = false;
++  }
++
++  void pleaseCommitAfterPause() {
++    shouldCommitAfterPause_ = true;
++  }
++
++  bool shouldCommitAfterPause() {
++    return shouldCommitAfterPause_.exchange(false);
++  }
++
++  bool isEmpty() {
++    return map_.empty();
++  }
++
++  void markNodeAsRemovable(const ShadowNode::Shared &shadowNode);
++  void unmarkNodeAsRemovable(Tag viewTag);
++  void handleNodeRemovals(const RootShadowNode &rootShadowNode);
++
++ private:
++  std::unordered_map<Tag, std::pair<ShadowNode::Shared, folly::dynamic>> map_;
++  std::unordered_map<Tag, ShadowNode::Shared> removableShadowNodes_;
++
++  mutable std::mutex mutex_; // Protects `map_`.
++
++  std::atomic<bool> isPaused_;
++  std::atomic<bool> shouldCommitAfterPause_;
++};
++
++} // namespace reanimated
++
++#endif // RCT_NEW_ARCH_ENABLED
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Fabric/ReanimatedCommitHook.h b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Fabric/ReanimatedCommitHook.h
+new file mode 100644
+index 0000000..9210fb7
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Fabric/ReanimatedCommitHook.h
+@@ -0,0 +1,51 @@
++#pragma once
++#ifdef RCT_NEW_ARCH_ENABLED
++
++#include <reanimated/Fabric/PropsRegistry.h>
++#include <reanimated/LayoutAnimations/LayoutAnimationsProxy.h>
++
++#include <react/renderer/uimanager/UIManagerCommitHook.h>
++
++#include <memory>
++
++using namespace facebook::react;
++
++namespace reanimated {
++
++class ReanimatedCommitHook
++    : public UIManagerCommitHook,
++      public std::enable_shared_from_this<ReanimatedCommitHook> {
++ public:
++  ReanimatedCommitHook(
++      const std::shared_ptr<PropsRegistry> &propsRegistry,
++      const std::shared_ptr<UIManager> &uiManager,
++      const std::shared_ptr<LayoutAnimationsProxy> &layoutAnimationsProxy);
++
++  ~ReanimatedCommitHook() noexcept override;
++
++  void commitHookWasRegistered(UIManager const &) noexcept override {}
++
++  void commitHookWasUnregistered(UIManager const &) noexcept override {}
++
++  void maybeInitializeLayoutAnimations(SurfaceId surfaceId);
++
++  RootShadowNode::Unshared shadowTreeWillCommit(
++      ShadowTree const &shadowTree,
++      RootShadowNode::Shared const &oldRootShadowNode,
++      RootShadowNode::Unshared const &newRootShadowNode) noexcept override;
++
++ private:
++  std::shared_ptr<PropsRegistry> propsRegistry_;
++
++  std::shared_ptr<UIManager> uiManager_;
++
++  std::shared_ptr<LayoutAnimationsProxy> layoutAnimationsProxy_;
++
++  SurfaceId currentMaxSurfaceId_ = -1;
++
++  std::mutex mutex_; // Protects `currentMaxSurfaceId_`.
++};
++
++} // namespace reanimated
++
++#endif // RCT_NEW_ARCH_ENABLED
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Fabric/ReanimatedCommitShadowNode.h b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Fabric/ReanimatedCommitShadowNode.h
+new file mode 100644
+index 0000000..34ca4ba
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Fabric/ReanimatedCommitShadowNode.h
+@@ -0,0 +1,49 @@
++#pragma once
++#ifdef RCT_NEW_ARCH_ENABLED
++
++#include <react/renderer/core/ShadowNode.h>
++
++using namespace facebook::react;
++
++namespace reanimated {
++
++// We use this trait to mark that a commit was created by Reanimated.
++// Traits are copied when nodes are cloned, so this information
++// won't be lost unless someone explicitly overrides it.
++// We need this information to skip unnecessary updates in
++// the commit hook.
++// Currently RN traits go up to 10, so hopefully
++// the arbitrarily chosen numbers 27 and 28 will be safe :)
++
++// We have to use 2 traits, because we want to distinguish reanimated
++// commits both in the commit hook and mount hook. If we only had one trait
++// and didn't remove it in the commit hook, then any node that would clone
++// this node would also have our commit trait, rendering this trait useless.
++constexpr ShadowNodeTraits::Trait ReanimatedCommitTrait{1 << 27};
++constexpr ShadowNodeTraits::Trait ReanimatedMountTrait{1 << 28};
++
++class ReanimatedCommitShadowNode : public ShadowNode {
++ public:
++  inline void setReanimatedCommitTrait() {
++    traits_.set(ReanimatedCommitTrait);
++  }
++  inline void unsetReanimatedCommitTrait() {
++    traits_.unset(ReanimatedCommitTrait);
++  }
++  inline bool hasReanimatedCommitTrait() {
++    return traits_.check(ReanimatedCommitTrait);
++  }
++  inline void setReanimatedMountTrait() {
++    traits_.set(ReanimatedMountTrait);
++  }
++  inline void unsetReanimatedMountTrait() {
++    traits_.unset(ReanimatedMountTrait);
++  }
++  inline bool hasReanimatedMountTrait() {
++    return traits_.check(ReanimatedMountTrait);
++  }
++};
++
++} // namespace reanimated
++
++#endif // RCT_NEW_ARCH_ENABLED
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Fabric/ReanimatedMountHook.h b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Fabric/ReanimatedMountHook.h
+new file mode 100644
+index 0000000..143eb87
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Fabric/ReanimatedMountHook.h
+@@ -0,0 +1,33 @@
++#pragma once
++#ifdef RCT_NEW_ARCH_ENABLED
++
++#include <reanimated/Fabric/PropsRegistry.h>
++#include <reanimated/Fabric/ShadowTreeCloner.h>
++
++#include <react/renderer/uimanager/UIManagerMountHook.h>
++
++#include <memory>
++
++namespace reanimated {
++
++using namespace facebook::react;
++
++class ReanimatedMountHook : public UIManagerMountHook {
++ public:
++  ReanimatedMountHook(
++      const std::shared_ptr<PropsRegistry> &propsRegistry,
++      const std::shared_ptr<UIManager> &uiManager);
++  ~ReanimatedMountHook() noexcept override;
++
++  void shadowTreeDidMount(
++      RootShadowNode::Shared const &rootShadowNode,
++      double mountTime) noexcept override;
++
++ private:
++  const std::shared_ptr<PropsRegistry> propsRegistry_;
++  const std::shared_ptr<UIManager> uiManager_;
++};
++
++} // namespace reanimated
++
++#endif // RCT_NEW_ARCH_ENABLED
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Fabric/ShadowTreeCloner.h b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Fabric/ShadowTreeCloner.h
+new file mode 100644
+index 0000000..e3f9f6d
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Fabric/ShadowTreeCloner.h
+@@ -0,0 +1,29 @@
++#pragma once
++#ifdef RCT_NEW_ARCH_ENABLED
++
++#include <react/renderer/core/PropsParserContext.h>
++#include <react/renderer/uimanager/UIManager.h>
++
++#include <memory>
++#include <type_traits>
++#include <unordered_map>
++#include <unordered_set>
++#include <vector>
++
++using namespace facebook;
++using namespace react;
++
++namespace reanimated {
++
++using PropsMap =
++    std::unordered_map<const ShadowNodeFamily *, std::vector<RawProps>>;
++using ChildrenMap =
++    std::unordered_map<const ShadowNodeFamily *, std::unordered_set<int>>;
++
++RootShadowNode::Unshared cloneShadowTreeWithNewProps(
++    const RootShadowNode &oldRootNode,
++    const PropsMap &propsMap);
++
++} // namespace reanimated
++
++#endif // RCT_NEW_ARCH_ENABLED
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/LayoutAnimations/LayoutAnimationType.h b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/LayoutAnimations/LayoutAnimationType.h
+new file mode 100644
+index 0000000..229558e
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/LayoutAnimations/LayoutAnimationType.h
+@@ -0,0 +1,9 @@
++#pragma once
++
++typedef enum LayoutAnimationType {
++  ENTERING = 1,
++  EXITING = 2,
++  LAYOUT = 3,
++  SHARED_ELEMENT_TRANSITION = 4,
++  SHARED_ELEMENT_TRANSITION_PROGRESS = 5,
++} LayoutAnimationType;
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/LayoutAnimations/LayoutAnimationsManager.h b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/LayoutAnimations/LayoutAnimationsManager.h
+new file mode 100644
+index 0000000..033cd98
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/LayoutAnimations/LayoutAnimationsManager.h
+@@ -0,0 +1,90 @@
++#pragma once
++
++#include <reanimated/LayoutAnimations/LayoutAnimationType.h>
++
++#include <worklets/SharedItems/Shareables.h>
++#include <worklets/Tools/JSLogger.h>
++
++#include <jsi/jsi.h>
++#include <stdio.h>
++#include <functional>
++#include <memory>
++#include <mutex>
++#include <string>
++#include <unordered_map>
++#include <unordered_set>
++#include <vector>
++
++namespace reanimated {
++
++using namespace facebook;
++using namespace worklets;
++
++struct LayoutAnimationConfig {
++  int tag;
++  LayoutAnimationType type;
++  std::shared_ptr<Shareable> config;
++  std::string sharedTransitionTag;
++};
++
++class LayoutAnimationsManager {
++ public:
++  explicit LayoutAnimationsManager(const std::shared_ptr<JSLogger> &jsLogger)
++      : jsLogger_(jsLogger) {}
++  void configureAnimationBatch(
++      const std::vector<LayoutAnimationConfig> &layoutAnimationsBatch);
++  void setShouldAnimateExiting(const int tag, const bool value);
++  bool shouldAnimateExiting(const int tag, const bool shouldAnimate);
++  bool hasLayoutAnimation(const int tag, const LayoutAnimationType type);
++  void startLayoutAnimation(
++      jsi::Runtime &rt,
++      const int tag,
++      const LayoutAnimationType type,
++      const jsi::Object &values);
++  void clearLayoutAnimationConfig(const int tag);
++  void clearSharedTransitionConfig(const int tag);
++  void cancelLayoutAnimation(jsi::Runtime &rt, const int tag) const;
++#ifdef RCT_NEW_ARCH_ENABLED
++  void transferConfigFromNativeID(const int nativeId, const int tag);
++#endif
++  int findPrecedingViewTagForTransition(const int tag);
++  const std::vector<int> &getSharedGroup(const int viewTag);
++#ifndef NDEBUG
++  std::string getScreenSharedTagPairString(
++      const int screenTag,
++      const std::string &sharedTag) const;
++  void checkDuplicateSharedTag(const int viewTag, const int screenTag);
++#endif
++
++ private:
++  std::unordered_map<int, std::shared_ptr<Shareable>> &getConfigsForType(
++      const LayoutAnimationType type);
++
++  std::shared_ptr<JSLogger> jsLogger_;
++#ifndef NDEBUG
++  // This set's function is to detect duplicate sharedTags on a single screen
++  // it contains strings in form: "reactScreenTag:sharedTag"
++  std::unordered_set<std::string> screenSharedTagSet_;
++  // And this map is to remove collected pairs on SET removal
++  std::unordered_map<int, std::string> viewsScreenSharedTagMap_;
++#endif
++
++#ifdef RCT_NEW_ARCH_ENABLED
++  std::unordered_map<int, std::shared_ptr<Shareable>>
++      enteringAnimationsForNativeID_;
++#endif
++  std::unordered_map<int, std::shared_ptr<Shareable>> enteringAnimations_;
++  std::unordered_map<int, std::shared_ptr<Shareable>> exitingAnimations_;
++  std::unordered_map<int, std::shared_ptr<Shareable>> layoutAnimations_;
++  std::unordered_map<int, std::shared_ptr<Shareable>>
++      sharedTransitionAnimations_;
++  std::unordered_set<int> ignoreProgressAnimationForTag_;
++  std::unordered_map<std::string, std::vector<int>> sharedTransitionGroups_;
++  std::unordered_map<int, std::string> viewTagToSharedTag_;
++  std::unordered_map<int, bool> shouldAnimateExitingForTag_;
++  mutable std::recursive_mutex
++      animationsMutex_; // Protects `enteringAnimations_`, `exitingAnimations_`,
++  // `layoutAnimations_`, `viewSharedValues_` and `shouldAnimateExitingForTag_`.
++};
++
++} // namespace reanimated
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/LayoutAnimations/LayoutAnimationsProxy.h b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/LayoutAnimations/LayoutAnimationsProxy.h
+new file mode 100644
+index 0000000..812c049
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/LayoutAnimations/LayoutAnimationsProxy.h
+@@ -0,0 +1,147 @@
++#pragma once
++#ifdef RCT_NEW_ARCH_ENABLED
++
++#include <reanimated/Fabric/PropsRegistry.h>
++#include <reanimated/LayoutAnimations/LayoutAnimationsManager.h>
++#include <reanimated/LayoutAnimations/LayoutAnimationsUtils.h>
++
++#include <worklets/Tools/UIScheduler.h>
++
++#include <react/renderer/componentregistry/ComponentDescriptorFactory.h>
++#include <react/renderer/mounting/MountingOverrideDelegate.h>
++#include <react/renderer/mounting/ShadowView.h>
++
++#include <memory>
++#include <string>
++#include <unordered_map>
++#include <unordered_set>
++#include <vector>
++
++namespace reanimated {
++
++class ReanimatedModuleProxy;
++
++using namespace facebook;
++
++struct LayoutAnimation {
++#if REACT_NATIVE_MINOR_VERSION >= 78
++  std::shared_ptr<ShadowView> finalView, currentView;
++  Tag parentTag;
++#else
++  std::shared_ptr<ShadowView> finalView, currentView, parentView;
++#endif // REACT_NATIVE_MINOR_VERSION >= 78
++  std::optional<double> opacity;
++  int count = 1;
++  LayoutAnimation &operator=(const LayoutAnimation &other) = default;
++};
++
++struct LayoutAnimationsProxy
++    : public MountingOverrideDelegate,
++      public std::enable_shared_from_this<LayoutAnimationsProxy> {
++  mutable std::unordered_map<Tag, std::shared_ptr<Node>> nodeForTag_;
++  mutable std::unordered_map<Tag, LayoutAnimation> layoutAnimations_;
++  mutable std::recursive_mutex mutex;
++  mutable SurfaceManager surfaceManager;
++  mutable std::unordered_set<std::shared_ptr<MutationNode>> deadNodes;
++  mutable std::unordered_map<Tag, int> leastRemoved;
++  std::shared_ptr<LayoutAnimationsManager> layoutAnimationsManager_;
++  ContextContainer::Shared contextContainer_;
++  SharedComponentDescriptorRegistry componentDescriptorRegistry_;
++  jsi::Runtime &uiRuntime_;
++  const std::shared_ptr<UIScheduler> uiScheduler_;
++  LayoutAnimationsProxy(
++      std::shared_ptr<LayoutAnimationsManager> layoutAnimationsManager,
++      SharedComponentDescriptorRegistry componentDescriptorRegistry,
++      ContextContainer::Shared contextContainer,
++      jsi::Runtime &uiRuntime,
++      const std::shared_ptr<UIScheduler> uiScheduler)
++      : layoutAnimationsManager_(layoutAnimationsManager),
++        contextContainer_(contextContainer),
++        componentDescriptorRegistry_(componentDescriptorRegistry),
++        uiRuntime_(uiRuntime),
++        uiScheduler_(uiScheduler) {}
++
++  void startEnteringAnimation(const int tag, ShadowViewMutation &mutation)
++      const;
++  void startExitingAnimation(const int tag, ShadowViewMutation &mutation) const;
++  void startLayoutAnimation(const int tag, const ShadowViewMutation &mutation)
++      const;
++
++  void transferConfigFromNativeID(const std::string nativeId, const int tag)
++      const;
++  std::optional<SurfaceId> progressLayoutAnimation(
++      int tag,
++      const jsi::Object &newStyle);
++  std::optional<SurfaceId> endLayoutAnimation(int tag, bool shouldRemove);
++  void maybeCancelAnimation(const int tag) const;
++
++  void parseRemoveMutations(
++      std::unordered_map<Tag, ShadowView> &movedViews,
++      ShadowViewMutationList &mutations,
++      std::vector<std::shared_ptr<MutationNode>> &roots) const;
++  void handleRemovals(
++      ShadowViewMutationList &filteredMutations,
++      std::vector<std::shared_ptr<MutationNode>> &roots) const;
++
++  void handleUpdatesAndEnterings(
++      ShadowViewMutationList &filteredMutations,
++      const std::unordered_map<Tag, ShadowView> &movedViews,
++      ShadowViewMutationList &mutations,
++      const PropsParserContext &propsParserContext,
++      SurfaceId surfaceId) const;
++  void addOngoingAnimations(
++      SurfaceId surfaceId,
++      ShadowViewMutationList &mutations) const;
++  void updateOngoingAnimationTarget(
++      const int tag,
++      const ShadowViewMutation &mutation) const;
++  std::shared_ptr<ShadowView> cloneViewWithoutOpacity(
++      facebook::react::ShadowViewMutation &mutation,
++      const PropsParserContext &propsParserContext) const;
++  void maybeRestoreOpacity(
++      LayoutAnimation &layoutAnimation,
++      const jsi::Object &newStyle) const;
++  void maybeUpdateWindowDimensions(
++      facebook::react::ShadowViewMutation &mutation,
++      SurfaceId surfaceId) const;
++  void createLayoutAnimation(
++      const ShadowViewMutation &mutation,
++      ShadowView &oldView,
++      const SurfaceId &surfaceId,
++      const int tag) const;
++
++  void updateIndexForMutation(ShadowViewMutation &mutation) const;
++
++  void removeRecursively(
++      std::shared_ptr<MutationNode> node,
++      ShadowViewMutationList &mutations) const;
++  bool startAnimationsRecursively(
++      std::shared_ptr<MutationNode> node,
++      const bool shouldRemoveSubviewsWithoutAnimations,
++      const bool shouldAnimate,
++      const bool isScreenPop,
++      ShadowViewMutationList &mutations) const;
++  void endAnimationsRecursively(
++      std::shared_ptr<MutationNode> node,
++      ShadowViewMutationList &mutations) const;
++  void maybeDropAncestors(
++      std::shared_ptr<Node> node,
++      std::shared_ptr<MutationNode> child,
++      ShadowViewMutationList &cleanupMutations) const;
++
++  const ComponentDescriptor &getComponentDescriptorForShadowView(
++      const ShadowView &shadowView) const;
++
++  // MountingOverrideDelegate
++
++  bool shouldOverridePullTransaction() const override;
++  std::optional<MountingTransaction> pullTransaction(
++      SurfaceId surfaceId,
++      MountingTransaction::Number number,
++      const TransactionTelemetry &telemetry,
++      ShadowViewMutationList mutations) const override;
++};
++
++} // namespace reanimated
++
++#endif // RCT_NEW_ARCH_ENABLED
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/LayoutAnimations/LayoutAnimationsUtils.h b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/LayoutAnimations/LayoutAnimationsUtils.h
+new file mode 100644
+index 0000000..0327c06
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/LayoutAnimations/LayoutAnimationsUtils.h
+@@ -0,0 +1,176 @@
++#pragma once
++
++#include <reanimated/Fabric/PropsRegistry.h>
++#include <reanimated/LayoutAnimations/LayoutAnimationsManager.h>
++
++#include <react/renderer/mounting/MountingOverrideDelegate.h>
++#include <react/renderer/mounting/ShadowView.h>
++
++#include <memory>
++#include <unordered_map>
++#include <unordered_set>
++#include <utility>
++#include <vector>
++
++namespace reanimated {
++
++struct Rect {
++  double width, height;
++};
++
++struct Frame {
++  std::optional<double> x, y, width, height;
++  Frame(jsi::Runtime &runtime, const jsi::Object &newStyle) {
++    if (newStyle.hasProperty(runtime, "originX")) {
++      x = newStyle.getProperty(runtime, "originX").asNumber();
++    }
++    if (newStyle.hasProperty(runtime, "originY")) {
++      y = newStyle.getProperty(runtime, "originY").asNumber();
++    }
++    if (newStyle.hasProperty(runtime, "width")) {
++      width = newStyle.getProperty(runtime, "width").asNumber();
++    }
++    if (newStyle.hasProperty(runtime, "height")) {
++      height = newStyle.getProperty(runtime, "height").asNumber();
++    }
++  }
++};
++
++struct UpdateValues {
++  Props::Shared newProps;
++  Frame frame;
++};
++
++struct Snapshot {
++  double x, y, width, height, windowWidth, windowHeight;
++  Snapshot(const ShadowView &shadowView, Rect window) {
++    const auto &frame = shadowView.layoutMetrics.frame;
++    x = frame.origin.x;
++    y = frame.origin.y;
++    width = frame.size.width;
++    height = frame.size.height;
++    windowWidth = window.width;
++    windowHeight = window.height;
++  }
++};
++
++typedef enum ExitingState {
++  UNDEFINED = 1,
++  WAITING = 2,
++  ANIMATING = 4,
++  DEAD = 8,
++  MOVED = 16,
++  DELETED = 32,
++} ExitingState;
++
++struct MutationNode;
++
++/**
++ Represents a view that was either removed or had a child removed from the
++ ShadowTree
++ */
++struct Node {
++  std::vector<std::shared_ptr<MutationNode>> children, unflattenedChildren;
++  std::shared_ptr<Node> parent, unflattenedParent;
++  Tag tag;
++  void removeChildFromUnflattenedTree(std::shared_ptr<MutationNode> child);
++  void applyMutationToIndices(ShadowViewMutation mutation);
++  void insertChildren(std::vector<std::shared_ptr<MutationNode>> &newChildren);
++  void insertUnflattenedChildren(
++      std::vector<std::shared_ptr<MutationNode>> &newChildren);
++  virtual bool isMutationMode();
++  explicit Node(const Tag tag) : tag(tag) {}
++  Node(Node &&node)
++      : children(std::move(node.children)),
++        unflattenedChildren(std::move(node.unflattenedChildren)),
++        tag(node.tag) {}
++  Node(Node &node)
++      : children(node.children),
++        unflattenedChildren(node.unflattenedChildren),
++        tag(node.tag) {}
++  virtual ~Node() = default;
++};
++
++/**
++ Represents a view that was removed from the ShadowTree
++ */
++struct MutationNode : public Node {
++  ShadowViewMutation mutation;
++  ExitingState state = UNDEFINED;
++  explicit MutationNode(ShadowViewMutation &mutation)
++      : Node(mutation.oldChildShadowView.tag), mutation(mutation) {}
++  MutationNode(ShadowViewMutation &mutation, Node &&node)
++      : Node(std::move(node)), mutation(mutation) {}
++  bool isMutationMode() override;
++};
++
++struct SurfaceManager {
++  mutable std::unordered_map<
++      SurfaceId,
++      std::shared_ptr<std::unordered_map<Tag, UpdateValues>>>
++      props_;
++  mutable std::unordered_map<SurfaceId, Rect> windows_;
++
++  std::unordered_map<Tag, UpdateValues> &getUpdateMap(SurfaceId surfaceId);
++  void
++  updateWindow(SurfaceId surfaceId, double windowWidth, double windowHeight);
++  Rect getWindow(SurfaceId surfaceId);
++};
++
++static inline void updateLayoutMetrics(
++    LayoutMetrics &layoutMetrics,
++    Frame &frame) {
++  // we use optional's here to avoid overwriting non-animated values
++  if (frame.width) {
++    layoutMetrics.frame.size.width = *frame.width;
++  }
++  if (frame.height) {
++    layoutMetrics.frame.size.height = *frame.height;
++  }
++  if (frame.x) {
++    layoutMetrics.frame.origin.x = *frame.x;
++  }
++  if (frame.y) {
++    layoutMetrics.frame.origin.y = *frame.y;
++  }
++}
++
++static inline bool isRNSScreen(std::shared_ptr<MutationNode> node) {
++  return !std::strcmp(
++             node->mutation.oldChildShadowView.componentName,
++             "RNSScreenStack") ||
++      !std::strcmp(
++          node->mutation.oldChildShadowView.componentName, "RNSScreen");
++}
++
++static inline bool hasLayoutChanged(const ShadowViewMutation &mutation) {
++  return mutation.oldChildShadowView.layoutMetrics.frame !=
++      mutation.newChildShadowView.layoutMetrics.frame;
++}
++
++static inline void mergeAndSwap(
++    std::vector<std::shared_ptr<MutationNode>> &A,
++    std::vector<std::shared_ptr<MutationNode>> &B) {
++  std::vector<std::shared_ptr<MutationNode>> merged;
++  auto it1 = A.begin(), it2 = B.begin();
++  while (it1 != A.end() && it2 != B.end()) {
++    if ((*it1)->mutation.index < (*it2)->mutation.index) {
++      merged.push_back(*it1);
++      it1++;
++    } else {
++      merged.push_back(*it2);
++      it2++;
++    }
++  }
++  while (it1 != A.end()) {
++    merged.push_back(*it1);
++    it1++;
++  }
++  while (it2 != B.end()) {
++    merged.push_back(*it2);
++    it2++;
++  }
++  std::swap(A, merged);
++}
++
++} // namespace reanimated
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/NativeModules/ReanimatedModuleProxy.h b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/NativeModules/ReanimatedModuleProxy.h
+new file mode 100644
+index 0000000..f9332ea
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/NativeModules/ReanimatedModuleProxy.h
+@@ -0,0 +1,252 @@
++#pragma once
++
++#include <reanimated/AnimatedSensor/AnimatedSensorModule.h>
++#include <reanimated/LayoutAnimations/LayoutAnimationsManager.h>
++#include <reanimated/NativeModules/ReanimatedModuleProxySpec.h>
++#include <reanimated/Tools/PlatformDepMethodsHolder.h>
++
++#ifdef RCT_NEW_ARCH_ENABLED
++#include <reanimated/Fabric/PropsRegistry.h>
++#include <reanimated/Fabric/ReanimatedCommitHook.h>
++#include <reanimated/Fabric/ReanimatedMountHook.h>
++#include <reanimated/LayoutAnimations/LayoutAnimationsProxy.h>
++#endif // RCT_NEW_ARCH_ENABLED
++
++#include <worklets/NativeModules/WorkletsModuleProxy.h>
++#include <worklets/Registries/EventHandlerRegistry.h>
++#include <worklets/Tools/JSScheduler.h>
++#include <worklets/Tools/SingleInstanceChecker.h>
++#include <worklets/Tools/UIScheduler.h>
++
++#ifdef RCT_NEW_ARCH_ENABLED
++#include <react/renderer/uimanager/UIManager.h>
++#endif // RCT_NEW_ARCH_ENABLED
++
++#include <memory>
++#include <string>
++#include <unordered_set>
++#include <utility>
++#include <vector>
++
++namespace reanimated {
++
++using namespace facebook;
++
++class ReanimatedModuleProxy
++    : public ReanimatedModuleProxySpec,
++      public std::enable_shared_from_this<ReanimatedModuleProxy> {
++ public:
++  ReanimatedModuleProxy(
++      const std::shared_ptr<WorkletsModuleProxy> &workletsModuleProxy,
++      jsi::Runtime &rnRuntime,
++      const std::shared_ptr<CallInvoker> &jsCallInvoker,
++      const PlatformDepMethodsHolder &platformDepMethodsHolder,
++      const bool isBridgeless,
++      const bool isReducedMotion);
++
++  // We need this init method to initialize callbacks with
++  // weak_from_this() which is available only after the object
++  // is fully constructed.
++  void init(const PlatformDepMethodsHolder &platformDepMethodsHolder);
++
++  void scheduleOnUI(jsi::Runtime &rt, const jsi::Value &worklet) override;
++  jsi::Value executeOnUIRuntimeSync(jsi::Runtime &rt, const jsi::Value &worklet)
++      override;
++
++  jsi::Value createWorkletRuntime(
++      jsi::Runtime &rt,
++      const jsi::Value &name,
++      const jsi::Value &initializer) override;
++  jsi::Value scheduleOnRuntime(
++      jsi::Runtime &rt,
++      const jsi::Value &workletRuntimeValue,
++      const jsi::Value &shareableWorkletValue) override;
++
++  ~ReanimatedModuleProxy();
++
++  jsi::Value registerEventHandler(
++      jsi::Runtime &rt,
++      const jsi::Value &worklet,
++      const jsi::Value &eventName,
++      const jsi::Value &emitterReactTag) override;
++  void unregisterEventHandler(
++      jsi::Runtime &rt,
++      const jsi::Value &registrationId) override;
++
++  jsi::Value getViewProp(
++      jsi::Runtime &rt,
++#ifdef RCT_NEW_ARCH_ENABLED
++      const jsi::Value &shadowNodeWrapper,
++#else
++      const jsi::Value &viewTag,
++#endif
++      const jsi::Value &propName,
++      const jsi::Value &callback) override;
++
++  jsi::Value enableLayoutAnimations(jsi::Runtime &rt, const jsi::Value &config)
++      override;
++  jsi::Value configureProps(
++      jsi::Runtime &rt,
++      const jsi::Value &uiProps,
++      const jsi::Value &nativeProps) override;
++  jsi::Value configureLayoutAnimationBatch(
++      jsi::Runtime &rt,
++      const jsi::Value &layoutAnimationsBatch) override;
++  void setShouldAnimateExiting(
++      jsi::Runtime &rt,
++      const jsi::Value &viewTag,
++      const jsi::Value &shouldAnimate) override;
++
++  void onRender(double timestampMs);
++
++  bool isAnyHandlerWaitingForEvent(
++      const std::string &eventName,
++      const int emitterReactTag);
++
++  void maybeRequestRender();
++
++  bool handleEvent(
++      const std::string &eventName,
++      const int emitterReactTag,
++      const jsi::Value &payload,
++      double currentTime);
++
++  inline std::shared_ptr<JSLogger> getJSLogger() const {
++    return jsLogger_;
++  }
++
++#ifdef RCT_NEW_ARCH_ENABLED
++  bool handleRawEvent(const RawEvent &rawEvent, double currentTime);
++
++  void updateProps(jsi::Runtime &rt, const jsi::Value &operations);
++
++  void removeFromPropsRegistry(jsi::Runtime &rt, const jsi::Value &viewTags);
++
++  void performOperations();
++
++  void markNodeAsRemovable(
++      jsi::Runtime &rt,
++      const jsi::Value &shadowNodeWrapper) override;
++  void unmarkNodeAsRemovable(jsi::Runtime &rt, const jsi::Value &viewTag)
++      override;
++
++  void dispatchCommand(
++      jsi::Runtime &rt,
++      const jsi::Value &shadowNodeValue,
++      const jsi::Value &commandNameValue,
++      const jsi::Value &argsValue);
++
++  jsi::String obtainProp(
++      jsi::Runtime &rt,
++      const jsi::Value &shadowNodeWrapper,
++      const jsi::Value &propName);
++
++  jsi::Value measure(jsi::Runtime &rt, const jsi::Value &shadowNodeValue);
++
++  void initializeFabric(const std::shared_ptr<UIManager> &uiManager);
++
++  void initializeLayoutAnimationsProxy();
++
++  std::string obtainPropFromShadowNode(
++      jsi::Runtime &rt,
++      const std::string &propName,
++      const ShadowNode::Shared &shadowNode);
++
++#ifdef IS_REANIMATED_EXAMPLE_APP
++  std::function<std::string()> createRegistriesLeakCheck();
++#endif // IS_REANIMATED_EXAMPLE_APP
++#endif
++
++  jsi::Value registerSensor(
++      jsi::Runtime &rt,
++      const jsi::Value &sensorType,
++      const jsi::Value &interval,
++      const jsi::Value &iosReferenceFrame,
++      const jsi::Value &sensorDataContainer) override;
++  void unregisterSensor(jsi::Runtime &rt, const jsi::Value &sensorId) override;
++
++  void cleanupSensors();
++
++  jsi::Value subscribeForKeyboardEvents(
++      jsi::Runtime &rt,
++      const jsi::Value &keyboardEventContainer,
++      const jsi::Value &isStatusBarTranslucent,
++      const jsi::Value &isNavigationBarTranslucent) override;
++  void unsubscribeFromKeyboardEvents(
++      jsi::Runtime &rt,
++      const jsi::Value &listenerId) override;
++
++  inline LayoutAnimationsManager &layoutAnimationsManager() {
++    return *layoutAnimationsManager_;
++  }
++
++  [[nodiscard]] inline jsi::Runtime &getUIRuntime() const {
++    return uiWorkletRuntime_->getJSIRuntime();
++  }
++
++  [[nodiscard]] inline bool isBridgeless() const {
++    return isBridgeless_;
++  }
++
++  [[nodiscard]] inline bool isReducedMotion() const {
++    return isReducedMotion_;
++  }
++
++  [[nodiscard]] inline std::shared_ptr<WorkletsModuleProxy>
++  getWorkletsModuleProxy() const {
++    return workletsModuleProxy_;
++  }
++
++ private:
++  void requestAnimationFrame(jsi::Runtime &rt, const jsi::Value &callback);
++
++#ifdef RCT_NEW_ARCH_ENABLED
++  jsi::Value filterNonAnimatableProps(
++      jsi::Runtime &rt,
++      const jsi::Value &props);
++#endif // RCT_NEW_ARCH_ENABLED
++
++  const bool isBridgeless_;
++  const bool isReducedMotion_;
++  std::shared_ptr<WorkletsModuleProxy> workletsModuleProxy_;
++  const std::string valueUnpackerCode_;
++  std::shared_ptr<WorkletRuntime> uiWorkletRuntime_;
++
++  std::unique_ptr<EventHandlerRegistry> eventHandlerRegistry_;
++  const RequestRenderFunction requestRender_;
++  std::vector<std::shared_ptr<jsi::Value>> frameCallbacks_;
++  volatile bool renderRequested_{false};
++  std::function<void(const double)> onRenderCallback_;
++  AnimatedSensorModule animatedSensorModule_;
++  const std::shared_ptr<JSLogger> jsLogger_;
++  std::shared_ptr<LayoutAnimationsManager> layoutAnimationsManager_;
++
++#ifdef RCT_NEW_ARCH_ENABLED
++  std::unordered_set<std::string>
++      animatablePropNames_; // filled by configureProps
++  std::shared_ptr<UIManager> uiManager_;
++  std::shared_ptr<LayoutAnimationsProxy> layoutAnimationsProxy_;
++
++  std::vector<std::pair<ShadowNode::Shared, std::unique_ptr<jsi::Value>>>
++      operationsInBatch_; // TODO: refactor std::pair to custom struct
++
++  std::shared_ptr<PropsRegistry> propsRegistry_;
++  std::shared_ptr<ReanimatedCommitHook> commitHook_;
++  std::shared_ptr<ReanimatedMountHook> mountHook_;
++
++  std::vector<Tag> tagsToRemove_; // from `propsRegistry_`
++#else
++  const ObtainPropFunction obtainPropFunction_;
++  const ConfigurePropsFunction configurePropsPlatformFunction_;
++  const UpdatePropsFunction updatePropsFunction_;
++#endif
++
++  const KeyboardEventSubscribeFunction subscribeForKeyboardEventsFunction_;
++  const KeyboardEventUnsubscribeFunction unsubscribeFromKeyboardEventsFunction_;
++
++#ifndef NDEBUG
++  worklets::SingleInstanceChecker<ReanimatedModuleProxy> singleInstanceChecker_;
++#endif // NDEBUG
++};
++
++} // namespace reanimated
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/NativeModules/ReanimatedModuleProxySpec.h b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/NativeModules/ReanimatedModuleProxySpec.h
+new file mode 100644
+index 0000000..5a9fd67
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/NativeModules/ReanimatedModuleProxySpec.h
+@@ -0,0 +1,109 @@
++#pragma once
++
++#include <ReactCommon/CallInvoker.h>
++#include <ReactCommon/TurboModule.h>
++
++#include <memory>
++#include <string>
++#include <vector>
++
++using namespace facebook;
++using namespace react;
++
++namespace reanimated {
++
++class JSI_EXPORT ReanimatedModuleProxySpec : public TurboModule {
++ protected:
++  explicit ReanimatedModuleProxySpec(
++      const std::shared_ptr<CallInvoker> &jsInvoker);
++
++ public:
++  // Scheduling
++  virtual void scheduleOnUI(jsi::Runtime &rt, const jsi::Value &worklet) = 0;
++  virtual jsi::Value executeOnUIRuntimeSync(
++      jsi::Runtime &rt,
++      const jsi::Value &worklet) = 0;
++
++  // Worklet runtime
++  virtual jsi::Value createWorkletRuntime(
++      jsi::Runtime &rt,
++      const jsi::Value &name,
++      const jsi::Value &initializer) = 0;
++  virtual jsi::Value scheduleOnRuntime(
++      jsi::Runtime &rt,
++      const jsi::Value &workletRuntimeValue,
++      const jsi::Value &shareableWorkletValue) = 0;
++
++  // events
++  virtual jsi::Value registerEventHandler(
++      jsi::Runtime &rt,
++      const jsi::Value &worklet,
++      const jsi::Value &eventName,
++      const jsi::Value &emitterReactTag) = 0;
++  virtual void unregisterEventHandler(
++      jsi::Runtime &rt,
++      const jsi::Value &registrationId) = 0;
++
++  // views
++  virtual jsi::Value getViewProp(
++      jsi::Runtime &rt,
++#ifdef RCT_NEW_ARCH_ENABLED
++      const jsi::Value &shadowNodeWrapper,
++#else
++      const jsi::Value &viewTag,
++#endif
++      const jsi::Value &propName,
++      const jsi::Value &callback) = 0;
++
++  // sensors
++  virtual jsi::Value registerSensor(
++      jsi::Runtime &rt,
++      const jsi::Value &sensorType,
++      const jsi::Value &interval,
++      const jsi::Value &iosReferenceFrame,
++      const jsi::Value &sensorDataContainer) = 0;
++  virtual void unregisterSensor(
++      jsi::Runtime &rt,
++      const jsi::Value &sensorId) = 0;
++
++  // keyboard
++  virtual jsi::Value subscribeForKeyboardEvents(
++      jsi::Runtime &rt,
++      const jsi::Value &keyboardEventContainer,
++      const jsi::Value &isStatusBarTranslucent,
++      const jsi::Value &isNavigationBarTranslucent) = 0;
++  virtual void unsubscribeFromKeyboardEvents(
++      jsi::Runtime &rt,
++      const jsi::Value &listenerId) = 0;
++
++  // other
++  virtual jsi::Value enableLayoutAnimations(
++      jsi::Runtime &rt,
++      const jsi::Value &config) = 0;
++  virtual jsi::Value configureProps(
++      jsi::Runtime &rt,
++      const jsi::Value &uiProps,
++      const jsi::Value &nativeProps) = 0;
++
++  // layout animations
++  virtual jsi::Value configureLayoutAnimationBatch(
++      jsi::Runtime &rt,
++      const jsi::Value &layoutAnimationsBatch) = 0;
++
++  virtual void setShouldAnimateExiting(
++      jsi::Runtime &rt,
++      const jsi::Value &viewTag,
++      const jsi::Value &shouldAnimate) = 0;
++
++#ifdef RCT_NEW_ARCH_ENABLED
++  // Cleanup
++  virtual void markNodeAsRemovable(
++      jsi::Runtime &rt,
++      const jsi::Value &shadowNodeWrapper) = 0;
++  virtual void unmarkNodeAsRemovable(
++      jsi::Runtime &rt,
++      const jsi::Value &viewTag) = 0;
++#endif // RCT_NEW_ARCH_ENABLED
++};
++
++} // namespace reanimated
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/RuntimeDecorators/RNRuntimeDecorator.h b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/RuntimeDecorators/RNRuntimeDecorator.h
+new file mode 100644
+index 0000000..ac568a6
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/RuntimeDecorators/RNRuntimeDecorator.h
+@@ -0,0 +1,20 @@
++#pragma once
++
++#include <reanimated/NativeModules/ReanimatedModuleProxy.h>
++
++#include <jsi/jsi.h>
++
++#include <memory>
++
++using namespace facebook;
++
++namespace reanimated {
++
++class RNRuntimeDecorator {
++ public:
++  static void decorate(
++      jsi::Runtime &rnRuntime,
++      const std::shared_ptr<ReanimatedModuleProxy> &reanimatedModuleProxy);
++};
++
++} // namespace reanimated
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/RuntimeDecorators/UIRuntimeDecorator.h b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/RuntimeDecorators/UIRuntimeDecorator.h
+new file mode 100644
+index 0000000..325df49
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/RuntimeDecorators/UIRuntimeDecorator.h
+@@ -0,0 +1,35 @@
++#pragma once
++
++#include <jsi/jsi.h>
++
++#include <reanimated/Tools/PlatformDepMethodsHolder.h>
++
++using namespace facebook;
++
++namespace reanimated {
++
++using RequestAnimationFrameFunction =
++    std::function<void(jsi::Runtime &, const jsi::Value &)>;
++
++class UIRuntimeDecorator {
++ public:
++  static void decorate(
++      jsi::Runtime &uiRuntime,
++#ifdef RCT_NEW_ARCH_ENABLED
++// nothing
++#else
++      const ScrollToFunction scrollTo,
++#endif
++      const ObtainPropFunction obtainPropFunction,
++      const UpdatePropsFunction updateProps,
++      const MeasureFunction measure,
++      const DispatchCommandFunction dispatchCommand,
++      const RequestAnimationFrameFunction requestAnimationFrame,
++      const GetAnimationTimestampFunction getAnimationTimestamp,
++      const SetGestureStateFunction setGestureState,
++      const ProgressLayoutAnimationFunction progressLayoutAnimation,
++      const EndLayoutAnimationFunction endLayoutAnimation,
++      const MaybeFlushUIUpdatesQueueFunction maybeFlushUIUpdatesQueue);
++};
++
++} // namespace reanimated
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Tools/CollectionUtils.h b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Tools/CollectionUtils.h
+new file mode 100644
+index 0000000..9bf9c03
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Tools/CollectionUtils.h
+@@ -0,0 +1,14 @@
++#pragma once
++
++#include <algorithm>
++
++namespace reanimated {
++namespace collection {
++
++template <class CollectionType, class ValueType>
++inline bool contains(const CollectionType &collection, const ValueType &value) {
++  return collection.find(value) != collection.end();
++}
++
++} // namespace collection
++} // namespace reanimated
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Tools/FeaturesConfig.h b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Tools/FeaturesConfig.h
+new file mode 100644
+index 0000000..c07e824
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Tools/FeaturesConfig.h
+@@ -0,0 +1,19 @@
++#pragma once
++#include <string>
++
++namespace reanimated {
++
++class FeaturesConfig {
++ public:
++  static inline bool isLayoutAnimationEnabled() {
++    return _isLayoutAnimationEnabled;
++  }
++  static inline void setLayoutAnimationEnabled(bool isLayoutAnimationEnabled) {
++    _isLayoutAnimationEnabled = isLayoutAnimationEnabled;
++  }
++
++ private:
++  static bool _isLayoutAnimationEnabled;
++};
++
++} // namespace reanimated
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Tools/PlatformDepMethodsHolder.h b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Tools/PlatformDepMethodsHolder.h
+new file mode 100644
+index 0000000..901a878
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Tools/PlatformDepMethodsHolder.h
+@@ -0,0 +1,98 @@
++#pragma once
++
++#include <jsi/jsi.h>
++
++#ifdef RCT_NEW_ARCH_ENABLED
++#include <react/renderer/core/ReactPrimitives.h>
++#endif
++
++#include <string>
++#include <utility>
++#include <vector>
++
++using namespace facebook;
++
++#ifdef RCT_NEW_ARCH_ENABLED
++using namespace react;
++#endif
++
++namespace reanimated {
++
++#ifdef RCT_NEW_ARCH_ENABLED
++
++using UpdatePropsFunction =
++    std::function<void(jsi::Runtime &rt, const jsi::Value &operations)>;
++using ObtainPropFunction = std::function<jsi::Value(
++    jsi::Runtime &rt,
++    const jsi::Value &shadowNodeWrapper,
++    const jsi::Value &propName)>;
++using DispatchCommandFunction = std::function<void(
++    jsi::Runtime &rt,
++    const jsi::Value &shadowNodeValue,
++    const jsi::Value &commandNameValue,
++    const jsi::Value &argsValue)>;
++using MeasureFunction = std::function<
++    jsi::Value(jsi::Runtime &rt, const jsi::Value &shadowNodeValue)>;
++
++#else
++
++using UpdatePropsFunction =
++    std::function<void(jsi::Runtime &rt, const jsi::Value &operations)>;
++using ScrollToFunction = std::function<void(int, double, double, bool)>;
++using DispatchCommandFunction = std::function<void(
++    jsi::Runtime &rt,
++    const int viewTag,
++    const jsi::Value &commandNameValue,
++    const jsi::Value &argsValue)>;
++using MeasureFunction =
++    std::function<std::vector<std::pair<std::string, double>>(int)>;
++using ObtainPropFunction =
++    std::function<jsi::Value(jsi::Runtime &, const int, const jsi::Value &)>;
++
++#endif // RCT_NEW_ARCH_ENABLED
++
++using RequestRenderFunction =
++    std::function<void(std::function<void(const double)>)>;
++using GetAnimationTimestampFunction = std::function<double(void)>;
++
++using ProgressLayoutAnimationFunction =
++    std::function<void(jsi::Runtime &, int, jsi::Object, bool)>;
++using EndLayoutAnimationFunction = std::function<void(int, bool)>;
++
++using RegisterSensorFunction =
++    std::function<int(int, int, int, std::function<void(double[], int)>)>;
++using UnregisterSensorFunction = std::function<void(int)>;
++using SetGestureStateFunction = std::function<void(int, int)>;
++using ConfigurePropsFunction = std::function<void(
++    jsi::Runtime &rt,
++    const jsi::Value &uiProps,
++    const jsi::Value &nativeProps)>;
++using KeyboardEventSubscribeFunction =
++    std::function<int(std::function<void(int, int)>, bool, bool)>;
++using KeyboardEventUnsubscribeFunction = std::function<void(int)>;
++using MaybeFlushUIUpdatesQueueFunction = std::function<void()>;
++
++struct PlatformDepMethodsHolder {
++  RequestRenderFunction requestRender;
++#ifdef RCT_NEW_ARCH_ENABLED
++  // nothing
++#else
++  UpdatePropsFunction updatePropsFunction;
++  ScrollToFunction scrollToFunction;
++  DispatchCommandFunction dispatchCommandFunction;
++  MeasureFunction measureFunction;
++  ConfigurePropsFunction configurePropsFunction;
++  ObtainPropFunction obtainPropFunction;
++#endif
++  GetAnimationTimestampFunction getAnimationTimestamp;
++  ProgressLayoutAnimationFunction progressLayoutAnimation;
++  EndLayoutAnimationFunction endLayoutAnimation;
++  RegisterSensorFunction registerSensor;
++  UnregisterSensorFunction unregisterSensor;
++  SetGestureStateFunction setGestureStateFunction;
++  KeyboardEventSubscribeFunction subscribeForKeyboardEvents;
++  KeyboardEventUnsubscribeFunction unsubscribeFromKeyboardEvents;
++  MaybeFlushUIUpdatesQueueFunction maybeFlushUIUpdatesQueueFunction;
++};
++
++} // namespace reanimated
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Tools/ReanimatedSystraceSection.h b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Tools/ReanimatedSystraceSection.h
+new file mode 100644
+index 0000000..c3b17e9
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/Tools/ReanimatedSystraceSection.h
+@@ -0,0 +1,135 @@
++#pragma once
++#include <string>
++#include <vector>
++
++#ifdef REANIMATED_PROFILING
++
++#if defined(__APPLE__)
++#include <os/trace_base.h>
++
++#if OS_LOG_TARGET_HAS_10_15_FEATURES
++#include <os/log.h>
++#include <os/signpost.h>
++#include <sstream>
++#endif // OS_LOG_TARGET_HAS_10_15_FEATURES
++
++#elif defined(ANDROID)
++
++#include <android/trace.h>
++
++#endif // defined(ANDROID)
++
++#endif // REANIMATED_PROFILING
++
++namespace reanimated {
++
++#if defined(ANDROID) && defined(REANIMATED_PROFILING)
++
++struct ReanimatedSystraceSection {
++ public:
++  template <typename... ConvertsToStringPiece>
++  explicit ReanimatedSystraceSection(
++      const char *name,
++      ConvertsToStringPiece &&...args) {
++    ATrace_beginSection(name);
++  }
++
++  ~ReanimatedSystraceSection() {
++    ATrace_endSection();
++  }
++};
++
++// The apple part is copied from React Native
++// from
++// https://github.com/facebook/react-native/blob/5697d923a05119314b4cfcd556cb243986637764/packages/react-native/ReactCommon/cxxreact/SystraceSection.h
++#elif defined(__APPLE__) && OS_LOG_TARGET_HAS_10_15_FEATURES && \
++    defined(REANIMATED_PROFILING)
++
++template <typename T, typename = void>
++struct renderer {
++  static std::string render(const T &t) {
++    std::ostringstream oss;
++    oss << t;
++    return oss.str();
++  }
++};
++
++template <typename T>
++static auto render(const T &t)
++    -> decltype(renderer<T>::render(std::declval<const T &>())) {
++  return renderer<T>::render(t);
++}
++
++inline os_log_t instrumentsLogHandle = nullptr;
++
++static inline os_log_t getOrCreateInstrumentsLogHandle() {
++  if (!instrumentsLogHandle) {
++    instrumentsLogHandle = os_log_create(
++        "dev.reanimated.instruments", OS_LOG_CATEGORY_POINTS_OF_INTEREST);
++  }
++  return instrumentsLogHandle;
++}
++
++struct ReanimatedSystraceSection {
++ public:
++  template <typename... ConvertsToStringPiece>
++  explicit ReanimatedSystraceSection(
++      const char *name,
++      ConvertsToStringPiece &&...args) {
++    os_log_t instrumentsLogHandle =
++        reanimated::getOrCreateInstrumentsLogHandle();
++
++    // If the log isn't enabled, we don't want the performance overhead of the
++    // rest of the code below.
++    if (!os_signpost_enabled(instrumentsLogHandle)) {
++      return;
++    }
++
++    name_ = name;
++
++    const auto argsVector =
++        std::vector<std::string>{reanimated::render(args)...};
++    std::string argsString = "";
++    for (size_t i = 0; i < argsVector.size(); i += 2) {
++      argsString += argsVector[i] + "=" + argsVector[i + 1] + ";";
++    }
++
++    signpostID_ = os_signpost_id_make_with_pointer(instrumentsLogHandle, this);
++
++    os_signpost_interval_begin(
++        instrumentsLogHandle,
++        signpostID_,
++        "Reanimated",
++        "%s begin: %s",
++        name,
++        argsString.c_str());
++  }
++
++  ~ReanimatedSystraceSection() {
++    os_signpost_interval_end(
++        reanimated::instrumentsLogHandle,
++        signpostID_,
++        "Reanimated",
++        "%s end",
++        name_.data());
++  }
++
++ private:
++  os_signpost_id_t signpostID_ = OS_SIGNPOST_ID_INVALID;
++  std::string_view name_;
++};
++
++#else
++
++struct ReanimatedSystraceSection {
++ public:
++  template <typename... ConvertsToStringPiece>
++  explicit ReanimatedSystraceSection(
++      const char *name,
++      ConvertsToStringPiece &&...args) {}
++};
++
++#endif // defined(__APPLE__) && OS_LOG_TARGET_HAS_10_15_FEATURES &&
++       // defined(REANIMATED_PROFILING)
++
++} // namespace reanimated
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/android/JNIHelper.h b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/android/JNIHelper.h
+new file mode 100644
+index 0000000..4be3555
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/android/JNIHelper.h
+@@ -0,0 +1,30 @@
++#pragma once
++
++#include <fbjni/fbjni.h>
++#include <jsi/JSIDynamic.h>
++#include <jsi/jsi.h>
++#include <react/jni/CxxModuleWrapper.h>
++#include <react/jni/JMessageQueueThread.h>
++#include <react/jni/WritableNativeMap.h>
++#include <string>
++
++namespace reanimated {
++
++using namespace facebook::jni;
++using namespace facebook;
++using namespace react;
++
++struct JNIHelper {
++  struct PropsMap : jni::JavaClass<PropsMap, JMap<JString, JObject>> {
++    static constexpr auto kJavaDescriptor = "Ljava/util/HashMap;";
++
++    static local_ref<PropsMap> create();
++    void put(const std::string &key, jni::local_ref<JObject> object);
++  };
++
++  static jni::local_ref<PropsMap> ConvertToPropsMap(
++      jsi::Runtime &rt,
++      const jsi::Object &props);
++};
++
++}; // namespace reanimated
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/android/LayoutAnimations.h b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/android/LayoutAnimations.h
+new file mode 100644
+index 0000000..aaaa5cf
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/android/LayoutAnimations.h
+@@ -0,0 +1,91 @@
++#pragma once
++
++#include <reanimated/android/JNIHelper.h>
++
++#include <fbjni/fbjni.h>
++#include <jsi/jsi.h>
++
++#include <vector>
++
++namespace reanimated {
++
++using namespace facebook::jni;
++using namespace facebook;
++
++class LayoutAnimations : public jni::HybridClass<LayoutAnimations> {
++  using AnimationStartingBlock =
++      std::function<void(int, int, alias_ref<JMap<jstring, jstring>>)>;
++  using HasAnimationBlock = std::function<bool(int, int)>;
++  using ShouldAnimateExitingBlock = std::function<bool(int, bool)>;
++#ifndef NDEBUG
++  using CheckDuplicateSharedTag = std::function<void(int, int)>;
++#endif
++  using ClearAnimationConfigBlock = std::function<void(int)>;
++  using CancelAnimationBlock = std::function<void(int)>;
++  using FindPrecedingViewTagForTransitionBlock = std::function<int(int)>;
++  using GetSharedGroupBlock = std::function<std::vector<int>(const int)>;
++
++ public:
++  static auto constexpr kJavaDescriptor =
++      "Lcom/swmansion/reanimated/layoutReanimation/LayoutAnimations;";
++  static jni::local_ref<jhybriddata> initHybrid(
++      jni::alias_ref<jhybridobject> jThis);
++  static void registerNatives();
++
++  void startAnimationForTag(
++      int tag,
++      int type,
++      alias_ref<JMap<jstring, jstring>> values);
++  bool hasAnimationForTag(int tag, int type);
++  bool shouldAnimateExiting(int tag, bool shouldAnimate);
++  bool isLayoutAnimationEnabled();
++
++  void setAnimationStartingBlock(AnimationStartingBlock animationStartingBlock);
++  void setHasAnimationBlock(HasAnimationBlock hasAnimationBlock);
++  void setShouldAnimateExitingBlock(
++      ShouldAnimateExitingBlock shouldAnimateExitingBlock);
++#ifndef NDEBUG
++  void setCheckDuplicateSharedTag(
++      CheckDuplicateSharedTag checkDuplicateSharedTag);
++  void checkDuplicateSharedTag(int viewTag, int screenTag);
++#endif
++  void setClearAnimationConfigBlock(
++      ClearAnimationConfigBlock clearAnimationConfigBlock);
++  void setCancelAnimationForTag(CancelAnimationBlock cancelAnimationBlock);
++  void setFindPrecedingViewTagForTransition(
++      FindPrecedingViewTagForTransitionBlock
++          findPrecedingViewTagForTransitionBlock);
++  void setGetSharedGroupBlock(const GetSharedGroupBlock getSharedGroupBlock);
++
++  void progressLayoutAnimation(
++      int tag,
++      const jni::local_ref<JNIHelper::PropsMap> &updates,
++      bool isSharedTransition);
++  void endLayoutAnimation(int tag, bool removeView);
++  void clearAnimationConfigForTag(int tag);
++  void cancelAnimationForTag(int tag);
++  int findPrecedingViewTagForTransition(int tag);
++  jni::local_ref<JArrayInt> getSharedGroup(const int tag);
++
++  void invalidate();
++
++ private:
++  friend HybridBase;
++  jni::global_ref<LayoutAnimations::javaobject> javaPart_;
++  AnimationStartingBlock animationStartingBlock_;
++  HasAnimationBlock hasAnimationBlock_;
++  ShouldAnimateExitingBlock shouldAnimateExitingBlock_;
++  ClearAnimationConfigBlock clearAnimationConfigBlock_;
++  CancelAnimationBlock cancelAnimationBlock_;
++  FindPrecedingViewTagForTransitionBlock
++      findPrecedingViewTagForTransitionBlock_;
++  GetSharedGroupBlock getSharedGroupBlock_;
++#ifndef NDEBUG
++  CheckDuplicateSharedTag checkDuplicateSharedTag_;
++#endif
++
++  explicit LayoutAnimations(
++      jni::alias_ref<LayoutAnimations::jhybridobject> jThis);
++};
++
++}; // namespace reanimated
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/android/NativeProxy.h b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/android/NativeProxy.h
+new file mode 100644
+index 0000000..2ee2cc8
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/reanimated/reanimated/android/NativeProxy.h
+@@ -0,0 +1,281 @@
++#pragma once
++
++#include <reanimated/NativeModules/ReanimatedModuleProxy.h>
++#include <reanimated/android/JNIHelper.h>
++#include <reanimated/android/LayoutAnimations.h>
++
++#include <worklets/android/WorkletsModule.h>
++
++#include <ReactCommon/CallInvokerHolder.h>
++#include <fbjni/fbjni.h>
++#include <jsi/jsi.h>
++#include <react/jni/CxxModuleWrapper.h>
++#include <react/jni/JavaScriptExecutorHolder.h>
++#include <react/jni/WritableNativeMap.h>
++
++#ifdef RCT_NEW_ARCH_ENABLED
++#include <react/fabric/JFabricUIManager.h>
++#include <react/jni/JRuntimeExecutor.h>
++#include <react/renderer/scheduler/Scheduler.h>
++#endif // RCT_NEW_ARCH_ENABLED
++
++#include <memory>
++#include <string>
++#include <unordered_map>
++#include <utility>
++#include <vector>
++
++namespace reanimated {
++
++using namespace facebook;
++using namespace facebook::jni;
++
++class AnimationFrameCallback : public HybridClass<AnimationFrameCallback> {
++ public:
++  static auto constexpr kJavaDescriptor =
++      "Lcom/swmansion/reanimated/nativeProxy/AnimationFrameCallback;";
++
++  void onAnimationFrame(double timestampMs) {
++    callback_(timestampMs);
++  }
++
++  static void registerNatives() {
++    javaClassStatic()->registerNatives({
++        makeNativeMethod(
++            "onAnimationFrame", AnimationFrameCallback::onAnimationFrame),
++    });
++  }
++
++ private:
++  friend HybridBase;
++
++  explicit AnimationFrameCallback(std::function<void(double)> callback)
++      : callback_(std::move(callback)) {}
++
++  std::function<void(double)> callback_;
++};
++
++class EventHandler : public HybridClass<EventHandler> {
++ public:
++  static auto constexpr kJavaDescriptor =
++      "Lcom/swmansion/reanimated/nativeProxy/EventHandler;";
++
++  void receiveEvent(
++      jni::alias_ref<JString> eventKey,
++      jint emitterReactTag,
++      jni::alias_ref<react::WritableMap> event) {
++    handler_(eventKey, emitterReactTag, event);
++  }
++
++  static void registerNatives() {
++    javaClassStatic()->registerNatives({
++        makeNativeMethod("receiveEvent", EventHandler::receiveEvent),
++    });
++  }
++
++ private:
++  friend HybridBase;
++
++  explicit EventHandler(std::function<void(
++                            jni::alias_ref<JString>,
++                            jint emitterReactTag,
++                            jni::alias_ref<react::WritableMap>)> handler)
++      : handler_(std::move(handler)) {}
++
++  std::function<
++      void(jni::alias_ref<JString>, jint, jni::alias_ref<react::WritableMap>)>
++      handler_;
++};
++
++class SensorSetter : public HybridClass<SensorSetter> {
++ public:
++  static auto constexpr kJavaDescriptor =
++      "Lcom/swmansion/reanimated/nativeProxy/SensorSetter;";
++
++  void sensorSetter(jni::alias_ref<JArrayFloat> value, int orientationDegrees) {
++    size_t size = value->size();
++    auto elements = value->getRegion(0, size);
++    double array[7];
++    for (size_t i = 0; i < size; i++) {
++      array[i] = elements[i];
++    }
++    callback_(array, orientationDegrees);
++  }
++
++  static void registerNatives() {
++    javaClassStatic()->registerNatives({
++        makeNativeMethod("sensorSetter", SensorSetter::sensorSetter),
++    });
++  }
++
++ private:
++  friend HybridBase;
++
++  explicit SensorSetter(std::function<void(double[], int)> callback)
++      : callback_(std::move(callback)) {}
++
++  std::function<void(double[], int)> callback_;
++};
++
++class KeyboardWorkletWrapper : public HybridClass<KeyboardWorkletWrapper> {
++ public:
++  static auto constexpr kJavaDescriptor =
++      "Lcom/swmansion/reanimated/keyboard/KeyboardWorkletWrapper;";
++
++  void invoke(int keyboardState, int height) {
++    callback_(keyboardState, height);
++  }
++
++  static void registerNatives() {
++    javaClassStatic()->registerNatives({
++        makeNativeMethod("invoke", KeyboardWorkletWrapper::invoke),
++    });
++  }
++
++ private:
++  friend HybridBase;
++
++  explicit KeyboardWorkletWrapper(std::function<void(int, int)> callback)
++      : callback_(std::move(callback)) {}
++
++  std::function<void(int, int)> callback_;
++};
++
++class NativeProxy : public jni::HybridClass<NativeProxy>,
++                    std::enable_shared_from_this<NativeProxy> {
++ public:
++  static auto constexpr kJavaDescriptor =
++      "Lcom/swmansion/reanimated/NativeProxy;";
++  static jni::local_ref<jhybriddata> initHybrid(
++      jni::alias_ref<jhybridobject> jThis,
++      jni::alias_ref<WorkletsModule::javaobject> jWorkletsModule,
++      jlong jsContext,
++      jni::alias_ref<facebook::react::CallInvokerHolder::javaobject>
++          jsCallInvokerHolder,
++      jni::alias_ref<LayoutAnimations::javaobject> layoutAnimations,
++      const bool isBridgeless
++#ifdef RCT_NEW_ARCH_ENABLED
++      ,
++      jni::alias_ref<facebook::react::JFabricUIManager::javaobject>
++          fabricUIManager
++#endif
++  );
++
++  static void registerNatives();
++
++  ~NativeProxy();
++
++ private:
++  friend HybridBase;
++  jni::global_ref<NativeProxy::javaobject> javaPart_;
++  jsi::Runtime *rnRuntime_;
++  std::shared_ptr<ReanimatedModuleProxy> reanimatedModuleProxy_;
++  jni::global_ref<LayoutAnimations::javaobject> layoutAnimations_;
++#ifndef NDEBUG
++  void checkJavaVersion(jsi::Runtime &);
++  void injectCppVersion();
++#endif // NDEBUG
++#ifdef RCT_NEW_ARCH_ENABLED
++  // removed temporarily, event listener mechanism needs to be fixed on RN side
++  // std::shared_ptr<facebook::react::Scheduler> reactScheduler_;
++  // std::shared_ptr<EventListener> eventListener_;
++#endif // RCT_NEW_ARCH_ENABLED
++  void installJSIBindings();
++  PlatformDepMethodsHolder getPlatformDependentMethods();
++  void setupLayoutAnimations();
++
++  double getAnimationTimestamp();
++  bool isAnyHandlerWaitingForEvent(
++      const std::string &eventName,
++      const int emitterReactTag);
++  void performOperations();
++  bool getIsReducedMotion();
++  void requestRender(std::function<void(double)> onRender);
++  void registerEventHandler();
++  void maybeFlushUIUpdatesQueue();
++  void setGestureState(int handlerTag, int newState);
++  int registerSensor(
++      int sensorType,
++      int interval,
++      int iosReferenceFrame,
++      std::function<void(double[], int)> setter);
++  void unregisterSensor(int sensorId);
++  int subscribeForKeyboardEvents(
++      std::function<void(int, int)> callback,
++      bool isStatusBarTranslucent,
++      bool isNavigationBarTranslucent);
++  void unsubscribeFromKeyboardEvents(int listenerId);
++#ifdef RCT_NEW_ARCH_ENABLED
++  // nothing
++#else
++  jsi::Value
++  obtainProp(jsi::Runtime &rt, const int viewTag, const jsi::Value &propName);
++  void configureProps(
++      jsi::Runtime &rt,
++      const jsi::Value &uiProps,
++      const jsi::Value &nativeProps);
++  void updateProps(jsi::Runtime &rt, const jsi::Value &operations);
++  void scrollTo(int viewTag, double x, double y, bool animated);
++  void dispatchCommand(
++      jsi::Runtime &rt,
++      const int viewTag,
++      const jsi::Value &commandNameValue,
++      const jsi::Value &argsValue);
++  std::vector<std::pair<std::string, double>> measure(int viewTag);
++#endif
++  void handleEvent(
++      jni::alias_ref<JString> eventName,
++      jint emitterReactTag,
++      jni::alias_ref<react::WritableMap> event);
++
++  void progressLayoutAnimation(
++      jsi::Runtime &rt,
++      int tag,
++      const jsi::Object &newProps,
++      bool isSharedTransition);
++
++  /***
++   * Wraps a method of `NativeProxy` in a function object capturing `this`
++   * @tparam TReturn return type of passed method
++   * @tparam TParams parameter types of passed method
++   * @param methodPtr pointer to method to be wrapped
++   * @return a function object with the same signature as the method, calling
++   * that method on `this`
++   */
++  template <class TReturn, class... TParams>
++  std::function<TReturn(TParams...)> bindThis(
++      TReturn (NativeProxy::*methodPtr)(TParams...)) {
++    // It's probably safe to pass `this` as reference here...
++    return [this, methodPtr](TParams &&...args) {
++      return (this->*methodPtr)(std::forward<TParams>(args)...);
++    };
++  }
++
++  template <class Signature>
++  JMethod<Signature> getJniMethod(std::string const &methodName) {
++    return javaPart_->getClass()->getMethod<Signature>(methodName.c_str());
++  }
++
++  explicit NativeProxy(
++      jni::alias_ref<NativeProxy::jhybridobject> jThis,
++      const std::shared_ptr<WorkletsModuleProxy> &workletsModuleProxy,
++      jsi::Runtime *rnRuntime,
++      const std::shared_ptr<facebook::react::CallInvoker> &jsCallInvoker,
++      jni::global_ref<LayoutAnimations::javaobject> layoutAnimations,
++      const bool isBridgeless
++#ifdef RCT_NEW_ARCH_ENABLED
++      ,
++      jni::alias_ref<facebook::react::JFabricUIManager::javaobject>
++          fabricUIManager
++#endif
++  );
++
++#ifdef RCT_NEW_ARCH_ENABLED
++  void commonInit(jni::alias_ref<facebook::react::JFabricUIManager::javaobject>
++                      &fabricUIManager);
++#endif // RCT_NEW_ARCH_ENABLED
++
++  void invalidateCpp();
++};
++
++} // namespace reanimated
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/NativeModules/WorkletsModuleProxy.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/NativeModules/WorkletsModuleProxy.h
+new file mode 100644
+index 0000000..4879fb7
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/NativeModules/WorkletsModuleProxy.h
+@@ -0,0 +1,59 @@
++#pragma once
++
++#include <cxxreact/MessageQueueThread.h>
++#include <worklets/NativeModules/WorkletsModuleProxySpec.h>
++#include <worklets/Tools/JSScheduler.h>
++#include <worklets/Tools/SingleInstanceChecker.h>
++#include <worklets/Tools/UIScheduler.h>
++#include <worklets/WorkletRuntime/WorkletRuntime.h>
++#include <memory>
++#include <string>
++
++namespace worklets {
++
++class WorkletsModuleProxy
++    : public WorkletsModuleProxySpec,
++      public std::enable_shared_from_this<WorkletsModuleProxy> {
++ public:
++  explicit WorkletsModuleProxy(
++      const std::string &valueUnpackerCode,
++      const std::shared_ptr<MessageQueueThread> &jsQueue,
++      const std::shared_ptr<CallInvoker> &jsCallInvoker,
++      const std::shared_ptr<JSScheduler> &jsScheduler,
++      const std::shared_ptr<UIScheduler> &uiScheduler);
++
++  ~WorkletsModuleProxy();
++
++  jsi::Value makeShareableClone(
++      jsi::Runtime &rt,
++      const jsi::Value &value,
++      const jsi::Value &shouldRetainRemote,
++      const jsi::Value &nativeStateSource) override;
++
++  [[nodiscard]] inline std::string getValueUnpackerCode() const {
++    return valueUnpackerCode_;
++  }
++
++  [[nodiscard]] inline std::shared_ptr<MessageQueueThread> getJSQueue() const {
++    return jsQueue_;
++  }
++
++  [[nodiscard]] inline std::shared_ptr<JSScheduler> getJSScheduler() const {
++    return jsScheduler_;
++  }
++
++  [[nodiscard]] inline std::shared_ptr<UIScheduler> getUIScheduler() const {
++    return uiScheduler_;
++  }
++
++ private:
++  const std::string valueUnpackerCode_;
++  const std::shared_ptr<MessageQueueThread> jsQueue_;
++  const std::shared_ptr<JSScheduler> jsScheduler_;
++  const std::shared_ptr<UIScheduler> uiScheduler_;
++#ifndef NDEBUG
++  SingleInstanceChecker<WorkletsModuleProxy> singleInstanceChecker_;
++#endif // NDEBUG
++};
++
++} // namespace worklets
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/NativeModules/WorkletsModuleProxySpec.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/NativeModules/WorkletsModuleProxySpec.h
+new file mode 100644
+index 0000000..c79a86b
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/NativeModules/WorkletsModuleProxySpec.h
+@@ -0,0 +1,25 @@
++#pragma once
++
++#include <ReactCommon/CallInvoker.h>
++#include <ReactCommon/TurboModule.h>
++#include <memory>
++
++using namespace facebook;
++using namespace react;
++
++namespace worklets {
++
++class JSI_EXPORT WorkletsModuleProxySpec : public TurboModule {
++ protected:
++  explicit WorkletsModuleProxySpec(
++      const std::shared_ptr<CallInvoker> jsInvoker);
++
++ public:
++  virtual jsi::Value makeShareableClone(
++      jsi::Runtime &rt,
++      const jsi::Value &value,
++      const jsi::Value &shouldRetainRemote,
++      const jsi::Value &nativeStateSource) = 0;
++};
++
++} // namespace worklets
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Registries/EventHandlerRegistry.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Registries/EventHandlerRegistry.h
+new file mode 100644
+index 0000000..332bf6f
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Registries/EventHandlerRegistry.h
+@@ -0,0 +1,49 @@
++#pragma once
++
++#include <worklets/WorkletRuntime/WorkletRuntime.h>
++
++#include <jsi/jsi.h>
++
++#include <map>
++#include <memory>
++#include <mutex>
++#include <string>
++#include <unordered_map>
++#include <utility>
++
++using namespace facebook;
++
++namespace worklets {
++
++class WorkletEventHandler;
++
++class EventHandlerRegistry {
++  std::map<
++      std::pair<int, std::string>,
++      std::unordered_map<uint64_t, std::shared_ptr<WorkletEventHandler>>>
++      eventMappingsWithTag;
++  std::map<
++      std::string,
++      std::unordered_map<uint64_t, std::shared_ptr<WorkletEventHandler>>>
++      eventMappingsWithoutTag;
++  std::map<uint64_t, std::shared_ptr<WorkletEventHandler>> eventHandlers;
++  std::mutex instanceMutex;
++
++ public:
++  void registerEventHandler(
++      const std::shared_ptr<WorkletEventHandler> &eventHandler);
++  void unregisterEventHandler(const uint64_t id);
++
++  void processEvent(
++      const std::shared_ptr<WorkletRuntime> &uiWorkletRuntime,
++      const double eventTimestamp,
++      const std::string &eventName,
++      const int emitterReactTag,
++      const jsi::Value &eventPayload);
++
++  bool isAnyHandlerWaitingForEvent(
++      const std::string &eventName,
++      const int emitterReactTag);
++};
++
++} // namespace worklets
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Registries/WorkletRuntimeRegistry.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Registries/WorkletRuntimeRegistry.h
+new file mode 100644
+index 0000000..2db90d5
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Registries/WorkletRuntimeRegistry.h
+@@ -0,0 +1,39 @@
++#pragma once
++
++#include <jsi/jsi.h>
++
++#include <mutex>
++#include <set>
++
++using namespace facebook;
++
++namespace worklets {
++
++class WorkletRuntimeRegistry {
++ private:
++  static std::set<jsi::Runtime *> registry_;
++  static std::mutex mutex_; // Protects `registry_`.
++
++  WorkletRuntimeRegistry() {} // private ctor
++
++  static void registerRuntime(jsi::Runtime &runtime) {
++    std::lock_guard<std::mutex> lock(mutex_);
++    registry_.insert(&runtime);
++  }
++
++  static void unregisterRuntime(jsi::Runtime &runtime) {
++    std::lock_guard<std::mutex> lock(mutex_);
++    registry_.erase(&runtime);
++  }
++
++  friend class WorkletRuntimeCollector;
++
++ public:
++  static bool isRuntimeAlive(jsi::Runtime *runtime) {
++    assert(runtime != nullptr);
++    std::lock_guard<std::mutex> lock(mutex_);
++    return registry_.find(runtime) != registry_.end();
++  }
++};
++
++} // namespace worklets
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/SharedItems/Shareables.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/SharedItems/Shareables.h
+new file mode 100644
+index 0000000..62312d7
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/SharedItems/Shareables.h
+@@ -0,0 +1,345 @@
++#pragma once
++
++#include <worklets/Registries/WorkletRuntimeRegistry.h>
++
++#include <jsi/jsi.h>
++
++#include <memory>
++#include <string>
++#include <utility>
++#include <vector>
++
++using namespace facebook;
++
++namespace worklets {
++
++jsi::Function getValueUnpacker(jsi::Runtime &rt);
++
++#ifndef NDEBUG
++jsi::Function getCallGuard(jsi::Runtime &rt);
++#endif // NDEBUG
++
++// If possible, please use `WorkletRuntime::runGuarded` instead.
++template <typename... Args>
++inline jsi::Value runOnRuntimeGuarded(
++    jsi::Runtime &rt,
++    const jsi::Value &function,
++    Args &&...args) {
++  // We only use callGuard in debug mode, otherwise we call the provided
++  // function directly. CallGuard provides a way of capturing exceptions in
++  // JavaScript and propagating them to the main React Native thread such that
++  // they can be presented using RN's LogBox.
++#ifndef NDEBUG
++  return getCallGuard(rt).call(rt, function, args...);
++#else
++  return function.asObject(rt).asFunction(rt).call(rt, args...);
++#endif
++}
++
++inline void cleanupIfRuntimeExists(
++    jsi::Runtime *rt,
++    std::unique_ptr<jsi::Value> &value) {
++  if (rt != nullptr && !WorkletRuntimeRegistry::isRuntimeAlive(rt)) {
++    // The below use of unique_ptr.release prevents the smart pointer from
++    // calling the destructor of the kept object. This effectively results in
++    // leaking some memory. We do this on purpose, as sometimes we would keep
++    // references to JSI objects past the lifetime of its runtime (e.g.,
++    // shared values references from the RN VM holds reference to JSI objects
++    // on the UI runtime). When the UI runtime is terminated, the orphaned JSI
++    // objects would crash the app when their destructors are called, because
++    // they call into a memory that's managed by the terminated runtime. We
++    // accept the tradeoff of leaking memory here, as it has a limited impact.
++    // This scenario can only occur when the React instance is torn down which
++    // happens in development mode during app reloads, or in production when
++    // the app is being shut down gracefully by the system. An alternative
++    // solution would require us to keep track of all JSI values that are in
++    // use which would require additional data structure and compute spent on
++    // bookkeeping that only for the sake of destroying the values in time
++    // before the runtime is terminated. Note that the underlying memory that
++    // jsi::Value refers to is managed by the VM and gets freed along with the
++    // runtime.
++    value.release();
++  }
++}
++
++class Shareable {
++ public:
++  virtual jsi::Value toJSValue(jsi::Runtime &rt) = 0;
++
++  virtual ~Shareable();
++
++  enum ValueType {
++    UndefinedType,
++    NullType,
++    BooleanType,
++    NumberType,
++    // SymbolType, TODO
++    BigIntType,
++    StringType,
++    ObjectType,
++    ArrayType,
++    WorkletType,
++    RemoteFunctionType,
++    HandleType,
++    HostObjectType,
++    HostFunctionType,
++    ArrayBufferType,
++  };
++
++  explicit Shareable(ValueType valueType) : valueType_(valueType) {}
++
++  inline ValueType valueType() const {
++    return valueType_;
++  }
++
++  static std::shared_ptr<Shareable> undefined();
++
++ protected:
++  ValueType valueType_;
++};
++
++template <typename BaseClass>
++class RetainingShareable : virtual public BaseClass {
++ private:
++  jsi::Runtime *primaryRuntime_;
++  jsi::Runtime *secondaryRuntime_;
++  std::unique_ptr<jsi::Value> secondaryValue_;
++
++ public:
++  template <typename... Args>
++  explicit RetainingShareable(jsi::Runtime &rt, Args &&...args)
++      : BaseClass(rt, std::forward<Args>(args)...), primaryRuntime_(&rt) {}
++
++  jsi::Value toJSValue(jsi::Runtime &rt);
++
++  ~RetainingShareable() {
++    cleanupIfRuntimeExists(secondaryRuntime_, secondaryValue_);
++  }
++};
++
++class ShareableJSRef : public jsi::HostObject {
++ private:
++  const std::shared_ptr<Shareable> value_;
++
++ public:
++  explicit ShareableJSRef(const std::shared_ptr<Shareable> &value)
++      : value_(value) {}
++
++  virtual ~ShareableJSRef();
++
++  std::shared_ptr<Shareable> value() const {
++    return value_;
++  }
++
++  static jsi::Object newHostObject(
++      jsi::Runtime &rt,
++      const std::shared_ptr<Shareable> &value) {
++    return jsi::Object::createFromHostObject(
++        rt, std::make_shared<ShareableJSRef>(value));
++  }
++};
++
++jsi::Value makeShareableClone(
++    jsi::Runtime &rt,
++    const jsi::Value &value,
++    const jsi::Value &shouldRetainRemote,
++    const jsi::Value &nativeStateSource);
++
++std::shared_ptr<Shareable> extractShareableOrThrow(
++    jsi::Runtime &rt,
++    const jsi::Value &maybeShareableValue,
++    const std::string &errorMessage =
++        "[Reanimated] Expecting the object to be of type ShareableJSRef.");
++
++template <typename T>
++std::shared_ptr<T> extractShareableOrThrow(
++    jsi::Runtime &rt,
++    const jsi::Value &shareableRef,
++    const std::string &errorMessage =
++        "[Reanimated] Provided shareable object is of an incompatible type.") {
++  auto res = std::dynamic_pointer_cast<T>(
++      extractShareableOrThrow(rt, shareableRef, errorMessage));
++  if (!res) {
++    throw std::runtime_error(errorMessage);
++  }
++  return res;
++}
++
++class ShareableArray : public Shareable {
++ public:
++  ShareableArray(jsi::Runtime &rt, const jsi::Array &array);
++
++  jsi::Value toJSValue(jsi::Runtime &rt) override;
++
++ protected:
++  std::vector<std::shared_ptr<Shareable>> data_;
++};
++
++class ShareableObject : public Shareable {
++ public:
++  ShareableObject(jsi::Runtime &rt, const jsi::Object &object);
++
++  ShareableObject(
++      jsi::Runtime &rt,
++      const jsi::Object &object,
++      const jsi::Value &nativeStateSource);
++
++  jsi::Value toJSValue(jsi::Runtime &rt) override;
++
++ protected:
++  std::vector<std::pair<std::string, std::shared_ptr<Shareable>>> data_;
++  std::shared_ptr<jsi::NativeState> nativeState_;
++};
++
++class ShareableHostObject : public Shareable {
++ public:
++  ShareableHostObject(
++      jsi::Runtime &,
++      const std::shared_ptr<jsi::HostObject> &hostObject)
++      : Shareable(HostObjectType), hostObject_(hostObject) {}
++
++  jsi::Value toJSValue(jsi::Runtime &rt) override;
++
++ protected:
++  const std::shared_ptr<jsi::HostObject> hostObject_;
++};
++
++class ShareableHostFunction : public Shareable {
++ public:
++  ShareableHostFunction(jsi::Runtime &rt, jsi::Function function)
++      : Shareable(HostFunctionType),
++        hostFunction_(
++            (assert(function.isHostFunction(rt)),
++             function.getHostFunction(rt))),
++        name_(function.getProperty(rt, "name").asString(rt).utf8(rt)),
++        paramCount_(function.getProperty(rt, "length").asNumber()) {}
++
++  jsi::Value toJSValue(jsi::Runtime &rt) override;
++
++ protected:
++  const jsi::HostFunctionType hostFunction_;
++  const std::string name_;
++  const unsigned int paramCount_;
++};
++
++class ShareableArrayBuffer : public Shareable {
++ public:
++  ShareableArrayBuffer(jsi::Runtime &rt, const jsi::ArrayBuffer &arrayBuffer)
++      : Shareable(ArrayBufferType),
++        data_(
++            arrayBuffer.data(rt),
++            arrayBuffer.data(rt) + arrayBuffer.size(rt)) {}
++
++  jsi::Value toJSValue(jsi::Runtime &rt) override;
++
++ protected:
++  const std::vector<uint8_t> data_;
++};
++
++class ShareableWorklet : public ShareableObject {
++ public:
++  ShareableWorklet(jsi::Runtime &rt, const jsi::Object &worklet)
++      : ShareableObject(rt, worklet) {
++    valueType_ = WorkletType;
++  }
++
++  jsi::Value toJSValue(jsi::Runtime &rt) override;
++};
++
++class ShareableRemoteFunction
++    : public Shareable,
++      public std::enable_shared_from_this<ShareableRemoteFunction> {
++ private:
++  jsi::Runtime *runtime_;
++#ifndef NDEBUG
++  const std::string name_;
++#endif
++  std::unique_ptr<jsi::Value> function_;
++
++ public:
++  ShareableRemoteFunction(jsi::Runtime &rt, jsi::Function &&function)
++      : Shareable(RemoteFunctionType),
++        runtime_(&rt),
++#ifndef NDEBUG
++        name_(function.getProperty(rt, "name").asString(rt).utf8(rt)),
++#endif
++        function_(std::make_unique<jsi::Value>(rt, std::move(function))) {
++  }
++
++  ~ShareableRemoteFunction() {
++    cleanupIfRuntimeExists(runtime_, function_);
++  }
++
++  jsi::Value toJSValue(jsi::Runtime &rt) override;
++};
++
++class ShareableHandle : public Shareable {
++ private:
++  // We don't release the initializer since the handle can get
++  // initialized in parallel on multiple threads. However this is not a problem,
++  // since the final value is taken from a cache on the runtime which guarantees
++  // sequential access.
++  std::unique_ptr<ShareableObject> initializer_;
++  std::unique_ptr<jsi::Value> remoteValue_;
++  mutable std::mutex initializationMutex_;
++  jsi::Runtime *remoteRuntime_;
++
++ public:
++  ShareableHandle(jsi::Runtime &rt, const jsi::Object &initializerObject)
++      : Shareable(HandleType),
++        initializer_(std::make_unique<ShareableObject>(rt, initializerObject)) {
++  }
++
++  ~ShareableHandle() {
++    cleanupIfRuntimeExists(remoteRuntime_, remoteValue_);
++  }
++
++  jsi::Value toJSValue(jsi::Runtime &rt) override;
++};
++
++class ShareableString : public Shareable {
++ public:
++  explicit ShareableString(const std::string &string)
++      : Shareable(StringType), data_(string) {}
++
++  jsi::Value toJSValue(jsi::Runtime &rt) override;
++
++ protected:
++  const std::string data_;
++};
++
++class ShareableBigInt : public Shareable {
++ public:
++  explicit ShareableBigInt(jsi::Runtime &rt, const jsi::BigInt &bigint)
++      : Shareable(BigIntType), string_(bigint.toString(rt).utf8(rt)) {}
++
++  jsi::Value toJSValue(jsi::Runtime &rt) override;
++
++ protected:
++  const std::string string_;
++};
++
++class ShareableScalar : public Shareable {
++ public:
++  explicit ShareableScalar(double number) : Shareable(NumberType) {
++    data_.number = number;
++  }
++  explicit ShareableScalar(bool boolean) : Shareable(BooleanType) {
++    data_.boolean = boolean;
++  }
++  ShareableScalar() : Shareable(UndefinedType) {}
++  explicit ShareableScalar(std::nullptr_t) : Shareable(NullType) {}
++
++  jsi::Value toJSValue(jsi::Runtime &);
++
++ protected:
++  union Data {
++    bool boolean;
++    double number;
++  };
++
++ private:
++  Data data_;
++};
++
++} // namespace worklets
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/AsyncQueue.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/AsyncQueue.h
+new file mode 100644
+index 0000000..af565fc
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/AsyncQueue.h
+@@ -0,0 +1,35 @@
++#pragma once
++
++#include <jsi/jsi.h>
++
++#include <atomic>
++#include <condition_variable>
++#include <memory>
++#include <queue>
++#include <string>
++#include <thread>
++#include <utility>
++#include <vector>
++
++namespace worklets {
++
++struct AsyncQueueState {
++  std::atomic_bool running{true};
++  std::mutex mutex;
++  std::condition_variable cv;
++  std::queue<std::function<void()>> queue;
++};
++
++class AsyncQueue {
++ public:
++  explicit AsyncQueue(std::string name);
++
++  ~AsyncQueue();
++
++  void push(std::function<void()> &&job);
++
++ private:
++  const std::shared_ptr<AsyncQueueState> state_;
++};
++
++} // namespace worklets
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/Defs.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/Defs.h
+new file mode 100644
+index 0000000..fccf8f6
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/Defs.h
+@@ -0,0 +1,10 @@
++#pragma once
++
++/*
++On Android JS_RUNTIME_HERMES is set in CMakeList.txt,
++but on iOS there is no simple way to defect if Hermes exists
++so we have to check if headers are available.
++*/
++#if __APPLE__ && __has_include(<hermes/hermes.h>)
++#define JS_RUNTIME_HERMES 1
++#endif
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/JSISerializer.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/JSISerializer.h
+new file mode 100644
+index 0000000..55b509c
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/JSISerializer.h
+@@ -0,0 +1,47 @@
++#pragma once
++
++#include <jsi/jsi.h>
++#include <string>
++#include <vector>
++
++using namespace facebook;
++
++namespace worklets {
++
++class JSISerializer {
++ public:
++  explicit JSISerializer(jsi::Runtime &rt);
++  std::string stringifyJSIValueRecursively(
++      const jsi::Value &value,
++      bool isTopLevel = false);
++
++ private:
++  std::string stringifyArray(const jsi::Array &arr);
++  std::string stringifyFunction(const jsi::Function &func);
++  std::string stringifyHostObject(jsi::HostObject &hostObject);
++  std::string stringifyObject(const jsi::Object &object);
++  std::string stringifyError(const jsi::Object &object);
++  std::string stringifySet(const jsi::Object &object);
++  std::string stringifyMap(const jsi::Object &object);
++  std::string stringifyWithName(const jsi::Object &object);
++  std::string stringifyWithToString(const jsi::Object &object);
++  std::string stringifyRecursiveType(const jsi::Object &object);
++
++  bool hasBeenVisited(const jsi::Object &object) {
++    return visitedNodes_.getPropertyAsFunction(rt_, "has")
++        .callWithThis(rt_, visitedNodes_, object)
++        .getBool();
++  }
++
++  void markAsVisited(const jsi::Object &object) {
++    visitedNodes_.getPropertyAsFunction(rt_, "add")
++        .callWithThis(rt_, visitedNodes_, object);
++  }
++
++  jsi::Runtime &rt_;
++  jsi::Object visitedNodes_;
++};
++
++std::string stringifyJSIValue(jsi::Runtime &rt, const jsi::Value &value);
++
++} // namespace worklets
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/JSLogger.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/JSLogger.h
+new file mode 100644
+index 0000000..ce63310
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/JSLogger.h
+@@ -0,0 +1,20 @@
++#pragma once
++
++#include <worklets/Tools/JSScheduler.h>
++
++#include <memory>
++#include <string>
++
++namespace worklets {
++
++class JSLogger {
++ public:
++  explicit JSLogger(const std::shared_ptr<JSScheduler> &jsScheduler)
++      : jsScheduler_(jsScheduler) {}
++  void warnOnJS(const std::string &warning) const;
++
++ private:
++  const std::shared_ptr<JSScheduler> jsScheduler_;
++};
++
++} // namespace worklets
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/JSScheduler.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/JSScheduler.h
+new file mode 100644
+index 0000000..c85ab8a
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/JSScheduler.h
+@@ -0,0 +1,29 @@
++#pragma once
++
++#include <ReactCommon/CallInvoker.h>
++#include <ReactCommon/RuntimeExecutor.h>
++#include <jsi/jsi.h>
++
++#include <memory>
++
++using namespace facebook;
++using namespace react;
++
++namespace worklets {
++
++class JSScheduler {
++  using Job = std::function<void(jsi::Runtime &rt)>;
++
++ public:
++  explicit JSScheduler(
++      jsi::Runtime &rnRuntime,
++      const std::shared_ptr<CallInvoker> &jsCallInvoker);
++
++  const std::function<void(Job)> scheduleOnJS = nullptr;
++
++ protected:
++  jsi::Runtime &rnRuntime_;
++  const std::shared_ptr<CallInvoker> jsCallInvoker_ = nullptr;
++};
++
++} // namespace worklets
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/PlatformLogger.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/PlatformLogger.h
+new file mode 100644
+index 0000000..de58cb9
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/PlatformLogger.h
+@@ -0,0 +1,16 @@
++#pragma once
++
++#include <string>
++
++namespace worklets {
++
++class PlatformLogger {
++ public:
++  static void log(const char *str);
++  static void log(const std::string &str);
++  static void log(const double d);
++  static void log(const int i);
++  static void log(const bool b);
++};
++
++} // namespace worklets
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/ReanimatedJSIUtils.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/ReanimatedJSIUtils.h
+new file mode 100644
+index 0000000..88b73dc
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/ReanimatedJSIUtils.h
+@@ -0,0 +1,199 @@
++#pragma once
++
++#include <jsi/jsi.h>
++#include <sstream>
++#include <string>
++#include <tuple>
++#include <utility>
++
++using namespace facebook;
++
++namespace worklets::jsi_utils {
++
++// `get` functions take a pointer to `jsi::Value` and
++// call an appropriate method to cast to the native type
++template <typename T>
++inline T get(jsi::Runtime &rt, const jsi::Value *value);
++
++template <>
++inline double get<double>(jsi::Runtime &, const jsi::Value *value) {
++  return value->asNumber();
++}
++
++template <>
++inline int get<int>(jsi::Runtime &, const jsi::Value *value) {
++  return value->asNumber();
++}
++
++template <>
++inline bool get<bool>(jsi::Runtime &, const jsi::Value *value) {
++  if (!value->isBool()) {
++    throw jsi::JSINativeException("[Reanimated] Expected a boolean.");
++  }
++  return value->getBool();
++}
++
++template <>
++inline jsi::Object get<jsi::Object>(jsi::Runtime &rt, const jsi::Value *value) {
++  return value->asObject(rt);
++}
++
++template <>
++inline jsi::Value const &get<jsi::Value const &>(
++    jsi::Runtime &,
++    const jsi::Value *value) {
++  return *value;
++}
++
++// `convertArgs` functions take a variadic template parameter of target (C++)
++// argument types `Targs` and a `jsi::Value` array `args`, and converts `args`
++// to a tuple of typed C++ arguments to be passed to the native implementation.
++// This is accomplished by dispatching (at compile time) to the correct
++// implementation based on the first type of `Targs`, using SFINAE to select the
++// correct specialization, and concatenating with the result of recursion on the
++// rest of `Targs`
++
++// BEGIN implementations for `convertArgs` specializations.
++// specialization for empty `Targs` - returns an empty tuple
++template <typename... Args>
++inline std::enable_if_t<(sizeof...(Args) == 0), std::tuple<>> convertArgs(
++    jsi::Runtime &,
++    const jsi::Value *) {
++  return std::make_tuple();
++}
++
++// calls `get<First>` on the first argument to retrieve the native type,
++// then calls recursively on the rest of `args`
++// and returns the concatenation of results
++template <typename T, typename... Rest>
++inline std::tuple<T, Rest...> convertArgs(
++    jsi::Runtime &rt,
++    const jsi::Value *args) {
++  auto arg = std::tuple<T>(get<T>(rt, args));
++  auto rest = convertArgs<Rest...>(rt, std::next(args));
++  return std::tuple_cat(std::move(arg), std::move(rest));
++}
++// END implementations for `convertArgs` specializations.
++
++// returns a tuple with the result of casting `args` to appropriate
++// native C++ types needed to call `function`
++template <typename Ret, typename... Args>
++std::tuple<Args...> getArgsForFunction(
++    std::function<Ret(Args...)>,
++    jsi::Runtime &rt,
++    const jsi::Value *args,
++    const size_t count) {
++  assert(sizeof...(Args) == count);
++  return convertArgs<Args...>(rt, args);
++}
++
++// returns a tuple with the result of casting `args` to appropriate
++// native C++ types needed to call `function`,
++// passing `rt` as the first argument
++template <typename Ret, typename... Args>
++std::tuple<jsi::Runtime &, Args...> getArgsForFunction(
++    std::function<Ret(jsi::Runtime &, Args...)>,
++    jsi::Runtime &rt,
++    const jsi::Value *args,
++    const size_t count) {
++  assert(sizeof...(Args) == count);
++  return std::tuple_cat(std::tie(rt), convertArgs<Args...>(rt, args));
++}
++
++// calls `function` with `args`
++template <typename Ret, typename... Args>
++inline jsi::Value apply(
++    std::function<Ret(Args...)> function,
++    std::tuple<Args...> args) {
++  return std::apply(function, std::move(args));
++}
++
++// calls string-returning `function` with `args`,
++// and returns the string
++template <typename... Args>
++inline jsi::Value apply(
++    jsi::Runtime &rt,
++    std::function<std::string(Args...)> function,
++    std::tuple<Args...> args) {
++  return jsi::String::createFromUtf8(rt, std::apply(function, std::move(args)));
++}
++
++// calls void-returning `function` with `args`,
++// and returns `undefined`
++template <typename... Args>
++inline jsi::Value apply(
++    std::function<void(Args...)> function,
++    std::tuple<Args...> args) {
++  std::apply(function, std::move(args));
++  return jsi::Value::undefined();
++}
++
++// returns a function with JSI calling convention
++// from a native function `function`
++template <typename Fun>
++jsi::HostFunctionType createHostFunction(Fun function) {
++  return [function](
++             jsi::Runtime &rt,
++             const jsi::Value &,
++             const jsi::Value *args,
++             const size_t count) {
++    auto argz = getArgsForFunction(function, rt, args, count);
++    return apply(function, std::move(argz));
++  };
++}
++
++// returns a function with JSI calling convention
++// from a native function `function` returning a string
++template <typename... Args>
++jsi::HostFunctionType createHostFunction(
++    std::function<std::string(Args...)> function) {
++  return [function](
++             jsi::Runtime &rt,
++             const jsi::Value &,
++             const jsi::Value *args,
++             const size_t count) {
++    auto argz = getArgsForFunction(function, rt, args, count);
++    return apply(rt, function, std::move(argz));
++  };
++}
++
++// used to determine if `function<Ret(Args...)>`
++// takes `Runtime &` as its first argument
++template <typename... Args>
++struct takes_runtime {
++  static constexpr size_t value = 0;
++};
++
++// specialization for `function<Ret(Runtime &, Rest...)`
++template <typename... Rest>
++struct takes_runtime<jsi::Runtime &, Rest...> {
++  static constexpr size_t value = 1;
++};
++
++// creates a JSI compatible function from `function`
++// and installs it as a global function named `name`
++// in the `rt` JS runtime
++template <typename Ret, typename... Args>
++void installJsiFunction(
++    jsi::Runtime &rt,
++    std::string_view name,
++    std::function<Ret(Args...)> function) {
++  auto clb = createHostFunction(function);
++  auto argsCount = sizeof...(Args) - takes_runtime<Args...>::value;
++  jsi::Value jsiFunction = jsi::Function::createFromHostFunction(
++      rt, jsi::PropNameID::forAscii(rt, name.data()), argsCount, clb);
++  rt.global().setProperty(rt, name.data(), jsiFunction);
++}
++
++// this should take care of passing types convertible to `function`
++template <typename Fun>
++void installJsiFunction(jsi::Runtime &rt, std::string_view name, Fun function) {
++  installJsiFunction(rt, name, std::function(std::forward<Fun>(function)));
++}
++
++jsi::Array convertStringToArray(
++    jsi::Runtime &rt,
++    const std::string &value,
++    const unsigned int expectedSize);
++
++} // namespace worklets::jsi_utils
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/ReanimatedVersion.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/ReanimatedVersion.h
+new file mode 100644
+index 0000000..80dfa75
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/ReanimatedVersion.h
+@@ -0,0 +1,19 @@
++#pragma once
++
++#include <worklets/Tools/JSLogger.h>
++
++#include <jsi/jsi.h>
++
++#include <memory>
++#include <string>
++
++using namespace facebook;
++
++namespace worklets {
++
++std::string getReanimatedCppVersion();
++void injectReanimatedCppVersion(jsi::Runtime &);
++bool matchVersion(const std::string &, const std::string &);
++void checkJSVersion(jsi::Runtime &, const std::shared_ptr<JSLogger> &);
++
++}; // namespace worklets
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/SingleInstanceChecker.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/SingleInstanceChecker.h
+new file mode 100644
+index 0000000..8707fab
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/SingleInstanceChecker.h
+@@ -0,0 +1,72 @@
++#pragma once
++
++#ifndef NDEBUG
++
++#include <cxxabi.h>
++
++#include <atomic>
++#include <cassert>
++#include <iostream>
++#include <string>
++
++#ifdef ANDROID
++#include <android/log.h>
++#endif // ANDROID
++
++namespace worklets {
++
++// This is a class that counts how many instances of a different class there
++// are. It is meant only to be used with classes that should only have one
++// instance.
++
++template <class T>
++class SingleInstanceChecker {
++ public:
++  SingleInstanceChecker();
++  ~SingleInstanceChecker();
++
++ private:
++  void assertWithMessage(bool condition, std::string message) {
++    if (!condition) {
++#ifdef ANDROID
++      __android_log_print(
++          ANDROID_LOG_WARN, "Reanimated", "%s", message.c_str());
++#else
++      std::cerr << "[Reanimated] " << message << std::endl;
++#endif
++
++#ifdef IS_REANIMATED_EXAMPLE_APP
++      assert(false);
++#endif
++    }
++  }
++
++  // A static field will exist separately for every class template.
++  // This has to be inline for automatic initialization.
++  inline static std::atomic<int> instanceCount_;
++};
++
++template <class T>
++SingleInstanceChecker<T>::SingleInstanceChecker() {
++  int status = 0;
++  std::string className =
++      __cxxabiv1::__cxa_demangle(typeid(T).name(), nullptr, nullptr, &status);
++
++  // React Native can spawn up to two instances of a Native Module at the same
++  // time. This happens during a reload when a new instance of React Native is
++  // created while simultaneously the old one is torn down.
++  instanceCount_++;
++  assertWithMessage(
++      instanceCount_ <= 2,
++      "[Reanimated] More than two instances of " + className +
++          " present. This may indicate a memory leak due to a retain cycle.");
++}
++
++template <class T>
++SingleInstanceChecker<T>::~SingleInstanceChecker() {
++  instanceCount_--;
++}
++
++} // namespace worklets
++
++#endif // NDEBUG
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/ThreadSafeQueue.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/ThreadSafeQueue.h
+new file mode 100644
+index 0000000..de53d84
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/ThreadSafeQueue.h
+@@ -0,0 +1,49 @@
++#pragma once
++
++#include <condition_variable>
++#include <mutex>
++#include <queue>
++#include <utility>
++
++namespace worklets {
++
++//
++// Copyright (c) 2013 Juan Palacios juan.palacios.puyana@gmail.com
++// Subject to the BSD 2-Clause License
++// - see < https://opensource.org/license/bsd-2-clause/ >
++//
++template <typename T>
++class ThreadSafeQueue {
++ public:
++  T pop() {
++    std::unique_lock<std::mutex> mlock(mutex_);
++    while (queue_.empty()) {
++      cond_.wait(mlock);
++    }
++    const auto item = queue_.front();
++    queue_.pop();
++    return item;
++  }
++
++  void push(T &&item) {
++    std::unique_lock<std::mutex> mlock(mutex_);
++    queue_.push(std::move(item));
++    mlock.unlock();
++    cond_.notify_one();
++  }
++
++  bool empty() const {
++    std::unique_lock<std::mutex> mlock(mutex_);
++    const auto res = queue_.empty();
++    mlock.unlock();
++    cond_.notify_one();
++    return res;
++  }
++
++ private:
++  std::queue<T> queue_;
++  mutable std::mutex mutex_;
++  mutable std::condition_variable cond_;
++};
++
++} // namespace worklets
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/UIScheduler.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/UIScheduler.h
+new file mode 100644
+index 0000000..8b9aca9
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/UIScheduler.h
+@@ -0,0 +1,22 @@
++#pragma once
++
++#include <worklets/Tools/ThreadSafeQueue.h>
++
++#include <ReactCommon/CallInvoker.h>
++
++#include <atomic>
++
++namespace worklets {
++
++class UIScheduler {
++ public:
++  virtual void scheduleOnUI(std::function<void()> job);
++  virtual void triggerUI();
++  virtual ~UIScheduler() = default;
++
++ protected:
++  std::atomic<bool> scheduledOnUI_{false};
++  ThreadSafeQueue<std::function<void()>> uiJobs_;
++};
++
++} // namespace worklets
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/WorkletEventHandler.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/WorkletEventHandler.h
+new file mode 100644
+index 0000000..4eac297
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/Tools/WorkletEventHandler.h
+@@ -0,0 +1,41 @@
++#pragma once
++
++#include <worklets/SharedItems/Shareables.h>
++#include <worklets/WorkletRuntime/WorkletRuntime.h>
++
++#include <jsi/jsi.h>
++
++#include <memory>
++#include <string>
++
++using namespace facebook;
++
++namespace worklets {
++
++class WorkletEventHandler {
++  const uint64_t handlerId_;
++  const uint64_t emitterReactTag_;
++  const std::string eventName_;
++  const std::shared_ptr<ShareableWorklet> handlerFunction_;
++
++ public:
++  WorkletEventHandler(
++      const uint64_t handlerId,
++      const std::string &eventName,
++      const uint64_t emitterReactTag,
++      const std::shared_ptr<ShareableWorklet> &handlerFunction)
++      : handlerId_(handlerId),
++        emitterReactTag_(emitterReactTag),
++        eventName_(eventName),
++        handlerFunction_(handlerFunction) {}
++  void process(
++      const std::shared_ptr<WorkletRuntime> &workletRuntime,
++      double eventTimestamp,
++      const jsi::Value &eventValue) const;
++  uint64_t getHandlerId() const;
++  const std::string &getEventName() const;
++  uint64_t getEmitterReactTag() const;
++  bool shouldIgnoreEmitterReactTag() const;
++};
++
++} // namespace worklets
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/WorkletRuntime/RNRuntimeWorkletDecorator.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/WorkletRuntime/RNRuntimeWorkletDecorator.h
+new file mode 100644
+index 0000000..41cf12b
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/WorkletRuntime/RNRuntimeWorkletDecorator.h
+@@ -0,0 +1,19 @@
++#pragma once
++
++#include <jsi/jsi.h>
++#include <worklets/NativeModules/WorkletsModuleProxy.h>
++#include <memory>
++
++using namespace facebook;
++
++namespace worklets {
++
++class RNRuntimeWorkletDecorator {
++  // TODO: Rename to `RNRuntimeWorkletsDecorator` or something more suitable.
++ public:
++  static void decorate(
++      jsi::Runtime &rnRuntime,
++      const std::shared_ptr<WorkletsModuleProxy> &workletsModuleProxy);
++};
++
++} // namespace worklets
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/WorkletRuntime/ReanimatedHermesRuntime.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/WorkletRuntime/ReanimatedHermesRuntime.h
+new file mode 100644
+index 0000000..5bd2350
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/WorkletRuntime/ReanimatedHermesRuntime.h
+@@ -0,0 +1,127 @@
++#pragma once
++
++#include <worklets/Tools/Defs.h>
++
++// Only include this file in Hermes-enabled builds as some platforms (like tvOS)
++// don't support hermes and it causes the compilation to fail.
++#if JS_RUNTIME_HERMES
++
++#include <cxxreact/MessageQueueThread.h>
++#include <hermes/hermes.h>
++#include <jsi/decorator.h>
++#include <jsi/jsi.h>
++
++#include <atomic>
++#include <memory>
++#include <string>
++#include <thread>
++
++#if HERMES_ENABLE_DEBUGGER
++#include <hermes/inspector-modern/chrome/Registration.h>
++#endif // HERMES_ENABLE_DEBUGGER
++
++namespace worklets {
++
++using namespace facebook;
++using namespace react;
++#if HERMES_ENABLE_DEBUGGER
++using namespace facebook::hermes::inspector_modern;
++#endif // HERMES_ENABLE_DEBUGGER
++
++// ReentrancyCheck is copied from React Native
++// from ReactCommon/hermes/executor/HermesExecutorFactory.cpp
++// https://github.com/facebook/react-native/blob/main/packages/react-native/ReactCommon/hermes/executor/HermesExecutorFactory.cpp
++struct ReanimatedReentrancyCheck {
++  // This is effectively a very subtle and complex assert, so only
++  // include it in builds which would include asserts.
++#ifndef NDEBUG
++  ReanimatedReentrancyCheck() : tid(std::thread::id()), depth(0) {}
++
++  void before() {
++    std::thread::id this_id = std::this_thread::get_id();
++    std::thread::id expected = std::thread::id();
++
++    // A note on memory ordering: the main purpose of these checks is
++    // to observe a before/before race, without an intervening after.
++    // This will be detected by the compare_exchange_strong atomicity
++    // properties, regardless of memory order.
++    //
++    // For everything else, it is easiest to think of 'depth' as a
++    // proxy for any access made inside the VM.  If access to depth
++    // are reordered incorrectly, the same could be true of any other
++    // operation made by the VM.  In fact, using acquire/release
++    // memory ordering could create barriers which mask a programmer
++    // error.  So, we use relaxed memory order, to avoid masking
++    // actual ordering errors.  Although, in practice, ordering errors
++    // of this sort would be surprising, because the decorator would
++    // need to call after() without before().
++
++    if (tid.compare_exchange_strong(
++            expected, this_id, std::memory_order_relaxed)) {
++      // Returns true if tid and expected were the same.  If they
++      // were, then the stored tid referred to no thread, and we
++      // atomically saved this thread's tid.  Now increment depth.
++      assert(depth == 0 && "[Reanimated] No thread id, but depth != 0");
++      ++depth;
++    } else if (expected == this_id) {
++      // If the stored tid referred to a thread, expected was set to
++      // that value.  If that value is this thread's tid, that's ok,
++      // just increment depth again.
++      assert(depth != 0 && "[Reanimated] Thread id was set, but depth == 0");
++      ++depth;
++    } else {
++      // The stored tid was some other thread.  This indicates a bad
++      // programmer error, where VM methods were called on two
++      // different threads unsafely.  Fail fast (and hard) so the
++      // crash can be analyzed.
++      __builtin_trap();
++    }
++  }
++
++  void after() {
++    assert(
++        tid.load(std::memory_order_relaxed) == std::this_thread::get_id() &&
++        "[Reanimated] No thread id in after()");
++    if (--depth == 0) {
++      // If we decremented depth to zero, store no-thread into tid.
++      std::thread::id expected = std::this_thread::get_id();
++      bool didWrite = tid.compare_exchange_strong(
++          expected, std::thread::id(), std::memory_order_relaxed);
++      assert(didWrite && "[Reanimated] Decremented to zero, but no tid write");
++    }
++  }
++
++  std::atomic<std::thread::id> tid;
++  // This is not atomic, as it is only written or read from the owning
++  // thread.
++  unsigned int depth;
++#endif // NDEBUG
++};
++
++// This is in fact a subclass of jsi::Runtime! WithRuntimeDecorator is a
++// template class that is a subclass of DecoratedRuntime which is also a
++// template class that then inherits its template, which in this case is
++// jsi::Runtime. So the inheritance is: ReanimatedHermesRuntime ->
++// WithRuntimeDecorator -> DecoratedRuntime -> jsi::Runtime You can find out
++// more about this in ReactCommon/jsi/jsi/Decorator.h or by following this link:
++// https://github.com/facebook/react-native/blob/main/packages/react-native/ReactCommon/jsi/jsi/decorator.h
++class ReanimatedHermesRuntime
++    : public jsi::WithRuntimeDecorator<ReanimatedReentrancyCheck> {
++ public:
++  ReanimatedHermesRuntime(
++      std::unique_ptr<facebook::hermes::HermesRuntime> runtime,
++      const std::shared_ptr<MessageQueueThread> &jsQueue,
++      const std::string &name);
++  ~ReanimatedHermesRuntime();
++
++ private:
++  std::unique_ptr<facebook::hermes::HermesRuntime> runtime_;
++  ReanimatedReentrancyCheck reentrancyCheck_;
++#if HERMES_ENABLE_DEBUGGER
++  chrome::DebugSessionToken debugToken_;
++#endif // HERMES_ENABLE_DEBUGGER
++};
++
++} // namespace worklets
++
++#endif // JS_RUNTIME_HERMES
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/WorkletRuntime/ReanimatedRuntime.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/WorkletRuntime/ReanimatedRuntime.h
+new file mode 100644
+index 0000000..670008f
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/WorkletRuntime/ReanimatedRuntime.h
+@@ -0,0 +1,22 @@
++#pragma once
++
++#include <cxxreact/MessageQueueThread.h>
++#include <jsi/jsi.h>
++
++#include <memory>
++#include <string>
++
++namespace worklets {
++
++using namespace facebook;
++using namespace react;
++
++class ReanimatedRuntime {
++ public:
++  static std::shared_ptr<jsi::Runtime> make(
++      jsi::Runtime &rnRuntime,
++      const std::shared_ptr<MessageQueueThread> &jsQueue,
++      const std::string &name);
++};
++
++} // namespace worklets
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/WorkletRuntime/WorkletRuntime.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/WorkletRuntime/WorkletRuntime.h
+new file mode 100644
+index 0000000..153b73a
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/WorkletRuntime/WorkletRuntime.h
+@@ -0,0 +1,90 @@
++#pragma once
++
++#include <cxxreact/MessageQueueThread.h>
++#include <jsi/jsi.h>
++
++#include <worklets/SharedItems/Shareables.h>
++#include <worklets/Tools/AsyncQueue.h>
++#include <worklets/Tools/JSScheduler.h>
++
++#include <memory>
++#include <string>
++#include <utility>
++#include <vector>
++
++using namespace facebook;
++using namespace react;
++
++namespace worklets {
++
++class WorkletRuntime : public jsi::HostObject,
++                       public std::enable_shared_from_this<WorkletRuntime> {
++ public:
++  explicit WorkletRuntime(
++      jsi::Runtime &rnRuntime,
++      const std::shared_ptr<MessageQueueThread> &jsQueue,
++      const std::shared_ptr<JSScheduler> &jsScheduler,
++      const std::string &name,
++      const bool supportsLocking,
++      const std::string &valueUnpackerCode);
++
++  jsi::Runtime &getJSIRuntime() const {
++    return *runtime_;
++  }
++
++  template <typename... Args>
++  inline jsi::Value runGuarded(
++      const std::shared_ptr<ShareableWorklet> &shareableWorklet,
++      Args &&...args) const {
++    jsi::Runtime &rt = *runtime_;
++    return runOnRuntimeGuarded(
++        rt, shareableWorklet->toJSValue(rt), std::forward<Args>(args)...);
++  }
++
++  void runAsyncGuarded(
++      const std::shared_ptr<ShareableWorklet> &shareableWorklet) {
++    if (queue_ == nullptr) {
++      queue_ = std::make_shared<AsyncQueue>(name_);
++    }
++    queue_->push([=, weakThis = weak_from_this()] {
++      auto strongThis = weakThis.lock();
++      if (!strongThis) {
++        return;
++      }
++
++      strongThis->runGuarded(shareableWorklet);
++    });
++  }
++
++  jsi::Value executeSync(jsi::Runtime &rt, const jsi::Value &worklet) const;
++
++  std::string toString() const {
++    return "[WorkletRuntime \"" + name_ + "\"]";
++  }
++
++  jsi::Value get(jsi::Runtime &rt, const jsi::PropNameID &propName) override;
++
++  std::vector<jsi::PropNameID> getPropertyNames(jsi::Runtime &rt) override;
++
++ private:
++  const std::shared_ptr<std::recursive_mutex> runtimeMutex_;
++  const std::shared_ptr<jsi::Runtime> runtime_;
++#ifndef NDEBUG
++  const bool supportsLocking_;
++#endif
++  const std::string name_;
++  std::shared_ptr<AsyncQueue> queue_;
++};
++
++// This function needs to be non-inline to avoid problems with dynamic_cast on
++// Android
++std::shared_ptr<WorkletRuntime> extractWorkletRuntime(
++    jsi::Runtime &rt,
++    const jsi::Value &value);
++
++void scheduleOnRuntime(
++    jsi::Runtime &rt,
++    const jsi::Value &workletRuntimeValue,
++    const jsi::Value &shareableWorkletValue);
++
++} // namespace worklets
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/WorkletRuntime/WorkletRuntimeCollector.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/WorkletRuntime/WorkletRuntimeCollector.h
+new file mode 100644
+index 0000000..09c7091
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/WorkletRuntime/WorkletRuntimeCollector.h
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <worklets/Registries/WorkletRuntimeRegistry.h>
++
++#include <jsi/jsi.h>
++
++#include <memory>
++
++namespace worklets {
++
++class WorkletRuntimeCollector : public jsi::HostObject {
++  // When worklet runtime is created, we inject an instance of this class as a
++  // `jsi::HostObject` into the global object. When worklet runtime is
++  // terminated, the object is garbage-collected, which runs the C++ destructor.
++  // In the destructor, we unregister the worklet runtime from the registry.
++
++ public:
++  explicit WorkletRuntimeCollector(jsi::Runtime &runtime) : runtime_(runtime) {
++    WorkletRuntimeRegistry::registerRuntime(runtime_);
++  }
++
++  ~WorkletRuntimeCollector() {
++    WorkletRuntimeRegistry::unregisterRuntime(runtime_);
++  }
++
++  static void install(jsi::Runtime &rt) {
++    auto collector = std::make_shared<WorkletRuntimeCollector>(rt);
++    auto object = jsi::Object::createFromHostObject(rt, collector);
++    rt.global().setProperty(rt, "__workletRuntimeCollector", object);
++  }
++
++ private:
++  jsi::Runtime &runtime_;
++};
++
++} // namespace worklets
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/WorkletRuntime/WorkletRuntimeDecorator.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/WorkletRuntime/WorkletRuntimeDecorator.h
+new file mode 100644
+index 0000000..c3b22d8
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/WorkletRuntime/WorkletRuntimeDecorator.h
+@@ -0,0 +1,22 @@
++#pragma once
++
++#include <worklets/Tools/JSScheduler.h>
++
++#include <jsi/jsi.h>
++
++#include <memory>
++#include <string>
++
++using namespace facebook;
++
++namespace worklets {
++
++class WorkletRuntimeDecorator {
++ public:
++  static void decorate(
++      jsi::Runtime &rt,
++      const std::string &name,
++      const std::shared_ptr<JSScheduler> &jsScheduler);
++};
++
++} // namespace worklets
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/android/AndroidUIScheduler.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/android/AndroidUIScheduler.h
+new file mode 100644
+index 0000000..6224980
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/android/AndroidUIScheduler.h
+@@ -0,0 +1,46 @@
++#pragma once
++
++#include <worklets/Tools/UIScheduler.h>
++
++#include <fbjni/fbjni.h>
++#include <jni.h>
++#include <jsi/jsi.h>
++#include <react/jni/CxxModuleWrapper.h>
++#include <react/jni/JMessageQueueThread.h>
++
++#include <memory>
++
++namespace worklets {
++
++using namespace facebook;
++using namespace worklets;
++
++class AndroidUIScheduler : public jni::HybridClass<AndroidUIScheduler> {
++ public:
++  static auto constexpr kJavaDescriptor =
++      "Lcom/swmansion/worklets/AndroidUIScheduler;";
++  static jni::local_ref<jhybriddata> initHybrid(
++      jni::alias_ref<jhybridobject> jThis);
++  static void registerNatives();
++
++  std::shared_ptr<UIScheduler> getUIScheduler() {
++    return uiScheduler_;
++  }
++
++  void scheduleTriggerOnUI();
++
++ private:
++  friend HybridBase;
++
++  void triggerUI();
++
++  void invalidate();
++
++  jni::global_ref<AndroidUIScheduler::javaobject> javaPart_;
++  std::shared_ptr<UIScheduler> uiScheduler_;
++
++  explicit AndroidUIScheduler(
++      jni::alias_ref<AndroidUIScheduler::jhybridobject> jThis);
++};
++
++} // namespace worklets
+diff --git a/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/android/WorkletsModule.h b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/android/WorkletsModule.h
+new file mode 100644
+index 0000000..1cd7bf2
+--- /dev/null
++++ b/node_modules/react-native-reanimated/android/build/prefab-headers/worklets/worklets/android/WorkletsModule.h
+@@ -0,0 +1,64 @@
++#pragma once
++
++#ifdef RCT_NEW_ARCH_ENABLED
++#include <react/fabric/JFabricUIManager.h>
++#include <react/jni/JRuntimeExecutor.h>
++#include <react/renderer/scheduler/Scheduler.h>
++#endif // RCT_NEW_ARCH_ENABLED
++
++#include <ReactCommon/CallInvokerHolder.h>
++#include <fbjni/fbjni.h>
++#include <jsi/jsi.h>
++#include <react/jni/CxxModuleWrapper.h>
++#include <react/jni/JMessageQueueThread.h>
++#include <react/jni/WritableNativeMap.h>
++
++#include <worklets/NativeModules/WorkletsModuleProxy.h>
++#include <worklets/android/AndroidUIScheduler.h>
++
++#include <memory>
++#include <string>
++
++namespace worklets {
++
++using namespace facebook;
++using namespace facebook::jni;
++
++class WorkletsModule : public jni::HybridClass<WorkletsModule> {
++ public:
++  static auto constexpr kJavaDescriptor =
++      "Lcom/swmansion/worklets/WorkletsModule;";
++
++  static jni::local_ref<jhybriddata> initHybrid(
++      jni::alias_ref<jhybridobject> /*jThis*/,
++      jlong jsContext,
++      const std::string &valueUnpackerCode,
++      jni::alias_ref<JavaMessageQueueThread::javaobject> messageQueueThread,
++      jni::alias_ref<facebook::react::CallInvokerHolder::javaobject>
++          jsCallInvokerHolder,
++      jni::alias_ref<worklets::AndroidUIScheduler::javaobject>
++          androidUIScheduler);
++
++  static void registerNatives();
++
++  inline std::shared_ptr<WorkletsModuleProxy> getWorkletsModuleProxy() {
++    return workletsModuleProxy_;
++  }
++
++ private:
++  explicit WorkletsModule(
++      jsi::Runtime *rnRuntime,
++      const std::string &valueUnpackerCode,
++      jni::alias_ref<JavaMessageQueueThread::javaobject> messageQueueThread,
++      const std::shared_ptr<facebook::react::CallInvoker> &jsCallInvoker,
++      const std::shared_ptr<worklets::JSScheduler> &jsScheduler,
++      const std::shared_ptr<UIScheduler> &uiScheduler);
++
++  void invalidateCpp();
++
++  friend HybridBase;
++  jsi::Runtime *rnRuntime_;
++  std::shared_ptr<WorkletsModuleProxy> workletsModuleProxy_;
++};
++
++} // namespace worklets
+diff --git a/node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/ReanimatedPackage.java b/node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/ReanimatedPackage.java
+index ca640a7..36760da 100644
+--- a/node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/ReanimatedPackage.java
++++ b/node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/ReanimatedPackage.java
+@@ -76,7 +76,7 @@ public class ReanimatedPackage extends BaseReactPackage implements ReactPackage
+ 
+   private UIManagerModule createUIManager(final ReactApplicationContext reactContext) {
+     ReactMarker.logMarker(CREATE_UI_MANAGER_MODULE_START);
+-    Systrace.beginSection(Systrace.TRACE_TAG_REACT_JAVA_BRIDGE, "createUIManagerModule");
++    Systrace.beginSection(Systrace.TRACE_TAG_REACT, "createUIManagerModule");
+     final ReactInstanceManager reactInstanceManager = getReactInstanceManager(reactContext);
+     List<ViewManager> viewManagers = reactInstanceManager.getOrCreateViewManagers(reactContext);
+     int minTimeLeftInFrameForNonBatchedOperationMs = -1;
+@@ -84,7 +84,7 @@ public class ReanimatedPackage extends BaseReactPackage implements ReactPackage
+       return ReanimatedUIManagerFactory.create(
+           reactContext, viewManagers, minTimeLeftInFrameForNonBatchedOperationMs);
+     } finally {
+-      Systrace.endSection(Systrace.TRACE_TAG_REACT_JAVA_BRIDGE);
++      Systrace.endSection(Systrace.TRACE_TAG_REACT);
+       ReactMarker.logMarker(CREATE_UI_MANAGER_MODULE_END);
+     }
+   }
+diff --git a/node_modules/react-native-reanimated/android/src/reactNativeVersionPatch/BorderRadiiDrawableUtils/latest/com/swmansion/reanimated/BorderRadiiDrawableUtils.java b/node_modules/react-native-reanimated/android/src/reactNativeVersionPatch/BorderRadiiDrawableUtils/latest/com/swmansion/reanimated/BorderRadiiDrawableUtils.java
+index c850777..fa5c91b 100644
+--- a/node_modules/react-native-reanimated/android/src/reactNativeVersionPatch/BorderRadiiDrawableUtils/latest/com/swmansion/reanimated/BorderRadiiDrawableUtils.java
++++ b/node_modules/react-native-reanimated/android/src/reactNativeVersionPatch/BorderRadiiDrawableUtils/latest/com/swmansion/reanimated/BorderRadiiDrawableUtils.java
+@@ -4,6 +4,7 @@ import android.graphics.Rect;
+ import android.view.View;
+ import com.facebook.react.uimanager.BackgroundStyleApplicator;
+ import com.facebook.react.uimanager.LengthPercentage;
++import com.facebook.react.uimanager.PixelUtil;
+ import com.facebook.react.uimanager.style.BorderRadiusProp;
+ 
+ public class BorderRadiiDrawableUtils {
+@@ -18,7 +19,11 @@ public class BorderRadiiDrawableUtils {
+       return defaultValue;
+     }
+     Rect bounds = view.getBackground().getBounds();
+-    return length.resolve(bounds.width(), bounds.height()).toPixelFromDIP().getHorizontal();
++    // RN 0.81+: LengthPercentage.resolve(Float) returns a Float in DIP
++    // (no longer the previous wrapper with .toPixelFromDIP().getHorizontal()).
++    // Convert DIP → pixel via PixelUtil to preserve the old semantics.
++    float dip = length.resolve((float) bounds.width());
++    return PixelUtil.toPixelFromDIP(dip);
+   }
+ 
+   public static ReactNativeUtils.BorderRadii getBorderRadii(View view) {
