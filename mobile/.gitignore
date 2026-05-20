@@ -51,3 +51,9 @@ scripts/__pycache__/
 # generated native folders
 /ios
 /android
+
+# downloaded build artifacts (EAS produces these as ~60MB binaries —
+# don't accidentally `git add .` them into the repo)
+*.aab
+*.apk
+*.ipa
