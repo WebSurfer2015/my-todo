@@ -60,9 +60,8 @@ if ! command -v adb >/dev/null 2>&1; then
   exit 3
 fi
 
-adb_args=()
 if [[ -n "$serial" ]]; then
-  adb_args+=(-s "$serial")
+  adb_cmd=(adb -s "$serial")
 else
   # Sanity check: require exactly one device when no serial is provided so
   # we don't silently capture against the wrong target.
@@ -75,6 +74,7 @@ else
     adb devices >&2
     exit 4
   fi
+  adb_cmd=(adb)
 fi
 
 # Script lives under mobile/scripts/screenshots/; mobile/ is two levels up.
@@ -89,9 +89,9 @@ out="$out_dir/${slot}-${name}.png"
 # Use a unique remote path per invocation so concurrent runs don't stomp
 # each other, then clean up after pulling.
 remote="/sdcard/sagely_capture_$$.png"
-adb "${adb_args[@]}" shell screencap -p "$remote"
-adb "${adb_args[@]}" pull "$remote" "$out" >/dev/null
-adb "${adb_args[@]}" shell rm -f "$remote"
+"${adb_cmd[@]}" shell screencap -p "$remote"
+"${adb_cmd[@]}" pull "$remote" "$out" >/dev/null
+"${adb_cmd[@]}" shell rm -f "$remote"
 
 size=$(python3 -c "from PIL import Image; im=Image.open('$out'); print(f'{im.size[0]}x{im.size[1]}')")
 echo "captured slot $slot ($name) on android ${serial:-default}: $out  [$size]"
