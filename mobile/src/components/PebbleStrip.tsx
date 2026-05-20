@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Dimensions } from 'react-native'
 import Svg, { Ellipse } from 'react-native-svg'
 import { useTheme, ThemeColors } from '../theme'
 import { useRegisterCairn } from './PebbleFlight'
+import { darkenHex } from '../backgrounds'
 
 /**
  * Live progress indicator. Each completed task or subtask adds one pebble.
@@ -25,6 +26,19 @@ const OVERFLOW_RESERVE = 32
 
 // Slight size variance per slot so the row reads like real stones.
 const SIZE_JITTER = [0, 1, -1, 0, 1, -1, 0, 1]
+// Pebble fill palette — the `deep` accents from backgrounds.ts so the
+// cairn reads as a curated riverbed instead of one flat color. Cycles
+// by position; index 0 is leftmost (oldest pebble of the day).
+const PEBBLE_PALETTE = [
+  '#D8CDA8', // cream (warm beige)
+  '#A8C9B4', // mochi shell (sage)
+  '#EFC9B0', // cream sunrise (peach)
+  '#9DB0A3', // sage dusk
+  '#E0B8B4', // misty rose
+  '#BFB4D0', // lavender breath
+  '#A4C0BE', // sea-glass
+  '#D9C28A', // honey paper
+]
 // Pebbles align on a single baseline now — the previous per-index
 // Y-jitter (~±1 px) read as misalignment instead of organic
 // variation. Keep the array for back-compat with any imports but
@@ -183,19 +197,26 @@ export default function PebbleStrip({ count, active = true }: Props) {
       accessibilityLabel={count === 1 ? '1 pebble placed today' : `${count} pebbles placed today`}
     >
       <View style={styles.row}>
-        {Array.from({ length: visible }).map((_, i) => (
-          <View
-            key={i}
-            style={{ marginTop: Y_JITTER[i % Y_JITTER.length] }}
-          >
-            <Pebble
-              size={PEBBLE_SIZE + SIZE_JITTER[i % SIZE_JITTER.length]}
-              fill={theme.card}
-              stroke={theme.primary}
-              shadow={theme.primaryHover}
-            />
-          </View>
-        ))}
+        {Array.from({ length: visible }).map((_, i) => {
+          // Cycle the curated pebble palette by position. Stroke is a
+          // darkened version of the same hue so each stone reads as
+          // one coherent color — not a mix-and-match outline.
+          const fill = PEBBLE_PALETTE[i % PEBBLE_PALETTE.length]
+          const stroke = darkenHex(fill, 0.18)
+          return (
+            <View
+              key={i}
+              style={{ marginTop: Y_JITTER[i % Y_JITTER.length] }}
+            >
+              <Pebble
+                size={PEBBLE_SIZE + SIZE_JITTER[i % SIZE_JITTER.length]}
+                fill={fill}
+                stroke={stroke}
+                shadow={theme.primaryHover}
+              />
+            </View>
+          )
+        })}
         {overflow > 0 && <Text style={styles.overflow}>+{overflow}</Text>}
       </View>
     </View>

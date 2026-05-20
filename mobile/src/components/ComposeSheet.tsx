@@ -786,6 +786,12 @@ function makeStyles(c: ThemeColors) {
       paddingTop: 16,
       paddingBottom: 24,
       paddingHorizontal: 16,
+      // Cap at 90% of the (keyboard-aware) viewport. Without this,
+      // when the keyboard opens the sheet's content can push past the
+      // top of the screen — the title row and to-do textbox scroll
+      // off-screen and become unreachable. Mirrors TaskDetailsSheet's
+      // sheet which already had this cap.
+      maxHeight: '90%',
       minHeight: 420,
     },
     handle: {

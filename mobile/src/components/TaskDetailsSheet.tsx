@@ -406,6 +406,15 @@ export default function TaskDetailsSheet({
     setEditingSubtaskId(null)
     setEditSubPickerView('main')
     setEditSubOriginal(null)
+    // When the sheet was opened DIRECTLY into step edit (long-press a
+    // step on Home/Todos), Cancel should dismiss the whole sheet —
+    // not silently fall back to the parent edit view, which would
+    // look like "nothing happened" to the user. When entered from the
+    // parent edit screen (in-sheet navigation), keep the parent
+    // sheet open so the back-out is local.
+    if (initialSubtaskEditId) {
+      onClose()
+    }
   }
 
   const cat = todo.category ? categories.find((c) => c.id === todo.category) : undefined
