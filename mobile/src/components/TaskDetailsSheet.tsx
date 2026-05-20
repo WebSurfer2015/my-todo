@@ -12,7 +12,7 @@ import {
   Alert,
 } from 'react-native'
 import Svg, { Path, Line, Polyline, Rect } from 'react-native-svg'
-import { Repeat, Trash2 } from 'lucide-react-native'
+import { Repeat } from 'lucide-react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import * as Haptics from 'expo-haptics'
 import { Category, Priority, Subtask, Todo, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
@@ -194,6 +194,15 @@ export default function TaskDetailsSheet({
   const [editSubText, setEditSubText] = useState('')
   const [editSubPriority, setEditSubPriority] = useState<Priority>('medium')
   const [editSubDueDate, setEditSubDueDate] = useState('')
+  // Snapshot of the sub's text/priority/dueDate at the moment the
+  // user opened the Edit Step sheet. Cancel reverts to this; Done
+  // keeps whatever auto-saved during the session. Used by
+  // cancelSubtaskEdit — never read elsewhere.
+  const [editSubOriginal, setEditSubOriginal] = useState<{
+    text: string
+    priority: Priority
+    dueDate: string
+  } | null>(null)
   // Pending while the subtask Completed-by page is open; same semantics
   // as pendingEditDueDate for the parent task.
   const [pendingEditSubDueDate, setPendingEditSubDueDate] = useState<string>('')
@@ -225,11 +234,17 @@ export default function TaskDetailsSheet({
           setEditSubText(sub.text)
           setEditSubPriority(sub.priority ?? 'medium')
           setEditSubDueDate(sub.dueDate ?? '')
+          setEditSubOriginal({
+            text: sub.text,
+            priority: sub.priority ?? 'medium',
+            dueDate: sub.dueDate ?? '',
+          })
           setEditSubPickerView('main')
           setEditingSubtaskId(sub.id)
         }
       } else {
         setEditingSubtaskId(null)
+        setEditSubOriginal(null)
       }
     }
   }, [visible, todo, initialSubtaskEditId])
@@ -308,6 +323,11 @@ export default function TaskDetailsSheet({
     setEditSubText(s.text)
     setEditSubPriority(s.priority ?? 'medium')
     setEditSubDueDate(s.dueDate ?? '')
+    setEditSubOriginal({
+      text: s.text,
+      priority: s.priority ?? 'medium',
+      dueDate: s.dueDate ?? '',
+    })
     setEditSubPickerView('main')
     setEditingSubtaskId(s.id)
   }
@@ -356,10 +376,36 @@ export default function TaskDetailsSheet({
     }
   }
   function leaveSubtaskEdit() {
-    // Flush any pending text on the way out.
+    // Done — flush any pending text on the way out.
     applySubText(editSubText)
     setEditingSubtaskId(null)
     setEditSubPickerView('main')
+    setEditSubOriginal(null)
+  }
+
+  function cancelSubtaskEdit() {
+    // Cancel — discard the session's changes by writing the entry
+    // snapshot back over each field. Unconditional writes (vs.
+    // current-vs-orig comparison) because the TextInput's onBlur may
+    // have just dispatched an "apply" with the in-progress text and
+    // that state isn't visible synchronously here. Empty-text guard
+    // matches applySubText: never write an empty string.
+    const orig = editSubOriginal
+    const subId = editingSubtaskId
+    if (orig && subId) {
+      if (orig.text.trim()) {
+        onUpdateSubtaskText(todo.id, subId, orig.text)
+      }
+      if (onUpdateSubtaskPriority) {
+        onUpdateSubtaskPriority(todo.id, subId, orig.priority)
+      }
+      if (onUpdateSubtaskDueDate) {
+        onUpdateSubtaskDueDate(todo.id, subId, orig.dueDate)
+      }
+    }
+    setEditingSubtaskId(null)
+    setEditSubPickerView('main')
+    setEditSubOriginal(null)
   }
 
   const cat = todo.category ? categories.find((c) => c.id === todo.category) : undefined
@@ -374,7 +420,7 @@ export default function TaskDetailsSheet({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <TouchableOpacity style={styles.overlayTouch} activeOpacity={1} onPress={onClose} />
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, editingSubtaskId && styles.sheetTight]}>
           {editingSubtaskId ? (
             editSubPickerView === 'priority' ? (
               <InlinePicker
@@ -434,11 +480,28 @@ export default function TaskDetailsSheet({
             ) : (
               <>
                 <View style={styles.editHeader}>
-                  {/* No back button — bottom "Done" closes the sheet.
-                      Top-right "Delete" replaces the previous in-body
-                      destructive action. */}
-                  <View style={styles.headerSideBtn} />
-                  <Text style={styles.editHeaderTitle}>{t.edit.step}</Text>
+                  {/* Top-left Cancel closes the step editor (changes
+                      already auto-save on blur, so Cancel is functionally
+                      the same as Done — just a clearer back-out
+                      affordance). Center: stacked "Edit Step" title +
+                      parent-todo subtitle so the user knows which task's
+                      step they're editing. Top-right: "Delete" label
+                      replaces the previous trash icon. */}
+                  <TouchableOpacity
+                    onPress={cancelSubtaskEdit}
+                    hitSlop={10}
+                    style={styles.headerSideBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={t.cancel}
+                  >
+                    <Text style={styles.cancelText}>{t.cancel}</Text>
+                  </TouchableOpacity>
+                  <View style={styles.editHeaderCenter}>
+                    <Text style={styles.editHeaderTitle}>{t.edit.step}</Text>
+                    <Text style={styles.editHeaderSubtitle} numberOfLines={1}>
+                      {todo.text}
+                    </Text>
+                  </View>
                   <TouchableOpacity
                     onPress={() => {
                       const subId = editingSubtaskId
@@ -461,14 +524,14 @@ export default function TaskDetailsSheet({
                       )
                     }}
                     hitSlop={10}
-                    style={styles.headerSideBtn}
+                    style={[styles.headerSideBtn, styles.headerSideBtnRight]}
                     accessibilityRole="button"
                     accessibilityLabel={t.deleteSubtask}
                   >
-                    <Trash2 size={20} color={theme.red} strokeWidth={2} />
+                    <Text style={styles.deleteHeaderText}>{t.deleteTask}</Text>
                   </TouchableOpacity>
                 </View>
-                <ScrollView style={styles.list} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editBody}>
+                <ScrollView style={styles.list} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editStepBody}>
                   <View style={styles.editGroupCard}>
                     <TextInput
                       style={styles.editTextInputInCard}
@@ -697,6 +760,28 @@ export default function TaskDetailsSheet({
                   maxLength={4096}
                   textAlignVertical="top"
                 />
+                {onUpdateNotes && (
+                  <>
+                    <View style={styles.editGroupDivider} />
+                    {/* Notes inline below the title — matches the
+                        ComposeSheet (Add To-do) arrangement so the
+                        "what & why" sit together at the top of the
+                        sheet. Standalone notes card lower in the
+                        layout was removed. */}
+                    <TextInput
+                      style={styles.notesInputInGroup}
+                      value={editNotes}
+                      onChangeText={setEditNotes}
+                      onBlur={() => applyNotes(editNotes)}
+                      placeholder={t.notes.placeholder}
+                      placeholderTextColor={theme.gray3}
+                      multiline
+                      maxLength={8192}
+                      textAlignVertical="top"
+                      accessibilityLabel="Notes — anything that helps you externalize the thinking around this task"
+                    />
+                  </>
+                )}
                 <View style={styles.editGroupDivider} />
                 <TouchableOpacity
                   style={styles.editFieldRowInGroup}
@@ -808,25 +893,9 @@ export default function TaskDetailsSheet({
                 )}
               </View>
 
-              {onUpdateNotes && (
-                <>
-                  <Text style={styles.notesSectionHeader}>{t.notes.header}</Text>
-                  <View style={styles.notesCard}>
-                    <TextInput
-                      style={styles.notesInput}
-                      value={editNotes}
-                      onChangeText={setEditNotes}
-                      onBlur={() => applyNotes(editNotes)}
-                      placeholder={t.notes.placeholder}
-                      placeholderTextColor={theme.gray3}
-                      multiline
-                      maxLength={8192}
-                      textAlignVertical="top"
-                      accessibilityLabel="Notes — anything that helps you externalize the thinking around this task"
-                    />
-                  </View>
-                </>
-              )}
+              {/* Notes moved into the title group card above; the
+                  standalone Notes section here was removed so the
+                  layout mirrors the Add To-do sheet. */}
 
               <Text style={styles.subtaskSectionHeader}>{t.steps.header}</Text>
               {subs.length === 0 ? (
@@ -1211,6 +1280,12 @@ function makeStyles(c: ThemeColors) {
       maxHeight: '90%',
       minHeight: '50%',
     },
+    // Step / subtask edit views — shaved bottom padding so the Done
+    // CTA doesn't float over a large empty band. The 8px floor still
+    // clears the iOS home indicator on phones that have one.
+    sheetTight: {
+      paddingBottom: Platform.OS === 'ios' ? 12 : 8,
+    },
     header: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -1414,6 +1489,18 @@ function makeStyles(c: ThemeColors) {
       letterSpacing: -0.16,
       lineHeight: 22,
     },
+    // Inline notes inside the title editGroupCard — smaller font and a
+    // shorter min-height so the title remains the dominant element.
+    // Matches ComposeSheet's notesInputInline footprint.
+    notesInputInGroup: {
+      minHeight: 56,
+      fontSize: 14,
+      lineHeight: 20,
+      color: c.label,
+      paddingHorizontal: 14,
+      paddingTop: 10,
+      paddingBottom: 12,
+    },
     editGroupDivider: {
       height: StyleSheet.hairlineWidth,
       backgroundColor: c.separator,
@@ -1567,13 +1654,41 @@ function makeStyles(c: ThemeColors) {
       letterSpacing: -0.16,
     },
     subEditDoneBtn: {
-      marginTop: 16,
+      // Tightened from 16 to 8 so the Done CTA hugs the field group.
+      marginTop: 8,
       alignSelf: 'stretch',
       backgroundColor: c.primary,
       paddingVertical: 12,
       borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    // Step view's ScrollView contentContainerStyle — shaves the
+    // paddingBottom relative to the shared editBody so there's less
+    // dead space under the Done CTA. Other edit views keep editBody.
+    editStepBody: {
+      paddingTop: 16,
+      paddingBottom: 4,
+    },
+    editHeaderCenter: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    editHeaderSubtitle: {
+      marginTop: 2,
+      fontSize: 12,
+      color: c.label2,
+      maxWidth: '90%',
+    },
+    headerSideBtnRight: {
+      alignItems: 'flex-end',
+    },
+    deleteHeaderText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: c.red,
+      textAlign: 'right',
     },
     subEditDoneText: {
       color: '#fff',

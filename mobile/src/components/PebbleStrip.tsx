@@ -208,21 +208,28 @@ export default function PebbleStrip({ count, active = true }: Props) {
  */
 export function CairnGlyph({ size = 22 }: { size?: number }) {
   const theme = useTheme()
-  // SVG box is padded vertically so the bottom stone's stroke can't clip
-  // the floor edge even at small sizes.
-  const pad = 2
+  // SVG box is padded so neither the bottom stone's stroke nor its
+  // edges can clip. The bottom stone's rx is 0.65*size, so its full
+  // width is 1.30*size — without horizontal padding it would extend
+  // 15% past the SVG bounds on each side and get cropped.
   const stones = [
     { rx: 0.42, ry: 0.16, cy: 0.22 },
     { rx: 0.52, ry: 0.18, cy: 0.48 },
     { rx: 0.65, ry: 0.20, cy: 0.74 },
   ]
+  const maxRx = Math.max(...stones.map((s) => s.rx))
+  // Add the half-overhang plus a small stroke buffer (~2px).
+  const padX = Math.max(2, size * (maxRx - 0.5) + 2)
+  const padY = 2
+  const w = size + padX * 2
+  const h = size + padY * 2
   return (
-    <Svg width={size} height={size + pad * 2}>
+    <Svg width={w} height={h}>
       {stones.map((s, i) => (
         <Ellipse
           key={i}
-          cx={size / 2}
-          cy={size * s.cy + pad}
+          cx={w / 2}
+          cy={size * s.cy + padY}
           rx={size * s.rx}
           ry={size * s.ry}
           fill={theme.card}

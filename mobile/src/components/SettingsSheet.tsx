@@ -192,7 +192,7 @@ export default function SettingsSheet({
               <View style={styles.card}>
                 <View style={styles.rowStatic}>
                   <Text style={styles.rowLabel}>Sagely</Text>
-                  <Text style={styles.rowValue}>v1.2.0</Text>
+                  <Text style={styles.rowValue}>v1.3.0</Text>
                 </View>
                 <View style={styles.divider} />
                 <TouchableOpacity

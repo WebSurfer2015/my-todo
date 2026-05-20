@@ -546,7 +546,16 @@ function TaskItem({
   const isBin = inTrash || binFilterView || trashedRow
 
   function renderLeftActions(_progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) {
+    // Parent todos with steps suppress the swipe Edit action — the
+    // steps live INSIDE the row and have their own tap-to-edit on the
+    // sub text. Surfacing a parent Edit from a swipe is confusing in
+    // that context. Long-press still opens the parent edit sheet for
+    // anyone who needs it.
     if (isBin) {
+      // Bin row's only left action was Edit; remove it for parents
+      // with steps and the menu is empty — return null so Swipeable
+      // skips rendering a left-action area entirely.
+      if (hasSubs) return null
       return (
         <View style={styles.swipeActionsRow}>
           <TouchableOpacity style={[styles.swipeAction, styles.swipeEdit]} onPress={openDetails}>
@@ -559,10 +568,12 @@ function TaskItem({
     return (
       <View style={styles.swipeActionsRow}>
         <FullSwipeWatcher dragX={dragX} direction="left" onFullSwipe={handleMarkDone} />
-        <TouchableOpacity style={[styles.swipeAction, styles.swipeEdit]} onPress={openDetails}>
-          <Pencil size={20} color="#fff" strokeWidth={2} />
-          <Text style={styles.swipeActionText}>{t.editTask}</Text>
-        </TouchableOpacity>
+        {!hasSubs && (
+          <TouchableOpacity style={[styles.swipeAction, styles.swipeEdit]} onPress={openDetails}>
+            <Pencil size={20} color="#fff" strokeWidth={2} />
+            <Text style={styles.swipeActionText}>{t.editTask}</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={[styles.swipeAction, styles.swipeMarkDone]} onPress={handleMarkDone}>
           <Check size={20} color="#fff" strokeWidth={2} />
           <Text style={styles.swipeActionText}>{todo.done ? t.markNotDone : t.markDone}</Text>
