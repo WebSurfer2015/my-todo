@@ -174,9 +174,34 @@ Required:
 | App icon | 512×512 PNG | Expo prebuild auto-generates from `mobile/assets/icon.png` (1024×1024 source) ✓ |
 | Adaptive icon foreground | any safe-zone PNG | `mobile/assets/adaptive-icon.png` (1024×1024) ✓ |
 | Feature graphic | **1024×500 JPG/PNG** | Generated via `python3 mobile/scripts/screenshots/generate_feature_graphic.py` → output at `mobile/screenshots/feature-graphic.png`. Composes brand-color bg + Mochi mascot + "Sagely" wordmark + tagline. Tweak the script's color/font constants to iterate. ✓ |
-| Phone screenshots | 2-8 per language, 9:16 to 16:9, 320–3840px per side | Reuse iPhone 6.7" captures at `mobile/screenshots/iphone-67/processed/*.png` (1290×2796) ✓ |
+| Phone screenshots | 2-8 per language, portrait, 320–3840px per side | **Preferred (native)**: capture via `mobile/scripts/screenshots/capture-android.sh <slot 1-8> [adb-serial]` against a Pixel AVD or real device, then `python3 mobile/scripts/screenshots/process.py mobile/screenshots/android-phone` to copy through to `processed/`. **Fallback**: iPhone 6.7" set at `mobile/screenshots/iphone-67/processed/*.png` (1290×2796) — dimensionally valid but reads as iOS-on-Android. |
 | 7" tablet screenshots | 1-8, same constraints | Optional; reuse iPad captures at `mobile/screenshots/ipad-129/processed/*.png` (2048×2732) ✓ |
 | 10" tablet screenshots | 1-8, same constraints | Same iPad set ✓ |
+
+### Android screenshot capture flow
+
+1. **Pre-capture device prep** (do once per session for a coherent set):
+   - System clock to 9:41 (marketing convention — matches iOS Sagely shots)
+   - Battery 100%, Wi-Fi connected, notifications cleared, airplane mode off
+   - Gesture navigation enabled (no on-screen back/home pill cluttering the bottom)
+   - Sagely dev client running with humane seeded data signed into `sagely.todo@gmail.com` — sample data IS marketing
+2. **Capture each slot** (1..8 match the same v1.3 narrative as the iOS set):
+   ```sh
+   cd mobile
+   for n in 1 2 3 4 5 6 7 8; do
+     ./scripts/screenshots/capture-android.sh "$n"
+     # ... navigate the app to the next slot's screen ...
+   done
+   ```
+   Raw PNGs land in `mobile/screenshots/android-phone/raw/<slot>-<name>.png` at the device's native resolution (Pixel 7-10 family: 1080×2400, 1080×2424, 1280×2856, or 1344×2992 — all pass through `process.py` unmodified).
+3. **Process into Play-ready folder**:
+   ```sh
+   python3 mobile/scripts/screenshots/process.py mobile/screenshots/android-phone
+   ```
+   Pass-through copies to `processed/`. Sizes outside Play's 320–3840px-per-side bounds get flagged but still copied so you can decide.
+4. **Upload** `mobile/screenshots/android-phone/processed/*.png` to Play Console → Store listing → Phone screenshots.
+
+Slot plan canonical in `mobile/scripts/screenshots/capture-android.sh` and `mobile/scripts/screenshots/capture.sh` (they share the same 1..8 mapping).
 
 Listing copy lives in `docs/POSITIONING.md`:
 - App Store + Play Store metadata are deliberately aligned where the
