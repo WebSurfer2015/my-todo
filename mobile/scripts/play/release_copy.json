@@ -1,0 +1,38 @@
+{
+  "packageName": "com.websurfer.mytodo",
+  "title": "Sagely — Calm To-Dos",
+  "websiteUrl": "https://websurfer2015.github.io/my-todo/",
+  "privacyPolicyUrl": "https://websurfer2015.github.io/my-todo/PRIVACY",
+  "ascLocaleMap": {
+    "en-US": "en-US",
+    "zh-CN": "zh-Hans",
+    "es-419": "es-MX",
+    "es-ES": "es-ES",
+    "fr-FR": "fr-FR",
+    "de-DE": "de-DE",
+    "ja-JP": "ja"
+  },
+  "locales": {
+    "en-US": {
+      "shortDescription": "A calm to-do app for days you can't be a productivity person."
+    },
+    "zh-CN": {
+      "shortDescription": "为你做不了高效人士的日子准备的安静待办应用。"
+    },
+    "es-419": {
+      "shortDescription": "Una app de tareas tranquila para días en que no puedes ser productivo."
+    },
+    "es-ES": {
+      "shortDescription": "Una app de tareas tranquila para días en que no puedes ser productivo."
+    },
+    "fr-FR": {
+      "shortDescription": "Une app de tâches calme pour les jours où tu n'es pas productif."
+    },
+    "de-DE": {
+      "shortDescription": "Eine ruhige To-Do-App für Tage, an denen du nicht produktiv sein kannst."
+    },
+    "ja-JP": {
+      "shortDescription": "生産的な人になれない日のための、静かなToDoアプリ。"
+    }
+  }
+}

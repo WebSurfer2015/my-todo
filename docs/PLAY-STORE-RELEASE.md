@@ -175,8 +175,8 @@ Required:
 | Adaptive icon foreground | any safe-zone PNG | `mobile/assets/adaptive-icon.png` (1024×1024) ✓ |
 | Feature graphic | **1024×500 JPG/PNG** | Generated via `python3 mobile/scripts/screenshots/generate_feature_graphic.py` → output at `mobile/screenshots/feature-graphic.png`. Composes brand-color bg + Mochi mascot + "Sagely" wordmark + tagline. Tweak the script's color/font constants to iterate. ✓ |
 | Phone screenshots | 2-8 per language, portrait, 320–3840px per side | **Preferred (native)**: capture via `mobile/scripts/screenshots/capture-android.sh <slot 1-8> [adb-serial]` against a Pixel AVD or real device, then `python3 mobile/scripts/screenshots/process.py mobile/screenshots/android-phone` to copy through to `processed/`. **Fallback**: iPhone 6.7" set at `mobile/screenshots/iphone-67/processed/*.png` (1290×2796) — dimensionally valid but reads as iOS-on-Android. |
-| 7" tablet screenshots | 1-8, same constraints | Optional; reuse iPad captures at `mobile/screenshots/ipad-129/processed/*.png` (2048×2732) ✓ |
-| 10" tablet screenshots | 1-8, same constraints | Same iPad set ✓ |
+| 7" tablet screenshots | 2-8 per language, portrait, 320–3840px per side | **Required** by Play. Reuse the Android phone set at `mobile/screenshots/android-phone/processed/*.png` (1080×2424) — Play accepts them in all three device slots and scales to fit. True tablet-optimized shots are a v1.4+ polish item (requires creating a 7" tablet AVD via Android Studio → Device Manager). |
+| 10" tablet screenshots | same | **Required** by Play. Same Android phone set as above. |
 
 ### Android screenshot capture flow
 
