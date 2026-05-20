@@ -148,7 +148,7 @@ Required:
 | --- | --- | --- |
 | App icon | 512×512 PNG | Expo prebuild auto-generates from `mobile/assets/icon.png` (1024×1024 source) ✓ |
 | Adaptive icon foreground | any safe-zone PNG | `mobile/assets/adaptive-icon.png` (1024×1024) ✓ |
-| Feature graphic | **1024×500 JPG/PNG** | **TODO — needs design.** Mochi mascot + tagline matching App Store positioning |
+| Feature graphic | **1024×500 JPG/PNG** | Generated via `python3 mobile/scripts/screenshots/generate_feature_graphic.py` → output at `mobile/screenshots/feature-graphic.png`. Composes brand-color bg + Mochi mascot + "Sagely" wordmark + tagline. Tweak the script's color/font constants to iterate. ✓ |
 | Phone screenshots | 2-8 per language, 9:16 to 16:9, 320–3840px per side | Reuse iPhone 6.7" captures at `mobile/screenshots/iphone-67/processed/*.png` (1290×2796) ✓ |
 | 7" tablet screenshots | 1-8, same constraints | Optional; reuse iPad captures at `mobile/screenshots/ipad-129/processed/*.png` (2048×2732) ✓ |
 | 10" tablet screenshots | 1-8, same constraints | Same iPad set ✓ |
