@@ -217,6 +217,9 @@ export const SEED_PROFILE: Profile = {
   name: 'Ying',
   avatar: { kind: 'preset', key: 'mochi' },
   density: 'comfortable',
+  completionSound: true,
+  completionAnimation: true,
+  reduceMotion: false,
 }
 
 /** Hard caps applied at hydration. Defensive against malicious cloud writes. */
@@ -327,11 +330,13 @@ export function migrateProfile(raw: unknown): Profile {
       typeof p.title === 'string' && p.title.length > 0
         ? p.title.slice(0, MAX_PROFILE_TITLE_LEN)
         : undefined,
-    reduceMotion: p.reduceMotion === true ? true : undefined,
+    reduceMotion: typeof p.reduceMotion === 'boolean' ? p.reduceMotion : undefined,
     view: p.view === 'category' || p.view === 'status' ? p.view : undefined,
     statuses: migrateStatuses(p.statuses),
-    completionAnimation: p.completionAnimation === false ? false : undefined,
-    completionSound: p.completionSound === false ? false : undefined,
+    completionAnimation:
+      typeof p.completionAnimation === 'boolean' ? p.completionAnimation : undefined,
+    completionSound:
+      typeof p.completionSound === 'boolean' ? p.completionSound : undefined,
     lifetimePebbles:
       typeof p.lifetimePebbles === 'number' && p.lifetimePebbles >= 0
         ? Math.floor(p.lifetimePebbles)

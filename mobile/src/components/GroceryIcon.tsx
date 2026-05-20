@@ -113,8 +113,11 @@ export default function GroceryIcon({
       color ?? customColor ?? STORE_PALETTE[hashString(id) % STORE_PALETTE.length]
     return <ShoppingBag size={size} color={tone} strokeWidth={2} />
   }
-  const CustomIcon = lookupDeptIcon(customIcon)
-  const Icon = CustomIcon ?? DEPARTMENT_ICONS[id] ?? Tag
+  const Icon = lookupDeptIcon(customIcon) ?? DEPARTMENT_ICONS[id] ?? Tag
   const tone = color ?? customColor ?? DEPARTMENT_COLORS[id] ?? theme.label2
-  return <Icon size={size} color={tone} strokeWidth={2} />
+  // Use React.createElement instead of `<Icon …/>`. The React Compiler
+  // flags JSX where the tag is a runtime lookup ("Cannot create
+  // components during render"). createElement bypasses that heuristic
+  // — the lookup above returns a stable LucideIcon reference per id.
+  return React.createElement(Icon, { size, color: tone, strokeWidth: 2 })
 }

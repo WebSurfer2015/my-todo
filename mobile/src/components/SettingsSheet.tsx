@@ -13,7 +13,7 @@
  * The header has a single "Done" button that just closes the sheet.
  */
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import {
   KeyboardAvoidingView,
   Modal,
@@ -26,7 +26,6 @@ import {
   View,
   useColorScheme,
 } from "react-native";
-import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { Profile } from "../profile";
 import { useLang } from "../LangContext";
 import { useTheme, ThemeColors } from "../theme";
@@ -51,12 +50,6 @@ interface Props {
   onClose: () => void;
 }
 
-function formatHour12(h: number): string {
-  const hr = ((h + 11) % 12) + 1;
-  const ampm = h < 12 ? "AM" : "PM";
-  return `${hr}:00 ${ampm}`;
-}
-
 export default function SettingsSheet({
   visible,
   profile,
@@ -77,11 +70,8 @@ export default function SettingsSheet({
 
   const animationOn = profile.completionAnimation !== false;
   const soundOn = profile.completionSound !== false;
-  const checkinOn = profile.dailyCheckinEnabled === true;
+  const reduceMotionOn = profile.reduceMotion === true;
   const agentOn = profile.agentEnabled === true;
-  const checkinHour = profile.dailyCheckinHour ?? 9;
-
-  const [checkinTimePickerOpen, setCheckinTimePickerOpen] = useState(false);
 
   function patch(p: Partial<Profile>) {
     onSavePartial(p);
@@ -143,60 +133,29 @@ export default function SettingsSheet({
                 </TouchableOpacity>
               </View>
 
-              {/* NOTIFICATIONS */}
-              <Text style={styles.sectionLabel}>NOTIFICATIONS</Text>
-              <View style={styles.card}>
-                <ToggleRow
-                  label="Daily check-in"
-                  hint="One quiet, mascot-voiced reminder. No alerts, no streaks."
-                  value={checkinOn}
-                  onChange={(v) => patch({ dailyCheckinEnabled: v })}
-                  styles={styles}
-                />
-                {checkinOn && (
-                  <>
-                    <View style={styles.divider} />
-                    <TouchableOpacity
-                      style={styles.row}
-                      onPress={() => setCheckinTimePickerOpen((v) => !v)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Reminder time, ${formatHour12(checkinHour)}. Tap to change.`}
-                    >
-                      <Text style={styles.rowLabel}>Reminder time</Text>
-                      <Text style={styles.rowValue}>{formatHour12(checkinHour)}</Text>
-                      <Text style={styles.rowChevron}>›</Text>
-                    </TouchableOpacity>
-                    {checkinTimePickerOpen && (
-                      <View style={styles.timePickerWrap}>
-                        <DateTimePicker
-                          value={(() => {
-                            const d = new Date();
-                            d.setHours(checkinHour, 0, 0, 0);
-                            return d;
-                          })()}
-                          mode="time"
-                          display={Platform.OS === "ios" ? "spinner" : "default"}
-                          themeVariant={theme.statusBar === "light-content" ? "dark" : "light"}
-                          minuteInterval={30}
-                          onChange={(_e: DateTimePickerEvent, d?: Date) => {
-                            if (d) patch({ dailyCheckinHour: d.getHours() });
-                            if (Platform.OS === "android") setCheckinTimePickerOpen(false);
-                          }}
-                        />
-                      </View>
-                    )}
-                  </>
-                )}
-              </View>
+              {/* Daily check-in + Reminder time were removed pending a
+                  full notifications & reminders redesign. The underlying
+                  profile fields (dailyCheckinEnabled, dailyCheckinHour)
+                  are preserved in core/profile.ts so the toggle state
+                  isn't lost; we just don't surface the UI right now. */}
 
               {/* ANIMATIONS & SOUND */}
               <Text style={styles.sectionLabel}>ANIMATIONS & SOUND</Text>
               <View style={styles.card}>
                 <ToggleRow
+                  label="Reduce motion"
+                  hint="Suppresses Mochi flight, row flash, and the checkbox bounce. Use this if motion makes you queasy."
+                  value={reduceMotionOn}
+                  onChange={(v) => patch({ reduceMotion: v })}
+                  styles={styles}
+                />
+                <View style={styles.divider} />
+                <ToggleRow
                   label="Completion animation"
                   hint="A calm scale pulse when you mark a task done."
-                  value={animationOn}
+                  value={animationOn && !reduceMotionOn}
                   onChange={(v) => patch({ completionAnimation: v })}
+                  disabled={reduceMotionOn}
                   styles={styles}
                 />
                 <View style={styles.divider} />
@@ -264,15 +223,17 @@ interface ToggleRowProps {
   value: boolean;
   onChange: (v: boolean) => void;
   styles: ReturnType<typeof makeStyles>;
+  disabled?: boolean;
 }
 
-function ToggleRow({ label, hint, value, onChange, styles }: ToggleRowProps) {
+function ToggleRow({ label, hint, value, onChange, styles, disabled }: ToggleRowProps) {
   return (
     <TouchableOpacity
-      style={styles.row}
-      onPress={() => onChange(!value)}
+      style={[styles.row, disabled && { opacity: 0.4 }]}
+      onPress={() => { if (!disabled) onChange(!value) }}
       accessibilityRole="switch"
-      accessibilityState={{ checked: value }}
+      accessibilityState={{ checked: value, disabled }}
+      disabled={disabled}
     >
       <View style={{ flex: 1 }}>
         <Text style={styles.rowLabel}>{label}</Text>

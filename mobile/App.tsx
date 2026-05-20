@@ -45,7 +45,7 @@ import EmptyState from "./src/components/EmptyState";
 import PebbleStrip from "./src/components/PebbleStrip";
 import Onboarding from "./src/components/Onboarding";
 import SplashOverlay from "./src/components/SplashOverlay";
-import { scheduleDailyCheckin, cancelDailyCheckin } from "./src/notifications";
+import { cancelDailyCheckin } from "./src/notifications";
 import { NavigationContainer, useIsFocused } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { House, ListTodo, ShoppingBag } from "lucide-react-native";
@@ -155,20 +155,14 @@ function TodosScreen() {
       .filter((g) => g.todos.length > 0);
   }, [store.groups, searchNeedle]);
 
-  // Sync the daily-checkin notification to profile state. Schedules when
-  // enabled, cancels when disabled. Re-runs on hour change too.
+  // Daily check-in scheduling was removed pending a full notifications
+  // & reminders redesign. Cancel any orphaned schedules from previous
+  // versions so users don't keep getting old reminders. The profile
+  // fields stay in core so opted-in state isn't destroyed.
   useEffect(() => {
     if (!store.loaded) return;
-    if (store.profile.dailyCheckinEnabled === true) {
-      scheduleDailyCheckin(store.profile.dailyCheckinHour ?? 9).catch(() => {});
-    } else {
-      cancelDailyCheckin().catch(() => {});
-    }
-  }, [
-    store.loaded,
-    store.profile.dailyCheckinEnabled,
-    store.profile.dailyCheckinHour,
-  ]);
+    cancelDailyCheckin().catch(() => {});
+  }, [store.loaded]);
 
   // Auth + store-hydration + onboarding gates moved to AppGate, which
   // wraps the whole tab navigator. By the time this screen mounts those
@@ -308,7 +302,7 @@ function TodosScreen() {
                         todo={td}
                         categories={store.categories}
                         density={store.profile.density}
-                        celebrate={store.profile.completionAnimation !== false}
+                        celebrate={store.profile.completionAnimation !== false && store.profile.reduceMotion !== true}
                         playSound={store.profile.completionSound !== false}
                         inTrash
                         selected={store.selectedTrashIds.has(td.id)}
@@ -406,7 +400,7 @@ function TodosScreen() {
                               todo={td}
                               categories={store.categories}
                               density={store.profile.density}
-                              celebrate={store.profile.completionAnimation !== false}
+                              celebrate={store.profile.completionAnimation !== false && store.profile.reduceMotion !== true}
                               playSound={store.profile.completionSound !== false}
                               binFilterView
                               onToggle={store.toggle}
@@ -480,7 +474,7 @@ function TodosScreen() {
                             todo={td}
                             categories={store.categories}
                             density={store.profile.density}
-                            celebrate={store.profile.completionAnimation !== false}
+                            celebrate={store.profile.completionAnimation !== false && store.profile.reduceMotion !== true}
                             playSound={store.profile.completionSound !== false}
                             onToggle={store.toggle}
                             onMoveToTrash={store.moveToTrash}
@@ -595,7 +589,7 @@ function TodosScreen() {
                               todo={td}
                               categories={store.categories}
                               density={store.profile.density}
-                        celebrate={store.profile.completionAnimation !== false}
+                        celebrate={store.profile.completionAnimation !== false && store.profile.reduceMotion !== true}
                         playSound={store.profile.completionSound !== false}
                               onToggle={store.toggle}
                               onMoveToTrash={store.moveToTrash}
@@ -768,7 +762,7 @@ function TodosScreen() {
       />
       {splashShown && (
         <SplashOverlay
-          reduceMotion={false}
+          reduceMotion={store.profile.reduceMotion === true}
           onDismiss={() => setSplashShown(false)}
         />
       )}

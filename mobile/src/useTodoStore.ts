@@ -366,7 +366,8 @@ export function useTodoStore() {
   // skipped entirely when the user has reduce-motion on or has turned
   // off completion animations in Profile — there's no Mochi to wait for
   // and the 940ms gap between chime and pebble would just feel laggy.
-  const animationOn = profile.completionAnimation !== false;
+  const animationOn =
+    profile.completionAnimation !== false && profile.reduceMotion !== true;
   const applyPebbleDeltaTimed = useCallback(
     (delta: PebbleDelta) => {
       if (delta.task === 0 && delta.subtask === 0) return;

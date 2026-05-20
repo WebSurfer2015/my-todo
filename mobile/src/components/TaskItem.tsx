@@ -291,40 +291,38 @@ function TaskItem({
       !prevDoneRef.current &&
       prevDueDateRef.current !== todo.dueDate &&
       !!prevDueDateRef.current
-    if (becameDone || rolledForward) {
-      // Subtle row flash — 100ms in, 240ms out, max opacity 0.45.
-      {
-        Animated.sequence([
-          Animated.timing(rowFlash, {
-            toValue: 1,
-            duration: 100,
-            easing: Easing.out(Easing.quad),
-            useNativeDriver: true,
-          }),
-          Animated.timing(rowFlash, {
-            toValue: 0,
-            duration: 240,
-            easing: Easing.out(Easing.quad),
-            useNativeDriver: true,
-          }),
-        ]).start()
-        if (celebrate) {
-          Animated.sequence([
-            Animated.timing(checkboxScale, {
-              toValue: 1.35,
-              duration: 140,
-              easing: Easing.out(Easing.quad),
-              useNativeDriver: true,
-            }),
-            Animated.timing(checkboxScale, {
-              toValue: 1,
-              duration: 220,
-              easing: Easing.elastic(1.2),
-              useNativeDriver: true,
-            }),
-          ]).start()
-        }
-      }
+    if ((becameDone || rolledForward) && celebrate) {
+      // Row flash + checkbox bounce — both honor `celebrate`, which is
+      // false when the user has Reduce motion or Completion animation
+      // turned off in Settings. No motion at all on done in that mode.
+      Animated.sequence([
+        Animated.timing(rowFlash, {
+          toValue: 1,
+          duration: 100,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(rowFlash, {
+          toValue: 0,
+          duration: 240,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]).start()
+      Animated.sequence([
+        Animated.timing(checkboxScale, {
+          toValue: 1.35,
+          duration: 140,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(checkboxScale, {
+          toValue: 1,
+          duration: 220,
+          easing: Easing.elastic(1.2),
+          useNativeDriver: true,
+        }),
+      ]).start()
       // Pebble flight is fired synchronously in handleToggle (so it
       // survives a strict-Open-filter unmount). This effect now only
       // owns the on-row visual feedback (row flash + checkbox bounce)
