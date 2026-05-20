@@ -435,8 +435,15 @@ export function useTodoStore() {
       // Restore is a refund (negative delta) — apply immediately so the
       // cairn count drops in sync with the visible un-strike.
       applyPebbleDelta(pebbleDelta(beforeTodo, afterTodo));
+      // Mirror the toggle path's snackbar: when a Not-Do row (or any
+      // bin row) is reopened while the user is on Done / Trash, they
+      // lose visual context as the row leaves the bin — tell them
+      // where it went.
+      if (filterRef.current === "done" || filterRef.current === "trash") {
+        notify.showSnackbar({ message: "Moved back to your open list." });
+      }
     },
-    [setTodos, applyPebbleDelta],
+    [setTodos, applyPebbleDelta, notify],
   );
 
   const moveToTrash = useCallback(
@@ -667,18 +674,39 @@ export function useTodoStore() {
       // The auto-cascade that marks the parent done when all subs are done
       // is a derived state, not a separate action — so it does not earn an
       // extra task pebble.
-      const beforeSub = todosRef.current
-        .find((t) => t.id === id)
-        ?.subtasks?.find((s) => s.id === subId);
+      const beforeTodo = todosRef.current.find((t) => t.id === id);
+      const beforeSub = beforeTodo?.subtasks?.find((s) => s.id === subId);
       setTodos((prev) => subtaskToggle(prev, id, subId));
+      // If the sub un-check cascaded the parent from done back to open
+      // and the user is on Done / Trash, surface the same snackbar the
+      // restore + un-check paths show.
+      if (
+        beforeTodo?.done &&
+        beforeSub?.done &&
+        (filterRef.current === "done" || filterRef.current === "trash")
+      ) {
+        notify.showSnackbar({ message: "Moved back to your open list." });
+      }
       if (!beforeSub) return;
-      if (!beforeSub.done) {
-        setProfile((p) => incrementPebble(p, todayLocal(), 'subtask'));
+      const becameDone = !beforeSub.done;
+      // Mirror applyPebbleDeltaTimed: positive deltas defer by
+      // PEBBLE_DEFERRAL_MS so the pebble strip's count materializes the
+      // moment Mochi lands, not before it leaves. Negative deltas (undo)
+      // refund immediately.
+      const shouldDefer = becameDone && animationOn && !reduceMotion;
+      const apply = () =>
+        setProfile((p) =>
+          becameDone
+            ? incrementPebble(p, todayLocal(), 'subtask')
+            : decrementPebble(p, todayLocal(), 'subtask'),
+        );
+      if (shouldDefer) {
+        setTimeout(apply, PEBBLE_DEFERRAL_MS);
       } else {
-        setProfile((p) => decrementPebble(p, todayLocal(), 'subtask'));
+        apply();
       }
     },
-    [setTodos, setProfile],
+    [setTodos, setProfile, animationOn, reduceMotion, notify],
   );
 
   const updateSubtaskText = useCallback(

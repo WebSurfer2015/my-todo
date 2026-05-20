@@ -186,7 +186,7 @@ function TodosScreen() {
         <ScrollView
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
-          stickyHeaderIndices={[1]}
+          stickyHeaderIndices={[1, 2]}
           onScroll={(e) => {
             const y = e.nativeEvent.contentOffset.y;
             const next = y > 80;
@@ -240,6 +240,16 @@ function TodosScreen() {
             />
           </View>
 
+          {/* Sticky pebble strip — index 2 in stickyHeaderIndices.
+              Always-rendered wrapper keeps the index stable when the
+              strip itself is conditionally hidden (Done filter / trash
+              view). theme.bg background prevents see-through scroll. */}
+          <View style={styles.stickyStrip}>
+            {!store.inTrashView && store.filter !== "done" && (
+              <PebbleStrip count={store.todayPebbles} active={isFocused} />
+            )}
+          </View>
+
           <View style={styles.body}>
             {/* Groceries now lives in its own tab; the inline branch
                 that handled filter==='groceries' here is gone. */}
@@ -282,10 +292,6 @@ function TodosScreen() {
                   </TouchableOpacity>
                 </View>
               )
-            )}
-
-            {isFocused && !store.inTrashView && store.filter !== "done" && (
-              <PebbleStrip count={store.todayPebbles} />
             )}
 
             {store.inTrashView ? (
@@ -930,6 +936,9 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surface,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.separator,
+    },
+    stickyStrip: {
+      backgroundColor: c.bg,
     },
     searchPillRow: {
       flexDirection: "row",

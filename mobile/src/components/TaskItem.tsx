@@ -262,6 +262,29 @@ function TaskItem({
     },
     [celebrate, playSound, triggerPebbleFlight],
   )
+  // Fire the pebble flight from the row's CURRENT screen position
+  // synchronously on tap — strict Open filters unmount the row
+  // immediately when it flips done, so a post-render useEffect would
+  // miss the transition entirely.
+  const fireRowFlight = useCallback(() => {
+    if (!celebrate && !playSound) return
+    const fallback = {
+      x: Dimensions.get('window').width / 2,
+      y: Dimensions.get('window').height / 2,
+    }
+    const measure = rowMeasureRef.current
+    if (measure) {
+      measure.measureInWindow((x, y, w, h) => {
+        const from =
+          typeof x === 'number' && typeof y === 'number' && w > 0 && h > 0
+            ? { x: x + w / 2, y: y + h / 2 }
+            : fallback
+        triggerPebbleFlight(from, { animate: celebrate, chime: playSound })
+      })
+    } else {
+      triggerPebbleFlight(fallback, { animate: celebrate, chime: playSound })
+    }
+  }, [celebrate, playSound, triggerPebbleFlight])
   useEffect(() => {
     const becameDone = todo.done && !prevDoneRef.current
     const rolledForward =
@@ -304,33 +327,14 @@ function TaskItem({
           ]).start()
         }
       }
-      // Launch a Mochi from the row's CURRENT screen-center up to the
-      // next-pebble slot. We measure the row at trigger time (not at
-      // layout time) so list reorders, sort, scroll, and category
-      // changes that move this row between layout passes don't leave
-      // the animation flying out of an empty spot.
-      if (playSound || celebrate) {
-        const fallback = {
-          x: Dimensions.get('window').width / 2,
-          y: Dimensions.get('window').height / 2,
-        }
-        const measure = rowMeasureRef.current
-        if (measure) {
-          measure.measureInWindow((x, y, w, h) => {
-            const from =
-              typeof x === 'number' && typeof y === 'number' && w > 0 && h > 0
-                ? { x: x + w / 2, y: y + h / 2 }
-                : fallback
-            triggerPebbleFlight(from, { animate: celebrate, chime: playSound })
-          })
-        } else {
-          triggerPebbleFlight(fallback, { animate: celebrate, chime: playSound })
-        }
-      }
+      // Pebble flight is fired synchronously in handleToggle (so it
+      // survives a strict-Open-filter unmount). This effect now only
+      // owns the on-row visual feedback (row flash + checkbox bounce)
+      // for the brief window before the row may unmount.
     }
     prevDoneRef.current = todo.done
     prevDueDateRef.current = todo.dueDate
-  }, [todo.done, todo.dueDate, todo.recurrence, celebrate, playSound, reduceMotion, checkboxScale, rowFlash, triggerPebbleFlight])
+  }, [todo.done, todo.dueDate, todo.recurrence, celebrate, reduceMotion, checkboxScale, rowFlash])
   const swipeableRef = useRef<Swipeable>(null)
   const [swipeOpen, setSwipeOpen] = useState(false)
   // Suppress the row Pressable's onPress / onLongPress when the touch
@@ -384,7 +388,48 @@ function TaskItem({
 
   function handleToggle() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {})
-    onToggle(todo.id)
+    // Not-Do rows: tap reopens them, not mark-done.
+    if (todo.trashed && !todo.done) {
+      onRestore?.(todo.id)
+      return
+    }
+    // Tap that COMPLETES (or rolls a recurring row forward) measures
+    // the row's position FIRST, then fires the pebble flight, then
+    // calls onToggle. The serialization matters because the row may
+    // unmount the moment state updates (strict Open filter), and
+    // measureInWindow's async callback never fires for an unmounted
+    // node. Doing it in this order keeps the row mounted long enough
+    // for the measurement to succeed.
+    const wantsFlight = !todo.done && (celebrate || playSound)
+    if (!wantsFlight) {
+      onToggle(todo.id)
+      return
+    }
+    const measure = rowMeasureRef.current
+    if (!measure) {
+      // No measurable view — fire from screen center and move on.
+      triggerPebbleFlight(
+        {
+          x: Dimensions.get('window').width / 2,
+          y: Dimensions.get('window').height / 2,
+        },
+        { animate: celebrate, chime: playSound },
+      )
+      onToggle(todo.id)
+      return
+    }
+    measure.measureInWindow((x, y, w, h) => {
+      const fallback = {
+        x: Dimensions.get('window').width / 2,
+        y: Dimensions.get('window').height / 2,
+      }
+      const from =
+        typeof x === 'number' && typeof y === 'number' && w > 0 && h > 0
+          ? { x: x + w / 2, y: y + h / 2 }
+          : fallback
+      triggerPebbleFlight(from, { animate: celebrate, chime: playSound })
+      onToggle(todo.id)
+    })
   }
 
   function handleMoveToTrash() {

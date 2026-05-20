@@ -214,19 +214,10 @@ export default function HomeScreen() {
   return (
     <View style={[styles.flex, { paddingTop: insets.top }]}>
       <AppHeader />
-      {/* Home strip row: PebbleStrip pinned left at the same x as the
-          TODAY header text (paddingHorizontal:20 matches the body), with
-          a max-width of 60% so a long today-count collapses to "+N"
-          before the strip overlaps the Mochi. Bobbing Mochi mascot on
-          the right. The wrapper's negative marginBottom pulls the
-          TODAY header closer to reduce the gap. */}
-      {isFocused && (
-        <View style={styles.homeStripRow}>
-          <View style={styles.homeStripPebbles}>
-            <PebbleStrip count={store.todayPebbles} />
-          </View>
-        </View>
-      )}
+      {/* Home strip — same render shape as Todos so the pebble-flight
+          target math is identical. Active gates which screen owns the
+          registered cairn. */}
+      <PebbleStrip count={store.todayPebbles} active={isFocused} />
       <ScrollView
         style={styles.flex}
         contentContainerStyle={[styles.body, { paddingBottom: 120 }]}

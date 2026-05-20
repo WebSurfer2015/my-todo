@@ -69,9 +69,13 @@ function pebbleWidth(size: number): number {
 
 interface Props {
   count: number
+  /** When false, the strip still renders but doesn't claim the
+   * pebble-flight cairn target. Used by Home/Todos to coordinate
+   * single-target ownership via useIsFocused on each screen. */
+  active?: boolean
 }
 
-export default function PebbleStrip({ count }: Props) {
+export default function PebbleStrip({ count, active = true }: Props) {
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
 
@@ -91,6 +95,7 @@ export default function PebbleStrip({ count }: Props) {
   }, [count])
 
   useEffect(() => {
+    if (!active) return
     const resolver = (cb: (p: { x: number; y: number } | null) => void) => {
       const node = cairnRef.current
       if (!node) {
@@ -108,9 +113,6 @@ export default function PebbleStrip({ count }: Props) {
           return
         }
         const slot = pebbleWidth(PEBBLE_SIZE) + GAP
-        // Cap the target index at the last fully-visible slot so Mochi
-        // never lands offscreen when the strip is overflowing. Past the
-        // cap, the new pebble collapses into the "+N" indicator anyway.
         const maxVisibleSlots = Math.max(
           0,
           Math.floor((w - SIDE_PADDING * 2 - OVERFLOW_RESERVE) / slot),
@@ -123,7 +125,7 @@ export default function PebbleStrip({ count }: Props) {
     }
     registerCairn(resolver)
     return () => registerCairn(null)
-  }, [registerCairn])
+  }, [registerCairn, active])
 
   if (count === 0) {
     return (
