@@ -260,6 +260,12 @@ After the AAB is processed (Play takes ~30 min to a few hours):
 - ❌ Developer account verification step (real-device hands-on test
   blocking)
 
+Note: localized listing slots in Play Console **do not** require a
+manual "Manage translations" click — the Play Developer API's
+`edits.listings.update` (used by `mobile/scripts/play/play_release.py
+set-listings`) has create-or-update semantics, so locale slots
+materialize the first time content is pushed to them.
+
 ## After publishing
 
 - Crashlytics dashboard at <https://console.firebase.google.com/project/_/crashlytics>

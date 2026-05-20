@@ -29,11 +29,14 @@ PRECONDITIONS  (manual, one-time)
   - Play Console developer account verified
   - App listing created in Play Console with packageName matching
     release_copy.json's `packageName`
-  - Each Play locale we push must exist in Play Console → Store listing
-    → Manage translations (the API can't add locales, only fill them)
   - For set-release-notes / prepare: an AAB for the target version must
     already exist on the target track (upload via Play Console first
     time; subsequent ones via EAS submit)
+
+  NOTE on locales: `edits.listings.update` has create-or-update
+  semantics, so set-listings / prepare will materialize each locale
+  slot the first time they're written. No "Manage translations" UI
+  click needed — pushing the content creates the locale.
 
 REQUIRES
   - ~/.googleplay/sagely-publisher.json (service account JSON, chmod 600)
@@ -292,8 +295,8 @@ def cmd_status(args):
         missing = configured - live
         extra = live - configured
         if missing:
-            print(f"  MISSING in Play (add via Console → Manage translations): "
-                  f"{sorted(missing)}")
+            print(f"  not yet in Play (will auto-create on next "
+                  f"set-listings): {sorted(missing)}")
         if extra:
             print(f"  EXTRA in Play (not in our config): {sorted(extra)}")
 

@@ -21,19 +21,21 @@ Before this script can do anything:
    check, real-device test). This is the longest-running gate.
 2. **App listing created** in Play Console (Create app → Sagely →
    English / Free) so a record exists for `com.websurfer.mytodo`.
-3. **Locales added** in Play Console → Store listing → Manage
-   translations. The API can write listings to existing locale slots
-   but can't create new locales — that's a UI gesture. We need: en-US,
-   es-419, es-ES, fr-FR, de-DE, zh-CN, ja-JP.
-4. **Service account** at `~/.googleplay/sagely-publisher.json` —
+3. **Service account** at `~/.googleplay/sagely-publisher.json` —
    Google Cloud Console → IAM → Service Accounts → Create, then in
    Play Console → Setup → API access link the project and grant the
    service account the "Release apps to production" role.
-5. **First AAB on the target track** (internal at minimum). Upload
+4. **First AAB on the target track** (internal at minimum). Upload
    manually the first time or via `eas submit --platform android
    --track internal` once the service account is wired into `eas.json`.
 
 After all of that, the script is one command per release.
+
+**Locale slots auto-create.** `edits.listings.update` (called by
+`set-listings` and `prepare`) has create-or-update semantics, so the
+seven Play locales — en-US, es-419, es-ES, fr-FR, de-DE, zh-CN, ja-JP —
+materialize the first time content is pushed to them. No "Manage
+translations" UI click required.
 
 ## Per-release workflow
 
@@ -169,8 +171,11 @@ mapping anywhere else.
   token; if it persists, check Play Console → Setup → API access for
   the service account's role.
 - **HTTP 403** → service account lacks `Release` permission on this app.
-- **HTTP 404 on a locale PUT** → locale slot doesn't exist in Play yet.
-  Add it via Play Console → Store listing → Manage translations.
+- **HTTP 404 on a locale PUT** → check that `packageName` matches the
+  Play Console app and that the edit hasn't expired. The PUT itself
+  creates the locale slot if needed (create-or-update semantics), so a
+  404 here means the parent resource (app, edit) is wrong, not the
+  locale.
 - **"Track has no releases"** on `set-release-notes` / `prepare` → no
   AAB on that track. Upload one first.
 - **Multiple edits open** → discard them via `discard-edit --edit-id`.
