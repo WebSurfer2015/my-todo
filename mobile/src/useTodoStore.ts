@@ -164,7 +164,7 @@ async function migrateLocalToCloud(adapter: StorageAdapter): Promise<void> {
 import { pickMascotLine, dateSeed } from "./mascotLines";
 
 export function useTodoStore() {
-  const { t } = useLang();
+  const { lang, t } = useLang();
   const { user } = useAuth();
   const notify = useNotify();
 
@@ -951,7 +951,7 @@ export function useTodoStore() {
     (td) => !td.trashed && td.dueDate === todayDate,
   ).length;
   const plateLine = t.todayPlate(todayCount);
-  const mascotLine = pickMascotLine(greetingKey, todayCount, todayDate);
+  const mascotLine = pickMascotLine(lang, greetingKey, todayCount, todayDate);
   // When the user has set a personal quote, alternate it with Mochi's
   // line by day-stable seed so neither one permanently silences the
   // other. Same seed mechanism as pickMascotLine — predictable rotation
