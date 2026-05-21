@@ -1,0 +1,254 @@
+/* Technology For Humanity — landing page
+ * Palette mirrors Sagely's calm app shell (#F5F0E2 cream, sea-glass accent).
+ * Mobile-first, system fonts, dark-mode via prefers-color-scheme. No JS.
+ */
+
+:root {
+  --bg: #f5f0e2;
+  --bg-card: #fffbf2;
+  --ink: #2d3a30;
+  --ink-soft: #5a6862;
+  --ink-soft-2: #7a8780;
+  --accent: #4f8a75;
+  --accent-hover: #3f7163;
+  --accent-soft: #c2d6cb;
+  --border: #e8e0cd;
+  --radius: 18px;
+  --max-width: 720px;
+  --space: clamp(1rem, 3vw, 1.5rem);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e2724;
+    --bg-card: #28332f;
+    --ink: #e9efea;
+    --ink-soft: #a4b1ac;
+    --ink-soft-2: #8a978f;
+    --accent: #7ac0a8;
+    --accent-hover: #8fd2bb;
+    --accent-soft: #3e554c;
+    --border: #2c3a35;
+  }
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  font-size: 17px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
+    "Helvetica Neue", Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.55;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+a { color: var(--accent); }
+
+/* ─── header ──────────────────────────────────────────────── */
+header {
+  padding: var(--space);
+  display: flex;
+  justify-content: center;
+}
+
+.brand {
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.brand-name {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  font-size: 1.05rem;
+}
+
+/* ─── main / sections ─────────────────────────────────────── */
+main {
+  flex: 1;
+  width: 100%;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 var(--space);
+}
+
+section h2 {
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-soft-2);
+  margin-bottom: 1rem;
+}
+
+/* ─── hero ────────────────────────────────────────────────── */
+.hero {
+  text-align: center;
+  padding: clamp(1.5rem, 6vw, 3rem) 0 clamp(2rem, 7vw, 4rem);
+}
+
+.hero-mascot {
+  width: clamp(120px, 30vw, 180px);
+  height: auto;
+  margin: 0 auto 1.5rem;
+  display: block;
+}
+
+.hero h1 {
+  font-size: clamp(2rem, 7vw, 3.25rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin-bottom: 1rem;
+}
+
+.hero-sub {
+  font-size: clamp(1.05rem, 2.5vw, 1.2rem);
+  color: var(--ink-soft);
+  max-width: 36ch;
+  margin: 0 auto;
+}
+
+/* ─── product card ────────────────────────────────────────── */
+section.product {
+  padding: clamp(2rem, 6vw, 3rem) 0;
+}
+
+.product-card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: clamp(1.25rem, 4vw, 2rem);
+  display: flex;
+  gap: clamp(1rem, 3vw, 1.5rem);
+  align-items: flex-start;
+}
+
+@media (max-width: 520px) {
+  .product-card {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+}
+
+.product-icon {
+  width: 88px;
+  height: 88px;
+  border-radius: 22px;
+  flex-shrink: 0;
+}
+
+.product-meta { flex: 1; min-width: 0; }
+
+.product-meta h3 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.product-tagline {
+  color: var(--accent);
+  font-weight: 500;
+  margin-bottom: 0.75rem;
+}
+
+.product-blurb {
+  color: var(--ink-soft);
+  margin-bottom: 1.25rem;
+}
+
+.product-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+@media (max-width: 520px) {
+  .product-actions { justify-content: center; }
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+.btn-primary:hover { background: var(--accent-hover); }
+
+.btn-secondary {
+  background: var(--accent-soft);
+  color: var(--ink-soft);
+  cursor: not-allowed;
+}
+
+.btn-link {
+  color: var(--accent);
+  padding: 0.6rem 0.25rem;
+  background: transparent;
+}
+.btn-link:hover { color: var(--accent-hover); }
+
+/* ─── mission ─────────────────────────────────────────────── */
+section.mission {
+  padding: clamp(2rem, 7vw, 4rem) 0;
+}
+
+.mission p {
+  font-size: 1.05rem;
+  color: var(--ink-soft);
+  max-width: 60ch;
+  margin-bottom: 1rem;
+}
+
+/* ─── footer ──────────────────────────────────────────────── */
+footer {
+  padding: var(--space) var(--space) clamp(1.5rem, 4vw, 2.5rem);
+  border-top: 1px solid var(--border);
+  margin-top: clamp(2rem, 6vw, 4rem);
+}
+
+.footer-content {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+
+.footer-content a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.footer-meta {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft-2);
+}
+
+.footer-meta a {
+  color: var(--ink-soft-2);
+}
