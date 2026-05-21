@@ -664,8 +664,7 @@ function TodosScreen() {
       </KeyboardAvoidingView>
       {!store.inTrashView &&
         store.filter !== "done" &&
-        store.filter !== "groceries" &&
-        store.activeCount > 0 && (
+        store.filter !== "groceries" && (
           <Fab
             onPress={() => setComposeOpen(true)}
             accessibilityLabel={t.addPlaceholder}
