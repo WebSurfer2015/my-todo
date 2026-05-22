@@ -3,17 +3,17 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Technology For Humanity — Calm tools for hard moments</title>
+    <title>Technology For Humanity — Software that respects the human in the loop</title>
     <meta
       name="description"
-      content="A small studio building calm software that doesn't punish you on days you can't be a productivity person. Currently shipping Sagely."
+      content="Software that respects the human in the loop. Personalized app building, apps for niche markets, and IWMS consulting and tool building. Built by Ying Qin."
     />
-    <meta name="theme-color" content="#f5f0e2" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#1e2724" media="(prefers-color-scheme: dark)" />
-    <meta property="og:title" content="Technology For Humanity" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#15201c" media="(prefers-color-scheme: dark)" />
+    <meta property="og:title" content="Technology For Humanity — Software that respects the human in the loop" />
     <meta
       property="og:description"
-      content="Calm tools for hard moments. Currently shipping Sagely, a to-do app for days you can't be a productivity person."
+      content="Personalized apps, niche-market products like Sagely, and IWMS consulting and tool building."
     />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://technologyforhumanity.net/" />
@@ -22,86 +22,685 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <header>
-      <a href="/" class="brand">
-        <span class="brand-name">Technology For Humanity</span>
-      </a>
+    <!-- ─── SVG icon sprite (hidden, referenced via <use>) ──────── -->
+    <svg
+      width="0"
+      height="0"
+      style="position: absolute"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <defs>
+        <symbol
+          id="icon-spark"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.5 5.5l2 2M16.5 16.5l2 2M5.5 18.5l2-2M16.5 7.5l2-2" />
+          <circle cx="12" cy="12" r="2.5" />
+        </symbol>
+
+        <symbol
+          id="icon-pebbles"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <ellipse cx="12" cy="5" rx="2.5" ry="1.8" />
+          <ellipse cx="12" cy="11" rx="4.5" ry="2.3" />
+          <ellipse cx="12" cy="18" rx="7" ry="2.6" />
+        </symbol>
+
+        <symbol
+          id="icon-network"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="5" cy="5" r="1.8" />
+          <circle cx="19" cy="5" r="1.8" />
+          <circle cx="5" cy="19" r="1.8" />
+          <circle cx="19" cy="19" r="1.8" />
+          <circle cx="12" cy="12" r="2.2" />
+          <line x1="6.5" y1="6.5" x2="10.5" y2="10.5" />
+          <line x1="17.5" y1="6.5" x2="13.5" y2="10.5" />
+          <line x1="6.5" y1="17.5" x2="10.5" y2="13.5" />
+          <line x1="17.5" y1="17.5" x2="13.5" y2="13.5" />
+        </symbol>
+
+        <symbol
+          id="icon-path"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M4 18 C 8 16, 8 8, 12 8 S 16 16, 20 14" />
+          <path d="M17.5 12l2.5 2-2.5 2" />
+        </symbol>
+
+        <symbol
+          id="icon-clock"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="12" cy="13" r="7" />
+          <path d="M12 9v4l2.5 1.5" />
+          <path d="M9 3h6" />
+        </symbol>
+
+        <symbol
+          id="icon-sprout"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M12 21v-9" />
+          <path d="M12 12c0-3-2-5-5-5 0 3 2 5 5 5z" />
+          <path d="M12 14c0-2.5 2-4 4-4 0 2.5-2 4-4 4z" />
+        </symbol>
+
+        <symbol
+          id="icon-moon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M20 14a8 8 0 11-9-10 6 6 0 009 10z" />
+        </symbol>
+
+        <symbol
+          id="icon-heart"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path
+            d="M12 20s-7-4.5-7-11a4 4 0 017-2.5A4 4 0 0119 9c0 6.5-7 11-7 11z"
+          />
+        </symbol>
+
+        <symbol
+          id="icon-people"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="9" cy="9" r="2.5" />
+          <circle cx="17" cy="10" r="2" />
+          <path d="M3 20c0-3 3-5 6-5s6 2 6 5" />
+          <path d="M16 20c0-2 1.5-3.5 4-3.5 1 0 1.5 1 1.5 3" />
+        </symbol>
+
+        <symbol
+          id="icon-link"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M10 13a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1" />
+          <path d="M14 11a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1" />
+        </symbol>
+
+        <symbol
+          id="icon-bolt"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M13 3L4 14h6l-1 7 10-11h-6l1-7z" />
+        </symbol>
+
+        <symbol
+          id="icon-plug"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M9 3v4M15 3v4" />
+          <path d="M7 7h10v4a5 5 0 01-5 5 5 5 0 01-5-5z" />
+          <path d="M12 16v5" />
+        </symbol>
+      </defs>
+    </svg>
+
+    <header class="site-header">
+      <div class="utility-bar">
+        <div class="utility-inner">
+          <a href="#about">About</a>
+          <a href="mailto:support@technologyforhumanity.net">Contact</a>
+          <a href="https://websurfer2015.github.io/my-todo/PRIVACY.html">Privacy</a>
+        </div>
+      </div>
+
+      <div class="nav-bar">
+        <div class="nav-inner">
+          <a href="/" class="brand">
+            <span class="brand-name">Technology For Humanity</span>
+          </a>
+
+          <nav class="nav-primary" aria-label="Primary">
+            <a href="#services" data-tab-link="service-tab-01">Personalized</a>
+            <a href="#services" data-tab-link="service-tab-02">Niche apps</a>
+            <a href="#services" data-tab-link="service-tab-03">IWMS</a>
+            <a href="#about">About</a>
+          </nav>
+
+          <div class="nav-cta">
+            <a
+              class="btn btn-primary"
+              href="https://apps.apple.com/us/app/sagely-calm-to-dos/id6767378689"
+              >Try Sagely</a
+            >
+            <a
+              class="btn btn-outline"
+              href="mailto:support@technologyforhumanity.net"
+              >Contact us</a
+            >
+          </div>
+        </div>
+      </div>
     </header>
 
     <main>
+      <!-- ─── Hero ────────────────────────────────────────────────── -->
       <section class="hero">
-        <img
-          src="assets/mochi.png"
-          alt="Mochi the green turtle with a small cairn of stones on her shell"
-          class="hero-mascot"
-        />
-        <h1>Calm tools<br />for hard moments.</h1>
+        <svg
+          class="hero-illustration"
+          viewBox="0 0 220 170"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <!-- Ground shadow -->
+          <ellipse cx="110" cy="158" rx="70" ry="6" fill="rgba(0,0,0,0.08)" />
+          <!-- Bottom stone — deep teal (IWMS) -->
+          <ellipse
+            cx="110"
+            cy="138"
+            rx="65"
+            ry="18"
+            fill="var(--service-03-accent)"
+            opacity="0.92"
+          />
+          <!-- Middle stone — sage (Niche / Sagely) -->
+          <ellipse
+            cx="110"
+            cy="98"
+            rx="44"
+            ry="16"
+            fill="var(--service-02-accent)"
+            opacity="0.95"
+          />
+          <!-- Top stone — warm gold (Personalized) -->
+          <ellipse
+            cx="110"
+            cy="62"
+            rx="26"
+            ry="13"
+            fill="var(--service-01-accent)"
+          />
+          <!-- Small accent dot above the cairn -->
+          <circle
+            cx="110"
+            cy="36"
+            r="4"
+            fill="var(--service-01-accent)"
+            opacity="0.55"
+          />
+        </svg>
+
+        <a
+          class="announce-chip"
+          href="https://apps.apple.com/us/app/sagely-calm-to-dos/id6767378689"
+        >
+          <span class="announce-tag">New</span>
+          Sagely 1.3 is live on the App Store
+          <span class="announce-arrow" aria-hidden="true">→</span>
+        </a>
+
+        <h1 class="hero-headline">
+          Software that respects<br />
+          the human in the loop.
+        </h1>
+
         <p class="hero-sub">
-          A small studio making software that doesn't punish you on days you
-          can't be a productivity person.
+          A small studio building personalized web and mobile apps, calm
+          products for niche markets, and IWMS consulting and tool building —
+          all built around the people who use them.
         </p>
+
+        <div class="hero-cta">
+          <a href="#services" class="btn btn-primary btn-lg">See services</a>
+          <a
+            href="mailto:support@technologyforhumanity.net"
+            class="btn btn-outline btn-lg"
+            >Get in touch</a
+          >
+        </div>
       </section>
 
-      <section class="product">
-        <h2>Currently shipping</h2>
-        <article class="product-card">
-          <img src="assets/sagely-icon.png" alt="Sagely app icon" class="product-icon" />
-          <div class="product-meta">
-            <h3>Sagely</h3>
-            <p class="product-tagline">
-              A calm to-do app for days you can't be a productivity person.
+      <!-- ─── Services (tabs + swappable panel) ───────────────────── -->
+      <section class="services" id="services">
+        <header class="section-header">
+          <span class="eyebrow">Services</span>
+          <h2 class="section-headline">What we build</h2>
+        </header>
+
+        <div class="service-tabs" role="tablist" aria-label="Services">
+          <button
+            type="button"
+            class="service-tab service-tab-01 is-active"
+            role="tab"
+            id="service-tab-01"
+            aria-selected="true"
+            aria-controls="service-panel-01"
+            data-target="service-panel-01"
+          >
+            <svg class="service-tab-icon" aria-hidden="true">
+              <use href="#icon-spark" />
+            </svg>
+            <span class="service-tab-eyebrow">01 — Personalized</span>
+            <span class="service-tab-headline">Apps built just for you.</span>
+          </button>
+
+          <button
+            type="button"
+            class="service-tab service-tab-02"
+            role="tab"
+            id="service-tab-02"
+            aria-selected="false"
+            aria-controls="service-panel-02"
+            data-target="service-panel-02"
+            tabindex="-1"
+          >
+            <svg class="service-tab-icon" aria-hidden="true">
+              <use href="#icon-pebbles" />
+            </svg>
+            <span class="service-tab-eyebrow">02 — Niche markets</span>
+            <span class="service-tab-headline">
+              Apps for the under-served.
+            </span>
+          </button>
+
+          <button
+            type="button"
+            class="service-tab service-tab-03"
+            role="tab"
+            id="service-tab-03"
+            aria-selected="false"
+            aria-controls="service-panel-03"
+            data-target="service-panel-03"
+            tabindex="-1"
+          >
+            <svg class="service-tab-icon" aria-hidden="true">
+              <use href="#icon-network" />
+            </svg>
+            <span class="service-tab-eyebrow">03 — IWMS</span>
+            <span class="service-tab-headline">
+              Consulting and tool building.
+            </span>
+          </button>
+        </div>
+
+        <div class="service-panels" data-active="01">
+          <article
+            class="service-panel is-active"
+            id="service-panel-01"
+            role="tabpanel"
+            aria-labelledby="service-tab-01"
+          >
+            <p class="panel-lede">
+              We design web and mobile apps that fit the unique needs of every
+              person, family, and organization. Each solution reflects your
+              workflow and is yours to change and grow with your needs.
             </p>
-            <p class="product-blurb">
-              No streaks. No scoreboards. Past-due is "Carried over," not
-              "Late." Progress shows up as ambient pebbles in a cairn, never a
-              counter that resets when life happens.
-            </p>
-            <div class="product-actions">
-              <a
-                class="btn btn-primary"
-                href="https://apps.apple.com/us/app/sagely-calm-to-dos/id6767378689"
-              >
-                App Store
-              </a>
-              <span class="btn btn-secondary" aria-disabled="true">
-                Google Play — soon
-              </span>
-              <a class="btn btn-link" href="https://app.technologyforhumanity.net">
-                Or use it in your browser →
-              </a>
+
+            <div class="pillars">
+              <div class="pillar">
+                <svg class="pillar-icon" aria-hidden="true">
+                  <use href="#icon-path" />
+                </svg>
+                <h3>Your workflow, your design</h3>
+                <p>
+                  Built around how you actually work — not how the software
+                  wants you to. No cookie-cutter templates, full of personal
+                  touches.
+                </p>
+              </div>
+              <div class="pillar">
+                <svg class="pillar-icon" aria-hidden="true">
+                  <use href="#icon-clock" />
+                </svg>
+                <h3>Days, not quarters</h3>
+                <p>
+                  Personalized doesn't have to mean slow. We ship working
+                  software in days, with iteration after launch baked in.
+                </p>
+              </div>
+              <div class="pillar">
+                <svg class="pillar-icon" aria-hidden="true">
+                  <use href="#icon-sprout" />
+                </svg>
+                <h3>Yours to grow</h3>
+                <p>
+                  The app belongs to you. Change it, extend it, evolve it as
+                  your needs change. We host it, you own it.
+                </p>
+              </div>
             </div>
-          </div>
-        </article>
+
+            <p class="service-cta">
+              <a
+                class="btn btn-outline"
+                href="mailto:support@technologyforhumanity.net?subject=Personalized%20app%20inquiry"
+                >Tell us what to build</a
+              >
+            </p>
+          </article>
+
+          <article
+            class="service-panel"
+            id="service-panel-02"
+            role="tabpanel"
+            aria-labelledby="service-tab-02"
+            hidden
+          >
+            <img
+              src="assets/mochi.png"
+              alt="Mochi the green turtle with a small cairn of stones on her shell"
+              class="panel-mascot"
+            />
+            <p class="panel-lede">
+              Sagely is a calm to-do app that treats your emotional needs as
+              part of the day — sitting alongside the task list, not after
+              it. The first in a series of apps for the people mainstream
+              software forgets.
+            </p>
+
+            <div class="pillars">
+              <div class="pillar">
+                <svg class="pillar-icon" aria-hidden="true">
+                  <use href="#icon-moon" />
+                </svg>
+                <h3>Calm by design</h3>
+                <p>
+                  No streaks. No scoreboards. No "you missed your goal"
+                  notifications. Designed for nervous systems that are
+                  already loud.
+                </p>
+              </div>
+              <div class="pillar">
+                <svg class="pillar-icon" aria-hidden="true">
+                  <use href="#icon-heart" />
+                </svg>
+                <h3>Emotion alongside tasks</h3>
+                <p>
+                  How you feel is part of the day, not something to defer
+                  to "self-care time." Mood and task live on the same plane.
+                </p>
+              </div>
+              <div class="pillar">
+                <svg class="pillar-icon" aria-hidden="true">
+                  <use href="#icon-people" />
+                </svg>
+                <h3>For the under-served</h3>
+                <p>
+                  Sagely is first — calm to-dos for busy people. More niche
+                  apps are in the pipeline for audiences mainstream software
+                  overlooks.
+                </p>
+              </div>
+            </div>
+
+            <p class="service-cta">
+              <a
+                class="btn btn-outline"
+                href="https://apps.apple.com/us/app/sagely-calm-to-dos/id6767378689"
+                >Try Sagely</a
+              >
+            </p>
+          </article>
+
+          <article
+            class="service-panel"
+            id="service-panel-03"
+            role="tabpanel"
+            aria-labelledby="service-tab-03"
+            hidden
+          >
+            <p class="panel-lede">
+              IWMS consulting and tool building — serving vendors and
+              partners across the IWMS industry with consulting and solution
+              design. Years of hands-on work mean we know how to solve the
+              tough problems in the most efficient ways.
+            </p>
+
+            <div class="pillars">
+              <div class="pillar">
+                <svg class="pillar-icon" aria-hidden="true">
+                  <use href="#icon-link" />
+                </svg>
+                <h3>Platform-agnostic</h3>
+                <p>
+                  Works against any IWMS that exposes a reasonable data
+                  surface. No vendor lock-in, no proprietary stack
+                  assumptions.
+                </p>
+              </div>
+              <div class="pillar">
+                <svg class="pillar-icon" aria-hidden="true">
+                  <use href="#icon-bolt" />
+                </svg>
+                <h3>High-performing</h3>
+                <p>
+                  Tuned for real production loads — large facility
+                  portfolios, dense space and asset hierarchies, fast query
+                  paths.
+                </p>
+              </div>
+              <div class="pillar">
+                <svg class="pillar-icon" aria-hidden="true">
+                  <use href="#icon-plug" />
+                </svg>
+                <h3>Easy to hook up</h3>
+                <p>
+                  Drops into existing pipelines with minimal configuration.
+                  Documented, predictable, no integration consulting
+                  required.
+                </p>
+              </div>
+            </div>
+
+            <p class="service-cta">
+              <a
+                class="btn btn-outline"
+                href="mailto:support@technologyforhumanity.net?subject=IWMS%20inquiry"
+                >Reach out to discuss fit</a
+              >
+            </p>
+          </article>
+        </div>
       </section>
 
-      <section class="mission">
-        <h2>Why these tools exist</h2>
-        <p>
-          Most productivity apps assume you want to optimize. Streaks.
-          Scoreboards. "You missed your goal" notifications. If that's the
-          right energy for you, those apps work.
-        </p>
-        <p>
-          For everyone else — anxiety, procrastination, low stress tolerance,
-          negative self-talk — those same systems make a hard day worse.
-          Technology For Humanity builds tools that move things forward
-          without making the day feel like a test you're failing.
-        </p>
+      <!-- ─── About ───────────────────────────────────────────────── -->
+      <section class="about" id="about">
+        <svg
+          class="about-illustration"
+          viewBox="0 0 160 160"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <!-- Connecting lines from the central node to each service node -->
+          <line
+            x1="80"
+            y1="80"
+            x2="80"
+            y2="28"
+            stroke="var(--border-strong)"
+            stroke-width="1"
+          />
+          <line
+            x1="80"
+            y1="80"
+            x2="125"
+            y2="106"
+            stroke="var(--border-strong)"
+            stroke-width="1"
+          />
+          <line
+            x1="80"
+            y1="80"
+            x2="35"
+            y2="106"
+            stroke="var(--border-strong)"
+            stroke-width="1"
+          />
+          <!-- Three service nodes around the perimeter -->
+          <circle cx="80" cy="28" r="8" fill="var(--service-01-accent)" />
+          <circle cx="125" cy="106" r="8" fill="var(--service-02-accent)" />
+          <circle cx="35" cy="106" r="8" fill="var(--service-03-accent)" />
+          <!-- Central node — the studio -->
+          <circle cx="80" cy="80" r="16" fill="var(--ink)" />
+          <circle cx="80" cy="80" r="6" fill="var(--bg)" />
+        </svg>
+
+        <header class="section-header section-header-about">
+          <span class="eyebrow">About</span>
+          <h2 class="section-headline">A studio of one.</h2>
+          <p class="section-lede">
+            I'm <strong>Ying Qin</strong> — a unicorn with years of expertise
+            across both product design and software development. I've built
+            many apps from the ground up throughout my career, earning high
+            marks from customers and the market alike. My success comes from
+            a strong focus on human emotion, behavior, and connection
+            throughout the product design process. Serving niche markets and
+            unique individuals is what drove me to start this business —
+            building personalized apps that acknowledge each person's
+            uniqueness, and helping us grow our shared ability to create,
+            make impact, and connect with one another.
+          </p>
+          <p class="about-links">
+            <a
+              class="btn btn-outline"
+              href="https://www.linkedin.com/in/yingqin88/"
+              target="_blank"
+              rel="noopener noreferrer"
+              >LinkedIn →</a
+            >
+          </p>
+        </header>
       </section>
     </main>
 
     <footer>
-      <div class="footer-content">
-        <p>
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <span class="brand-name">Technology For Humanity</span>
+        </div>
+        <div class="footer-links">
           <a href="mailto:support@technologyforhumanity.net"
             >support@technologyforhumanity.net</a
           >
-        </p>
-        <p class="footer-meta">
-          <a href="https://websurfer2015.github.io/my-todo/PRIVACY.html">Privacy</a>
-          · © 2026 Technology For Humanity
-        </p>
+          <a href="https://www.linkedin.com/in/yingqin88/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+          <a href="https://websurfer2015.github.io/my-todo/PRIVACY.html"
+            >Privacy</a
+          >
+        </div>
+        <p class="footer-meta">© 2026 Technology For Humanity</p>
       </div>
     </footer>
+
+    <script>
+      (function () {
+        const tabs = Array.from(document.querySelectorAll(".service-tab"));
+        const panels = Array.from(document.querySelectorAll(".service-panel"));
+
+        const panelContainer = document.querySelector(".service-panels");
+
+        function activate(tabId) {
+          tabs.forEach((t) => {
+            const isActive = t.id === tabId;
+            t.classList.toggle("is-active", isActive);
+            t.setAttribute("aria-selected", isActive ? "true" : "false");
+            t.setAttribute("tabindex", isActive ? "0" : "-1");
+          });
+          panels.forEach((p) => {
+            const isActive = p.getAttribute("aria-labelledby") === tabId;
+            p.classList.toggle("is-active", isActive);
+            p.hidden = !isActive;
+          });
+          // Set data-active="01"/"02"/"03" on the panel container so CSS can
+          // tint the background to match the active service.
+          const match = tabId.match(/service-tab-(\d+)/);
+          if (match && panelContainer) {
+            panelContainer.setAttribute("data-active", match[1]);
+          }
+        }
+
+        tabs.forEach((t) => {
+          t.addEventListener("click", () => activate(t.id));
+          t.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+              e.preventDefault();
+              const idx = tabs.indexOf(t);
+              const next =
+                e.key === "ArrowRight"
+                  ? tabs[(idx + 1) % tabs.length]
+                  : tabs[(idx - 1 + tabs.length) % tabs.length];
+              next.focus();
+              activate(next.id);
+            }
+          });
+        });
+
+        // Nav links that target a specific service tab: jump to #services
+        // and activate the matching tab.
+        document
+          .querySelectorAll("[data-tab-link]")
+          .forEach((link) => {
+            link.addEventListener("click", () => {
+              const target = link.getAttribute("data-tab-link");
+              activate(target);
+            });
+          });
+      })();
+    </script>
   </body>
 </html>
