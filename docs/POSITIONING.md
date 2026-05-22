@@ -171,9 +171,9 @@ English, Simplified Chinese, Spanish, French, German, and Japanese.
 ### Keywords (100-char limit, comma-separated, no spaces in some locales)
 
 ```
-todo,task,planner,productivity,tasks,anxiety,procrastination,mental health,calm,gentle,mindful
+calm,anxiety,procrastination,mochi,calm todo,planner,calm planner,pebble
 ```
-*(94 chars — dropped `to-do` since `todo` covers it; original was 102 over the limit)*
+*(72 chars — refocused on Sagely-specific terms ("mochi", "pebble", "calm todo", "calm planner") rather than generic productivity terms ("task", "productivity", "todo") that bigger apps already dominate. ASO bet: rank for niche, not compete for popular.)*
 
 ---
 
