@@ -980,15 +980,18 @@ export function useTodoStore() {
       });
       // Auto-register the store on first use so the Configure Filter
       // sheet shows it in the STORES section even before the user goes
-      // there to add it explicitly.
-      const store = args.store?.trim();
-      if (store) {
-        setProfile((p) => {
+      // there to add it explicitly. Also stamp `lastAddedGroceryStore`
+      // (including the undefined → "Any" case) so a fresh launch's
+      // first add lands where the user left off.
+      const store = args.store?.trim() || undefined;
+      setProfile((p) => {
+        const next = { ...p, lastAddedGroceryStore: store };
+        if (store) {
           const list = p.groceryStores ?? SEED_GROCERY_STORES;
-          if (list.includes(store)) return p;
-          return { ...p, groceryStores: [...list, store] };
-        });
-      }
+          if (!list.includes(store)) next.groceryStores = [...list, store];
+        }
+        return next;
+      });
     },
     [setGroceries, setProfile],
   );

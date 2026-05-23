@@ -117,6 +117,14 @@ export interface Profile {
    */
   activeGroceryStore?: string
   /**
+   * Last store picked on the Add Item compose sheet. Distinct from
+   * `activeGroceryStore` (the filter pill) — a user may filter to
+   * "Costco" but add to "Trader Joe's". Persisted so a fresh launch's
+   * first add starts where the user left off. `undefined` = "Any" and
+   * is preserved across launches.
+   */
+  lastAddedGroceryStore?: string
+  /**
    * Ordered, explicit list of grocery store names. Auto-registered when
    * the user adds a grocery item with a new store. Editable in the
    * Configure Filter sheet → Groceries tab → STORES section (rename,
@@ -367,6 +375,10 @@ export function migrateProfile(raw: unknown): Profile {
     activeGroceryStore:
       typeof p.activeGroceryStore === 'string' && p.activeGroceryStore.length > 0
         ? p.activeGroceryStore.slice(0, 64)
+        : undefined,
+    lastAddedGroceryStore:
+      typeof p.lastAddedGroceryStore === 'string' && p.lastAddedGroceryStore.length > 0
+        ? p.lastAddedGroceryStore.slice(0, MAX_GROCERY_STORE_NAME_LEN)
         : undefined,
     groceryStores: migrateGroceryStores(p.groceryStores),
     hiddenGroceryStores: migrateGroceryStores(p.hiddenGroceryStores),

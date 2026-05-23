@@ -49,6 +49,11 @@ interface Props {
    * the visible list narrows to items in that department (combined
    * with activeStore). Undefined = all departments. */
   activeDept: string | undefined
+  /** Last-picked store on the Add Item sheet (from profile). Seeds
+   * the local `lastAddedStore` state so a fresh launch's compose
+   * sheet starts where the user left off, then in-session adds keep
+   * updating without waiting for the Firestore round-trip. */
+  initialAddStore: string | undefined
   /** Live search text. While the search top-sheet is open this
    * mirrors the input; once committed it's the trimmed query that
    * keeps narrowing the list. Empty = no search filter. */
@@ -99,6 +104,7 @@ export default function GroceryView({
   pinnedDepts,
   activeStore,
   activeDept,
+  initialAddStore,
   searchQuery,
   searchPillVisible,
   onSearchPillPress,
@@ -126,12 +132,12 @@ export default function GroceryView({
   // Compose-sheet visibility — opened by the bottom-right FAB,
   // mirrors the Todos compose flow.
   const [composeOpen, setComposeOpen] = useState(false)
-  // Sticky default for the Add Item sheet's store field — starts as
-  // "Any" (undefined) so the first new item isn't auto-scoped to a
-  // specific store, then carries the most recent picked store across
-  // subsequent adds in this session.
+  // Sticky default for the Add Item sheet's store field. Seeded from
+  // profile.lastAddedGroceryStore so a fresh launch picks up where the
+  // user left off; in-session adds update this local mirror first
+  // (snappy) and the store then debounces the profile write.
   const [lastAddedStore, setLastAddedStore] = useState<string | undefined>(
-    undefined,
+    initialAddStore,
   )
 
   // Edit-sheet state — tap a row's text opens this for the underlying item.

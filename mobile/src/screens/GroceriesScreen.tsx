@@ -56,6 +56,7 @@ export default function GroceriesScreen() {
         pinnedDepts={store.profile.pinnedGroceryDepts ?? []}
         activeStore={store.profile.activeGroceryStore}
         activeDept={store.profile.activeGroceryDept}
+        initialAddStore={store.profile.lastAddedGroceryStore}
         searchQuery={searchOpen ? searchQuery : searchQuery.trim()}
         searchPillVisible={!searchOpen && searchQuery.trim().length > 0}
         onSearchPillPress={() => setSearchOpen(true)}

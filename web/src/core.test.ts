@@ -668,6 +668,35 @@ describe("migrateProfile", () => {
     expect(out.pinnedFilters).toHaveLength(12);
   });
 
+  it("preserves a valid lastAddedGroceryStore string", () => {
+    const out = migrateProfile({
+      name: "X",
+      avatar: { kind: "preset", key: "smile" },
+      lastAddedGroceryStore: "Costco",
+    });
+    expect(out.lastAddedGroceryStore).toBe("Costco");
+  });
+
+  it("drops a non-string or empty lastAddedGroceryStore", () => {
+    for (const bad of [42, null, undefined, "", {}]) {
+      const out = migrateProfile({
+        name: "X",
+        avatar: { kind: "preset", key: "smile" },
+        lastAddedGroceryStore: bad,
+      });
+      expect(out.lastAddedGroceryStore).toBeUndefined();
+    }
+  });
+
+  it("caps lastAddedGroceryStore at 64 chars", () => {
+    const out = migrateProfile({
+      name: "X",
+      avatar: { kind: "preset", key: "smile" },
+      lastAddedGroceryStore: "x".repeat(200),
+    });
+    expect(out.lastAddedGroceryStore!.length).toBe(64);
+  });
+
   it("preserves lifetime pebbles and onboarding flag (regression: were dropped)", () => {
     const out = migrateProfile({
       name: "X",
