@@ -40,7 +40,10 @@ import {
   groceryEdit,
   groceryDelete,
   MAX_GROCERY_ITEMS,
+  OTHERS_GROUP_ID,
+  inferGroceryGroupLocal,
 } from "./groceries";
+import { classifyGroceryDept } from "./aiInfer";
 import { useLang } from "./LangContext";
 import { useAuth } from "./AuthContext";
 import { useNotify } from "./notify";
@@ -256,6 +259,19 @@ export function useTodoStore() {
   useEffect(() => {
     filterRef.current = filter;
   }, [filter]);
+  // Mirror groceryGroups + profile so addGrocery's stable callback can
+  // read the latest department list and the agentEnabled flag inside
+  // an async AI-classify Promise without taking either as a dep
+  // (which would break the callback's identity and force every
+  // GroceryView render to bind a new addGrocery).
+  const groceryGroupsRef = useRef(groceryGroups);
+  useEffect(() => {
+    groceryGroupsRef.current = groceryGroups;
+  }, [groceryGroups]);
+  const profileRef = useRef(profile);
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
 
   // Post-hydrate pebble reconciliation. The stored today*Pebbles counters
   // drive the cairn slot math during in-session animations (they're
@@ -982,9 +998,20 @@ export function useTodoStore() {
     (args: { text: string; groupId?: string; store?: string }) => {
       const text = args.text.trim();
       if (!text) return;
+      // Local-first department inference. Only kicks in when the
+      // caller didn't pick a department (or picked the Others
+      // catch-all). Pure function — safe to run synchronously here
+      // so the item lands in the right group on the first paint.
+      const explicit =
+        args.groupId && args.groupId !== OTHERS_GROUP_ID
+          ? args.groupId
+          : undefined;
+      const localGuess =
+        explicit ?? inferGroceryGroupLocal(text, groceryGroupsRef.current);
+      const item = newGroceryItem({ ...args, text, groupId: localGuess });
       setGroceries((prev) => {
         if (prev.length >= MAX_GROCERY_ITEMS) return prev;
-        return [newGroceryItem({ ...args, text }), ...prev];
+        return [item, ...prev];
       });
       // Auto-register the store on first use so the Configure Filter
       // sheet shows it in the STORES section even before the user goes
@@ -1000,6 +1027,31 @@ export function useTodoStore() {
         }
         return next;
       });
+      // If the local heuristic missed AND AI assistance is on, ask
+      // the model in the background. The item is already on screen in
+      // Uncategorized; on a confident AI response we silently move it
+      // to the suggested group. Failures (network, quota, no-confidence)
+      // are ignored — the item stays in Uncategorized.
+      const landedInOthers = item.groupId === OTHERS_GROUP_ID;
+      const aiOn = profileRef.current.agentEnabled !== false;
+      if (landedInOthers && aiOn && !explicit) {
+        const departments = groceryGroupsRef.current
+          .filter((g) => g.id !== OTHERS_GROUP_ID && !g.hidden)
+          .slice(0, 30)
+          .map((g) => ({ id: g.id, label: g.label }));
+        if (departments.length > 0) {
+          void classifyGroceryDept({ text, departments }).then((res) => {
+            const next = res.groupId;
+            if (!next) return;
+            // Re-check against the live groups list — user may have
+            // deleted the group between the call and the response.
+            if (!groceryGroupsRef.current.some((g) => g.id === next)) return;
+            setGroceries((prev) =>
+              prev.map((it) => (it.id === item.id ? { ...it, groupId: next } : it)),
+            );
+          });
+        }
+      }
     },
     [setGroceries, setProfile],
   );

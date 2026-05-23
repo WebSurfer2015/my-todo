@@ -28,6 +28,15 @@ interface BreakdownResult {
   subtasks: Array<{ text: string }>
 }
 
+interface ClassifyDeptInput {
+  text: string
+  departments: Array<{ id: string; label: string }>
+}
+
+interface ClassifyDeptResult {
+  groupId: string | null
+}
+
 async function callAiInfer<R>(mode: string, input: unknown): Promise<R> {
   const user = auth().currentUser
   if (!user) throw new Error('Sign in to use AI assistance.')
@@ -52,4 +61,19 @@ async function callAiInfer<R>(mode: string, input: unknown): Promise<R> {
 /** Breaks a single to-do into 3–6 concrete steps. */
 export async function suggestSubtasks(input: BreakdownInput): Promise<BreakdownResult> {
   return callAiInfer<BreakdownResult>('breakdown-subtasks', input)
+}
+
+/**
+ * Asks the server to pick a grocery department for a single item.
+ * Returns `{ groupId: null }` when the model isn't confident — caller
+ * should leave the item in Uncategorized in that case rather than
+ * forcing a bad guess. Same null-on-failure contract for network/quota
+ * errors so the caller can ignore failures silently.
+ */
+export async function classifyGroceryDept(input: ClassifyDeptInput): Promise<ClassifyDeptResult> {
+  try {
+    return await callAiInfer<ClassifyDeptResult>('classify-grocery-dept', input)
+  } catch {
+    return { groupId: null }
+  }
 }

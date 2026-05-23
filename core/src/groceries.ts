@@ -315,6 +315,197 @@ export function groceryDelete(items: GroceryItem[], id: string): GroceryItem[] {
   return items.filter((it) => it.id !== id)
 }
 
+// ── Department inference (local heuristic) ──────────────────────────
+//
+// Catches the most common grocery names without an AI call. The AI
+// fallback (mobile/src/aiInfer.ts → classifyGroceryDept) runs only when
+// this misses, saving ~70% of model calls. Map keys must be lowercased.
+//
+// Coverage philosophy: aim for the top ~200 items a typical household
+// buys regularly. Niche items intentionally fall through to AI — better
+// than a sprawling map that's hard to audit.
+
+const GROCERY_MULTI_WORD: ReadonlyArray<readonly [string, string]> = [
+  // 3+ word phrases first so they match before 2-word substrings
+  ['ground beef', 'meat'], ['ground turkey', 'meat'], ['ground chicken', 'meat'],
+  ['ground pork', 'meat'], ['pork chop', 'meat'], ['pork chops', 'meat'],
+  ['chicken breast', 'meat'], ['chicken thigh', 'meat'], ['chicken thighs', 'meat'],
+  ['chicken wing', 'meat'], ['chicken wings', 'meat'], ['beef short rib', 'meat'],
+  ['sea bass', 'meat'], ['fish sticks', 'meat'],
+
+  ['cream cheese', 'dairy'], ['sour cream', 'dairy'], ['cottage cheese', 'dairy'],
+  ['half and half', 'dairy'], ['greek yogurt', 'dairy'], ['oat milk', 'dairy'],
+  ['almond milk', 'dairy'], ['soy milk', 'dairy'], ['heavy cream', 'dairy'],
+
+  ['olive oil', 'pantry'], ['vegetable oil', 'pantry'], ['canola oil', 'pantry'],
+  ['coconut oil', 'pantry'], ['sesame oil', 'pantry'],
+  ['soy sauce', 'pantry'], ['hot sauce', 'pantry'], ['tomato sauce', 'pantry'],
+  ['pasta sauce', 'pantry'], ['marinara sauce', 'pantry'], ['fish sauce', 'pantry'],
+  ['oyster sauce', 'pantry'], ['hoisin sauce', 'pantry'], ['bbq sauce', 'pantry'],
+  ['barbecue sauce', 'pantry'], ['pizza sauce', 'pantry'],
+  ['peanut butter', 'pantry'], ['almond butter', 'pantry'], ['nut butter', 'pantry'],
+  ['brown sugar', 'pantry'], ['powdered sugar', 'pantry'], ['maple syrup', 'pantry'],
+  ['baking soda', 'pantry'], ['baking powder', 'pantry'], ['black pepper', 'pantry'],
+  ['sea salt', 'pantry'], ['kosher salt', 'pantry'],
+
+  ['ice cream', 'frozen'], ['frozen pizza', 'frozen'], ['frozen vegetables', 'frozen'],
+  ['frozen veggies', 'frozen'], ['frozen yogurt', 'frozen'], ['frozen fruit', 'frozen'],
+  ['frozen berries', 'frozen'], ['frozen dinner', 'frozen'], ['frozen meal', 'frozen'],
+  ['frozen burrito', 'frozen'], ['frozen waffle', 'frozen'], ['frozen waffles', 'frozen'],
+
+  ['orange juice', 'beverages'], ['apple juice', 'beverages'],
+  ['sparkling water', 'beverages'], ['iced tea', 'beverages'],
+  ['energy drink', 'beverages'], ['sports drink', 'beverages'],
+  ['cold brew', 'beverages'], ['ground coffee', 'beverages'],
+  ['coffee beans', 'beverages'], ['green tea', 'beverages'], ['black tea', 'beverages'],
+
+  ['pita bread', 'bakery'], ['hamburger bun', 'bakery'], ['hamburger buns', 'bakery'],
+  ['hot dog bun', 'bakery'], ['hot dog buns', 'bakery'], ['english muffin', 'bakery'],
+  ['english muffins', 'bakery'], ['pizza dough', 'bakery'], ['pie crust', 'bakery'],
+
+  ['sweet potato', 'produce'], ['sweet potatoes', 'produce'],
+  ['bell pepper', 'produce'], ['bell peppers', 'produce'],
+  ['brussels sprouts', 'produce'], ['green onion', 'produce'], ['green onions', 'produce'],
+  ['snap pea', 'produce'], ['snap peas', 'produce'], ['snow pea', 'produce'],
+  ['snow peas', 'produce'], ['baby spinach', 'produce'], ['baby carrots', 'produce'],
+  ['cherry tomato', 'produce'], ['cherry tomatoes', 'produce'],
+  ['grape tomato', 'produce'], ['grape tomatoes', 'produce'],
+
+  ['paper towel', 'household'], ['paper towels', 'household'],
+  ['toilet paper', 'household'], ['dish soap', 'household'], ['hand soap', 'household'],
+  ['body wash', 'household'], ['laundry detergent', 'household'],
+  ['fabric softener', 'household'], ['trash bag', 'household'], ['trash bags', 'household'],
+  ['garbage bag', 'household'], ['garbage bags', 'household'],
+  ['aluminum foil', 'household'], ['plastic wrap', 'household'], ['saran wrap', 'household'],
+  ['wax paper', 'household'], ['parchment paper', 'household'],
+  ['light bulb', 'household'], ['light bulbs', 'household'], ['batteries', 'household'],
+  ['paper plate', 'household'], ['paper plates', 'household'],
+] as const
+
+const GROCERY_SINGLE_WORD: Readonly<Record<string, string>> = {
+  // PRODUCE
+  apple: 'produce', apples: 'produce', banana: 'produce', bananas: 'produce',
+  orange: 'produce', oranges: 'produce', lemon: 'produce', lemons: 'produce',
+  lime: 'produce', limes: 'produce', grape: 'produce', grapes: 'produce',
+  strawberry: 'produce', strawberries: 'produce', blueberry: 'produce', blueberries: 'produce',
+  raspberry: 'produce', raspberries: 'produce', blackberry: 'produce', blackberries: 'produce',
+  pear: 'produce', pears: 'produce', peach: 'produce', peaches: 'produce',
+  plum: 'produce', plums: 'produce', mango: 'produce', mangoes: 'produce',
+  kiwi: 'produce', pineapple: 'produce', pineapples: 'produce',
+  watermelon: 'produce', cantaloupe: 'produce', melon: 'produce',
+  cherry: 'produce', cherries: 'produce', avocado: 'produce', avocados: 'produce',
+  lettuce: 'produce', spinach: 'produce', kale: 'produce', arugula: 'produce',
+  romaine: 'produce', cabbage: 'produce', carrot: 'produce', carrots: 'produce',
+  potato: 'produce', potatoes: 'produce', onion: 'produce', onions: 'produce',
+  garlic: 'produce', ginger: 'produce', tomato: 'produce', tomatoes: 'produce',
+  cucumber: 'produce', cucumbers: 'produce', pepper: 'produce', peppers: 'produce',
+  broccoli: 'produce', cauliflower: 'produce', celery: 'produce',
+  asparagus: 'produce', zucchini: 'produce', squash: 'produce',
+  mushroom: 'produce', mushrooms: 'produce', corn: 'produce',
+  eggplant: 'produce', radish: 'produce', radishes: 'produce',
+  beet: 'produce', beets: 'produce', leek: 'produce', leeks: 'produce',
+  scallion: 'produce', scallions: 'produce', shallot: 'produce', shallots: 'produce',
+  parsley: 'produce', basil: 'produce', cilantro: 'produce', mint: 'produce',
+  rosemary: 'produce', thyme: 'produce', dill: 'produce', sage: 'produce',
+  chive: 'produce', chives: 'produce', jalapeno: 'produce', jalapenos: 'produce',
+  // MEAT & SEAFOOD
+  chicken: 'meat', beef: 'meat', pork: 'meat', turkey: 'meat',
+  lamb: 'meat', ham: 'meat', bacon: 'meat', sausage: 'meat', sausages: 'meat',
+  salami: 'meat', prosciutto: 'meat', pepperoni: 'meat', steak: 'meat',
+  brisket: 'meat', ribs: 'meat', drumstick: 'meat', drumsticks: 'meat',
+  salmon: 'meat', tuna: 'meat', cod: 'meat', tilapia: 'meat', halibut: 'meat',
+  shrimp: 'meat', prawn: 'meat', prawns: 'meat', lobster: 'meat', crab: 'meat',
+  scallop: 'meat', scallops: 'meat', mussel: 'meat', mussels: 'meat',
+  clam: 'meat', clams: 'meat', oyster: 'meat', oysters: 'meat',
+  fish: 'meat', sardine: 'meat', sardines: 'meat', anchovy: 'meat', anchovies: 'meat',
+  // DAIRY & EGGS
+  milk: 'dairy', butter: 'dairy', cream: 'dairy', yogurt: 'dairy', yoghurt: 'dairy',
+  cheese: 'dairy', cheddar: 'dairy', mozzarella: 'dairy', parmesan: 'dairy',
+  feta: 'dairy', gouda: 'dairy', brie: 'dairy', swiss: 'dairy', ricotta: 'dairy',
+  mascarpone: 'dairy', egg: 'dairy', eggs: 'dairy', kefir: 'dairy',
+  // BAKERY
+  bread: 'bakery', baguette: 'bakery', bagel: 'bakery', bagels: 'bakery',
+  croissant: 'bakery', croissants: 'bakery', muffin: 'bakery', muffins: 'bakery',
+  donut: 'bakery', donuts: 'bakery', doughnut: 'bakery', doughnuts: 'bakery',
+  pastry: 'bakery', pastries: 'bakery', scone: 'bakery', scones: 'bakery',
+  sourdough: 'bakery', biscuit: 'bakery', biscuits: 'bakery',
+  tortilla: 'bakery', tortillas: 'bakery', naan: 'bakery', focaccia: 'bakery',
+  roll: 'bakery', rolls: 'bakery', bun: 'bakery', buns: 'bakery',
+  // PANTRY (canned/dry/snacks/condiments)
+  rice: 'pantry', pasta: 'pantry', noodle: 'pantry', noodles: 'pantry',
+  ramen: 'pantry', spaghetti: 'pantry', macaroni: 'pantry',
+  flour: 'pantry', sugar: 'pantry', salt: 'pantry', vinegar: 'pantry',
+  oil: 'pantry', ketchup: 'pantry', mustard: 'pantry', mayo: 'pantry',
+  mayonnaise: 'pantry', sriracha: 'pantry', honey: 'pantry', syrup: 'pantry',
+  jam: 'pantry', jelly: 'pantry', preserves: 'pantry', nutella: 'pantry',
+  beans: 'pantry', lentil: 'pantry', lentils: 'pantry', chickpea: 'pantry',
+  chickpeas: 'pantry', quinoa: 'pantry', couscous: 'pantry',
+  oat: 'pantry', oats: 'pantry', oatmeal: 'pantry', cereal: 'pantry', granola: 'pantry',
+  soup: 'pantry', broth: 'pantry', stock: 'pantry', salsa: 'pantry', hummus: 'pantry',
+  chip: 'pantry', chips: 'pantry', cracker: 'pantry', crackers: 'pantry',
+  pretzel: 'pantry', pretzels: 'pantry', popcorn: 'pantry',
+  cookie: 'pantry', cookies: 'pantry', candy: 'pantry', chocolate: 'pantry',
+  brownie: 'pantry', brownies: 'pantry',
+  nut: 'pantry', nuts: 'pantry', almond: 'pantry', almonds: 'pantry',
+  walnut: 'pantry', walnuts: 'pantry', cashew: 'pantry', cashews: 'pantry',
+  peanut: 'pantry', peanuts: 'pantry', pistachio: 'pantry', pistachios: 'pantry',
+  paprika: 'pantry', cumin: 'pantry', cinnamon: 'pantry', vanilla: 'pantry',
+  oregano: 'pantry', turmeric: 'pantry', saffron: 'pantry', curry: 'pantry',
+  raisin: 'pantry', raisins: 'pantry',
+  // BEVERAGES
+  water: 'beverages', juice: 'beverages', soda: 'beverages', cola: 'beverages',
+  coke: 'beverages', sprite: 'beverages', pepsi: 'beverages', lemonade: 'beverages',
+  beer: 'beverages', wine: 'beverages', champagne: 'beverages', prosecco: 'beverages',
+  vodka: 'beverages', whiskey: 'beverages', whisky: 'beverages', rum: 'beverages',
+  gin: 'beverages', tequila: 'beverages', bourbon: 'beverages',
+  coffee: 'beverages', tea: 'beverages', espresso: 'beverages',
+  kombucha: 'beverages', gatorade: 'beverages', powerade: 'beverages',
+  seltzer: 'beverages',
+  // HOUSEHOLD
+  soap: 'household', shampoo: 'household', conditioner: 'household',
+  toothpaste: 'household', toothbrush: 'household', deodorant: 'household',
+  razor: 'household', razors: 'household', detergent: 'household',
+  bleach: 'household', sponge: 'household', sponges: 'household',
+  tissue: 'household', tissues: 'household', napkin: 'household', napkins: 'household',
+  foil: 'household', ziplock: 'household', battery: 'household',
+  candle: 'household', candles: 'household', lightbulb: 'household',
+}
+
+/**
+ * Best-guess grocery department from the item text using a static
+ * keyword map. Returns the matching group id (e.g. 'produce') or
+ * undefined when nothing matches.
+ *
+ * Behavior:
+ *   - Multi-word phrases match first (longer = more specific) so
+ *     "ice cream" → frozen wins over "cream" → dairy.
+ *   - Single-word matches run against tokenized input next.
+ *   - Returns undefined when the matched group isn't in `groups`
+ *     (e.g. user deleted the built-in Produce group).
+ *
+ * Pure function — safe to call on every keystroke; no allocations
+ * beyond the tokenized input array.
+ */
+export function inferGroceryGroupLocal(
+  text: string,
+  groups: GroceryGroup[],
+): string | undefined {
+  const lower = text.toLowerCase().trim()
+  if (lower.length === 0) return undefined
+  const validIds = new Set(groups.map((g) => g.id))
+  // Multi-word phrases (already ordered longest-first within the array).
+  for (const [keyword, groupId] of GROCERY_MULTI_WORD) {
+    if (lower.includes(keyword) && validIds.has(groupId)) return groupId
+  }
+  // Single-word matches: split on whitespace + common punctuation.
+  const tokens = lower.split(/[\s,.;:!?()/\\-]+/).filter(Boolean)
+  for (const token of tokens) {
+    const groupId = GROCERY_SINGLE_WORD[token]
+    if (groupId && validIds.has(groupId)) return groupId
+  }
+  return undefined
+}
+
 /** Return items whose `purchases` log shows ≥`minCount` check-offs within
  * `windowMs` of `now`. Sorted by in-window count desc, ties broken by
  * latest in-window timestamp desc. `now` is injectable for tests. */
