@@ -19,6 +19,7 @@ import {
   subtaskUpdateDueDate,
   subtaskRemove,
   deriveState,
+  inferDefaultCategory,
   categoryAdd,
   categoryEdit,
   categoryDelete,
@@ -998,8 +999,8 @@ describe("deriveState", () => {
     expect(state.byCategoryOpen.work).toBe(1);
   });
 
-  it("defaultCategory falls back through preferred order (school first, then [0])", () => {
-    // school > [0] > 'home' fallback. With no school in the list, [0] wins.
+  it("defaultCategory uses inferDefaultCategory: empty history falls back to home, else [0]", () => {
+    // home > [0] > 'home' fallback. With no home in the list, [0] wins.
     const justOther = [{ id: "other", color: "#8E8E93", icon: "tag" }];
     const state = deriveState({
       todos: [],
@@ -1010,6 +1011,69 @@ describe("deriveState", () => {
     expect(state.defaultCategory).toBe("other");
   });
 
+  it("defaultCategory mirrors last active todo's category", () => {
+    const cats = [
+      { id: "home",   color: "#34C759", icon: "home" },
+      { id: "work",   color: "#007AFF", icon: "briefcase" },
+      { id: "school", color: "#FF9500", icon: "book" },
+    ];
+    const todos: Todo[] = [
+      // Newest by updatedAt is the work one — that's the expected pick.
+      { id: "1", text: "a", category: "school", priority: "medium", dueDate: "",
+        done: false, trashed: false, updatedAt: 100 } as Todo,
+      { id: "2", text: "b", category: "work",   priority: "medium", dueDate: "",
+        done: false, trashed: false, updatedAt: 300 } as Todo,
+      { id: "3", text: "c", category: "home",   priority: "medium", dueDate: "",
+        done: false, trashed: false, updatedAt: 200 } as Todo,
+    ];
+    const state = deriveState({ todos, filter: "all", categories: cats, t });
+    expect(state.defaultCategory).toBe("work");
+  });
+});
+
+describe("inferDefaultCategory", () => {
+  const cats = [
+    { id: "home",   color: "#34C759", icon: "home" },
+    { id: "work",   color: "#007AFF", icon: "briefcase" },
+    { id: "school", color: "#FF9500", icon: "book" },
+  ];
+  function mk(
+    id: string, category: string, updatedAt: number, trashed = false,
+  ): Todo {
+    return { id, text: id, category, priority: "medium", dueDate: "",
+      done: false, trashed, updatedAt } as Todo;
+  }
+
+  it("returns the newest non-trashed todo's category", () => {
+    const todos = [mk("a", "home", 100), mk("b", "work", 200)];
+    expect(inferDefaultCategory(todos, cats)).toBe("work");
+  });
+
+  it("ignores trashed todos when scanning for last", () => {
+    const todos = [mk("a", "home", 100), mk("b", "work", 200, /*trashed*/ true)];
+    expect(inferDefaultCategory(todos, cats)).toBe("home");
+  });
+
+  it("skips todos whose category was deleted from the list", () => {
+    const todos = [mk("a", "home", 100), mk("b", "ghost", 200)];
+    expect(inferDefaultCategory(todos, cats)).toBe("home");
+  });
+
+  it("falls back to 'home' when history is empty and home is in the list", () => {
+    expect(inferDefaultCategory([], cats)).toBe("home");
+  });
+
+  it("falls back to categories[0] when home is missing", () => {
+    expect(inferDefaultCategory([], [{ id: "other", color: "#888", icon: "tag" }])).toBe("other");
+  });
+
+  it("falls back to literal 'home' when categories list is empty", () => {
+    expect(inferDefaultCategory([], [])).toBe("home");
+  });
+});
+
+describe("deriveState — section labels (continued)", () => {
+  const t = strings.en;
   it("section label resolves for system filters and category filters", () => {
     const cats2 = [{ id: "home", label: "House", color: "#34C759", icon: "home" }];
     const sOverdue = deriveState({

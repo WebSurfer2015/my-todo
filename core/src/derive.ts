@@ -944,6 +944,37 @@ export function migrateTodoReferences(raw: unknown): TodoReference[] {
   return out;
 }
 
+/**
+ * Pick a sensible default category for the compose sheet when the user
+ * is on a non-category filter. Walks `todos` newest-first (by
+ * `updatedAt`, skipping trashed) and returns the first valid category
+ * id — i.e. "the last category you used." Falls back to `home` when
+ * present in the list, else `categories[0]`, else literal "home".
+ *
+ * Pure + exported so the platform stores can call it directly when they
+ * need the prefill outside of `deriveState`.
+ */
+export function inferDefaultCategory(
+  todos: Todo[],
+  categories: CategoryDef[],
+): string {
+  const validIds = new Set(categories.map((c) => c.id));
+  const recent = [...todos]
+    .filter((t) => !t.trashed)
+    .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+  for (const t of recent) {
+    const cat = t.category;
+    if (cat && validIds.has(cat)) return cat;
+  }
+  // Empty / all-stale history: prefer `home` (the calm default), then
+  // first-in-list, then literal "home" if categories[] is empty.
+  return (
+    categories.find((c) => c.id === "home")?.id ??
+    categories[0]?.id ??
+    "home"
+  );
+}
+
 export function deriveState(input: DeriveInput): DerivedState {
   const { todos, filter, categories, t } = input;
   const today = todayLocal();
@@ -1068,9 +1099,7 @@ export function deriveState(input: DeriveInput): DerivedState {
 
   const defaultCategory: Category = isCategoryFilter(filter)
     ? categoryIdFromFilter(filter)
-    : (categories.find((c) => c.id === "school")?.id ??
-      categories[0]?.id ??
-      "home");
+    : inferDefaultCategory(todos, categories);
 
   return {
     filtered,
