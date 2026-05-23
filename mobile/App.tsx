@@ -427,7 +427,7 @@ function TodosScreen() {
                               onUpdateSubtaskPriority={store.updateSubtaskPriority}
                               onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
                               onRemoveSubtask={store.removeSubtask}
-                              agentEnabled={store.profile.agentEnabled === true}
+                              agentEnabled={store.profile.agentEnabled !== false}
                               subtaskVisibility={
                                 store.filter === "open"
                                   ? "open"
@@ -501,7 +501,7 @@ function TodosScreen() {
                             onUpdateSubtaskPriority={store.updateSubtaskPriority}
                             onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
                             onRemoveSubtask={store.removeSubtask}
-                            agentEnabled={store.profile.agentEnabled === true}
+                            agentEnabled={store.profile.agentEnabled !== false}
                             subtaskVisibility={
                               store.filter === "open"
                                 ? "open"
@@ -620,7 +620,7 @@ function TodosScreen() {
                                 store.updateSubtaskDueDate
                               }
                               onRemoveSubtask={store.removeSubtask}
-                              agentEnabled={store.profile.agentEnabled === true}
+                              agentEnabled={store.profile.agentEnabled !== false}
                               subtaskVisibility={
                                 store.filter === "open"
                                   ? "open"

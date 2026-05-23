@@ -71,7 +71,8 @@ export default function SettingsSheet({
   const animationOn = profile.completionAnimation !== false;
   const soundOn = profile.completionSound !== false;
   const reduceMotionOn = profile.reduceMotion === true;
-  const agentOn = profile.agentEnabled === true;
+  // Tri-state with on-by-default: undefined or true → on; only false is off.
+  const agentOn = profile.agentEnabled !== false;
 
   function patch(p: Partial<Profile>) {
     onSavePartial(p);
@@ -178,7 +179,7 @@ export default function SettingsSheet({
                   label={t.aiAssistanceLabel}
                   hint={t.aiAssistanceHint}
                   value={agentOn}
-                  onChange={(v) => patch({ agentEnabled: v || undefined })}
+                  onChange={(v) => patch({ agentEnabled: v ? undefined : false })}
                   styles={styles}
                 />
               </View>

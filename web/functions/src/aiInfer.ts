@@ -155,23 +155,30 @@ const MODES: Record<Mode, ModeConfig> = {
 // --- Profile gate ---------------------------------------------------------
 
 /**
- * Reads users/{uid}/state/profile and returns whether the user opted
- * into AI assistance. The profile is stored as a versioned JSON
- * envelope (`{value: <json string>, updatedAt}`), so we have to parse.
- * Returns false on any error — fail-closed so opt-out is the default.
+ * Reads users/{uid}/state/profile and returns whether AI assistance is
+ * enabled. As of the on-by-default flip, the field is tri-state:
+ *   - undefined → ON (default)
+ *   - true      → ON (explicit)
+ *   - false     → OFF (explicit opt-out)
+ *
+ * The profile is stored as a versioned JSON envelope
+ * (`{value: <json string>, updatedAt}`), so we have to parse.
+ * On any read failure we default to ON — matching the client default
+ * so the gate doesn't silently block users when Firestore is jittery.
  */
 async function isAgentEnabled(uid: string): Promise<boolean> {
   try {
     const snap = await adminDb.doc(`users/${uid}/state/profile`).get()
-    if (!snap.exists) return false
+    if (!snap.exists) return true
     const data = snap.data() as { value?: unknown } | undefined
-    if (!data || typeof data.value !== 'string') return false
+    if (!data || typeof data.value !== 'string') return true
     const parsed = JSON.parse(data.value)
     const profile = (parsed as { data?: unknown }).data
-    return !!(profile && (profile as { agentEnabled?: unknown }).agentEnabled === true)
+    const v = profile && (profile as { agentEnabled?: unknown }).agentEnabled
+    return v !== false
   } catch (err) {
-    console.warn('isAgentEnabled: read failed, defaulting to off', err)
-    return false
+    console.warn('isAgentEnabled: read failed, defaulting to on', err)
+    return true
   }
 }
 

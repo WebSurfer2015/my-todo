@@ -1,6 +1,6 @@
 # Privacy Policy
 
-_Last updated: 2026-05-23_
+_Last updated: 2026-05-23 (AI assistance defaults to on; opt out in your profile.)_
 
 This policy explains what **Todos for Everyone** ("the app") collects, how it's used,
 and your choices. The app is offered on iOS, Android, and the web.
@@ -16,7 +16,7 @@ We collect only what's needed to make the app work.
 | **Apple ID identifier** | If you use Sign in with Apple (iOS) | Authentication only |
 | **Your todos, categories, and profile** (name, optional quote, optional photo, language preference) | While using the app | To sync your data across your devices |
 | **Profile photo** (optional) | If you choose to set one | Stored as an image you uploaded; never shared |
-| **AI assistance turns** (optional) | Only when you enable AI assistance and send a turn to Mochi | Processed by Anthropic to draft a reply or suggested actions. Off by default. |
+| **AI assistance turns** (optional) | Only when AI assistance is on and you initiate a turn (e.g. tap Suggest steps, ask Mochi) | Processed by Anthropic to draft a reply or suggested actions. On by default; you can opt out in your profile. |
 | **Push notification token** (optional) | Only after you grant notification permission on a device | Lets the app deliver reminders and quiet check-ins to that device. |
 
 We do **not** collect:
@@ -34,14 +34,15 @@ We do **not** collect:
 - Servers are operated by Google. Data is segmented per user — only you can read or write your own data, enforced by Firestore security rules.
 - A copy of your data is also cached on your device (localStorage on web, AsyncStorage on mobile) so the app works offline.
 
-## AI assistance (optional, off by default)
+## AI assistance (optional, on by default)
 
 Sagely includes an optional AI helper called Mochi, powered by Anthropic's
-Claude models. AI assistance is **off by default**. You can turn it on or off
-at any time from your profile settings.
+Claude models. AI assistance is **on by default** so features like
+"Suggest steps" work without setup. You can turn it off at any time from
+your profile settings, and when it's off no AI calls are made.
 
 When it's on, the following happens **only when you initiate a turn** (e.g.
-asking Mochi to draft a to-do or break a task into steps):
+tapping "Suggest steps" on a to-do, or asking Mochi to draft something):
 
 - The text of that turn is sent to a Sagely Cloud Function, which forwards it
   to Anthropic for processing.

@@ -22,7 +22,8 @@ export default function ProfilePopover({ profile, onSave, onClose }: Props) {
   const [avatar, setAvatar] = useState<Avatar>(profile.avatar)
   const [density, setDensity] = useState<Density>(profile.density ?? 'comfortable')
   const [reduceMotion, setReduceMotion] = useState<boolean>(!!profile.reduceMotion)
-  const [agentEnabled, setAgentEnabled] = useState<boolean>(!!profile.agentEnabled)
+  // Tri-state with on-by-default: undefined or true → on; only false is off.
+  const [agentEnabled, setAgentEnabled] = useState<boolean>(profile.agentEnabled !== false)
   const [uploading, setUploading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -73,7 +74,9 @@ export default function ProfilePopover({ profile, onSave, onClose }: Props) {
       avatar,
       density,
       reduceMotion: reduceMotion || undefined,
-      agentEnabled: agentEnabled || undefined,
+      // Persist false explicitly when off so the opt-out sticks; leave
+      // the field absent when on so it inherits the on-by-default.
+      agentEnabled: agentEnabled ? undefined : false,
     })
     showSnackbar({ message: t.profileSaved })
     onClose()
