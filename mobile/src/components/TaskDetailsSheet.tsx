@@ -929,6 +929,30 @@ export default function TaskDetailsSheet({
                     onClick={ai.request}
                   />
                 )}
+                {onClearSubtasks && subs.length > 0 && (
+                  <TouchableOpacity
+                    style={styles.clearStepsLink}
+                    onPress={() => {
+                      Alert.alert(
+                        t.clearAllSteps,
+                        t.clearAllStepsConfirm,
+                        [
+                          { text: t.cancel, style: 'cancel' },
+                          {
+                            text: t.clearAllSteps,
+                            style: 'destructive',
+                            onPress: () => onClearSubtasks(todo.id),
+                          },
+                        ],
+                      )
+                    }}
+                    activeOpacity={0.6}
+                    accessibilityRole="button"
+                    accessibilityLabel={t.clearAllSteps}
+                  >
+                    <Text style={styles.clearStepsLinkText}>{t.clearAllSteps}</Text>
+                  </TouchableOpacity>
+                )}
               </View>
               {subs.length === 0 ? (
                 <EmptyState
@@ -970,36 +994,7 @@ export default function TaskDetailsSheet({
                 />
               )}
 
-              <View
-                style={[
-                  styles.subtaskActionsRow,
-                  subs.length === 0 && styles.subtaskActionsRowCentered,
-                ]}
-              >
-                {onClearSubtasks && subs.length > 0 && (
-                  <TouchableOpacity
-                    style={styles.clearStepsLink}
-                    onPress={() => {
-                      Alert.alert(
-                        t.clearAllSteps,
-                        t.clearAllStepsConfirm,
-                        [
-                          { text: t.cancel, style: 'cancel' },
-                          {
-                            text: t.clearAllSteps,
-                            style: 'destructive',
-                            onPress: () => onClearSubtasks(todo.id),
-                          },
-                        ],
-                      )
-                    }}
-                    activeOpacity={0.6}
-                    accessibilityRole="button"
-                    accessibilityLabel={t.clearAllSteps}
-                  >
-                    <Text style={styles.clearStepsLinkText}>{t.clearAllSteps}</Text>
-                  </TouchableOpacity>
-                )}
+              <View style={[styles.subtaskActionsRow, styles.subtaskActionsRowCentered]}>
                 <TouchableOpacity
                   style={styles.addSubtaskLink}
                   onPress={() => setAddSubtaskOpen(true)}

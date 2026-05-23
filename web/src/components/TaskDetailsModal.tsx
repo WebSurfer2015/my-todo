@@ -213,6 +213,24 @@ export default function TaskDetailsModal({
               onClick={ai.request}
             />
           )}
+          {onClearSubtasks && subs.length > 0 && (
+            <button
+              type="button"
+              className="subtask-clear-all"
+              onClick={async () => {
+                const ok = await confirm({
+                  title: t.clearAllSteps,
+                  message: t.clearAllStepsConfirm,
+                  confirmLabel: t.clearAllSteps,
+                  cancelLabel: t.cancel,
+                  variant: 'danger',
+                })
+                if (ok) onClearSubtasks(todo.id)
+              }}
+            >
+              {t.clearAllSteps}
+            </button>
+          )}
         </div>
 
         <ul className="list subtask-card-list">
@@ -286,25 +304,7 @@ export default function TaskDetailsModal({
               )}
             </div>
           </div>
-          <div className={`subtask-actions-row${subs.length === 0 ? ' centered' : ''}`}>
-            {onClearSubtasks && subs.length > 0 && (
-              <button
-                type="button"
-                className="subtask-clear-all"
-                onClick={async () => {
-                  const ok = await confirm({
-                    title: t.clearAllSteps,
-                    message: t.clearAllStepsConfirm,
-                    confirmLabel: t.clearAllSteps,
-                    cancelLabel: t.cancel,
-                    variant: 'danger',
-                  })
-                  if (ok) onClearSubtasks(todo.id)
-                }}
-              >
-                {t.clearAllSteps}
-              </button>
-            )}
+          <div className="subtask-actions-row centered">
             <button
               type="button"
               className="btn btn-add"
