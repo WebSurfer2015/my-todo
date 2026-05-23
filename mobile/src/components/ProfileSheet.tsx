@@ -237,9 +237,17 @@ export default function ProfileSheet({
     }
   }
 
+  const canSave = firstName.trim().length > 0;
   function handleSave() {
     const trimmedFirst = firstName.trim();
-    if (!trimmedFirst) return;
+    if (!trimmedFirst) {
+      // Don't silently swallow the Save tap — tell the user why
+      // nothing happens. (Save is also visually disabled when
+      // first name is empty, but voice/keyboard nav can still
+      // fire onPress.)
+      Alert.alert("Add a first name", "First name can't be empty.");
+      return;
+    }
     onSave({
       ...profile,
       name: trimmedFirst,
@@ -274,8 +282,16 @@ export default function ProfileSheet({
                 <Text style={styles.cancelHeaderText}>{t.cancel}</Text>
               </TouchableOpacity>
               <Text style={styles.title}>{t.editProfile}</Text>
-              <TouchableOpacity onPress={handleSave} hitSlop={10} style={styles.titleSideBtn}>
-                <Text style={styles.saveHeaderText}>{t.save}</Text>
+              <TouchableOpacity
+                onPress={handleSave}
+                hitSlop={10}
+                style={styles.titleSideBtn}
+                disabled={!canSave}
+                accessibilityState={{ disabled: !canSave }}
+              >
+                <Text style={[styles.saveHeaderText, !canSave && styles.saveHeaderTextDisabled]}>
+                  {t.save}
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -982,6 +998,7 @@ function makeStyles(c: ThemeColors) {
       fontWeight: "700",
       textAlign: "right",
     },
+    saveHeaderTextDisabled: { color: c.label3, fontWeight: "600" },
     signOutInlineText: {
       fontSize: 14,
       color: c.label2,
