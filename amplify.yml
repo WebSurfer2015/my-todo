@@ -1,6 +1,6 @@
 version: 1
 applications:
-  # Sagely web app — Vite + React 18
+  # Sagely web app - Vite + React 18
   # Served at the original Amplify app (dev + main branches).
   # Future custom domain: app.technologyforhumanity.net
   - appRoot: web
@@ -20,7 +20,7 @@ applications:
         paths:
           - node_modules/**/*
 
-  # Technology For Humanity landing — static HTML + CSS, no build step.
+  # Technology For Humanity landing - static HTML + CSS, no build step.
   # Served from a separate Amplify app pointed at this appRoot.
   # Future custom domain: technologyforhumanity.net (apex).
   - appRoot: landing
@@ -28,7 +28,7 @@ applications:
       phases:
         build:
           commands:
-            - echo "Static landing page — no build step required"
+            - echo "Static landing page - no build step required"
       artifacts:
         baseDirectory: .
         files:
