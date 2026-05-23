@@ -153,6 +153,9 @@ interface Props {
    * (today-or-earlier) sub is done but future subs are still open —
    * the "today's work is finished" state. Home uses this. */
   subtaskDateFilter?: 'due-today'
+  /** When true, TaskDetailsSheet shows the AI "Suggest steps" panel
+   * in the empty subtask state. Mirrors profile.agentEnabled. */
+  agentEnabled?: boolean
 }
 
 function TaskItem({
@@ -164,6 +167,7 @@ function TaskItem({
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
   dateChipFormat = 'default', tapBehavior = 'toggle', subtaskDateFilter,
+  agentEnabled,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
@@ -1135,6 +1139,7 @@ function TaskItem({
             onUpdateSubtaskPriority={onUpdateSubtaskPriority}
             onUpdateSubtaskDueDate={onUpdateSubtaskDueDate}
             onRemoveSubtask={onRemoveSubtask!}
+            agentEnabled={agentEnabled}
           />
         )}
       </Pressable>

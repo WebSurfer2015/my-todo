@@ -36,6 +36,7 @@ import PickerModal from './PickerModal'
 import AddSubtaskSheet from './AddSubtaskSheet'
 import EmptyState from './EmptyState'
 import InlinePicker from './InlinePicker'
+import SuggestStepsPanel from './SuggestStepsPanel'
 import CustomRecurrenceForm from './CustomRecurrenceForm'
 
 function recurrenceLabel(rec: Recurrence | undefined): string {
@@ -153,6 +154,10 @@ interface Props {
   onUpdateSubtaskPriority?: (id: string, subId: string, priority: Priority) => void
   onUpdateSubtaskDueDate?: (id: string, subId: string, dueDate: string) => void
   onRemoveSubtask: (id: string, subId: string) => void
+  /** When true, shows the AI "Suggest steps" panel in the empty
+   * subtask state. Off by default; flipped by profile.agentEnabled at
+   * the call site. */
+  agentEnabled?: boolean
 }
 
 export default function TaskDetailsSheet({
@@ -160,6 +165,7 @@ export default function TaskDetailsSheet({
   onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onMoveToTrash, onPermanentDelete, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
+  agentEnabled,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
@@ -908,11 +914,24 @@ export default function TaskDetailsSheet({
 
               <Text style={styles.subtaskSectionHeader}>{t.steps.header}</Text>
               {subs.length === 0 ? (
-                <EmptyState
-                  variant="compact"
-                  title={t.steps.noneYet}
-                  hint={t.steps.noneHint}
-                />
+                <>
+                  <EmptyState
+                    variant="compact"
+                    title={t.steps.noneYet}
+                    hint={t.steps.noneHint}
+                  />
+                  {agentEnabled && (
+                    <SuggestStepsPanel
+                      parentTitle={todo.text}
+                      parentNotes={todo.notes}
+                      onAddSelected={(texts) => {
+                        for (const text of texts) {
+                          onAddSubtask(todo.id, text, todo.priority, '')
+                        }
+                      }}
+                    />
+                  )}
+                </>
               ) : (
                 <View style={styles.editSubtasks}>
                   {sortedSubs(subs).map((s) => (
