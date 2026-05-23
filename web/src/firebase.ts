@@ -9,6 +9,7 @@ import {
   persistentLocalCache,
   persistentMultipleTabManager,
 } from "firebase/firestore";
+import { getFunctions } from "firebase/functions";
 
 /**
  * Firebase web SDK initialization. The config below is NOT a secret — anyone
@@ -42,3 +43,7 @@ export const db = initializeFirestore(firebaseApp, {
 setPersistence(auth, browserLocalPersistence).catch((err) => {
   console.warn("Failed to set auth persistence:", err);
 });
+
+// Cloud Functions client. Pinned to us-central1 to match where agentChat
+// and aiInfer are deployed; protects against a future SDK default change.
+export const functions = getFunctions(firebaseApp, "us-central1");

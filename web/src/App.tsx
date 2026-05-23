@@ -199,6 +199,7 @@ export default function App() {
                             ? 'done'
                             : 'all'
                       }
+                      agentEnabled={store.profile.agentEnabled === true}
                     />
                   ))}
                 </ul>

@@ -6,6 +6,7 @@ import { formatDisplayDate, todayLocal } from '../utils'
 import { sortedSubs } from '../../../core/src/derive'
 import PriorityBarsIcon from './PriorityBarsIcon'
 import CategoryIcon from './CategoryIcon'
+import SuggestStepsPanel from './SuggestStepsPanel'
 import { useLang } from '../LangContext'
 import { useCloseOnOutside } from '../hooks'
 
@@ -56,11 +57,14 @@ interface Props {
   onUpdateSubtaskPriority?: (id: string, subId: string, priority: Priority) => void
   onUpdateSubtaskDueDate?: (id: string, subId: string, dueDate: string) => void
   onRemoveSubtask: (id: string, subId: string) => void
+  /** When true, shows the "Suggest steps" panel for empty subtask lists.
+   * Off by default; flipped by profile.agentEnabled at the call site. */
+  agentEnabled?: boolean
 }
 
 export default function TaskDetailsModal({
   todo, categories, onClose, onUpdateText, onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
-  onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
+  onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, agentEnabled,
 }: Props) {
   const { t } = useLang()
   const subs = todo.subtasks ?? []
@@ -204,6 +208,18 @@ export default function TaskDetailsModal({
             />
           ))}
         </ul>
+
+        {agentEnabled && subs.length === 0 && (
+          <SuggestStepsPanel
+            parentTitle={todo.text}
+            parentNotes={todo.notes}
+            onAddSelected={(texts) => {
+              for (const text of texts) {
+                onAddSubtask(todo.id, text, todo.priority, '')
+              }
+            }}
+          />
+        )}
 
         <div className="input-row">
           <div className="task-input-wrapper">
