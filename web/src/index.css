@@ -2245,6 +2245,45 @@ h1 { margin: 0; }
   padding: 0 22px;
 }
 
+/* STEPS section header row inside TaskDetailsModal. Holds the section
+   label on the left and the Suggest steps pill (when shown) on the
+   right, mirroring mobile's TaskDetailsSheet layout. */
+.subtask-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 8px;
+  min-height: 28px;
+}
+.subtask-section-header h4 {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--label3);
+  margin: 0;
+}
+.subtask-section-header .suggest-steps-trigger {
+  padding: 0;
+}
+
+/* Add-step input block — wraps the existing typed-input row and the
+   actions row (Clear all on the left, Add on the right). Stacked
+   vertically so Clear + Add live on one row at the bottom. */
+.subtask-input-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.subtask-actions-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
 /* Suggest steps — calm inline panel rendered inside TaskDetailsModal
    when the user has AI assistance on and the to-do has no subtasks yet.
    Single text-button trigger; expands into a checklist on click. */
@@ -2292,12 +2331,11 @@ h1 { margin: 0; }
   appearance: none;
   background: transparent;
   border: none;
-  padding: 6px 0 0;
+  padding: 4px 0;
   font-size: 12px;
   font-weight: 600;
-  color: var(--label-3);
+  color: var(--label3);
   cursor: pointer;
-  align-self: flex-start;
   letter-spacing: -0.1px;
 }
 .subtask-clear-all:hover {

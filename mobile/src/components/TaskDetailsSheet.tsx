@@ -36,7 +36,11 @@ import PickerModal from './PickerModal'
 import AddSubtaskSheet from './AddSubtaskSheet'
 import EmptyState from './EmptyState'
 import InlinePicker from './InlinePicker'
-import SuggestStepsPanel from './SuggestStepsPanel'
+import {
+  useSuggestSteps,
+  SuggestStepsTrigger,
+  SuggestStepsReview,
+} from './SuggestStepsPanel'
 import CustomRecurrenceForm from './CustomRecurrenceForm'
 
 function recurrenceLabel(rec: Recurrence | undefined): string {
@@ -175,6 +179,7 @@ export default function TaskDetailsSheet({
   const styles = useMemo(() => makeStyles(theme), [theme])
   const subs = todo.subtasks ?? []
   const doneCount = subs.filter((s) => s.done).length
+  const ai = useSuggestSteps({ parentTitle: todo.text, parentNotes: todo.notes })
 
   const [addSubtaskOpen, setAddSubtaskOpen] = useState(false)
 
@@ -915,27 +920,22 @@ export default function TaskDetailsSheet({
                   standalone Notes section here was removed so the
                   layout mirrors the Add To-do sheet. */}
 
-              <Text style={styles.subtaskSectionHeader}>{t.steps.header}</Text>
-              {subs.length === 0 ? (
-                <>
-                  <EmptyState
-                    variant="compact"
-                    title={t.steps.noneYet}
-                    hint={t.steps.noneHint}
+              <View style={styles.subtaskSectionRow}>
+                <Text style={styles.subtaskSectionHeader}>{t.steps.header}</Text>
+                {agentEnabled && subs.length === 0 && !ai.suggestions && (
+                  <SuggestStepsTrigger
+                    thinking={ai.thinking}
+                    error={ai.error}
+                    onClick={ai.request}
                   />
-                  {agentEnabled && (
-                    <SuggestStepsPanel
-                      parentTitle={todo.text}
-                      parentNotes={todo.notes}
-                      parentDueDate={todo.dueDate}
-                      onAddSelected={(picks) => {
-                        for (const p of picks) {
-                          onAddSubtask(todo.id, p.text, todo.priority, p.dueDate)
-                        }
-                      }}
-                    />
-                  )}
-                </>
+                )}
+              </View>
+              {subs.length === 0 ? (
+                <EmptyState
+                  variant="compact"
+                  title={t.steps.noneYet}
+                  hint={t.steps.noneHint}
+                />
               ) : (
                 <View style={styles.editSubtasks}>
                   {sortedSubs(subs).map((s) => (
@@ -955,39 +955,59 @@ export default function TaskDetailsSheet({
                   ))}
                 </View>
               )}
-              <TouchableOpacity
-                style={styles.addSubtaskLink}
-                onPress={() => setAddSubtaskOpen(true)}
-                activeOpacity={0.6}
-              >
-                <PlusIcon size={16} color={theme.blue} />
-                <Text style={styles.addSubtaskLinkText}>{t.addSubtask}</Text>
-              </TouchableOpacity>
 
-              {onClearSubtasks && subs.length > 0 && (
-                <TouchableOpacity
-                  style={styles.clearStepsLink}
-                  onPress={() => {
-                    Alert.alert(
-                      t.clearAllSteps,
-                      t.clearAllStepsConfirm,
-                      [
-                        { text: t.cancel, style: 'cancel' },
-                        {
-                          text: t.clearAllSteps,
-                          style: 'destructive',
-                          onPress: () => onClearSubtasks(todo.id),
-                        },
-                      ],
-                    )
+              {ai.suggestions && (
+                <SuggestStepsReview
+                  suggestions={ai.suggestions}
+                  parentDueDate={todo.dueDate}
+                  onAddSelected={(picks) => {
+                    for (const p of picks) {
+                      onAddSubtask(todo.id, p.text, todo.priority, p.dueDate)
+                    }
+                    ai.reset()
                   }}
+                  onCancel={ai.reset}
+                />
+              )}
+
+              <View style={styles.subtaskActionsRow}>
+                {onClearSubtasks && subs.length > 0 ? (
+                  <TouchableOpacity
+                    style={styles.clearStepsLink}
+                    onPress={() => {
+                      Alert.alert(
+                        t.clearAllSteps,
+                        t.clearAllStepsConfirm,
+                        [
+                          { text: t.cancel, style: 'cancel' },
+                          {
+                            text: t.clearAllSteps,
+                            style: 'destructive',
+                            onPress: () => onClearSubtasks(todo.id),
+                          },
+                        ],
+                      )
+                    }}
+                    activeOpacity={0.6}
+                    accessibilityRole="button"
+                    accessibilityLabel={t.clearAllSteps}
+                  >
+                    <Text style={styles.clearStepsLinkText}>{t.clearAllSteps}</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View />
+                )}
+                <TouchableOpacity
+                  style={styles.addSubtaskLink}
+                  onPress={() => setAddSubtaskOpen(true)}
                   activeOpacity={0.6}
                   accessibilityRole="button"
-                  accessibilityLabel={t.clearAllSteps}
+                  accessibilityLabel={t.addSubtask}
                 >
-                  <Text style={styles.clearStepsLinkText}>{t.clearAllSteps}</Text>
+                  <PlusIcon size={16} color={theme.blue} />
+                  <Text style={styles.addSubtaskLinkText}>{t.addSubtask}</Text>
                 </TouchableOpacity>
-              )}
+              </View>
 
               {todo.seriesId && onApplySeriesFutureEdits && (
                 <TouchableOpacity
@@ -1691,16 +1711,35 @@ function makeStyles(c: ThemeColors) {
       fontSize: 16,
       fontWeight: '600',
     },
+    // Row holding the STEPS header on the left and the Suggest steps
+    // pill on the right. Mirrors the web subtask-section-header row.
+    subtaskSectionRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: 12,
+      minHeight: 24,
+      marginBottom: 4,
+    },
+    // Bottom-of-section row: Clear all (left) + Add a step (right).
+    // Rendered after the subtask list (or empty state) and after the
+    // optional Suggest review panel.
+    subtaskActionsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: 12,
+      paddingTop: 6,
+    },
     addSubtaskLink: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
       gap: 6,
-      paddingVertical: 12,
+      paddingVertical: 8,
+      paddingHorizontal: 4,
     },
     clearStepsLink: {
-      alignSelf: 'center',
-      paddingVertical: 6,
+      paddingVertical: 8,
       paddingHorizontal: 4,
     },
     clearStepsLinkText: {

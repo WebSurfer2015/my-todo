@@ -39,8 +39,10 @@ export function isoDate(d: Date): string {
  *
  * Behavior matrix:
  *   - parentDueDate missing → all entries '' (no date)
- *   - parentDueDate today or past → all entries match parentDueDate
- *     (no point spreading into the past)
+ *   - parentDueDate in the past → all entries '' (no date) — never
+ *     backdate a freshly-added subtask, that would make them
+ *     instantly overdue and show as "Yesterday" / older
+ *   - parentDueDate today → all entries match parentDueDate (today)
  *   - count === 0 → returns []
  *   - count === 1 → returns [parentDueDate]
  *
@@ -62,7 +64,11 @@ export function distributeSubtaskDueDates(
   today.setHours(0, 0, 0, 0)
   const dayMs = 86_400_000
   const totalDays = Math.floor((parent.getTime() - today.getTime()) / dayMs)
-  if (totalDays <= 0) return new Array(count).fill(parentDueDate)
+  // Parent already overdue — don't auto-backdate the new subtasks.
+  // Returning '' lets the user pick dates instead of inheriting an
+  // already-past date and seeing every subtask render as "Yesterday".
+  if (totalDays < 0) return new Array(count).fill('')
+  if (totalDays === 0) return new Array(count).fill(parentDueDate)
   if (count === 1) return [parentDueDate]
   const out: string[] = []
   for (let i = 0; i < count; i++) {

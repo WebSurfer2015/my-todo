@@ -6,7 +6,11 @@ import { formatDisplayDate, todayLocal } from '../utils'
 import { sortedSubs } from '../../../core/src/derive'
 import PriorityBarsIcon from './PriorityBarsIcon'
 import CategoryIcon from './CategoryIcon'
-import SuggestStepsPanel from './SuggestStepsPanel'
+import {
+  useSuggestSteps,
+  SuggestStepsTrigger,
+  SuggestStepsReview,
+} from './SuggestStepsPanel'
 import { useLang } from '../LangContext'
 import { useNotify } from '../notify'
 import { useCloseOnOutside } from '../hooks'
@@ -72,6 +76,7 @@ export default function TaskDetailsModal({
 }: Props) {
   const { t } = useLang()
   const { confirm } = useNotify()
+  const ai = useSuggestSteps({ parentTitle: todo.text, parentNotes: todo.notes })
   const subs = todo.subtasks ?? []
   const doneCount = subs.filter((s) => s.done).length
 
@@ -199,6 +204,17 @@ export default function TaskDetailsModal({
           </div>
         </div>
 
+        <div className="subtask-section-header">
+          <h4>{t.steps.header}</h4>
+          {agentEnabled && subs.length === 0 && !ai.suggestions && (
+            <SuggestStepsTrigger
+              thinking={ai.thinking}
+              error={ai.error}
+              onClick={ai.request}
+            />
+          )}
+        </div>
+
         <ul className="list subtask-card-list">
           {sortedSubs(subs).map((s) => (
             <SubtaskCard
@@ -214,39 +230,21 @@ export default function TaskDetailsModal({
           ))}
         </ul>
 
-        {agentEnabled && subs.length === 0 && (
-          <SuggestStepsPanel
-            parentTitle={todo.text}
-            parentNotes={todo.notes}
+        {ai.suggestions && (
+          <SuggestStepsReview
+            suggestions={ai.suggestions}
             parentDueDate={todo.dueDate}
             onAddSelected={(picks) => {
               for (const p of picks) {
                 onAddSubtask(todo.id, p.text, todo.priority, p.dueDate)
               }
+              ai.reset()
             }}
+            onCancel={ai.reset}
           />
         )}
 
-        {onClearSubtasks && subs.length > 0 && (
-          <button
-            type="button"
-            className="subtask-clear-all"
-            onClick={async () => {
-              const ok = await confirm({
-                title: t.clearAllSteps,
-                message: t.clearAllStepsConfirm,
-                confirmLabel: t.clearAllSteps,
-                cancelLabel: t.cancel,
-                variant: 'danger',
-              })
-              if (ok) onClearSubtasks(todo.id)
-            }}
-          >
-            {t.clearAllSteps}
-          </button>
-        )}
-
-        <div className="input-row">
+        <div className="subtask-input-block">
           <div className="task-input-wrapper">
             <input
               ref={addInputRef}
@@ -288,15 +286,37 @@ export default function TaskDetailsModal({
               )}
             </div>
           </div>
-          <button
-            type="button"
-            className="btn btn-add"
-            onClick={commitNew}
-            disabled={!newText.trim()}
-          >
-            <Plus size={16} />
-            <span>{t.add}</span>
-          </button>
+          <div className="subtask-actions-row">
+            {onClearSubtasks && subs.length > 0 ? (
+              <button
+                type="button"
+                className="subtask-clear-all"
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: t.clearAllSteps,
+                    message: t.clearAllStepsConfirm,
+                    confirmLabel: t.clearAllSteps,
+                    cancelLabel: t.cancel,
+                    variant: 'danger',
+                  })
+                  if (ok) onClearSubtasks(todo.id)
+                }}
+              >
+                {t.clearAllSteps}
+              </button>
+            ) : (
+              <span />
+            )}
+            <button
+              type="button"
+              className="btn btn-add"
+              onClick={commitNew}
+              disabled={!newText.trim()}
+            >
+              <Plus size={16} />
+              <span>{t.add}</span>
+            </button>
+          </div>
         </div>
       </aside>
     </div>,

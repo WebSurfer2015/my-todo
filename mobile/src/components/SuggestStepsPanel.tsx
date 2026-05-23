@@ -6,59 +6,103 @@ import { distributeSubtaskDueDates } from '../../../core/src/utils'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
 
-interface Props {
+/**
+ * Suggest steps — split into hook + trigger + review so the trigger
+ * pill can live in the STEPS section header row while the review
+ * checklist renders below the subtask list. Mirrors the web pattern
+ * in web/src/components/SuggestStepsPanel.tsx.
+ */
+
+export function useSuggestSteps({
+  parentTitle,
+  parentNotes,
+}: {
   parentTitle: string
   parentNotes?: string
-  /** Parent's due date (ISO yyyy-mm-dd) or undefined. Used to spread
-   * suggested subtasks across the window from today to the parent's
-   * date. Last subtask always lands on the parent's date. */
-  parentDueDate?: string
-  /** Receives picks in the same order as the user selected them. The
-   * dueDate per pick is computed by distributeSubtaskDueDates and
-   * may be '' when the parent has no date. */
-  onAddSelected: (picks: Array<{ text: string; dueDate: string }>) => void
-}
-
-/**
- * Inline panel rendered in the empty subtask state when the user has
- * AI assistance enabled. Tapping "Suggest steps" calls aiInfer
- * (breakdown-subtasks mode), shows the suggestions as a check list
- * with everything selected by default, and lets the user commit a
- * subset through onAddSelected.
- *
- * Mirrors web/src/components/SuggestStepsPanel.tsx so the UX is
- * identical across platforms.
- */
-export default function SuggestStepsPanel({ parentTitle, parentNotes, parentDueDate, onAddSelected }: Props) {
+}) {
   const { t } = useLang()
-  const theme = useTheme()
-  const styles = useMemo(() => makeStyles(theme), [theme])
   const [thinking, setThinking] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<string[] | null>(null)
-  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [error, setError] = useState<string | null>(null)
 
-  async function handleSuggest() {
+  async function request() {
     setThinking(true)
     setError(null)
     try {
-      const res = await suggestSubtasks({
-        title: parentTitle,
-        notes: parentNotes,
-      })
+      const res = await suggestSubtasks({ title: parentTitle, notes: parentNotes })
       const texts = res.subtasks.map((s) => s.text).filter((s) => s.length > 0)
       if (texts.length === 0) {
         setError(t.suggestStepsError)
         return
       }
       setSuggestions(texts)
-      setSelected(new Set(texts.map((_, i) => i)))
     } catch {
       setError(t.suggestStepsError)
     } finally {
       setThinking(false)
     }
   }
+
+  function reset() {
+    setSuggestions(null)
+    setError(null)
+  }
+
+  return { thinking, suggestions, error, request, reset }
+}
+
+interface TriggerProps {
+  thinking: boolean
+  error: string | null
+  onClick: () => void
+}
+
+export function SuggestStepsTrigger({ thinking, error, onClick }: TriggerProps) {
+  const { t } = useLang()
+  const theme = useTheme()
+  const styles = useMemo(() => makeTriggerStyles(theme), [theme])
+  return (
+    <View style={styles.wrap}>
+      <TouchableOpacity
+        onPress={onClick}
+        disabled={thinking}
+        activeOpacity={0.6}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={`${t.suggestSteps} — ${t.aiSuggestionA11y}`}
+        style={[styles.pill, thinking && styles.pillDim]}
+      >
+        {thinking
+          ? <ActivityIndicator size="small" color={theme.primary} />
+          : <Sparkles size={14} color={theme.primary} strokeWidth={2.2} />}
+        <Text style={[styles.text, thinking && styles.textDim]}>
+          {thinking ? t.suggestStepsThinking : t.suggestSteps}
+        </Text>
+      </TouchableOpacity>
+      {error && <Text style={styles.errorText}>{error}</Text>}
+    </View>
+  )
+}
+
+interface ReviewProps {
+  suggestions: string[]
+  parentDueDate?: string
+  onAddSelected: (picks: Array<{ text: string; dueDate: string }>) => void
+  onCancel: () => void
+}
+
+export function SuggestStepsReview({
+  suggestions,
+  parentDueDate,
+  onAddSelected,
+  onCancel,
+}: ReviewProps) {
+  const { t } = useLang()
+  const theme = useTheme()
+  const styles = useMemo(() => makeReviewStyles(theme), [theme])
+  const [selected, setSelected] = useState<Set<number>>(
+    new Set(suggestions.map((_, i) => i)),
+  )
 
   function toggleSelected(i: number) {
     const next = new Set(selected)
@@ -68,116 +112,82 @@ export default function SuggestStepsPanel({ parentTitle, parentNotes, parentDueD
   }
 
   function handleAdd() {
-    if (!suggestions) return
     const pickedTexts = suggestions.filter((_, i) => selected.has(i))
     if (pickedTexts.length === 0) return
     const dueDates = distributeSubtaskDueDates(parentDueDate, pickedTexts.length)
     onAddSelected(pickedTexts.map((text, i) => ({ text, dueDate: dueDates[i] ?? '' })))
-    setSuggestions(null)
-    setSelected(new Set())
-  }
-
-  function handleDiscard() {
-    setSuggestions(null)
-    setSelected(new Set())
-    setError(null)
-  }
-
-  if (suggestions) {
-    return (
-      <View style={styles.panel}>
-        {suggestions.map((text, i) => {
-          const isOn = selected.has(i)
-          return (
-            <TouchableOpacity
-              key={i}
-              style={styles.row}
-              onPress={() => toggleSelected(i)}
-              activeOpacity={0.6}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: isOn }}
-            >
-              <View style={[styles.checkbox, isOn && styles.checkboxOn]}>
-                {isOn && <Text style={styles.check}>✓</Text>}
-              </View>
-              <Text style={styles.rowText}>{text}</Text>
-            </TouchableOpacity>
-          )
-        })}
-        <View style={styles.actions}>
-          <TouchableOpacity style={styles.btnSecondary} onPress={handleDiscard} activeOpacity={0.6}>
-            <Text style={styles.btnSecondaryText}>{t.cancel}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.btnPrimary, selected.size === 0 && styles.btnPrimaryDisabled]}
-            onPress={handleAdd}
-            disabled={selected.size === 0}
-            activeOpacity={0.6}
-          >
-            <Text style={styles.btnPrimaryText}>{t.addSelected}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    )
   }
 
   return (
-    <View style={styles.trigger}>
-      <TouchableOpacity
-        onPress={handleSuggest}
-        disabled={thinking}
-        activeOpacity={0.6}
-        hitSlop={8}
-        accessibilityRole="button"
-        accessibilityLabel={`${t.suggestSteps} — ${t.aiSuggestionA11y}`}
-        style={[styles.triggerPill, thinking && styles.triggerPillDim]}
-      >
-        {thinking
-          ? <ActivityIndicator size="small" color={theme.primary} />
-          : <Sparkles size={14} color={theme.primary} strokeWidth={2.2} />}
-        <Text style={[styles.triggerText, thinking && styles.triggerTextDim]}>
-          {thinking ? t.suggestStepsThinking : t.suggestSteps}
-        </Text>
-      </TouchableOpacity>
-      {error && <Text style={styles.errorText}>{error}</Text>}
+    <View style={styles.panel}>
+      {suggestions.map((text, i) => {
+        const isOn = selected.has(i)
+        return (
+          <TouchableOpacity
+            key={i}
+            style={styles.row}
+            onPress={() => toggleSelected(i)}
+            activeOpacity={0.6}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: isOn }}
+          >
+            <View style={[styles.checkbox, isOn && styles.checkboxOn]}>
+              {isOn && <Text style={styles.check}>✓</Text>}
+            </View>
+            <Text style={styles.rowText}>{text}</Text>
+          </TouchableOpacity>
+        )
+      })}
+      <View style={styles.actions}>
+        <TouchableOpacity style={styles.btnSecondary} onPress={onCancel} activeOpacity={0.6}>
+          <Text style={styles.btnSecondaryText}>{t.cancel}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.btnPrimary, selected.size === 0 && styles.btnPrimaryDisabled]}
+          onPress={handleAdd}
+          disabled={selected.size === 0}
+          activeOpacity={0.6}
+        >
+          <Text style={styles.btnPrimaryText}>{t.addSelected}</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   )
 }
 
-function makeStyles(c: ThemeColors) {
+function makeTriggerStyles(c: ThemeColors) {
   return StyleSheet.create({
-    trigger: {
-      paddingVertical: 6,
-      paddingHorizontal: 2,
+    wrap: {
       flexDirection: 'row',
       alignItems: 'center',
-      flexWrap: 'wrap',
       gap: 8,
     },
-    // Soft tonal AI pill — distinguishes the trigger from regular
-    // text links and pairs with the Sparkles icon to signal AI.
-    triggerPill: {
+    pill: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
       backgroundColor: c.primarySoft,
       borderRadius: 999,
-      paddingHorizontal: 14,
-      paddingVertical: 6,
-      alignSelf: 'flex-start',
+      paddingHorizontal: 12,
+      paddingVertical: 5,
     },
-    triggerPillDim: { opacity: 0.7 },
-    triggerText: {
-      fontSize: 13,
+    pillDim: { opacity: 0.7 },
+    text: {
+      fontSize: 12,
       fontWeight: '600',
       color: c.primary,
       letterSpacing: -0.1,
     },
-    triggerTextDim: { color: c.label3 },
+    textDim: { color: c.label3 },
     errorText: {
-      fontSize: 12,
+      fontSize: 11,
       color: c.label3,
     },
+  })
+}
+
+function makeReviewStyles(c: ThemeColors) {
+  return StyleSheet.create({
     panel: {
       borderWidth: 1,
       borderColor: c.primarySoft,
