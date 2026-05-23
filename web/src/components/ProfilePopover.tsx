@@ -22,6 +22,7 @@ export default function ProfilePopover({ profile, onSave, onClose }: Props) {
   const [avatar, setAvatar] = useState<Avatar>(profile.avatar)
   const [density, setDensity] = useState<Density>(profile.density ?? 'comfortable')
   const [reduceMotion, setReduceMotion] = useState<boolean>(!!profile.reduceMotion)
+  const [agentEnabled, setAgentEnabled] = useState<boolean>(!!profile.agentEnabled)
   const [uploading, setUploading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -72,6 +73,7 @@ export default function ProfilePopover({ profile, onSave, onClose }: Props) {
       avatar,
       density,
       reduceMotion: reduceMotion || undefined,
+      agentEnabled: agentEnabled || undefined,
     })
     showSnackbar({ message: t.profileSaved })
     onClose()
@@ -223,6 +225,20 @@ export default function ProfilePopover({ profile, onSave, onClose }: Props) {
             checked={reduceMotion}
             onChange={(e) => setReduceMotion(e.target.checked)}
             aria-label={t.reduceMotionLabel}
+          />
+        </label>
+
+        <label className="modal-field profile-toggle-row">
+          <span className="modal-label-stack">
+            <span className="modal-label">{t.aiAssistanceLabel}</span>
+            <span className="modal-hint">{t.aiAssistanceHint}</span>
+          </span>
+          <input
+            type="checkbox"
+            className="profile-toggle-checkbox"
+            checked={agentEnabled}
+            onChange={(e) => setAgentEnabled(e.target.checked)}
+            aria-label={t.aiAssistanceLabel}
           />
         </label>
 
