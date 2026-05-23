@@ -261,7 +261,10 @@ export default function ProfileSheet({
       avatar,
       density: "comfortable",
       title: profile.title,
-      reduceMotion: true,
+      // Preserve whatever reduceMotion the user has set in Settings.
+      // The previous `reduceMotion: true` here was a bug — saving
+      // the profile silently forced motion off for everyone, which
+      // killed the check-off flight animation.
     });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     onClose();
