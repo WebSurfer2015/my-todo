@@ -970,8 +970,13 @@ export default function TaskDetailsSheet({
                 />
               )}
 
-              <View style={styles.subtaskActionsRow}>
-                {onClearSubtasks && subs.length > 0 ? (
+              <View
+                style={[
+                  styles.subtaskActionsRow,
+                  subs.length === 0 && styles.subtaskActionsRowCentered,
+                ]}
+              >
+                {onClearSubtasks && subs.length > 0 && (
                   <TouchableOpacity
                     style={styles.clearStepsLink}
                     onPress={() => {
@@ -994,8 +999,6 @@ export default function TaskDetailsSheet({
                   >
                     <Text style={styles.clearStepsLinkText}>{t.clearAllSteps}</Text>
                   </TouchableOpacity>
-                ) : (
-                  <View />
                 )}
                 <TouchableOpacity
                   style={styles.addSubtaskLink}
@@ -1730,6 +1733,11 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center',
       gap: 12,
       paddingTop: 6,
+    },
+    // Empty-list variant — only the Add link renders, so center it
+    // instead of letting space-between push it to one edge.
+    subtaskActionsRowCentered: {
+      justifyContent: 'center',
     },
     addSubtaskLink: {
       flexDirection: 'row',

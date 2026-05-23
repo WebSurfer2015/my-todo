@@ -2283,6 +2283,11 @@ h1 { margin: 0; }
   align-items: center;
   gap: 12px;
 }
+/* Empty-list variant — only the Add button is rendered, so center it
+   rather than letting space-between push it to one edge. */
+.subtask-actions-row.centered {
+  justify-content: center;
+}
 
 /* Suggest steps — calm inline panel rendered inside TaskDetailsModal
    when the user has AI assistance on and the to-do has no subtasks yet.

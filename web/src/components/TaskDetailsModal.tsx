@@ -286,8 +286,8 @@ export default function TaskDetailsModal({
               )}
             </div>
           </div>
-          <div className="subtask-actions-row">
-            {onClearSubtasks && subs.length > 0 ? (
+          <div className={`subtask-actions-row${subs.length === 0 ? ' centered' : ''}`}>
+            {onClearSubtasks && subs.length > 0 && (
               <button
                 type="button"
                 className="subtask-clear-all"
@@ -304,8 +304,6 @@ export default function TaskDetailsModal({
               >
                 {t.clearAllSteps}
               </button>
-            ) : (
-              <span />
             )}
             <button
               type="button"
