@@ -20,16 +20,3 @@ applications:
         paths:
           - node_modules/**/*
 
-  # Technology For Humanity landing - static HTML + CSS, no build step.
-  # Served from a separate Amplify app pointed at this appRoot.
-  # Future custom domain: technologyforhumanity.net (apex).
-  - appRoot: landing
-    frontend:
-      phases:
-        build:
-          commands:
-            - echo "Static landing page - no build step required"
-      artifacts:
-        baseDirectory: .
-        files:
-          - '**/*'
