@@ -422,6 +422,7 @@ export default function ComposeSheet({
                     currentCategory={category}
                     currentPriority={priority}
                     currentDueDate={dueDate}
+                    currentRecurrenceFreq={recurrence?.freq}
                     onApplyCategory={(id) => {
                       setCategory(id)
                       Haptics.selectionAsync().catch(() => {})
@@ -456,6 +457,13 @@ export default function ComposeSheet({
                     }}
                     onApplyDueDate={(iso) => {
                       setDueDate(iso)
+                      Haptics.selectionAsync().catch(() => {})
+                    }}
+                    onApplyRecurrence={(freq) => {
+                      // Apply just the freq — user can refine
+                      // weekday/end-date detail via the Repeat
+                      // sub-view if needed.
+                      setRecurrence({ freq })
                       Haptics.selectionAsync().catch(() => {})
                     }}
                     onDismissField={ai.dismissField}

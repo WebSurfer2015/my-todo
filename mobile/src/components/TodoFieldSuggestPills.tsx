@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
-import { Sparkles, Plus } from 'lucide-react-native'
+import { Sparkles, Plus, Repeat } from 'lucide-react-native'
 import { suggestTodoFields, SuggestFieldsResult } from '../aiInfer'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
 import { CategoryDef, categoryLabel } from '../categories'
-import { Priority } from '../types'
-import { formatDisplayDate } from '../utils'
+import { Priority, RecurrenceFreq } from '../types'
+import { formatDisplayDate, formatRecurrence } from '../utils'
 import CategoryIcon from './CategoryIcon'
 import PriorityDot from './PriorityDot'
 
@@ -102,7 +102,8 @@ export function useTodoFieldSuggestions({
           res.category ||
           res.newCategoryLabel ||
           res.priority ||
-          res.dueDate
+          res.dueDate ||
+          res.recurrence
         )
         setSuggestions(hasAny ? res : null)
         setThinking(false)
@@ -117,12 +118,18 @@ export function useTodoFieldSuggestions({
     }
   }, [text, agentEnabled])
 
-  function dismissField(field: 'category' | 'newCategoryLabel' | 'priority' | 'dueDate') {
+  function dismissField(
+    field: 'category' | 'newCategoryLabel' | 'priority' | 'dueDate' | 'recurrence',
+  ) {
     setSuggestions((prev) => {
       if (!prev) return prev
       const next = { ...prev, [field]: null }
       const stillHas = !!(
-        next.category || next.newCategoryLabel || next.priority || next.dueDate
+        next.category ||
+        next.newCategoryLabel ||
+        next.priority ||
+        next.dueDate ||
+        next.recurrence
       )
       return stillHas ? next : null
     })
@@ -148,14 +155,18 @@ interface RowProps {
   currentCategory: string
   currentPriority: Priority
   currentDueDate: string
+  /** Undefined → no recurrence currently. The pill is suppressed
+   * when the suggested freq matches this. */
+  currentRecurrenceFreq?: RecurrenceFreq
   onApplyCategory: (id: string) => void
   /** Tap on a "+ <label>" pill. Implementation should confirm with
    * the user (it creates a new category in their sidebar). */
   onApplyNewCategory: (label: string) => void
   onApplyPriority: (p: Priority) => void
   onApplyDueDate: (iso: string) => void
+  onApplyRecurrence: (freq: RecurrenceFreq) => void
   onDismissField: (
-    field: 'category' | 'newCategoryLabel' | 'priority' | 'dueDate',
+    field: 'category' | 'newCategoryLabel' | 'priority' | 'dueDate' | 'recurrence',
   ) => void
 }
 
@@ -166,10 +177,12 @@ export function TodoFieldSuggestPills({
   currentCategory,
   currentPriority,
   currentDueDate,
+  currentRecurrenceFreq,
   onApplyCategory,
   onApplyNewCategory,
   onApplyPriority,
   onApplyDueDate,
+  onApplyRecurrence,
   onDismissField,
 }: RowProps) {
   const { t } = useLang()
@@ -203,9 +216,15 @@ export function TodoFieldSuggestPills({
     !!suggestions?.priority && suggestions.priority !== currentPriority
   const showDueDatePill =
     !!suggestions?.dueDate && suggestions.dueDate !== currentDueDate
+  const showRecurrencePill =
+    !!suggestions?.recurrence && suggestions.recurrence !== currentRecurrenceFreq
 
   const hasAny =
-    showCategoryPill || showNewCategoryPill || showPriorityPill || showDueDatePill
+    showCategoryPill ||
+    showNewCategoryPill ||
+    showPriorityPill ||
+    showDueDatePill ||
+    showRecurrencePill
 
   // Don't render anything when there's nothing to show. Suppressing
   // the bare "thinking" state too — the input field is the user's
@@ -266,6 +285,19 @@ export function TodoFieldSuggestPills({
           onDismiss={() => onDismissField('dueDate')}
           accessibilityLabel={`${t.aiSuggestionA11y}: ${t.composeDateLabel} ${formatDisplayDate(suggestions!.dueDate!, t.locale)}`}
           label={formatDisplayDate(suggestions!.dueDate!, t.locale)}
+        />
+      )}
+      {showRecurrencePill && (
+        <Pill
+          styles={styles}
+          onApply={() => {
+            onApplyRecurrence(suggestions!.recurrence!)
+            onDismissField('recurrence')
+          }}
+          onDismiss={() => onDismissField('recurrence')}
+          accessibilityLabel={`${t.aiSuggestionA11y}: ${formatRecurrence({ freq: suggestions!.recurrence! })}`}
+          icon={<Repeat size={11} color={theme.primary} strokeWidth={2.2} />}
+          label={formatRecurrence({ freq: suggestions!.recurrence! })}
         />
       )}
     </View>

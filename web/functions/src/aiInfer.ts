@@ -281,12 +281,16 @@ interface SuggestFieldsOutput {
   newCategoryLabel: string | null
   priority: 'high' | 'medium' | 'low' | null
   dueDate: string | null
+  /** Lean v1 recurrence — one of the four basic frequencies, no
+   * byWeekday / endDate / bySetPos detail. Client constructs
+   * `{ freq }` on apply; user can refine in the Repeat sub-view. */
+  recurrence: 'daily' | 'weekly' | 'monthly' | 'yearly' | null
 }
 
 const SUGGEST_FIELDS_SYSTEM = `You read one to-do title and suggest field values the user can tap to apply.
 
 Output ONLY a JSON object on one line, no prose, no markdown, no code fences:
-{"category":"<id>" or null,"newCategoryLabel":"<label>" or null,"priority":"high"|"medium"|"low" or null,"dueDate":"yyyy-mm-dd" or null}
+{"category":"<id>" or null,"newCategoryLabel":"<label>" or null,"priority":"high"|"medium"|"low" or null,"dueDate":"yyyy-mm-dd" or null,"recurrence":"daily"|"weekly"|"monthly"|"yearly" or null}
 
 Rules — every field is independently nullable. At most ONE of
 \`category\` and \`newCategoryLabel\` may be non-null:
@@ -314,6 +318,16 @@ Rules — every field is independently nullable. At most ONE of
   - "by Friday" → upcoming Friday
   - No date mentioned → null
   Always return ISO yyyy-mm-dd, never relative phrases.
+- recurrence: only when the text clearly implies a repeating task.
+  Examples:
+    "water plants every day"     → "daily"
+    "weekly team meeting"        → "weekly"
+    "monthly bills"              → "monthly"
+    "yearly checkup"             → "yearly"
+    "buy milk"                   → null   (one-off)
+    "call mom"                   → null   (no repetition language)
+  Never invent a recurrence to "be helpful". A one-time task with
+  a future date is still null.
 
 Be conservative — return null when uncertain. The user only sees
 suggestions you're confident about.
@@ -382,7 +396,7 @@ function parseSuggestFieldsOutput(text: string): SuggestFieldsOutput {
   // Malformed output on an ambient feature → all-null. The client
   // shows no pills and the user types as usual.
   const empty: SuggestFieldsOutput = {
-    category: null, newCategoryLabel: null, priority: null, dueDate: null,
+    category: null, newCategoryLabel: null, priority: null, dueDate: null, recurrence: null,
   }
   let parsed: unknown
   try {
@@ -414,6 +428,10 @@ function parseSuggestFieldsOutput(text: string): SuggestFieldsOutput {
   const rawDate = (parsed as { dueDate?: unknown }).dueDate
   if (typeof rawDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
     out.dueDate = rawDate
+  }
+  const rawRec = (parsed as { recurrence?: unknown }).recurrence
+  if (rawRec === 'daily' || rawRec === 'weekly' || rawRec === 'monthly' || rawRec === 'yearly') {
+    out.recurrence = rawRec
   }
   return out
 }

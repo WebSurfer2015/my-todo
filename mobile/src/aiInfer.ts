@@ -55,6 +55,9 @@ export interface SuggestFieldsResult {
   newCategoryLabel: string | null
   priority: 'high' | 'medium' | 'low' | null
   dueDate: string | null
+  /** Basic recurrence frequency. Caller constructs `{ freq }` on
+   * apply; user can refine via the Repeat sub-view. */
+  recurrence: 'daily' | 'weekly' | 'monthly' | 'yearly' | null
 }
 
 async function callAiInfer<R>(mode: string, input: unknown): Promise<R> {
@@ -109,6 +112,6 @@ export async function suggestTodoFields(input: SuggestFieldsInput): Promise<Sugg
   try {
     return await callAiInfer<SuggestFieldsResult>('suggest-todo-fields', input)
   } catch {
-    return { category: null, newCategoryLabel: null, priority: null, dueDate: null }
+    return { category: null, newCategoryLabel: null, priority: null, dueDate: null, recurrence: null }
   }
 }
