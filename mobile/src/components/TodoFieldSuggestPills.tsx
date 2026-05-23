@@ -249,7 +249,12 @@ export function TodoFieldSuggestPills({
   return (
     <View style={styles.row}>
       <Sparkles size={12} color={theme.primary} strokeWidth={2.2} />
-      {thinking && <ActivityIndicator size="small" color={theme.primary} />}
+      {thinking && (
+        <View style={styles.thinkingPill}>
+          <ActivityIndicator size="small" color={theme.primary} />
+          <Text style={styles.thinkingText}>{t.suggestStepsThinking}</Text>
+        </View>
+      )}
       {showCategoryPill && catDef && (
         <Pill
           styles={styles}
@@ -402,6 +407,21 @@ function makeStyles(c: ThemeColors) {
       fontWeight: '600',
       color: c.label3,
       lineHeight: 16,
+    },
+    thinkingPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: c.primarySoft,
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+    },
+    thinkingText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: c.primary,
+      letterSpacing: -0.1,
     },
   })
 }

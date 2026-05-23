@@ -114,6 +114,17 @@ export default function GroceryComposeSheet({
     if (subView !== 'store') setStoreSearch('')
   }, [subView])
 
+  // Auto-focus the store search input when the sub-view opens so the
+  // affordance is immediately obvious. Without this, users may not
+  // notice the inline search/create input above the list.
+  const storeSearchRef = useRef<TextInput>(null)
+  useEffect(() => {
+    if (subView === 'store') {
+      const t2 = setTimeout(() => storeSearchRef.current?.focus(), 150)
+      return () => clearTimeout(t2)
+    }
+  }, [subView])
+
   // Live local dept inference while typing — mirrors the local
   // heuristic that runs at add-time in useTodoStore.addGrocery, but
   // surfaces the result in the Department row of the compose sheet
@@ -367,6 +378,7 @@ export default function GroceryComposeSheet({
                 >
                   <View style={styles.storeSearchWrap}>
                     <TextInput
+                      ref={storeSearchRef}
                       style={styles.storeSearchInput}
                       placeholder={t.groceryStoreSearchPlaceholder}
                       placeholderTextColor={theme.gray3}
