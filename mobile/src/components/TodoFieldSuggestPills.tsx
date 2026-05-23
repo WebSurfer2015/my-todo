@@ -142,6 +142,12 @@ interface RowProps {
   suggestions: SuggestFieldsResult | null
   thinking: boolean
   categories: CategoryDef[]
+  /** Current compose-form values. A suggested value that already
+   * equals the form's current value is suppressed — no point
+   * offering a pill that would no-op on tap. */
+  currentCategory: string
+  currentPriority: Priority
+  currentDueDate: string
   onApplyCategory: (id: string) => void
   /** Tap on a "+ <label>" pill. Implementation should confirm with
    * the user (it creates a new category in their sidebar). */
@@ -157,6 +163,9 @@ export function TodoFieldSuggestPills({
   suggestions,
   thinking,
   categories,
+  currentCategory,
+  currentPriority,
+  currentDueDate,
   onApplyCategory,
   onApplyNewCategory,
   onApplyPriority,
@@ -167,29 +176,47 @@ export function TodoFieldSuggestPills({
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
 
-  const hasAny = !!(
-    suggestions &&
-    (suggestions.category ||
-      suggestions.newCategoryLabel ||
-      suggestions.priority ||
-      suggestions.dueDate)
-  )
+  const catDef =
+    suggestions?.category
+      ? categories.find((c) => c.id === suggestions.category)
+      : undefined
+
+  // Per-pill render guards: skip the pill if its suggested value
+  // would no-op against the form's current state. Defense for the
+  // new-category pill: also skip if a same-label category already
+  // exists in the user's list (server-side blocklist *should*
+  // prevent this, but a client-side guard avoids a confusing
+  // "create the category you already have" prompt).
+  const showCategoryPill =
+    !!catDef && catDef.id !== currentCategory
+  const newLabelLower = suggestions?.newCategoryLabel?.trim().toLowerCase() ?? null
+  const newCategoryAlreadyExists =
+    !!newLabelLower &&
+    categories.some(
+      (c) => categoryLabel(c, t).toLowerCase() === newLabelLower,
+    )
+  const showNewCategoryPill =
+    !suggestions?.category &&
+    !!suggestions?.newCategoryLabel &&
+    !newCategoryAlreadyExists
+  const showPriorityPill =
+    !!suggestions?.priority && suggestions.priority !== currentPriority
+  const showDueDatePill =
+    !!suggestions?.dueDate && suggestions.dueDate !== currentDueDate
+
+  const hasAny =
+    showCategoryPill || showNewCategoryPill || showPriorityPill || showDueDatePill
 
   // Don't render anything when there's nothing to show. Suppressing
   // the bare "thinking" state too — the input field is the user's
   // focus; a spinner under it would be noise on most keystrokes.
   if (!hasAny) return null
 
-  const catDef =
-    suggestions?.category
-      ? categories.find((c) => c.id === suggestions.category)
-      : undefined
-
   return (
     <View style={styles.row}>
       <Sparkles size={12} color={theme.primary} strokeWidth={2.2} />
       {thinking && <ActivityIndicator size="small" color={theme.primary} />}
-      {suggestions?.category && catDef && (
+      {showCategoryPill && catDef && (
         <Pill
           styles={styles}
           onApply={() => {
@@ -202,43 +229,43 @@ export function TodoFieldSuggestPills({
           label={categoryLabel(catDef, t)}
         />
       )}
-      {!suggestions?.category && suggestions?.newCategoryLabel && (
+      {showNewCategoryPill && (
         <Pill
           styles={styles}
           onApply={() => {
             // Parent handler triggers the confirm dialog before
             // mutating the category list.
-            onApplyNewCategory(suggestions.newCategoryLabel!)
+            onApplyNewCategory(suggestions!.newCategoryLabel!)
           }}
           onDismiss={() => onDismissField('newCategoryLabel')}
-          accessibilityLabel={`${t.aiSuggestionA11y}: ${t.composeCategoryLabel} ${suggestions.newCategoryLabel} (new)`}
+          accessibilityLabel={`${t.aiSuggestionA11y}: ${t.composeCategoryLabel} ${suggestions!.newCategoryLabel} (new)`}
           icon={<Plus size={12} color={theme.primary} strokeWidth={2.4} />}
-          label={suggestions.newCategoryLabel}
+          label={suggestions!.newCategoryLabel!}
         />
       )}
-      {suggestions?.priority && (
+      {showPriorityPill && (
         <Pill
           styles={styles}
           onApply={() => {
-            onApplyPriority(suggestions.priority!)
+            onApplyPriority(suggestions!.priority!)
             onDismissField('priority')
           }}
           onDismiss={() => onDismissField('priority')}
-          accessibilityLabel={`${t.aiSuggestionA11y}: ${t.composePriorityLabel} ${t.priority[suggestions.priority]}`}
-          icon={<PriorityDot level={suggestions.priority} size={10} />}
-          label={t.priority[suggestions.priority]}
+          accessibilityLabel={`${t.aiSuggestionA11y}: ${t.composePriorityLabel} ${t.priority[suggestions!.priority!]}`}
+          icon={<PriorityDot level={suggestions!.priority!} size={10} />}
+          label={t.priority[suggestions!.priority!]}
         />
       )}
-      {suggestions?.dueDate && (
+      {showDueDatePill && (
         <Pill
           styles={styles}
           onApply={() => {
-            onApplyDueDate(suggestions.dueDate!)
+            onApplyDueDate(suggestions!.dueDate!)
             onDismissField('dueDate')
           }}
           onDismiss={() => onDismissField('dueDate')}
-          accessibilityLabel={`${t.aiSuggestionA11y}: ${t.composeDateLabel} ${formatDisplayDate(suggestions.dueDate, t.locale)}`}
-          label={formatDisplayDate(suggestions.dueDate, t.locale)}
+          accessibilityLabel={`${t.aiSuggestionA11y}: ${t.composeDateLabel} ${formatDisplayDate(suggestions!.dueDate!, t.locale)}`}
+          label={formatDisplayDate(suggestions!.dueDate!, t.locale)}
         />
       )}
     </View>

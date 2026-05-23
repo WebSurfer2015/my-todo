@@ -414,6 +414,9 @@ export default function ComposeSheet({
                     suggestions={ai.suggestions}
                     thinking={ai.thinking}
                     categories={categories}
+                    currentCategory={category}
+                    currentPriority={priority}
+                    currentDueDate={dueDate}
                     onApplyCategory={(id) => {
                       setCategory(id)
                       Haptics.selectionAsync().catch(() => {})
