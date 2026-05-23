@@ -943,13 +943,13 @@ export default function App() {
           <AuthProvider>
             <LangProvider>
               <NotifyProvider>
-                <PebbleFlightProvider>
-                  <StoreProvider>
+                <StoreProvider>
+                  <PebbleFlightProvider>
                     <SheetProvider>
                       <AppGate />
                     </SheetProvider>
-                  </StoreProvider>
-                </PebbleFlightProvider>
+                  </PebbleFlightProvider>
+                </StoreProvider>
               </NotifyProvider>
             </LangProvider>
           </AuthProvider>

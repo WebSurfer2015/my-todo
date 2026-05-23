@@ -6,8 +6,10 @@ import React, {
   useRef,
   useState,
 } from 'react'
-import { Animated, Dimensions, Easing, Image, StyleSheet, View } from 'react-native'
+import { Animated, Dimensions, Easing, Image, StyleSheet, Text, View } from 'react-native'
 import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from 'expo-audio'
+import { useStore } from '../StoreContext'
+import { findPreset, type Avatar } from '../profile'
 
 /**
  * Cross-component overlay: when a task transitions to done, a Mochi sprite
@@ -216,6 +218,12 @@ const DROP_MS = FLIGHT_MS * DROP_AT
 export const PEBBLE_DEFERRAL_MS = DROP_MS
 
 function FlyingMochi({ flight, onDone }: { flight: Flight; onDone: () => void }) {
+  // The cairn-bound animation echoes the user's current avatar
+  // when one is set — matches the calm-app touch that chrome
+  // reflects identity. Falls back to the brand Mochi turtle
+  // (mochi-mascot.png) for users on the default avatar or any
+  // path that doesn't yield a preset/image.
+  const avatar: Avatar | undefined = useStore().profile.avatar
   const progress = useRef(new Animated.Value(0)).current
 
   useEffect(() => {
@@ -271,12 +279,42 @@ function FlyingMochi({ flight, onDone }: { flight: Flight; onDone: () => void })
         },
       ]}
     >
-      <Image
-        source={require('../../assets/mochi-mascot.png')}
-        style={styles.mochiImage}
-        resizeMode="contain"
-      />
+      {renderAvatarGlyph(avatar)}
     </Animated.View>
+  )
+}
+
+/**
+ * Render the airborne glyph based on the user's current avatar.
+ * Preset → emoji on its tinted circle (matches the avatar in the
+ * profile header). Image → the uploaded photo, fit + clipped to a
+ * circle. Anything else (icon avatar, missing) → the brand Mochi
+ * turtle asset, which is the original behavior.
+ */
+function renderAvatarGlyph(avatar: Avatar | undefined): React.ReactNode {
+  if (avatar?.kind === 'preset') {
+    const preset = findPreset(avatar.key)
+    return (
+      <View style={[styles.avatarCircle, { backgroundColor: preset.bg }]}>
+        <Text style={styles.avatarEmoji}>{preset.emoji}</Text>
+      </View>
+    )
+  }
+  if (avatar?.kind === 'image' && avatar.uri) {
+    return (
+      <Image
+        source={{ uri: avatar.uri }}
+        style={styles.avatarPhoto}
+        resizeMode="cover"
+      />
+    )
+  }
+  return (
+    <Image
+      source={require('../../assets/mochi-mascot.png')}
+      style={styles.mochiImage}
+      resizeMode="contain"
+    />
   )
 }
 
@@ -292,5 +330,23 @@ const styles = StyleSheet.create({
   mochiImage: {
     width: '100%',
     height: '100%',
+  },
+  avatarCircle: {
+    width: MOCHI_SIZE,
+    height: MOCHI_SIZE,
+    borderRadius: MOCHI_SIZE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarEmoji: {
+    fontSize: MOCHI_SIZE * 0.6,
+    lineHeight: MOCHI_SIZE * 0.7,
+    textAlign: 'center',
+  },
+  avatarPhoto: {
+    width: MOCHI_SIZE,
+    height: MOCHI_SIZE,
+    borderRadius: MOCHI_SIZE / 2,
   },
 })
