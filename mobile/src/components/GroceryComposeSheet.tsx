@@ -28,7 +28,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import { Check } from 'lucide-react-native'
+import { Alert } from 'react-native'
+import { Check, Plus } from 'lucide-react-native'
 import * as Haptics from 'expo-haptics'
 import {
   GroceryGroup,
@@ -53,6 +54,10 @@ interface Props {
    * department field. Defaults to Uncategorized when undefined. */
   initialDepartmentId?: string
   onAdd: (args: { text: string; groupId: string; store: string | undefined }) => void
+  /** Creates a new store name in the user's profile. Tapped from the
+   * "+ Create '<name>'" row in the Store sub-view after the user
+   * confirms via an Alert. The store is also selected for this add. */
+  onCreateStore?: (name: string) => void
   onClose: () => void
 }
 
@@ -63,6 +68,7 @@ export default function GroceryComposeSheet({
   initialStore,
   initialDepartmentId,
   onAdd,
+  onCreateStore,
   onClose,
 }: Props) {
   const { t } = useLang()
@@ -81,6 +87,10 @@ export default function GroceryComposeSheet({
   // intend to choose the dept themselves — we stop auto-inferring
   // from the text after that. Reset on each open of the sheet.
   const userPickedDeptRef = useRef(false)
+  // Search/create text for the Store sub-view. Drives both the
+  // filter and the conditional "+ Create '<name>'" row at the
+  // bottom of the list. Cleared whenever we leave the sub-view.
+  const [storeSearch, setStoreSearch] = useState('')
 
   // Reset on open so the next launch starts clean. Preserve the
   // current group + store so a serial-add flow ("Add another") keeps
@@ -92,10 +102,17 @@ export default function GroceryComposeSheet({
       setGroupId(initialDepartmentId ?? OTHERS_GROUP_ID)
       setStore(initialStore)
       userPickedDeptRef.current = false
+      setStoreSearch('')
       // Slight delay so the modal animation finishes before focusing.
       setTimeout(() => inputRef.current?.focus(), 120)
     }
   }, [visible, initialDepartmentId, initialStore])
+
+  // Clear the store search whenever we leave the store sub-view, so
+  // the next open starts at the full list rather than a stale filter.
+  useEffect(() => {
+    if (subView !== 'store') setStoreSearch('')
+  }, [subView])
 
   // Live local dept inference while typing — mirrors the local
   // heuristic that runs at add-time in useTodoStore.addGrocery, but
@@ -312,49 +329,108 @@ export default function GroceryComposeSheet({
               </SubViewList>
             )}
 
-            {subView === 'store' && (
-              <SubViewList
-                title="Store"
-                onBack={() => setSubView('main')}
-                styles={styles}
-              >
-                <TouchableOpacity
-                  style={styles.subRow}
-                  onPress={() => {
-                    setStore(undefined)
-                    setSubView('main')
-                  }}
-                  activeOpacity={0.65}
+            {subView === 'store' && (() => {
+              const searchTrimmed = storeSearch.trim()
+              const searchLower = searchTrimmed.toLowerCase()
+              const filteredStores = searchTrimmed
+                ? stores.filter((s) => s.toLowerCase().includes(searchLower))
+                : stores
+              const exactMatch =
+                searchTrimmed.length > 0 &&
+                stores.some((s) => s.toLowerCase() === searchLower)
+              const canCreate =
+                !!onCreateStore && searchTrimmed.length > 0 && !exactMatch
+              const handleCreate = () => {
+                if (!canCreate || !onCreateStore) return
+                Alert.alert(
+                  t.groceryNewStorePrompt(searchTrimmed),
+                  '',
+                  [
+                    { text: t.cancel, style: 'cancel' },
+                    {
+                      text: t.create,
+                      onPress: () => {
+                        onCreateStore(searchTrimmed)
+                        setStore(searchTrimmed)
+                        setStoreSearch('')
+                        setSubView('main')
+                      },
+                    },
+                  ],
+                )
+              }
+              return (
+                <SubViewList
+                  title="Store"
+                  onBack={() => setSubView('main')}
+                  styles={styles}
                 >
-                  <View style={{ width: 20 }} />
-                  <Text style={styles.subRowLabel}>Any</Text>
-                  {store === undefined ? (
-                    <Check size={18} color={theme.primary} strokeWidth={2.5} />
-                  ) : (
-                    <View style={styles.subRowCheckSpacer} />
+                  <View style={styles.storeSearchWrap}>
+                    <TextInput
+                      style={styles.storeSearchInput}
+                      placeholder={t.groceryStoreSearchPlaceholder}
+                      placeholderTextColor={theme.gray3}
+                      value={storeSearch}
+                      onChangeText={setStoreSearch}
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                      returnKeyType="done"
+                      onSubmitEditing={handleCreate}
+                    />
+                  </View>
+                  {!searchTrimmed && (
+                    <TouchableOpacity
+                      style={styles.subRow}
+                      onPress={() => {
+                        setStore(undefined)
+                        setSubView('main')
+                      }}
+                      activeOpacity={0.65}
+                    >
+                      <View style={{ width: 20 }} />
+                      <Text style={styles.subRowLabel}>Any</Text>
+                      {store === undefined ? (
+                        <Check size={18} color={theme.primary} strokeWidth={2.5} />
+                      ) : (
+                        <View style={styles.subRowCheckSpacer} />
+                      )}
+                    </TouchableOpacity>
                   )}
-                </TouchableOpacity>
-                {stores.map((s) => (
-                  <TouchableOpacity
-                    key={s}
-                    style={styles.subRow}
-                    onPress={() => {
-                      setStore(s)
-                      setSubView('main')
-                    }}
-                    activeOpacity={0.65}
-                  >
-                    <GroceryIcon kind="store" id={s} size={20} />
-                    <Text style={styles.subRowLabel}>{s}</Text>
-                    {store === s ? (
-                      <Check size={18} color={theme.primary} strokeWidth={2.5} />
-                    ) : (
+                  {filteredStores.map((s) => (
+                    <TouchableOpacity
+                      key={s}
+                      style={styles.subRow}
+                      onPress={() => {
+                        setStore(s)
+                        setSubView('main')
+                      }}
+                      activeOpacity={0.65}
+                    >
+                      <GroceryIcon kind="store" id={s} size={20} />
+                      <Text style={styles.subRowLabel}>{s}</Text>
+                      {store === s ? (
+                        <Check size={18} color={theme.primary} strokeWidth={2.5} />
+                      ) : (
+                        <View style={styles.subRowCheckSpacer} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                  {canCreate && (
+                    <TouchableOpacity
+                      style={styles.subRow}
+                      onPress={handleCreate}
+                      activeOpacity={0.65}
+                    >
+                      <Plus size={18} color={theme.primary} strokeWidth={2.4} />
+                      <Text style={[styles.subRowLabel, { color: theme.primary }]}>
+                        {`Create "${searchTrimmed}"`}
+                      </Text>
                       <View style={styles.subRowCheckSpacer} />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </SubViewList>
-            )}
+                    </TouchableOpacity>
+                  )}
+                </SubViewList>
+              )
+            })()}
           </Pressable>
         </Pressable>
       </KeyboardAvoidingView>
@@ -503,6 +579,21 @@ function makeStyles(c: ThemeColors) {
       minHeight: 48,
     },
     subRowLabel: { flex: 1, fontSize: 16, color: c.label, fontWeight: '500' },
+    // Inline search input pinned at the top of the Store sub-view.
+    // Doubles as the buffer for the conditional "+ Create '<name>'"
+    // row that appears when no existing store matches.
+    storeSearchWrap: {
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.gray3,
+      backgroundColor: c.surface,
+    },
+    storeSearchInput: {
+      fontSize: 16,
+      color: c.label,
+      paddingVertical: 6,
+    },
     subRowCheckSpacer: { width: 18 },
   })
 }

@@ -735,6 +735,7 @@ export default function GroceryView({
         setLastAddedStore(store)
         onAdd({ text, groupId, store })
       }}
+      onCreateStore={onAddStore}
       onClose={() => setComposeOpen(false)}
     />
     <Fab
