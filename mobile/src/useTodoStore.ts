@@ -1049,19 +1049,27 @@ export function useTodoStore() {
           .slice(0, 30)
           .map((g) => ({ id: g.id, label: g.label }));
         if (departments.length > 0) {
+          // Snapshot where local placed the item — used in the .then
+          // to decide whether AI's pick differs from local (snackbar)
+          // or agrees (silent no-op).
+          const placedAt = item.groupId;
           void classifyGroceryDept({ text, departments }).then((res) => {
-            // Case 1: AI picked an existing group → only move when
-            // it actually differs from where the item currently sits
-            // (no-op if AI agrees with local).
+            // Case 1: AI picked an existing group. If it differs
+            // from where local placed the item, move + tell the user
+            // via a brief snackbar so they see AI activity. If it
+            // agrees with local, no-op silently.
             if (res.groupId) {
-              if (!groceryGroupsRef.current.some((g) => g.id === res.groupId)) return;
+              const dept = groceryGroupsRef.current.find((g) => g.id === res.groupId);
+              if (!dept) return;
+              if (placedAt === res.groupId) return; // local already matched — no move
               setGroceries((prev) =>
                 prev.map((it) =>
-                  it.id === item.id && it.groupId !== res.groupId
-                    ? { ...it, groupId: res.groupId! }
-                    : it,
+                  it.id === item.id ? { ...it, groupId: res.groupId! } : it,
                 ),
               );
+              notify.showSnackbar({
+                message: t.grocerySortedInto(dept.label),
+              });
               return;
             }
             // Case 2: AI proposes a new dept → only useful when the

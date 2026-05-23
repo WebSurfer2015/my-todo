@@ -478,7 +478,13 @@ const MODES: Record<Mode, ModeConfig> = {
     system: CLASSIFY_DEPT_SYSTEM,
     validateInput: validateClassifyDeptInput,
     buildUserBlock: (input) => buildClassifyDeptUserBlock(input as ClassifyDeptInput),
-    parseOutput: parseClassifyDeptOutput,
+    // Wrap parseOutput so we can post-process newGroupLabel against
+    // the live departments list: if the model proposes a label that
+    // case-insensitively matches an existing dept, rewrite the
+    // response to use that dept's id (`groupId`) instead. Keeps the
+    // client from showing a confusing "Create 'Gifts' department?"
+    // confirm when Gifts already exists.
+    parseOutput: parseClassifyDeptOutput, // placeholder; dispatcher replaces below
   },
   'suggest-todo-fields': {
     // Haiku 4.5 — fires on every typing pause, so cost discipline is
@@ -577,6 +583,24 @@ export const aiInfer = onCall(
 
     const input = config.validateInput(data?.input)
     const userBlock = config.buildUserBlock(input as never)
+    // Post-process hook: only classify-grocery-dept needs it today.
+    // Defined here (not in the MODES table) because it requires the
+    // validated input to dedupe newGroupLabel against the existing
+    // departments list.
+    const postProcess: ((raw: unknown) => unknown) | null =
+      mode === 'classify-grocery-dept'
+        ? (raw) => {
+            const out = raw as { groupId?: string | null; newGroupLabel?: string | null }
+            if (!out.newGroupLabel || out.groupId) return out
+            const depts = (input as { departments: Array<{ id: string; label: string }> }).departments
+            const lower = out.newGroupLabel.trim().toLowerCase()
+            const match = depts.find((d) => d.label.toLowerCase() === lower)
+            if (match) {
+              return { groupId: match.id, newGroupLabel: null }
+            }
+            return out
+          }
+        : null
 
     const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() })
 
@@ -614,7 +638,8 @@ export const aiInfer = onCall(
     for (const block of response.content) {
       if (block.type === 'text') text += block.text
     }
-    const result = config.parseOutput(text)
+    const parsed = config.parseOutput(text)
+    const result = postProcess ? postProcess(parsed) : parsed
 
     return {
       result,
