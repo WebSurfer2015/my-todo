@@ -31,6 +31,9 @@ interface BreakdownResult {
 interface ClassifyDeptInput {
   text: string
   departments: Array<{ id: string; label: string }>
+  /** Existing stores in the user's profile. Sent so the model can
+   * decide isNew for a detected store mention. */
+  stores?: string[]
 }
 
 interface ClassifyDeptResult {
@@ -39,6 +42,10 @@ interface ClassifyDeptResult {
    * in the user's list. The caller should confirm with the user
    * before creating + assigning. Mutually exclusive with groupId. */
   newGroupLabel: string | null
+  /** Set when the text explicitly mentions a store ("from Target",
+   * "at Costco"). isNew indicates whether the name matches an
+   * existing store in the user's profile (case-insensitive). */
+  storeHint: { name: string; isNew: boolean } | null
 }
 
 interface SuggestFieldsInput {
@@ -104,7 +111,7 @@ export async function classifyGroceryDept(input: ClassifyDeptInput): Promise<Cla
   try {
     return await callAiInfer<ClassifyDeptResult>('classify-grocery-dept', input)
   } catch {
-    return { groupId: null, newGroupLabel: null }
+    return { groupId: null, newGroupLabel: null, storeHint: null }
   }
 }
 

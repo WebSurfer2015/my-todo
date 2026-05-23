@@ -1048,12 +1048,65 @@ export function useTodoStore() {
           .filter((g) => g.id !== OTHERS_GROUP_ID && !g.hidden)
           .slice(0, 30)
           .map((g) => ({ id: g.id, label: g.label }));
+        const storesInProfile =
+          profileRef.current.groceryStores ?? SEED_GROCERY_STORES;
+        const explicitStore = !!args.store?.trim();
         if (departments.length > 0) {
           // Snapshot where local placed the item — used in the .then
           // to decide whether AI's pick differs from local (snackbar)
           // or agrees (silent no-op).
           const placedAt = item.groupId;
-          void classifyGroceryDept({ text, departments }).then((res) => {
+          void classifyGroceryDept({
+            text,
+            departments,
+            stores: storesInProfile,
+          }).then((res) => {
+            // Storefront — handle BEFORE dept so even AI-existing-id
+            // path can also surface a store change. Skip if the user
+            // already picked a store explicitly in compose; respect
+            // their choice over the AI's mention.
+            const hint = res.storeHint;
+            if (hint && !explicitStore) {
+              const existing = storesInProfile.find(
+                (s) => s.toLowerCase() === hint.name.toLowerCase(),
+              );
+              if (existing) {
+                // Silently set the item's store to the matching one.
+                setGroceries((prev) =>
+                  prev.map((it) =>
+                    it.id === item.id ? { ...it, store: existing } : it,
+                  ),
+                );
+              } else if (hint.isNew) {
+                // New store — ask before creating it in the profile.
+                notify.showSnackbar({
+                  message: t.groceryNewStorePrompt(hint.name),
+                  actionLabel: t.create,
+                  onAction: () => {
+                    const liveStores =
+                      profileRef.current.groceryStores ?? SEED_GROCERY_STORES;
+                    const dupe = liveStores.find(
+                      (s) => s.toLowerCase() === hint.name.toLowerCase(),
+                    );
+                    const targetName = dupe ?? hint.name;
+                    if (!dupe) {
+                      setProfile((p) => {
+                        const list = p.groceryStores ?? SEED_GROCERY_STORES;
+                        if (list.some((s) => s.toLowerCase() === hint.name.toLowerCase())) {
+                          return p;
+                        }
+                        return { ...p, groceryStores: [...list, hint.name] };
+                      });
+                    }
+                    setGroceries((prev) =>
+                      prev.map((it) =>
+                        it.id === item.id ? { ...it, store: targetName } : it,
+                      ),
+                    );
+                  },
+                });
+              }
+            }
             // Case 1: AI picked an existing group. If it differs
             // from where local placed the item, move + tell the user
             // via a brief snackbar so they see AI activity. If it

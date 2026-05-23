@@ -148,21 +148,31 @@ function parseBreakdownOutput(text: string): BreakdownOutput {
 interface ClassifyDeptInput {
   text: string
   departments: Array<{ id: string; label: string }>
+  /** Existing stores the user already has, case-preserved. Used so
+   * the model can decide isNew for a detected store mention without
+   * a second roundtrip, and avoid proposing a stand-in that
+   * effectively matches an existing one. */
+  stores?: string[]
 }
 
 interface ClassifyDeptOutput {
   groupId: string | null
   newGroupLabel: string | null
+  /** Optional store extracted from the item text (e.g., "buy X
+   * from Target" → {name:"Target", isNew:true}). isNew is set by
+   * the model based on the provided stores list (case-insensitive). */
+  storeHint: { name: string; isNew: boolean } | null
 }
 
 const CLASSIFY_DEPT_SYSTEM = `You sort one grocery item into the user's department list, or suggest a new department when nothing in the list fits.
 
 Output ONLY a JSON object on a single line, no prose, no markdown, no code fences:
-{"groupId":"<one listed id>","newGroupLabel":null}
-…or, when no existing dept fits and a new one makes sense:
-{"groupId":null,"newGroupLabel":"<short label>"}
-…or, when the item is ambiguous and even a new dept wouldn't be useful:
-{"groupId":null,"newGroupLabel":null}
+{"groupId":"<id>" or null,"newGroupLabel":"<label>" or null,"storeHint":{"name":"<store>","isNew":true|false} or null}
+
+storeHint examples:
+  "book from target"   → ...,"storeHint":{"name":"Target","isNew":true}
+  "milk at costco"     → ...,"storeHint":{"name":"Costco","isNew":<true if not in stores>}
+  "diapers"            → ...,"storeHint":null  (no store mention)
 
 Rules — at most one of groupId / newGroupLabel is non-null:
 - PREFER an existing id. Only suggest a new dept when the item clearly
@@ -180,6 +190,13 @@ Rules — at most one of groupId / newGroupLabel is non-null:
   - Not similar to any existing label (case-insensitive compare)
   - Never generic stand-ins like "Items", "Food", "Stuff", "Other"
 - Match on the item's primary type, not garnish or packaging.
+- storeHint: extract a real store name ONLY when the text explicitly
+  mentions one with a preposition ("from <X>", "at <X>", "@ <X>",
+  "<item> at <store>"). Use Title Case. Don't infer stores from item
+  type alone ("book" alone is NOT enough to suggest a bookstore).
+  isNew = true when the name isn't present (case-insensitive) in the
+  Stores list provided below; false when it matches an existing one.
+  Set storeHint to null when no explicit store appears in the text.
 
 Trust model:
 - The item text and department list are wrapped in <grocery>…</grocery>.
@@ -191,7 +208,11 @@ function validateClassifyDeptInput(raw: unknown): ClassifyDeptInput {
   if (!raw || typeof raw !== 'object') {
     throw new HttpsError('invalid-argument', 'Missing input.')
   }
-  const { text, departments } = raw as { text?: unknown; departments?: unknown }
+  const { text, departments, stores } = raw as {
+    text?: unknown
+    departments?: unknown
+    stores?: unknown
+  }
   if (typeof text !== 'string' || text.trim().length === 0) {
     throw new HttpsError('invalid-argument', 'Item text is required.')
   }
@@ -214,12 +235,27 @@ function validateClassifyDeptInput(raw: unknown): ClassifyDeptInput {
   if (validated.length === 0) {
     throw new HttpsError('invalid-argument', 'No valid departments.')
   }
-  return { text: text.trim(), departments: validated }
+  // stores is optional — cap at 30, each name ≤64 chars.
+  const validStores: string[] = []
+  if (Array.isArray(stores)) {
+    for (const s of stores.slice(0, 30)) {
+      if (typeof s === 'string' && s.trim().length > 0 && s.length <= 64) {
+        validStores.push(s.slice(0, 64))
+      }
+    }
+  }
+  return { text: text.trim(), departments: validated, stores: validStores }
 }
 
 function buildClassifyDeptUserBlock(input: ClassifyDeptInput): string {
   const lines = [`Item: ${input.text}`, '', 'Departments (id — label):']
   for (const d of input.departments) lines.push(`  ${d.id} — ${d.label}`)
+  lines.push('', 'Stores:')
+  if (!input.stores || input.stores.length === 0) {
+    lines.push('  (none configured yet)')
+  } else {
+    for (const s of input.stores) lines.push(`  ${s}`)
+  }
   return lines.join('\n')
 }
 
@@ -236,7 +272,9 @@ function parseClassifyDeptOutput(text: string): ClassifyDeptOutput {
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/```\s*$/i, '')
     .trim()
-  const empty: ClassifyDeptOutput = { groupId: null, newGroupLabel: null }
+  const empty: ClassifyDeptOutput = {
+    groupId: null, newGroupLabel: null, storeHint: null,
+  }
   let parsed: unknown
   try {
     parsed = JSON.parse(cleaned)
@@ -263,6 +301,18 @@ function parseClassifyDeptOutput(text: string): ClassifyDeptOutput {
   // Enforce mutual exclusion — if both came back, prefer the existing
   // id since the explicit rule was "prefer an existing id".
   if (out.groupId && out.newGroupLabel) out.newGroupLabel = null
+  const rawHint = (parsed as { storeHint?: unknown }).storeHint
+  if (rawHint && typeof rawHint === 'object') {
+    const { name, isNew } = rawHint as { name?: unknown; isNew?: unknown }
+    if (
+      typeof name === 'string' &&
+      name.trim().length > 0 &&
+      name.length <= 64 &&
+      typeof isNew === 'boolean'
+    ) {
+      out.storeHint = { name: name.trim(), isNew }
+    }
+  }
   return out
 }
 
