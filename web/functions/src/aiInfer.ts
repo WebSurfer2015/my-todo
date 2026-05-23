@@ -281,12 +281,16 @@ interface SuggestFieldsOutput {
   newCategoryLabel: string | null
   priority: 'high' | 'medium' | 'low' | null
   dueDate: string | null
-  /** Lean v1 recurrence — frequency plus an optional end date when
-   * the text explicitly bounds the repetition. Client builds the
-   * full Recurrence on apply; user can refine weekday/bySetPos
-   * via the Repeat sub-view. */
+  /** Lean v1 recurrence — frequency plus optional weekday filter
+   * and end date. Client builds the full Recurrence on apply; user
+   * can still refine bySetPos via the Repeat sub-view. */
   recurrence: {
     freq: 'daily' | 'weekly' | 'monthly' | 'yearly'
+    /** Days of week the recurrence repeats on, 0=Sunday..6=Saturday.
+     * Meaningful for weekly (e.g. "monday and friday" → [1,5]) and
+     * monthly (combine with bySetPos client-side later). Omitted
+     * means "every period" without a weekday filter. */
+    byWeekday?: number[]
     /** ISO yyyy-mm-dd. Only set when the text explicitly bounded
      * the recurrence (e.g. "for 30 days", "through October",
      * "until Oct 31"). Omitted means an indefinite rolling
@@ -298,7 +302,7 @@ interface SuggestFieldsOutput {
 const SUGGEST_FIELDS_SYSTEM = `You read one to-do title and suggest field values the user can tap to apply.
 
 Output ONLY a JSON object on one line, no prose, no markdown, no code fences:
-{"category":"<id>" or null,"newCategoryLabel":"<label>" or null,"priority":"high"|"medium"|"low" or null,"dueDate":"yyyy-mm-dd" or null,"recurrence":{"freq":"daily"|"weekly"|"monthly"|"yearly","endDate":"yyyy-mm-dd"} or null}
+{"category":"<id>" or null,"newCategoryLabel":"<label>" or null,"priority":"high"|"medium"|"low" or null,"dueDate":"yyyy-mm-dd" or null,"recurrence":{"freq":"daily"|"weekly"|"monthly"|"yearly","byWeekday":[0-6 ints],"endDate":"yyyy-mm-dd"} or null}
 
 Rules — every field is independently nullable. At most ONE of
 \`category\` and \`newCategoryLabel\` may be non-null:
@@ -327,17 +331,26 @@ Rules — every field is independently nullable. At most ONE of
   - No date mentioned → null
   Always return ISO yyyy-mm-dd, never relative phrases.
 - recurrence: only when the text clearly implies a repeating task.
-  Returns an object with 'freq' plus an optional 'endDate' (ISO
-  yyyy-mm-dd). OMIT 'endDate' when the text doesn't bound the
-  repetition — the user can add an end date later.
+  Returns an object with 'freq' plus optional 'byWeekday' (array
+  of integers 0=Sunday..6=Saturday) and optional 'endDate' (ISO
+  yyyy-mm-dd). OMIT each field when the text doesn't imply it.
   Examples (assume today=2026-05-23):
     "water plants every day"            → {"freq":"daily"}
+    "every monday"                      → {"freq":"weekly","byWeekday":[1]}
+    "every mon wed and fri"             → {"freq":"weekly","byWeekday":[1,3,5]}
+    "weekdays"                          → {"freq":"weekly","byWeekday":[1,2,3,4,5]}
+    "weekends"                          → {"freq":"weekly","byWeekday":[0,6]}
     "take vitamins daily for 30 days"   → {"freq":"daily","endDate":"2026-06-22"}
     "weekly meeting through October"    → {"freq":"weekly","endDate":"2026-10-31"}
     "monthly bills until end of year"   → {"freq":"monthly","endDate":"2026-12-31"}
     "yearly checkup"                    → {"freq":"yearly"}
     "buy milk"                          → null      (one-off)
     "call mom"                          → null      (no repetition language)
+  Weekday rules: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat.
+  Always pair byWeekday with freq="weekly" (it's meaningless for
+  daily/monthly/yearly without bySetPos which we don't surface yet).
+  Sort byWeekday ascending. Only include byWeekday when the text
+  names specific weekdays.
   Only include 'endDate' when an explicit time-bound phrase
   appears: "for N days/weeks/months", "through <month>",
   "until <date>", "by <date>", "this <month>". Resolve the end
@@ -446,9 +459,27 @@ function parseSuggestFieldsOutput(text: string): SuggestFieldsOutput {
   }
   const rawRec = (parsed as { recurrence?: unknown }).recurrence
   if (rawRec && typeof rawRec === 'object') {
-    const { freq, endDate } = rawRec as { freq?: unknown; endDate?: unknown }
+    const { freq, byWeekday, endDate } = rawRec as {
+      freq?: unknown
+      byWeekday?: unknown
+      endDate?: unknown
+    }
     if (freq === 'daily' || freq === 'weekly' || freq === 'monthly' || freq === 'yearly') {
       const rec: NonNullable<SuggestFieldsOutput['recurrence']> = { freq }
+      // byWeekday is only meaningful for weekly today (monthly +
+      // bySetPos isn't surfaced yet). Validate strictly: array of
+      // unique 0-6 ints, sorted asc, at most 7.
+      if (freq === 'weekly' && Array.isArray(byWeekday)) {
+        const seen = new Set<number>()
+        for (const d of byWeekday) {
+          if (typeof d === 'number' && Number.isInteger(d) && d >= 0 && d <= 6) {
+            seen.add(d)
+          }
+        }
+        if (seen.size > 0 && seen.size <= 7) {
+          rec.byWeekday = [...seen].sort((a, b) => a - b)
+        }
+      }
       if (typeof endDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
         rec.endDate = endDate
       }

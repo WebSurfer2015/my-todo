@@ -844,6 +844,7 @@ export default function TaskDetailsSheet({
                   currentDueDate={editDueDate}
                   currentRecurrenceFreq={editRecurrence?.freq}
                   currentRecurrenceEndDate={editRecurrence?.endDate}
+                  currentRecurrenceByWeekday={editRecurrence?.byWeekday}
                   onApplyCategory={(id) => {
                     applyCategory(id)
                     Haptics.selectionAsync().catch(() => {})

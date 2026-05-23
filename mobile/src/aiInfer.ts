@@ -55,12 +55,14 @@ export interface SuggestFieldsResult {
   newCategoryLabel: string | null
   priority: 'high' | 'medium' | 'low' | null
   dueDate: string | null
-  /** Basic recurrence — frequency plus an optional end date when
-   * the user's text explicitly bounds the repetition. Caller
-   * constructs the full Recurrence on apply; user can refine
-   * weekday/bySetPos via the Repeat sub-view. */
+  /** Basic recurrence — frequency, optional byWeekday filter, and
+   * optional end date. Caller constructs the full Recurrence on
+   * apply; user can refine bySetPos via the Repeat sub-view. */
   recurrence: {
     freq: 'daily' | 'weekly' | 'monthly' | 'yearly'
+    /** Days of week (0=Sun..6=Sat). Meaningful for weekly only
+     * in this v1 ("every mon and tue" → [1,2]). */
+    byWeekday?: number[]
     endDate?: string
   } | null
 }

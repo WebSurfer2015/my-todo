@@ -161,6 +161,8 @@ interface RowProps {
   /** Current recurrence endDate (ISO yyyy-mm-dd), if set.
    * Combined with freq for the no-op compare. */
   currentRecurrenceEndDate?: string
+  /** Current byWeekday filter on the recurrence, if any. */
+  currentRecurrenceByWeekday?: number[]
   onApplyCategory: (id: string) => void
   /** Tap on a "+ <label>" pill. Implementation should confirm with
    * the user (it creates a new category in their sidebar). Omit to
@@ -169,7 +171,11 @@ interface RowProps {
   onApplyNewCategory?: (label: string) => void
   onApplyPriority: (p: Priority) => void
   onApplyDueDate: (iso: string) => void
-  onApplyRecurrence: (rec: { freq: RecurrenceFreq; endDate?: string }) => void
+  onApplyRecurrence: (rec: {
+    freq: RecurrenceFreq
+    byWeekday?: number[]
+    endDate?: string
+  }) => void
   onDismissField: (
     field: 'category' | 'newCategoryLabel' | 'priority' | 'dueDate' | 'recurrence',
   ) => void
@@ -184,6 +190,7 @@ export function TodoFieldSuggestPills({
   currentDueDate,
   currentRecurrenceFreq,
   currentRecurrenceEndDate,
+  currentRecurrenceByWeekday,
   onApplyCategory,
   onApplyNewCategory,
   onApplyPriority,
@@ -223,14 +230,15 @@ export function TodoFieldSuggestPills({
     !!suggestions?.priority && suggestions.priority !== currentPriority
   const showDueDatePill =
     !!suggestions?.dueDate && suggestions.dueDate !== currentDueDate
-  // Pill suppressed only when both freq AND endDate already match
-  // the compose form — that's a genuine no-op. If the AI proposes
-  // the same freq with a *new* endDate (e.g. user typed "for 30
-  // days"), the pill stays so the user can adopt the bound.
+  // Pill suppressed only when freq + endDate + byWeekday already
+  // match the compose form. If any differ — same freq with a new
+  // endDate, or same freq with different weekday picks — the pill
+  // stays so the user can adopt the change.
   const showRecurrencePill =
     !!suggestions?.recurrence &&
     (suggestions.recurrence.freq !== currentRecurrenceFreq ||
-      (suggestions.recurrence.endDate ?? undefined) !== currentRecurrenceEndDate)
+      (suggestions.recurrence.endDate ?? undefined) !== currentRecurrenceEndDate ||
+      !sameWeekdays(suggestions.recurrence.byWeekday, currentRecurrenceByWeekday))
 
   const hasAny =
     showCategoryPill ||
@@ -315,12 +323,12 @@ export function TodoFieldSuggestPills({
             onDismissField('recurrence')
           }}
           onDismiss={() => onDismissField('recurrence')}
-          accessibilityLabel={`${t.aiSuggestionA11y}: ${formatRecurrence({ freq: suggestions!.recurrence!.freq })}${suggestions!.recurrence!.endDate ? `, ${formatDisplayDate(suggestions!.recurrence!.endDate, t.locale)}` : ''}`}
+          accessibilityLabel={`${t.aiSuggestionA11y}: ${formatRecurrence(suggestions!.recurrence!)}${suggestions!.recurrence!.endDate ? `, ${formatDisplayDate(suggestions!.recurrence!.endDate, t.locale)}` : ''}`}
           icon={<Repeat size={11} color={theme.primary} strokeWidth={2.2} />}
           label={
             suggestions!.recurrence!.endDate
-              ? `${formatRecurrence({ freq: suggestions!.recurrence!.freq })} · ${formatDisplayDate(suggestions!.recurrence!.endDate, t.locale)}`
-              : formatRecurrence({ freq: suggestions!.recurrence!.freq })
+              ? `${formatRecurrence(suggestions!.recurrence!)} · ${formatDisplayDate(suggestions!.recurrence!.endDate, t.locale)}`
+              : formatRecurrence(suggestions!.recurrence!)
           }
         />
       )}
@@ -363,6 +371,21 @@ function Pill({ styles, onApply, onDismiss, accessibilityLabel, icon, label }: P
       </TouchableOpacity>
     </View>
   )
+}
+
+/**
+ * Array-equality for two byWeekday lists. Treats undefined and []
+ * as equal (both = no weekday filter) so the no-op suppression
+ * doesn't trigger spuriously when one side omits the field.
+ */
+function sameWeekdays(a: number[] | undefined, b: number[] | undefined): boolean {
+  const ax = a ?? []
+  const bx = b ?? []
+  if (ax.length !== bx.length) return false
+  for (let i = 0; i < ax.length; i++) {
+    if (ax[i] !== bx[i]) return false
+  }
+  return true
 }
 
 function makeStyles(c: ThemeColors) {
