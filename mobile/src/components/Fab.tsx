@@ -61,15 +61,15 @@ export default function Fab({ onPress, accessibilityLabel, agentEnabled = false 
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
     >
-      <View style={styles.iconRow}>
-        {agentEnabled && (
-          <Sparkles size={14} color="#fff" strokeWidth={2.4} />
-        )}
-        <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.5} strokeLinecap="round">
-          <Line x1="12" y1="5" x2="12" y2="19" />
-          <Line x1="5" y1="12" x2="19" y2="12" />
-        </Svg>
-      </View>
+      <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.5} strokeLinecap="round">
+        <Line x1="12" y1="5" x2="12" y2="19" />
+        <Line x1="5" y1="12" x2="19" y2="12" />
+      </Svg>
+      {agentEnabled && (
+        <View style={styles.sparkleBadge} pointerEvents="none">
+          <Sparkles size={12} color="#fff" strokeWidth={2.4} />
+        </View>
+      )}
     </TouchableOpacity>
   )
 }
@@ -92,10 +92,13 @@ function makeStyles(c: ThemeColors, bottom: number) {
       shadowRadius: 10,
       elevation: 6,
     },
-    iconRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
+    // Subtle AI indicator pinned to the FAB's top-right so the +
+    // stays optically centered. pointerEvents="none" on the parent
+    // View keeps the whole 56×56 hit area dedicated to the + tap.
+    sparkleBadge: {
+      position: 'absolute',
+      top: 8,
+      right: 8,
     },
   })
 }
