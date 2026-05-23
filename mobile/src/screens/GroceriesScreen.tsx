@@ -62,6 +62,7 @@ export default function GroceriesScreen() {
         onSearchPillPress={() => setSearchOpen(true)}
         onSearchClear={() => setSearchQuery('')}
         onAdd={store.addGrocery}
+        agentEnabled={store.profile.agentEnabled !== false}
         onToggleChecked={store.toggleGroceryChecked}
         onEdit={store.editGrocery}
         onDelete={store.deleteGrocery}

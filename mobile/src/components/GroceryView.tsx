@@ -67,6 +67,10 @@ interface Props {
   /** Tap the X on the search pill → clear the query. */
   onSearchClear: () => void
   onAdd: (args: { text: string; groupId?: string; store?: string }) => void
+  /** When true, the grocery FAB shows a small Sparkles badge —
+   * matches the to-do FAB and signals that AI dept inference runs
+   * silently on add. */
+  agentEnabled?: boolean
   onToggleChecked: (id: string) => void
   onEdit: (
     id: string,
@@ -110,6 +114,7 @@ export default function GroceryView({
   onSearchPillPress,
   onSearchClear,
   onAdd,
+  agentEnabled = false,
   onToggleChecked,
   onEdit,
   onDelete,
@@ -735,6 +740,7 @@ export default function GroceryView({
     <Fab
       onPress={() => setComposeOpen(true)}
       accessibilityLabel="Add an item"
+      agentEnabled={agentEnabled}
     />
     </>
   )
