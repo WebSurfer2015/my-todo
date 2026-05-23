@@ -163,8 +163,10 @@ interface RowProps {
   currentRecurrenceEndDate?: string
   onApplyCategory: (id: string) => void
   /** Tap on a "+ <label>" pill. Implementation should confirm with
-   * the user (it creates a new category in their sidebar). */
-  onApplyNewCategory: (label: string) => void
+   * the user (it creates a new category in their sidebar). Omit to
+   * skip the new-category pill entirely (useful in edit-todo flows
+   * where the user typically reuses existing categories). */
+  onApplyNewCategory?: (label: string) => void
   onApplyPriority: (p: Priority) => void
   onApplyDueDate: (iso: string) => void
   onApplyRecurrence: (rec: { freq: RecurrenceFreq; endDate?: string }) => void
@@ -213,6 +215,7 @@ export function TodoFieldSuggestPills({
       (c) => categoryLabel(c, t).toLowerCase() === newLabelLower,
     )
   const showNewCategoryPill =
+    !!onApplyNewCategory &&
     !suggestions?.category &&
     !!suggestions?.newCategoryLabel &&
     !newCategoryAlreadyExists
@@ -264,7 +267,7 @@ export function TodoFieldSuggestPills({
           onApply={() => {
             // Parent handler triggers the confirm dialog before
             // mutating the category list.
-            onApplyNewCategory(suggestions!.newCategoryLabel!)
+            onApplyNewCategory!(suggestions!.newCategoryLabel!)
           }}
           onDismiss={() => onDismissField('newCategoryLabel')}
           accessibilityLabel={`${t.aiSuggestionA11y}: ${t.composeCategoryLabel} ${suggestions!.newCategoryLabel} (new)`}

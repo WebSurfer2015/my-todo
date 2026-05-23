@@ -41,6 +41,7 @@ import {
   SuggestStepsTrigger,
   SuggestStepsReview,
 } from './SuggestStepsPanel'
+import { useTodoFieldSuggestions, TodoFieldSuggestPills } from './TodoFieldSuggestPills'
 import CustomRecurrenceForm from './CustomRecurrenceForm'
 
 function recurrenceLabel(rec: Recurrence | undefined): string {
@@ -185,9 +186,12 @@ export default function TaskDetailsSheet({
   // cycles, so without an explicit reset the `ai.suggestions` from
   // a previous open lingers. That breaks the Suggest pill render
   // (gated on !ai.suggestions) and shows a stale review panel
-  // instead. Reset whenever the sheet is shown.
+  // instead. Same reasoning applies to fieldAi (defined below).
   useEffect(() => {
-    if (visible) ai.reset()
+    if (visible) {
+      ai.reset()
+      fieldAi.clear()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible])
 
@@ -199,6 +203,21 @@ export default function TaskDetailsSheet({
   const [editPriority, setEditPriority] = useState<Priority>(todo.priority)
   const [editCategory, setEditCategory] = useState<Category | undefined>(todo.category)
   const [editDueDate, setEditDueDate] = useState(todo.dueDate ?? '')
+
+  // Ambient AI field suggestions for the edit flow. Mirrors the
+  // ComposeSheet wiring: same hook, same pill component, same
+  // no-op suppression based on current edit-form state. Hook is a
+  // no-op when agentEnabled is false (skips the AI call).
+  const aiFieldCategories = useMemo(
+    () => categories.map((c) => ({ id: c.id, label: categoryLabel(c, t) })),
+    [categories, t],
+  )
+  const fieldAi = useTodoFieldSuggestions({
+    text: editText,
+    today: todayLocal(),
+    categories: aiFieldCategories,
+    agentEnabled: !!agentEnabled,
+  })
   const [editPriorityOpen, setEditPriorityOpen] = useState(false)
   const [editCategoryOpen, setEditCategoryOpen] = useState(false)
   const [editPickerDate, setEditPickerDate] = useState<Date>(new Date())
@@ -816,6 +835,33 @@ export default function TaskDetailsSheet({
                   </>
                 )}
                 <View style={styles.editGroupDivider} />
+                <TodoFieldSuggestPills
+                  suggestions={fieldAi.suggestions}
+                  thinking={fieldAi.thinking}
+                  categories={categories}
+                  currentCategory={editCategory ?? ''}
+                  currentPriority={editPriority}
+                  currentDueDate={editDueDate}
+                  currentRecurrenceFreq={editRecurrence?.freq}
+                  currentRecurrenceEndDate={editRecurrence?.endDate}
+                  onApplyCategory={(id) => {
+                    applyCategory(id)
+                    Haptics.selectionAsync().catch(() => {})
+                  }}
+                  onApplyPriority={(p) => {
+                    applyPriority(p)
+                    Haptics.selectionAsync().catch(() => {})
+                  }}
+                  onApplyDueDate={(iso) => {
+                    applyDueDate(iso)
+                    Haptics.selectionAsync().catch(() => {})
+                  }}
+                  onApplyRecurrence={(rec) => {
+                    applyRecurrence(rec)
+                    Haptics.selectionAsync().catch(() => {})
+                  }}
+                  onDismissField={fieldAi.dismissField}
+                />
                 <TouchableOpacity
                   style={styles.editFieldRowInGroup}
                   onPress={() => setEditCategoryOpen(true)}
