@@ -1031,38 +1031,45 @@ export function useTodoStore() {
         }
         return next;
       });
-      // If the local heuristic missed AND AI assistance is on, ask
-      // the model in the background. The item is already on screen in
-      // Uncategorized; on the response we either:
-      //   - silently move to an existing group (groupId match), or
-      //   - surface a snackbar offering to create a brand-new dept
-      //     (newGroupLabel) that the user confirms before we mutate.
-      // Failures (network, quota, no-confidence) are ignored —
-      // item stays in Uncategorized.
+      // When the user didn't explicitly pick a department (compose
+      // defaults to Uncategorized), AI is consulted regardless of
+      // whether the local heuristic already produced a guess. Local
+      // gives us an instant placement so the item doesn't flash in
+      // Uncategorized; AI runs in the background and overrides if it
+      // disagrees with the local hit. This matches the user mental
+      // model: "no explicit dept = AI should run", and gives "almond
+      // milk" a chance to be sorted into Beverages instead of Dairy.
+      // Failures (network, quota, no-confidence) leave the item
+      // wherever the local heuristic placed it.
       const landedInOthers = item.groupId === OTHERS_GROUP_ID;
       const aiOn = profileRef.current.agentEnabled !== false;
-      if (landedInOthers && aiOn && !explicit) {
+      if (aiOn && !explicit) {
         const departments = groceryGroupsRef.current
           .filter((g) => g.id !== OTHERS_GROUP_ID && !g.hidden)
           .slice(0, 30)
           .map((g) => ({ id: g.id, label: g.label }));
         if (departments.length > 0) {
           void classifyGroceryDept({ text, departments }).then((res) => {
-            // Case 1: AI matched an existing group → silent move.
+            // Case 1: AI picked an existing group → only move when
+            // it actually differs from where the item currently sits
+            // (no-op if AI agrees with local).
             if (res.groupId) {
               if (!groceryGroupsRef.current.some((g) => g.id === res.groupId)) return;
               setGroceries((prev) =>
                 prev.map((it) =>
-                  it.id === item.id ? { ...it, groupId: res.groupId! } : it,
+                  it.id === item.id && it.groupId !== res.groupId
+                    ? { ...it, groupId: res.groupId! }
+                    : it,
                 ),
               );
               return;
             }
-            // Case 2: AI proposes a new dept → ask the user before
-            // mutating their group list. Cap-check first; if the
-            // group list is already at the max we silently skip the
-            // suggestion (no clutter when nothing actionable can
-            // happen).
+            // Case 2: AI proposes a new dept → only useful when the
+            // local heuristic ALSO missed (item is still in
+            // Uncategorized). If local already placed the item in
+            // an existing dept, suggesting to create a brand-new
+            // one is confusing — keep local's pick.
+            if (!landedInOthers) return;
             const proposed = res.newGroupLabel;
             if (!proposed) return;
             const liveGroups = groceryGroupsRef.current;
