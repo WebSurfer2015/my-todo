@@ -28,15 +28,19 @@ import type { BackgroundChoice } from '../profile'
 interface Props {
   /** Raw choice from `profile.background`. Undefined = default cream solid. */
   choice: BackgroundChoice | undefined
+  /** Optional override that bypasses `choice` entirely. Used by
+   * the "Theme from avatar" path so the background renders from
+   * the avatar's color regardless of the saved background pick. */
+  override?: { pair: Pair; pattern: PatternMeta }
 }
 
-export default function AppBackground({ choice }: Props) {
+export default function AppBackground({ choice, override }: Props) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light'
   const [size, setSize] = useState<{ w: number; h: number } | null>(null)
 
   const { pair, pattern } = useMemo(
-    () => resolve(choice),
-    [choice],
+    () => override ?? resolve(choice),
+    [choice, override],
   )
 
   const content = useMemo(() => {

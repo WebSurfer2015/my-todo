@@ -109,16 +109,32 @@ export default function SettingsSheet({
               {/* APPEARANCE */}
               <Text style={styles.sectionLabel}>APPEARANCE</Text>
               <View style={styles.card}>
+                <ToggleRow
+                  label="Theme from avatar"
+                  hint={
+                    themeFromAvatarOn
+                      ? "App accent + background derive from your current preset avatar. Pick a different preset in Edit profile to change."
+                      : "Tint the FAB, pill accents, and background to match your current avatar. Preset avatars only (photo support coming later)."
+                  }
+                  value={themeFromAvatarOn}
+                  onChange={(v) => patch({ themeFromAvatar: v || undefined })}
+                  styles={styles}
+                />
+                <View style={styles.divider} />
                 <TouchableOpacity
-                  style={styles.row}
+                  style={[styles.row, themeFromAvatarOn && { opacity: 0.4 }]}
                   onPress={() => {
+                    if (themeFromAvatarOn) return;
                     onClose();
                     // Defer so this modal can finish dismissing before the
                     // picker modal slides up — iOS dislikes modal-on-modal.
                     setTimeout(() => onOpenBackgrounds(), 280);
                   }}
+                  activeOpacity={themeFromAvatarOn ? 1 : 0.7}
+                  disabled={themeFromAvatarOn}
                   accessibilityRole="button"
-                  accessibilityLabel={`Background, ${bgPair.label}, ${bgPattern.label}. Tap to change.`}
+                  accessibilityState={{ disabled: themeFromAvatarOn }}
+                  accessibilityLabel={`Background, ${bgPair.label}, ${bgPattern.label}.${themeFromAvatarOn ? ' Disabled while Theme from avatar is on.' : ' Tap to change.'}`}
                 >
                   <View style={styles.bgPreview}>
                     {renderPattern(bgPattern.key, {
@@ -133,14 +149,6 @@ export default function SettingsSheet({
                   </Text>
                   <Text style={styles.rowChevron}>›</Text>
                 </TouchableOpacity>
-                <View style={styles.divider} />
-                <ToggleRow
-                  label="Theme from avatar"
-                  hint="Tint the FAB and pill accents to match your current avatar. Preset avatars only (photo support coming later)."
-                  value={themeFromAvatarOn}
-                  onChange={(v) => patch({ themeFromAvatar: v || undefined })}
-                  styles={styles}
-                />
               </View>
 
               {/* Daily check-in + Reminder time were removed pending a

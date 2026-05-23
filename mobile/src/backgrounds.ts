@@ -135,6 +135,25 @@ export function tonesFor(pair: Pair, scheme: 'light' | 'dark'): PairTones {
  * shade of its own bg, and the page header bg picks up a deeper shade of
  * the AppBackground tone.
  */
+/**
+ * Synthesize a Pair from a soft pastel avatar bg (typically from
+ * AVATAR_PRESET_LIBRARY). Used by the "Theme from avatar" path:
+ * the resulting Pair is fed to AppBackground so the whole canvas
+ * tints to match the user's chosen preset. Light-mode `light` is
+ * the bg as-is (preset bgs are already calm pastels); `deep` is a
+ * slightly darker accent for blob/scatter patterns. Dark-mode
+ * derives a deeply-tinted near-black variant so dark mode stays
+ * legible without bright-mint glow.
+ */
+export function pairFromAvatarBg(bg: string): Pair {
+  return {
+    key: `avatar:${bg}`,
+    label: 'Avatar',
+    light: { light: bg, deep: darkenHex(bg, 0.18) },
+    dark: { light: darkenHex(bg, 0.78), deep: darkenHex(bg, 0.6) },
+  }
+}
+
 export function darkenHex(hex: string, amount = 0.08): string {
   const m = hex.match(/^#?([a-f0-9]{6})$/i)
   if (!m) return hex

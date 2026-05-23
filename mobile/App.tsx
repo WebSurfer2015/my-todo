@@ -22,6 +22,10 @@ import {
   deriveThemeFromAvatarBg,
 } from "./src/theme";
 import { findPreset } from "./src/profile";
+import {
+  pairFromAvatarBg,
+  lookupPattern,
+} from "./src/backgrounds";
 // Side-effect import: registers the foreground notification handler at
 // boot so a push arriving while the app is open isn't silently dropped.
 import "./src/notifications";
@@ -824,6 +828,21 @@ function AppGate() {
     if (!preset) return null;
     return deriveThemeFromAvatarBg(preset.bg, scheme === 'dark' ? 'dark' : 'light');
   }, [store.profile.themeFromAvatar, store.profile.avatar, scheme]);
+
+  // Companion background override — when themeFromAvatar is on we
+  // also paint the canvas from the avatar's color so theme + bg
+  // stay cohesive. Always solid pattern in this mode for predictability.
+  const bgOverride = useMemo(() => {
+    if (store.profile.themeFromAvatar !== true) return undefined;
+    const av = store.profile.avatar;
+    if (!av || av.kind !== 'preset') return undefined;
+    const preset = findPreset(av.key);
+    if (!preset) return undefined;
+    return {
+      pair: pairFromAvatarBg(preset.bg),
+      pattern: lookupPattern('solid'),
+    };
+  }, [store.profile.themeFromAvatar, store.profile.avatar]);
   // Local theme picks up the override too — without this manual
   // merge, AppGate-rendered chrome (tab bar, splash background)
   // would stay in the base palette while children inside the
@@ -854,7 +873,7 @@ function AppGate() {
       {/* AppBackground paints the user-chosen wallpaper across every
           tab. Mounted here (not per-screen) so Home, Todos, and
           Groceries all share the same backdrop. */}
-      <AppBackground choice={store.profile.background} />
+      <AppBackground choice={store.profile.background} override={bgOverride} />
       <NavigationContainer>
         <Tab.Navigator
           initialRouteName="Home"
