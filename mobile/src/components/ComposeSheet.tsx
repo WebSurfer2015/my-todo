@@ -20,6 +20,11 @@ import InlinePicker from './InlinePicker'
 import CustomRecurrenceForm from './CustomRecurrenceForm'
 import AddSubtaskSheet from './AddSubtaskSheet'
 import { useTodoFieldSuggestions, TodoFieldSuggestPills } from './TodoFieldSuggestPills'
+import {
+  useSuggestSteps,
+  SuggestStepsTrigger,
+  SuggestStepsReview,
+} from './SuggestStepsPanel'
 
 function CalendarIcon({ size = 18, color = '#8E8E93' }: { size?: number; color?: string }) {
   return (
@@ -157,6 +162,19 @@ export default function ComposeSheet({
     categories: aiCategories,
     agentEnabled,
   })
+
+  // Suggest steps for the in-progress compose. Same hook as
+  // TaskDetailsSheet, scoped to (text, notes) of what the user is
+  // typing. On apply we push to pendingSubtasks (the local queue
+  // attached when the user taps Add).
+  const stepsAi = useSuggestSteps({ parentTitle: text, parentNotes: notes })
+
+  // Reset stepsAi state when the sheet opens so suggestions from a
+  // prior compose session don't bleed into the new one.
+  useEffect(() => {
+    if (visible) stepsAi.reset()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible])
 
   // Suggestion list — once the user has typed ≥3 chars, surface any
   // historic completions (deduplicated by lowercased text, sorted by
@@ -595,7 +613,41 @@ export default function ComposeSheet({
 
                   {/* Steps — queued locally and attached when the user
                       taps Add. Empty state mirrors Edit-Todo. */}
-                  <Text style={styles.sectionHeader}>STEPS</Text>
+                  <View style={styles.stepsHeaderRow}>
+                    <Text style={[styles.sectionHeader, { marginTop: 0, marginBottom: 0, paddingHorizontal: 0 }]}>STEPS</Text>
+                    {agentEnabled &&
+                      pendingSubtasks.length === 0 &&
+                      !stepsAi.suggestions &&
+                      text.trim().length > 0 && (
+                        <SuggestStepsTrigger
+                          thinking={stepsAi.thinking}
+                          error={stepsAi.error}
+                          onClick={stepsAi.request}
+                        />
+                      )}
+                  </View>
+                  {stepsAi.suggestions && (
+                    <SuggestStepsReview
+                      suggestions={stepsAi.suggestions}
+                      parentDueDate={dueDate || undefined}
+                      onAddSelected={(picks) => {
+                        const now = Date.now()
+                        setPendingSubtasks((prev) => [
+                          ...prev,
+                          ...picks.map((p, i) => ({
+                            id: genUuid(),
+                            text: p.text,
+                            done: false,
+                            priority,
+                            dueDate: p.dueDate,
+                            createdAt: now + i,
+                          })),
+                        ])
+                        stepsAi.reset()
+                      }}
+                      onCancel={stepsAi.reset}
+                    />
+                  )}
                   <View style={styles.stepsCard}>
                     {pendingSubtasks.length === 0 ? (
                       <View style={styles.stepsEmpty}>
@@ -953,6 +1005,18 @@ function makeStyles(c: ThemeColors) {
       fontWeight: '700',
       letterSpacing: 0.6,
       color: c.label3,
+      marginTop: 20,
+      marginBottom: 8,
+      paddingHorizontal: 4,
+    },
+    // Row that holds the STEPS heading on the left and the
+    // Suggest steps trigger pill on the right when applicable.
+    // Mirrors TaskDetailsSheet's subtaskSectionRow.
+    stepsHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: 12,
       marginTop: 20,
       marginBottom: 8,
       paddingHorizontal: 4,
