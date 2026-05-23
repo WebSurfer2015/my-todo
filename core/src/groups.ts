@@ -13,6 +13,9 @@ export interface TodoGroup {
 
 function sortTodos(ts: Todo[]): Todo[] {
   return [...ts].sort((a, b) => {
+    // Done rows sink to the bottom of their bucket so active work stays
+    // in view after a tap-to-complete. Mirrors HomeScreen's TODAY sort.
+    if (a.done !== b.done) return a.done ? 1 : -1
     const pd = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]
     if (pd !== 0) return pd
     if (!a.dueDate && !b.dueDate) return a.id.localeCompare(b.id)

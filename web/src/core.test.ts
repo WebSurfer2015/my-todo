@@ -752,6 +752,18 @@ describe("buildGroups", () => {
     expect(groups[0].todos.map((t) => t.id)).toEqual(["b", "c", "a"]);
   });
 
+  it("done todos sink to the bottom of their bucket even when high priority", () => {
+    // A high-priority done item should sit below a low-priority open
+    // item in the same bucket — completed work shouldn't crowd out
+    // active work after a tap-to-complete.
+    const groups = buildGroups([
+      { ...mk("done-hi", "2026-05-13", true), priority: "high" },
+      { ...mk("open-lo", "2026-05-13"), priority: "low" },
+      { ...mk("open-med", "2026-05-13"), priority: "medium" },
+    ]);
+    expect(groups[0].todos.map((t) => t.id)).toEqual(["open-med", "open-lo", "done-hi"]);
+  });
+
   // Regression: prior endOfWeekLocal returned today on Sundays, so the
   // `week` bucket was always empty for Sun-rendered views. See core/utils.ts.
   it("week bucket includes Mon-Sat dates when today is Sunday", () => {
