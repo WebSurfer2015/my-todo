@@ -32,6 +32,7 @@ import SearchTopSheet from "./src/components/SearchTopSheet";
 import SearchPill from "./src/components/SearchPill";
 import DeferModal from "./src/components/DeferModal";
 import { SEED_GROCERY_STORES } from "./src/groceries";
+import { COLOR_PALETTE } from "./src/categories";
 import type { Filter } from "./src/types";
 import { LangProvider, useLang } from "./src/LangContext";
 import { AuthProvider, useAuth } from "./src/AuthContext";
@@ -733,6 +734,15 @@ function TodosScreen() {
         defaultCategory={store.defaultCategory}
         references={store.todoReferences}
         agentEnabled={store.profile.agentEnabled !== false}
+        onCreateCategory={(label) => {
+          // Rotate through COLOR_PALETTE so successive AI-created
+          // categories don't all look identical. Icon defaults to
+          // 'tag' (the CategoryIcon fallback) — user can edit both
+          // later from the sidebar.
+          const color =
+            COLOR_PALETTE[store.categories.length % COLOR_PALETTE.length]
+          return store.addCategory({ label, color, icon: 'tag' })
+        }}
         onAdd={store.addTask}
         onClose={() => setComposeOpen(false)}
       />

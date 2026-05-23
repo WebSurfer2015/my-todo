@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Modal, View, Text, TextInput, TouchableOpacity, StyleSheet,
-  Pressable, KeyboardAvoidingView, Platform, ScrollView,
+  Pressable, KeyboardAvoidingView, Platform, ScrollView, Alert,
 } from 'react-native'
 import * as Haptics from 'expo-haptics'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
@@ -44,6 +44,11 @@ interface Props {
   /** When true, ambient AI field suggestions are queried after the
    * user pauses typing. Off → no AI calls, no pills row. */
   agentEnabled?: boolean
+  /** Creates a new category with the given label using a default
+   * icon + a rotated color. Returns the new id so the caller can
+   * select it. Called from the new-category pill tap after the
+   * user confirms via Alert.alert. */
+  onCreateCategory?: (label: string) => string
   onAdd: (
     text: string,
     priority: Priority,
@@ -102,7 +107,7 @@ function isCustomRecurrence(rec: Recurrence | undefined): boolean {
 }
 
 export default function ComposeSheet({
-  visible, categories, defaultCategory, references, agentEnabled = false, onAdd, onClose,
+  visible, categories, defaultCategory, references, agentEnabled = false, onCreateCategory, onAdd, onClose,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
@@ -412,6 +417,30 @@ export default function ComposeSheet({
                     onApplyCategory={(id) => {
                       setCategory(id)
                       Haptics.selectionAsync().catch(() => {})
+                    }}
+                    onApplyNewCategory={(label) => {
+                      if (!onCreateCategory) return
+                      // Confirm before mutating the user's category
+                      // list. Tap on the "+ <label>" pill is
+                      // already an explicit signal of intent, but
+                      // the side effect (sidebar gains a new entry)
+                      // warrants a one-tap-back-out option.
+                      Alert.alert(
+                        t.todoNewCategorySuggest(label),
+                        '',
+                        [
+                          { text: t.cancel, style: 'cancel', onPress: () => ai.dismissField('newCategoryLabel') },
+                          {
+                            text: t.create,
+                            onPress: () => {
+                              const newId = onCreateCategory(label)
+                              setCategory(newId)
+                              ai.dismissField('newCategoryLabel')
+                              Haptics.selectionAsync().catch(() => {})
+                            },
+                          },
+                        ],
+                      )
                     }}
                     onApplyPriority={(p) => {
                       setPriority(p)

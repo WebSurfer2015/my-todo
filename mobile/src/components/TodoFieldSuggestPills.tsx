@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
-import { Sparkles } from 'lucide-react-native'
+import { Sparkles, Plus } from 'lucide-react-native'
 import { suggestTodoFields, SuggestFieldsResult } from '../aiInfer'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
@@ -98,7 +98,12 @@ export function useTodoFieldSuggestions({
         if (querySeq !== seqRef.current) return
         // If every field is null, hide the row entirely rather than
         // rendering an empty placeholder.
-        const hasAny = !!(res.category || res.priority || res.dueDate)
+        const hasAny = !!(
+          res.category ||
+          res.newCategoryLabel ||
+          res.priority ||
+          res.dueDate
+        )
         setSuggestions(hasAny ? res : null)
         setThinking(false)
       })
@@ -112,11 +117,13 @@ export function useTodoFieldSuggestions({
     }
   }, [text, agentEnabled])
 
-  function dismissField(field: 'category' | 'priority' | 'dueDate') {
+  function dismissField(field: 'category' | 'newCategoryLabel' | 'priority' | 'dueDate') {
     setSuggestions((prev) => {
       if (!prev) return prev
       const next = { ...prev, [field]: null }
-      const stillHas = !!(next.category || next.priority || next.dueDate)
+      const stillHas = !!(
+        next.category || next.newCategoryLabel || next.priority || next.dueDate
+      )
       return stillHas ? next : null
     })
   }
@@ -136,9 +143,14 @@ interface RowProps {
   thinking: boolean
   categories: CategoryDef[]
   onApplyCategory: (id: string) => void
+  /** Tap on a "+ <label>" pill. Implementation should confirm with
+   * the user (it creates a new category in their sidebar). */
+  onApplyNewCategory: (label: string) => void
   onApplyPriority: (p: Priority) => void
   onApplyDueDate: (iso: string) => void
-  onDismissField: (field: 'category' | 'priority' | 'dueDate') => void
+  onDismissField: (
+    field: 'category' | 'newCategoryLabel' | 'priority' | 'dueDate',
+  ) => void
 }
 
 export function TodoFieldSuggestPills({
@@ -146,6 +158,7 @@ export function TodoFieldSuggestPills({
   thinking,
   categories,
   onApplyCategory,
+  onApplyNewCategory,
   onApplyPriority,
   onApplyDueDate,
   onDismissField,
@@ -156,7 +169,10 @@ export function TodoFieldSuggestPills({
 
   const hasAny = !!(
     suggestions &&
-    (suggestions.category || suggestions.priority || suggestions.dueDate)
+    (suggestions.category ||
+      suggestions.newCategoryLabel ||
+      suggestions.priority ||
+      suggestions.dueDate)
   )
 
   // Don't render anything when there's nothing to show. Suppressing
@@ -184,6 +200,20 @@ export function TodoFieldSuggestPills({
           accessibilityLabel={`${t.aiSuggestionA11y}: ${t.composeCategoryLabel} ${categoryLabel(catDef, t)}`}
           icon={<CategoryIcon icon={catDef.icon} size={12} color={catDef.color} />}
           label={categoryLabel(catDef, t)}
+        />
+      )}
+      {!suggestions?.category && suggestions?.newCategoryLabel && (
+        <Pill
+          styles={styles}
+          onApply={() => {
+            // Parent handler triggers the confirm dialog before
+            // mutating the category list.
+            onApplyNewCategory(suggestions.newCategoryLabel!)
+          }}
+          onDismiss={() => onDismissField('newCategoryLabel')}
+          accessibilityLabel={`${t.aiSuggestionA11y}: ${t.composeCategoryLabel} ${suggestions.newCategoryLabel} (new)`}
+          icon={<Plus size={12} color={theme.primary} strokeWidth={2.4} />}
+          label={suggestions.newCategoryLabel}
         />
       )}
       {suggestions?.priority && (

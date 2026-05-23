@@ -49,6 +49,10 @@ interface SuggestFieldsInput {
 
 export interface SuggestFieldsResult {
   category: string | null
+  /** Set when the AI proposes a category label that doesn't exist
+   * in the user's list. UI should confirm with the user before
+   * creating + assigning. Mutually exclusive with `category`. */
+  newCategoryLabel: string | null
   priority: 'high' | 'medium' | 'low' | null
   dueDate: string | null
 }
@@ -105,6 +109,6 @@ export async function suggestTodoFields(input: SuggestFieldsInput): Promise<Sugg
   try {
     return await callAiInfer<SuggestFieldsResult>('suggest-todo-fields', input)
   } catch {
-    return { category: null, priority: null, dueDate: null }
+    return { category: null, newCategoryLabel: null, priority: null, dueDate: null }
   }
 }

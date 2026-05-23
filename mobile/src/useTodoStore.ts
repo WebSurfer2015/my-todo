@@ -879,8 +879,10 @@ export function useTodoStore() {
     );
   }
 
-  function addCategory(data: { label: string; color: string; icon: string }) {
-    setCategories((prev) => categoryAdd(prev, newCategoryId(), data));
+  function addCategory(data: { label: string; color: string; icon: string }): string {
+    const id = newCategoryId();
+    setCategories((prev) => categoryAdd(prev, id, data));
+    return id;
   }
 
   function editCategory(
