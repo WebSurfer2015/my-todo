@@ -181,6 +181,16 @@ export default function TaskDetailsSheet({
   const doneCount = subs.filter((s) => s.done).length
   const ai = useSuggestSteps({ parentTitle: todo.text, parentNotes: todo.notes })
 
+  // The sheet is a Modal — it stays mounted across close→reopen
+  // cycles, so without an explicit reset the `ai.suggestions` from
+  // a previous open lingers. That breaks the Suggest pill render
+  // (gated on !ai.suggestions) and shows a stale review panel
+  // instead. Reset whenever the sheet is shown.
+  useEffect(() => {
+    if (visible) ai.reset()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible])
+
   const [addSubtaskOpen, setAddSubtaskOpen] = useState(false)
 
   // Edit form state (sheet is always in edit mode for the parent task)
