@@ -77,6 +77,7 @@ import {
   subtaskUpdatePriority,
   subtaskUpdateDueDate,
   subtaskRemove,
+  subtaskClearAll,
   categoryAdd,
   categoryEdit,
   categoryDelete,
@@ -736,6 +737,13 @@ export function useTodoStore() {
     [setTodos],
   );
 
+  const clearSubtasks = useCallback(
+    (id: string) => {
+      setTodos((prev) => subtaskClearAll(prev, id));
+    },
+    [setTodos],
+  );
+
   // ---- Non-stable mutations ----
 
   function addTask(
@@ -1201,6 +1209,7 @@ export function useTodoStore() {
     updateSubtaskPriority,
     updateSubtaskDueDate,
     removeSubtask,
+    clearSubtasks,
     addTask,
     updateRecurrence,
     emptyTrash,

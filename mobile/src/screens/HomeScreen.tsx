@@ -266,6 +266,7 @@ export default function HomeScreen() {
                 onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
                 onRemoveSubtask={store.removeSubtask}
                 agentEnabled={store.profile.agentEnabled !== false}
+                onClearSubtasks={store.clearSubtasks}
                 subtaskVisibility="open"
                 dateChipFormat="home-today"
                 tapBehavior="expandIfHasSubs"

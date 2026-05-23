@@ -1,13 +1,22 @@
 import React, { useMemo, useState } from 'react'
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { Sparkles } from 'lucide-react-native'
 import { suggestSubtasks } from '../aiInfer'
+import { distributeSubtaskDueDates } from '../../../core/src/utils'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
 
 interface Props {
   parentTitle: string
   parentNotes?: string
-  onAddSelected: (texts: string[]) => void
+  /** Parent's due date (ISO yyyy-mm-dd) or undefined. Used to spread
+   * suggested subtasks across the window from today to the parent's
+   * date. Last subtask always lands on the parent's date. */
+  parentDueDate?: string
+  /** Receives picks in the same order as the user selected them. The
+   * dueDate per pick is computed by distributeSubtaskDueDates and
+   * may be '' when the parent has no date. */
+  onAddSelected: (picks: Array<{ text: string; dueDate: string }>) => void
 }
 
 /**
@@ -20,7 +29,7 @@ interface Props {
  * Mirrors web/src/components/SuggestStepsPanel.tsx so the UX is
  * identical across platforms.
  */
-export default function SuggestStepsPanel({ parentTitle, parentNotes, onAddSelected }: Props) {
+export default function SuggestStepsPanel({ parentTitle, parentNotes, parentDueDate, onAddSelected }: Props) {
   const { t } = useLang()
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
@@ -60,9 +69,10 @@ export default function SuggestStepsPanel({ parentTitle, parentNotes, onAddSelec
 
   function handleAdd() {
     if (!suggestions) return
-    const picks = suggestions.filter((_, i) => selected.has(i))
-    if (picks.length === 0) return
-    onAddSelected(picks)
+    const pickedTexts = suggestions.filter((_, i) => selected.has(i))
+    if (pickedTexts.length === 0) return
+    const dueDates = distributeSubtaskDueDates(parentDueDate, pickedTexts.length)
+    onAddSelected(pickedTexts.map((text, i) => ({ text, dueDate: dueDates[i] ?? '' })))
     setSuggestions(null)
     setSelected(new Set())
   }
@@ -113,13 +123,21 @@ export default function SuggestStepsPanel({ parentTitle, parentNotes, onAddSelec
 
   return (
     <View style={styles.trigger}>
-      <TouchableOpacity onPress={handleSuggest} disabled={thinking} activeOpacity={0.6} hitSlop={8}>
-        <View style={styles.triggerInner}>
-          {thinking && <ActivityIndicator size="small" color={theme.primary} />}
-          <Text style={[styles.triggerText, thinking && styles.triggerTextDim]}>
-            {thinking ? t.suggestStepsThinking : t.suggestSteps}
-          </Text>
-        </View>
+      <TouchableOpacity
+        onPress={handleSuggest}
+        disabled={thinking}
+        activeOpacity={0.6}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={`${t.suggestSteps} — ${t.aiSuggestionA11y}`}
+        style={[styles.triggerPill, thinking && styles.triggerPillDim]}
+      >
+        {thinking
+          ? <ActivityIndicator size="small" color={theme.primary} />
+          : <Sparkles size={14} color={theme.primary} strokeWidth={2.2} />}
+        <Text style={[styles.triggerText, thinking && styles.triggerTextDim]}>
+          {thinking ? t.suggestStepsThinking : t.suggestSteps}
+        </Text>
       </TouchableOpacity>
       {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
@@ -131,13 +149,24 @@ function makeStyles(c: ThemeColors) {
     trigger: {
       paddingVertical: 6,
       paddingHorizontal: 2,
-      gap: 4,
-    },
-    triggerInner: {
       flexDirection: 'row',
       alignItems: 'center',
+      flexWrap: 'wrap',
       gap: 8,
     },
+    // Soft tonal AI pill — distinguishes the trigger from regular
+    // text links and pairs with the Sparkles icon to signal AI.
+    triggerPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: c.primarySoft,
+      borderRadius: 999,
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      alignSelf: 'flex-start',
+    },
+    triggerPillDim: { opacity: 0.7 },
     triggerText: {
       fontSize: 13,
       fontWeight: '600',

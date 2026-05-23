@@ -8,6 +8,7 @@ import PriorityBarsIcon from './PriorityBarsIcon'
 import CategoryIcon from './CategoryIcon'
 import SuggestStepsPanel from './SuggestStepsPanel'
 import { useLang } from '../LangContext'
+import { useNotify } from '../notify'
 import { useCloseOnOutside } from '../hooks'
 
 interface IconProps {
@@ -57,6 +58,9 @@ interface Props {
   onUpdateSubtaskPriority?: (id: string, subId: string, priority: Priority) => void
   onUpdateSubtaskDueDate?: (id: string, subId: string, dueDate: string) => void
   onRemoveSubtask: (id: string, subId: string) => void
+  /** Optional bulk clear — when provided, the modal renders a small
+   * "Clear all steps" link below the subtask list. */
+  onClearSubtasks?: (id: string) => void
   /** When true, shows the "Suggest steps" panel for empty subtask lists.
    * Off by default; flipped by profile.agentEnabled at the call site. */
   agentEnabled?: boolean
@@ -64,9 +68,10 @@ interface Props {
 
 export default function TaskDetailsModal({
   todo, categories, onClose, onUpdateText, onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
-  onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, agentEnabled,
+  onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks, agentEnabled,
 }: Props) {
   const { t } = useLang()
+  const { confirm } = useNotify()
   const subs = todo.subtasks ?? []
   const doneCount = subs.filter((s) => s.done).length
 
@@ -213,12 +218,32 @@ export default function TaskDetailsModal({
           <SuggestStepsPanel
             parentTitle={todo.text}
             parentNotes={todo.notes}
-            onAddSelected={(texts) => {
-              for (const text of texts) {
-                onAddSubtask(todo.id, text, todo.priority, '')
+            parentDueDate={todo.dueDate}
+            onAddSelected={(picks) => {
+              for (const p of picks) {
+                onAddSubtask(todo.id, p.text, todo.priority, p.dueDate)
               }
             }}
           />
+        )}
+
+        {onClearSubtasks && subs.length > 0 && (
+          <button
+            type="button"
+            className="subtask-clear-all"
+            onClick={async () => {
+              const ok = await confirm({
+                title: t.clearAllSteps,
+                message: t.clearAllStepsConfirm,
+                confirmLabel: t.clearAllSteps,
+                cancelLabel: t.cancel,
+                variant: 'danger',
+              })
+              if (ok) onClearSubtasks(todo.id)
+            }}
+          >
+            {t.clearAllSteps}
+          </button>
         )}
 
         <div className="input-row">

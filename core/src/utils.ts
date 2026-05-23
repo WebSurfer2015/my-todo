@@ -32,6 +32,51 @@ export function isoDate(d: Date): string {
 }
 
 /**
+ * Spread `count` subtask due dates across the window from today to
+ * `parentDueDate`. The last subtask always lands on the parent's
+ * date so the sequence ends at the parent. Earlier subtasks pace
+ * evenly back toward today.
+ *
+ * Behavior matrix:
+ *   - parentDueDate missing → all entries '' (no date)
+ *   - parentDueDate today or past → all entries match parentDueDate
+ *     (no point spreading into the past)
+ *   - count === 0 → returns []
+ *   - count === 1 → returns [parentDueDate]
+ *
+ * Returns the ISO date strings in the same order as the input
+ * subtasks (subtask 0 gets the earliest distributed date; the last
+ * subtask gets parentDueDate). The caller iterates them in order
+ * when constructing subtasks.
+ */
+export function distributeSubtaskDueDates(
+  parentDueDate: string | undefined,
+  count: number,
+): string[] {
+  if (count <= 0) return []
+  if (!parentDueDate) return new Array(count).fill('')
+  const [py, pm, pd] = parentDueDate.split('-').map(Number)
+  if (!py || !pm || !pd) return new Array(count).fill('')
+  const parent = new Date(py, pm - 1, pd)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const dayMs = 86_400_000
+  const totalDays = Math.floor((parent.getTime() - today.getTime()) / dayMs)
+  if (totalDays <= 0) return new Array(count).fill(parentDueDate)
+  if (count === 1) return [parentDueDate]
+  const out: string[] = []
+  for (let i = 0; i < count; i++) {
+    // (i+1)/count of the way through, ceil so subtask 0 lands at least
+    // one day in. Last entry (i === count-1) reduces to totalDays,
+    // which is exactly parentDueDate.
+    const offsetDays = Math.ceil(((i + 1) * totalDays) / count)
+    const d = new Date(today.getTime() + offsetDays * dayMs)
+    out.push(isoDate(d))
+  }
+  return out
+}
+
+/**
  * Advance an ISO date string by one recurrence period. Used to roll a
  * recurring todo forward when it's marked done.
  *

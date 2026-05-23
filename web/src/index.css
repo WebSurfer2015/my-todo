@@ -2251,26 +2251,58 @@ h1 { margin: 0; }
 .suggest-steps-trigger {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
-  padding: 4px 2px 8px;
+  padding: 6px 2px 8px;
 }
+/* Soft tonal AI pill — distinguishes the trigger from regular links
+   and signals "this is an AI action" via the Sparkles icon. */
 .suggest-steps-btn {
   appearance: none;
-  background: transparent;
-  border: none;
-  padding: 4px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--primary-soft);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 6px 14px;
   font-size: 13px;
   font-weight: 600;
   color: var(--primary);
   cursor: pointer;
   letter-spacing: -0.1px;
+  transition: border-color 120ms var(--motion-easing), background-color 120ms var(--motion-easing);
 }
 .suggest-steps-btn:hover:not(:disabled) {
-  text-decoration: underline;
+  border-color: var(--primary);
 }
 .suggest-steps-btn:disabled {
   color: var(--label-3);
+  background: transparent;
   cursor: default;
+}
+.suggest-steps-btn svg {
+  flex-shrink: 0;
+}
+
+/* "Clear all steps" — destructive action button rendered below the
+   subtask list. Quiet by default, reveals red intent on hover so the
+   user feels the weight of the action without it shouting at them. */
+.subtask-clear-all {
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 6px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--label-3);
+  cursor: pointer;
+  align-self: flex-start;
+  letter-spacing: -0.1px;
+}
+.subtask-clear-all:hover {
+  color: var(--red);
+  text-decoration: underline;
 }
 .suggest-steps-error {
   font-size: 12px;

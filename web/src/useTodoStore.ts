@@ -36,6 +36,7 @@ import {
   subtaskUpdatePriority,
   subtaskUpdateDueDate,
   subtaskRemove,
+  subtaskClearAll,
   categoryAdd,
   categoryEdit,
   categoryDelete,
@@ -278,6 +279,13 @@ export function useTodoStore() {
     [setTodos],
   );
 
+  const clearSubtasks = useCallback(
+    (id: string) => {
+      setTodos((prev) => subtaskClearAll(prev, id));
+    },
+    [setTodos],
+  );
+
   const toggleTrashSelection = useCallback((id: string, shiftKey: boolean) => {
     const orderedIds = todosRef.current
       .filter((td) => td.trashed)
@@ -455,6 +463,7 @@ export function useTodoStore() {
     updateSubtaskPriority,
     updateSubtaskDueDate,
     removeSubtask,
+    clearSubtasks,
     addCategory,
     editCategory,
     deleteCategory,

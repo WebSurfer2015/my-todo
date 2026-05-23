@@ -462,6 +462,27 @@ export function subtaskRemove(
 }
 
 /**
+ * Remove every subtask from a todo in one shot. Used by the "Clear
+ * all" action in TaskDetailsModal/Sheet. Leaves the parent's done
+ * state untouched (no re-derivation), mirroring subtaskRemove's
+ * behavior when the list reaches empty — the user owns the parent
+ * state once subs are gone.
+ */
+export function subtaskClearAll(prev: Todo[], todoId: string): Todo[] {
+  const now = Date.now();
+  return prev.map((td) => {
+    if (td.id !== todoId) return td;
+    if (!td.subtasks || td.subtasks.length === 0) return td;
+    // Drop the field entirely (vs. setting []) so the persisted doc
+    // stays minimal and matches a never-had-subtasks todo. Matches
+    // newTodo's "omit when empty" pattern.
+    const next = { ...td, updatedAt: now } as Todo;
+    delete next.subtasks;
+    return next;
+  });
+}
+
+/**
  * "Delete to-do" — sends the item to the merged Done bin (done +
  * trashed flags both set). Sits there for 30 days. Same outcome as
  * tapping the checkbox; named differently for the user who wants to

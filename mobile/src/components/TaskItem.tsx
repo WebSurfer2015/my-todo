@@ -137,6 +137,7 @@ interface Props {
   onUpdateSubtaskPriority?: (id: string, subId: string, priority: Priority) => void
   onUpdateSubtaskDueDate?: (id: string, subId: string, dueDate: string) => void
   onRemoveSubtask?: (id: string, subId: string) => void
+  onClearSubtasks?: (id: string) => void
   /** Home-specific date chip rendering: hide the "Today" label for
    * items due today, swap the formatted past date for a "carried over"
    * label on overdue items. Default rendering shows the full
@@ -165,7 +166,7 @@ function TaskItem({
   onToggle, onMoveToTrash, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onRestore, onPermanentDelete,
   onUpdatePriority, onUpdateDueDate, onSnooze, onLongPressDefer, onUpdateCategory, onUpdateText, onUpdateNotes, onUpdateRecurrence,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
-  onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
+  onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
   dateChipFormat = 'default', tapBehavior = 'toggle', subtaskDateFilter,
   agentEnabled,
 }: Props) {
@@ -1139,6 +1140,7 @@ function TaskItem({
             onUpdateSubtaskPriority={onUpdateSubtaskPriority}
             onUpdateSubtaskDueDate={onUpdateSubtaskDueDate}
             onRemoveSubtask={onRemoveSubtask!}
+            onClearSubtasks={onClearSubtasks}
             agentEnabled={agentEnabled}
           />
         )}

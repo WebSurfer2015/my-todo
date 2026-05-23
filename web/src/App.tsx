@@ -192,6 +192,7 @@ export default function App() {
                       onUpdateSubtaskPriority={store.updateSubtaskPriority}
                       onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
                       onRemoveSubtask={store.removeSubtask}
+                      onClearSubtasks={store.clearSubtasks}
                       subtaskVisibility={
                         store.filter === 'open'
                           ? 'open'

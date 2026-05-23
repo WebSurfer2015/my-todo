@@ -154,6 +154,9 @@ interface Props {
   onUpdateSubtaskPriority?: (id: string, subId: string, priority: Priority) => void
   onUpdateSubtaskDueDate?: (id: string, subId: string, dueDate: string) => void
   onRemoveSubtask: (id: string, subId: string) => void
+  /** Optional bulk clear — when provided, the sheet renders a
+   * "Clear all steps" link below the subtask list. */
+  onClearSubtasks?: (id: string) => void
   /** When true, shows the AI "Suggest steps" panel in the empty
    * subtask state. Off by default; flipped by profile.agentEnabled at
    * the call site. */
@@ -164,7 +167,7 @@ export default function TaskDetailsSheet({
   visible, todo, categories, initialSubtaskEditId, onClose, onUpdateText, onUpdateNotes,
   onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onMoveToTrash, onPermanentDelete, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
-  onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
+  onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
   agentEnabled,
 }: Props) {
   const { t } = useLang()
@@ -924,9 +927,10 @@ export default function TaskDetailsSheet({
                     <SuggestStepsPanel
                       parentTitle={todo.text}
                       parentNotes={todo.notes}
-                      onAddSelected={(texts) => {
-                        for (const text of texts) {
-                          onAddSubtask(todo.id, text, todo.priority, '')
+                      parentDueDate={todo.dueDate}
+                      onAddSelected={(picks) => {
+                        for (const p of picks) {
+                          onAddSubtask(todo.id, p.text, todo.priority, p.dueDate)
                         }
                       }}
                     />
@@ -959,6 +963,31 @@ export default function TaskDetailsSheet({
                 <PlusIcon size={16} color={theme.blue} />
                 <Text style={styles.addSubtaskLinkText}>{t.addSubtask}</Text>
               </TouchableOpacity>
+
+              {onClearSubtasks && subs.length > 0 && (
+                <TouchableOpacity
+                  style={styles.clearStepsLink}
+                  onPress={() => {
+                    Alert.alert(
+                      t.clearAllSteps,
+                      t.clearAllStepsConfirm,
+                      [
+                        { text: t.cancel, style: 'cancel' },
+                        {
+                          text: t.clearAllSteps,
+                          style: 'destructive',
+                          onPress: () => onClearSubtasks(todo.id),
+                        },
+                      ],
+                    )
+                  }}
+                  activeOpacity={0.6}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.clearAllSteps}
+                >
+                  <Text style={styles.clearStepsLinkText}>{t.clearAllSteps}</Text>
+                </TouchableOpacity>
+              )}
 
               {todo.seriesId && onApplySeriesFutureEdits && (
                 <TouchableOpacity
@@ -1668,6 +1697,17 @@ function makeStyles(c: ThemeColors) {
       justifyContent: 'center',
       gap: 6,
       paddingVertical: 12,
+    },
+    clearStepsLink: {
+      alignSelf: 'center',
+      paddingVertical: 6,
+      paddingHorizontal: 4,
+    },
+    clearStepsLinkText: {
+      color: c.label3,
+      fontSize: 12,
+      fontWeight: '600',
+      letterSpacing: -0.1,
     },
     destructiveAction: {
       alignItems: 'flex-start',

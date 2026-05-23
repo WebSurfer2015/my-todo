@@ -78,6 +78,7 @@ interface Props {
   onUpdateSubtaskPriority?: (id: string, subId: string, priority: Priority) => void
   onUpdateSubtaskDueDate?: (id: string, subId: string, dueDate: string) => void
   onRemoveSubtask?: (id: string, subId: string) => void
+  onClearSubtasks?: (id: string) => void
   /** When true, TaskDetailsModal shows the AI "Suggest steps" panel. */
   agentEnabled?: boolean
 }
@@ -89,7 +90,7 @@ function TaskItem({
   onToggle, onMoveToTrash, onRestore, onPermanentDelete,
   onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateText,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
-  onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask,
+  onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
   agentEnabled,
 }: Props) {
   const { t } = useLang()
@@ -338,6 +339,7 @@ function TaskItem({
           onUpdateSubtaskPriority={onUpdateSubtaskPriority}
           onUpdateSubtaskDueDate={onUpdateSubtaskDueDate}
           onRemoveSubtask={onRemoveSubtask!}
+          onClearSubtasks={onClearSubtasks}
           agentEnabled={agentEnabled}
         />
       )}
