@@ -23,7 +23,7 @@ import {
 } from 'react-native'
 import { ChevronDown, ChevronRight, Pin } from 'lucide-react-native'
 import { ActionSheetIOS, Alert } from 'react-native'
-import { GroceryItem, GroceryGroup } from '../groceries'
+import { GroceryItem, GroceryGroup, frequentGroceries } from '../groceries'
 import { useTheme, ThemeColors } from '../theme'
 import GroceryEditSheet from './GroceryEditSheet'
 import GroceryComposeSheet from './GroceryComposeSheet'
@@ -145,10 +145,13 @@ export default function GroceryView({
     if (onStorePickerOpenChange) onStorePickerOpenChange(v)
     else setStorePickerOpenInternal(v)
   }
-  // Per-department + Past-items collapse state. PAST_KEY is a synthetic
-  // id so the Past Items bucket can share the same Set. Past Items
-  // defaults to collapsed because it's history the user rarely scans.
+  // Per-department + Past-items + Often-picked-up collapse state.
+  // PAST_KEY / OFTEN_KEY are synthetic ids so both synthetic buckets
+  // share the same Set. Past Items defaults to collapsed (rarely
+  // scanned history); Often Picked Up defaults to expanded because
+  // its whole point is one-tap re-add visibility.
   const PAST_KEY = '__past__'
+  const OFTEN_KEY = '__often__'
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
     () => new Set([PAST_KEY]),
   )
@@ -278,6 +281,18 @@ export default function GroceryView({
     fut.sort((a, b) => (b.checkedAt ?? 0) - (a.checkedAt ?? 0))
     return { byGroup: by, future: fut }
   }, [filteredItems])
+
+  // "Often picked up" — items whose purchase log shows ≥5 check-offs
+  // in the last ~6 months. Restricted to currently-checked items so
+  // this section only ever surfaces re-add candidates (items already
+  // active sit in their dept group above and shouldn't double-up).
+  // Respects the same store + dept + search filter as the rest of the
+  // list (uses filteredItems, not raw groceries) so the section stays
+  // contextual.
+  const often = useMemo(
+    () => frequentGroceries(filteredItems.filter((it) => it.checked)),
+    [filteredItems],
+  )
 
 
   const openStoreSwitcher = () => setStorePickerOpen(true)
@@ -571,6 +586,56 @@ export default function GroceryView({
             </View>
           )
         })}
+
+        {/* Often Picked Up — items checked ≥5 times in the last
+            ~6 months. Quiet header (no per-item count badge) per the
+            calm-app positioning. Sits above Past Items so the user's
+            steady-state staples are one tap away. */}
+        {often.length > 0 && (() => {
+          const collapsed = collapsedGroups.has(OFTEN_KEY)
+          return (
+            <View style={styles.groupBlock}>
+              <TouchableOpacity
+                style={styles.groupHeaderRow}
+                onPress={() => toggleCollapsed(OFTEN_KEY)}
+                activeOpacity={0.6}
+                accessibilityRole="button"
+                accessibilityLabel={`Often picked up, ${often.length}, ${collapsed ? 'collapsed' : 'expanded'}. Tap to toggle.`}
+              >
+                {collapsed ? (
+                  <ChevronRight size={14} color={theme.label3} strokeWidth={2} />
+                ) : (
+                  <ChevronDown size={14} color={theme.label3} strokeWidth={2} />
+                )}
+                <Text style={[styles.groupHeader, styles.groupHeaderFuture]}>
+                  OFTEN PICKED UP
+                  <Text style={styles.groupCount}>  {often.length}</Text>
+                </Text>
+              </TouchableOpacity>
+              {!collapsed && (
+                <>
+                  <Text style={styles.futureHint}>
+                    Tap any item to add it back to its group.
+                  </Text>
+                  <View style={styles.groupCard}>
+                    {often.map((it, i) => (
+                      <View key={it.id}>
+                        {i > 0 && <View style={styles.divider} />}
+                        <Row
+                          item={it}
+                          onToggle={() => onToggleChecked(it.id)}
+                          onOpenEdit={() => setEditingId(it.id)}
+                          styles={styles}
+                          futureMode
+                        />
+                      </View>
+                    ))}
+                  </View>
+                </>
+              )}
+            </View>
+          )
+        })()}
 
         {/* Past Items bucket — checked items waiting for a re-add. */}
         {future.length > 0 && (() => {

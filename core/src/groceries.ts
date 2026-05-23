@@ -36,6 +36,11 @@ export interface GroceryItem {
   addedAt: number
   /** ms timestamp set when `checked` flips true. Cleared on re-add. */
   checkedAt?: number
+  /** Rolling log of check-off timestamps (newest first), capped at
+   * MAX_GROCERY_PURCHASES. Survives re-add. Drives the "Often picked
+   * up" section, which surfaces items above FREQUENT_GROCERY_MIN_COUNT
+   * within FREQUENT_GROCERY_WINDOW_MS. Optional for back-compat. */
+  purchases?: number[]
 }
 
 export interface GroceryGroup {
@@ -90,6 +95,17 @@ export const MAX_GROCERY_GROUP_LABEL_LEN = 40
 export const MAX_GROCERY_GROUP_ID_LEN = 64
 export const MAX_GROCERY_ITEMS = 2000
 export const MAX_GROCERY_GROUPS = 30
+/** Cap on the per-item purchase log. ~30 entries handles ~5/mo for 6mo
+ * with headroom. 30 × 8 bytes ≈ 240B per item, negligible vs the 200-
+ * char text field that dominates row size. */
+export const MAX_GROCERY_PURCHASES = 30
+/** Threshold for "Often picked up" — items with ≥5 check-offs within
+ * the window qualify. Mirrors the user's stated 5+ / 6mo rule. */
+export const FREQUENT_GROCERY_MIN_COUNT = 5
+/** ~6-month window for frequency counting. Treated as 6×30 days so the
+ * value is timezone- and DST-agnostic; users won't notice the small
+ * drift from real calendar months. */
+export const FREQUENT_GROCERY_WINDOW_MS = 6 * 30 * 24 * 60 * 60 * 1000
 
 // ── Constructors ────────────────────────────────────────────────────
 
@@ -150,6 +166,18 @@ export function migrateGroceries(raw: unknown): GroceryItem[] {
     }
     if (typeof o.checkedAt === 'number' && o.checkedAt > 0) {
       item.checkedAt = Math.floor(o.checkedAt)
+    }
+    if (Array.isArray(o.purchases)) {
+      const ps: number[] = []
+      for (const p of o.purchases) {
+        if (typeof p === 'number' && p > 0) ps.push(Math.floor(p))
+      }
+      ps.sort((a, b) => b - a)
+      if (ps.length > 0) item.purchases = ps.slice(0, MAX_GROCERY_PURCHASES)
+    } else if (typeof o.checkedAt === 'number' && o.checkedAt > 0) {
+      // Legacy item with no purchase log — seed from the one checkedAt
+      // we have so the user keeps a single data point of history.
+      item.purchases = [Math.floor(o.checkedAt)]
     }
     out.push(item)
     if (out.length >= MAX_GROCERY_ITEMS) break
@@ -239,7 +267,8 @@ export function deriveStores(items: GroceryItem[]): string[] {
 
 /** Toggle an item's checked state. Sets checkedAt on flip-to-checked,
  * clears it on re-add, and bumps addedAt on re-add so the item floats
- * to the top of its group. */
+ * to the top of its group. On check-off, prepends to `purchases` (cap
+ * MAX_GROCERY_PURCHASES); re-add preserves the log. */
 export function groceryToggleChecked(
   items: GroceryItem[],
   id: string,
@@ -247,11 +276,15 @@ export function groceryToggleChecked(
   return items.map((it) => {
     if (it.id !== id) return it
     if (it.checked) {
-      // Re-add: clear checked, bump addedAt so it surfaces in its group
+      // Re-add: clear checked, bump addedAt so it surfaces in its group.
+      // Preserve `purchases` so frequency counting survives re-adds.
       return { ...it, checked: false, checkedAt: undefined, addedAt: Date.now() }
     }
-    // Check off: move to Future
-    return { ...it, checked: true, checkedAt: Date.now() }
+    // Check off: move to Future + append timestamp to the purchase log.
+    const now = Date.now()
+    const prev = it.purchases ?? []
+    const purchases = [now, ...prev].slice(0, MAX_GROCERY_PURCHASES)
+    return { ...it, checked: true, checkedAt: now, purchases }
   })
 }
 
@@ -280,4 +313,35 @@ export function groceryEdit(
 /** Permanent delete — manual-only path. */
 export function groceryDelete(items: GroceryItem[], id: string): GroceryItem[] {
   return items.filter((it) => it.id !== id)
+}
+
+/** Return items whose `purchases` log shows ≥`minCount` check-offs within
+ * `windowMs` of `now`. Sorted by in-window count desc, ties broken by
+ * latest in-window timestamp desc. `now` is injectable for tests. */
+export function frequentGroceries(
+  items: GroceryItem[],
+  opts: { minCount?: number; windowMs?: number; now?: number } = {},
+): GroceryItem[] {
+  const minCount = opts.minCount ?? FREQUENT_GROCERY_MIN_COUNT
+  const windowMs = opts.windowMs ?? FREQUENT_GROCERY_WINDOW_MS
+  const now = opts.now ?? Date.now()
+  const cutoff = now - windowMs
+  const ranked: { item: GroceryItem; count: number; latest: number }[] = []
+  for (const it of items) {
+    const ps = it.purchases ?? []
+    let count = 0
+    let latest = 0
+    for (const t of ps) {
+      if (t >= cutoff) {
+        count += 1
+        if (t > latest) latest = t
+      }
+    }
+    if (count >= minCount) ranked.push({ item: it, count, latest })
+  }
+  ranked.sort((a, b) => {
+    if (a.count !== b.count) return b.count - a.count
+    return b.latest - a.latest
+  })
+  return ranked.map((x) => x.item)
 }

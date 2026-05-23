@@ -52,7 +52,11 @@ import {
   groceryEdit,
   groceryDelete,
   migrateGroceries,
+  frequentGroceries,
   MAX_GROCERY_ITEMS,
+  MAX_GROCERY_PURCHASES,
+  FREQUENT_GROCERY_MIN_COUNT,
+  FREQUENT_GROCERY_WINDOW_MS,
 } from "../../core/src/groceries";
 import {
   nextOccurrence,
@@ -1303,6 +1307,35 @@ describe("grocery helpers", () => {
     expect(unchecked[0].checked).toBe(false);
     expect(unchecked[0].checkedAt).toBeUndefined();
     expect(unchecked[0].addedAt).toBeGreaterThanOrEqual(items[0].addedAt);
+    // Re-add must preserve the purchase log so frequency counting
+    // survives across buy → re-add → buy cycles.
+    expect(unchecked[0].purchases).toHaveLength(1);
+  });
+
+  it("groceryToggleChecked prepends a timestamp to purchases on each check-off", () => {
+    let items: ReturnType<typeof mkItem>[] = [mkItem("Milk")];
+    const id = items[0].id;
+    for (let i = 0; i < 3; i++) {
+      items = groceryToggleChecked(items, id);
+      items = groceryToggleChecked(items, id);
+    }
+    items = groceryToggleChecked(items, id); // 4th check-off, leaves it checked
+    expect(items[0].purchases).toHaveLength(4);
+    // Newest first.
+    const ts = items[0].purchases!;
+    for (let i = 1; i < ts.length; i++) {
+      expect(ts[i - 1]).toBeGreaterThanOrEqual(ts[i]);
+    }
+  });
+
+  it("groceryToggleChecked caps purchases at MAX_GROCERY_PURCHASES", () => {
+    let items = [mkItem("Bread")];
+    const id = items[0].id;
+    for (let i = 0; i < MAX_GROCERY_PURCHASES + 5; i++) {
+      items = groceryToggleChecked(items, id); // check
+      if (items[0].checked) items = groceryToggleChecked(items, id); // re-add (except last)
+    }
+    expect(items[0].purchases!.length).toBeLessThanOrEqual(MAX_GROCERY_PURCHASES);
   });
 
   it("groceryEdit applies a partial patch", () => {
@@ -1330,5 +1363,69 @@ describe("grocery helpers", () => {
       addedAt: Date.now(),
     }));
     expect(migrateGroceries(huge).length).toBeLessThanOrEqual(MAX_GROCERY_ITEMS);
+  });
+
+  it("migrateGroceries reads a valid purchases array, drops bad entries, caps and sorts desc", () => {
+    const out = migrateGroceries([
+      {
+        id: "g-1",
+        text: "Milk",
+        groupId: "dairy",
+        addedAt: 1000,
+        purchases: [3, 1, "bogus", null, 2, -5, 0],
+      },
+    ]);
+    expect(out[0].purchases).toEqual([3, 2, 1]);
+  });
+
+  it("migrateGroceries backfills purchases from checkedAt when no log is present", () => {
+    const out = migrateGroceries([
+      {
+        id: "g-1",
+        text: "Milk",
+        groupId: "dairy",
+        addedAt: 1000,
+        checked: true,
+        checkedAt: 42,
+      },
+    ]);
+    expect(out[0].purchases).toEqual([42]);
+  });
+
+  it("migrateGroceries does not backfill when there's no checkedAt", () => {
+    const out = migrateGroceries([
+      { id: "g-1", text: "Milk", groupId: "dairy", addedAt: 1000 },
+    ]);
+    expect(out[0].purchases).toBeUndefined();
+  });
+
+  it("frequentGroceries returns items with ≥ threshold check-offs within the window", () => {
+    const now = 10_000_000;
+    const inWindow = now - 1000;
+    const outsideWindow = now - FREQUENT_GROCERY_WINDOW_MS - 1000;
+    const items = [
+      // Qualifies: 5 in-window check-offs.
+      { ...mkItem("Bananas"), purchases: Array(5).fill(inWindow) },
+      // Doesn't qualify: 5 check-offs, all stale.
+      { ...mkItem("Salt"), purchases: Array(5).fill(outsideWindow) },
+      // Doesn't qualify: only 4 in-window.
+      { ...mkItem("Olives"), purchases: Array(4).fill(inWindow) },
+      // No log at all — should not qualify or throw.
+      mkItem("Mystery"),
+    ];
+    const out = frequentGroceries(items, { now });
+    expect(out.map((i) => i.text)).toEqual(["Bananas"]);
+  });
+
+  it("frequentGroceries ranks by in-window count desc, then by latest timestamp", () => {
+    const now = 10_000_000;
+    const t = (n: number) => now - n;
+    const items = [
+      { ...mkItem("Bread"), purchases: [t(1), t(2), t(3), t(4), t(5)] },          // count 5
+      { ...mkItem("Eggs"),  purchases: [t(100), t(200), t(300), t(400), t(500), t(600)] }, // count 6
+      { ...mkItem("Apples"), purchases: [t(50), t(60), t(70), t(80), t(90)] },    // count 5, older latest than Bread
+    ];
+    const out = frequentGroceries(items, { now, minCount: FREQUENT_GROCERY_MIN_COUNT });
+    expect(out.map((i) => i.text)).toEqual(["Eggs", "Bread", "Apples"]);
   });
 });
