@@ -206,3 +206,74 @@ describe('users/{uid}/state/{key} access control', () => {
     await assertSucceeds(getDoc(doc(alice, 'users/alice/state/agentUsage')))
   })
 })
+
+describe('users/{uid}/devices/{deviceId} access control', () => {
+  const validDevice = () => ({
+    token: 'ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]',
+    platform: 'ios',
+    updatedAt: Date.now(),
+  })
+
+  it('signed-in user can write their own device row', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertSucceeds(
+      setDoc(doc(alice, 'users/alice/devices/device-1'), validDevice()),
+    )
+  })
+
+  it('signed-in user can read their own device row', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/alice/devices/device-1'), validDevice())
+    })
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertSucceeds(getDoc(doc(alice, 'users/alice/devices/device-1')))
+  })
+
+  it("signed-in user CANNOT read another user's device row", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/bob/devices/device-1'), validDevice())
+    })
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(getDoc(doc(alice, 'users/bob/devices/device-1')))
+  })
+
+  it("signed-in user CANNOT write another user's device row", async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(
+      setDoc(doc(alice, 'users/bob/devices/device-1'), validDevice()),
+    )
+  })
+
+  it('rejects writes with extra fields beyond the allowed shape', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(
+      setDoc(doc(alice, 'users/alice/devices/device-1'), {
+        ...validDevice(),
+        // Hostile client trying to attach a server-trusted field
+        adminFlag: true,
+      }),
+    )
+  })
+
+  it('rejects writes where token is missing or wrong type', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(
+      setDoc(doc(alice, 'users/alice/devices/device-1'), {
+        token: 12345,
+        platform: 'ios',
+        updatedAt: Date.now(),
+      }),
+    )
+  })
+
+  it('rejects writes with an oversized token (> 200 chars)', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(
+      setDoc(doc(alice, 'users/alice/devices/device-1'), {
+        token: 'x'.repeat(201),
+        platform: 'ios',
+        updatedAt: Date.now(),
+      }),
+    )
+  })
+})

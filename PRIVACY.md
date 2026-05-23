@@ -17,6 +17,7 @@ We collect only what's needed to make the app work.
 | **Your todos, categories, and profile** (name, optional quote, optional photo, language preference) | While using the app | To sync your data across your devices |
 | **Profile photo** (optional) | If you choose to set one | Stored as an image you uploaded; never shared |
 | **AI assistance turns** (optional) | Only when you enable AI assistance and send a turn to Mochi | Processed by Anthropic to draft a reply or suggested actions. Off by default. |
+| **Push notification token** (optional) | Only after you grant notification permission on a device | Lets the app deliver reminders and quiet check-ins to that device. |
 
 We do **not** collect:
 - Location
@@ -55,6 +56,25 @@ We do not log the content of turns server-side. We do record the number of
 turns per day per account for rate-limiting (a daily cap protects against
 runaway costs).
 
+## Push notifications (optional)
+
+If you grant notification permission on a device, the app stores a push
+notification token for that device so it can deliver reminders and quiet
+check-ins. The token is held in your Firestore subtree alongside the
+platform name (`ios` / `android`) and when it was last refreshed.
+
+Tokens are not personal data on their own — they identify the device, not
+you. They are deleted when you sign out, when you revoke notification
+permission, or when the token is reported invalid by the relay (e.g. after
+an uninstall).
+
+Push messages are sent through **Expo's push relay** (Expo Inc.), which
+forwards the message to Apple Push Notification service (APNs) on iOS or
+Firebase Cloud Messaging (FCM) on Android. The relay sees the device
+token and the message contents in transit; we do not give it any other
+account data. Apple and Google see the encrypted payload at the OS level
+as required by their respective push systems.
+
 ## Photo library and camera access
 
 If you choose to set a profile photo, the app asks for access to your photo
@@ -73,6 +93,10 @@ with third parties. We use two service providers acting on our behalf:
 - **Anthropic** (Claude) — processes a single turn at a time, only when you
   have enabled AI assistance and sent a turn to Mochi. See the AI assistance
   section above for what's included in each turn.
+- **Expo** (Expo Inc.) — relays push notifications between our servers and
+  Apple Push Notification service / Firebase Cloud Messaging. Sees only the
+  device token and the message contents in transit. Only used after you grant
+  notification permission on a device.
 
 ## Your rights
 

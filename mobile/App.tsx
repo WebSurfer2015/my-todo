@@ -15,6 +15,9 @@ import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ChevronRight, ChevronDown } from "lucide-react-native";
 import { useTheme, ThemeColors } from "./src/theme";
+// Side-effect import: registers the foreground notification handler at
+// boot so a push arriving while the app is open isn't silently dropped.
+import "./src/notifications";
 import FilterBar from "./src/components/FilterBar";
 import Fab from "./src/components/Fab";
 import ComposeSheet from "./src/components/ComposeSheet";
