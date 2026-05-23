@@ -5,17 +5,22 @@ import {
   Platform,
   TouchableOpacity,
   StyleSheet,
+  View,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Line } from 'react-native-svg'
+import { Sparkles } from 'lucide-react-native'
 import { useTheme, ThemeColors } from '../theme'
 
 interface Props {
   onPress: () => void
   accessibilityLabel?: string
+  /** When true, a small Sparkles glyph renders alongside the + to
+   * signal that the compose flow includes ambient AI suggestions. */
+  agentEnabled?: boolean
 }
 
-export default function Fab({ onPress, accessibilityLabel }: Props) {
+export default function Fab({ onPress, accessibilityLabel, agentEnabled = false }: Props) {
   const theme = useTheme()
   const insets = useSafeAreaInsets()
 
@@ -56,10 +61,15 @@ export default function Fab({ onPress, accessibilityLabel }: Props) {
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
     >
-      <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.5} strokeLinecap="round">
-        <Line x1="12" y1="5" x2="12" y2="19" />
-        <Line x1="5" y1="12" x2="19" y2="12" />
-      </Svg>
+      <View style={styles.iconRow}>
+        {agentEnabled && (
+          <Sparkles size={14} color="#fff" strokeWidth={2.4} />
+        )}
+        <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.5} strokeLinecap="round">
+          <Line x1="12" y1="5" x2="12" y2="19" />
+          <Line x1="5" y1="12" x2="19" y2="12" />
+        </Svg>
+      </View>
     </TouchableOpacity>
   )
 }
@@ -81,6 +91,11 @@ function makeStyles(c: ThemeColors, bottom: number) {
       shadowOpacity: 0.2,
       shadowRadius: 10,
       elevation: 6,
+    },
+    iconRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
     },
   })
 }

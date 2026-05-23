@@ -6,7 +6,7 @@ import {
 import * as Haptics from 'expo-haptics'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import Svg, { Rect, Path } from 'react-native-svg'
-import { Repeat } from 'lucide-react-native'
+import { Repeat, Sparkles } from 'lucide-react-native'
 import { Category, Priority, PRIORITY_VALUES, PRIORITY_COLORS, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, Subtask, TodoReference } from '../types'
 import { genUuid } from '../../../core/src/utils'
 import { CategoryDef, categoryLabel } from '../categories'
@@ -263,7 +263,12 @@ export default function ComposeSheet({
                   <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.headerSideBtn}>
                     <Text style={styles.cancelText}>{t.cancel}</Text>
                   </TouchableOpacity>
-                  <Text style={styles.title}>Add to-do</Text>
+                  <View style={styles.titleRow}>
+                    {agentEnabled && (
+                      <Sparkles size={14} color={theme.primary} strokeWidth={2.2} />
+                    )}
+                    <Text style={styles.title}>Add to-do</Text>
+                  </View>
                   <TouchableOpacity
                     onPress={submit}
                     disabled={!canSubmit}
@@ -881,6 +886,11 @@ function makeStyles(c: ThemeColors) {
       fontWeight: '500',
       color: c.blue,
       width: 56,
+    },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
     },
     title: {
       fontSize: 15,

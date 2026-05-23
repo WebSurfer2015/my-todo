@@ -678,6 +678,7 @@ function TodosScreen() {
           <Fab
             onPress={() => setComposeOpen(true)}
             accessibilityLabel={t.addPlaceholder}
+            agentEnabled={store.profile.agentEnabled !== false}
           />
         )}
       {/* Mochi agent paused — see Settings "Ask Mochi (coming soon)".
