@@ -45,6 +45,17 @@ export interface Profile {
   /** Play a sound when a task is marked done. Defaults to true. (Sound playback NYI.) */
   completionSound?: boolean
   /**
+   * When true, the app's accent (FAB color, pill backgrounds, etc.)
+   * is derived from the current avatar so the chrome quietly
+   * matches the user's chosen identity. Off by default — the
+   * static sage-teal palette is calm and brand-consistent for
+   * users who don't opt in.
+   *
+   * v1: preset avatars only (uses preset.bg directly).
+   * Photo/icon avatars fall back to the static palette.
+   */
+  themeFromAvatar?: boolean
+  /**
    * Pebbles — live progress indicator with two scopes:
    *
    * - `todayTaskPebbles` / `todaySubtaskPebbles` mirror today's actual
@@ -343,6 +354,8 @@ export function migrateProfile(raw: unknown): Profile {
     statuses: migrateStatuses(p.statuses),
     completionAnimation:
       typeof p.completionAnimation === 'boolean' ? p.completionAnimation : undefined,
+    themeFromAvatar:
+      typeof p.themeFromAvatar === 'boolean' ? p.themeFromAvatar : undefined,
     completionSound:
       typeof p.completionSound === 'boolean' ? p.completionSound : undefined,
     lifetimePebbles:

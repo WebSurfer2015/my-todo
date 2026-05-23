@@ -1,3 +1,4 @@
+import React, { createContext, useContext, useMemo } from 'react'
 import { useColorScheme } from 'react-native'
 
 export interface ThemeColors {
@@ -99,7 +100,126 @@ export const DARK: ThemeColors = {
   statusBar: 'light-content',
 }
 
+/**
+ * Optional per-render override of the primary token group. When a
+ * provider supplies this (typically from profile.themeFromAvatar +
+ * preset.bg), `useTheme()` overlays it on top of the base palette.
+ * Other token groups (labels, separators, status colors) stay
+ * untouched — the avatar only retints the accent surfaces.
+ */
+type PrimaryOverride = Pick<ThemeColors, 'primary' | 'primaryHover' | 'primarySoft' | 'primaryOn' | 'blue' | 'teal'> | null
+
+const ThemeOverrideContext = createContext<PrimaryOverride>(null)
+
+interface ProviderProps {
+  /** When undefined → no override, base palette wins. */
+  override: PrimaryOverride
+  children: React.ReactNode
+}
+
+export function ThemeOverrideProvider({ override, children }: ProviderProps) {
+  return React.createElement(ThemeOverrideContext.Provider, { value: override }, children)
+}
+
 export function useTheme(): ThemeColors {
   const scheme = useColorScheme()
-  return scheme === 'dark' ? DARK : LIGHT
+  const base = scheme === 'dark' ? DARK : LIGHT
+  const override = useContext(ThemeOverrideContext)
+  return useMemo(() => (override ? { ...base, ...override } : base), [base, override])
+}
+
+// --- Avatar-derived theme helpers ----------------------------------------
+
+interface HSL { h: number; s: number; l: number }
+
+function hexToHSL(hex: string): HSL | null {
+  const m = hex.trim().match(/^#?([0-9a-f]{6})$/i)
+  if (!m) return null
+  const n = parseInt(m[1], 16)
+  const r = ((n >> 16) & 0xff) / 255
+  const g = ((n >> 8) & 0xff) / 255
+  const b = (n & 0xff) / 255
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const l = (max + min) / 2
+  let h = 0
+  let s = 0
+  if (max !== min) {
+    const d = max - min
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break
+      case g: h = (b - r) / d + 2; break
+      case b: h = (r - g) / d + 4; break
+    }
+    h *= 60
+  }
+  return { h, s: s * 100, l: l * 100 }
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  s = Math.max(0, Math.min(100, s)) / 100
+  l = Math.max(0, Math.min(100, l)) / 100
+  const c = (1 - Math.abs(2 * l - 1)) * s
+  const hp = ((h % 360) + 360) % 360 / 60
+  const x = c * (1 - Math.abs((hp % 2) - 1))
+  let r = 0, g = 0, b = 0
+  if (hp < 1) { r = c; g = x }
+  else if (hp < 2) { r = x; g = c }
+  else if (hp < 3) { g = c; b = x }
+  else if (hp < 4) { g = x; b = c }
+  else if (hp < 5) { r = x; b = c }
+  else { r = c; b = x }
+  const m = l - c / 2
+  const toHex = (v: number) => {
+    const n = Math.round((v + m) * 255)
+    return n.toString(16).padStart(2, '0')
+  }
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+}
+
+/**
+ * Derive a primary-token override from a soft pastel background
+ * color (typically preset.bg from AVATAR_PRESET_LIBRARY). Returns
+ * null when the input doesn't parse.
+ *
+ * Strategy: preset bg is already a calm pastel. We use it directly
+ * as `primarySoft`, then saturate + darken it to make a usable
+ * `primary` for the FAB / pill accents. `primaryOn` picks white
+ * vs near-black based on the derived primary's lightness.
+ */
+export function deriveThemeFromAvatarBg(bg: string, scheme: 'light' | 'dark'): PrimaryOverride {
+  const hsl = hexToHSL(bg)
+  if (!hsl) return null
+  // Calm-app target: saturation around 30-40 (presets are typically
+  // 10-25). Lightness around 40 in light mode, 65 in dark.
+  const targetSat = Math.min(45, hsl.s + 18)
+  const targetLightLight = 40
+  const targetLightDark = 65
+  const primary = hslToHex(
+    hsl.h,
+    targetSat,
+    scheme === 'dark' ? targetLightDark : targetLightLight,
+  )
+  const primaryHover = hslToHex(
+    hsl.h,
+    targetSat,
+    scheme === 'dark' ? targetLightDark + 8 : targetLightLight - 8,
+  )
+  const primarySoft =
+    scheme === 'dark'
+      // In dark mode the preset bg is too light; use a darkened sibling.
+      ? hslToHex(hsl.h, Math.min(35, hsl.s + 5), 25)
+      : bg
+  // Contrast for foreground text on primary — primary is mid-tone so
+  // white always wins in light mode; in dark we go off-black.
+  const primaryOn = scheme === 'dark' ? '#1A1814' : '#FFFFFF'
+  return {
+    primary,
+    primaryHover,
+    primarySoft,
+    primaryOn,
+    blue: primary, // legacy alias
+    teal: primary,
+  }
 }

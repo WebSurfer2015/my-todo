@@ -10,11 +10,18 @@ import {
   KeyboardAvoidingView,
   Image,
   Alert,
+  useColorScheme,
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ChevronRight, ChevronDown } from "lucide-react-native";
-import { useTheme, ThemeColors } from "./src/theme";
+import {
+  useTheme,
+  ThemeColors,
+  ThemeOverrideProvider,
+  deriveThemeFromAvatarBg,
+} from "./src/theme";
+import { findPreset } from "./src/profile";
 // Side-effect import: registers the foreground notification handler at
 // boot so a push arriving while the app is open isn't silently dropped.
 import "./src/notifications";
@@ -804,7 +811,27 @@ const Tab = createBottomTabNavigator();
 function AppGate() {
   const { user, loading } = useAuth();
   const store = useStore();
-  const theme = useTheme();
+  const baseTheme = useTheme();
+  const scheme = useColorScheme();
+  // Avatar-driven theme override (Settings → Theme from avatar).
+  // Memoized on the bits that actually matter so unrelated profile
+  // edits don't churn the tab bar / FAB colors.
+  const themeOverride = useMemo(() => {
+    if (store.profile.themeFromAvatar !== true) return null;
+    const av = store.profile.avatar;
+    if (!av || av.kind !== 'preset') return null;
+    const preset = findPreset(av.key);
+    if (!preset) return null;
+    return deriveThemeFromAvatarBg(preset.bg, scheme === 'dark' ? 'dark' : 'light');
+  }, [store.profile.themeFromAvatar, store.profile.avatar, scheme]);
+  // Local theme picks up the override too — without this manual
+  // merge, AppGate-rendered chrome (tab bar, splash background)
+  // would stay in the base palette while children inside the
+  // provider go avatar-tinted, creating a split look.
+  const theme = useMemo(
+    () => (themeOverride ? { ...baseTheme, ...themeOverride } : baseTheme),
+    [baseTheme, themeOverride],
+  );
 
   // Splash + sign-in + hydration + onboarding gates run BEFORE the tab
   // navigator mounts, so screens can assume store + user are ready.
@@ -822,6 +849,7 @@ function AppGate() {
   // bar shouldn't either.
 
   return (
+    <ThemeOverrideProvider override={themeOverride}>
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
       {/* AppBackground paints the user-chosen wallpaper across every
           tab. Mounted here (not per-screen) so Home, Todos, and
@@ -884,6 +912,7 @@ function AppGate() {
         </Tab.Navigator>
       </NavigationContainer>
     </View>
+    </ThemeOverrideProvider>
   );
 }
 

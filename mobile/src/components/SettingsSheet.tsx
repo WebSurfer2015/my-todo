@@ -73,6 +73,7 @@ export default function SettingsSheet({
   const reduceMotionOn = profile.reduceMotion === true;
   // Tri-state with on-by-default: undefined or true → on; only false is off.
   const agentOn = profile.agentEnabled !== false;
+  const themeFromAvatarOn = profile.themeFromAvatar === true;
 
   function patch(p: Partial<Profile>) {
     onSavePartial(p);
@@ -132,6 +133,14 @@ export default function SettingsSheet({
                   </Text>
                   <Text style={styles.rowChevron}>›</Text>
                 </TouchableOpacity>
+                <View style={styles.divider} />
+                <ToggleRow
+                  label="Theme from avatar"
+                  hint="Tint the FAB and pill accents to match your current avatar. Preset avatars only (photo support coming later)."
+                  value={themeFromAvatarOn}
+                  onChange={(v) => patch({ themeFromAvatar: v || undefined })}
+                  styles={styles}
+                />
               </View>
 
               {/* Daily check-in + Reminder time were removed pending a
