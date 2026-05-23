@@ -35,6 +35,10 @@ interface ClassifyDeptInput {
 
 interface ClassifyDeptResult {
   groupId: string | null
+  /** Set when the AI proposes a department label that doesn't exist
+   * in the user's list. The caller should confirm with the user
+   * before creating + assigning. Mutually exclusive with groupId. */
+  newGroupLabel: string | null
 }
 
 async function callAiInfer<R>(mode: string, input: unknown): Promise<R> {
@@ -64,16 +68,16 @@ export async function suggestSubtasks(input: BreakdownInput): Promise<BreakdownR
 }
 
 /**
- * Asks the server to pick a grocery department for a single item.
- * Returns `{ groupId: null }` when the model isn't confident — caller
- * should leave the item in Uncategorized in that case rather than
- * forcing a bad guess. Same null-on-failure contract for network/quota
+ * Asks the server to pick a grocery department for a single item, or
+ * suggest a new one if nothing in the list fits. Returns all-null
+ * when the model isn't confident — caller should leave the item in
+ * Uncategorized. Same null-on-failure contract for network/quota
  * errors so the caller can ignore failures silently.
  */
 export async function classifyGroceryDept(input: ClassifyDeptInput): Promise<ClassifyDeptResult> {
   try {
     return await callAiInfer<ClassifyDeptResult>('classify-grocery-dept', input)
   } catch {
-    return { groupId: null }
+    return { groupId: null, newGroupLabel: null }
   }
 }

@@ -40,8 +40,10 @@ import {
   groceryEdit,
   groceryDelete,
   MAX_GROCERY_ITEMS,
+  MAX_GROCERY_GROUPS,
   OTHERS_GROUP_ID,
   inferGroceryGroupLocal,
+  newGroceryGroup,
 } from "./groceries";
 import { classifyGroceryDept } from "./aiInfer";
 import { useLang } from "./LangContext";
@@ -1029,9 +1031,12 @@ export function useTodoStore() {
       });
       // If the local heuristic missed AND AI assistance is on, ask
       // the model in the background. The item is already on screen in
-      // Uncategorized; on a confident AI response we silently move it
-      // to the suggested group. Failures (network, quota, no-confidence)
-      // are ignored — the item stays in Uncategorized.
+      // Uncategorized; on the response we either:
+      //   - silently move to an existing group (groupId match), or
+      //   - surface a snackbar offering to create a brand-new dept
+      //     (newGroupLabel) that the user confirms before we mutate.
+      // Failures (network, quota, no-confidence) are ignored —
+      // item stays in Uncategorized.
       const landedInOthers = item.groupId === OTHERS_GROUP_ID;
       const aiOn = profileRef.current.agentEnabled !== false;
       if (landedInOthers && aiOn && !explicit) {
@@ -1041,19 +1046,83 @@ export function useTodoStore() {
           .map((g) => ({ id: g.id, label: g.label }));
         if (departments.length > 0) {
           void classifyGroceryDept({ text, departments }).then((res) => {
-            const next = res.groupId;
-            if (!next) return;
-            // Re-check against the live groups list — user may have
-            // deleted the group between the call and the response.
-            if (!groceryGroupsRef.current.some((g) => g.id === next)) return;
-            setGroceries((prev) =>
-              prev.map((it) => (it.id === item.id ? { ...it, groupId: next } : it)),
+            // Case 1: AI matched an existing group → silent move.
+            if (res.groupId) {
+              if (!groceryGroupsRef.current.some((g) => g.id === res.groupId)) return;
+              setGroceries((prev) =>
+                prev.map((it) =>
+                  it.id === item.id ? { ...it, groupId: res.groupId! } : it,
+                ),
+              );
+              return;
+            }
+            // Case 2: AI proposes a new dept → ask the user before
+            // mutating their group list. Cap-check first; if the
+            // group list is already at the max we silently skip the
+            // suggestion (no clutter when nothing actionable can
+            // happen).
+            const proposed = res.newGroupLabel;
+            if (!proposed) return;
+            const liveGroups = groceryGroupsRef.current;
+            if (liveGroups.length >= MAX_GROCERY_GROUPS) return;
+            // Race guard: a previous parallel suggestion may have
+            // already created a same-label group. If so, just
+            // silent-move into it rather than re-asking.
+            const lower = proposed.toLowerCase();
+            const existing = liveGroups.find(
+              (g) => g.id !== OTHERS_GROUP_ID && g.label.toLowerCase() === lower,
             );
+            if (existing) {
+              setGroceries((prev) =>
+                prev.map((it) =>
+                  it.id === item.id ? { ...it, groupId: existing.id } : it,
+                ),
+              );
+              return;
+            }
+            notify.showSnackbar({
+              message: t.groceryNewDeptSuggest(proposed),
+              actionLabel: t.create,
+              onAction: () => {
+                // Re-check the live state at commit time — the user
+                // may have already created a same-label group in the
+                // gap between snackbar show and action tap.
+                const groupsAtCommit = groceryGroupsRef.current;
+                if (groupsAtCommit.length >= MAX_GROCERY_GROUPS) return;
+                const dupe = groupsAtCommit.find(
+                  (g) =>
+                    g.id !== OTHERS_GROUP_ID &&
+                    g.label.toLowerCase() === lower,
+                );
+                let targetGroupId: string;
+                if (dupe) {
+                  targetGroupId = dupe.id;
+                } else {
+                  const newGroup = newGroceryGroup(proposed);
+                  targetGroupId = newGroup.id;
+                  setGroceryGroups((prev) => {
+                    // Insert before the trailing Others/Uncategorized
+                    // group so the new dept lands in the visible list,
+                    // not after the catch-all.
+                    const withoutOthers = prev.filter((g) => g.id !== OTHERS_GROUP_ID);
+                    const others = prev.find((g) => g.id === OTHERS_GROUP_ID);
+                    const next = [...withoutOthers, newGroup];
+                    if (others) next.push(others);
+                    return next;
+                  });
+                }
+                setGroceries((prev) =>
+                  prev.map((it) =>
+                    it.id === item.id ? { ...it, groupId: targetGroupId } : it,
+                  ),
+                );
+              },
+            });
           });
         }
       }
     },
-    [setGroceries, setProfile],
+    [setGroceries, setProfile, setGroceryGroups, notify, t],
   );
 
   const renameGroceryStore = useCallback(
