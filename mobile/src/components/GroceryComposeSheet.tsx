@@ -34,6 +34,7 @@ import {
   GroceryGroup,
   OTHERS_GROUP_ID,
   resolveGroup,
+  inferGroceryGroupLocal,
 } from '../groceries'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
@@ -76,6 +77,10 @@ export default function GroceryComposeSheet({
     initialDepartmentId ?? OTHERS_GROUP_ID,
   )
   const [store, setStore] = useState<string | undefined>(initialStore)
+  // Flips true once the user opens the dept picker, signaling they
+  // intend to choose the dept themselves — we stop auto-inferring
+  // from the text after that. Reset on each open of the sheet.
+  const userPickedDeptRef = useRef(false)
 
   // Reset on open so the next launch starts clean. Preserve the
   // current group + store so a serial-add flow ("Add another") keeps
@@ -86,10 +91,34 @@ export default function GroceryComposeSheet({
       setText('')
       setGroupId(initialDepartmentId ?? OTHERS_GROUP_ID)
       setStore(initialStore)
+      userPickedDeptRef.current = false
       // Slight delay so the modal animation finishes before focusing.
       setTimeout(() => inputRef.current?.focus(), 120)
     }
   }, [visible, initialDepartmentId, initialStore])
+
+  // Live local dept inference while typing — mirrors the local
+  // heuristic that runs at add-time in useTodoStore.addGrocery, but
+  // surfaces the result in the Department row of the compose sheet
+  // BEFORE the user taps Add. So "Eggs" flips Department from
+  // Uncategorized to Dairy as soon as the heuristic matches, giving
+  // visible AI feedback. Skipped once the user picks a dept manually.
+  useEffect(() => {
+    if (userPickedDeptRef.current) return
+    const trimmed = text.trim()
+    if (trimmed.length < 2) {
+      // Too short — reset to the initial / default. Lets the user
+      // clear the field and re-type without the dept being sticky.
+      setGroupId(initialDepartmentId ?? OTHERS_GROUP_ID)
+      return
+    }
+    const local = inferGroceryGroupLocal(trimmed, groups)
+    if (local && groups.some((g) => g.id === local)) {
+      setGroupId(local)
+    } else {
+      setGroupId(initialDepartmentId ?? OTHERS_GROUP_ID)
+    }
+  }, [text, groups, initialDepartmentId])
 
   const activeGroup = resolveGroup(groupId, groups)
   const visibleGroups = useMemo(
@@ -256,6 +285,10 @@ export default function GroceryComposeSheet({
                     key={g.id}
                     style={styles.subRow}
                     onPress={() => {
+                      // Mark as an explicit user pick so the live
+                      // inference effect stops overriding the dept
+                      // on subsequent text changes.
+                      userPickedDeptRef.current = true
                       setGroupId(g.id)
                       setSubView('main')
                     }}

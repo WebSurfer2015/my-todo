@@ -239,10 +239,12 @@ export function TodoFieldSuggestPills({
     showDueDatePill ||
     showRecurrencePill
 
-  // Don't render anything when there's nothing to show. Suppressing
-  // the bare "thinking" state too — the input field is the user's
-  // focus; a spinner under it would be noise on most keystrokes.
-  if (!hasAny) return null
+  // Render the row whenever AI is thinking OR has visible pills.
+  // Hiding the row during the in-flight call (which can take 1-2s)
+  // made it look like AI never fired — user feedback. A tiny
+  // ActivityIndicator next to the Sparkles is honest signal without
+  // being loud.
+  if (!hasAny && !thinking) return null
 
   return (
     <View style={styles.row}>
