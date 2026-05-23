@@ -732,6 +732,7 @@ function TodosScreen() {
         categories={store.categories}
         defaultCategory={store.defaultCategory}
         references={store.todoReferences}
+        agentEnabled={store.profile.agentEnabled !== false}
         onAdd={store.addTask}
         onClose={() => setComposeOpen(false)}
       />

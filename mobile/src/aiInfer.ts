@@ -41,6 +41,18 @@ interface ClassifyDeptResult {
   newGroupLabel: string | null
 }
 
+interface SuggestFieldsInput {
+  text: string
+  today: string
+  categories: Array<{ id: string; label: string }>
+}
+
+export interface SuggestFieldsResult {
+  category: string | null
+  priority: 'high' | 'medium' | 'low' | null
+  dueDate: string | null
+}
+
 async function callAiInfer<R>(mode: string, input: unknown): Promise<R> {
   const user = auth().currentUser
   if (!user) throw new Error('Sign in to use AI assistance.')
@@ -79,5 +91,20 @@ export async function classifyGroceryDept(input: ClassifyDeptInput): Promise<Cla
     return await callAiInfer<ClassifyDeptResult>('classify-grocery-dept', input)
   } catch {
     return { groupId: null, newGroupLabel: null }
+  }
+}
+
+/**
+ * Reads a typed to-do title and suggests field values (category,
+ * priority, dueDate) the user can tap to apply. Every field is
+ * independently nullable — the model is told to be conservative.
+ * Same null-on-failure contract: any error returns all-null so the
+ * caller never has to try/catch for an ambient feature.
+ */
+export async function suggestTodoFields(input: SuggestFieldsInput): Promise<SuggestFieldsResult> {
+  try {
+    return await callAiInfer<SuggestFieldsResult>('suggest-todo-fields', input)
+  } catch {
+    return { category: null, priority: null, dueDate: null }
   }
 }

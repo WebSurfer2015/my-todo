@@ -19,6 +19,7 @@ import CategoryIcon from './CategoryIcon'
 import InlinePicker from './InlinePicker'
 import CustomRecurrenceForm from './CustomRecurrenceForm'
 import AddSubtaskSheet from './AddSubtaskSheet'
+import { useTodoFieldSuggestions, TodoFieldSuggestPills } from './TodoFieldSuggestPills'
 
 function CalendarIcon({ size = 18, color = '#8E8E93' }: { size?: number; color?: string }) {
   return (
@@ -40,6 +41,9 @@ interface Props {
    * picks when the user types — tap a row to auto-fill category,
    * priority, recurrence, and dueDate from the historic entry. */
   references: TodoReference[]
+  /** When true, ambient AI field suggestions are queried after the
+   * user pauses typing. Off → no AI calls, no pills row. */
+  agentEnabled?: boolean
   onAdd: (
     text: string,
     priority: Priority,
@@ -98,7 +102,7 @@ function isCustomRecurrence(rec: Recurrence | undefined): boolean {
 }
 
 export default function ComposeSheet({
-  visible, categories, defaultCategory, references, onAdd, onClose,
+  visible, categories, defaultCategory, references, agentEnabled = false, onAdd, onClose,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
@@ -134,6 +138,20 @@ export default function ComposeSheet({
   const [appliedTextLower, setAppliedTextLower] = useState('')
 
   useEffect(() => { setCategory(defaultCategory) }, [defaultCategory])
+
+  // Ambient AI field suggestions — fires after typing pause, presents
+  // tap-to-apply pills above the field rows. The hook owns debounce,
+  // dedupe, and race protection; the pills are pure presentation.
+  const aiCategories = useMemo(
+    () => categories.map((c) => ({ id: c.id, label: categoryLabel(c, t) })),
+    [categories, t],
+  )
+  const ai = useTodoFieldSuggestions({
+    text,
+    today: todayLocal(),
+    categories: aiCategories,
+    agentEnabled,
+  })
 
   // Suggestion list — once the user has typed ≥3 chars, surface any
   // historic completions (deduplicated by lowercased text, sorted by
@@ -387,6 +405,24 @@ export default function ComposeSheet({
                   keyboardShouldPersistTaps="handled"
                   showsVerticalScrollIndicator={false}
                 >
+                  <TodoFieldSuggestPills
+                    suggestions={ai.suggestions}
+                    thinking={ai.thinking}
+                    categories={categories}
+                    onApplyCategory={(id) => {
+                      setCategory(id)
+                      Haptics.selectionAsync().catch(() => {})
+                    }}
+                    onApplyPriority={(p) => {
+                      setPriority(p)
+                      Haptics.selectionAsync().catch(() => {})
+                    }}
+                    onApplyDueDate={(iso) => {
+                      setDueDate(iso)
+                      Haptics.selectionAsync().catch(() => {})
+                    }}
+                    onDismissField={ai.dismissField}
+                  />
                   <View style={styles.fieldGroup}>
                     <TouchableOpacity
                       style={styles.fieldRow}
