@@ -57,7 +57,11 @@ export default function ProfileSheet({
   const { user, signOut, deleteAccount } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
-  const [firstName, setFirstName] = useState(profile.firstName ?? "");
+  // Backfill from `name` for legacy profiles that have a single
+  // `name` set but no `firstName`/`lastName` split. Without this,
+  // an existing user opens Edit profile and sees Save grayed out
+  // (canSave checks firstName.trim()) because the field starts empty.
+  const [firstName, setFirstName] = useState(profile.firstName ?? profile.name ?? "");
   const [lastName, setLastName] = useState(profile.lastName ?? "");
   const [quote, setQuote] = useState(profile.quote ?? "");
   const [avatar, setAvatar] = useState<AvatarT>(normalizeAvatar(profile.avatar));
@@ -148,7 +152,7 @@ export default function ProfileSheet({
 
   React.useEffect(() => {
     if (visible) {
-      setFirstName(profile.firstName ?? "");
+      setFirstName(profile.firstName ?? profile.name ?? "");
       setLastName(profile.lastName ?? "");
       setQuote(profile.quote ?? "");
       setAvatar(normalizeAvatar(profile.avatar));
