@@ -281,16 +281,24 @@ interface SuggestFieldsOutput {
   newCategoryLabel: string | null
   priority: 'high' | 'medium' | 'low' | null
   dueDate: string | null
-  /** Lean v1 recurrence — one of the four basic frequencies, no
-   * byWeekday / endDate / bySetPos detail. Client constructs
-   * `{ freq }` on apply; user can refine in the Repeat sub-view. */
-  recurrence: 'daily' | 'weekly' | 'monthly' | 'yearly' | null
+  /** Lean v1 recurrence — frequency plus an optional end date when
+   * the text explicitly bounds the repetition. Client builds the
+   * full Recurrence on apply; user can refine weekday/bySetPos
+   * via the Repeat sub-view. */
+  recurrence: {
+    freq: 'daily' | 'weekly' | 'monthly' | 'yearly'
+    /** ISO yyyy-mm-dd. Only set when the text explicitly bounded
+     * the recurrence (e.g. "for 30 days", "through October",
+     * "until Oct 31"). Omitted means an indefinite rolling
+     * recurrence — the user can add an end date later. */
+    endDate?: string
+  } | null
 }
 
 const SUGGEST_FIELDS_SYSTEM = `You read one to-do title and suggest field values the user can tap to apply.
 
 Output ONLY a JSON object on one line, no prose, no markdown, no code fences:
-{"category":"<id>" or null,"newCategoryLabel":"<label>" or null,"priority":"high"|"medium"|"low" or null,"dueDate":"yyyy-mm-dd" or null,"recurrence":"daily"|"weekly"|"monthly"|"yearly" or null}
+{"category":"<id>" or null,"newCategoryLabel":"<label>" or null,"priority":"high"|"medium"|"low" or null,"dueDate":"yyyy-mm-dd" or null,"recurrence":{"freq":"daily"|"weekly"|"monthly"|"yearly","endDate":"yyyy-mm-dd"} or null}
 
 Rules — every field is independently nullable. At most ONE of
 \`category\` and \`newCategoryLabel\` may be non-null:
@@ -319,15 +327,22 @@ Rules — every field is independently nullable. At most ONE of
   - No date mentioned → null
   Always return ISO yyyy-mm-dd, never relative phrases.
 - recurrence: only when the text clearly implies a repeating task.
-  Examples:
-    "water plants every day"     → "daily"
-    "weekly team meeting"        → "weekly"
-    "monthly bills"              → "monthly"
-    "yearly checkup"             → "yearly"
-    "buy milk"                   → null   (one-off)
-    "call mom"                   → null   (no repetition language)
-  Never invent a recurrence to "be helpful". A one-time task with
-  a future date is still null.
+  Returns an object with 'freq' plus an optional 'endDate' (ISO
+  yyyy-mm-dd). OMIT 'endDate' when the text doesn't bound the
+  repetition — the user can add an end date later.
+  Examples (assume today=2026-05-23):
+    "water plants every day"            → {"freq":"daily"}
+    "take vitamins daily for 30 days"   → {"freq":"daily","endDate":"2026-06-22"}
+    "weekly meeting through October"    → {"freq":"weekly","endDate":"2026-10-31"}
+    "monthly bills until end of year"   → {"freq":"monthly","endDate":"2026-12-31"}
+    "yearly checkup"                    → {"freq":"yearly"}
+    "buy milk"                          → null      (one-off)
+    "call mom"                          → null      (no repetition language)
+  Only include 'endDate' when an explicit time-bound phrase
+  appears: "for N days/weeks/months", "through <month>",
+  "until <date>", "by <date>", "this <month>". Resolve the end
+  date relative to <today>. Never invent a recurrence to "be
+  helpful". A one-time task with a future date is still null.
 
 Be conservative — return null when uncertain. The user only sees
 suggestions you're confident about.
@@ -430,8 +445,15 @@ function parseSuggestFieldsOutput(text: string): SuggestFieldsOutput {
     out.dueDate = rawDate
   }
   const rawRec = (parsed as { recurrence?: unknown }).recurrence
-  if (rawRec === 'daily' || rawRec === 'weekly' || rawRec === 'monthly' || rawRec === 'yearly') {
-    out.recurrence = rawRec
+  if (rawRec && typeof rawRec === 'object') {
+    const { freq, endDate } = rawRec as { freq?: unknown; endDate?: unknown }
+    if (freq === 'daily' || freq === 'weekly' || freq === 'monthly' || freq === 'yearly') {
+      const rec: NonNullable<SuggestFieldsOutput['recurrence']> = { freq }
+      if (typeof endDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+        rec.endDate = endDate
+      }
+      out.recurrence = rec
+    }
   }
   return out
 }

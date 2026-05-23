@@ -156,15 +156,18 @@ interface RowProps {
   currentPriority: Priority
   currentDueDate: string
   /** Undefined → no recurrence currently. The pill is suppressed
-   * when the suggested freq matches this. */
+   * when the suggested freq+endDate already matches this. */
   currentRecurrenceFreq?: RecurrenceFreq
+  /** Current recurrence endDate (ISO yyyy-mm-dd), if set.
+   * Combined with freq for the no-op compare. */
+  currentRecurrenceEndDate?: string
   onApplyCategory: (id: string) => void
   /** Tap on a "+ <label>" pill. Implementation should confirm with
    * the user (it creates a new category in their sidebar). */
   onApplyNewCategory: (label: string) => void
   onApplyPriority: (p: Priority) => void
   onApplyDueDate: (iso: string) => void
-  onApplyRecurrence: (freq: RecurrenceFreq) => void
+  onApplyRecurrence: (rec: { freq: RecurrenceFreq; endDate?: string }) => void
   onDismissField: (
     field: 'category' | 'newCategoryLabel' | 'priority' | 'dueDate' | 'recurrence',
   ) => void
@@ -178,6 +181,7 @@ export function TodoFieldSuggestPills({
   currentPriority,
   currentDueDate,
   currentRecurrenceFreq,
+  currentRecurrenceEndDate,
   onApplyCategory,
   onApplyNewCategory,
   onApplyPriority,
@@ -216,8 +220,14 @@ export function TodoFieldSuggestPills({
     !!suggestions?.priority && suggestions.priority !== currentPriority
   const showDueDatePill =
     !!suggestions?.dueDate && suggestions.dueDate !== currentDueDate
+  // Pill suppressed only when both freq AND endDate already match
+  // the compose form — that's a genuine no-op. If the AI proposes
+  // the same freq with a *new* endDate (e.g. user typed "for 30
+  // days"), the pill stays so the user can adopt the bound.
   const showRecurrencePill =
-    !!suggestions?.recurrence && suggestions.recurrence !== currentRecurrenceFreq
+    !!suggestions?.recurrence &&
+    (suggestions.recurrence.freq !== currentRecurrenceFreq ||
+      (suggestions.recurrence.endDate ?? undefined) !== currentRecurrenceEndDate)
 
   const hasAny =
     showCategoryPill ||
@@ -295,9 +305,13 @@ export function TodoFieldSuggestPills({
             onDismissField('recurrence')
           }}
           onDismiss={() => onDismissField('recurrence')}
-          accessibilityLabel={`${t.aiSuggestionA11y}: ${formatRecurrence({ freq: suggestions!.recurrence! })}`}
+          accessibilityLabel={`${t.aiSuggestionA11y}: ${formatRecurrence({ freq: suggestions!.recurrence!.freq })}${suggestions!.recurrence!.endDate ? `, ${formatDisplayDate(suggestions!.recurrence!.endDate, t.locale)}` : ''}`}
           icon={<Repeat size={11} color={theme.primary} strokeWidth={2.2} />}
-          label={formatRecurrence({ freq: suggestions!.recurrence! })}
+          label={
+            suggestions!.recurrence!.endDate
+              ? `${formatRecurrence({ freq: suggestions!.recurrence!.freq })} · ${formatDisplayDate(suggestions!.recurrence!.endDate, t.locale)}`
+              : formatRecurrence({ freq: suggestions!.recurrence!.freq })
+          }
         />
       )}
     </View>

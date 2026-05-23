@@ -55,9 +55,14 @@ export interface SuggestFieldsResult {
   newCategoryLabel: string | null
   priority: 'high' | 'medium' | 'low' | null
   dueDate: string | null
-  /** Basic recurrence frequency. Caller constructs `{ freq }` on
-   * apply; user can refine via the Repeat sub-view. */
-  recurrence: 'daily' | 'weekly' | 'monthly' | 'yearly' | null
+  /** Basic recurrence — frequency plus an optional end date when
+   * the user's text explicitly bounds the repetition. Caller
+   * constructs the full Recurrence on apply; user can refine
+   * weekday/bySetPos via the Repeat sub-view. */
+  recurrence: {
+    freq: 'daily' | 'weekly' | 'monthly' | 'yearly'
+    endDate?: string
+  } | null
 }
 
 async function callAiInfer<R>(mode: string, input: unknown): Promise<R> {
