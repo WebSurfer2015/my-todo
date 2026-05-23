@@ -175,11 +175,10 @@ export default function SettingsSheet({
               </Text>
               <View style={styles.card}>
                 <ToggleRow
-                  label="Ask Mochi (coming soon)"
-                  hint="Plain-language helper that adds and edits to-dos for you. Not available yet — we'll flip this on once it's ready."
-                  value={false}
-                  onChange={() => {}}
-                  disabled
+                  label={t.aiAssistanceLabel}
+                  hint={t.aiAssistanceHint}
+                  value={agentOn}
+                  onChange={(v) => patch({ agentEnabled: v || undefined })}
                   styles={styles}
                 />
               </View>
