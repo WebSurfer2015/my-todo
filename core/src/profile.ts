@@ -309,6 +309,32 @@ export const AVATAR_ICON_LIBRARY: Avatar[] = [
   { kind: 'icon', icon: 'sun',       color: '#FF9500' },
 ]
 
+/**
+ * Themed collectable per preset — used by PebbleStrip to render the
+ * day's check-offs as something cohesive with the user's avatar.
+ * mochi (and any unlisted preset) keeps the default pebble visual,
+ * so we return null for those and the caller renders its SVG
+ * pebble fallback.
+ */
+const COLLECTED_GLYPHS: Record<string, string> = {
+  cat: '🐟',
+  dog: '🦴',
+  bird: '🪶',
+  flower: '🌸',
+  sun: '☀️',
+  leaf: '🍃',
+  moon: '🌙',
+  butterfly: '🦋',
+  cloud: '☁️',
+  tree: '🍂',
+  owl: '🦉',
+}
+
+export function collectedGlyphFor(avatar: Avatar | undefined): string | null {
+  if (!avatar || avatar.kind !== 'preset') return null
+  return COLLECTED_GLYPHS[avatar.key] ?? null
+}
+
 export function findPreset(key: string): PresetAvatar {
   return AVATAR_PRESET_LIBRARY.find((a) => a.key === key) ?? AVATAR_PRESET_LIBRARY[0]
 }

@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, Dimensions } from 'react-native'
 import Svg, { Ellipse } from 'react-native-svg'
 import { useTheme, ThemeColors } from '../theme'
 import { useRegisterCairn } from './PebbleFlight'
+import { useStore } from '../StoreContext'
+import { collectedGlyphFor } from '../profile'
 import { darkenHex } from '../backgrounds'
 
 /**
@@ -96,6 +98,11 @@ interface Props {
 export default function PebbleStrip({ count, active = true }: Props) {
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
+  // Themed collectable for the current preset avatar — fish for
+  // the cat, bone for the dog, etc. null means render the default
+  // SVG pebble. Read at render so changes to the avatar (Edit
+  // profile → Save) re-render the strip with the new glyph.
+  const collectedGlyph = collectedGlyphFor(useStore().profile.avatar)
 
   // Register a LIVE resolver with the PebbleFlight overlay so flying
   // Mochis land exactly where the new pebble materializes. Measuring at
@@ -198,9 +205,19 @@ export default function PebbleStrip({ count, active = true }: Props) {
     >
       <View style={styles.row}>
         {Array.from({ length: visible }).map((_, i) => {
-          // Cycle the curated pebble palette by position. Stroke is a
-          // darkened version of the same hue so each stone reads as
-          // one coherent color — not a mix-and-match outline.
+          // Avatar-themed glyph (fish for cat, bone for dog, etc.)
+          // wins when the current preset maps to one. Otherwise the
+          // curated cycling-palette SVG pebble is the default.
+          if (collectedGlyph) {
+            return (
+              <Text
+                key={i}
+                style={[styles.collectedGlyph, { marginTop: Y_JITTER[i % Y_JITTER.length] }]}
+              >
+                {collectedGlyph}
+              </Text>
+            )
+          }
           const fill = PEBBLE_PALETTE[i % PEBBLE_PALETTE.length]
           const stroke = darkenHex(fill, 0.18)
           return (
@@ -300,6 +317,13 @@ function makeStyles(c: ThemeColors) {
       fontWeight: '700',
       marginLeft: 6,
       fontVariant: ['tabular-nums'],
+    },
+    // Avatar-themed collectable. Sized to roughly match the SVG
+    // pebble footprint so layout doesn't jump when the avatar changes.
+    collectedGlyph: {
+      fontSize: PEBBLE_SIZE + 4,
+      lineHeight: PEBBLE_SIZE + 6,
+      marginHorizontal: 1,
     },
   })
 }
