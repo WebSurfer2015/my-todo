@@ -294,8 +294,12 @@ function FlyingMochi({ flight, onDone }: { flight: Flight; onDone: () => void })
 function renderAvatarGlyph(avatar: Avatar | undefined): React.ReactNode {
   if (avatar?.kind === 'preset') {
     const preset = findPreset(avatar.key)
+    // No tinted bg circle during flight — the emoji rides on its
+    // own so the motion reads as "the thing itself" not "the thing
+    // in a sticker". The avatar tile (with bg) stays as-is in
+    // ProfileHeader.
     return (
-      <View style={[styles.avatarCircle, { backgroundColor: preset.bg }]}>
+      <View style={styles.avatarCircle}>
         <Text style={styles.avatarEmoji}>{preset.emoji}</Text>
       </View>
     )
@@ -334,10 +338,9 @@ const styles = StyleSheet.create({
   avatarCircle: {
     width: MOCHI_SIZE,
     height: MOCHI_SIZE,
-    borderRadius: MOCHI_SIZE / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
+    backgroundColor: 'transparent',
   },
   avatarEmoji: {
     fontSize: MOCHI_SIZE * 0.6,
