@@ -13,6 +13,7 @@
 import React, {
   createContext,
   useContext,
+  useEffect,
   useState,
   ReactNode,
   useCallback,
@@ -21,11 +22,17 @@ import { useStore } from './StoreContext'
 import ProfileSheet from './components/ProfileSheet'
 import SettingsSheet from './components/SettingsSheet'
 import BackgroundPicker from './components/BackgroundPicker'
+import GuideMenuSheet from './components/GuideMenuSheet'
+import GuideSheet from './components/GuideSheet'
+import GuidesPrompt from './components/GuidesPrompt'
+import type { Guide } from './guides'
 
 interface Sheets {
   openProfile: () => void
   openSettings: () => void
   openBackgrounds: () => void
+  /** Open the Tips & guides menu (entry point for Settings). */
+  openGuides: () => void
 }
 
 const SheetContext = createContext<Sheets | null>(null)
@@ -35,13 +42,47 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   const [profileOpen, setProfileOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [bgPickerOpen, setBgPickerOpen] = useState(false)
+  const [guideMenuOpen, setGuideMenuOpen] = useState(false)
+  // Currently-playing single guide. Null when only the menu is up
+  // (or both are closed). Setting this immediately renders the
+  // guide carousel over the menu.
+  const [activeGuide, setActiveGuide] = useState<Guide | null>(null)
+  // First-run prompt — shown once when onboarding is done and
+  // profile.guidesPromptShown is not yet set. Local visibility
+  // state lets us animate it independently of the menu.
+  const [promptOpen, setPromptOpen] = useState(false)
 
   const openProfile = useCallback(() => setProfileOpen(true), [])
   const openSettings = useCallback(() => setSettingsOpen(true), [])
   const openBackgrounds = useCallback(() => setBgPickerOpen(true), [])
+  const openGuides = useCallback(() => setGuideMenuOpen(true), [])
+
+  // Mount the first-run prompt the first time the user lands in
+  // the app post-onboarding with the flag unset. Stamping the
+  // flag inside the accept / dismiss handlers prevents repeats
+  // even if the user dismisses without action.
+  useEffect(() => {
+    if (!store.loaded) return
+    if (!store.profile.onboardingDone) return
+    if (store.profile.guidesPromptShown) return
+    // Defer a beat so the prompt doesn't race with the splash
+    // fade-out on cold launch.
+    const t = setTimeout(() => setPromptOpen(true), 600)
+    return () => clearTimeout(t)
+  }, [store.loaded, store.profile.onboardingDone, store.profile.guidesPromptShown])
+
+  function stampPromptShown() {
+    store.saveProfile({ ...store.profile, guidesPromptShown: true })
+  }
+
+  function markGuideSeen(id: string) {
+    const seen = store.profile.guidesSeen ?? []
+    if (seen.includes(id)) return
+    store.saveProfile({ ...store.profile, guidesSeen: [...seen, id] })
+  }
 
   return (
-    <SheetContext.Provider value={{ openProfile, openSettings, openBackgrounds }}>
+    <SheetContext.Provider value={{ openProfile, openSettings, openBackgrounds, openGuides }}>
       {children}
       <ProfileSheet
         visible={profileOpen}
@@ -62,6 +103,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         onShowIntro={() =>
           store.saveProfile({ ...store.profile, onboardingDone: false })
         }
+        onOpenGuides={openGuides}
         onClose={() => setSettingsOpen(false)}
       />
       <BackgroundPicker
@@ -71,6 +113,33 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           store.saveProfile({ ...store.profile, background: next })
         }
         onClose={() => setBgPickerOpen(false)}
+      />
+      <GuidesPrompt
+        visible={promptOpen}
+        onAccept={() => {
+          stampPromptShown()
+          setPromptOpen(false)
+          setGuideMenuOpen(true)
+        }}
+        onDismiss={() => {
+          stampPromptShown()
+          setPromptOpen(false)
+        }}
+      />
+      <GuideMenuSheet
+        visible={guideMenuOpen}
+        seen={store.profile.guidesSeen ?? []}
+        onSelect={(g) => setActiveGuide(g)}
+        onClose={() => setGuideMenuOpen(false)}
+      />
+      <GuideSheet
+        visible={!!activeGuide}
+        guide={activeGuide}
+        onComplete={() => {
+          if (activeGuide) markGuideSeen(activeGuide.id)
+          setActiveGuide(null)
+        }}
+        onClose={() => setActiveGuide(null)}
       />
     </SheetContext.Provider>
   )

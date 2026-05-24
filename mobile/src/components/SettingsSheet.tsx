@@ -47,6 +47,8 @@ interface Props {
   onOpenBackgrounds: () => void;
   /** Re-opens the first-launch intro (sets onboardingDone=false). */
   onShowIntro: () => void;
+  /** Opens the Tips & guides menu (parent owns the modal). */
+  onOpenGuides: () => void;
   onClose: () => void;
 }
 
@@ -56,6 +58,7 @@ export default function SettingsSheet({
   onSavePartial,
   onOpenBackgrounds,
   onShowIntro,
+  onOpenGuides,
   onClose,
 }: Props) {
   const { t } = useLang();
@@ -201,16 +204,23 @@ export default function SettingsSheet({
                 />
               </View>
 
-              {/* ABOUT — Sagely version + a "View intro again" row
-                  underneath. The intro re-open is the only thing in
-                  About that's actionable; keeping it next to the
-                  version groups all app-meta together. */}
-              <Text style={styles.sectionLabel}>ABOUT</Text>
+              {/* HELP — Tips & guides + intro re-open. Surfaced
+                  as its own section so the user can find guides
+                  without scrolling past every preference. */}
+              <Text style={styles.sectionLabel}>HELP</Text>
               <View style={styles.card}>
-                <View style={styles.rowStatic}>
-                  <Text style={styles.rowLabel}>Sagely</Text>
-                  <Text style={styles.rowValue}>v1.3.0</Text>
-                </View>
+                <TouchableOpacity
+                  style={styles.row}
+                  onPress={() => {
+                    onClose();
+                    setTimeout(() => onOpenGuides(), 280);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open Tips and guides"
+                >
+                  <Text style={styles.rowLabel}>Tips & guides</Text>
+                  <Text style={styles.rowChevron}>›</Text>
+                </TouchableOpacity>
                 <View style={styles.divider} />
                 <TouchableOpacity
                   style={styles.row}
@@ -224,6 +234,14 @@ export default function SettingsSheet({
                   <Text style={styles.rowLabel}>View intro again</Text>
                   <Text style={styles.rowChevron}>›</Text>
                 </TouchableOpacity>
+              </View>
+
+              <Text style={styles.sectionLabel}>ABOUT</Text>
+              <View style={styles.card}>
+                <View style={styles.rowStatic}>
+                  <Text style={styles.rowLabel}>Sagely</Text>
+                  <Text style={styles.rowValue}>v1.4.0</Text>
+                </View>
               </View>
 
               <View style={{ height: 24 }} />

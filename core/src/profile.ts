@@ -83,6 +83,19 @@ export interface Profile {
    */
   onboardingDone?: boolean
   /**
+   * Per-guide completion record — each id corresponds to an entry
+   * in the GUIDES catalog. Lets the Tips & Guides menu render a
+   * check next to ones the user has finished, and prevents the
+   * first-run prompt from offering already-seen guides.
+   */
+  guidesSeen?: string[]
+  /**
+   * True once the user has seen (or dismissed) the "Want a quick
+   * tour?" first-run prompt that surfaces after onboarding. Set
+   * regardless of whether they accepted — we only ask once.
+   */
+  guidesPromptShown?: boolean
+  /**
    * Daily check-in notification settings. When enabled, the app schedules
    * a single repeating local notification at the chosen hour with a
    * mascot-voice nudge. Hour is 0-23 in the user's local timezone;
@@ -401,6 +414,13 @@ export function migrateProfile(raw: unknown): Profile {
         ? p.pebblesDate
         : undefined,
     onboardingDone: p.onboardingDone === true ? true : undefined,
+    guidesSeen: Array.isArray(p.guidesSeen)
+      ? p.guidesSeen.filter(
+          (id: unknown): id is string =>
+            typeof id === 'string' && id.length > 0 && id.length < 64,
+        )
+      : undefined,
+    guidesPromptShown: p.guidesPromptShown === true ? true : undefined,
     dailyCheckinEnabled: p.dailyCheckinEnabled === true ? true : undefined,
     dailyCheckinHour:
       typeof p.dailyCheckinHour === 'number' &&
