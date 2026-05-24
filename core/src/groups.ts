@@ -1,5 +1,6 @@
 import { Priority, Todo } from './types'
 import { todayLocal, endOfWeekLocal } from './utils'
+import { dueDateOnly } from './derive'
 
 const PRIORITY_RANK: Record<Priority, number> = { high: 0, medium: 1, low: 2 }
 
@@ -37,7 +38,11 @@ export function buildGroups(todos: Todo[]): TodoGroup[] {
   const buckets: Record<GroupKey, Todo[]> = { overdue: [], today: [], week: [], upcoming: [], noDate: [], done: [] }
 
   for (const t of todos) {
-    const d = t.dueDate
+    // Bucket on the date portion only — time-bearing todos (e.g.
+    // 'by 3pm tomorrow') must sit in the same daily bucket as
+    // date-only siblings on the same day. Sort within bucket still
+    // uses the raw dueDate so timed items order by clock.
+    const d = dueDateOnly(t.dueDate)
     if (!d) buckets.noDate.push(t)
     else if (d < today) buckets.overdue.push(t)
     else if (d > endOfWeek) buckets.upcoming.push(t)

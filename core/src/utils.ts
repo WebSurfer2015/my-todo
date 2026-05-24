@@ -319,28 +319,53 @@ export function formatSavedAt(ms: number, locale = 'default', now = Date.now()):
  * `locale` is currently unused — kept for forward-compat with localized strings.
  */
 export function formatDisplayDate(iso: string, _locale = 'default', labels?: DateLabels): string {
-  const [y, m, d] = iso.split('-').map(Number)
+  // Allow both 'yyyy-mm-dd' and 'yyyy-mm-ddTHH:mm'. The display
+  // language for the date portion is identical; when a time is
+  // present we append a localized clock string after the relative
+  // label ("Today, 3:00 PM").
+  const tIndex = iso.indexOf('T')
+  const datePart = tIndex === -1 ? iso : iso.slice(0, tIndex)
+  const timePart = tIndex === -1 ? '' : iso.slice(tIndex + 1)
+  const [y, m, d] = datePart.split('-').map(Number)
   const date = new Date(y, m - 1, d)
   const now = new Date()
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const diffDays = Math.round((date.getTime() - startOfToday.getTime()) / MS_PER_DAY)
 
-  if (diffDays === 0) return labels?.today ?? 'Today'
-  if (diffDays === 1) return labels?.tomorrow ?? 'Tomorrow'
-  if (diffDays === -1) return labels?.yesterday ?? 'Yesterday'
+  let label: string
+  if (diffDays === 0) label = labels?.today ?? 'Today'
+  else if (diffDays === 1) label = labels?.tomorrow ?? 'Tomorrow'
+  else if (diffDays === -1) label = labels?.yesterday ?? 'Yesterday'
+  else {
+    const abs = Math.abs(diffDays)
+    if (abs <= 30) {
+      label = diffDays > 0 ? `in ${abs} days` : `${abs} days ago`
+    } else if (abs <= 364) {
+      const months = Math.round(abs / 30)
+      const unit = months === 1 ? 'month' : 'months'
+      label = diffDays > 0 ? `in ${months} ${unit}` : `${months} ${unit} ago`
+    } else {
+      const years = Math.round(abs / 365)
+      const yu = years === 1 ? 'year' : 'years'
+      label = diffDays > 0 ? `in ${years} ${yu}` : `${years} ${yu} ago`
+    }
+  }
 
-  const abs = Math.abs(diffDays)
-  if (abs <= 30) {
-    return diffDays > 0 ? `in ${abs} days` : `${abs} days ago`
+  if (!timePart) return label
+  // Localized time portion via Date.toLocaleTimeString — keeps
+  // "3:00 PM" vs "15:00" honoring the device locale. The date
+  // parts above use English labels for now (the labels arg
+  // already covers Today/Tomorrow/Yesterday).
+  const [hh, mm] = timePart.slice(0, 5).split(':').map(Number)
+  if (Number.isFinite(hh) && Number.isFinite(mm)) {
+    const withTime = new Date(y, m - 1, d, hh, mm)
+    const timeLabel = withTime.toLocaleTimeString(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+    return `${label}, ${timeLabel}`
   }
-  if (abs <= 364) {
-    const months = Math.round(abs / 30)
-    const unit = months === 1 ? 'month' : 'months'
-    return diffDays > 0 ? `in ${months} ${unit}` : `${months} ${unit} ago`
-  }
-  const years = Math.round(abs / 365)
-  const yu = years === 1 ? 'year' : 'years'
-  return diffDays > 0 ? `in ${years} ${yu}` : `${years} ${yu} ago`
+  return label
 }
 
 /**
@@ -349,10 +374,21 @@ export function formatDisplayDate(iso: string, _locale = 'default', labels?: Dat
  * date and the year before committing.
  */
 export function fullDateLabel(iso: string, locale: string | undefined = undefined): string {
-  const d = new Date(`${iso}T00:00:00`);
-  return d.toLocaleDateString(locale ?? undefined, {
+  const tIndex = iso.indexOf('T');
+  const datePart = tIndex === -1 ? iso : iso.slice(0, tIndex);
+  const timePart = tIndex === -1 ? '' : iso.slice(tIndex + 1);
+  const d = new Date(`${datePart}T00:00:00`);
+  const dateLabel = d.toLocaleDateString(locale ?? undefined, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
   });
+  if (!timePart) return dateLabel;
+  const [hh, mm] = timePart.slice(0, 5).split(':').map(Number);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return dateLabel;
+  const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm);
+  return `${dateLabel}, ${dt.toLocaleTimeString(locale ?? undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  })}`;
 }

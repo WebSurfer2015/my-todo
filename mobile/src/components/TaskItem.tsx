@@ -131,6 +131,7 @@ interface Props {
   onUpdateText: (id: string, text: string) => void
   onUpdateNotes?: (id: string, notes: string) => void
   onUpdateRecurrence?: (id: string, recurrence: Recurrence | undefined) => void
+  onUpdateReminder?: (id: string, reminder: Todo["reminder"] | undefined) => void
   onAddSubtask?: (id: string, text: string, priority?: Priority, dueDate?: string) => void
   onToggleSubtask?: (id: string, subId: string) => void
   onUpdateSubtaskText?: (id: string, subId: string, text: string) => void
@@ -164,7 +165,7 @@ function TaskItem({
   categories, density = 'comfortable', celebrate = true, playSound = true,
   subtaskVisibility = 'all',
   onToggle, onMoveToTrash, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onRestore, onPermanentDelete,
-  onUpdatePriority, onUpdateDueDate, onSnooze, onLongPressDefer, onUpdateCategory, onUpdateText, onUpdateNotes, onUpdateRecurrence,
+  onUpdatePriority, onUpdateDueDate, onSnooze, onLongPressDefer, onUpdateCategory, onUpdateText, onUpdateNotes, onUpdateRecurrence, onUpdateReminder,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
   dateChipFormat = 'default', tapBehavior = 'toggle', subtaskDateFilter,
@@ -1130,6 +1131,7 @@ function TaskItem({
             onUpdateDueDate={onUpdateDueDate}
             onUpdateCategory={onUpdateCategory}
             onUpdateRecurrence={onUpdateRecurrence ?? (() => {})}
+            onUpdateReminder={onUpdateReminder}
             onMoveToTrash={onMoveToTrash}
             onPermanentDelete={onPermanentDelete}
             onMoveSeriesFutureToTrash={onMoveSeriesFutureToTrash}

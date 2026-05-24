@@ -107,6 +107,24 @@ export interface Todo {
    * completionDate and surface in the "Earlier" group.
    */
   completionDate?: string
+  /**
+   * Local notification reminder spec.
+   *
+   * - One-shot: only `at` is set. Fires once at the given local time.
+   * - Recurring: `at` is the first fire, `intervalMinutes` is the
+   *   period, `until` is the inclusive cutoff (defaults to dueDate
+   *   when omitted client-side).
+   *
+   * `at`/`until` are ISO 8601 local datetimes (`yyyy-mm-ddTHH:mm`).
+   * Cleared when the todo is done, trashed, or deleted. For recurring
+   * todos, advance-on-complete rolls both `at` and `until` forward by
+   * the same delta as `dueDate`.
+   */
+  reminder?: {
+    at: string
+    intervalMinutes?: number
+    until?: string
+  }
 }
 
 /**

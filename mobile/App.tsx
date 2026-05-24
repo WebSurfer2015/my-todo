@@ -60,7 +60,7 @@ import EmptyState from "./src/components/EmptyState";
 import PebbleStrip from "./src/components/PebbleStrip";
 import Onboarding from "./src/components/Onboarding";
 import SplashOverlay from "./src/components/SplashOverlay";
-import { cancelDailyCheckin } from "./src/notifications";
+import { cancelDailyCheckin, syncTodoReminders } from "./src/notifications";
 import { installCrashReporters } from "./src/crashReporting";
 
 // Install crash reporters before any React code runs so even very early
@@ -337,6 +337,7 @@ function TodosScreen() {
                         onUpdateText={store.updateText}
                               onUpdateNotes={store.updateNotes}
                         onUpdateRecurrence={store.updateRecurrence}
+                        onUpdateReminder={store.updateReminder}
                       />
                     </View>
                   ))}
@@ -433,6 +434,7 @@ function TodosScreen() {
                               onUpdateText={store.updateText}
                               onUpdateNotes={store.updateNotes}
                               onUpdateRecurrence={store.updateRecurrence}
+                        onUpdateReminder={store.updateReminder}
                               onAddSubtask={store.addSubtask}
                               onToggleSubtask={store.toggleSubtask}
                               onUpdateSubtaskText={store.updateSubtaskText}
@@ -508,6 +510,7 @@ function TodosScreen() {
                             onUpdateText={store.updateText}
                             onUpdateNotes={store.updateNotes}
                             onUpdateRecurrence={store.updateRecurrence}
+                        onUpdateReminder={store.updateReminder}
                             onAddSubtask={store.addSubtask}
                             onToggleSubtask={store.toggleSubtask}
                             onUpdateSubtaskText={store.updateSubtaskText}
@@ -583,22 +586,24 @@ function TodosScreen() {
                           {headerLabel} ({headerCount})
                         </Text>
                       )}
-                      {openInGroupCount > 0 && (
-                        <TouchableOpacity
-                          onPress={() =>
-                            setDeferTarget({
-                              label: headerLabel,
-                              ids: openInGroup.map((td) => td.id),
-                              isTodayGroup: group.key === 'today',
-                            })
-                          }
-                          style={styles.groupHeaderDeferBtn}
-                          hitSlop={6}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Defer ${openInGroupCount} to-dos in ${headerLabel}`}
-                        >
-                          <Text style={styles.groupHeaderDeferText}>Defer all →</Text>
-                        </TouchableOpacity>
+                      {openInGroupCount > 0 &&
+                        group.key !== 'upcoming' &&
+                        group.key !== 'noDate' && (
+                          <TouchableOpacity
+                            onPress={() =>
+                              setDeferTarget({
+                                label: headerLabel,
+                                ids: openInGroup.map((td) => td.id),
+                                isTodayGroup: group.key === 'today',
+                              })
+                            }
+                            style={styles.groupHeaderDeferBtn}
+                            hitSlop={6}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Defer ${openInGroupCount} to-dos in ${headerLabel}`}
+                          >
+                            <Text style={styles.groupHeaderDeferText}>Defer all →</Text>
+                          </TouchableOpacity>
                       )}
                     </View>
                     {!collapsed && (
@@ -624,6 +629,7 @@ function TodosScreen() {
                               onUpdateText={store.updateText}
                               onUpdateNotes={store.updateNotes}
                         onUpdateRecurrence={store.updateRecurrence}
+                        onUpdateReminder={store.updateReminder}
                               onAddSubtask={store.addSubtask}
                               onToggleSubtask={store.toggleSubtask}
                               onUpdateSubtaskText={store.updateSubtaskText}
@@ -851,6 +857,15 @@ function AppGate() {
     () => (themeOverride ? { ...baseTheme, ...themeOverride } : baseTheme),
     [baseTheme, themeOverride],
   );
+
+  // Per-todo local reminder sync. Runs whenever the live todos list
+  // changes — adds new ones, cancels removed/done/trashed/cleared
+  // entries. Permission is requested at UI-action time (when the user
+  // sets a reminder); this sync silently skips if it isn't granted.
+  useEffect(() => {
+    if (!store.loaded) return;
+    void syncTodoReminders(store.todos);
+  }, [store.todos, store.loaded]);
 
   // Splash + sign-in + hydration + onboarding gates run BEFORE the tab
   // navigator mounts, so screens can assume store + user are ready.

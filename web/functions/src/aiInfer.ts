@@ -347,12 +347,21 @@ interface SuggestFieldsOutput {
      * recurrence — the user can add an end date later. */
     endDate?: string
   } | null
+  /** Reminder spec. `at` is the first fire time (ISO local
+   * `yyyy-mm-ddTHH:mm`). For interval reminders, `intervalMinutes`
+   * is the cadence and `until` is the cutoff. One-shot when no
+   * interval. Null when the text doesn't mention a clock time. */
+  reminder: {
+    at: string
+    intervalMinutes?: number
+    until?: string
+  } | null
 }
 
 const SUGGEST_FIELDS_SYSTEM = `You read one to-do title and suggest field values the user can tap to apply.
 
 Output ONLY a JSON object on one line, no prose, no markdown, no code fences:
-{"category":"<id>" or null,"newCategoryLabel":"<label>" or null,"priority":"high"|"medium"|"low" or null,"dueDate":"yyyy-mm-dd" or null,"recurrence":{"freq":"daily"|"weekly"|"monthly"|"yearly","byWeekday":[0-6 ints],"endDate":"yyyy-mm-dd"} or null}
+{"category":"<id>" or null,"newCategoryLabel":"<label>" or null,"priority":"high"|"medium"|"low" or null,"dueDate":"yyyy-mm-dd" or "yyyy-mm-ddTHH:mm" or null,"recurrence":{"freq":"daily"|"weekly"|"monthly"|"yearly","byWeekday":[0-6 ints],"endDate":"yyyy-mm-dd"} or null,"reminder":{"at":"yyyy-mm-ddTHH:mm","intervalMinutes":positive int,"until":"yyyy-mm-ddTHH:mm"} or null}
 
 Rules — every field is independently nullable. At most ONE of
 \`category\` and \`newCategoryLabel\` may be non-null:
@@ -379,7 +388,13 @@ Rules — every field is independently nullable. At most ONE of
   - "next Monday" → upcoming Monday strictly after today
   - "by Friday" → upcoming Friday
   - No date mentioned → null
-  Always return ISO yyyy-mm-dd, never relative phrases.
+  Always return ISO yyyy-mm-dd. APPEND a local-time suffix
+  'THH:mm' (24-hour) ONLY when the text explicitly states a clock
+  time as the deadline:
+  - "by 3pm tomorrow"    → "<tomorrow>T15:00"
+  - "due friday at 9am"  → "<friday>T09:00"
+  - "by noon today"      → "<today>T12:00"
+  Otherwise keep it date-only. NEVER invent a time.
 - recurrence: only when the text clearly implies a repeating task.
   Returns an object with 'freq' plus optional 'byWeekday' (array
   of integers 0=Sunday..6=Saturday) and optional 'endDate' (ISO
@@ -406,6 +421,35 @@ Rules — every field is independently nullable. At most ONE of
   "until <date>", "by <date>", "this <month>". Resolve the end
   date relative to <today>. Never invent a recurrence to "be
   helpful". A one-time task with a future date is still null.
+
+- reminder: a notification spec. ALWAYS an object with:
+  - 'at' (required): first fire time, ISO local 'yyyy-mm-ddTHH:mm'
+  - 'intervalMinutes' (optional, positive int): repeat cadence
+  - 'until' (optional, ISO local datetime): stop repeating at this time
+  Only set when the text contains either:
+  - an explicit clock time on a clear date — "pickup at 3pm tomorrow"
+    → {"at":"<tomorrow>T15:00"}
+  - a relative offset to a due time — "remind me 1h before the 2pm
+    meeting" → {"at":"<that day>T13:00"}
+  - a recurring nudge — "remind me every 2 hours until 3pm" →
+    {"at":"<now-aligned>","intervalMinutes":120,"until":"<that day>T15:00"}
+  - the morning of a date — return at=09:00 only if the text
+    explicitly says "morning of"
+  When the recurring phrase has no "until" but the text states a due
+  time (e.g. "by 3pm tomorrow, remind every 2 hours"), set 'until'
+  to that due datetime. NEVER schedule a recurring reminder with no
+  upper bound — drop it instead. Default to null when no time is
+  mentioned. Examples (assume today=2026-05-23):
+    "pickup Maya at 3pm tomorrow"
+      → {"at":"2026-05-24T15:00"}
+    "remind me 30 min before pickup at 4pm"
+      → {"at":"2026-05-23T15:30"}
+    "by 3pm tomorrow, remind me every 2 hours"
+      → {"at":"<now+2h aligned>","intervalMinutes":120,"until":"2026-05-24T15:00"}
+    "every 30 min between 9am and noon"
+      → {"at":"2026-05-23T09:00","intervalMinutes":30,"until":"2026-05-23T12:00"}
+    "submit report by friday"            → null  (no clock time)
+    "buy milk tomorrow"                  → null
 
 Be conservative — return null when uncertain. The user only sees
 suggestions you're confident about.
@@ -445,7 +489,10 @@ function validateSuggestFieldsInput(raw: unknown): SuggestFieldsInput {
     throw new HttpsError('invalid-argument', 'categories list required.')
   }
   const validated: Array<{ id: string; label: string }> = []
-  for (const c of categories.slice(0, 30)) {
+  // Cap at 10 sent to the model — most users have far fewer real
+  // categories, and 10 covers the practical maximum without burning
+  // tokens on long tail entries the model would never pick anyway.
+  for (const c of categories.slice(0, 10)) {
     if (!c || typeof c !== 'object') continue
     const { id, label } = c as { id?: unknown; label?: unknown }
     if (typeof id !== 'string' || id.length === 0 || id.length > 64) continue
@@ -474,7 +521,7 @@ function parseSuggestFieldsOutput(text: string): SuggestFieldsOutput {
   // Malformed output on an ambient feature → all-null. The client
   // shows no pills and the user types as usual.
   const empty: SuggestFieldsOutput = {
-    category: null, newCategoryLabel: null, priority: null, dueDate: null, recurrence: null,
+    category: null, newCategoryLabel: null, priority: null, dueDate: null, recurrence: null, reminder: null,
   }
   let parsed: unknown
   try {
@@ -504,7 +551,7 @@ function parseSuggestFieldsOutput(text: string): SuggestFieldsOutput {
     out.priority = rawPri
   }
   const rawDate = (parsed as { dueDate?: unknown }).dueDate
-  if (typeof rawDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+  if (typeof rawDate === 'string' && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(rawDate)) {
     out.dueDate = rawDate
   }
   const rawRec = (parsed as { recurrence?: unknown }).recurrence
@@ -534,6 +581,29 @@ function parseSuggestFieldsOutput(text: string): SuggestFieldsOutput {
         rec.endDate = endDate
       }
       out.recurrence = rec
+    }
+  }
+  const rawRem = (parsed as { reminder?: unknown }).reminder
+  if (rawRem && typeof rawRem === 'object') {
+    const r = rawRem as { at?: unknown; intervalMinutes?: unknown; until?: unknown }
+    if (typeof r.at === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(r.at)) {
+      const rem: NonNullable<SuggestFieldsOutput['reminder']> = { at: r.at }
+      if (
+        typeof r.intervalMinutes === 'number' &&
+        Number.isFinite(r.intervalMinutes) &&
+        r.intervalMinutes >= 1 &&
+        r.intervalMinutes <= 60 * 24 * 7
+      ) {
+        rem.intervalMinutes = Math.floor(r.intervalMinutes)
+      }
+      if (typeof r.until === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(r.until)) {
+        rem.until = r.until
+      }
+      // Drop unbounded recurring — too noisy for the user.
+      if (rem.intervalMinutes && !rem.until) {
+        delete rem.intervalMinutes
+      }
+      out.reminder = rem
     }
   }
   return out

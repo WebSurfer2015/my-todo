@@ -543,6 +543,15 @@ export function useTodoStore() {
     [setTodos],
   );
 
+  // Pass `undefined` to clear. App.tsx's syncTodoReminders effect
+  // diffs against scheduled OS notifications and reconciles.
+  const updateReminder = useCallback(
+    (id: string, reminder: Todo["reminder"] | undefined) => {
+      setTodos((prev) => todoSet(prev, id, "reminder", reminder));
+    },
+    [setTodos],
+  );
+
   // Overwhelm-mode escape hatch. Shifts every open overdue item's
   // dueDate forward by `daysFromToday` and shows an undo snackbar that
   // captures each original date so the action is fully reversible.
@@ -770,10 +779,11 @@ export function useTodoStore() {
     dueDate: string,
     category?: Category,
     recurrence?: Recurrence,
-    extras?: { notes?: string; subtasks?: Subtask[] },
+    extras?: { notes?: string; subtasks?: Subtask[]; reminder?: Todo["reminder"] },
   ) {
     const notes = extras?.notes;
     const subtasks = extras?.subtasks;
+    const reminder = extras?.reminder;
     // Record a suggestion-history reference for every added todo —
     // not just completed ones. The dedupe key is lowercased text, so
     // re-adding the same item just refreshes the existing reference
@@ -783,7 +793,7 @@ export function useTodoStore() {
       recordTodoReference(prev, { text, priority, category, recurrence }),
     );
     setTodos((prev) => [
-      newTodo({ text, priority, dueDate, category, recurrence, subtasks, notes }),
+      newTodo({ text, priority, dueDate, category, recurrence, subtasks, notes, reminder }),
       ...prev,
     ]);
   }
@@ -1388,6 +1398,7 @@ export function useTodoStore() {
     permanentlyDelete,
     updatePriority,
     updateDueDate,
+    updateReminder,
     bulkDeferTodos,
     snooze,
     deferOverdue,

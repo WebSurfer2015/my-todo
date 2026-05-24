@@ -49,6 +49,7 @@ export function newTodo(input: {
   recurrence?: Recurrence;
   subtasks?: Subtask[];
   notes?: string;
+  reminder?: Todo["reminder"];
 }): Todo {
   const notes =
     typeof input.notes === "string" && input.notes.length > 0
@@ -66,7 +67,20 @@ export function newTodo(input: {
     ...(input.recurrence ? { recurrence: input.recurrence } : {}),
     ...(input.subtasks && input.subtasks.length > 0 ? { subtasks: input.subtasks } : {}),
     ...(notes ? { notes } : {}),
+    ...(input.reminder?.at ? { reminder: input.reminder } : {}),
   };
+}
+
+/**
+ * Strip the optional time suffix from a dueDate. Used everywhere the
+ * date is bucketed/compared/grouped, since time-bearing todos must
+ * sort into the same bucket as their date-only siblings on the same
+ * day. Empty input returns empty.
+ */
+export function dueDateOnly(dueDate: string | undefined): string {
+  if (!dueDate) return "";
+  const t = dueDate.indexOf("T");
+  return t === -1 ? dueDate : dueDate.slice(0, t);
 }
 
 /**
@@ -77,6 +91,38 @@ export function newTodo(input: {
 function cloneSubtasksFresh(subs: Subtask[] | undefined): Subtask[] | undefined {
   if (!subs || subs.length === 0) return undefined;
   return subs.map((s) => ({ ...s, id: genUuid(), done: false }));
+}
+
+/**
+ * Roll a local-datetime string forward by the same day-delta between
+ * the old and new dueDate. Preserves the time-of-day the user set
+ * (e.g., "remind 1h before pickup at 2pm" stays "1h before 2pm" on
+ * the next occurrence). Falls back to the original value if any
+ * input fails to parse — better to leave the reminder where it is
+ * than to drop it silently.
+ */
+function rollDateTime(at: string, fromDate: string, toDate: string): string {
+  // Strip time suffixes from the date inputs so the day-delta is
+  // purely date-based — recurrence rolls by whole days, not by the
+  // time-of-day of the dueDate.
+  const from = new Date(dueDateOnly(fromDate) + "T00:00:00");
+  const to = new Date(dueDateOnly(toDate) + "T00:00:00");
+  const remind = new Date(at);
+  if (Number.isNaN(from.valueOf()) || Number.isNaN(to.valueOf()) || Number.isNaN(remind.valueOf())) {
+    return at;
+  }
+  const deltaMs = to.valueOf() - from.valueOf();
+  const next = new Date(remind.valueOf() + deltaMs);
+  // Return the same `yyyy-mm-ddTHH:mm` shape we stored (local time,
+  // no timezone suffix). Reconstructing via getFullYear/etc. keeps
+  // the original local hour even across DST changes (deltaMs would
+  // shift it by an hour otherwise).
+  const y = next.getFullYear();
+  const m = String(next.getMonth() + 1).padStart(2, "0");
+  const d = String(next.getDate()).padStart(2, "0");
+  const hh = String(remind.getHours()).padStart(2, "0");
+  const mm = String(remind.getMinutes()).padStart(2, "0");
+  return `${y}-${m}-${d}T${hh}:${mm}`;
 }
 
 /**
@@ -246,6 +292,18 @@ export function todoToggle(prev: Todo[], id: string): Todo[] {
           s.done ? { ...s, done: false } : s,
         ),
       };
+      // Reminder rolls forward by the same day-delta as dueDate.
+      // The snapshot stays reminder-free — a past occurrence's
+      // reminder firing would be noise, and Notifications.cancel
+      // for the original id covers the existing scheduled ones.
+      if (td.reminder?.at) {
+        rolledNext.reminder = {
+          at: rollDateTime(td.reminder.at, td.dueDate, rolled),
+          ...(td.reminder.intervalMinutes ? { intervalMinutes: td.reminder.intervalMinutes } : {}),
+          ...(td.reminder.until ? { until: rollDateTime(td.reminder.until, td.dueDate, rolled) } : {}),
+        };
+      }
+      delete (snapshot as Todo).reminder;
       return [rolledNext, snapshot];
     }
     // Parent.done is derived from subs — toggling the parent directly is
@@ -261,6 +319,9 @@ export function todoToggle(prev: Todo[], id: string): Todo[] {
     if (nextDone) {
       next.trashedAt = now;
       next.completionDate = today;
+      // Done items don't need a future reminder. The scheduler
+      // diffs on this field and cancels every queued fire.
+      delete next.reminder;
     } else {
       delete next.trashedAt;
       delete next.completionDate;
@@ -829,6 +890,28 @@ export function migrateTodos(
     if (recurrence) merged.recurrence = recurrence;
     if (notes && notes.length > 0) merged.notes = notes;
     if (completionDate) merged.completionDate = completionDate;
+    // Reminder: validate the shape. `at` is required, must be a
+    // datetime string. interval/until are optional. Past-dated
+    // `at` still passes through; the scheduler filters at schedule
+    // time. Legacy `remindAt` (a single string) from a previous
+    // build is migrated into `reminder.at`.
+    const rawRem = (item as { reminder?: unknown; remindAt?: unknown }).reminder
+      ?? ((item as { remindAt?: unknown }).remindAt
+        ? { at: (item as { remindAt?: unknown }).remindAt }
+        : undefined);
+    if (rawRem && typeof rawRem === "object") {
+      const r = rawRem as { at?: unknown; intervalMinutes?: unknown; until?: unknown };
+      if (typeof r.at === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(r.at)) {
+        const reminder: NonNullable<Todo["reminder"]> = { at: r.at };
+        if (typeof r.intervalMinutes === "number" && Number.isFinite(r.intervalMinutes) && r.intervalMinutes >= 1) {
+          reminder.intervalMinutes = Math.floor(r.intervalMinutes);
+        }
+        if (typeof r.until === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(r.until)) {
+          reminder.until = r.until;
+        }
+        merged.reminder = reminder;
+      }
+    }
 
     // Dedupe by id — last write (or higher updatedAt) wins.
     const existing = seen.get(id);
@@ -1003,7 +1086,7 @@ export function deriveState(input: DeriveInput): DerivedState {
   // including tasks the user already completed. The done state is meaningful
   // history (you finished it, even if late), so it surfaces here too.
   const isOverdue = (td: Todo) =>
-    !!td.dueDate && td.dueDate < today;
+    !!td.dueDate && dueDateOnly(td.dueDate) < today;
   const active = todos.filter((td) => !td.trashed);
 
   // Items just completed today linger in the open / overdue / category

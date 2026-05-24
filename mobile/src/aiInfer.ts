@@ -72,6 +72,13 @@ export interface SuggestFieldsResult {
     byWeekday?: number[]
     endDate?: string
   } | null
+  /** Reminder spec. One-shot when no intervalMinutes; recurring
+   * when interval+until set. Null when no clock time mentioned. */
+  reminder: {
+    at: string
+    intervalMinutes?: number
+    until?: string
+  } | null
 }
 
 async function callAiInfer<R>(mode: string, input: unknown): Promise<R> {
@@ -126,6 +133,6 @@ export async function suggestTodoFields(input: SuggestFieldsInput): Promise<Sugg
   try {
     return await callAiInfer<SuggestFieldsResult>('suggest-todo-fields', input)
   } catch {
-    return { category: null, newCategoryLabel: null, priority: null, dueDate: null, recurrence: null }
+    return { category: null, newCategoryLabel: null, priority: null, dueDate: null, recurrence: null, reminder: null }
   }
 }

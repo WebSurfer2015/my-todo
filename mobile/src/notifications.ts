@@ -169,3 +169,199 @@ export async function unregisterDevice(uid: string): Promise<void> {
     console.warn('unregisterDevice failed', err)
   }
 }
+
+// ── Per-todo local reminders ───────────────────────────────────────────────
+//
+// Each todo's `reminder` spec expands to one OR MANY scheduled OS
+// notifications. One-shot reminders schedule a single fire.
+// Recurring reminders schedule fires from `at`, stepping by
+// `intervalMinutes`, up to `until` (inclusive), capped at
+// MAX_FIRES_PER_TODO so a single todo can't exhaust iOS's
+// ~64-notification global budget.
+//
+// Identifier scheme: `todo:<todoId>:<fireIndex>`. Each fire
+// cancels independently, so reshape/edit needs only to cancel the
+// indices that no longer match and schedule any new ones.
+//
+// `syncTodoReminders` is the entry point. Safe to call as often as
+// the todo list changes — only deltas hit the native bridge.
+
+const REMINDER_ID_PREFIX = 'todo:'
+const MAX_FIRES_PER_TODO = 30
+
+interface ScheduledFire {
+  index: number
+  at: Date
+}
+
+function reminderIdFor(todoId: string, fireIndex: number): string {
+  return `${REMINDER_ID_PREFIX}${todoId}:${fireIndex}`
+}
+
+function todoIdFromReminderId(id: string): string | null {
+  if (!id.startsWith(REMINDER_ID_PREFIX)) return null
+  // Strip the prefix and the trailing `:N`; anything between is the
+  // todo id (which is a UUID — `:` won't appear inside it).
+  const rest = id.slice(REMINDER_ID_PREFIX.length)
+  const lastColon = rest.lastIndexOf(':')
+  if (lastColon === -1) return null
+  return rest.slice(0, lastColon)
+}
+
+function fireIndexFromReminderId(id: string): number | null {
+  const rest = id.slice(REMINDER_ID_PREFIX.length)
+  const lastColon = rest.lastIndexOf(':')
+  if (lastColon === -1) return null
+  const n = Number(rest.slice(lastColon + 1))
+  return Number.isFinite(n) ? n : null
+}
+
+/** Parse an ISO datetime to a Date. Returns null if unparseable or
+ * already past — past-dated fires are dropped silently. */
+function parseFutureDate(at: string): Date | null {
+  const d = new Date(at)
+  if (Number.isNaN(d.valueOf())) return null
+  if (d.valueOf() <= Date.now() + 500) return null
+  return d
+}
+
+/** Compute the fire schedule for one reminder. One-shot → [at] when
+ * at is in the future. Recurring → fires at `at + k * interval` for
+ * k = 0,1,2,... while ≤ until and k < MAX_FIRES_PER_TODO. Past-dated
+ * fires are skipped (so a recurring reminder set hours ago still
+ * fires its remaining future occurrences instead of nothing). */
+function computeFires(reminder: { at: string; intervalMinutes?: number; until?: string }): ScheduledFire[] {
+  const first = new Date(reminder.at)
+  if (Number.isNaN(first.valueOf())) return []
+  const now = Date.now()
+  if (!reminder.intervalMinutes) {
+    return first.valueOf() > now + 500 ? [{ index: 0, at: first }] : []
+  }
+  const stepMs = reminder.intervalMinutes * 60_000
+  const until = reminder.until ? new Date(reminder.until) : null
+  const untilMs = until && !Number.isNaN(until.valueOf()) ? until.valueOf() : Infinity
+  const fires: ScheduledFire[] = []
+  for (let k = 0; k < MAX_FIRES_PER_TODO; k++) {
+    const at = new Date(first.valueOf() + k * stepMs)
+    if (at.valueOf() > untilMs) break
+    if (at.valueOf() > now + 500) fires.push({ index: k, at })
+  }
+  return fires
+}
+
+interface TodoForReminder {
+  id: string
+  text: string
+  reminder?: { at: string; intervalMinutes?: number; until?: string }
+  done: boolean
+  trashed: boolean
+}
+
+export async function syncTodoReminders(todos: TodoForReminder[]): Promise<void> {
+  const settings = await Notifications.getPermissionsAsync().catch(() => null)
+  if (!settings || settings.status !== 'granted') return
+
+  // Desired schedule, keyed by (todoId, fireIndex) so the diff can
+  // be done in one pass.
+  const desired = new Map<string, { todoId: string; title: string; at: Date }>()
+  for (const td of todos) {
+    if (td.trashed || td.done || !td.reminder?.at) continue
+    const fires = computeFires(td.reminder)
+    for (const fire of fires) {
+      desired.set(reminderIdFor(td.id, fire.index), {
+        todoId: td.id,
+        title: td.text,
+        at: fire.at,
+      })
+    }
+  }
+
+  let scheduled: Notifications.NotificationRequest[] = []
+  try {
+    scheduled = await Notifications.getAllScheduledNotificationsAsync()
+  } catch {
+    // If we can't read the current set, fall back to "schedule
+    // everything desired" — the OS dedupes by identifier so it stays
+    // correct, just slightly noisier.
+    scheduled = []
+  }
+
+  const existingByKey = new Map<string, Notifications.NotificationRequest>()
+  for (const req of scheduled) {
+    if (req.identifier.startsWith(REMINDER_ID_PREFIX)) {
+      existingByKey.set(req.identifier, req)
+    }
+  }
+
+  // Cancel: anything previously scheduled that's no longer desired,
+  // or whose target time / title changed.
+  const cancels: Promise<void>[] = []
+  for (const [key, req] of existingByKey.entries()) {
+    const want = desired.get(key)
+    const currentDate = (req.trigger as { date?: number | Date } | null)?.date
+    const currentMs =
+      currentDate instanceof Date ? currentDate.valueOf() : typeof currentDate === 'number' ? currentDate : undefined
+    const sameTime =
+      want != null && currentMs != null && Math.abs(want.at.valueOf() - currentMs) < 1000
+    const sameTitle = want != null && req.content.title === want.title
+    if (!want || !sameTime || !sameTitle) {
+      cancels.push(Notifications.cancelScheduledNotificationAsync(req.identifier).catch(() => {}))
+    }
+  }
+  await Promise.all(cancels)
+
+  // Schedule: any desired key that didn't exist OR was just
+  // canceled. Skip ones already correctly scheduled.
+  const schedules: Promise<unknown>[] = []
+  for (const [key, spec] of desired.entries()) {
+    const existing = existingByKey.get(key)
+    const currentDate = (existing?.trigger as { date?: number | Date } | null)?.date
+    const currentMs =
+      currentDate instanceof Date ? currentDate.valueOf() : typeof currentDate === 'number' ? currentDate : undefined
+    const sameTime =
+      currentMs != null && Math.abs(spec.at.valueOf() - currentMs) < 1000
+    const sameTitle = existing != null && existing.content.title === spec.title
+    if (existing && sameTime && sameTitle) continue
+
+    schedules.push(
+      Notifications.scheduleNotificationAsync({
+        identifier: key,
+        content: {
+          title: spec.title,
+          body: 'Reminder',
+          sound: false,
+          data: { todoId: spec.todoId },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: spec.at,
+        },
+      }).catch((err: unknown) => console.warn('scheduleTodoReminder failed', err)),
+    )
+  }
+  await Promise.all(schedules)
+}
+
+/** Best-effort cancel for every fire scheduled under a single todo
+ * id. Useful for paths that delete a todo permanently and want
+ * immediate feedback without waiting for the next syncTodoReminders
+ * diff. Reads the OS schedule and cancels each `todo:<id>:N`. */
+export async function cancelTodoReminder(todoId: string): Promise<void> {
+  let scheduled: Notifications.NotificationRequest[] = []
+  try {
+    scheduled = await Notifications.getAllScheduledNotificationsAsync()
+  } catch {
+    return
+  }
+  const targets = scheduled.filter(
+    (req) => todoIdFromReminderId(req.identifier) === todoId,
+  )
+  await Promise.all(
+    targets.map((req) =>
+      Notifications.cancelScheduledNotificationAsync(req.identifier).catch(() => {}),
+    ),
+  )
+  // Silence unused-warning for fireIndex helper — kept exported for
+  // future test/debug paths that introspect the schedule.
+  void fireIndexFromReminderId
+}

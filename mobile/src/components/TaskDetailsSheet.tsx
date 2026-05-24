@@ -12,7 +12,7 @@ import {
   Alert,
 } from 'react-native'
 import Svg, { Path, Line, Polyline, Rect } from 'react-native-svg'
-import { Repeat } from 'lucide-react-native'
+import { Bell, Repeat } from 'lucide-react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import * as Haptics from 'expo-haptics'
 import { Category, Priority, Subtask, Todo, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
@@ -42,6 +42,7 @@ import {
   SuggestStepsReview,
 } from './SuggestStepsPanel'
 import { useTodoFieldSuggestions, TodoFieldSuggestPills } from './TodoFieldSuggestPills'
+import { ensurePermission } from '../notifications'
 import CustomRecurrenceForm from './CustomRecurrenceForm'
 
 function recurrenceLabel(rec: Recurrence | undefined): string {
@@ -72,18 +73,102 @@ function recurrenceLabel(rec: Recurrence | undefined): string {
  * date the user explicitly picked.
  */
 function absoluteDateLabel(iso: string): string {
-  const d = new Date(`${iso}T00:00:00`)
+  const tIndex = iso.indexOf('T')
+  const datePart = tIndex === -1 ? iso : iso.slice(0, tIndex)
+  const timePart = tIndex === -1 ? '' : iso.slice(tIndex + 1)
+  const d = new Date(`${datePart}T00:00:00`)
   const sameYear = d.getFullYear() === new Date().getFullYear()
-  return d.toLocaleDateString(undefined, {
+  const dateLabel = d.toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
     ...(sameYear ? {} : { year: 'numeric' }),
   })
+  if (!timePart) return dateLabel
+  const [hh, mm] = timePart.slice(0, 5).split(':').map(Number)
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return dateLabel
+  const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm)
+  return `${dateLabel}, ${dt.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  })}`
 }
 
 function isCustomRecurrence(rec: Recurrence | undefined): boolean {
   return !!rec && Array.isArray(rec.byWeekday) && rec.byWeekday.length > 0
 }
+
+/** ISO-8601 local datetime without timezone suffix — what we store for
+ * remindAt. Matches the format the AI is asked to return so the
+ * scheduler can read either source identically. */
+function isoLocalDateTime(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${y}-${m}-${day}T${hh}:${mm}`
+}
+
+/** Friendly label for a datetime: short date + local time. */
+function formatDateTime(at: string): string {
+  const d = new Date(at)
+  if (Number.isNaN(d.valueOf())) return at
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  const datePart = d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  })
+  const timePart = d.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+  return `${datePart}, ${timePart}`
+}
+
+/** Compact label for an interval — "1h", "30m", "2h 30m". */
+function formatInterval(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return m === 0 ? `${h}h` : `${h}h ${m}m`
+}
+
+/** Compose the user-visible label for a reminder. One-shot → just
+ * the datetime. Recurring → "every Xh until Wed 3pm". */
+function formatReminder(reminder: Todo["reminder"] | undefined): string {
+  if (!reminder?.at) return ''
+  if (!reminder.intervalMinutes) return formatDateTime(reminder.at)
+  const cadence = formatInterval(reminder.intervalMinutes)
+  return reminder.until
+    ? `every ${cadence} until ${formatDateTime(reminder.until)}`
+    : `every ${cadence}`
+}
+
+/** Reasonable initial picker date when the user opens the sub-view
+ * with no current reminder set: morning of the dueDate (9am), or
+ * 1h from now if the todo has no dueDate. */
+function defaultRemindDate(dueDate: string): Date {
+  const dateOnly = dueDate.includes('T') ? dueDate.slice(0, dueDate.indexOf('T')) : dueDate
+  if (dateOnly && /^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) {
+    const d = new Date(`${dateOnly}T09:00:00`)
+    if (d.valueOf() > Date.now()) return d
+  }
+  return new Date(Date.now() + 60 * 60 * 1000)
+}
+
+/** Interval choices surfaced in the Reminder sub-view. None disables
+ * recurrence; any other value enables it and reveals the Until row. */
+const REMIND_INTERVAL_CHOICES: Array<{ minutes: number | undefined; label: string }> = [
+  { minutes: undefined, label: 'Once' },
+  { minutes: 15, label: '15m' },
+  { minutes: 30, label: '30m' },
+  { minutes: 60, label: '1h' },
+  { minutes: 120, label: '2h' },
+  { minutes: 240, label: '4h' },
+  { minutes: 360, label: '6h' },
+  { minutes: 720, label: '12h' },
+]
 
 function XIcon({ size = 18, color = '#999' }: { size?: number; color?: string }) {
   return (
@@ -140,6 +225,11 @@ interface Props {
   onUpdateDueDate: (id: string, dueDate: string) => void
   onUpdateCategory: (id: string, category: Category) => void
   onUpdateRecurrence: (id: string, recurrence: Recurrence | undefined) => void
+  /** Set/clear the reminder. Pass `undefined` to clear; pass a
+   * reminder object for one-shot (`{at}`) or recurring (`{at,
+   * intervalMinutes, until}`). The OS-level schedule is reconciled
+   * separately by App.tsx's syncTodoReminders effect. */
+  onUpdateReminder?: (id: string, reminder: Todo["reminder"] | undefined) => void
   onMoveToTrash: (id: string) => void
   /** Optional — used by the "Delete to-do" action to permanently delete a
    * done item (skipping the trash step). Open items still go to trash. */
@@ -170,7 +260,7 @@ interface Props {
 
 export default function TaskDetailsSheet({
   visible, todo, categories, initialSubtaskEditId, onClose, onUpdateText, onUpdateNotes,
-  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onMoveToTrash, onPermanentDelete, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits,
+  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminder, onMoveToTrash, onPermanentDelete, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
   agentEnabled,
@@ -217,6 +307,9 @@ export default function TaskDetailsSheet({
     today: todayLocal(),
     categories: aiFieldCategories,
     agentEnabled: !!agentEnabled,
+    // Seed text so AI doesn't fire when the user just opens an
+    // existing todo — only when they actually edit the title.
+    initialText: todo.text,
   })
   const [editPriorityOpen, setEditPriorityOpen] = useState(false)
   const [editCategoryOpen, setEditCategoryOpen] = useState(false)
@@ -226,7 +319,21 @@ export default function TaskDetailsSheet({
   // when the user taps the bottom Done action (or discarded on Back).
   const [pendingEditDueDate, setPendingEditDueDate] = useState<string>('')
   const [editRecurrence, setEditRecurrence] = useState<Recurrence | undefined>(undefined)
-  const [parentEditView, setParentEditView] = useState<'main' | 'repeat' | 'customRepeat' | 'date' | 'recurEndDate'>('main')
+  const [parentEditView, setParentEditView] = useState<'main' | 'repeat' | 'customRepeat' | 'date' | 'recurEndDate' | 'remindAt'>('main')
+  // Reminder state — editor tracks the pending object (or null when
+  // cleared); on Save we commit + sync. Mirrors the existing
+  // pending-date pattern.
+  const [editReminder, setEditReminder] = useState<Todo["reminder"] | undefined>(todo.reminder)
+  const [remindPickerDate, setRemindPickerDate] = useState<Date>(new Date())
+  // The 'at' working value while the sub-view is open. Empty means
+  // "no reminder" (Clear). Interval/until live in their own pending
+  // pieces below.
+  const [pendingRemindAt, setPendingRemindAt] = useState<string>('')
+  const [pendingRemindInterval, setPendingRemindInterval] = useState<number | undefined>(undefined)
+  const [pendingRemindUntil, setPendingRemindUntil] = useState<string>('')
+  // Which inner field of the Remind sub-view is being edited — 'main'
+  // (the picker for `at`), 'until' (picker for the cutoff datetime).
+  const [remindSubView, setRemindSubView] = useState<'main' | 'until'>('main')
   const [endDatePickerDate, setEndDatePickerDate] = useState<Date>(new Date())
   // Pending while the Repeat-ends page is open; same semantics as the
   // other pending date states.
@@ -268,6 +375,7 @@ export default function TaskDetailsSheet({
       setEditCategory(todo.category)
       setEditDueDate(todo.dueDate ?? '')
       setEditRecurrence(todo.recurrence)
+      setEditReminder(todo.reminder)
       setParentEditView('main')
       // Honor an opener-provided "open into subtask edit" intent. If the
       // caller passed a subtask id, jump straight into its edit form.
@@ -327,6 +435,24 @@ export default function TaskDetailsSheet({
       onUpdateRecurrence(todo.id, r)
     }
   }
+  async function applyReminder(reminder: Todo["reminder"] | undefined) {
+    setEditReminder(reminder)
+    const sameAsStored =
+      JSON.stringify(reminder ?? null) === JSON.stringify(todo.reminder ?? null)
+    if (sameAsStored) return
+    if (reminder?.at && !(await ensurePermission())) {
+      Alert.alert(
+        t.remindPermissionDeniedTitle,
+        t.remindPermissionDeniedBody,
+      )
+      // Bail without committing — the OS won't fire the notification
+      // and saving the field would lie to the user. Reset the local
+      // editor so the row reflects the actual stored value.
+      setEditReminder(todo.reminder)
+      return
+    }
+    onUpdateReminder?.(todo.id, reminder)
+  }
   function closeAndFlushText() {
     // "Save" path — final flush in case the user closed without
     // blurring an input. Other fields (priority, date, category,
@@ -353,7 +479,10 @@ export default function TaskDetailsSheet({
   function handleEditDateChange(_event: DateTimePickerEvent, selected?: Date) {
     if (!selected) return
     setEditPickerDate(selected)
-    setPendingEditDueDate(isoDate(selected))
+    // Completed by now stores full local datetime. AI-extracted
+    // times also flow through this field. The grouping helpers in
+    // core (dueDateOnly) strip the time when bucketing.
+    setPendingEditDueDate(isoLocalDateTime(selected))
   }
 
   function openSubDate(s: Subtask) {
@@ -708,7 +837,7 @@ export default function TaskDetailsSheet({
                 )}
                 <DateTimePicker
                   value={editPickerDate}
-                  mode="date"
+                  mode="datetime"
                   display={Platform.OS === 'ios' ? 'inline' : 'default'}
                   themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
                   onChange={handleEditDateChange}
@@ -729,6 +858,40 @@ export default function TaskDetailsSheet({
                 </TouchableOpacity>
               </View>
             </>
+          ) : parentEditView === 'remindAt' ? (
+            <ReminderSubView
+              styles={styles}
+              theme={theme}
+              t={t}
+              remindSubView={remindSubView}
+              setRemindSubView={setRemindSubView}
+              pendingRemindAt={pendingRemindAt}
+              setPendingRemindAt={setPendingRemindAt}
+              pendingRemindInterval={pendingRemindInterval}
+              setPendingRemindInterval={setPendingRemindInterval}
+              pendingRemindUntil={pendingRemindUntil}
+              setPendingRemindUntil={setPendingRemindUntil}
+              remindPickerDate={remindPickerDate}
+              setRemindPickerDate={setRemindPickerDate}
+              dueDate={editDueDate}
+              onCancel={() => setParentEditView('main')}
+              onSave={() => {
+                // Build reminder from pending pieces. Empty at → clear.
+                let next: Todo["reminder"] | undefined
+                if (pendingRemindAt) {
+                  next = { at: pendingRemindAt }
+                  if (pendingRemindInterval) {
+                    next.intervalMinutes = pendingRemindInterval
+                    // Default `until` to dueDate (with time when set,
+                    // else end-of-day) when the user enables an
+                    // interval without picking an explicit cutoff.
+                    const fallbackUntil = pendingRemindUntil || dueDateAsUntil(editDueDate)
+                    if (fallbackUntil) next.until = fallbackUntil
+                  }
+                }
+                void applyReminder(next).then(() => setParentEditView('main'))
+              }}
+            />
           ) : parentEditView === 'recurEndDate' && editRecurrence ? (
             <>
               <View style={styles.editHeader}>
@@ -845,6 +1008,7 @@ export default function TaskDetailsSheet({
                   currentRecurrenceFreq={editRecurrence?.freq}
                   currentRecurrenceEndDate={editRecurrence?.endDate}
                   currentRecurrenceByWeekday={editRecurrence?.byWeekday}
+                  currentReminder={editReminder}
                   onApplyCategory={(id) => {
                     applyCategory(id)
                     Haptics.selectionAsync().catch(() => {})
@@ -861,6 +1025,10 @@ export default function TaskDetailsSheet({
                     applyRecurrence(rec)
                     Haptics.selectionAsync().catch(() => {})
                   }}
+                  onApplyReminder={onUpdateReminder ? (rem) => {
+                    void applyReminder(rem)
+                    Haptics.selectionAsync().catch(() => {})
+                  } : undefined}
                   onDismissField={fieldAi.dismissField}
                 />
                 <TouchableOpacity
@@ -938,6 +1106,42 @@ export default function TaskDetailsSheet({
                   </Text>
                   <Text style={styles.editChevron}>›</Text>
                 </TouchableOpacity>
+                {onUpdateReminder && (
+                  <>
+                    <View style={styles.editGroupDivider} />
+                    <TouchableOpacity
+                      style={styles.editFieldRowInGroup}
+                      onPress={() => {
+                        setRemindPickerDate(
+                          editReminder?.at
+                            ? new Date(editReminder.at)
+                            : defaultRemindDate(editDueDate),
+                        )
+                        setPendingRemindAt(editReminder?.at ?? '')
+                        setPendingRemindInterval(editReminder?.intervalMinutes)
+                        setPendingRemindUntil(editReminder?.until ?? '')
+                        setRemindSubView('main')
+                        setParentEditView('remindAt')
+                      }}
+                      activeOpacity={0.6}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remind me, ${editReminder ? formatReminder(editReminder) : t.remindNone}. Tap to change.`}
+                    >
+                      <Bell size={18} color={editReminder ? theme.blue : theme.gray3} strokeWidth={2} />
+                      <Text style={styles.editFieldLabel}>{t.remindMe}</Text>
+                      <Text
+                        style={[
+                          styles.editFieldValue,
+                          !editReminder && styles.editFieldValueMuted,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {editReminder ? formatReminder(editReminder) : t.remindNone}
+                      </Text>
+                      <Text style={styles.editChevron}>›</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
                 {editRecurrence && (
                   <>
                     <View style={styles.editGroupDivider} />
@@ -1292,6 +1496,225 @@ export default function TaskDetailsSheet({
         </View>
       </KeyboardAvoidingView>
     </Modal>
+  )
+}
+
+/**
+ * Compose an `until` datetime from a possibly date-only dueDate. A
+ * dueDate already carrying a time → use as-is. A date-only dueDate →
+ * 23:59 that day. Empty dueDate → empty string (caller handles).
+ * Lets "every 2h" without an explicit cutoff still bound itself.
+ */
+export function dueDateAsUntil(dueDate: string): string {
+  if (!dueDate) return ''
+  if (dueDate.includes('T')) return dueDate
+  return `${dueDate}T23:59`
+}
+
+export interface ReminderSubViewProps {
+  styles: ReturnType<typeof makeStyles>
+  theme: ThemeColors
+  // t comes from useLang().t — kept generic to avoid pulling the
+  // full Strings type into this file's signature.
+  t: ReturnType<typeof useLang>['t']
+  remindSubView: 'main' | 'until'
+  setRemindSubView: (v: 'main' | 'until') => void
+  pendingRemindAt: string
+  setPendingRemindAt: (s: string) => void
+  pendingRemindInterval: number | undefined
+  setPendingRemindInterval: (n: number | undefined) => void
+  pendingRemindUntil: string
+  setPendingRemindUntil: (s: string) => void
+  remindPickerDate: Date
+  setRemindPickerDate: (d: Date) => void
+  dueDate: string
+  onCancel: () => void
+  onSave: () => void
+}
+
+/**
+ * Shared sub-view rendering for the Reminder editor — used by both
+ * TaskDetailsSheet and ComposeSheet so the picker UX stays
+ * consistent. Splits into `main` (first-fire datetime + interval +
+ * Until row) and `until` (datetime picker for the cutoff). The user
+ * can Save from main; until has its own Save that flips back.
+ */
+export function ReminderSubView({
+  styles,
+  theme,
+  t,
+  remindSubView,
+  setRemindSubView,
+  pendingRemindAt,
+  setPendingRemindAt,
+  pendingRemindInterval,
+  setPendingRemindInterval,
+  pendingRemindUntil,
+  setPendingRemindUntil,
+  remindPickerDate,
+  setRemindPickerDate,
+  dueDate,
+  onCancel,
+  onSave,
+}: ReminderSubViewProps) {
+  // Until-picker working state. Kept in a ref-like local so the
+  // shared sub-view doesn't need separate parent state. Initial
+  // value falls back to dueDate (with time) so the picker opens
+  // somewhere reasonable.
+  const [untilPickerDate, setUntilPickerDate] = useState<Date>(() => {
+    const seed = pendingRemindUntil || dueDateAsUntil(dueDate)
+    return seed ? new Date(seed) : new Date(Date.now() + 3 * 60 * 60 * 1000)
+  })
+
+  if (remindSubView === 'until') {
+    return (
+      <>
+        <View style={styles.editHeader}>
+          <TouchableOpacity onPress={() => setRemindSubView('main')} hitSlop={10} style={styles.headerSideBtn}>
+            <Text style={styles.cancelText}>‹ Back</Text>
+          </TouchableOpacity>
+          <Text style={styles.editHeaderTitle}>{t.remindUntil}</Text>
+          <View style={styles.headerSideBtn} />
+        </View>
+        <View style={styles.dateWrap}>
+          <Text style={styles.datePendingLabel}>
+            {pendingRemindUntil ? formatDateTime(pendingRemindUntil) : t.remindUntilUnset}
+          </Text>
+          <DateTimePicker
+            value={untilPickerDate}
+            mode="datetime"
+            display={Platform.OS === 'ios' ? 'inline' : 'default'}
+            themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
+            minimumDate={new Date()}
+            onChange={(_e: DateTimePickerEvent, d?: Date) => {
+              if (!d) return
+              setUntilPickerDate(d)
+              setPendingRemindUntil(isoLocalDateTime(d))
+            }}
+          />
+        </View>
+        <View style={styles.dateActions}>
+          <TouchableOpacity
+            style={styles.dateDoneBtnSolo}
+            onPress={() => setRemindSubView('main')}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={t.done}
+          >
+            <Text style={styles.dateDoneBtnText}>{t.done}</Text>
+          </TouchableOpacity>
+        </View>
+      </>
+    )
+  }
+
+  return (
+    <>
+      <View style={styles.editHeader}>
+        <TouchableOpacity onPress={onCancel} hitSlop={10} style={styles.headerSideBtn}>
+          <Text style={styles.cancelText}>‹ Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.editHeaderTitle}>{t.remindMe}</Text>
+        <TouchableOpacity
+          onPress={() => {
+            setPendingRemindAt('')
+            setPendingRemindInterval(undefined)
+            setPendingRemindUntil('')
+          }}
+          hitSlop={10}
+          style={styles.headerSideBtn}
+        >
+          <Text style={styles.dateClearBtnText}>{t.clear}</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.dateWrap}>
+        {pendingRemindAt ? (
+          <Text style={styles.datePendingLabel}>{formatDateTime(pendingRemindAt)}</Text>
+        ) : (
+          <Text style={[styles.datePendingLabel, styles.datePendingLabelEmpty]}>{t.remindNone}</Text>
+        )}
+        <DateTimePicker
+          value={remindPickerDate}
+          mode="datetime"
+          display={Platform.OS === 'ios' ? 'inline' : 'default'}
+          themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
+          minimumDate={new Date()}
+          onChange={(_e: DateTimePickerEvent, d?: Date) => {
+            if (!d) return
+            setRemindPickerDate(d)
+            setPendingRemindAt(isoLocalDateTime(d))
+          }}
+        />
+      </View>
+      {/* Repeat-every chip row — None disables interval (one-shot).
+          Selecting any other chip surfaces the Until row beneath. */}
+      <View style={styles.remindChipRow}>
+        <Text style={styles.remindChipRowLabel}>{t.remindEvery}</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.remindChipScroll}
+        >
+          {REMIND_INTERVAL_CHOICES.map((c) => {
+            const active = (pendingRemindInterval ?? undefined) === c.minutes
+            return (
+              <TouchableOpacity
+                key={c.label}
+                onPress={() => {
+                  setPendingRemindInterval(c.minutes)
+                  // Seed Until from dueDate the first time the user
+                  // turns on an interval, so the recurrence has a
+                  // bound right away.
+                  if (c.minutes && !pendingRemindUntil) {
+                    const seed = dueDateAsUntil(dueDate)
+                    if (seed) setPendingRemindUntil(seed)
+                  }
+                }}
+                style={[styles.remindChip, active && styles.remindChipActive]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+              >
+                <Text style={[styles.remindChipText, active && styles.remindChipTextActive]}>
+                  {c.label}
+                </Text>
+              </TouchableOpacity>
+            )
+          })}
+        </ScrollView>
+      </View>
+      {pendingRemindInterval && (
+        <TouchableOpacity
+          style={styles.editFieldRow}
+          onPress={() => setRemindSubView('until')}
+          activeOpacity={0.6}
+          accessibilityRole="button"
+          accessibilityLabel={`${t.remindUntil}, ${pendingRemindUntil ? formatDateTime(pendingRemindUntil) : t.remindUntilUnset}. Tap to change.`}
+        >
+          <Text style={styles.editFieldLabel}>{t.remindUntil}</Text>
+          <Text
+            style={[
+              styles.editFieldValue,
+              !pendingRemindUntil && styles.editFieldValueMuted,
+            ]}
+            numberOfLines={1}
+          >
+            {pendingRemindUntil ? formatDateTime(pendingRemindUntil) : t.remindUntilUnset}
+          </Text>
+          <Text style={styles.editChevron}>›</Text>
+        </TouchableOpacity>
+      )}
+      <View style={styles.dateActions}>
+        <TouchableOpacity
+          style={styles.dateDoneBtnSolo}
+          onPress={onSave}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={t.done}
+        >
+          <Text style={styles.dateDoneBtnText}>{t.done}</Text>
+        </TouchableOpacity>
+      </View>
+    </>
   )
 }
 
@@ -1681,6 +2104,39 @@ function makeStyles(c: ThemeColors) {
       gap: 12,
       paddingHorizontal: 14,
       paddingVertical: 14,
+    },
+    remindChipRow: {
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      gap: 6,
+    },
+    remindChipRowLabel: {
+      fontSize: 13,
+      color: c.label2,
+      fontWeight: '600',
+      letterSpacing: 0.1,
+    },
+    remindChipScroll: {
+      flexDirection: 'row',
+      gap: 8,
+      paddingVertical: 4,
+    },
+    remindChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 999,
+      backgroundColor: c.primarySoft,
+    },
+    remindChipActive: {
+      backgroundColor: c.primary,
+    },
+    remindChipText: {
+      fontSize: 13,
+      color: c.primary,
+      fontWeight: '600',
+    },
+    remindChipTextActive: {
+      color: c.primaryOn,
     },
     editFieldLabel: {
       flex: 1,

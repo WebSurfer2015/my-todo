@@ -6,8 +6,8 @@ import {
 import * as Haptics from 'expo-haptics'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import Svg, { Rect, Path } from 'react-native-svg'
-import { Repeat, Sparkles } from 'lucide-react-native'
-import { Category, Priority, PRIORITY_VALUES, PRIORITY_COLORS, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, Subtask, TodoReference } from '../types'
+import { Bell, Repeat, Sparkles } from 'lucide-react-native'
+import { Category, Priority, PRIORITY_VALUES, PRIORITY_COLORS, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, Subtask, Todo, TodoReference } from '../types'
 import { genUuid } from '../../../core/src/utils'
 import { CategoryDef, categoryLabel } from '../categories'
 import { useLang } from '../LangContext'
@@ -20,6 +20,10 @@ import InlinePicker from './InlinePicker'
 import CustomRecurrenceForm from './CustomRecurrenceForm'
 import AddSubtaskSheet from './AddSubtaskSheet'
 import { useTodoFieldSuggestions, TodoFieldSuggestPills } from './TodoFieldSuggestPills'
+import { ensurePermission } from '../notifications'
+import { ReminderSubView, dueDateAsUntil, type ReminderSubViewProps } from './TaskDetailsSheet'
+
+type ReminderSubViewStyles = ReminderSubViewProps['styles']
 import {
   useSuggestSteps,
   SuggestStepsTrigger,
@@ -60,12 +64,12 @@ interface Props {
     dueDate: string,
     category?: Category,
     recurrence?: Recurrence,
-    extras?: { notes?: string; subtasks?: Subtask[] },
+    extras?: { notes?: string; subtasks?: Subtask[]; reminder?: Todo["reminder"] },
   ) => void
   onClose: () => void
 }
 
-type SubView = 'main' | 'category' | 'priority' | 'date' | 'repeat' | 'repeatEndDate' | 'customRepeat'
+type SubView = 'main' | 'category' | 'priority' | 'date' | 'repeat' | 'repeatEndDate' | 'customRepeat' | 'remindAt'
 
 function defaultEndDateFor(freq: RecurrenceFreq): Date {
   const d = new Date()
@@ -111,6 +115,58 @@ function isCustomRecurrence(rec: Recurrence | undefined): boolean {
   return !!rec && Array.isArray(rec.byWeekday) && rec.byWeekday.length > 0
 }
 
+/** ISO-8601 local datetime without timezone — what we store for
+ * remindAt. Matches the format the AI suggest-todo-fields prompt is
+ * told to emit so the scheduler can read either source identically. */
+function isoLocalDateTime(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${y}-${m}-${day}T${hh}:${mm}`
+}
+
+/** Compact label for a datetime value: short date + local time. */
+function formatDateTime(at: string): string {
+  const d = new Date(at)
+  if (Number.isNaN(d.valueOf())) return at
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  const datePart = d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  })
+  const timePart = d.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+  return `${datePart}, ${timePart}`
+}
+
+/** Reminder label used in the manual Remind me row. One-shot shows
+ * the datetime; recurring shows "every Xh until ...". */
+function formatReminder(reminder: NonNullable<Todo["reminder"]>): string {
+  if (!reminder.intervalMinutes) return formatDateTime(reminder.at)
+  const cadence = reminder.intervalMinutes < 60
+    ? `${reminder.intervalMinutes}m`
+    : `${Math.floor(reminder.intervalMinutes / 60)}h`
+  return reminder.until
+    ? `every ${cadence} until ${formatDateTime(reminder.until)}`
+    : `every ${cadence}`
+}
+
+/** Seed picker date when opening the Remind sub-view with no current
+ * reminder: morning of dueDate (9am) when dueDate is set and in the
+ * future, otherwise 1 hour from now. */
+function defaultRemindDate(dueDate: string): Date {
+  if (dueDate && /^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+    const d = new Date(`${dueDate}T09:00:00`)
+    if (d.valueOf() > Date.now()) return d
+  }
+  return new Date(Date.now() + 60 * 60 * 1000)
+}
+
 export default function ComposeSheet({
   visible, categories, defaultCategory, references, agentEnabled = false, onCreateCategory, onAdd, onClose,
 }: Props) {
@@ -129,6 +185,17 @@ export default function ComposeSheet({
   const [dueDate, setDueDate] = useState(todayLocal())
   const [pickerDate, setPickerDate] = useState<Date>(new Date())
   const [recurrence, setRecurrence] = useState<Recurrence | undefined>(undefined)
+  // Reminder spec (object or undefined). Stored on the todo at
+  // add-time; the post-add syncTodoReminders effect picks it up.
+  const [reminder, setReminder] = useState<Todo["reminder"] | undefined>(undefined)
+  const [remindPickerDate, setRemindPickerDate] = useState<Date>(new Date())
+  // Pending while the Remind sub-view is open. Mirrors the
+  // pendingRecurEndDate pattern — committed to `reminder` on Save,
+  // discarded on Back.
+  const [pendingRemindAt, setPendingRemindAt] = useState<string>('')
+  const [pendingRemindInterval, setPendingRemindInterval] = useState<number | undefined>(undefined)
+  const [pendingRemindUntil, setPendingRemindUntil] = useState<string>('')
+  const [remindSubView, setRemindSubView] = useState<'main' | 'until'>('main')
   // Pending freq while the user is in the 'repeatEndDate' picker — committed
   // to `recurrence` once they pick an end date.
   const [pendingFreq, setPendingFreq] = useState<RecurrenceFreq | null>(null)
@@ -219,6 +286,11 @@ export default function ComposeSheet({
       // want a no-date task.
       setDueDate(todayLocal())
       setRecurrence(undefined)
+      setReminder(undefined)
+      setPendingRemindAt('')
+      setPendingRemindInterval(undefined)
+      setPendingRemindUntil('')
+      setRemindSubView('main')
       setNotes('')
       setPendingSubtasks([])
       // Clear the suggestion-overlay suppression so it re-engages on
@@ -242,6 +314,7 @@ export default function ComposeSheet({
     onAdd(trimmed, priority, dueDate, activeCat.id, recurrence, {
       notes: trimmedNotes || undefined,
       subtasks: pendingSubtasks.length > 0 ? pendingSubtasks : undefined,
+      reminder,
     })
     // Reset compose state so the next open starts clean.
     setText('')
@@ -258,7 +331,7 @@ export default function ComposeSheet({
   function handleInlineDateChange(_event: DateTimePickerEvent, selected?: Date) {
     if (!selected) return
     setPickerDate(selected)
-    setDueDate(isoDate(selected))
+    setDueDate(isoLocalDateTime(selected))
   }
 
   function clearInlineDate() {
@@ -443,6 +516,7 @@ export default function ComposeSheet({
                     currentRecurrenceFreq={recurrence?.freq}
                     currentRecurrenceEndDate={recurrence?.endDate}
                     currentRecurrenceByWeekday={recurrence?.byWeekday}
+                    currentReminder={reminder}
                     onApplyCategory={(id) => {
                       setCategory(id)
                       Haptics.selectionAsync().catch(() => {})
@@ -485,6 +559,25 @@ export default function ComposeSheet({
                       // Repeat sub-view if needed.
                       setRecurrence(rec)
                       Haptics.selectionAsync().catch(() => {})
+                    }}
+                    onApplyReminder={(rem) => {
+                      // Ask for notification permission lazily — only
+                      // when the user actually opts into a reminder.
+                      // If denied, surface a one-shot alert and leave
+                      // the form unchanged (the reminder would never
+                      // fire so we don't save the field).
+                      void (async () => {
+                        if (!(await ensurePermission())) {
+                          Alert.alert(
+                            t.remindPermissionDeniedTitle,
+                            t.remindPermissionDeniedBody,
+                          )
+                          ai.dismissField('reminder')
+                          return
+                        }
+                        setReminder(rem)
+                        Haptics.selectionAsync().catch(() => {})
+                      })()
                     }}
                     onDismissField={ai.dismissField}
                   />
@@ -606,6 +699,38 @@ export default function ComposeSheet({
                         </TouchableOpacity>
                       </>
                     )}
+
+                    <View style={styles.divider} />
+
+                    <TouchableOpacity
+                      style={styles.fieldRow}
+                      onPress={() => {
+                        setRemindPickerDate(
+                          reminder?.at ? new Date(reminder.at) : defaultRemindDate(dueDate),
+                        )
+                        setPendingRemindAt(reminder?.at ?? '')
+                        setPendingRemindInterval(reminder?.intervalMinutes)
+                        setPendingRemindUntil(reminder?.until ?? '')
+                        setRemindSubView('main')
+                        setSubView('remindAt')
+                      }}
+                      activeOpacity={0.6}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remind me, ${reminder ? formatReminder(reminder) : t.remindNone}. Tap to change.`}
+                    >
+                      <Bell size={18} color={reminder ? theme.blue : theme.gray3} strokeWidth={2} />
+                      <Text style={styles.fieldLabel}>{t.remindMe}</Text>
+                      <Text
+                        style={[
+                          styles.fieldValue,
+                          !reminder && styles.fieldValueMuted,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {reminder ? formatReminder(reminder) : t.remindNone}
+                      </Text>
+                      <Text style={styles.chevron}>›</Text>
+                    </TouchableOpacity>
                   </View>
 
                   {/* Notes moved into the title card (top of sheet)
@@ -839,6 +964,46 @@ export default function ComposeSheet({
               />
             )}
 
+            {subView === 'remindAt' && (
+              <ReminderSubView
+                styles={styles as unknown as ReminderSubViewStyles}
+                theme={theme}
+                t={t}
+                remindSubView={remindSubView}
+                setRemindSubView={setRemindSubView}
+                pendingRemindAt={pendingRemindAt}
+                setPendingRemindAt={setPendingRemindAt}
+                pendingRemindInterval={pendingRemindInterval}
+                setPendingRemindInterval={setPendingRemindInterval}
+                pendingRemindUntil={pendingRemindUntil}
+                setPendingRemindUntil={setPendingRemindUntil}
+                remindPickerDate={remindPickerDate}
+                setRemindPickerDate={setRemindPickerDate}
+                dueDate={dueDate}
+                onCancel={() => setSubView('main')}
+                onSave={async () => {
+                  if (pendingRemindAt && !(await ensurePermission())) {
+                    Alert.alert(
+                      t.remindPermissionDeniedTitle,
+                      t.remindPermissionDeniedBody,
+                    )
+                    return
+                  }
+                  let next: Todo["reminder"] | undefined
+                  if (pendingRemindAt) {
+                    next = { at: pendingRemindAt }
+                    if (pendingRemindInterval) {
+                      next.intervalMinutes = pendingRemindInterval
+                      const fallbackUntil = pendingRemindUntil || dueDateAsUntil(dueDate)
+                      if (fallbackUntil) next.until = fallbackUntil
+                    }
+                  }
+                  setReminder(next)
+                  setSubView('main')
+                }}
+              />
+            )}
+
             {subView === 'date' && (
               <>
                 <View style={styles.headerRow}>
@@ -858,7 +1023,7 @@ export default function ComposeSheet({
                   )}
                   <DateTimePicker
                     value={pickerDate}
-                    mode="date"
+                    mode="datetime"
                     display={Platform.OS === 'ios' ? 'inline' : 'default'}
                     themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
                     onChange={handleInlineDateChange}
@@ -872,7 +1037,7 @@ export default function ComposeSheet({
                       // pre-selected and they just tapped Done) — the
                       // DateTimePicker's onChange doesn't fire for a
                       // no-op tap, so we sync it explicitly here.
-                      setDueDate(isoDate(pickerDate))
+                      setDueDate(isoLocalDateTime(pickerDate))
                       setSubView('main')
                     }}
                     style={[styles.addBtn, styles.applyBtn, { flex: 1 }]}

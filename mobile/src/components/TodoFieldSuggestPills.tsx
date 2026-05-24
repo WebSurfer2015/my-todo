@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
-import { Sparkles, Plus, Repeat } from 'lucide-react-native'
+import { Sparkles, Plus, Repeat, Bell } from 'lucide-react-native'
 import { suggestTodoFields, SuggestFieldsResult } from '../aiInfer'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
@@ -30,16 +30,58 @@ interface HookArgs {
   today: string
   categories: Array<{ id: string; label: string }>
   agentEnabled: boolean
+  /** When set, the hook skips the AI call until `text` differs from
+   * this seed (case-insensitive, trimmed). Used by the edit flow so
+   * opening a todo doesn't immediately fire AI on the unchanged text. */
+  initialText?: string
 }
 
-const MIN_CHARS = 3
-const DEBOUNCE_MS = 800
+// Tighter knobs to cut token spend. Debounce was 800ms — every pause
+// in typing fired AI; 1500ms lets the user finish the sentence first.
+// Min chars was 3 — anything that short ("foo", "go") rarely yields
+// useful suggestions and burns a Haiku call per try.
+const MIN_CHARS = 8
+const DEBOUNCE_MS = 1500
+
+// Patterns that signal the AI *might* extract a useful field. If
+// none match, we still allow a call when the text is long enough
+// to plausibly carry a category signal — but for short text with no
+// signal, skip to save tokens. Cheap regex, runs on every text
+// change before the network call.
+const SIGNAL_PATTERNS: RegExp[] = [
+  // clock time: "3pm", "3:30 pm", "at 3", "at 14:00"
+  /\b\d{1,2}(:\d{2})?\s?(am|pm)\b/i,
+  /\bat\s+\d{1,2}(:\d{2})?\b/i,
+  // date keywords (English; AI handles other langs but local
+  // pre-filter is intentionally English-only for now)
+  /\b(today|tonight|tomorrow|yesterday|monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)\b/i,
+  /\b(next|this|last)\s+(week|month|year|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i,
+  /\bin\s+\d+\s*(day|days|week|weeks|month|months|year|years)\b/i,
+  /\b(by|due|before)\s+(next|this|tomorrow|today|monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun|\d)/i,
+  // recurrence
+  /\b(every|each|daily|weekly|monthly|yearly|weekdays|weekends)\b/i,
+  // reminder
+  /\bremind\b/i,
+  // priority
+  /\b(urgent|asap|important|low\s+priority|optional|whenever)\b/i,
+]
+
+function hasExtractableSignal(text: string): boolean {
+  if (SIGNAL_PATTERNS.some((re) => re.test(text))) return true
+  // Multi-word texts are still worth a category guess. Single-word
+  // or two-word texts almost never produce a non-null suggestion
+  // beyond category, and category itself is rarely better than the
+  // user's currently-selected one.
+  const wordCount = text.trim().split(/\s+/).length
+  return wordCount >= 3
+}
 
 export function useTodoFieldSuggestions({
   text,
   today,
   categories,
   agentEnabled,
+  initialText,
 }: HookArgs) {
   const [suggestions, setSuggestions] = useState<SuggestFieldsResult | null>(null)
   const [thinking, setThinking] = useState(false)
@@ -78,9 +120,28 @@ export function useTodoFieldSuggestions({
       lastQueriedRef.current = ''
       return
     }
+    // Edit flow: don't fire on the seed text. Re-engages once the
+    // user actually changes it.
+    if (initialText && trimmed.toLowerCase() === initialText.trim().toLowerCase()) {
+      seqRef.current += 1
+      setSuggestions(null)
+      setThinking(false)
+      lastQueriedRef.current = ''
+      return
+    }
     if (trimmed === lastQueriedRef.current) {
       // No meaningful change — skip the network call. (Suggestions
       // from the last response stay visible until the user edits.)
+      return
+    }
+    // Local pre-filter — skip AI when text has no extractable signal
+    // and is too short to be worth a category guess. Big token win
+    // on early typing strokes that the debounce alone wouldn't catch
+    // (e.g., the user pauses to think after "buy m").
+    if (!hasExtractableSignal(trimmed)) {
+      seqRef.current += 1
+      setSuggestions(null)
+      setThinking(false)
       return
     }
 
@@ -103,7 +164,8 @@ export function useTodoFieldSuggestions({
           res.newCategoryLabel ||
           res.priority ||
           res.dueDate ||
-          res.recurrence
+          res.recurrence ||
+          res.reminder
         )
         setSuggestions(hasAny ? res : null)
         setThinking(false)
@@ -119,7 +181,7 @@ export function useTodoFieldSuggestions({
   }, [text, agentEnabled])
 
   function dismissField(
-    field: 'category' | 'newCategoryLabel' | 'priority' | 'dueDate' | 'recurrence',
+    field: 'category' | 'newCategoryLabel' | 'priority' | 'dueDate' | 'recurrence' | 'reminder',
   ) {
     setSuggestions((prev) => {
       if (!prev) return prev
@@ -129,7 +191,8 @@ export function useTodoFieldSuggestions({
         next.newCategoryLabel ||
         next.priority ||
         next.dueDate ||
-        next.recurrence
+        next.recurrence ||
+        next.reminder
       )
       return stillHas ? next : null
     })
@@ -163,6 +226,10 @@ interface RowProps {
   currentRecurrenceEndDate?: string
   /** Current byWeekday filter on the recurrence, if any. */
   currentRecurrenceByWeekday?: number[]
+  /** Current reminder on the compose form. AI suggestion is
+   * suppressed when it equals this (deep compare). Omit → the AI
+   * suggestion always shows. */
+  currentReminder?: { at: string; intervalMinutes?: number; until?: string }
   onApplyCategory: (id: string) => void
   /** Tap on a "+ <label>" pill. Implementation should confirm with
    * the user (it creates a new category in their sidebar). Omit to
@@ -176,8 +243,11 @@ interface RowProps {
     byWeekday?: number[]
     endDate?: string
   }) => void
+  /** Optional — when omitted, the reminder pill is hidden entirely
+   * (useful in screens that don't expose a reminder field yet). */
+  onApplyReminder?: (reminder: { at: string; intervalMinutes?: number; until?: string }) => void
   onDismissField: (
-    field: 'category' | 'newCategoryLabel' | 'priority' | 'dueDate' | 'recurrence',
+    field: 'category' | 'newCategoryLabel' | 'priority' | 'dueDate' | 'recurrence' | 'reminder',
   ) => void
 }
 
@@ -191,11 +261,13 @@ export function TodoFieldSuggestPills({
   currentRecurrenceFreq,
   currentRecurrenceEndDate,
   currentRecurrenceByWeekday,
+  currentReminder,
   onApplyCategory,
   onApplyNewCategory,
   onApplyPriority,
   onApplyDueDate,
   onApplyRecurrence,
+  onApplyReminder,
   onDismissField,
 }: RowProps) {
   const { t } = useLang()
@@ -239,13 +311,18 @@ export function TodoFieldSuggestPills({
     (suggestions.recurrence.freq !== currentRecurrenceFreq ||
       (suggestions.recurrence.endDate ?? undefined) !== currentRecurrenceEndDate ||
       !sameWeekdays(suggestions.recurrence.byWeekday, currentRecurrenceByWeekday))
+  const showRemindAtPill =
+    !!onApplyReminder &&
+    !!suggestions?.reminder &&
+    JSON.stringify(suggestions.reminder) !== JSON.stringify(currentReminder ?? null)
 
   const hasAny =
     showCategoryPill ||
     showNewCategoryPill ||
     showPriorityPill ||
     showDueDatePill ||
-    showRecurrencePill
+    showRecurrencePill ||
+    showRemindAtPill
 
   // Render the row whenever AI is thinking OR has visible pills.
   // Hiding the row during the in-flight call (which can take 1-2s)
@@ -332,8 +409,52 @@ export function TodoFieldSuggestPills({
           }
         />
       )}
+      {showRemindAtPill && (
+        <Pill
+          styles={styles}
+          onApply={() => {
+            onApplyReminder!(suggestions!.reminder!)
+            onDismissField('reminder')
+          }}
+          onDismiss={() => onDismissField('reminder')}
+          accessibilityLabel={`${t.aiSuggestionA11y}: ${t.remindAiSuggest} ${formatReminderForPill(suggestions!.reminder!)}`}
+          icon={<Bell size={11} color={theme.primary} strokeWidth={2.2} />}
+          label={formatReminderForPill(suggestions!.reminder!)}
+        />
+      )}
     </View>
   )
+}
+
+/** Compact label for an AI-suggested reminder pill. One-shot →
+ * datetime. Recurring → "every Xh until <datetime>". Kept in this
+ * file so the pill component can render it without a util import
+ * dance. */
+function formatReminderForPill(reminder: { at: string; intervalMinutes?: number; until?: string }): string {
+  const datePart = formatDateTimeForPill(reminder.at)
+  if (!reminder.intervalMinutes) return datePart
+  const cadence = reminder.intervalMinutes < 60
+    ? `${reminder.intervalMinutes}m`
+    : `${Math.floor(reminder.intervalMinutes / 60)}h`
+  return reminder.until
+    ? `every ${cadence} until ${formatDateTimeForPill(reminder.until)}`
+    : `every ${cadence}`
+}
+
+function formatDateTimeForPill(at: string): string {
+  const d = new Date(at)
+  if (Number.isNaN(d.valueOf())) return at
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  const datePart = d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  })
+  const timePart = d.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+  return `${datePart}, ${timePart}`
 }
 
 interface PillProps {
