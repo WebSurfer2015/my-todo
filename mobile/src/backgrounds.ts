@@ -146,10 +146,16 @@ export function tonesFor(pair: Pair, scheme: 'light' | 'dark'): PairTones {
  * legible without bright-mint glow.
  */
 export function pairFromAvatarBg(bg: string): Pair {
+  // App background uses a LIGHTER variant of the avatar's bg so the
+  // avatar tile keeps its presence against the canvas — the tile
+  // bg = preset.bg, the canvas = lighter version. `deep` (accent
+  // tone for patterns) stays a darkenHex of the original so blob
+  // / scatter patterns have enough contrast against the lighter
+  // canvas.
   return {
     key: `avatar:${bg}`,
     label: 'Avatar',
-    light: { light: bg, deep: darkenHex(bg, 0.18) },
+    light: { light: lightenHex(bg, 0.4), deep: darkenHex(bg, 0.12) },
     dark: { light: darkenHex(bg, 0.78), deep: darkenHex(bg, 0.6) },
   }
 }
@@ -162,6 +168,24 @@ export function darkenHex(hex: string, amount = 0.08): string {
   const g = (n >> 8) & 0xff
   const b = n & 0xff
   const f = (c: number) => Math.max(0, Math.min(255, Math.round(c * (1 - amount))))
+  const out = (f(r) << 16) | (f(g) << 8) | f(b)
+  return '#' + out.toString(16).padStart(6, '0')
+}
+
+/**
+ * Lightens a hex color by `amount` (0..1), nudging each RGB channel
+ * proportionally toward 255. Counterpart to darkenHex — handy for
+ * deriving a calmer canvas tone from an avatar's saturated tile.
+ */
+export function lightenHex(hex: string, amount = 0.08): string {
+  const m = hex.match(/^#?([a-f0-9]{6})$/i)
+  if (!m) return hex
+  const n = parseInt(m[1], 16)
+  const r = (n >> 16) & 0xff
+  const g = (n >> 8) & 0xff
+  const b = n & 0xff
+  const f = (c: number) =>
+    Math.max(0, Math.min(255, Math.round(c + (255 - c) * amount)))
   const out = (f(r) << 16) | (f(g) << 8) | f(b)
   return '#' + out.toString(16).padStart(6, '0')
 }
