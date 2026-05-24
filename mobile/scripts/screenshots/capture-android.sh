@@ -3,7 +3,7 @@
 #
 # Usage:
 #   scripts/screenshots/capture-android.sh <slot> [adb-serial]
-#     <slot>    1..8 (mirrors the iOS slot plan in capture.sh)
+#     <slot>    1..10 (mirrors the iOS v1.4 slot plan in capture.sh)
 #     [serial]  optional adb device serial; defaults to the only device
 #               currently attached (fails if multiple are connected)
 #
@@ -34,25 +34,27 @@
 set -euo pipefail
 
 if [[ $# -lt 1 || $# -gt 2 ]]; then
-  echo "usage: $0 <slot 1-8> [adb-serial]" >&2
+  echo "usage: $0 <slot 1-10> [adb-serial]" >&2
   exit 2
 fi
 
 slot="$1"
 serial="${2:-}"
 
-# v1.3 slot plan — keep in lockstep with capture.sh and the screenshot
+# v1.4 slot plan — keep in lockstep with capture.sh and the screenshot
 # specs table in docs/POSITIONING.md.
 case "$slot" in
-  1) name="home-today-hero" ;;
-  2) name="todos-all-grouped" ;;
-  3) name="defer-to-sheet" ;;
-  4) name="edit-todo-notes-inline" ;;
-  5) name="steps-with-dates" ;;
-  6) name="groceries-by-store" ;;
-  7) name="profile-sheet" ;;
-  8) name="recurring-repeats" ;;
-  *) echo "slot must be 1..8" >&2; exit 2 ;;
+  1)  name="home-today-hero" ;;
+  2)  name="todos-all-grouped" ;;
+  3)  name="edit-todo-reminder" ;;
+  4)  name="steps-with-suggest" ;;
+  5)  name="groceries-by-store" ;;
+  6)  name="ai-pills-compose" ;;
+  7)  name="reminder-subview" ;;
+  8)  name="tips-and-guides" ;;
+  9)  name="defer-to-sheet" ;;
+  10) name="recurring-repeats" ;;
+  *) echo "slot must be 1..10" >&2; exit 2 ;;
 esac
 
 if ! command -v adb >/dev/null 2>&1; then

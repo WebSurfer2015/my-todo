@@ -3,7 +3,7 @@
 #
 # Usage:
 #   scripts/screenshots/capture.sh <slot> <device> [udid]
-#     <slot>    1..8 (v1.3 plan — Home-first navigation)
+#     <slot>    1..10 (v1.4 plan — adds AI + Reminders + Guides slots)
 #     <device>  iphone-67 | ipad-129
 #     [udid]    optional simulator UDID; defaults to "booted"
 #               (pass when more than one sim is booted to disambiguate)
@@ -15,7 +15,7 @@
 set -euo pipefail
 
 if [[ $# -lt 2 || $# -gt 3 ]]; then
-  echo "usage: $0 <slot 1-8> <iphone-67|ipad-129> [udid]" >&2
+  echo "usage: $0 <slot 1-10> <iphone-67|ipad-129> [udid]" >&2
   exit 2
 fi
 
@@ -28,25 +28,29 @@ case "$device" in
   *) echo "device must be iphone-67 or ipad-129" >&2; exit 2 ;;
 esac
 
-# v1.3 slot plan (Home-first navigation):
-#   1. Home tab — hero / first impression
-#   2. Todos tab — All filter, grouped sections
-#   3. DeferModal — "Defer to" calm rescheduling
-#   4. Edit Todo sheet with Notes inline under the title
-#   5. Steps inside a todo (per-step dates)
-#   6. Groceries tab — items grouped by department
-#   7. Profile sheet — avatar, quote, density
-#   8. Recurring task — repeat chips on items / Repeat picker open
+# v1.4 slot plan (adds AI / Reminders / Guides as marketable features):
+#   1. Home tab — hero (now includes "N done today" line when applicable)
+#   2. Todos tab — All filter, grouped sections, sticky pebble strip
+#   3. Edit Todo sheet — Notes inline + Remind me row visible
+#   4. Steps inside a todo — per-step dates + "Suggest steps" affordance
+#   5. Groceries tab — items grouped by department
+#   6. AI inline pills — compose with category / due / recurrence / reminder
+#   7. Reminder sub-view — datetime picker + interval chips + Until
+#   8. Tips & guides — menu list with check marks on completed guides
+#   9. DeferModal — "Defer to" calm rescheduling
+#  10. Recurring task — Repeat picker with weekday filter selected
 case "$slot" in
-  1) name="home-today-hero" ;;
-  2) name="todos-all-grouped" ;;
-  3) name="defer-to-sheet" ;;
-  4) name="edit-todo-notes-inline" ;;
-  5) name="steps-with-dates" ;;
-  6) name="groceries-by-store" ;;
-  7) name="profile-sheet" ;;
-  8) name="recurring-repeats" ;;
-  *) echo "slot must be 1..8" >&2; exit 2 ;;
+  1)  name="home-today-hero" ;;
+  2)  name="todos-all-grouped" ;;
+  3)  name="edit-todo-reminder" ;;
+  4)  name="steps-with-suggest" ;;
+  5)  name="groceries-by-store" ;;
+  6)  name="ai-pills-compose" ;;
+  7)  name="reminder-subview" ;;
+  8)  name="tips-and-guides" ;;
+  9)  name="defer-to-sheet" ;;
+  10) name="recurring-repeats" ;;
+  *) echo "slot must be 1..10" >&2; exit 2 ;;
 esac
 
 # Script lives under mobile/scripts/screenshots/, so the mobile dir is two

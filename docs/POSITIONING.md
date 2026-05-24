@@ -708,7 +708,7 @@ ToDo,タスク,プランナー,リマインダー,生産性,不安,先延ばし,
 
 ---
 
-## Screenshot specs (8 screens, narrative order)
+## Screenshot specs (10 screens, narrative order — v1.4)
 
 Capture from the iOS simulator at App Store sizes:
 `1242×2688` (iPhone 6.5"), `1290×2796` (iPhone 6.7"),
@@ -721,14 +721,16 @@ Slot plan is canonical in `mobile/scripts/screenshots/capture.sh`. Keep this tab
 
 | # | Slot key (capture.sh) | What to show | Caption |
 | - | --- | --- | --- |
-| 1 | `home-today-hero` | Home tab — Today list with 2–3 actionable rows + pebble strip + cairn glyph anchor below; greeting line + Mochi visible | **Today, gently** |
-| 2 | `todos-all-grouped` | Todos tab, All filter, grouped sections (Today / This Week / etc.) with category icons + sticky filter pill row | **Your day, organized — without the scoreboard** |
-| 3 | `defer-to-sheet` | DeferModal open showing Tomorrow / Next week / Pick a date / Cancel | **Snooze without guilt** |
-| 4 | `edit-todo-notes-inline` | Edit to-do sheet with Notes inline under the title, sample text like "smallest step: open the doc" | **Externalize what's blocking you** |
-| 5 | `steps-with-dates` | Todo with Steps expanded — parent + 3 subtasks, each step showing its own date + priority + completion stamp | **Break the scary into the doable** |
-| 6 | `groceries-by-store` | Groceries tab, items grouped by department (Produce, Dairy & Eggs, Bread & Bakery, …) with the pinned All pill visible on the left | **Groceries, by aisle** |
-| 7 | `profile-sheet` | Profile sheet — Background picker row + Reduce-motion toggle + density + calm Animations & Sound settings | **Quiet by design** |
-| 8 | `recurring-repeats` | Repeat picker open showing Daily / Weekly / Monthly / Yearly + Custom, "second Thursday" example visible | **Recurring tasks, without the streak guilt** |
+| 1 | `home-today-hero` | Home tab — Today list with 2–3 actionable rows + pebble strip + cairn glyph anchor below; greeting line + Mochi visible. When empty card shows, include the new "N done today" line (accent color). | **Today, gently** |
+| 2 | `todos-all-grouped` | Todos tab, All filter, grouped sections (Today / This Week / etc.) with category icons + sticky filter pill row. "Defer all →" visible on the Today header. | **Your day, organized — without the scoreboard** |
+| 3 | `edit-todo-reminder` | Edit to-do sheet — Notes inline under title; the field-group card visible showing Category, Priority, Completed by (with a time like "Tomorrow, 3:00 PM"), Repeat, and the new **Remind me** row reading "every 2h until 5:00 PM". | **Externalize what's blocking you — and when** |
+| 4 | `steps-with-suggest` | Todo with Steps expanded — parent + 3 substeps with per-step dates + completion stamps. New: "Suggest steps" affordance visible in the STEPS header (AI on). | **Break the scary into the doable** |
+| 5 | `groceries-by-store` | Groceries tab, items grouped by department (Produce, Dairy & Eggs, Bread & Bakery, …) with the pinned All pill on the left + "Often picked up" strip near the top. | **Groceries, by aisle** |
+| 6 | `ai-pills-compose` | NEW — Add to-do sheet open with sample text like "pickup Mia at 3pm tomorrow"; the AI pill row visible above the field card showing Sparkles ✨ + a Date pill + a Bell pill. | **AI fills the fields — only when you tap** |
+| 7 | `reminder-subview` | NEW — Edit to-do → Remind me sub-view showing the datetime picker + the interval chip row (Once / 15m / 30m / 1h / **2h** / 4h …) with 2h selected + an "Until" row underneath. | **One nudge — or many, with an end** |
+| 8 | `tips-and-guides` | NEW — Tips & guides bottom sheet open, listing the 6 guides with a check mark on 2–3 of them. | **Tips for the hidden parts** |
+| 9 | `defer-to-sheet` | DeferModal open showing Tomorrow / Next week / Pick a date / Cancel | **Snooze without guilt** |
+| 10 | `recurring-repeats` | Repeat picker open showing the weekday filter (Mon · Wed selected) + optional "Repeat ends" row. | **Recurring tasks, without the streak guilt** |
 
 **Tip**: populate sample data with humane content ("Refill prescription,"
 "Email therapist," "Tidy the desk for 5 min") not generic "Task 1." For
