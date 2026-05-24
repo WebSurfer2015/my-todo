@@ -27,7 +27,7 @@ const RECURRENCE_LABELS: Record<'none' | RecurrenceFreq, string> = {
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { CategoryDef, categoryLabel } from '../categories'
 import { formatDisplayDate, formatRecurrence, fullDateLabel, isoDate, todayLocal } from '../utils'
-import { sortedSubs } from '../../../core/src/derive'
+import { sortedSubs, snapDueDateToRecurrence } from '../../../core/src/derive'
 import { useTheme, ThemeColors } from '../theme'
 import { useLang } from '../LangContext'
 import PriorityDot from './PriorityDot'
@@ -433,6 +433,16 @@ export default function TaskDetailsSheet({
     setEditRecurrence(r)
     if (JSON.stringify(r ?? null) !== JSON.stringify(todo.recurrence ?? null)) {
       onUpdateRecurrence(todo.id, r)
+    }
+    // Snap dueDate to the first matching occurrence when the
+    // recurrence has a weekday filter and the current dueDate
+    // doesn't fall on it. Keeps edit-flow parity with compose.
+    if (r) {
+      const snapped = snapDueDateToRecurrence(editDueDate, r)
+      if (snapped !== editDueDate) {
+        setEditDueDate(snapped)
+        onUpdateDueDate(todo.id, snapped)
+      }
     }
   }
   async function applyReminder(reminder: Todo["reminder"] | undefined) {

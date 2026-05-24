@@ -84,6 +84,43 @@ export function dueDateOnly(dueDate: string | undefined): string {
 }
 
 /**
+ * When a recurrence has a weekday filter, the dueDate is the FIRST
+ * occurrence of the series — it must fall on one of the listed
+ * weekdays. If `dueDate` is empty or its weekday isn't in
+ * recurrence.byWeekday, snap forward to the next matching day
+ * (starting from dueDate, or today if empty). Preserves any time
+ * suffix on dueDate. No-op for recurrences without byWeekday and
+ * for dueDates that already match.
+ *
+ * Example: today=Sat, recurrence={freq:weekly, byWeekday:[3]} (Wed)
+ *  → returns next Wednesday's ISO date.
+ */
+export function snapDueDateToRecurrence(
+  dueDate: string,
+  recurrence: { byWeekday?: number[] } | undefined,
+): string {
+  if (!recurrence?.byWeekday || recurrence.byWeekday.length === 0) {
+    return dueDate;
+  }
+  const dateOnly = dueDateOnly(dueDate);
+  const base = dateOnly ? new Date(`${dateOnly}T00:00:00`) : new Date();
+  if (Number.isNaN(base.valueOf())) return dueDate;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(base.valueOf());
+    d.setDate(d.getDate() + i);
+    if (recurrence.byWeekday.includes(d.getDay())) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      const datePart = `${y}-${m}-${day}`;
+      const tIdx = dueDate.indexOf("T");
+      return tIdx === -1 ? datePart : datePart + dueDate.slice(tIdx);
+    }
+  }
+  return dueDate;
+}
+
+/**
  * Deep-clone a subtask list with fresh ids and `done: false`. Used when
  * generating recurring instances so each copy starts blank and is
  * independently togglable.

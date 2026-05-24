@@ -68,12 +68,14 @@ const SIGNAL_PATTERNS: RegExp[] = [
 
 function hasExtractableSignal(text: string): boolean {
   if (SIGNAL_PATTERNS.some((re) => re.test(text))) return true
-  // Multi-word texts are still worth a category guess. Single-word
-  // or two-word texts almost never produce a non-null suggestion
-  // beyond category, and category itself is rarely better than the
-  // user's currently-selected one.
-  const wordCount = text.trim().split(/\s+/).length
-  return wordCount >= 3
+  // Allow any text long enough to plausibly carry intent beyond a
+  // typo. The MIN_CHARS gate (8 chars) already trims trivial entries;
+  // requiring multiple words would skip legitimate 2-word category
+  // signals like "renew passport" (→ Travel) or "call dentist"
+  // (→ Health). Token cost is bounded by the 1.5s debounce + the
+  // lastQueriedRef dedupe — extra calls only fire when the user
+  // actually pauses on changed text.
+  return text.trim().length >= 8
 }
 
 export function useTodoFieldSuggestions({

@@ -18,10 +18,7 @@ import * as admin from 'firebase-admin'
 // cover an active user's normal day (~20–30 calls between ambient
 // suggestions, breakdowns, and Mochi turns) with headroom, while
 // bounding blast radius if an account is compromised.
-// Temporarily raised from 30 → 300 while iterating on AI features
-// in dev — ambient suggestions burn through the lower cap during
-// active development. Drop back to 30 before shipping to production.
-export const DAILY_CALL_LIMIT = 300
+export const DAILY_CALL_LIMIT = 30
 
 interface AgentUsageData {
   date: string

@@ -9,6 +9,7 @@ import Svg, { Rect, Path } from 'react-native-svg'
 import { Bell, Repeat, Sparkles } from 'lucide-react-native'
 import { Category, Priority, PRIORITY_VALUES, PRIORITY_COLORS, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, Subtask, Todo, TodoReference } from '../types'
 import { genUuid } from '../../../core/src/utils'
+import { snapDueDateToRecurrence } from '../../../core/src/derive'
 import { CategoryDef, categoryLabel } from '../categories'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
@@ -263,11 +264,24 @@ export default function ComposeSheet({
     return out
   }, [references, trimmedTextLower])
 
+  // Wraps setRecurrence with a dueDate snap — when the picked
+  // recurrence has a weekday filter (e.g., "every Wed"), the dueDate
+  // should fall on a matching day. Without this, "Run with Conner
+  // every wed" on a Saturday would leave dueDate = today (Sat) and
+  // the recurrence would feel wrong on first glance.
+  function applyRecurrenceWithSnap(rec: Recurrence | undefined) {
+    setRecurrence(rec)
+    if (rec) {
+      const snapped = snapDueDateToRecurrence(dueDate, rec)
+      if (snapped !== dueDate) setDueDate(snapped)
+    }
+  }
+
   function applyReference(ref: TodoReference) {
     setText(ref.text)
     if (ref.category) setCategory(ref.category)
     if (ref.priority) setPriority(ref.priority)
-    setRecurrence(ref.recurrence)
+    applyRecurrenceWithSnap(ref.recurrence)
     // dueDate is intentionally NOT pulled from the reference — it's a
     // per-instance scheduling choice. The user picks the date fresh
     // for the new entry.
@@ -557,7 +571,7 @@ export default function ComposeSheet({
                       // Apply freq + optional endDate. User can
                       // refine weekday/bySetPos detail via the
                       // Repeat sub-view if needed.
-                      setRecurrence(rec)
+                      applyRecurrenceWithSnap(rec)
                       Haptics.selectionAsync().catch(() => {})
                     }}
                     onApplyReminder={(rem) => {
@@ -898,7 +912,7 @@ export default function ComposeSheet({
                     // user can then optionally tap the separate
                     // "Repeat ends" row on the main sheet to set an
                     // end date, mirroring TaskDetailsSheet's flow.
-                    setRecurrence({ freq: k as RecurrenceFreq })
+                    applyRecurrenceWithSnap({ freq: k as RecurrenceFreq })
                     setSubView('main')
                   }
                 }}
@@ -938,7 +952,7 @@ export default function ComposeSheet({
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => {
-                      setRecurrence({
+                      applyRecurrenceWithSnap({
                         freq: pendingFreq,
                         endDate: isoDate(endDatePickerDate),
                       })
@@ -957,7 +971,7 @@ export default function ComposeSheet({
               <CustomRecurrenceForm
                 initial={recurrence}
                 onDone={(rec) => {
-                  setRecurrence(rec)
+                  applyRecurrenceWithSnap(rec)
                   setSubView('main')
                 }}
                 onBack={() => setSubView('repeat')}
