@@ -100,9 +100,10 @@ export function SuggestStepsReview({
   const { t } = useLang()
   const theme = useTheme()
   const styles = useMemo(() => makeReviewStyles(theme), [theme])
-  const [selected, setSelected] = useState<Set<number>>(
-    new Set(suggestions.map((_, i) => i)),
-  )
+  // Start with nothing selected — the user opts in to each step
+  // intentionally. Calm-app stance: AI never auto-fills the user's
+  // list, even when they already opened a "suggest" affordance.
+  const [selected, setSelected] = useState<Set<number>>(new Set())
 
   function toggleSelected(i: number) {
     const next = new Set(selected)

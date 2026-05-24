@@ -231,6 +231,13 @@ export default function HomeScreen() {
         {todayBucket.length === 0 ? (
           <View style={styles.todayEmpty}>
             <Text style={styles.todayEmptyTitle}>Nothing pending today.</Text>
+            {store.todayPebbles > 0 && (
+              <Text style={styles.todayEmptyCount}>
+                {store.todayPebbles === 1
+                  ? '1 done today.'
+                  : `${store.todayPebbles} done today.`}
+              </Text>
+            )}
             <Text style={styles.todayEmptyHint}>
               Enjoy the breathing room.
             </Text>
@@ -427,6 +434,12 @@ function makeStyles(c: ThemeColors) {
       fontWeight: '600',
       color: c.label,
       marginBottom: 4,
+    },
+    todayEmptyCount: {
+      fontSize: 13,
+      color: c.primary,
+      fontWeight: '600',
+      marginBottom: 2,
     },
     todayEmptyHint: {
       fontSize: 12,

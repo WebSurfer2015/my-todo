@@ -129,7 +129,15 @@ export function SheetProvider({ children }: { children: ReactNode }) {
       <GuideMenuSheet
         visible={guideMenuOpen}
         seen={store.profile.guidesSeen ?? []}
-        onSelect={(g) => setActiveGuide(g)}
+        onSelect={(g) => {
+          // iOS can't stack Modals reliably — the second one
+          // renders behind the first and looks invisible. Close
+          // the menu first, then open the guide on the next
+          // animation tick. The guide's onClose re-opens the
+          // menu so the user lands back on the list.
+          setGuideMenuOpen(false)
+          setTimeout(() => setActiveGuide(g), 280)
+        }}
         onClose={() => setGuideMenuOpen(false)}
       />
       <GuideSheet
@@ -138,8 +146,15 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         onComplete={() => {
           if (activeGuide) markGuideSeen(activeGuide.id)
           setActiveGuide(null)
+          // Return the user to the menu so they can pick another
+          // walkthrough (or close out). Same modal-handoff dance
+          // as opening.
+          setTimeout(() => setGuideMenuOpen(true), 280)
         }}
-        onClose={() => setActiveGuide(null)}
+        onClose={() => {
+          setActiveGuide(null)
+          setTimeout(() => setGuideMenuOpen(true), 280)
+        }}
       />
     </SheetContext.Provider>
   )

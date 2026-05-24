@@ -93,11 +93,27 @@ export default function GuideSheet({ visible, guide, onComplete, onClose }: Prop
           style={styles.pager}
         >
           {guide.slides.map((s, i) => (
-            <View key={i} style={[styles.page, { width }]}>
-              <Text style={styles.glyph}>{s.glyph ?? guide.glyph}</Text>
+            <ScrollView
+              key={i}
+              style={[styles.page, { width }]}
+              contentContainerStyle={styles.pageContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Instruction first, mockup second — the visual is a
+                  reinforcement of what the body just said, so we lead
+                  with the words and let the diagram anchor it below.
+                  Page is wrapped in a ScrollView so tall mockup +
+                  long body combinations don't get clipped on shorter
+                  screens. */}
+              {!s.visual && (
+                <Text style={styles.glyph}>{s.glyph ?? guide.glyph}</Text>
+              )}
               <Text style={styles.title}>{s.title}</Text>
               <Text style={styles.body}>{renderBody(s.body, styles)}</Text>
-            </View>
+              {s.visual && (
+                <View style={styles.visualWrap}>{s.visual}</View>
+              )}
+            </ScrollView>
           ))}
         </ScrollView>
 
@@ -168,8 +184,22 @@ function makeStyles(c: ThemeColors, _width: number) {
       textAlign: 'center',
     },
     pager: { flex: 1 },
-    page: { alignItems: 'center', paddingHorizontal: 32, paddingTop: 40 },
+    page: { flex: 1 },
+    pageContent: {
+      flexGrow: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 24,
+      paddingVertical: 16,
+    },
     glyph: { fontSize: 64, lineHeight: 72, marginBottom: 24, textAlign: 'center' },
+    visualWrap: {
+      width: '100%',
+      maxWidth: 340,
+      alignItems: 'center',
+      marginTop: 24,
+      paddingHorizontal: 4,
+    },
     title: {
       fontSize: 26,
       fontWeight: '700',
