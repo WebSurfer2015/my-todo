@@ -39,7 +39,11 @@ from PIL import Image
 KEY_ID = "QD85GLBAA2"
 ISSUER_ID = "34c60769-93e6-4cda-9faf-010ca1a57725"
 KEY_PATH = "/Users/yingnming/.appstoreconnect/AuthKey_QD85GLBAA2.p8"
-APP_STORE_VERSION_ID = "91b1fa8a-3c35-4cdc-ab26-7c7b659e8a7b"  # 1.1.0
+# Hardcoded per release — point at the in-flight (editable) version,
+# NOT a READY_FOR_SALE one (App Store rejects mutations on live
+# versions with a 409). Look up the current id via:
+#   /usr/bin/python3 mobile/scripts/asc/asc_release.py status
+APP_STORE_VERSION_ID = "812ba739-b3db-4aad-b06d-d67751d66c35"  # 1.4.0
 DEFAULT_LOCALE = "en-US"
 API = "https://api.appstoreconnect.apple.com"
 
