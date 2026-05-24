@@ -69,6 +69,7 @@ export default function GroceriesScreen() {
         onSetActiveStore={store.setActiveGroceryStore}
         onSetActiveDept={store.setActiveGroceryDept}
         onAddStore={store.addGroceryStore}
+        onAddGroup={store.addGroceryGroup}
         onRenameStore={store.renameGroceryStore}
         onDeleteStore={store.deleteGroceryStore}
         onReorderStores={store.reorderGroceryStores}

@@ -81,6 +81,9 @@ interface Props {
   onSetActiveStore: (store: string | undefined) => void
   onSetActiveDept: (deptId: string | undefined) => void
   onAddStore: (name: string) => void
+  /** Create a new grocery department from a label. Returns the new
+   * group id, or undefined when the cap is reached / label invalid. */
+  onAddGroup: (label: string) => string | undefined
   onRenameStore: (oldName: string, newName: string) => void
   onDeleteStore: (name: string) => void
   onReorderStores: (next: string[]) => void
@@ -121,6 +124,7 @@ export default function GroceryView({
   onSetActiveStore,
   onSetActiveDept,
   onAddStore,
+  onAddGroup,
   onRenameStore,
   onDeleteStore,
   onReorderStores,
@@ -736,6 +740,8 @@ export default function GroceryView({
         onAdd({ text, groupId, store })
       }}
       onCreateStore={onAddStore}
+      onCreateGroup={onAddGroup}
+      agentEnabled={agentEnabled}
       onClose={() => setComposeOpen(false)}
     />
     <Fab

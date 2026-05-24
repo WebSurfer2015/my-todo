@@ -29,7 +29,7 @@ import {
   View,
 } from 'react-native'
 import { Alert } from 'react-native'
-import { Check, Plus } from 'lucide-react-native'
+import { Check, Plus, Sparkles, Store as StoreIcon } from 'lucide-react-native'
 import * as Haptics from 'expo-haptics'
 import {
   GroceryGroup,
@@ -37,6 +37,7 @@ import {
   resolveGroup,
   inferGroceryGroupLocal,
 } from '../groceries'
+import { classifyGroceryDept } from '../aiInfer'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
 import GroceryIcon from './GroceryIcon'
@@ -58,6 +59,15 @@ interface Props {
    * "+ Create '<name>'" row in the Store sub-view after the user
    * confirms via an Alert. The store is also selected for this add. */
   onCreateStore?: (name: string) => void
+  /** Creates a new grocery dept from a label, returning the new id.
+   * Tapped from the "+ Create '<label>'" dept pill after the user
+   * confirms via Alert. Optional — when omitted the dept-create pill
+   * is hidden and AI-proposed new dept names are ignored client-side. */
+  onCreateGroup?: (label: string) => string | undefined
+  /** When true, the sheet runs live AI inference on text-change in
+   * addition to the always-on local heuristic. Mirrors the todo
+   * compose flow. Off → no AI calls, just local. */
+  agentEnabled?: boolean
   onClose: () => void
 }
 
@@ -69,6 +79,8 @@ export default function GroceryComposeSheet({
   initialDepartmentId,
   onAdd,
   onCreateStore,
+  onCreateGroup,
+  agentEnabled = false,
   onClose,
 }: Props) {
   const { t } = useLang()
@@ -87,6 +99,14 @@ export default function GroceryComposeSheet({
   // intend to choose the dept themselves — we stop auto-inferring
   // from the text after that. Reset on each open of the sheet.
   const userPickedDeptRef = useRef(false)
+  // Same idea for the store field: once the user picks one manually,
+  // stop overriding it from AI/text inference.
+  const userPickedStoreRef = useRef(false)
+  // AI-only suggestions surfaced as pills above the field group.
+  // Null when AI hasn't produced a new-entity proposal (or proposals
+  // matched existing entities and were silently auto-applied).
+  const [newDeptProposal, setNewDeptProposal] = useState<string | null>(null)
+  const [newStoreProposal, setNewStoreProposal] = useState<string | null>(null)
   // Search/create text for the Store sub-view. Drives both the
   // filter and the conditional "+ Create '<name>'" row at the
   // bottom of the list. Cleared whenever we leave the sub-view.
@@ -102,6 +122,9 @@ export default function GroceryComposeSheet({
       setGroupId(initialDepartmentId ?? OTHERS_GROUP_ID)
       setStore(initialStore)
       userPickedDeptRef.current = false
+      userPickedStoreRef.current = false
+      setNewDeptProposal(null)
+      setNewStoreProposal(null)
       setStoreSearch('')
       // Slight delay so the modal animation finishes before focusing.
       setTimeout(() => inputRef.current?.focus(), 120)
@@ -147,6 +170,144 @@ export default function GroceryComposeSheet({
       setGroupId(initialDepartmentId ?? OTHERS_GROUP_ID)
     }
   }, [text, groups, initialDepartmentId])
+
+  // Live AI inference — debounced classify-grocery-dept that fires
+  // on text-change when local heuristic misses. Existing dept/store
+  // hits auto-apply silently (matches the local-heuristic pattern).
+  // NEW dept/store proposals surface as pills above the field group
+  // so the user can confirm before they're added to their lists.
+  // Same token-saving knobs as the todo compose's field-suggest hook.
+  const AI_MIN_CHARS = 8
+  const AI_DEBOUNCE_MS = 1500
+  const aiSeqRef = useRef(0)
+  const aiLastQueriedRef = useRef<string>('')
+  const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Refs so the timer-fired closure reads the latest groups/stores
+  // without re-binding the effect on every parent re-render.
+  const groupsRef = useRef(groups)
+  useEffect(() => { groupsRef.current = groups }, [groups])
+  const storesRef = useRef(stores)
+  useEffect(() => { storesRef.current = stores }, [stores])
+
+  useEffect(() => {
+    if (aiTimerRef.current !== null) {
+      clearTimeout(aiTimerRef.current)
+      aiTimerRef.current = null
+    }
+    const trimmed = text.trim()
+    if (!agentEnabled || trimmed.length < AI_MIN_CHARS) {
+      aiSeqRef.current += 1
+      setNewDeptProposal(null)
+      setNewStoreProposal(null)
+      aiLastQueriedRef.current = ''
+      return
+    }
+    if (trimmed === aiLastQueriedRef.current) return
+
+    aiTimerRef.current = setTimeout(() => {
+      const seq = ++aiSeqRef.current
+      const query = trimmed
+      aiLastQueriedRef.current = query
+      const departments = groupsRef.current
+        .filter((g) => g.id !== OTHERS_GROUP_ID && !g.hidden)
+        .slice(0, 10)
+        .map((g) => ({ id: g.id, label: g.label }))
+      if (departments.length === 0) return
+      void classifyGroceryDept({
+        text: query,
+        departments,
+        stores: storesRef.current,
+      }).then((res) => {
+        if (seq !== aiSeqRef.current) return
+        // Existing dept → silent auto-apply (only if user hasn't
+        // picked one manually).
+        if (res.groupId && !userPickedDeptRef.current) {
+          const dept = groupsRef.current.find((g) => g.id === res.groupId)
+          if (dept) setGroupId(dept.id)
+          setNewDeptProposal(null)
+        } else if (res.newGroupLabel && onCreateGroup && !userPickedDeptRef.current) {
+          // New dept proposal → surface as pill for user to confirm.
+          // Re-check live state in case a duplicate was created
+          // between dispatch and response.
+          const existing = groupsRef.current.find(
+            (g) => g.id !== OTHERS_GROUP_ID && g.label.toLowerCase() === res.newGroupLabel!.toLowerCase(),
+          )
+          if (existing) {
+            setGroupId(existing.id)
+            setNewDeptProposal(null)
+          } else {
+            setNewDeptProposal(res.newGroupLabel)
+          }
+        } else {
+          setNewDeptProposal(null)
+        }
+        // Store hint: existing → silent setStore, new → pill.
+        if (res.storeHint && !userPickedStoreRef.current) {
+          const liveStores = storesRef.current
+          const matching = liveStores.find(
+            (s) => s.toLowerCase() === res.storeHint!.name.toLowerCase(),
+          )
+          if (matching) {
+            setStore(matching)
+            setNewStoreProposal(null)
+          } else if (res.storeHint.isNew && onCreateStore) {
+            setNewStoreProposal(res.storeHint.name)
+          } else {
+            setNewStoreProposal(null)
+          }
+        } else {
+          setNewStoreProposal(null)
+        }
+      })
+    }, AI_DEBOUNCE_MS)
+
+    return () => {
+      if (aiTimerRef.current !== null) {
+        clearTimeout(aiTimerRef.current)
+        aiTimerRef.current = null
+      }
+    }
+  }, [text, agentEnabled, onCreateGroup, onCreateStore])
+
+  function confirmCreateDept(label: string) {
+    if (!onCreateGroup) return
+    Alert.alert(
+      `Create new '${label}' department?`,
+      '',
+      [
+        { text: t.cancel, style: 'cancel', onPress: () => setNewDeptProposal(null) },
+        {
+          text: t.create,
+          onPress: () => {
+            const newId = onCreateGroup(label)
+            if (newId) setGroupId(newId)
+            setNewDeptProposal(null)
+            Haptics.selectionAsync().catch(() => {})
+          },
+        },
+      ],
+    )
+  }
+
+  function confirmCreateStore(name: string) {
+    if (!onCreateStore) return
+    Alert.alert(
+      `Create new store '${name}'?`,
+      '',
+      [
+        { text: t.cancel, style: 'cancel', onPress: () => setNewStoreProposal(null) },
+        {
+          text: t.create,
+          onPress: () => {
+            onCreateStore(name)
+            setStore(name)
+            setNewStoreProposal(null)
+            Haptics.selectionAsync().catch(() => {})
+          },
+        },
+      ],
+    )
+  }
 
   const activeGroup = resolveGroup(groupId, groups)
   const visibleGroups = useMemo(
@@ -212,6 +373,36 @@ export default function GroceryComposeSheet({
                     returnKeyType="done"
                     onSubmitEditing={handleAddAnother}
                   />
+
+                  {(newDeptProposal || newStoreProposal) && (
+                    <View style={styles.aiPillRow}>
+                      <Sparkles size={12} color={theme.primary} strokeWidth={2.2} />
+                      {newDeptProposal && (
+                        <TouchableOpacity
+                          style={styles.aiPill}
+                          onPress={() => confirmCreateDept(newDeptProposal)}
+                          activeOpacity={0.6}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Create new department ${newDeptProposal}`}
+                        >
+                          <Plus size={12} color={theme.primary} strokeWidth={2.4} />
+                          <Text style={styles.aiPillText}>{newDeptProposal}</Text>
+                        </TouchableOpacity>
+                      )}
+                      {newStoreProposal && (
+                        <TouchableOpacity
+                          style={styles.aiPill}
+                          onPress={() => confirmCreateStore(newStoreProposal)}
+                          activeOpacity={0.6}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Create new store ${newStoreProposal}`}
+                        >
+                          <StoreIcon size={12} color={theme.primary} strokeWidth={2.2} />
+                          <Text style={styles.aiPillText}>{newStoreProposal}</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
 
                   <View style={styles.fieldGroup}>
                     <TouchableOpacity
@@ -362,6 +553,7 @@ export default function GroceryComposeSheet({
                       text: t.create,
                       onPress: () => {
                         onCreateStore(searchTrimmed)
+                        userPickedStoreRef.current = true
                         setStore(searchTrimmed)
                         setStoreSearch('')
                         setSubView('main')
@@ -394,6 +586,7 @@ export default function GroceryComposeSheet({
                     <TouchableOpacity
                       style={styles.subRow}
                       onPress={() => {
+                        userPickedStoreRef.current = true
                         setStore(undefined)
                         setSubView('main')
                       }}
@@ -413,6 +606,7 @@ export default function GroceryComposeSheet({
                       key={s}
                       style={styles.subRow}
                       onPress={() => {
+                        userPickedStoreRef.current = true
                         setStore(s)
                         setSubView('main')
                       }}
@@ -526,6 +720,30 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.card,
       borderRadius: 12,
       overflow: 'hidden',
+    },
+    aiPillRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      flexWrap: 'wrap',
+      paddingHorizontal: 4,
+      paddingTop: 4,
+      paddingBottom: 8,
+    },
+    aiPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: c.primarySoft,
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      gap: 6,
+    },
+    aiPillText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: c.primary,
+      letterSpacing: -0.1,
     },
     fieldRow: {
       flexDirection: 'row',

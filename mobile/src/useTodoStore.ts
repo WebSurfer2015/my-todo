@@ -1264,6 +1264,37 @@ export function useTodoStore() {
     [setProfile],
   );
 
+  // Create a new grocery department from a proposed label. Returns
+  // the new group's id so the caller can immediately select it on
+  // the in-progress item. Re-uses an existing group when the label
+  // already matches (case-insensitive) — keeps AI's "new" pill from
+  // accidentally creating a near-duplicate.
+  const addGroceryGroup = useCallback(
+    (label: string): string | undefined => {
+      const trimmed = label.trim();
+      if (!trimmed) return undefined;
+      const live = groceryGroupsRef.current;
+      const dupe = live.find(
+        (g) => g.id !== OTHERS_GROUP_ID && g.label.toLowerCase() === trimmed.toLowerCase(),
+      );
+      if (dupe) return dupe.id;
+      if (live.length >= MAX_GROCERY_GROUPS) return undefined;
+      const next = newGroceryGroup(trimmed);
+      setGroceryGroups((prev) => {
+        // Insert before the trailing Others/Uncategorized group so
+        // the new dept lands in the visible list, not after the
+        // catch-all. Same placement as addGrocery's post-add path.
+        const withoutOthers = prev.filter((g) => g.id !== OTHERS_GROUP_ID);
+        const others = prev.find((g) => g.id === OTHERS_GROUP_ID);
+        const out = [...withoutOthers, next];
+        if (others) out.push(others);
+        return out;
+      });
+      return next.id;
+    },
+    [setGroceryGroups],
+  );
+
   const toggleGroceryStoreHidden = useCallback(
     (name: string) => {
       setProfile((p) => {
@@ -1352,6 +1383,7 @@ export function useTodoStore() {
     setActiveGroceryDept,
     pinGroceryDept,
     addGroceryStore,
+    addGroceryGroup,
     renameGroceryStore,
     deleteGroceryStore,
     reorderGroceryStores,
