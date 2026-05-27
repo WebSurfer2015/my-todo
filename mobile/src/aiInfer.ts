@@ -92,14 +92,18 @@ async function callAiInfer<R>(mode: string, input: unknown): Promise<R> {
   const user = auth().currentUser
   if (!user) throw new Error('Sign in to use AI assistance.')
   const idToken = await user.getIdToken()
-  const res = await fetch(AI_INFER_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${idToken}`,
-    },
-    body: JSON.stringify({ data: { mode, input } }),
-  })
+  // Retry once on 429 with a 1.5s delay. The function runs with
+  // minInstances:0, so the first request after idle hits a cold
+  // start (~1-2s); a follow-up request landing in that window can
+  // get 429'd by Cloud Run's autoscaler before reaching our handler.
+  // One retry after a brief pause absorbs the cold-start gap without
+  // adding any standing cost. Non-429 errors fail fast.
+  const COLD_START_RETRY_MS = 1500
+  let res = await fetchAi(idToken, mode, input)
+  if (res.status === 429) {
+    await new Promise((resolve) => setTimeout(resolve, COLD_START_RETRY_MS))
+    res = await fetchAi(idToken, mode, input)
+  }
   if (!res.ok) {
     throw new Error(`AI request failed (${res.status}).`)
   }
@@ -107,6 +111,17 @@ async function callAiInfer<R>(mode: string, input: unknown): Promise<R> {
   if (body.error) throw new Error(body.error.message ?? 'AI request failed.')
   if (!body.result) throw new Error('Empty AI response.')
   return body.result.result
+}
+
+function fetchAi(idToken: string, mode: string, input: unknown): Promise<Response> {
+  return fetch(AI_INFER_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({ data: { mode, input } }),
+  })
 }
 
 /** Breaks a single to-do into 3–6 concrete steps. */
