@@ -349,17 +349,30 @@ function TodosScreen() {
             ) : displayGroups.length === 0 ? (
               // Filter-mismatch empty state: when the user has todos
               // but none match the current filter, swap the generic
-              // "Add a to-do" CTA for a "View all" affordance that
-              // clears the filter. Triggers when (a) not searching,
-              // (b) on a non-all filter, (c) there are active todos
-              // outside the current bucket. Helps after the common
-              // "added a Work todo while filtered to Home" footgun.
+              // "Add a to-do" CTA for a smart-target affordance that
+              // routes to the filter where their items actually live.
+              // Triggers when (a) not searching, (b) on a non-all
+              // filter, (c) there are active todos outside the
+              // current bucket. Target routing:
+              //   open    → done   (everything's been checked off)
+              //   done    → open   (just added a fresh open todo)
+              //   overdue → open   (today/future items, not carried)
+              //   cat:* / pri:* → all  (we can't guess which bucket)
               (() => {
                 const filterMismatch =
                   !searchNeedle &&
                   store.filter !== 'all' &&
                   store.activeCount > 0
                 if (filterMismatch) {
+                  const targetFilter: Filter =
+                    store.filter === 'open' ? 'done'
+                    : store.filter === 'done' ? 'open'
+                    : store.filter === 'overdue' ? 'open'
+                    : 'all'
+                  const targetLabel =
+                    targetFilter === 'all'
+                      ? 'View all'
+                      : `View ${t.filters[targetFilter].toLowerCase()}`
                   return (
                     <EmptyStateCard
                       title={store.emptyState.title}
@@ -368,10 +381,10 @@ function TodosScreen() {
                           ? "You have 1 to-do — it's just hidden by this filter."
                           : `You have ${store.activeCount} to-dos — they're hidden by this filter.`
                       }
-                      actionLabel="View all"
+                      actionLabel={targetLabel}
                       onAction={() => {
                         void Analytics.emptyStateCtaTapped('todos')
-                        store.setFilter('all')
+                        store.setFilter(targetFilter)
                       }}
                     />
                   )
