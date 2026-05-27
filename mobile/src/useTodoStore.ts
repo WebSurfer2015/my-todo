@@ -1063,12 +1063,21 @@ export function useTodoStore() {
   const dethemePebbles =
     profile.themeFromAvatar === true && !!collectedNounKeyFor(profile.avatar);
   const mascotLine = pickMascotLine(lang, greetingKey, todayCount, todayDate, dethemePebbles);
-  // When the user has set a personal quote, alternate it with Mochi's
-  // line by day-stable seed so neither one permanently silences the
-  // other. Same seed mechanism as pickMascotLine — predictable rotation
-  // across days, steady within a session.
+  // Subtitle behavior is opt-in via the quote field:
+  //   - Quote set → alternate user's quote with Mochi's line by
+  //     day-stable seed (predictable rotation, steady within a
+  //     session).
+  //   - Quote empty → no subtitle line at all (mascot line is
+  //     gated on the quote too). Emptying the quote field is the
+  //     user's signal that they want the greeting bar quieter;
+  //     the prior behavior of falling back to Mochi's voice felt
+  //     like the empty-state didn't take effect.
   const identityLineIsQuote = !!trimmedQuote && dateSeed(todayDate) % 2 === 0;
-  const identityLine = identityLineIsQuote ? trimmedQuote : mascotLine;
+  const identityLine = !trimmedQuote
+    ? ''
+    : identityLineIsQuote
+      ? trimmedQuote
+      : mascotLine;
   // Legacy: still expose quoteLine for any caller that wants the raw
   // value, but App.tsx now reads identityLine + identityLineIsQuote.
   const quoteLine = trimmedQuote;

@@ -315,6 +315,7 @@ function TodosScreen() {
                 <EmptyStateCard
                   title={store.emptyState.title}
                   hint={store.emptyState.hint}
+                  centered
                 />
               ) : (
                 <View style={styles.groupCard}>
@@ -389,6 +390,7 @@ function TodosScreen() {
                         void Analytics.emptyStateCtaTapped('todos')
                         store.setFilter(targetFilter)
                       }}
+                      centered
                     />
                   )
                 }
@@ -401,6 +403,7 @@ function TodosScreen() {
                       void Analytics.emptyStateCtaTapped('todos')
                       sheets.openCompose()
                     }}
+                    centered
                   />
                 )
               })()

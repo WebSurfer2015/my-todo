@@ -89,6 +89,11 @@ function makeStyles(c: ThemeColors) {
     centerWrap: {
       flex: 1,
       justifyContent: 'center',
+      // paddingBottom approximates the bottom tab bar height
+      // (~84pt iOS w/ safe area) so the card sits at the true
+      // optical center between header chrome and tab bar — matches
+      // Dashboard's Day-1 welcome card centering.
+      paddingBottom: 84,
       // Don't stretch: card width stays content-based + the inner
       // alignItems:center keeps it horizontally pinned to the card's
       // natural width when wrapped in alignSelf:stretch parents.

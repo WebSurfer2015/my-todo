@@ -69,15 +69,17 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
               <Text style={styles.greeting} numberOfLines={1}>
                 {store.headerLine}
               </Text>
-              <Text
-                style={[
-                  styles.identity,
-                  store.identityLineIsQuote && styles.identityQuote,
-                ]}
-                numberOfLines={2}
-              >
-                {store.identityLine}
-              </Text>
+              {store.identityLine ? (
+                <Text
+                  style={[
+                    styles.identity,
+                    store.identityLineIsQuote && styles.identityQuote,
+                  ]}
+                  numberOfLines={2}
+                >
+                  {store.identityLine}
+                </Text>
+              ) : null}
             </>
           )}
         </View>

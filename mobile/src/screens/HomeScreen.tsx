@@ -848,14 +848,17 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     flex: { flex: 1 },
     // Day-1 empty mode: center the welcome EmptyStateCard in the
-    // remaining viewport. flex:1 absorbs the space between
-    // AppHeader and the tab bar; paddingHorizontal mirrors the
-    // body inset so the card edges line up with the rest of the
-    // app's content rhythm.
+    // remaining VISIBLE viewport (between AppHeader and the
+    // tab bar). flex:1 absorbs space; paddingBottom approximates
+    // the bottom tab bar height (~84pt iOS w/ safe area) so the
+    // card sits at the true optical center instead of the
+    // geometric center of the full-screen flex region (which would
+    // hide partially behind the tab bar's perceived weight).
     dayOneEmptyWrap: {
       flex: 1,
       justifyContent: 'center',
       paddingHorizontal: 20,
+      paddingBottom: 84,
     },
     body: { paddingHorizontal: 20, gap: 16, paddingTop: 4 },
     sectionHeaderRow: {
