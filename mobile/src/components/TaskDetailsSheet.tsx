@@ -1580,10 +1580,16 @@ export function ReminderSubView({
   // Until-picker working state. Kept in a ref-like local so the
   // shared sub-view doesn't need separate parent state. Initial
   // value falls back to dueDate (with time) so the picker opens
-  // somewhere reasonable.
+  // somewhere reasonable. CLAMP to >= now because the picker is
+  // mounted with minimumDate={new Date()}: a seed in the past
+  // crashes the iOS RNDateTimePickerShadowView with
+  // "Unable to set a visible month that is before the minimum"
+  // (surfaced via Crashlytics on v1.4.0).
   const [untilPickerDate, setUntilPickerDate] = useState<Date>(() => {
     const seed = pendingRemindUntil || dueDateAsUntil(dueDate)
-    return seed ? new Date(seed) : new Date(Date.now() + 3 * 60 * 60 * 1000)
+    const candidate = seed ? new Date(seed) : new Date(Date.now() + 3 * 60 * 60 * 1000)
+    const now = new Date()
+    return candidate.getTime() < now.getTime() ? now : candidate
   })
 
   if (remindSubView === 'until') {

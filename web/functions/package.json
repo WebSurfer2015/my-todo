@@ -8,6 +8,8 @@
     "build": "tsc",
     "watch": "tsc --watch",
     "lint": "eslint --ext .ts src",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "serve": "npm run build && firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions"
   },
@@ -22,6 +24,8 @@
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
-    "typescript": "^5.4.0"
+    "@vitest/coverage-v8": "^4.1.7",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.7"
   }
 }
