@@ -201,15 +201,16 @@ export function useTriggerPebbleFlight() {
 
 // ── overlay sprite ────────────────────────────────────────────────────────
 
-const MOCHI_SIZE = 56
-// Slowed from 1800 → 2400 so the arc reads as "carried", not "flung".
-// LAND_AT/DROP_AT keep their relative ratios; the new total gives the
-// avatar room to land, do a small two-beat celebration, and fade out
-// without feeling rushed.
-const FLIGHT_MS = 2400
-const LAND_AT = 0.40
-const DROP_AT = 0.52
-const FADE_START = 0.82
+// Bigger than the avatar (44pt) so the celebration reads as
+// "this just happened" without dominating the screen.
+const MOCHI_SIZE = 76
+// 3000ms total — slow and smooth, gives Mochi time to bounce 3
+// times across the screen without feeling drawn out.
+const FLIGHT_MS = 3000
+// Chime fires around the second bounce so the audio peak doesn't
+// land at the start (jarring) or the fade-out (anticlimactic).
+const DROP_AT = 0.40
+const FADE_START = 0.85
 const DROP_MS = FLIGHT_MS * DROP_AT
 
 /**
@@ -222,11 +223,10 @@ const DROP_MS = FLIGHT_MS * DROP_AT
 export const PEBBLE_DEFERRAL_MS = DROP_MS
 
 function FlyingMochi({ flight, onDone }: { flight: Flight; onDone: () => void }) {
-  // The cairn-bound animation echoes the user's current avatar
-  // when one is set — matches the calm-app touch that chrome
-  // reflects identity. Falls back to the brand Mochi turtle
-  // (mochi-mascot.png) for users on the default avatar or any
-  // path that doesn't yield a preset/image.
+  // The celebration echoes the user's current avatar when one is
+  // set — calm-app touch that chrome reflects identity. Falls back
+  // to the brand Mochi turtle (mochi-mascot.png) for the default
+  // avatar or any path that doesn't yield a preset/image.
   const avatar: Avatar | undefined = useStore().profile.avatar
   const progress = useRef(new Animated.Value(0)).current
 
@@ -234,66 +234,83 @@ function FlyingMochi({ flight, onDone }: { flight: Flight; onDone: () => void })
     Animated.timing(progress, {
       toValue: 1,
       duration: FLIGHT_MS,
-      // Gentler ease — easeInOutSine-ish — so the arc accelerates and
-      // settles softly rather than the previous custom curve which
-      // landed with a slight snap. Reads as natural / "carried".
-      easing: Easing.bezier(0.45, 0, 0.55, 1),
+      // Linear travel across the screen — the bouncing comes from
+      // the Y interpolation, not the easing. A linear horizontal
+      // pace reads as "Mochi happily skipping across", not
+      // "Mochi accelerating then braking".
+      easing: Easing.linear,
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (finished) onDone()
     })
-    // Chime fires at the pebble-drop moment, which matches the store's
-    // PEBBLE_DEFERRAL_MS so the real pebble materializes on the strip
-    // at the same instant the user hears the sound. Skipped when the
-    // trigger was opted out of audio.
     const t = flight.chime ? setTimeout(playChime, DROP_MS) : null
     return () => { if (t) clearTimeout(t) }
   }, [progress, onDone, flight.chime])
 
-  const dx = flight.to.x - flight.from.x
-  const dy = flight.to.y - flight.from.y
-  // Lift higher than the straight line so Mochi feels carried up.
-  const peakLift = Math.min(100, Math.abs(dy) * 0.35 + 40)
+  // Travel horizontally toward the opposite edge of the screen
+  // from the tap point — keeps Mochi moving across the visible
+  // surface rather than off the nearest edge. End point is past
+  // the edge so Mochi exits the frame cleanly during the fade.
+  const screenW = Dimensions.get('window').width
+  const towardRight = flight.from.x < screenW / 2
+  const dx = towardRight
+    ? screenW - flight.from.x + MOCHI_SIZE
+    : -(flight.from.x + MOCHI_SIZE)
 
   const translateX = progress.interpolate({
-    inputRange: [0, LAND_AT, 1],
-    outputRange: [0, dx, dx],
+    inputRange: [0, 1],
+    outputRange: [0, dx],
   })
+
+  // Vertical bouncing: 3 jumps across the journey, each peak ~60pt
+  // above the baseline. Hand-built keyframes so each bounce is the
+  // same height + cadence (Easing.bounce ramps unevenly across a
+  // long single animation).
+  const BOUNCE_HEIGHT = 60
   const translateY = progress.interpolate({
-    inputRange: [0, LAND_AT / 2, LAND_AT, 1],
-    outputRange: [0, dy / 2 - peakLift, dy, dy],
+    inputRange: [
+      0,
+      0.083, 0.166,   // bounce 1
+      0.25,  0.333,   // bounce 2
+      0.416, 0.5,     // bounce 3
+      0.583, 0.666,   // bounce 4
+      0.75,  0.833,   // bounce 5
+      0.916, 1,       // bounce 6 + exit
+    ],
+    outputRange: [
+      0,
+      -BOUNCE_HEIGHT, 0,
+      -BOUNCE_HEIGHT, 0,
+      -BOUNCE_HEIGHT, 0,
+      -BOUNCE_HEIGHT, 0,
+      -BOUNCE_HEIGHT, 0,
+      -BOUNCE_HEIGHT, 0,
+    ],
   })
-  // Two-beat celebration on landing: a small squash-and-stretch on
-  // touchdown, then a softer aftershock, then fade-out shrink. Reads
-  // as a happy little arrival rather than a static drop.
+  // Subtle squash-and-stretch on each bounce so the motion reads
+  // as alive rather than as a sprite on a sine wave.
   const mochiScale = progress.interpolate({
     inputRange: [
       0,
-      LAND_AT,           // arrives at cairn
-      LAND_AT + 0.04,    // first bounce up
-      LAND_AT + 0.09,    // settles
-      LAND_AT + 0.14,    // little second bounce
-      LAND_AT + 0.20,    // resting size
-      FADE_START,
-      1,
+      0.083, 0.166,
+      0.25,  0.333,
+      0.416, 0.5,
+      0.583, 0.666,
+      0.75,  0.833,
+      0.916, 1,
     ],
-    outputRange: [1, 1, 1.22, 0.95, 1.08, 1, 1, 0.7],
-  })
-  // Wiggle: a small left-right rotation right after landing reads as
-  // "happy dance" before the avatar settles + fades. Disabled before
-  // landing (rotation: 0) so the airborne arc doesn't tilt.
-  const mochiRotate = progress.interpolate({
-    inputRange: [
-      0,
-      LAND_AT,
-      LAND_AT + 0.05,
-      LAND_AT + 0.10,
-      LAND_AT + 0.15,
-      LAND_AT + 0.20,
+    outputRange: [
       1,
+      1.08, 0.94,
+      1.08, 0.94,
+      1.08, 0.94,
+      1.08, 0.94,
+      1.08, 0.94,
+      1.08, 0.94,
     ],
-    outputRange: ['0deg', '0deg', '-7deg', '6deg', '-4deg', '0deg', '0deg'],
   })
+  // Fade in at the start (so Mochi appears at the tap point), full
+  // opacity through the journey, fade out at the end.
   const mochiOpacity = progress.interpolate({
     inputRange: [0, 0.08, FADE_START, 1],
     outputRange: [0, 1, 1, 0],
@@ -304,15 +321,12 @@ function FlyingMochi({ flight, onDone }: { flight: Flight; onDone: () => void })
       style={[
         styles.mochi,
         {
-          // Container is MOCHI_SIZE * 1.4 wide × MOCHI_SIZE tall; center on
-          // the from-point by half of each dimension.
-          left: flight.from.x - (MOCHI_SIZE * 1.4) / 2,
+          left: flight.from.x - MOCHI_SIZE / 2,
           top: flight.from.y - MOCHI_SIZE / 2,
           opacity: mochiOpacity,
           transform: [
             { translateX },
             { translateY },
-            { rotate: mochiRotate },
             { scale: mochiScale },
           ],
         },
@@ -395,7 +409,7 @@ function renderAvatarGlyph(avatar: Avatar | undefined): React.ReactNode {
 const styles = StyleSheet.create({
   mochi: {
     position: 'absolute',
-    width: MOCHI_SIZE * 1.4,
+    width: MOCHI_SIZE,
     height: MOCHI_SIZE,
     backgroundColor: 'transparent',
     alignItems: 'center',
