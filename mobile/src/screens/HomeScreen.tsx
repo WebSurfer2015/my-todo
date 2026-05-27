@@ -353,22 +353,39 @@ export default function HomeScreen() {
             and can collapse NEXT to return to it. */}
         {nextExpanded ? null : todayBucket.length === 0 ? (
           // Unified empty state — same component as Todos + Shopping
-          // so the visual matches across tabs. subline carries the
-          // optional "N done today" count.
-          <EmptyStateCard
-            title="Nothing pending."
-            subline={
-              store.todayPebbles === 0
-                ? undefined
-                : store.todayPebbles === 1
-                  ? '1 done today.'
-                  : `${store.todayPebbles} done today.`
-            }
-            hint="Enjoy the breathing room."
-            actionLabel="What's Next?"
-            onAction={openWhatsNext}
-            actionAccessibilityLabel="What's Next? Ask Mochi or open the upcoming list."
-          />
+          // so the visual matches across tabs.
+          //
+          // CTA depends on whether anything exists to navigate to:
+          //   - any future open todo (overdue/week/upcoming/no-date)
+          //     → show "What's Next?" (advances to next group)
+          //   - nothing at all → show "Add a to-do" (compose) so the
+          //     user has a way forward instead of a dead-end button
+          firstAvailableNextKey == null ? (
+            <EmptyStateCard
+              title="You're all caught up."
+              hint="Add a to-do to get started."
+              actionLabel="Add a to-do"
+              onAction={() => {
+                void Analytics.emptyStateCtaTapped('todos')
+                sheets.openCompose()
+              }}
+            />
+          ) : (
+            <EmptyStateCard
+              title="Nothing pending."
+              subline={
+                store.todayPebbles === 0
+                  ? undefined
+                  : store.todayPebbles === 1
+                    ? '1 done today.'
+                    : `${store.todayPebbles} done today.`
+              }
+              hint="Enjoy the breathing room."
+              actionLabel="What's Next?"
+              onAction={openWhatsNext}
+              actionAccessibilityLabel="What's Next? Ask Mochi or open the upcoming list."
+            />
+          )
         ) : (
           <View style={styles.todayList}>
             {previewItems.map((td) => (
