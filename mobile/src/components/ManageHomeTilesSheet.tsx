@@ -10,6 +10,7 @@
 
 import React, { useMemo } from "react";
 import {
+  Dimensions,
   Modal,
   Pressable,
   ScrollView,
@@ -81,6 +82,13 @@ export default function ManageHomeTilesSheet({
     );
   }
 
+  // Compute the sheet's exact height in points (not a %) so the
+  // inner ScrollView's flex:1 has a deterministic bounded parent.
+  // Percentage-based heights inside a Modal+Pressable nest weren't
+  // resolving cleanly — the ScrollView ended up with 0 height,
+  // clipping CATEGORIES below the visible band with no scroll.
+  const screenH = Dimensions.get('window').height
+  const sheetHeight = Math.round(screenH * 0.85)
   return (
     <Modal
       visible={visible}
@@ -89,7 +97,10 @@ export default function ManageHomeTilesSheet({
       onRequestClose={onClose}
     >
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+        <Pressable
+          style={[styles.sheet, { height: sheetHeight }]}
+          onPress={(e) => e.stopPropagation()}
+        >
           <View style={styles.handle} />
           <View style={styles.headerRow}>
             <TouchableOpacity
@@ -218,18 +229,9 @@ function makeStyles(c: ThemeColors) {
       paddingTop: 12,
       paddingBottom: 24,
       paddingHorizontal: 16,
-      // Was 85% — bumped to 92% so all 3 sections (STATUSES +
-      // PRIORITIES + CATEGORIES) fit on phones tall enough to
-      // accommodate them, reducing the need to scroll for the
-      // common case. Scrolling still kicks in when the user has
-      // many custom categories.
-      maxHeight: "92%",
-      // Force a floor so the inner ScrollView (body: flex:1) has
-      // something to absorb. Without this, the sheet sized to its
-      // own content height — but body wants the parent to provide
-      // bounded height, so body collapsed to 0 and only the header
-      // rendered. Per the min-sheet-height design rule (>=30%).
-      minHeight: "60%",
+      // height is set inline from Dimensions (85% of screen) so the
+      // inner ScrollView's flex:1 always has a bounded parent and
+      // can scroll the CATEGORIES section into view.
     },
     handle: {
       alignSelf: "center",
