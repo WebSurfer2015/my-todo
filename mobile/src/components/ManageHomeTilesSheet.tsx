@@ -127,7 +127,11 @@ export default function ManageHomeTilesSheet({
           <ScrollView
             style={styles.body}
             contentContainerStyle={styles.bodyContent}
-            showsVerticalScrollIndicator={false}
+            // Indicator visible so the user knows there's more
+            // content below (Categories) when STATUSES + PRIORITIES
+            // fill the first screen of the sheet.
+            showsVerticalScrollIndicator={true}
+            indicatorStyle="default"
           >
             <Text style={styles.sectionHeader}>STATUSES</Text>
             <View style={styles.listCard}>
@@ -214,7 +218,12 @@ function makeStyles(c: ThemeColors) {
       paddingTop: 12,
       paddingBottom: 24,
       paddingHorizontal: 16,
-      maxHeight: "85%",
+      // Was 85% — bumped to 92% so all 3 sections (STATUSES +
+      // PRIORITIES + CATEGORIES) fit on phones tall enough to
+      // accommodate them, reducing the need to scroll for the
+      // common case. Scrolling still kicks in when the user has
+      // many custom categories.
+      maxHeight: "92%",
       // Force a floor so the inner ScrollView (body: flex:1) has
       // something to absorb. Without this, the sheet sized to its
       // own content height — but body wants the parent to provide
