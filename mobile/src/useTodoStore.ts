@@ -21,12 +21,8 @@ import {
   statusToggleHidden,
   statusReorder,
 } from "../../core/src/statuses";
-import {
-  CategoryDef,
-  SEED_CATEGORIES,
-  migrateCategory,
-  newCategoryId,
-} from "./categories";
+import { useCategoriesSlice } from "./slices/useCategoriesSlice";
+import { unwrap, serializeAny } from "./storage/envelope";
 import { Profile, SEED_PROFILE, migrateProfile, getTodayPebbles, incrementPebble, decrementPebble, collectedNounKeyFor } from "./profile";
 import {
   GroceryItem,
@@ -84,46 +80,10 @@ import {
   subtaskUpdateDueDate,
   subtaskRemove,
   subtaskClearAll,
-  categoryAdd,
-  categoryEdit,
   categoryDelete,
-  categoryReorder,
   deriveState,
 } from "../../core/src/derive";
 import { todayLocal, isoDate } from "../../core/src/utils";
-
-const SCHEMA_VERSION = 1;
-
-function unwrap(raw: string | null): unknown {
-  if (raw == null) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      !Array.isArray(parsed) &&
-      "version" in parsed &&
-      "data" in parsed
-    ) {
-      return (parsed as { data: unknown }).data;
-    }
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function wrap(data: unknown): string {
-  return JSON.stringify({ version: SCHEMA_VERSION, data });
-}
-
-const parseCategories = (raw: string | null): CategoryDef[] => {
-  const data = unwrap(raw);
-  if (!Array.isArray(data) || data.length === 0) return SEED_CATEGORIES;
-  return (data as Array<Partial<CategoryDef> & { id: string }>).map(
-    migrateCategory,
-  );
-};
 
 const parseTodos = (raw: string | null): Todo[] => migrateTodos(unwrap(raw));
 const parseTodoReferences = (raw: string | null): TodoReference[] =>
@@ -150,8 +110,6 @@ const parseGroceries = (raw: string | null): GroceryItem[] =>
 
 const parseGroceryGroups = (raw: string | null): GroceryGroup[] =>
   migrateGroceryGroups(unwrap(raw));
-
-const serializeAny = (v: unknown): string => wrap(v);
 
 /**
  * Push local AsyncStorage data to cloud, per-key, only when that cloud key is
@@ -205,9 +163,14 @@ export function useTodoStore() {
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const onSaved = useCallback((ts: number) => setLastSavedAt(ts), []);
 
-  const [categories, setCategories, categoriesLoaded] = useSyncedState<
-    CategoryDef[]
-  >(adapter, "categories", SEED_CATEGORIES, parseCategories, serializeAny, onSaved);
+  const {
+    categories,
+    setCategories,
+    categoriesLoaded,
+    addCategory,
+    editCategory,
+    reorderCategories,
+  } = useCategoriesSlice(adapter, onSaved);
   const [groceries, setGroceries, groceriesLoaded] = useSyncedState<GroceryItem[]>(
     adapter,
     "groceries",
@@ -956,19 +919,6 @@ export function useTodoStore() {
     );
   }
 
-  function addCategory(data: { label: string; color: string; icon: string }): string {
-    const id = newCategoryId();
-    setCategories((prev) => categoryAdd(prev, id, data));
-    return id;
-  }
-
-  function editCategory(
-    id: string,
-    data: { label: string; color: string; icon: string },
-  ) {
-    setCategories((prev) => categoryEdit(prev, id, data));
-  }
-
   function deleteCategory(id: string) {
     if (categories.length <= 1) return;
     const next = categoryDelete(todos, categories, id);
@@ -993,10 +943,6 @@ export function useTodoStore() {
   function changeView(v: ViewMode) {
     setProfile((prev) => ({ ...prev, view: v }));
     setFilter(v === "category" ? "all" : "open");
-  }
-
-  function reorderCategories(fromIdx: number, toIdx: number) {
-    setCategories((prev) => categoryReorder(prev, fromIdx, toIdx));
   }
 
   function renameStatus(id: StatusFilter, label: string) {
