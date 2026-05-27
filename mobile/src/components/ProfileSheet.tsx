@@ -338,7 +338,7 @@ export default function ProfileSheet({
                 in the title bar (top-left). */}
             <Text style={styles.signedInLine} numberOfLines={1}>
               {user?.email
-                ? `Signed in as  ${user.email}`
+                ? `You're signed in as  ${user.email}`
                 : 'Not signed in'}
             </Text>
 
