@@ -1,18 +1,21 @@
-# Flow 01 — Cold launch lands on Home tab.
+# Flow 01 — Cold launch lands on Dashboard tab.
 # Manual-plan test 1.1 + 3.1.
 #
 # Selector notes: Maestro matches against the iOS accessibility tree,
 # not raw React Native Text content. Raw <Text>TODAY</Text> isn't
 # searchable because the wrapping Pressable's accessibilityLabel
 # ("Open Todos showing N items") shadows it. We target tree-visible
-# strings instead: the Home tab's "tab, 1 of 3" axId and the section
-# wrapper's accessibilityLabel.
+# strings instead: the Dashboard tab's "tab, 1 of 3" axId and the
+# section wrapper's accessibilityLabel.
+#
+# v1.5: Home tab was renamed to "Dashboard" in the user-facing copy
+# (Phase 1A — see task #18 in the activity log).
 appId: com.websurfer.mytodo
 ---
 - stopApp
 - launchApp
-# Home tab is the active one of three.
-- assertVisible: "Home, tab, 1 of 3"
+# Dashboard tab is the active one of three.
+- assertVisible: "Dashboard, tab, 1 of 3"
 # TODAY section is rendered — the wrapping Pressable has this aria
 # label. Bare strings in assertVisible match exactly; switch to the
 # `text:` form for regex/substring.

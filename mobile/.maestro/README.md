@@ -42,8 +42,8 @@ brew install --HEAD maestro
 1. iOS simulator booted with Sagely's dev client installed.
 2. Signed in as `sagely.todo@gmail.com` with the seed dataset present
    (run `scripts/seed_sample_data.py` first).
-3. Home tab is the active tab (cold-launch lands here — flow `01` asserts
-   that).
+3. Dashboard tab is the active tab (cold-launch lands here — flow `01`
+   asserts that). v1.5 renamed Home → Dashboard.
 
 ## Run
 
@@ -60,7 +60,7 @@ at the running sim and it'll show element selectors live.
 
 | File | What it covers | Manual-plan test # |
 | --- | --- | --- |
-| `flows/01-cold-launch-lands-on-home.yaml` | App launches to Home tab; TODAY section renders | 1.1, 3.1 |
+| `flows/01-cold-launch-lands-on-home.yaml` | App launches to Dashboard tab; TODAY section renders | 1.1, 3.1 |
 | `flows/02-add-todo.yaml` | FAB → Compose → Done → row appears in list | 4.1–4.3 |
 | `flows/03-toggle-done-and-strike.yaml` | Tap open row → toggles done → drops from Open filter | 4.7, 3.2 |
 | `flows/04-swipe-to-trash-and-undo.yaml` | Swipe-right → Not Do → snackbar Undo restores row | 4.10 |
