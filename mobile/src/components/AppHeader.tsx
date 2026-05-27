@@ -12,12 +12,14 @@
 
 import React, { useEffect, useMemo, useRef } from 'react'
 import { Animated, Easing, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { useIsFocused } from '@react-navigation/native'
 import { Settings as SettingsIcon, Search as SearchIcon, Filter as FilterIcon } from 'lucide-react-native'
 import { useStore } from '../StoreContext'
 import { useSheets } from '../SheetContext'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
 import Avatar from './Avatar'
+import { useRegisterCairn } from './PebbleFlight'
 
 interface Props {
   /** Static screen title (Todos / Groceries). When provided, the
@@ -48,6 +50,38 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
   const { t } = useLang()
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
+
+  // Register the avatar's screen position as the "home" target for
+  // mark-done celebrations (the flying Mochi glides here). Only the
+  // currently-focused tab's AppHeader registers — otherwise tabs
+  // would race and the resolver could measure a hidden avatar.
+  const avatarRef = useRef<View>(null)
+  const registerCairn = useRegisterCairn()
+  const isFocused = useIsFocused()
+  useEffect(() => {
+    if (!isFocused) return
+    const resolver = (cb: (p: { x: number; y: number } | null) => void) => {
+      const node = avatarRef.current
+      if (!node) {
+        cb(null)
+        return
+      }
+      node.measureInWindow((x, y, w, h) => {
+        if (
+          typeof x !== 'number' ||
+          typeof y !== 'number' ||
+          !(w > 0) ||
+          !(h > 0)
+        ) {
+          cb(null)
+          return
+        }
+        cb({ x: x + w / 2, y: y + h / 2 })
+      })
+    }
+    registerCairn(resolver)
+    return () => registerCairn(null)
+  }, [registerCairn, isFocused])
 
   // Mochi happy-dance: scale-pulse + tiny rotation wiggle on every
   // mark-done. Trigger = lifetimePebbles (bumps on each completion).
@@ -92,7 +126,10 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
         accessibilityLabel={t.editProfile}
         accessibilityRole="button"
       >
-        <Animated.View style={{ transform: [{ scale }, { rotate: rotateDeg }] }}>
+        <Animated.View
+          ref={avatarRef}
+          style={{ transform: [{ scale }, { rotate: rotateDeg }] }}
+        >
           <Avatar avatar={store.profile.avatar} size={44} />
         </Animated.View>
         <View style={styles.textWrap}>
