@@ -244,42 +244,57 @@ export default function FilterBar({
 
   return (
     <View style={styles.row}>
-      {/* "All" pill — only rendered when at least one non-default
-          filter is selected, acting as a "Clear" affordance. When
-          nothing's selected the pill would be redundant (the user IS
-          on "All"). */}
-      {selectedFilters.length > 0 && (
-        <TouchableOpacity
-          style={[
-            styles.pill,
-            pinnedFilters.includes('all') ? styles.pillSticky : styles.pillExtra,
-          ]}
-          onPress={() => onClearFilters()}
-          onLongPress={() => promptPin(allPill.filter, allPill.label)}
-          delayLongPress={350}
-          activeOpacity={0.75}
-          accessibilityRole="button"
-          accessibilityState={{ selected: false }}
-          accessibilityLabel={`${allPill.label} — clear ${selectedFilters.length} selected filter${selectedFilters.length === 1 ? '' : 's'}`}
-          accessibilityHint="Long-press to pin or unpin"
-        >
-          {pinnedFilters.includes('all') && (
-            <Pin size={10} color={theme.label3} strokeWidth={2.5} />
-          )}
-          <Text
-            style={styles.pillLabel}
-            numberOfLines={1}
-            maxFontSizeMultiplier={1.3}
+      {/* "All" pill — always shown as long as the filter row is
+          rendered (i.e., something else is in the row). Two modes:
+            • Nothing selected → renders as ACTIVE (filled), reading
+              as "you are here: showing everything." Tap is a no-op
+              (already on All); long-press still pins/unpins.
+            • Something selected → renders as the CLEAR affordance
+              (extra style). Tap calls onClearFilters.
+          The earlier "hide unless something selected" rule made the
+          pinned-only state read as "where do I get back to All?" */}
+      {(() => {
+        const isOnAll = selectedFilters.length === 0
+        return (
+          <TouchableOpacity
+            style={[
+              styles.pill,
+              isOnAll ? styles.pillActive : pinnedFilters.includes('all') ? styles.pillSticky : styles.pillExtra,
+            ]}
+            onPress={() => onClearFilters()}
+            onLongPress={() => promptPin(allPill.filter, allPill.label)}
+            delayLongPress={350}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityState={{ selected: isOnAll }}
+            accessibilityLabel={
+              isOnAll
+                ? `${allPill.label}, showing everything`
+                : `${allPill.label} — clear ${selectedFilters.length} selected filter${selectedFilters.length === 1 ? '' : 's'}`
+            }
+            accessibilityHint="Long-press to pin or unpin"
           >
-            {allPill.label}
-          </Text>
-          {allPill.count > 0 && (
-            <Text style={styles.pillCount} maxFontSizeMultiplier={1.3}>
-              {allPill.count}
+            {pinnedFilters.includes('all') && (
+              <Pin size={10} color={isOnAll ? '#fff' : theme.label3} strokeWidth={2.5} />
+            )}
+            <Text
+              style={[styles.pillLabel, isOnAll && styles.pillLabelActive]}
+              numberOfLines={1}
+              maxFontSizeMultiplier={1.3}
+            >
+              {allPill.label}
             </Text>
-          )}
-        </TouchableOpacity>
-      )}
+            {allPill.count > 0 && (
+              <Text
+                style={[styles.pillCount, isOnAll && styles.pillCountActive]}
+                maxFontSizeMultiplier={1.3}
+              >
+                {allPill.count}
+              </Text>
+            )}
+          </TouchableOpacity>
+        )
+      })()}
 
       <ScrollView
         ref={scrollRef}
