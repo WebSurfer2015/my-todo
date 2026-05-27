@@ -1,13 +1,19 @@
 /**
- * Thin wrapper around @react-native-firebase/analytics. Single source
- * of truth for the event taxonomy so adding a new event means
- * adding one method here, not free-form logEvent calls scattered
- * across components.
+ * Thin wrapper around @react-native-firebase/analytics (v22 modular
+ * API). Single source of truth for the event taxonomy so adding a
+ * new event means adding one method here, not free-form logEvent
+ * calls scattered across components.
  *
  * Defensive: every call goes through try/catch so a misconfigured
  * Analytics setup (Firebase Console toggle off, native init not
  * complete) can never crash the app. Analytics is a "nice to know",
  * not a load-bearing dependency.
+ *
+ * Why modular: the v8 namespace API (`analytics().logEvent(...)`)
+ * is deprecated in RNFB v22 and the runtime errors out with
+ * "firebase.analytics() not installed natively" even when the pod
+ * IS installed. The modular form (`getAnalytics(getApp())`) is the
+ * blessed v22 path and works correctly with autolinking.
  *
  * Event taxonomy (Sagely baseline, approved 2026-05-27):
  *   - signup_completed              { provider: 'apple' | 'google' | 'email' }
@@ -25,7 +31,12 @@
  * ga_) are off-limits.
  */
 
-import analytics from '@react-native-firebase/analytics'
+import { getApp } from '@react-native-firebase/app'
+import {
+  getAnalytics,
+  logEvent,
+  setUserId as setAnalyticsUserId,
+} from '@react-native-firebase/analytics'
 
 export type AuthProvider = 'apple' | 'google' | 'email'
 export type AiMode =
@@ -39,7 +50,8 @@ export type EmptySurface = 'todos' | 'shopping-no-store' | 'shopping-no-item'
 
 async function safeLog(name: string, params?: Record<string, unknown>): Promise<void> {
   try {
-    await analytics().logEvent(name, params ?? {})
+    const analytics = getAnalytics(getApp())
+    await logEvent(analytics, name, params ?? {})
   } catch (err) {
     // Never surface analytics failures to the user. Crashlytics
     // catches the underlying issue if it's a real misconfiguration.
@@ -76,7 +88,8 @@ export const Analytics = {
    * from AuthContext when auth state resolves. */
   async setUserId(uid: string | null): Promise<void> {
     try {
-      await analytics().setUserId(uid)
+      const analytics = getAnalytics(getApp())
+      await setAnalyticsUserId(analytics, uid)
     } catch (err) {
       console.warn('[analytics] setUserId failed:', err)
     }
