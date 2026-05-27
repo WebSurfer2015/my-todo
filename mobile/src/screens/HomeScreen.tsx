@@ -35,6 +35,7 @@ import {
 import { categoryLabel } from '../../../core/src/categories'
 import { buildGroups, type GroupKey } from '../../../core/src/groups'
 import PebbleStrip from '../components/PebbleStrip'
+import EmptyStateCard from '../components/EmptyStateCard'
 import StatusIcon, { statusColor } from '../components/StatusIcon'
 import CategoryIcon from '../components/CategoryIcon'
 import AppHeader from '../components/AppHeader'
@@ -348,28 +349,23 @@ export default function HomeScreen() {
             above still shows, so the user knows TODAY is still here
             and can collapse NEXT to return to it. */}
         {nextExpanded ? null : todayBucket.length === 0 ? (
-          <View style={styles.todayEmpty}>
-            <Text style={styles.todayEmptyTitle}>Nothing pending.</Text>
-            {store.todayPebbles > 0 && (
-              <Text style={styles.todayEmptyCount}>
-                {store.todayPebbles === 1
+          // Unified empty state — same component as Todos + Shopping
+          // so the visual matches across tabs. subline carries the
+          // optional "N done today" count.
+          <EmptyStateCard
+            title="Nothing pending."
+            subline={
+              store.todayPebbles === 0
+                ? undefined
+                : store.todayPebbles === 1
                   ? '1 done today.'
-                  : `${store.todayPebbles} done today.`}
-              </Text>
-            )}
-            <Text style={styles.todayEmptyHint}>
-              Enjoy the breathing room.
-            </Text>
-            <TouchableOpacity
-              style={styles.whatsNextBtn}
-              onPress={openWhatsNext}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel="What's Next? Ask Mochi or open the upcoming list."
-            >
-              <Text style={styles.whatsNextBtnText}>What&apos;s Next?</Text>
-            </TouchableOpacity>
-          </View>
+                  : `${store.todayPebbles} done today.`
+            }
+            hint="Enjoy the breathing room."
+            actionLabel="What's Next?"
+            onAction={openWhatsNext}
+            actionAccessibilityLabel="What's Next? Ask Mochi or open the upcoming list."
+          />
         ) : (
           <View style={styles.todayList}>
             {previewItems.map((td) => (
@@ -493,26 +489,17 @@ export default function HomeScreen() {
             </TouchableOpacity>
             {nextBucket.length === 0 ? (
               // Group emptied (or starting empty) — mirror TODAY's
-              // empty state. The "What's Next?" button advances to
-              // the next available group; hidden on the last group
-              // so the user lands cleanly at the end.
-              <View style={styles.todayEmpty}>
-                <Text style={styles.todayEmptyTitle}>Nothing pending.</Text>
-                <Text style={styles.todayEmptyHint}>
-                  Enjoy the breathing room.
-                </Text>
-                {hasNextGroupAfter && (
-                  <TouchableOpacity
-                    style={styles.whatsNextBtn}
-                    onPress={advanceToNextGroup}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel="Show the next group"
-                  >
-                    <Text style={styles.whatsNextBtnText}>What&apos;s Next?</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+              // empty state via the shared EmptyStateCard. The
+              // "What's Next?" button advances to the next available
+              // group; hidden on the last group so the user lands
+              // cleanly at the end.
+              <EmptyStateCard
+                title="Nothing pending."
+                hint="Enjoy the breathing room."
+                actionLabel={hasNextGroupAfter ? "What's Next?" : undefined}
+                onAction={hasNextGroupAfter ? advanceToNextGroup : undefined}
+                actionAccessibilityLabel="Show the next group"
+              />
             ) : (
               <View style={styles.todayList}>
                 {nextPreviewItems.map((td) => (
@@ -810,44 +797,6 @@ function makeStyles(c: ThemeColors) {
       color: c.label3,
       fontWeight: '300',
       marginLeft: 2,
-    },
-    todayEmpty: {
-      backgroundColor: c.card,
-      borderRadius: 14,
-      paddingVertical: 24,
-      paddingHorizontal: 16,
-      alignItems: 'center',
-      marginTop: 8,
-    },
-    todayEmptyTitle: {
-      fontSize: 15,
-      fontWeight: '600',
-      color: c.label,
-      marginBottom: 4,
-    },
-    todayEmptyCount: {
-      fontSize: 13,
-      color: c.primary,
-      fontWeight: '600',
-      marginBottom: 2,
-    },
-    todayEmptyHint: {
-      fontSize: 12,
-      color: c.label3,
-      fontStyle: 'italic',
-    },
-    whatsNextBtn: {
-      marginTop: 14,
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 999,
-      backgroundColor: c.primarySoft,
-    },
-    whatsNextBtnText: {
-      fontSize: 13,
-      fontWeight: '600',
-      color: c.primary,
-      letterSpacing: -0.1,
     },
     todayCard: {
       backgroundColor: c.card,

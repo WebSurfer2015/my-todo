@@ -615,6 +615,7 @@ export default function GroceryView({
               setStorePickerAutoAdd(true)
               setStorePickerOpen(true)
             }}
+            centered
           />
         ) : groceries.length === 0 ? (
           <EmptyStateCard
@@ -625,6 +626,7 @@ export default function GroceryView({
               void Analytics.emptyStateCtaTapped('shopping-no-item')
               setComposeOpen(true)
             }}
+            centered
           />
         ) : null}
 
@@ -1069,6 +1071,10 @@ function makeStyles(c: ThemeColors) {
       // explicitly negate this with their own marginHorizontal so
       // pre-existing list layouts aren't double-padded.
       paddingHorizontal: 16,
+      // flexGrow:1 so EmptyStateCard with `centered` can vertically
+      // center within the remaining scroll space. Same shape as
+      // App.tsx's container/body for the Todos tab.
+      flexGrow: 1,
     },
     groupBlock: {
       // ScrollView already supplies 16px horizontal so EmptyStateCard

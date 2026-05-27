@@ -311,6 +311,7 @@ function TodosScreen() {
                 <EmptyStateCard
                   title={store.emptyState.title}
                   hint={store.emptyState.hint}
+                  centered
                 />
               ) : (
                 <View style={styles.groupCard}>
@@ -354,6 +355,7 @@ function TodosScreen() {
                   void Analytics.emptyStateCtaTapped('todos')
                   sheets.openCompose()
                 }}
+                centered
               />
             ) : store.filter === "done" ? (
               <>
@@ -1030,6 +1032,11 @@ function makeStyles(c: ThemeColors) {
     kb: { flex: 1 },
     container: {
       paddingBottom: 16,
+      // flexGrow:1 so the ScrollView's content always fills the
+      // viewport even when content is short. Lets the body's
+      // centered EmptyStateCard span the remaining vertical space
+      // and float mid-screen.
+      flexGrow: 1,
     },
     identityRow: {
       flexDirection: "row",
@@ -1107,6 +1114,10 @@ function makeStyles(c: ThemeColors) {
     body: {
       paddingHorizontal: 16,
       paddingTop: 16,
+      // flex:1 so EmptyStateCard with `centered` can vertically
+      // center within the body's remaining space. Has no effect
+      // when body is full of TaskItem cards (content drives height).
+      flex: 1,
     },
     groupSection: {
       marginBottom: 18,
