@@ -103,7 +103,7 @@ function buildBreakdownUserBlock(input: BreakdownInput): string {
 const MAX_SUBTASK_TEXT = 80
 const MAX_SUBTASKS = 8
 
-function parseBreakdownOutput(text: string): BreakdownOutput {
+export function parseBreakdownOutput(text: string): BreakdownOutput {
   // The prompt asks for plain JSON, but models occasionally wrap with
   // ```json fences anyway. Strip leading/trailing fences defensively.
   const cleaned = text
@@ -312,7 +312,7 @@ const NEW_DEPT_BLOCKLIST = new Set([
   'food', 'stuff', 'general', 'uncategorized', 'unsorted',
 ])
 
-function parseClassifyDeptOutput(text: string): ClassifyDeptOutput {
+export function parseClassifyDeptOutput(text: string): ClassifyDeptOutput {
   const cleaned = text
     .trim()
     .replace(/^```(?:json)?\s*/i, '')
@@ -576,7 +576,7 @@ function buildSuggestFieldsUserBlock(input: SuggestFieldsInput): string {
   return lines.join('\n')
 }
 
-function parseSuggestFieldsOutput(text: string): SuggestFieldsOutput {
+export function parseSuggestFieldsOutput(text: string): SuggestFieldsOutput {
   const cleaned = text
     .trim()
     .replace(/^```(?:json)?\s*/i, '')
@@ -761,7 +761,72 @@ function buildLinkStoreUserBlock(input: LinkStoreInput): string {
   return lines.join('\n')
 }
 
-function parseLinkStoreOutput(text: string): LinkStoreOutput {
+/**
+ * Post-process the model's classify-grocery-dept response against the
+ * validated input. Three responsibilities (all defensive):
+ *   1. If model proposed a `newGroupLabel` that case-insensitively
+ *      matches an existing dept, rewrite to its id.
+ *   2. Filter `recommendedStores` against the input stores list
+ *      (case-insensitive match, returned with canonical casing).
+ *   3. Drop recommendations entirely when `storeHint` is set — the
+ *      user already named the store, no need to nudge alternatives.
+ */
+export function postProcessClassifyDept(
+  raw: ClassifyDeptOutput,
+  input: ClassifyDeptInput,
+): ClassifyDeptOutput {
+  const out: ClassifyDeptOutput = {
+    groupId: raw.groupId ?? null,
+    newGroupLabel: raw.newGroupLabel ?? null,
+    storeHint: raw.storeHint ?? null,
+    recommendedStores: Array.isArray(raw.recommendedStores)
+      ? raw.recommendedStores
+      : [],
+  }
+  // 1. newGroupLabel → existing groupId dedup
+  if (out.newGroupLabel && !out.groupId) {
+    const lower = out.newGroupLabel.trim().toLowerCase()
+    const match = input.departments.find((d) => d.label.toLowerCase() === lower)
+    if (match) {
+      out.groupId = match.id
+      out.newGroupLabel = null
+    }
+  }
+  // 2. recommendedStores → canonical-cased subset of input stores
+  const inputStores = input.stores ?? []
+  const lowerToCanonical = new Map<string, string>()
+  for (const s of inputStores) lowerToCanonical.set(s.toLowerCase(), s)
+  const validRecs: string[] = []
+  const seen = new Set<string>()
+  for (const r of out.recommendedStores) {
+    const canonical = lowerToCanonical.get(r.toLowerCase())
+    if (!canonical) continue
+    if (seen.has(canonical)) continue
+    seen.add(canonical)
+    validRecs.push(canonical)
+  }
+  // 3. storeHint set → no recs (user already named the store)
+  out.recommendedStores = out.storeHint ? [] : validRecs
+  return out
+}
+
+/**
+ * Post-process link-store-to-items: filter `linkedItemIds` against the
+ * input items list so a hallucinated id can't reach the client.
+ */
+export function postProcessLinkStore(
+  raw: LinkStoreOutput,
+  input: LinkStoreInput,
+): LinkStoreOutput {
+  const validIds = new Set(input.items.map((i) => i.id))
+  const filtered: string[] = []
+  for (const id of raw.linkedItemIds ?? []) {
+    if (validIds.has(id)) filtered.push(id)
+  }
+  return { linkedItemIds: filtered }
+}
+
+export function parseLinkStoreOutput(text: string): LinkStoreOutput {
   const cleaned = text
     .trim()
     .replace(/^```(?:json)?\s*/i, '')
@@ -929,70 +994,25 @@ export const aiInfer = onCall(
 
     const input = config.validateInput(data?.input)
     const userBlock = config.buildUserBlock(input as never)
-    // Post-process hook: only classify-grocery-dept needs it today.
-    // Defined here (not in the MODES table) because it requires the
-    // validated input to dedupe newGroupLabel against the existing
-    // departments list.
+    // Post-process hook: only classify-grocery-dept and
+    // link-store-to-items need one today. The actual filtering logic
+    // is extracted to top-level functions (postProcessClassifyDept /
+    // postProcessLinkStore) so they're unit-testable without going
+    // through the dispatcher / auth / Anthropic call.
     const postProcess: ((raw: unknown) => unknown) | null =
       mode === 'classify-grocery-dept'
-        ? (raw) => {
-            const out = raw as {
-              groupId?: string | null
-              newGroupLabel?: string | null
-              storeHint?: { name: string; isNew: boolean } | null
-              recommendedStores?: string[]
-            }
-            const depts = (input as { departments: Array<{ id: string; label: string }> }).departments
-            // 1. Dedupe newGroupLabel against existing depts. If the
-            //    model proposed a label that case-insensitively matches
-            //    an existing dept, rewrite to its id.
-            if (out.newGroupLabel && !out.groupId) {
-              const lower = out.newGroupLabel.trim().toLowerCase()
-              const match = depts.find((d) => d.label.toLowerCase() === lower)
-              if (match) {
-                out.groupId = match.id
-                out.newGroupLabel = null
-              }
-            }
-            // 2. Filter recommendedStores against the input stores
-            //    list so the client never sees a hallucinated name.
-            //    Case-insensitive lookup, but we return the user's
-            //    canonical casing so the chip matches what the user
-            //    sees in their store list.
-            const inputStores = (input as { stores?: string[] }).stores ?? []
-            const lowerToCanonical = new Map<string, string>()
-            for (const s of inputStores) lowerToCanonical.set(s.toLowerCase(), s)
-            const recs = Array.isArray(out.recommendedStores) ? out.recommendedStores : []
-            const validRecs: string[] = []
-            const seen = new Set<string>()
-            for (const r of recs) {
-              const canonical = lowerToCanonical.get(r.toLowerCase())
-              if (!canonical) continue
-              if (seen.has(canonical)) continue
-              seen.add(canonical)
-              validRecs.push(canonical)
-            }
-            // 3. Drop recommendations when storeHint is set — the
-            //    user explicitly named the store, no need to nudge
-            //    them toward alternatives.
-            out.recommendedStores = out.storeHint ? [] : validRecs
-            return out
-          }
+        ? (raw) =>
+            postProcessClassifyDept(
+              raw as ClassifyDeptOutput,
+              input as ClassifyDeptInput,
+            )
         : mode === 'link-store-to-items'
-        ? (raw) => {
-            // Filter linkedItemIds against the input items list so a
-            // hallucinated id can't accidentally hit our setGroceries
-            // path with a bogus target.
-            const out = raw as { linkedItemIds?: string[] }
-            const inputItems = (input as { items: Array<{ id: string; text: string }> }).items
-            const validIds = new Set(inputItems.map((i) => i.id))
-            const filtered: string[] = []
-            for (const id of out.linkedItemIds ?? []) {
-              if (validIds.has(id)) filtered.push(id)
-            }
-            return { linkedItemIds: filtered }
-          }
-        : null
+          ? (raw) =>
+              postProcessLinkStore(
+                raw as LinkStoreOutput,
+                input as LinkStoreInput,
+              )
+          : null
 
     const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() })
 
