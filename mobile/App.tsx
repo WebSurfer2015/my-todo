@@ -56,6 +56,7 @@ import { todayLocal } from "../core/src/utils";
 import type { Todo } from "./src/types";
 import SignIn from "./src/components/SignIn";
 import EmptyStateCard from "./src/components/EmptyStateCard";
+import { Analytics } from "./src/analytics";
 import PebbleStrip from "./src/components/PebbleStrip";
 import Onboarding from "./src/components/Onboarding";
 import SplashOverlay from "./src/components/SplashOverlay";
@@ -347,7 +348,10 @@ function TodosScreen() {
                 title={store.emptyState.title}
                 hint={store.emptyState.hint}
                 actionLabel={store.emptyState.ctaLabel}
-                onAction={() => sheets.openCompose()}
+                onAction={() => {
+                  void Analytics.emptyStateCtaTapped('todos')
+                  sheets.openCompose()
+                }}
               />
             ) : store.filter === "done" ? (
               <>
@@ -692,7 +696,10 @@ function TodosScreen() {
         store.filter !== "done" &&
         store.filter !== "groceries" && (
           <Fab
-            onPress={() => sheets.openCompose()}
+            onPress={() => {
+              void Analytics.fabTapped('todos')
+              sheets.openCompose()
+            }}
             accessibilityLabel={t.addPlaceholder}
             agentEnabled={store.profile.agentEnabled !== false}
           />

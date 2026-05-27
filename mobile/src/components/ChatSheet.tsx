@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   KeyboardAvoidingView,
   Modal,
@@ -16,6 +16,7 @@ import { useTheme, ThemeColors } from '../theme'
 import { useMochiAgent, type ProposedOperation } from '../useMochiAgent'
 import { todayLocal } from '../utils'
 import { CategoryDef, categoryLabel } from '../categories'
+import { Analytics } from '../analytics'
 
 interface Props {
   visible: boolean
@@ -46,6 +47,12 @@ export default function ChatSheet({
   const styles = useMemo(() => makeStyles(theme), [theme])
   const { send, reset, isThinking, proposal, error } = useMochiAgent()
   const [input, setInput] = useState('')
+
+  // Fire once per open. visible flips true → false → true counts as
+  // two separate "opened" events, which matches the analytics intent.
+  useEffect(() => {
+    if (visible) void Analytics.mochiChatOpened()
+  }, [visible])
 
   function handleSend() {
     const turn = input.trim()

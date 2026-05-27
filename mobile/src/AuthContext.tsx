@@ -27,6 +27,7 @@ import * as Crypto from "expo-crypto";
 import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
 import { auth, db } from "./firebase";
 import { stateDocPath } from "../../core/src/persistence";
+import { Analytics } from "./analytics";
 import { Profile, SEED_PROFILE, MAX_PROFILE_NAME_LEN } from "../../core/src/profile";
 
 type User = FirebaseAuthTypes.User;
@@ -72,6 +73,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(auth, (u) => {
       setUser(u);
       setLoading(false);
+      // Attribute subsequent analytics events to this uid (or unset
+      // when signed out). Fire-and-forget — never block auth on
+      // an analytics SDK hiccup.
+      void Analytics.setUserId(u?.uid ?? null);
     });
   }, []);
 
@@ -98,15 +103,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  /** Helper: seed profile doc if missing (matches Apple/email flow). */
+  /** Helper: seed profile doc if missing (matches Apple/email flow).
+   * Returns true when a new profile was seeded (the user just signed
+   * up); false when they were already in the database. Callers fire
+   * the signup_completed analytics event when this returns true. */
   const seedProfileFromCred = useCallback(
     async (
       cred: FirebaseAuthTypes.UserCredential,
       hint?: { firstName?: string; lastName?: string },
-    ) => {
+    ): Promise<boolean> => {
       const profileRef = doc(db, stateDocPath(cred.user.uid, "profile"));
       const snap = await getDoc(profileRef);
-      if (snap.exists()) return;
+      if (snap.exists()) return false;
       const display = cred.user.displayName?.trim() ?? "";
       const [first, ...rest] = display.split(/\s+/).filter(Boolean);
       const firstName =
@@ -127,6 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         value: JSON.stringify({ version: 1, data: profile }),
         updatedAt: Date.now(),
       });
+      return true;
     },
     [],
   );
@@ -156,6 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         value: JSON.stringify({ version: 1, data: profile }),
         updatedAt: Date.now(),
       });
+      void Analytics.signupCompleted("email");
     },
     [],
   );
@@ -242,6 +252,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         value: JSON.stringify({ version: 1, data: profile }),
         updatedAt: Date.now(),
       });
+      void Analytics.signupCompleted("apple");
     }
     // Profile is persisted (or pre-existed) — safe to clear the stash.
     // If the setDoc above threw, we keep the stash for the next attempt.
@@ -262,7 +273,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const cred = await signInWithCredential(auth, fbCredential);
       const givenName = result.data?.user?.givenName ?? undefined;
       const familyName = result.data?.user?.familyName ?? undefined;
-      await seedProfileFromCred(cred, { firstName: givenName, lastName: familyName });
+      const isFreshSignup = await seedProfileFromCred(cred, { firstName: givenName, lastName: familyName });
+      if (isFreshSignup) void Analytics.signupCompleted("google");
     } catch (err) {
       const code = (err as { code?: string } | null)?.code;
       // Cancelled or "in progress" are benign; let UI suppress.

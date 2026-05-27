@@ -41,6 +41,7 @@ import AppHeader from '../components/AppHeader'
 import Fab from '../components/Fab'
 import TaskItem from '../components/TaskItem'
 import DeferModal from '../components/DeferModal'
+import { Analytics } from '../analytics'
 
 function isoDate(d: Date): string {
   const y = d.getFullYear()
@@ -659,7 +660,10 @@ export default function HomeScreen() {
           extraBottom offset lifts the FAB above the sticky stats row
           (measured at runtime via onLayout above). */}
       <Fab
-        onPress={() => sheets.openCompose()}
+        onPress={() => {
+          void Analytics.fabTapped('dashboard')
+          sheets.openCompose()
+        }}
         accessibilityLabel={t.addPlaceholder}
         agentEnabled={store.profile.agentEnabled !== false}
         extraBottom={

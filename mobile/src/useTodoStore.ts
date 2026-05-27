@@ -174,6 +174,7 @@ async function migrateLocalToCloud(adapter: StorageAdapter): Promise<void> {
 }
 
 import { pickMascotLine, dateSeed } from "./mascotLines";
+import { Analytics } from "./analytics";
 
 export function useTodoStore() {
   const { lang, t } = useLang();
@@ -828,10 +829,15 @@ export function useTodoStore() {
     setTodoReferences((prev) =>
       recordTodoReference(prev, { text, priority, category, recurrence }),
     );
-    setTodos((prev) => [
-      newTodo({ text, priority, dueDate, category, recurrence, subtasks, notes, reminder }),
-      ...prev,
-    ]);
+    setTodos((prev) => {
+      // Fire first_todo_created exactly once per (uid, lifetime) —
+      // the count of non-trashed todos transitioning from 0 → 1.
+      if (prev.length === 0) void Analytics.firstTodoCreated();
+      return [
+        newTodo({ text, priority, dueDate, category, recurrence, subtasks, notes, reminder }),
+        ...prev,
+      ];
+    });
   }
 
   const updateRecurrence = useCallback(

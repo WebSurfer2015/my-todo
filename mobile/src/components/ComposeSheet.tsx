@@ -8,6 +8,7 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import Svg, { Rect, Path } from 'react-native-svg'
 import { Bell, Repeat, Sparkles } from 'lucide-react-native'
 import MochiThinking from './MochiThinking'
+import { Analytics } from '../analytics'
 import { Category, Priority, PRIORITY_VALUES, PRIORITY_COLORS, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, Subtask, Todo, TodoReference } from '../types'
 import { genUuid } from '../../../core/src/utils'
 import { snapDueDateToRecurrence } from '../../../core/src/derive'
@@ -542,6 +543,7 @@ export default function ComposeSheet({
                     currentRecurrenceByWeekday={recurrence?.byWeekday}
                     currentReminder={reminder}
                     onApplyCategory={(id) => {
+                      void Analytics.aiSuggestionApplied('suggest-todo-fields')
                       setCategory(id)
                       Haptics.selectionAsync().catch(() => {})
                     }}

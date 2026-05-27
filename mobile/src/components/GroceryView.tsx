@@ -31,6 +31,7 @@ import StorePicker from './StorePicker'
 import GroceryIcon from './GroceryIcon'
 import Fab from './Fab'
 import EmptyStateCard from './EmptyStateCard'
+import { Analytics } from '../analytics'
 import SearchPill from './SearchPill'
 
 interface Props {
@@ -607,6 +608,7 @@ export default function GroceryView({
             actionLabel="Add Store"
             actionAccessibilityLabel="Add a store"
             onAction={() => {
+              void Analytics.emptyStateCtaTapped('shopping-no-store')
               // Open StorePicker straight into the inline-add row
               // so the user lands on the name input — saves a
               // redundant tap on "+ Add store" inside the picker.
@@ -619,7 +621,10 @@ export default function GroceryView({
             title="Start shopping."
             hint="Add an item to get started."
             actionLabel="Add your first item"
-            onAction={() => setComposeOpen(true)}
+            onAction={() => {
+              void Analytics.emptyStateCtaTapped('shopping-no-item')
+              setComposeOpen(true)
+            }}
           />
         ) : null}
 
@@ -820,7 +825,10 @@ export default function GroceryView({
       onClose={() => setComposeOpen(false)}
     />
     <Fab
-      onPress={() => setComposeOpen(true)}
+      onPress={() => {
+        void Analytics.fabTapped('shopping')
+        setComposeOpen(true)
+      }}
       accessibilityLabel="Add an item"
       agentEnabled={agentEnabled}
     />
