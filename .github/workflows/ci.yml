@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
 
 jobs:
@@ -36,12 +36,20 @@ jobs:
       - name: Test
         working-directory: web
         run: npm test
+      - name: Coverage report (uploaded as artifact)
+        working-directory: web
+        run: npx vitest run --coverage --exclude tests/firestore-rules.test.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-coverage
+          path: web/coverage
+          retention-days: 14
       - name: Build (also runs tsc -b)
         working-directory: web
         run: npm run build
 
   mobile:
-    name: mobile typecheck
+    name: mobile typecheck + test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,3 +64,23 @@ jobs:
       - name: Typecheck
         working-directory: mobile
         run: npx tsc --noEmit -p tsconfig.json
+      - name: Test
+        working-directory: mobile
+        run: npm test
+
+  functions:
+    name: cloud functions typecheck + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/functions/package-lock.json
+      - name: Install
+        working-directory: web/functions
+        run: npm ci --legacy-peer-deps
+      - name: Typecheck
+        working-directory: web/functions
+        run: npx tsc --noEmit
