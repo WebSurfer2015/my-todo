@@ -77,6 +77,15 @@ at the running sim and it'll show element selectors live.
 configured. Run explicitly after deleting all stores via Manage Store,
 or against a fresh install.
 
+**⚠ Flows 03–08 require seed data** — they tap specific seeded rows
+("Pick up dry-cleaning", "Walk the dog", "Pay credit card bill"). On
+a fresh / empty sim they fail at the row-tap step. Run
+`scripts/seed_sample_data.py` (or sign in as `sagely.todo@gmail.com`
+if the seed lives in cloud state) before invoking these flows.
+
+**Currently runs cleanly on any empty signed-in sim:** 01, 02, 09,
+11, 12. The other 7 flows are valid but precondition-gated.
+
 ### Known a11y limitation in v1.5 sheets
 
 Flows 09 and 11 are scoped to "compose/sheet renders" rather than
