@@ -42,6 +42,7 @@ import { CairnGlyph } from "./PebbleStrip";
 import { useLang } from "../LangContext";
 import { useAuth } from "../AuthContext";
 import { useTheme, ThemeColors } from "../theme";
+import { darkenHex } from "../backgrounds";
 
 interface Props {
   visible: boolean;
@@ -453,6 +454,15 @@ export default function ProfileSheet({
                 profile.themeFromAvatar === true ? collectedGlyphFor(avatar) : null;
               const nounKey =
                 profile.themeFromAvatar === true ? collectedNounKeyFor(avatar) : null;
+              // Pull the avatar's pastel bg and darken it so the lifetime
+              // value reads as part of the same color family as the glyph
+              // above. Only applies when themeFromAvatar is on AND the
+              // current avatar is a preset (custom photos have no bg).
+              const presetBg =
+                profile.themeFromAvatar === true && avatar.kind === "preset"
+                  ? AVATAR_LIBRARY.find((p) => p.key === avatar.key)?.bg
+                  : null;
+              const themedValueColor = presetBg ? darkenHex(presetBg, 0.55) : null;
               return (
                 <>
                   <Text style={styles.sectionLabel}>YOUR JOURNEY</Text>
@@ -464,7 +474,14 @@ export default function ProfileSheet({
                         <CairnGlyph size={48} />
                       </View>
                     )}
-                    <Text style={styles.journeyValue}>{profile.lifetimePebbles ?? 0}</Text>
+                    <Text
+                      style={[
+                        styles.journeyValue,
+                        themedValueColor ? { color: themedValueColor } : null,
+                      ]}
+                    >
+                      {profile.lifetimePebbles ?? 0}
+                    </Text>
                     <Text style={styles.journeyLabel}>{t.lifetimeLabel(nounKey)}</Text>
                     <Text style={styles.journeyHint}>
                       Every task you've finished, since you started.
@@ -764,7 +781,7 @@ function makeStyles(c: ThemeColors) {
       color: c.label3,
       fontWeight: "500",
       paddingHorizontal: 4,
-      paddingBottom: 8,
+      paddingBottom: 18,
     },
     accountRowAction: {
       fontSize: 15,

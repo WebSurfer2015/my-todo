@@ -33,6 +33,7 @@ import CategorySheet from './components/CategorySheet'
 import { COLOR_PALETTE } from './categories'
 import type { Filter } from './types'
 import type { Guide } from './guides'
+import { todayLocal } from '../../core/src/utils'
 
 /** Signal that a screen should open its tab-local manage sheet. The
  * `seq` bumps so a repeat-trigger fires even when target stays the
@@ -161,9 +162,39 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           store.saveProfile(p)
           setProfileOpen(false)
         }}
-        onResetLifetime={() =>
-          store.saveProfile({ ...store.profile, lifetimePebbles: 0 })
-        }
+        onResetLifetime={() => {
+          // Recalibrate counters to match the user's current state
+          // rather than zeroing them out. Lifetime = items currently in
+          // the Done bin (done or trashed-as-done) + done subtasks
+          // under non-trashed parents. Today buckets = the subset of
+          // each whose completionDate is today. This keeps the
+          // visible count consistent with what's actually on screen
+          // after the reset.
+          const today = todayLocal()
+          const tasksDoneTotal = store.todos.filter(
+            (t) => t.done || t.trashed,
+          ).length
+          const tasksDoneToday = store.todos.filter(
+            (t) => !t.trashed && t.done && t.completionDate === today,
+          ).length
+          let subsDoneTotal = 0
+          let subsDoneToday = 0
+          for (const t of store.todos) {
+            if (t.trashed) continue
+            for (const s of t.subtasks ?? []) {
+              if (!s.done) continue
+              subsDoneTotal += 1
+              if (s.completionDate === today) subsDoneToday += 1
+            }
+          }
+          store.saveProfile({
+            ...store.profile,
+            lifetimePebbles: tasksDoneTotal + subsDoneTotal,
+            todayTaskPebbles: tasksDoneToday,
+            todaySubtaskPebbles: subsDoneToday,
+            pebblesDate: today,
+          })
+        }}
         onClose={() => setProfileOpen(false)}
       />
       <SettingsSheet

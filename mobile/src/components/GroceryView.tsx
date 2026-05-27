@@ -30,6 +30,7 @@ import GroceryComposeSheet from './GroceryComposeSheet'
 import StorePicker from './StorePicker'
 import GroceryIcon from './GroceryIcon'
 import Fab from './Fab'
+import EmptyStateCard from './EmptyStateCard'
 import SearchPill from './SearchPill'
 
 interface Props {
@@ -81,6 +82,9 @@ interface Props {
   onSetActiveStore: (store: string | undefined) => void
   onSetActiveDept: (deptId: string | undefined) => void
   onAddStore: (name: string) => void
+  /** Bulk-append a store to many items at once. Called by the AI
+   * link-store-to-items flow after a new store is added. */
+  onLinkItemsToStore?: (storeName: string, itemIds: string[]) => void
   /** Create a new grocery department from a label. Returns the new
    * group id, or undefined when the cap is reached / label invalid. */
   onAddGroup: (label: string) => string | undefined
@@ -132,6 +136,7 @@ export default function GroceryView({
   onSetActiveStore,
   onSetActiveDept,
   onAddStore,
+  onLinkItemsToStore,
   onAddGroup,
   onRenameStore,
   onDeleteStore,
@@ -170,6 +175,10 @@ export default function GroceryView({
     if (onStorePickerOpenChange) onStorePickerOpenChange(v)
     else setStorePickerOpenInternal(v)
   }
+  // True when the user tapped the no-stores empty-state CTA so we
+  // want the StorePicker to mount with its inline "Add store" row
+  // already showing. Resets on every close.
+  const [storePickerAutoAdd, setStorePickerAutoAdd] = useState(false)
   // Per-department + Past-items + Often-picked-up collapse state.
   // PAST_KEY / OFTEN_KEY are synthetic ids so both synthetic buckets
   // share the same Set. Past Items defaults to collapsed (rarely
@@ -336,21 +345,37 @@ export default function GroceryView({
     pillScrollRef.current.scrollTo({ x: Math.max(0, x - 16), animated: true })
   }, [activePillKey])
 
-  // Pinned-only stores, excluding the currently active one. The active
-  // store gets rendered as a SEPARATE leading pill (see render below)
-  // so it sits right after "All" regardless of whether the active
-  // filter is a store or a dept — selected always sits adjacent to All.
-  // Hidden stores never appear here; they live in Manage Filter.
+  // Pills row contents — only stores with at least one unchecked
+  // item ("active stores"). Pinned active stores render FIRST (to
+  // preserve the user's curation), then non-pinned active stores
+  // in configured-list order. Pinned-but-empty stores are hidden;
+  // they reappear automatically as soon as an item lands in them.
+  // Excludes the currently active store (it renders as the leading
+  // pill). Hidden stores never appear here.
   const pillStores = useMemo(() => {
     const visible = configuredStores.filter((s) => !hiddenStores.includes(s))
+    const seen = new Set<string>()
     const out: string[] = []
+    const hasItems = (s: string) => (perStoreActiveCount.get(s) ?? 0) > 0
+    // 1. Pinned + has items.
     for (const s of pinnedStores) {
       if (!visible.includes(s)) continue
       if (s === activeStore) continue
+      if (!hasItems(s)) continue
+      if (seen.has(s)) continue
+      seen.add(s)
+      out.push(s)
+    }
+    // 2. Non-pinned + has items.
+    for (const s of visible) {
+      if (s === activeStore) continue
+      if (seen.has(s)) continue
+      if (!hasItems(s)) continue
+      seen.add(s)
       out.push(s)
     }
     return out
-  }, [configuredStores, hiddenStores, pinnedStores, activeStore])
+  }, [configuredStores, hiddenStores, pinnedStores, activeStore, perStoreActiveCount])
 
   // Pinned-only depts, excluding the currently active one. Same idea as
   // pillStores: the active dept is rendered as a SEPARATE leading pill
@@ -419,7 +444,14 @@ export default function GroceryView({
           scroll touches it), then a horizontal scrolling group for
           selected + pinned pills. Same layout idiom Todos' FilterBar
           uses for its All pill: TouchableOpacity sibling, no inner
-          wrapper, parent row provides gap + horizontal padding. */}
+          wrapper, parent row provides gap + horizontal padding.
+          Hidden entirely when there's no active store/dept filter
+          AND no pinned store / dept pills would render — keeps the
+          empty-state view clean. */}
+      {(activeStore !== undefined ||
+        effectiveDept !== undefined ||
+        pillStores.length > 0 ||
+        pillDepts.length > 0) && (
       <View style={styles.pillsRow}>
         <StorePill
           label="All"
@@ -556,6 +588,7 @@ export default function GroceryView({
               active dept, pinned depts. */}
         </ScrollView>
       </View>
+      )}
 
       <ScrollView
         style={styles.flex}
@@ -563,6 +596,33 @@ export default function GroceryView({
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {/* Two empty states layered by priority: first set up a
+            store, then add an item. Both use the shared
+            EmptyStateCard so they read as members of the same UI
+            family as the Home "Nothing pending." card. */}
+        {configuredStores.length === 0 ? (
+          <EmptyStateCard
+            title="No stores yet."
+            hint="Add the stores you shop at."
+            actionLabel="Add Store"
+            actionAccessibilityLabel="Add a store"
+            onAction={() => {
+              // Open StorePicker straight into the inline-add row
+              // so the user lands on the name input — saves a
+              // redundant tap on "+ Add store" inside the picker.
+              setStorePickerAutoAdd(true)
+              setStorePickerOpen(true)
+            }}
+          />
+        ) : groceries.length === 0 ? (
+          <EmptyStateCard
+            title="Start shopping."
+            hint="Add an item to get started."
+            actionLabel="Add your first item"
+            onAction={() => setComposeOpen(true)}
+          />
+        ) : null}
+
         {visibleGroups.map((g) => {
           const items = byGroup.get(g.id) ?? []
           if (items.length === 0) return null
@@ -717,6 +777,7 @@ export default function GroceryView({
     <StorePicker
       visible={storePickerOpen}
       defaultEditing={storePickerEditing}
+      defaultAdding={storePickerAutoAdd}
       items={groceries}
       stores={configuredStores}
       hiddenStores={hiddenStores}
@@ -731,12 +792,18 @@ export default function GroceryView({
       onToggleHidden={onToggleStoreHidden}
       groups={groceryGroups}
       onSetGroups={onSetGroceryGroups}
-      onClose={() => setStorePickerOpen(false)}
+      agentEnabled={agentEnabled}
+      onLinkItems={onLinkItemsToStore}
+      onClose={() => {
+        setStorePickerOpen(false)
+        setStorePickerAutoAdd(false)
+      }}
     />
     <GroceryComposeSheet
       visible={composeOpen}
       groups={groceryGroups}
       stores={configuredStores.filter((s) => !hiddenStores.includes(s))}
+      existingItems={groceries}
       initialStore={activeStore ?? lastAddedStore}
       initialDepartmentId={effectiveDept}
       onAdd={({ text, groupId, stores }) => {
@@ -922,17 +989,13 @@ function Row({ item, onToggle, onOpenEdit, styles, futureMode }: RowProps) {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     flex: { flex: 1 },
-    // Filter row — mirrors the Todos FilterBar idiom: a funnel button
-    // on the left, then a horizontal scrolling pill row.
+    // Filter row — mirrors the Todos FilterBar idiom exactly: no
+    // background fill (sits on the canvas / AppBackground), no
+    // separator line. Same 16px horizontal padding + 8px gap so
+    // the All pill aligns visually with Todos between tabs.
     pillsRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: c.surface,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: c.separator,
-      // Mirror Todos' FilterBar row exactly so the All pill's spacing
-      // matches between the two tabs: 16px horizontal page padding +
-      // 8px gap between All and the scrollable pill group.
       paddingHorizontal: 16,
       paddingVertical: 8,
       gap: 8,
@@ -990,8 +1053,21 @@ function makeStyles(c: ThemeColors) {
       marginLeft: 2,
     },
     storePillCountActive: { color: 'rgba(255,255,255,0.95)' },
-    scroll: { paddingBottom: 96 },
+    scroll: {
+      paddingBottom: 96,
+      // 16px horizontal so the EmptyStateCard sits at the same
+      // page-edge inset as the App.tsx body padding — empty states
+      // across tabs must look the same width. groupBlock children
+      // explicitly negate this with their own marginHorizontal so
+      // pre-existing list layouts aren't double-padded.
+      paddingHorizontal: 16,
+    },
     groupBlock: {
+      // ScrollView already supplies 16px horizontal so EmptyStateCard
+      // matches App.tsx's inset. Negate it here so the existing list
+      // layout stays exactly where it was — group headers + cards
+      // were already aligned right at the screen edge minus 16.
+      marginHorizontal: -16,
       paddingHorizontal: 16,
       marginBottom: 16,
     },

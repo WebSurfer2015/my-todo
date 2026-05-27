@@ -126,7 +126,7 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center',
       paddingHorizontal: 20,
       paddingTop: 14,
-      paddingBottom: 10,
+      paddingBottom: 12,
     },
     avatarTouch: {
       flex: 1,

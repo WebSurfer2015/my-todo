@@ -201,58 +201,50 @@ export default function FilterBar({
   // every call site.
   void onOpenSheet
 
+  // Hide the entire filter row when there's nothing meaningful to
+  // render: no active non-default filter AND no pinned pills to
+  // surface. Removes a useless strip from the empty-state view.
+  if (filter === 'all' && visiblePills.length === 0) return null
+
   return (
     <View style={styles.row}>
-      {/* "All" pill stays anchored to the left, outside the scroll —
-          so the user can always tap it to reset, no matter how many
-          pinned pills crowd the right side. */}
-      <TouchableOpacity
-        style={[
-          styles.pill,
-          filter === allPill.filter
-            ? styles.pillActive
-            : pinnedFilters.includes('all')
-              ? styles.pillSticky
-              : styles.pillExtra,
-        ]}
-        onPress={() => onFilter(allPill.filter)}
-        onLongPress={() => promptPin(allPill.filter, allPill.label)}
-        delayLongPress={350}
-        activeOpacity={0.75}
-        accessibilityRole="button"
-        accessibilityState={{ selected: filter === allPill.filter }}
-        accessibilityLabel={`${allPill.label}, ${allPill.count}${filter === allPill.filter ? ', selected' : ''}`}
-        accessibilityHint="Long-press to pin or unpin"
-      >
-        {pinnedFilters.includes('all') && (
-          <Pin
-            size={10}
-            color={filter === allPill.filter ? '#fff' : theme.label3}
-            strokeWidth={2.5}
-          />
-        )}
-        <Text
+      {/* "All" pill — only rendered when a NON-All filter is active,
+          so it acts as a "reset" affordance only when there's
+          something to reset. When All is already the active filter
+          the pill would be redundant (and visually noisy at the top
+          of an empty list), so we hide it. */}
+      {filter !== allPill.filter && (
+        <TouchableOpacity
           style={[
-            styles.pillLabel,
-            filter === allPill.filter && styles.pillLabelActive,
+            styles.pill,
+            pinnedFilters.includes('all') ? styles.pillSticky : styles.pillExtra,
           ]}
-          numberOfLines={1}
-          maxFontSizeMultiplier={1.3}
+          onPress={() => onFilter(allPill.filter)}
+          onLongPress={() => promptPin(allPill.filter, allPill.label)}
+          delayLongPress={350}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityState={{ selected: false }}
+          accessibilityLabel={`${allPill.label}, ${allPill.count}`}
+          accessibilityHint="Long-press to pin or unpin"
         >
-          {allPill.label}
-        </Text>
-        {allPill.count > 0 && (
+          {pinnedFilters.includes('all') && (
+            <Pin size={10} color={theme.label3} strokeWidth={2.5} />
+          )}
           <Text
-            style={[
-              styles.pillCount,
-              filter === allPill.filter && styles.pillCountActive,
-            ]}
+            style={styles.pillLabel}
+            numberOfLines={1}
             maxFontSizeMultiplier={1.3}
           >
-            {allPill.count}
+            {allPill.label}
           </Text>
-        )}
-      </TouchableOpacity>
+          {allPill.count > 0 && (
+            <Text style={styles.pillCount} maxFontSizeMultiplier={1.3}>
+              {allPill.count}
+            </Text>
+          )}
+        </TouchableOpacity>
+      )}
 
       <ScrollView
         ref={scrollRef}

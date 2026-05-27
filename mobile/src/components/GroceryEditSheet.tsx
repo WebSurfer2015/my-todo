@@ -10,7 +10,6 @@
 
 import React, { useMemo, useState, useEffect } from 'react'
 import {
-  ActionSheetIOS,
   Alert,
   KeyboardAvoidingView,
   Modal,
@@ -23,10 +22,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import { GroceryItem, GroceryGroup, resolveGroup } from '../groceries'
+import { GroceryItem, GroceryGroup } from '../groceries'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
-import GroceryIcon from './GroceryIcon'
 
 interface Props {
   visible: boolean
@@ -74,11 +72,6 @@ export default function GroceryEditSheet({
     )
   }
 
-  const visibleGroups = useMemo(
-    () => groups.filter((g) => !g.hidden),
-    [groups],
-  )
-
   function handleSave() {
     if (!item) return
     const trimmed = text.trim()
@@ -90,31 +83,6 @@ export default function GroceryEditSheet({
     })
     onClose()
   }
-
-  function openGroupPicker() {
-    const options = [
-      ...visibleGroups.map((g) => `${g.label}${g.id === groupId ? ' ✓' : ''}`),
-      t.cancel,
-    ]
-    const cancelIndex = options.length - 1
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        { options, cancelButtonIndex: cancelIndex, title: 'Department' },
-        (i) => {
-          if (i >= 0 && i < cancelIndex) setGroupId(visibleGroups[i].id)
-        },
-      )
-    } else {
-      Alert.alert('Department', undefined, [
-        ...visibleGroups.map((g) => ({
-          text: g.label,
-          onPress: () => setGroupId(g.id),
-        })),
-        { text: t.cancel, style: 'cancel' as const },
-      ])
-    }
-  }
-
 
   function handleDelete() {
     if (!item) return
@@ -135,7 +103,6 @@ export default function GroceryEditSheet({
     )
   }
 
-  const resolvedGroup = item ? resolveGroup(groupId, groups) : null
 
   return (
     <Modal
@@ -188,28 +155,6 @@ export default function GroceryEditSheet({
                     onSubmitEditing={handleSave}
                   />
                 </View>
-                <View style={styles.divider} />
-                <TouchableOpacity
-                  style={styles.field}
-                  onPress={openGroupPicker}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Department: ${resolvedGroup?.label ?? ''}. Tap to change.`}
-                >
-                  <Text style={styles.fieldLabel}>Department</Text>
-                  <View style={styles.rowValueWrap}>
-                    {resolvedGroup && (
-                      <GroceryIcon
-                        kind="department"
-                        id={resolvedGroup.id}
-                        size={16}
-                      />
-                    )}
-                    <Text style={styles.rowValue} numberOfLines={1}>
-                      {resolvedGroup?.label ?? ''}
-                    </Text>
-                    <Text style={styles.rowChevron}>›</Text>
-                  </View>
-                </TouchableOpacity>
                 <View style={styles.divider} />
                 <View style={styles.field}>
                   <Text style={styles.fieldLabel}>Stores</Text>

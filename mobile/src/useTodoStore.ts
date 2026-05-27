@@ -1312,6 +1312,24 @@ export function useTodoStore() {
     [setProfile, setGroceries],
   );
 
+  // Append a store name to many items at once. Used by the "+ Add
+  // store" → AI-link flow in StorePicker. Dedupes per-item so a
+  // repeat call is a no-op; skips ids that don't exist.
+  const linkItemsToStore = useCallback(
+    (storeName: string, itemIds: string[]) => {
+      if (itemIds.length === 0) return
+      const idSet = new Set(itemIds)
+      setGroceries((prev) =>
+        prev.map((it) => {
+          if (!idSet.has(it.id)) return it
+          if (it.stores.includes(storeName)) return it
+          return { ...it, stores: [...it.stores, storeName] }
+        }),
+      )
+    },
+    [setGroceries],
+  );
+
   const reorderGroceryStores = useCallback(
     (next: string[]) => {
       setProfile((p) => ({ ...p, groceryStores: next.filter((s) => s.trim().length > 0) }));
@@ -1454,6 +1472,7 @@ export function useTodoStore() {
     addGroceryGroup,
     renameGroceryStore,
     deleteGroceryStore,
+    linkItemsToStore,
     reorderGroceryStores,
     toggleGroceryStoreHidden,
     pinGroceryStore,

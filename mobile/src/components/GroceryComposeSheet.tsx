@@ -29,10 +29,12 @@ import {
   View,
 } from 'react-native'
 import { Alert } from 'react-native'
-import { Check, Plus, Sparkles, Store as StoreIcon } from 'lucide-react-native'
+import { Check, Plus, Store as StoreIcon } from 'lucide-react-native'
+import MochiThinking from './MochiThinking'
 import * as Haptics from 'expo-haptics'
 import {
   GroceryGroup,
+  GroceryItem,
   OTHERS_GROUP_ID,
   resolveGroup,
   inferGroceryGroupLocal,
@@ -48,6 +50,11 @@ interface Props {
   visible: boolean
   groups: GroceryGroup[]
   stores: string[]
+  /** Live list of every grocery item the user owns. Powers the
+   * "same name → reuse linked stores" autofill. Trashed/checked items
+   * still count — re-adding a fruit they bought last week should still
+   * pre-tag the stores it was last linked to. */
+  existingItems: GroceryItem[]
   /** Initial active store from the parent — used to seed the store
    * field when the sheet opens. */
   initialStore: string | undefined
@@ -79,6 +86,7 @@ export default function GroceryComposeSheet({
   visible,
   groups,
   stores,
+  existingItems,
   initialStore,
   initialDepartmentId,
   onAdd,
@@ -99,13 +107,16 @@ export default function GroceryComposeSheet({
   const [groupId, setGroupId] = useState<string>(
     initialDepartmentId ?? OTHERS_GROUP_ID,
   )
-  // Multi-store picks for this item. Seeded from the active store
-   // filter (when set) so adding while filtering Trader Joe's pre-
-   // tags the item with Trader Joe's.
-  const [selectedStores, setSelectedStores] = useState<string[]>(
-    initialStore ? [initialStore] : [],
-  )
+  // Multi-store picks for this item. Always starts empty — chips
+  // fill in only via (a) existing-item match for repeat adds,
+  // (b) AI store recommendations for new items, or (c) the user
+  // manually tapping a chip. The active-store filter is NOT used to
+  // seed picks anymore: by request, a brand-new item that doesn't
+  // match anything should start with zero chips selected so the
+  // user is asked to pick.
+  const [selectedStores, setSelectedStores] = useState<string[]>([])
   function toggleSelectedStore(name: string) {
+    userPickedStoreRef.current = true
     setSelectedStores((prev) =>
       prev.includes(name) ? prev.filter((s) => s !== name) : [...prev, name],
     )
@@ -117,11 +128,16 @@ export default function GroceryComposeSheet({
   // Same idea for the store field: once the user picks one manually,
   // stop overriding it from AI/text inference.
   const userPickedStoreRef = useRef(false)
-  // AI-only suggestions surfaced as pills above the field group.
-  // Null when AI hasn't produced a new-entity proposal (or proposals
-  // matched existing entities and were silently auto-applied).
-  const [newDeptProposal, setNewDeptProposal] = useState<string | null>(null)
+  // AI-only suggestion surfaced as a pill above the field group.
+  // Today only used for NEW store proposals — new dept proposals are
+  // auto-created silently since the dept row is hidden in the UI.
   const [newStoreProposal, setNewStoreProposal] = useState<string | null>(null)
+  // True while a classify-grocery-dept call is in flight. Drives the
+  // "Mochi is working…" status text in the input-accessory row so the
+  // user knows why chips/dept might shift a moment after they finish
+  // typing. Reset whenever the call settles, the sheet closes, or
+  // the text falls below AI_MIN_CHARS.
+  const [aiBusy, setAiBusy] = useState(false)
   // Search/create text for the Store sub-view. Drives both the
   // filter and the conditional "+ Create '<name>'" row at the
   // bottom of the list. Cleared whenever we leave the sub-view.
@@ -135,11 +151,11 @@ export default function GroceryComposeSheet({
       setSubView('main')
       setText('')
       setGroupId(initialDepartmentId ?? OTHERS_GROUP_ID)
-      setSelectedStores(initialStore ? [initialStore] : [])
+      setSelectedStores([])
       userPickedDeptRef.current = false
       userPickedStoreRef.current = false
-      setNewDeptProposal(null)
       setNewStoreProposal(null)
+      setAiBusy(false)
       setStoreSearch('')
       // Slight delay so the modal animation finishes before focusing.
       setTimeout(() => inputRef.current?.focus(), 120)
@@ -186,14 +202,53 @@ export default function GroceryComposeSheet({
     }
   }, [text, groups, initialDepartmentId])
 
+  // Existing-item store autofill. When the typed text matches an item
+  // already in the user's list (case-insensitive exact match), seed
+  // selectedStores from the union of stores those items are linked
+  // to. Re-adding "Toilet paper" → checks the same store chips the
+  // user picked last time. Free + immediate (no AI roundtrip). Skips
+  // once the user has manually toggled a store chip, so we don't
+  // fight their choice. Only applies the union; never clears picks
+  // the user already had (e.g. seeded from the active store filter).
+  useEffect(() => {
+    if (userPickedStoreRef.current) return
+    const trimmed = text.trim().toLowerCase()
+    if (trimmed.length < 2) return
+    const matchedStores = new Set<string>()
+    for (const it of existingItems) {
+      if (it.text.trim().toLowerCase() !== trimmed) continue
+      for (const s of it.stores) matchedStores.add(s)
+    }
+    if (matchedStores.size === 0) return
+    // Filter to currently-configured stores so a stale store name
+    // from a deleted store doesn't sneak back in as a phantom chip.
+    const valid = Array.from(matchedStores).filter((s) => stores.includes(s))
+    if (valid.length === 0) return
+    setSelectedStores((prev) => {
+      // Replace, so the chips reflect the historical truth rather
+      // than appending to whatever the seeded initialStore left.
+      // Order: keep the configured-stores order for visual stability.
+      const set = new Set(valid)
+      return stores.filter((s) => set.has(s))
+    })
+  }, [text, existingItems, stores])
+
   // Live AI inference — debounced classify-grocery-dept that fires
   // on text-change when local heuristic misses. Existing dept/store
   // hits auto-apply silently (matches the local-heuristic pattern).
   // NEW dept/store proposals surface as pills above the field group
   // so the user can confirm before they're added to their lists.
   // Same token-saving knobs as the todo compose's field-suggest hook.
-  const AI_MIN_CHARS = 8
-  const AI_DEBOUNCE_MS = 1500
+  // 3 chars covers most short grocery items ("egg", "ham", "tea")
+  // while still skipping single typed letters. The earlier 8-char
+  // floor missed common words like "Salmon" / "Apples" / "Bread"
+  // and was the wrong default for shopping (vs todo titles).
+  const AI_MIN_CHARS = 3
+  // 800ms debounce — short enough that the Mochi indicator shows up
+  // before users assume nothing happened, long enough to absorb a
+  // typical short word's typing burst ("Apple", "Eggs") without
+  // sending mid-word requests. Earlier 1500ms felt unresponsive.
+  const AI_DEBOUNCE_MS = 800
   const aiSeqRef = useRef(0)
   const aiLastQueriedRef = useRef<string>('')
   const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -212,8 +267,8 @@ export default function GroceryComposeSheet({
     const trimmed = text.trim()
     if (!agentEnabled || trimmed.length < AI_MIN_CHARS) {
       aiSeqRef.current += 1
-      setNewDeptProposal(null)
       setNewStoreProposal(null)
+      setAiBusy(false)
       aiLastQueriedRef.current = ''
       return
     }
@@ -228,33 +283,39 @@ export default function GroceryComposeSheet({
         .slice(0, 10)
         .map((g) => ({ id: g.id, label: g.label }))
       if (departments.length === 0) return
+      setAiBusy(true)
       void classifyGroceryDept({
         text: query,
         departments,
         stores: storesRef.current,
       }).then((res) => {
+        // Only clear the busy flag for the most-recent dispatch.
+        // Stale resolves from earlier keystrokes shouldn't flip the
+        // indicator off while a newer call is still pending.
+        if (seq === aiSeqRef.current) setAiBusy(false)
         if (seq !== aiSeqRef.current) return
         // Existing dept → silent auto-apply (only if user hasn't
         // picked one manually).
         if (res.groupId && !userPickedDeptRef.current) {
           const dept = groupsRef.current.find((g) => g.id === res.groupId)
           if (dept) setGroupId(dept.id)
-          setNewDeptProposal(null)
         } else if (res.newGroupLabel && onCreateGroup && !userPickedDeptRef.current) {
-          // New dept proposal → surface as pill for user to confirm.
-          // Re-check live state in case a duplicate was created
-          // between dispatch and response.
+          // New dept proposal → create + assign silently. The
+          // department row is no longer visible in the compose UI,
+          // so a confirm pill would be the only signal that something
+          // changed — invisible to the user. Just trust the AI and
+          // assign; if the user wants to recategorize later they can
+          // do it from Manage Departments. Re-check live state in
+          // case a duplicate was created between dispatch and response.
           const existing = groupsRef.current.find(
             (g) => g.id !== OTHERS_GROUP_ID && g.label.toLowerCase() === res.newGroupLabel!.toLowerCase(),
           )
           if (existing) {
             setGroupId(existing.id)
-            setNewDeptProposal(null)
           } else {
-            setNewDeptProposal(res.newGroupLabel)
+            const newId = onCreateGroup(res.newGroupLabel)
+            if (newId) setGroupId(newId)
           }
-        } else {
-          setNewDeptProposal(null)
         }
         // Store hint: existing → silent setStore, new → pill.
         if (res.storeHint && !userPickedStoreRef.current) {
@@ -276,6 +337,25 @@ export default function GroceryComposeSheet({
         } else {
           setNewStoreProposal(null)
         }
+        // Multi-store recommendation: MERGE recs into the current
+        // selection (deduped) so AI can augment whatever the
+        // existing-item match / active-filter seed / storeHint
+        // already filled. Skips entirely once the user picks a
+        // chip manually — at that point we trust their choices.
+        // The server already filters recommendedStores to names
+        // that exist in the user's live store list, so we can
+        // trust them directly.
+        if (
+          !userPickedStoreRef.current &&
+          res.recommendedStores.length > 0
+        ) {
+          setSelectedStores((prev) => {
+            const liveStores = storesRef.current
+            const union = new Set([...prev, ...res.recommendedStores])
+            // Render in liveStores order for visual stability.
+            return liveStores.filter((s) => union.has(s))
+          })
+        }
       })
     }, AI_DEBOUNCE_MS)
 
@@ -286,26 +366,6 @@ export default function GroceryComposeSheet({
       }
     }
   }, [text, agentEnabled, onCreateGroup, onCreateStore])
-
-  function confirmCreateDept(label: string) {
-    if (!onCreateGroup) return
-    Alert.alert(
-      `Create new '${label}' department?`,
-      '',
-      [
-        { text: t.cancel, style: 'cancel', onPress: () => setNewDeptProposal(null) },
-        {
-          text: t.create,
-          onPress: () => {
-            const newId = onCreateGroup(label)
-            if (newId) setGroupId(newId)
-            setNewDeptProposal(null)
-            Haptics.selectionAsync().catch(() => {})
-          },
-        },
-      ],
-    )
-  }
 
   function confirmCreateStore(name: string) {
     if (!onCreateStore) return
@@ -356,7 +416,10 @@ export default function GroceryComposeSheet({
     }
   }
 
-  const canSubmit = text.trim().length > 0
+  // Require at least one store pick. When the user has no configured
+  // stores at all, the in-sheet "Add stores first" nudge handles that
+  // edge — the buttons stay disabled because there's nothing to pick.
+  const canSubmit = text.trim().length > 0 && selectedStores.length > 0
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -375,7 +438,19 @@ export default function GroceryComposeSheet({
                     <Text style={styles.cancelText}>{t.cancel}</Text>
                   </TouchableOpacity>
                   <Text style={styles.title}>Add Item</Text>
-                  <View style={styles.headerSideBtn} />
+                  <TouchableOpacity
+                    onPress={handleAdd}
+                    disabled={!canSubmit}
+                    hitSlop={10}
+                    style={styles.headerSideBtn}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: !canSubmit }}
+                    accessibilityLabel="Add item"
+                  >
+                    <Text style={[styles.headerDoneText, !canSubmit && styles.headerDoneTextDisabled]}>
+                      {t.done}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
 
                 <View style={styles.body}>
@@ -394,25 +469,13 @@ export default function GroceryComposeSheet({
                     onSubmitEditing={handleAddAnother}
                   />
 
-                  {/* AI dept hint — the AI-suggested NEW department
-                      proposal still surfaces here. Department + Store
-                      pickers were removed in Phase 1 (dept is inferred
-                      silently, store is set from the active filter or
-                      stays empty for later edit). The AI store pill
-                      will return in Phase 2. */}
-                  {newDeptProposal && (
-                    <View style={styles.aiPillRow}>
-                      <Sparkles size={12} color={theme.primary} strokeWidth={2.2} />
-                      <TouchableOpacity
-                        style={styles.aiPill}
-                        onPress={() => confirmCreateDept(newDeptProposal)}
-                        activeOpacity={0.6}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Create new department ${newDeptProposal}`}
-                      >
-                        <Plus size={12} color={theme.primary} strokeWidth={2.4} />
-                        <Text style={styles.aiPillText}>{newDeptProposal}</Text>
-                      </TouchableOpacity>
+                  {/* Mochi-thinking status — only while an AI call is
+                      in flight. Done button promoted to the header
+                      (top-right), so the accessory row is just the
+                      status now. */}
+                  {aiBusy && agentEnabled && (
+                    <View style={styles.inputAccessoryRow}>
+                      <MochiThinking />
                     </View>
                   )}
 
@@ -477,26 +540,6 @@ export default function GroceryComposeSheet({
                   )}
 
                   <View style={styles.actionRow}>
-                    <TouchableOpacity
-                      style={[
-                        styles.actionBtn,
-                        styles.actionBtnSecondary,
-                        !canSubmit && styles.actionBtnDisabled,
-                      ]}
-                      onPress={handleAdd}
-                      disabled={!canSubmit}
-                      accessibilityRole="button"
-                      accessibilityLabel="Add this item and close"
-                    >
-                      <Text
-                        style={[
-                          styles.actionTextSecondary,
-                          !canSubmit && styles.actionTextDisabled,
-                        ]}
-                      >
-                        Add
-                      </Text>
-                    </TouchableOpacity>
                     <TouchableOpacity
                       style={[
                         styles.actionBtn,
@@ -595,14 +638,49 @@ function makeStyles(c: ThemeColors) {
     cancelText: { fontSize: 15, fontWeight: '500', color: c.primary },
     body: { paddingHorizontal: 16, paddingBottom: 12 },
     textInput: {
-      minHeight: 80,
+      // Two visible rows at fontSize 18 / lineHeight ~24 + vertical
+      // padding. Keeps the field tall enough for longer items
+      // ("vegetable oil for stir fry") without the cursor jumping.
+      minHeight: 96,
       fontSize: 18,
       color: c.label,
       paddingHorizontal: 14,
       paddingVertical: 14,
       backgroundColor: c.card,
       borderRadius: 12,
-      marginBottom: 14,
+    },
+    inputAccessoryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 6,
+      paddingTop: 6,
+      paddingBottom: 10,
+      minHeight: 22,
+    },
+    aiBusyText: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    aiBusyLabel: {
+      fontSize: 12,
+      fontStyle: 'italic',
+      color: c.label3,
+      letterSpacing: -0.1,
+    },
+    // Top-right "Done" header button — primary save action. Same
+    // weight as the iOS standard right-side commit button. Disabled
+    // styling dims when the form isn't valid (no text or no store).
+    headerDoneText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: c.primary,
+      textAlign: 'right',
+    },
+    headerDoneTextDisabled: {
+      color: c.label3,
+      opacity: 0.5,
     },
     fieldGroup: {
       backgroundColor: c.card,

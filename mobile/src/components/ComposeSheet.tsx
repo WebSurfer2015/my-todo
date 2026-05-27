@@ -7,6 +7,7 @@ import * as Haptics from 'expo-haptics'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import Svg, { Rect, Path } from 'react-native-svg'
 import { Bell, Repeat, Sparkles } from 'lucide-react-native'
+import MochiThinking from './MochiThinking'
 import { Category, Priority, PRIORITY_VALUES, PRIORITY_COLORS, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, Subtask, Todo, TodoReference } from '../types'
 import { genUuid } from '../../../core/src/utils'
 import { snapDueDateToRecurrence } from '../../../core/src/derive'
@@ -433,6 +434,15 @@ export default function ComposeSheet({
                       accessibilityLabel="Notes — anything that helps you externalize the thinking around this task"
                     />
                   </View>
+                  {/* Mochi-busy status — only renders while an AI
+                      call is in flight. The redundant "Done" button
+                      that used to live here was removed since the
+                      header already has a Save / Done action. */}
+                  {(ai.thinking || stepsAi.thinking) && (
+                    <View style={styles.inputAccessoryRow}>
+                      <MochiThinking />
+                    </View>
+                  )}
                   {appliedTextLower !== trimmedTextLower &&
                     referenceMatches.length > 0 && (
                     <View style={styles.dupeOverlay} pointerEvents="box-none">
@@ -1297,6 +1307,26 @@ function makeStyles(c: ThemeColors) {
     titleAnchor: {
       position: 'relative',
       zIndex: 10,
+    },
+    inputAccessoryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 6,
+      paddingTop: 6,
+      paddingBottom: 8,
+      minHeight: 22,
+    },
+    aiBusyText: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    aiBusyLabel: {
+      fontSize: 12,
+      fontStyle: 'italic',
+      color: c.label3,
+      letterSpacing: -0.1,
     },
     // Suggestion overlay — anchored to the bottom edge of the title
     // card (top: 100%) so it appears to drop down from where the

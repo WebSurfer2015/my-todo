@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react'
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { Sparkles } from 'lucide-react-native'
 import { suggestSubtasks } from '../aiInfer'
 import { distributeSubtaskDueDates } from '../../../core/src/utils'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
+import MochiThinking from './MochiThinking'
 
 /**
  * Suggest steps — split into hook + trigger + review so the trigger
@@ -72,9 +73,11 @@ export function SuggestStepsTrigger({ thinking, error, onClick }: TriggerProps) 
         accessibilityLabel={`${t.suggestSteps} — ${t.aiSuggestionA11y}`}
         style={[styles.pill, thinking && styles.pillDim]}
       >
-        {thinking
-          ? <ActivityIndicator size="small" color={theme.primary} />
-          : <Sparkles size={14} color={theme.primary} strokeWidth={2.2} />}
+        {thinking ? (
+          <MochiThinking compact />
+        ) : (
+          <Sparkles size={14} color={theme.primary} strokeWidth={2.2} />
+        )}
         <Text style={[styles.text, thinking && styles.textDim]}>
           {thinking ? t.suggestStepsThinking : t.suggestSteps}
         </Text>

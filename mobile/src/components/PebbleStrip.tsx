@@ -191,8 +191,11 @@ export default function PebbleStrip({ count, active = true }: Props) {
               />
             </Svg>
           )}
+          {/* Inline label — icon + caption on a single row instead of
+              stacked. Reads as a single calm bit of chrome rather than
+              a two-line block. */}
+          <Text style={styles.caption}>{t.oneItemCaption(captionNounKey)}</Text>
         </View>
-        <Text style={styles.caption}>{t.oneItemCaption(captionNounKey)}</Text>
       </View>
     )
   }
@@ -298,31 +301,27 @@ export function CairnGlyph({ size = 22 }: { size?: number }) {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: {
-      // Symmetric vertical padding so the pebble row sits in the
-      // visual middle of the strip instead of hugging the top.
-      paddingVertical: 6,
+      // Tight vertical padding now that icon + caption render on a
+      // single row — earlier 6+6 was sized for a stacked layout.
+      paddingVertical: 4,
       paddingHorizontal: SIDE_PADDING,
-      // marginBottom dropped — when the surrounding wrapper has a
-      // background color the same as this container, the wrapper's
-      // bg bleeds through margin space, making the strip look taller
-      // and the pebbles look top-aligned. Spacing to the next sibling
-      // is now the parent's responsibility.
       alignItems: 'flex-start',
       justifyContent: 'center',
       gap: 4,
-      // Explicit page-background fill so the strip blends with the
-      // surrounding view (Home + Todos both render on theme.bg).
-      backgroundColor: c.bg,
+      // Transparent — let the AppBackground / canvas show through
+      // instead of painting a separate cream band that fragments
+      // the visual flow between header → strip → list.
     },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
       flexWrap: 'nowrap',
       gap: GAP,
-      // Min-height generous enough to fit themed emoji glyphs without
-      // clipping their bottoms. Some emoji (🌰, 🥕) render taller than
-      // their declared lineHeight on iOS — give the row breathing room.
-      minHeight: 32,
+      // Min-height generous enough to fit pebble pills without
+      // clipping. Down from 32 → 24 since the empty-state row only
+      // hosts a small icon + caption now (the populated state still
+      // fits comfortably — pebbles are ~16px tall).
+      minHeight: 24,
     },
     caption: {
       fontSize: 12,
@@ -331,8 +330,10 @@ function makeStyles(c: ThemeColors) {
       letterSpacing: 0.1,
     },
     emptyGlyph: {
-      fontSize: 18,
-      lineHeight: 22,
+      // Shrunk to match the caption's visual weight on a single row
+      // — 18pt looked oversized next to 12pt italic text.
+      fontSize: 14,
+      lineHeight: 18,
       opacity: 0.45,
     },
     overflow: {

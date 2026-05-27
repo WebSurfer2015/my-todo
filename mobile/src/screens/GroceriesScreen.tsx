@@ -99,6 +99,7 @@ export default function GroceriesScreen() {
         onAddGroup={store.addGroceryGroup}
         onRenameStore={store.renameGroceryStore}
         onDeleteStore={store.deleteGroceryStore}
+        onLinkItemsToStore={store.linkItemsToStore}
         onReorderStores={store.reorderGroceryStores}
         onToggleStoreHidden={store.toggleGroceryStoreHidden}
         onTogglePinnedStore={store.pinGroceryStore}

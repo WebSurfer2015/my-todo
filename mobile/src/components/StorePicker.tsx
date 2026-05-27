@@ -11,7 +11,7 @@
  * Toggled via a "Manage" / "Done" button in the sheet header.
  */
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   KeyboardAvoidingView,
@@ -23,6 +23,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native'
 import {
@@ -46,7 +47,11 @@ import {
 } from '../groceries'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
+import { useNotify } from '../notify'
+import { linkStoreToItems } from '../aiInfer'
 import GroceryIcon from './GroceryIcon'
+import MochiThinking from './MochiThinking'
+import EmptyStateCard from './EmptyStateCard'
 import { GROCERY_DEPT_ICONS } from './groceryDeptIcons'
 import { COLOR_PALETTE } from '../categories'
 
@@ -78,6 +83,21 @@ interface Props {
    * Groceries AppHeader gear icon and Settings → Manage Groceries.
    * Default false (Pick mode). Resets on every open. */
   defaultEditing?: boolean
+  /** When true, the sheet ALSO opens with the inline "Add store"
+   * row already shown (skips the user tapping "+ Add store"). Used
+   * by the no-stores empty state on the Shopping screen so the
+   * first-time user lands directly on the name input. Implies edit
+   * mode. Resets on every open. */
+  defaultAdding?: boolean
+  /** When true, the "+ Add store" flow asks the AI to suggest which
+   * existing items would typically be available at the new store and
+   * silently appends the store to their `stores` arrays. Off → the
+   * new store is created but no items are linked. */
+  agentEnabled?: boolean
+  /** Bulk-append a store name to a set of items. Called after the
+   * AI link-store-to-items dispatch resolves. Required when
+   * agentEnabled is true; ignored otherwise. */
+  onLinkItems?: (storeName: string, itemIds: string[]) => void
   onClose: () => void
 }
 
@@ -98,18 +118,71 @@ export default function StorePicker({
   groups,
   onSetGroups,
   defaultEditing = false,
+  defaultAdding = false,
+  agentEnabled = false,
+  onLinkItems,
   onClose,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
+  const { showSnackbar } = useNotify()
+  // 30% of screen height — per the global "min sheet height" design
+  // rule. Keeps low-content states (e.g. opened straight into "Add
+  // store") from collapsing into a tiny floater that reads as broken.
+  const { height: screenH } = useWindowDimensions()
+
+  // Inline banner state for the AI link-items flow. Renders inside
+  // this sheet so the user can see "Mochi is working…" even while
+  // the modal is open (snackbars render at the React root, which on
+  // iOS sits BELOW any native Modal — invisible to the user while
+  // this sheet is up). We ALSO fire a snackbar for the final state
+  // so it lands after the user closes the sheet.
+  const [linkingMessage, setLinkingMessage] = useState<string | null>(null)
+  const linkingClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    return () => {
+      if (linkingClearRef.current) clearTimeout(linkingClearRef.current)
+    }
+  }, [])
+  function clearLinkingLater() {
+    if (linkingClearRef.current) clearTimeout(linkingClearRef.current)
+    linkingClearRef.current = setTimeout(() => setLinkingMessage(null), 4000)
+  }
+
+  // After creating a new store, dispatch the AI link-items call and
+  // silently append the store to every item the model judges would
+  // be available there. Gated on agentEnabled so opted-out users
+  // never spend tokens.
+  function maybeLinkExistingItems(name: string) {
+    if (!agentEnabled || !onLinkItems) return
+    if (items.length === 0) return
+    const payload = items.slice(0, 50).map((it) => ({ id: it.id, text: it.text }))
+    setLinkingMessage(t.suggestStepsThinking)
+    void linkStoreToItems({ storeName: name, items: payload }).then((res) => {
+      if (res.linkedItemIds.length === 0) {
+        setLinkingMessage(`No matching items for ${name}.`)
+        showSnackbar({ message: `No matching items for ${name}.` })
+        clearLinkingLater()
+        return
+      }
+      onLinkItems(name, res.linkedItemIds)
+      const n = res.linkedItemIds.length
+      const msg = `Linked ${n} ${n === 1 ? 'item' : 'items'} to ${name}.`
+      setLinkingMessage(msg)
+      showSnackbar({ message: msg })
+      clearLinkingLater()
+    })
+  }
 
   const [editing, setEditing] = useState(defaultEditing)
   // On every open, snap to the caller's requested mode (matches the
-  // pattern CategorySheet uses for its funnel/gear split).
+  // pattern CategorySheet uses for its funnel/gear split). When
+  // defaultAdding is on, also imply edit mode — Manage is the only
+  // mode where the inline "+ Add store" row makes sense.
   useEffect(() => {
-    if (visible) setEditing(defaultEditing)
-  }, [visible, defaultEditing])
+    if (visible) setEditing(defaultEditing || defaultAdding)
+  }, [visible, defaultEditing, defaultAdding])
   const [inlineName, setInlineName] = useState<string | null>(null)
   const [inlineDraft, setInlineDraft] = useState('')
   const [newName, setNewName] = useState('')
@@ -117,6 +190,17 @@ export default function StorePicker({
   // input row above the Add button). Separated from `newName` so the
   // input text doesn't double as a visibility flag.
   const [addingNew, setAddingNew] = useState(false)
+  // Auto-open the inline "Add store" row when the sheet was opened
+  // from the no-stores empty state (defaultAdding=true). Resets on
+  // every visibility change so a re-open without the flag goes back
+  // to the standard list view.
+  useEffect(() => {
+    if (!visible) return
+    if (defaultAdding) {
+      setAddingNew(true)
+      setNewName('')
+    }
+  }, [visible, defaultAdding])
   // True while the user is actively dragging a row's reorder handle.
   // We freeze the outer ScrollView during a drag so the sheet doesn't
   // appear to "scroll up" along with the dragged row — DraggableFlatList
@@ -316,7 +400,7 @@ export default function StorePicker({
           }}
         >
           <Pressable
-            style={styles.sheet}
+            style={[styles.sheet, { minHeight: screenH * 0.3 }]}
             onPress={(e) => e.stopPropagation()}
           >
             <View style={styles.handle} />
@@ -348,7 +432,7 @@ export default function StorePicker({
                 <Text style={styles.cancelText}>{t.cancel}</Text>
               </TouchableOpacity>
               <Text style={styles.title}>
-                {editing ? 'Manage Store' : 'Select Filter'}
+                {editing ? 'Manage Store' : 'Select Store'}
               </Text>
               <TouchableOpacity
                 // Both modes: "Done" closes the sheet. The two flows
@@ -366,16 +450,34 @@ export default function StorePicker({
 
             <ScrollView
               style={styles.scroll}
-              contentContainerStyle={styles.scrollContent}
+              contentContainerStyle={[
+                styles.scrollContent,
+                // Vertically center the no-stores empty state. When
+                // there's content, flexGrow:1 still lets the card
+                // sit at the top naturally (the children just fill
+                // the natural height).
+                editing && stores.length === 0 && !addingNew && styles.scrollContentCenter,
+              ]}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
               nestedScrollEnabled
               scrollEnabled={!dragActive}
             >
-              {/* STORES section header. Mirrors the DEPARTMENTS header
-                  below so the two sections read as siblings. */}
-              {!editing && <Text style={styles.sectionHeader}>STORES</Text>}
-
+              {/* Centered empty state for the Manage Store screen
+                  when the user has zero stores configured (and isn't
+                  already typing a name). The unified EmptyStateCard
+                  reads "No stores yet." with an "+ Add store" pill
+                  action — same visual family as the other empties. */}
+              {editing && stores.length === 0 && !addingNew ? (
+                <EmptyStateCard
+                  title="No stores yet."
+                  actionLabel="+ Add store"
+                  onAction={() => {
+                    setNewName('')
+                    setAddingNew(true)
+                  }}
+                />
+              ) : (
               <View style={styles.card}>
                 {/* "Any" row — clears the store filter (dept filter
                     unchanged) so the user can drop the store narrowing
@@ -522,13 +624,19 @@ export default function StorePicker({
                       maxLength={MAX_GROCERY_STORE_LEN}
                       onSubmitEditing={() => {
                         const name = newName.trim()
-                        if (name) onAdd(name)
+                        if (name) {
+                          onAdd(name)
+                          maybeLinkExistingItems(name)
+                        }
                         setNewName('')
                         setAddingNew(false)
                       }}
                       onBlur={() => {
                         const name = newName.trim()
-                        if (name) onAdd(name)
+                        if (name) {
+                          onAdd(name)
+                          maybeLinkExistingItems(name)
+                        }
                         setNewName('')
                         setAddingNew(false)
                       }}
@@ -536,6 +644,21 @@ export default function StorePicker({
                     <View style={styles.rowAction} />
                     <View style={styles.rowAction} />
                     <View style={styles.dragHandle} />
+                  </View>
+                )}
+                {/* Mochi-thinking + result banner — sits BELOW the
+                    last store row and ABOVE the "+ Add store"
+                    action. After the user adds a new store and the
+                    AI link-items flow runs, the message reads in
+                    the same area where the user just typed, not at
+                    the top of the sheet. */}
+                {linkingMessage && (
+                  <View style={styles.linkingBanner}>
+                    {linkingMessage === t.suggestStepsThinking ? (
+                      <MochiThinking />
+                    ) : (
+                      <Text style={styles.linkingBannerText}>{linkingMessage}</Text>
+                    )}
                   </View>
                 )}
                 {editing && !addingNew && (
@@ -552,6 +675,7 @@ export default function StorePicker({
                   </TouchableOpacity>
                 )}
               </View>
+              )}
 
               {/* DEPARTMENTS section removed in Phase 1 — Manage
                   Store is store-only. Departments are AI-managed and
@@ -717,11 +841,37 @@ function makeStyles(c: ThemeColors) {
       paddingBottom: 10,
     },
     titleSideBtn: { width: 64 },
+    linkingBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: c.primarySoft,
+      marginHorizontal: 16,
+      marginTop: 4,
+      marginBottom: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 10,
+    },
+    linkingBannerText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: c.primary,
+      letterSpacing: -0.1,
+      flexShrink: 1,
+    },
     title: { fontSize: 17, fontWeight: '700', color: c.label, textAlign: 'center' },
     manageText: { fontSize: 15, fontWeight: '600', color: c.primary, textAlign: 'right' },
     cancelText: { fontSize: 15, fontWeight: '500', color: c.primary, textAlign: 'left' },
     scroll: { flexShrink: 1 },
     scrollContent: { paddingHorizontal: 16, paddingBottom: 12 },
+    // Stretch + center the scroll content so an empty state (the
+    // no-stores EmptyStateCard) sits vertically mid-sheet instead of
+    // pinned to the top with empty space below.
+    scrollContentCenter: {
+      flexGrow: 1,
+      justifyContent: 'center',
+    },
     card: {
       backgroundColor: c.card,
       borderRadius: 12,

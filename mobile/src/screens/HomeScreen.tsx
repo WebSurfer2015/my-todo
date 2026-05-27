@@ -975,9 +975,9 @@ function makeStyles(c: ThemeColors) {
     statsRowSticky: {
       paddingTop: 8,
       paddingBottom: 8,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: c.separator,
-      backgroundColor: c.bg,
+      // Transparent — tile cards themselves carry the surface color.
+      // The hairline border + explicit bg were creating a separate
+      // cream band that visually competed with the tab bar below.
     },
     statsRowScroll: {
       flexDirection: 'row',

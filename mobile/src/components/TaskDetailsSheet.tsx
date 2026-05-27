@@ -42,6 +42,7 @@ import {
   SuggestStepsReview,
 } from './SuggestStepsPanel'
 import { useTodoFieldSuggestions, TodoFieldSuggestPills } from './TodoFieldSuggestPills'
+import MochiThinking from './MochiThinking'
 import { ensurePermission } from '../notifications'
 import CustomRecurrenceForm from './CustomRecurrenceForm'
 
@@ -1006,6 +1007,15 @@ export default function TaskDetailsSheet({
                       accessibilityLabel="Notes — anything that helps you externalize the thinking around this task"
                     />
                   </>
+                )}
+                {/* Mochi-thinking status row — surfaced inside the
+                    text card so the user sees the AI is working in
+                    the same area where they're typing. Same pattern
+                    as the Add to-do (ComposeSheet) accessory row. */}
+                {(fieldAi.thinking || ai.thinking) && (
+                  <View style={styles.inputAccessoryRow}>
+                    <MochiThinking />
+                  </View>
                 )}
                 <View style={styles.editGroupDivider} />
                 <TodoFieldSuggestPills
@@ -2070,6 +2080,16 @@ function makeStyles(c: ThemeColors) {
       height: StyleSheet.hairlineWidth,
       backgroundColor: c.separator,
       marginLeft: 14,
+    },
+    // Mochi-thinking accessory row — only renders while an AI call
+    // is in flight. Mirrors the ComposeSheet styling so the
+    // indicator looks the same on Add vs Edit.
+    inputAccessoryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingTop: 4,
+      paddingBottom: 8,
     },
     editFieldRowInGroup: {
       flexDirection: 'row',

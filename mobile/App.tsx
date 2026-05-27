@@ -55,7 +55,7 @@ import { fullDateLabel } from "./src/utils";
 import { todayLocal } from "../core/src/utils";
 import type { Todo } from "./src/types";
 import SignIn from "./src/components/SignIn";
-import EmptyState from "./src/components/EmptyState";
+import EmptyStateCard from "./src/components/EmptyStateCard";
 import PebbleStrip from "./src/components/PebbleStrip";
 import Onboarding from "./src/components/Onboarding";
 import SplashOverlay from "./src/components/SplashOverlay";
@@ -305,7 +305,7 @@ function TodosScreen() {
 
             {store.inTrashView ? (
               displayFiltered.length === 0 ? (
-                <EmptyState
+                <EmptyStateCard
                   title={store.emptyState.title}
                   hint={store.emptyState.hint}
                 />
@@ -343,11 +343,11 @@ function TodosScreen() {
                 </View>
               )
             ) : displayGroups.length === 0 ? (
-              <EmptyState
+              <EmptyStateCard
                 title={store.emptyState.title}
                 hint={store.emptyState.hint}
-                ctaLabel={store.emptyState.ctaLabel}
-                onCta={() => sheets.openCompose()}
+                actionLabel={store.emptyState.ctaLabel}
+                onAction={() => sheets.openCompose()}
               />
             ) : store.filter === "done" ? (
               <>

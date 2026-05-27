@@ -46,6 +46,13 @@ interface ClassifyDeptResult {
    * "at Costco"). isNew indicates whether the name matches an
    * existing store in the user's profile (case-insensitive). */
   storeHint: { name: string; isNew: boolean } | null
+  /** Up-to-3 stores from the user's existing configured list that
+   * typically carry this item. Names are guaranteed to exist in
+   * the input `stores` (server post-process filters out anything
+   * unrecognized) and use the user's canonical casing. Empty when:
+   * storeHint is non-null, no stores are configured, or the item
+   * is too generic / niche to recommend confidently. */
+  recommendedStores: string[]
 }
 
 interface SuggestFieldsInput {
@@ -118,7 +125,7 @@ export async function classifyGroceryDept(input: ClassifyDeptInput): Promise<Cla
   try {
     return await callAiInfer<ClassifyDeptResult>('classify-grocery-dept', input)
   } catch {
-    return { groupId: null, newGroupLabel: null, storeHint: null }
+    return { groupId: null, newGroupLabel: null, storeHint: null, recommendedStores: [] }
   }
 }
 
@@ -134,5 +141,33 @@ export async function suggestTodoFields(input: SuggestFieldsInput): Promise<Sugg
     return await callAiInfer<SuggestFieldsResult>('suggest-todo-fields', input)
   } catch {
     return { category: null, newCategoryLabel: null, priority: null, dueDate: null, recurrence: null, reminder: null }
+  }
+}
+
+interface LinkStoreInput {
+  storeName: string
+  items: Array<{ id: string; text: string }>
+}
+
+interface LinkStoreResult {
+  /** Subset of input ids the server judges would be available at
+   * the new store. Already filtered server-side against the input
+   * items so every id is guaranteed to exist in the user's items
+   * list at dispatch time. */
+  linkedItemIds: string[]
+}
+
+/**
+ * Given a newly added store + the user's current items, returns the
+ * subset of item ids that would typically be available at that
+ * store. Caller decides whether/how to apply (auto-link silently,
+ * snackbar with Undo, etc.). Empty array on failure — silent no-op
+ * is the right behavior for an ambient assist.
+ */
+export async function linkStoreToItems(input: LinkStoreInput): Promise<LinkStoreResult> {
+  try {
+    return await callAiInfer<LinkStoreResult>('link-store-to-items', input)
+  } catch {
+    return { linkedItemIds: [] }
   }
 }

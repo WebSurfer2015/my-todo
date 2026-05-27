@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { Sparkles, Plus, Repeat, Bell } from 'lucide-react-native'
 import { suggestTodoFields, SuggestFieldsResult } from '../aiInfer'
 import { useLang } from '../LangContext'
@@ -9,6 +9,7 @@ import { Priority, RecurrenceFreq } from '../types'
 import { formatDisplayDate, formatRecurrence } from '../utils'
 import CategoryIcon from './CategoryIcon'
 import PriorityDot from './PriorityDot'
+import MochiThinking from './MochiThinking'
 
 /**
  * Phase 2 #6: ambient suggestions while typing a to-do title.
@@ -338,8 +339,7 @@ export function TodoFieldSuggestPills({
       <Sparkles size={12} color={theme.primary} strokeWidth={2.2} />
       {thinking && (
         <View style={styles.thinkingPill}>
-          <ActivityIndicator size="small" color={theme.primary} />
-          <Text style={styles.thinkingText}>{t.suggestStepsThinking}</Text>
+          <MochiThinking />
         </View>
       )}
       {showCategoryPill && catDef && (

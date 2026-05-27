@@ -212,11 +212,11 @@ export const strings = {
         grass: 'blade', flowers: 'flower', spouts: 'spout',
       }
       const noun = nounKey ? singulars[nounKey] : null
-      return noun ? `One ${noun}. That's it.` : `One pebble. That's it.`
+      return noun ? `One ${noun}. A good start.` : `One pebble. A good start.`
     },
     resetLifetimeAction: 'Reset lifetime count',
-    resetLifetimeConfirm: 'Reset your lifetime count to zero?',
-    resetLifetimeConfirmBody: "This can't be undone.",
+    resetLifetimeConfirm: 'Recalibrate your lifetime count?',
+    resetLifetimeConfirmBody: 'Sets your count to match your current done items.',
     reset: 'Reset',
     aiSuggestionA11y: 'AI suggestion',
     clearAllSteps: 'Clear all steps',
@@ -471,7 +471,7 @@ export const strings = {
         grass: '草', flowers: '花', spouts: '水花',
       }
       const noun = nounKey ? singulars[nounKey] : null
-      return noun ? `一颗${noun}，就这样。` : '一颗石子，就这样。'
+      return noun ? `一颗${noun}，好的开始。` : '一颗石子，好的开始。'
     },
     resetLifetimeAction: '重置累计次数',
     resetLifetimeConfirm: '将累计次数清零？',
@@ -730,7 +730,7 @@ export const strings = {
         grass: 'brizna', flowers: 'flor', spouts: 'chorro',
       }
       const noun = nounKey ? singulars[nounKey] : null
-      return noun ? `Un ${noun}. Eso es todo.` : 'Una piedra. Eso es todo.'
+      return noun ? `Un ${noun}. Un buen comienzo.` : 'Una piedra. Un buen comienzo.'
     },
     resetLifetimeAction: 'Restablecer total',
     resetLifetimeConfirm: '¿Restablecer tu total a cero?',
@@ -989,7 +989,7 @@ export const strings = {
         grass: 'herbe', flowers: 'fleur', spouts: 'jet',
       }
       const noun = nounKey ? singulars[nounKey] : null
-      return noun ? `Un(e) ${noun}. C'est tout.` : `Une pierre. C'est tout.`
+      return noun ? `Un(e) ${noun}. Un bon début.` : `Une pierre. Un bon début.`
     },
     resetLifetimeAction: 'Réinitialiser le total',
     resetLifetimeConfirm: 'Remettre votre total à zéro ?',
@@ -1248,7 +1248,7 @@ export const strings = {
         grass: '草', flowers: '花', spouts: '水しぶき',
       }
       const noun = nounKey ? singulars[nounKey] : null
-      return noun ? `${noun}をひとつ。それでいい。` : '小石ひとつ。それでいい。'
+      return noun ? `${noun}をひとつ。よい始まり。` : '小石ひとつ。よい始まり。'
     },
     resetLifetimeAction: '累計をリセット',
     resetLifetimeConfirm: '累計をゼロに戻しますか？',
@@ -1507,7 +1507,7 @@ export const strings = {
         grass: 'Halm', flowers: 'Blume', spouts: 'Fontäne',
       }
       const noun = nounKey ? singulars[nounKey] : null
-      return noun ? `Ein ${noun}. Mehr nicht.` : 'Ein Stein. Mehr nicht.'
+      return noun ? `Ein ${noun}. Ein guter Anfang.` : 'Ein Stein. Ein guter Anfang.'
     },
     resetLifetimeAction: 'Gesamtwert zurücksetzen',
     resetLifetimeConfirm: 'Deinen Gesamtwert auf null setzen?',
