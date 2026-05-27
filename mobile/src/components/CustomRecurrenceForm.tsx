@@ -27,12 +27,16 @@ export default function CustomRecurrenceForm({ initial, onDone, onBack }: Props)
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
 
-  const [freq, setFreq] = useState<RecurrenceFreq>(initial?.freq === 'monthly' ? 'monthly' : 'weekly')
+  const [freq, setFreq] = useState<RecurrenceFreq>(initial?.freq ?? 'weekly')
+  const [interval, setInterval] = useState<number>(
+    Math.max(1, Math.min(99, Math.floor(initial?.interval ?? 1))),
+  )
   const [weekdays, setWeekdays] = useState<Set<number>>(() => new Set(initial?.byWeekday ?? []))
   const [positions, setPositions] = useState<Set<number>>(() => new Set(initial?.bySetPos ?? []))
 
   useEffect(() => {
-    setFreq(initial?.freq === 'monthly' ? 'monthly' : 'weekly')
+    setFreq(initial?.freq ?? 'weekly')
+    setInterval(Math.max(1, Math.min(99, Math.floor(initial?.interval ?? 1))))
     setWeekdays(new Set(initial?.byWeekday ?? []))
     setPositions(new Set(initial?.bySetPos ?? []))
   }, [initial])
@@ -55,11 +59,18 @@ export default function CustomRecurrenceForm({ initial, onDone, onBack }: Props)
     })
   }
 
+  // For daily and yearly, a weekday filter is meaningless — the
+  // recurrence is purely "every N days" / "every N years". Weekly
+  // and monthly use the weekday picker (still required for those).
+  const needsWeekdays = freq === 'weekly' || freq === 'monthly'
   const previewRec: Recurrence | undefined =
-    weekdays.size > 0
+    !needsWeekdays || weekdays.size > 0
       ? {
           freq,
-          byWeekday: Array.from(weekdays).sort(),
+          ...(interval > 1 ? { interval } : {}),
+          ...(needsWeekdays && weekdays.size > 0
+            ? { byWeekday: Array.from(weekdays).sort() }
+            : {}),
           ...(freq === 'monthly' && positions.size > 0
             ? { bySetPos: Array.from(positions).sort((a, b) => a - b) }
             : {}),
@@ -70,7 +81,9 @@ export default function CustomRecurrenceForm({ initial, onDone, onBack }: Props)
         }
       : undefined
 
-  const canSave = weekdays.size > 0 && (freq === 'weekly' || positions.size > 0)
+  const canSave =
+    (!needsWeekdays || weekdays.size > 0) &&
+    (freq !== 'monthly' || weekdays.size === 0 || positions.size > 0)
 
   return (
     <View style={styles.flex}>
@@ -90,41 +103,77 @@ export default function CustomRecurrenceForm({ initial, onDone, onBack }: Props)
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
-        <Text style={styles.sectionLabel}>REPEATS</Text>
-        <View style={styles.segmented}>
-          {(['weekly', 'monthly'] as RecurrenceFreq[]).map((f) => {
-            const active = freq === f
-            return (
-              <TouchableOpacity
-                key={f}
-                style={[styles.segment, active && styles.segmentActive]}
-                onPress={() => setFreq(f)}
-              >
-                <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
-                  {f === 'weekly' ? 'Weekly' : 'Monthly'}
-                </Text>
-              </TouchableOpacity>
-            )
-          })}
+        <Text style={styles.sectionLabel}>EVERY</Text>
+        <View style={styles.everyRow}>
+          <View style={styles.stepper}>
+            <TouchableOpacity
+              style={[styles.stepBtn, interval <= 1 && styles.stepBtnDisabled]}
+              onPress={() => setInterval((n) => Math.max(1, n - 1))}
+              disabled={interval <= 1}
+              accessibilityRole="button"
+              accessibilityLabel="Decrease interval"
+            >
+              <Text style={styles.stepBtnText}>−</Text>
+            </TouchableOpacity>
+            <Text style={styles.stepValue} maxFontSizeMultiplier={1.2}>{interval}</Text>
+            <TouchableOpacity
+              style={[styles.stepBtn, interval >= 99 && styles.stepBtnDisabled]}
+              onPress={() => setInterval((n) => Math.min(99, n + 1))}
+              disabled={interval >= 99}
+              accessibilityRole="button"
+              accessibilityLabel="Increase interval"
+            >
+              <Text style={styles.stepBtnText}>+</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.freqSegmented}>
+            {(['daily', 'weekly', 'monthly', 'yearly'] as RecurrenceFreq[]).map((f) => {
+              const active = freq === f
+              // Label flips singular/plural based on the current
+              // interval — "1 Day", "2 Days" reads naturally.
+              const labels: Record<RecurrenceFreq, [string, string]> = {
+                daily: ['Day', 'Days'],
+                weekly: ['Week', 'Weeks'],
+                monthly: ['Month', 'Months'],
+                yearly: ['Year', 'Years'],
+              }
+              const [single, plural] = labels[f]
+              return (
+                <TouchableOpacity
+                  key={f}
+                  style={[styles.freqSegment, active && styles.segmentActive]}
+                  onPress={() => setFreq(f)}
+                >
+                  <Text style={[styles.freqSegmentText, active && styles.segmentTextActive]}>
+                    {interval === 1 ? single : plural}
+                  </Text>
+                </TouchableOpacity>
+              )
+            })}
+          </View>
         </View>
 
-        <Text style={styles.sectionLabel}>ON DAYS</Text>
-        <View style={styles.pillRow}>
-          {WEEKDAY_SHORT.map((day, idx) => {
-            const active = weekdays.has(idx)
-            return (
-              <TouchableOpacity
-                key={day}
-                style={[styles.pill, active && styles.pillActive]}
-                onPress={() => toggleWeekday(idx)}
-              >
-                <Text style={[styles.pillText, active && styles.pillTextActive]}>{day}</Text>
-              </TouchableOpacity>
-            )
-          })}
-        </View>
+        {needsWeekdays && (
+          <>
+            <Text style={styles.sectionLabel}>ON DAYS</Text>
+            <View style={styles.pillRow}>
+              {WEEKDAY_SHORT.map((day, idx) => {
+                const active = weekdays.has(idx)
+                return (
+                  <TouchableOpacity
+                    key={day}
+                    style={[styles.pill, active && styles.pillActive]}
+                    onPress={() => toggleWeekday(idx)}
+                  >
+                    <Text style={[styles.pillText, active && styles.pillTextActive]}>{day}</Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+          </>
+        )}
 
-        {freq === 'monthly' && (
+        {freq === 'monthly' && weekdays.size > 0 && (
           <>
             <Text style={styles.sectionLabel}>ON WEEKS</Text>
             <View style={styles.pillRow}>
@@ -194,6 +243,63 @@ function makeStyles(c: ThemeColors) {
       color: c.label3,
       marginTop: 16,
       marginBottom: 8,
+    },
+    // "Every N [unit]" row: stepper on the left, 4-way segmented
+    // unit picker on the right.
+    everyRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    stepper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: c.bg,
+      borderRadius: 10,
+      padding: 4,
+      gap: 4,
+    },
+    stepBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      backgroundColor: c.card,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    stepBtnDisabled: { opacity: 0.35 },
+    stepBtnText: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: c.label,
+      lineHeight: 20,
+    },
+    stepValue: {
+      minWidth: 32,
+      textAlign: 'center',
+      fontSize: 16,
+      fontWeight: '700',
+      color: c.label,
+      fontVariant: ['tabular-nums'],
+    },
+    freqSegmented: {
+      flex: 1,
+      flexDirection: 'row',
+      gap: 2,
+      backgroundColor: c.bg,
+      borderRadius: 9,
+      padding: 2,
+    },
+    freqSegment: {
+      flex: 1,
+      alignItems: 'center',
+      paddingVertical: 8,
+      borderRadius: 7,
+    },
+    freqSegmentText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: c.label2,
     },
     segmented: {
       flexDirection: 'row',

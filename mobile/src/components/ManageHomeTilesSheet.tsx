@@ -215,6 +215,12 @@ function makeStyles(c: ThemeColors) {
       paddingBottom: 24,
       paddingHorizontal: 16,
       maxHeight: "85%",
+      // Force a floor so the inner ScrollView (body: flex:1) has
+      // something to absorb. Without this, the sheet sized to its
+      // own content height — but body wants the parent to provide
+      // bounded height, so body collapsed to 0 and only the header
+      // rendered. Per the min-sheet-height design rule (>=30%).
+      minHeight: "60%",
     },
     handle: {
       alignSelf: "center",
