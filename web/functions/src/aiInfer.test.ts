@@ -290,7 +290,7 @@ describe('postProcessClassifyDept', () => {
     )
     expect(out.recommendedStores).toEqual(['Stop & Shop', 'CVS'])
   })
-  it('drops recommendedStores entirely when storeHint is set', () => {
+  it('drops recommendedStores when storeHint resolves to a live store', () => {
     const out = postProcessClassifyDept(
       {
         groupId: 'produce',
@@ -301,6 +301,36 @@ describe('postProcessClassifyDept', () => {
       input,
     )
     expect(out.recommendedStores).toEqual([])
+  })
+  it('keeps recommendedStores when storeHint is a new-store proposal', () => {
+    // Model invented a store ("Whole Foods") that the user hasn't
+    // configured. Client can't auto-select that, so recs should
+    // remain as a fallback rather than wiping to zero picks.
+    const out = postProcessClassifyDept(
+      {
+        groupId: 'produce',
+        newGroupLabel: null,
+        storeHint: { name: 'Whole Foods', isNew: true },
+        recommendedStores: ['Stop & Shop', 'CVS'],
+      },
+      input,
+    )
+    expect(out.recommendedStores).toEqual(['Stop & Shop', 'CVS'])
+  })
+  it('keeps recommendedStores when storeHint references a non-live store (isNew=false)', () => {
+    // Edge: model returns isNew=false but the name doesn't exist
+    // in the user's live stores. Client can't auto-select, so don't
+    // wipe the recs fallback.
+    const out = postProcessClassifyDept(
+      {
+        groupId: 'produce',
+        newGroupLabel: null,
+        storeHint: { name: 'Trader Joe\'s', isNew: false },  // not in `input.stores`
+        recommendedStores: ['Stop & Shop', 'CVS'],
+      },
+      input,
+    )
+    expect(out.recommendedStores).toEqual(['Stop & Shop', 'CVS'])
   })
   it('handles empty input.stores gracefully', () => {
     const out = postProcessClassifyDept(

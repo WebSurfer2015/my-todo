@@ -288,7 +288,16 @@ export function postProcessClassifyDept(
     seen.add(canonical)
     validRecs.push(canonical)
   }
-  // 3. storeHint set → no recs (user already named the store)
-  out.recommendedStores = out.storeHint ? [] : validRecs
+  // 3. storeHint set AND resolvable to a live store → no recs (user
+  // already has an explicit signal). If the model returned a
+  // storeHint that WON'T resolve (e.g., a generic "Grocery Store"
+  // or a "new store" proposal), keep the recs as a fallback so
+  // the client can still auto-select something useful instead of
+  // landing on zero picks.
+  const storeHintResolves =
+    out.storeHint != null &&
+    out.storeHint.isNew === false &&
+    lowerToCanonical.has(out.storeHint.name.toLowerCase())
+  out.recommendedStores = storeHintResolves ? [] : validRecs
   return out
 }
