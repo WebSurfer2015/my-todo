@@ -452,6 +452,46 @@ export default function CategorySheet({
                         />
                       </View>
 
+                      {/* PRIORITIES — simpler row list (no rename / hide /
+                          drag) since the priorities are hardcoded. Only
+                          edit action is Pin / Unpin, surfacing the
+                          priority as a quick-access pill in the
+                          FilterBar. */}
+                      <Text style={styles.sectionHeader}>PRIORITIES</Text>
+                      <View style={styles.listCard}>
+                        {PRIORITY_VALUES.map((p) => {
+                          const f = priorityFilter(p);
+                          const isPinned = pinnedFilters.includes(f);
+                          return (
+                            <View
+                              key={`pri-${p}`}
+                              style={styles.editRow}
+                            >
+                              <PriorityBars level={p} size={18} />
+                              <View style={styles.editRowLabelInner}>
+                                <Text style={styles.editRowLabel} numberOfLines={1}>
+                                  {t.priority[p]}
+                                </Text>
+                              </View>
+                              <TouchableOpacity
+                                onPress={() => onPinFilter(f)}
+                                hitSlop={6}
+                                style={styles.rowAction}
+                                accessibilityRole="button"
+                                accessibilityLabel={`${isPinned ? t.unpin : t.pin} ${t.priority[p]}`}
+                              >
+                                <Pin
+                                  size={13}
+                                  color={isPinned ? theme.primary : theme.label2}
+                                  strokeWidth={2.2}
+                                  fill={isPinned ? theme.primary : 'none'}
+                                />
+                              </TouchableOpacity>
+                            </View>
+                          );
+                        })}
+                      </View>
+
                       <Text style={styles.sectionHeader}>CATEGORIES</Text>
                       <View style={styles.listCard}>
                         <DraggableFlatList

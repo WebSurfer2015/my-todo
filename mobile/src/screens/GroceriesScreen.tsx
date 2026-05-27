@@ -58,10 +58,11 @@ export default function GroceriesScreen() {
           setStorePickerEditing(false)
           setStorePickerOpen(true)
         }}
-        onGearPress={() => {
-          setStorePickerEditing(true)
-          setStorePickerOpen(true)
-        }}
+        // Gear opens Settings to match Dashboard's gear — same
+        // entry point across tabs. Per-tab manage actions (Manage
+        // Store etc.) remain reachable from Settings' MANAGE
+        // section, just not from the gear icon directly anymore.
+        onGearPress={sheets.openSettings}
       />
       {/* PebbleStrip removed — completion celebration moved to the
           Mochi avatar in AppHeader, which does a happy-dance on

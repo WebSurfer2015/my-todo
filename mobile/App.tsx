@@ -208,7 +208,10 @@ function TodosScreen() {
           title="Todos"
           onSearchPress={() => setSearchOpen(true)}
           onFilterPress={() => sheets.openSelectFilter()}
-          onGearPress={() => sheets.openManageFilter()}
+          // Gear opens Settings to match Dashboard's gear — same
+          // entry point across tabs. Manage Filter remains
+          // reachable from Settings' MANAGE section.
+          onGearPress={sheets.openSettings}
         />
         {/* PebbleStrip removed — completion celebration moved to the
             Mochi avatar in AppHeader, which does a happy-dance on
