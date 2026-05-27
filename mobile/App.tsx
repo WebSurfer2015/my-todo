@@ -57,7 +57,6 @@ import type { Todo } from "./src/types";
 import SignIn from "./src/components/SignIn";
 import EmptyStateCard from "./src/components/EmptyStateCard";
 import { Analytics } from "./src/analytics";
-import PebbleStrip from "./src/components/PebbleStrip";
 import Onboarding from "./src/components/Onboarding";
 import SplashOverlay from "./src/components/SplashOverlay";
 import { cancelDailyCheckin, syncTodoReminders } from "./src/notifications";
@@ -211,11 +210,9 @@ function TodosScreen() {
           onFilterPress={() => sheets.openSelectFilter()}
           onGearPress={() => sheets.openManageFilter()}
         />
-        {store.animationOn &&
-          !store.inTrashView &&
-          store.filter !== "done" && (
-            <PebbleStrip count={store.todayPebbles} active={isFocused} />
-          )}
+        {/* PebbleStrip removed — completion celebration moved to the
+            Mochi avatar in AppHeader, which does a happy-dance on
+            every check-off (animation-aware). */}
         <ScrollView
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"

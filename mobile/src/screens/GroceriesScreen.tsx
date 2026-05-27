@@ -15,7 +15,6 @@ import { SEED_GROCERY_STORES } from '../groceries'
 import GroceryView from '../components/GroceryView'
 import AppHeader from '../components/AppHeader'
 import SearchTopSheet from '../components/SearchTopSheet'
-import PebbleStrip from '../components/PebbleStrip'
 
 export default function GroceriesScreen() {
   const store = useStore()
@@ -64,14 +63,9 @@ export default function GroceriesScreen() {
           setStorePickerOpen(true)
         }}
       />
-      {/* Shopping strip — same render shape + position as Dashboard
-          and Todos. Hidden entirely when the user has opted out of
-          completion animations / motion. Pebbles accrue when the
-          last item in a (store × department) bucket flips to done
-          (see useTodoStore.toggleGroceryChecked). */}
-      {store.animationOn && (
-        <PebbleStrip count={store.todayPebbles} active={isFocused} />
-      )}
+      {/* PebbleStrip removed — completion celebration moved to the
+          Mochi avatar in AppHeader, which does a happy-dance on
+          every check-off (animation-aware). */}
       <SearchTopSheet
         visible={isFocused && searchOpen}
         placeholder="Search shopping"

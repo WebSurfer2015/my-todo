@@ -36,7 +36,6 @@ import {
 } from '../../../core/src/types'
 import { categoryLabel } from '../../../core/src/categories'
 import { buildGroups, type GroupKey } from '../../../core/src/groups'
-import PebbleStrip from '../components/PebbleStrip'
 import EmptyStateCard from '../components/EmptyStateCard'
 import StatusIcon, { statusColor } from '../components/StatusIcon'
 import CategoryIcon from '../components/CategoryIcon'
@@ -343,13 +342,9 @@ export default function HomeScreen() {
   return (
     <View style={[styles.flex, { paddingTop: insets.top }]}>
       <AppHeader onGearPress={sheets.openSettings} />
-      {/* Dashboard strip — same render shape + position on every tab
-          (Todos, Shopping). Active gates which screen owns the
-          registered cairn. Hidden entirely when the user has opted
-          out of completion animations / motion. */}
-      {store.animationOn && (
-        <PebbleStrip count={store.todayPebbles} active={isFocused} />
-      )}
+      {/* PebbleStrip removed — completion celebration moved to the
+          Mochi avatar in AppHeader, which does a happy-dance on
+          every check-off (animation-aware). */}
       <ScrollView
         style={styles.flex}
         contentContainerStyle={[styles.body, { paddingBottom: 120 }]}

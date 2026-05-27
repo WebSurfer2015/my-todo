@@ -10,8 +10,8 @@
  * title like "Groceries").
  */
 
-import React, { useMemo } from 'react'
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import React, { useEffect, useMemo, useRef } from 'react'
+import { Animated, Easing, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { Settings as SettingsIcon, Search as SearchIcon, Filter as FilterIcon } from 'lucide-react-native'
 import { useStore } from '../StoreContext'
 import { useSheets } from '../SheetContext'
@@ -49,6 +49,40 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
 
+  // Mochi happy-dance: scale-pulse + tiny rotation wiggle on every
+  // mark-done. Trigger = lifetimePebbles (bumps on each completion).
+  // Honors motion preference via store.animationOn — turns off
+  // entirely when the user has reduce-motion / no-completion-anim.
+  const scale = useRef(new Animated.Value(1)).current
+  const rotate = useRef(new Animated.Value(0)).current
+  const lifetimeRef = useRef(store.lifetimePebbles)
+  useEffect(() => {
+    if (lifetimeRef.current === store.lifetimePebbles) return
+    const grew = store.lifetimePebbles > lifetimeRef.current
+    lifetimeRef.current = store.lifetimePebbles
+    if (!grew || !store.animationOn) return
+    // 600ms sequence: quick bounce up, settle back. Rotation wiggle
+    // runs in parallel for the "shimmy" feel.
+    Animated.parallel([
+      Animated.sequence([
+        Animated.timing(scale, { toValue: 1.18, duration: 140, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 0.95, duration: 120, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 1.05, duration: 120, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 1, duration: 180, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+      ]),
+      Animated.sequence([
+        Animated.timing(rotate, { toValue: 1, duration: 110, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(rotate, { toValue: -1, duration: 140, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(rotate, { toValue: 0.4, duration: 120, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(rotate, { toValue: 0, duration: 130, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+      ]),
+    ]).start()
+  }, [store.lifetimePebbles, store.animationOn, scale, rotate])
+  const rotateDeg = rotate.interpolate({
+    inputRange: [-1, 1],
+    outputRange: ['-9deg', '9deg'],
+  })
+
   return (
     <View style={styles.row}>
       <TouchableOpacity
@@ -58,7 +92,9 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
         accessibilityLabel={t.editProfile}
         accessibilityRole="button"
       >
-        <Avatar avatar={store.profile.avatar} size={44} />
+        <Animated.View style={{ transform: [{ scale }, { rotate: rotateDeg }] }}>
+          <Avatar avatar={store.profile.avatar} size={44} />
+        </Animated.View>
         <View style={styles.textWrap}>
           {title ? (
             <Text style={styles.screenTitle} numberOfLines={1}>
