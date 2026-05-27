@@ -9,4 +9,7 @@ appId: com.websurfer.mytodo
     text: "Todos, tab.*"
 - assertVisible: "You're all caught up."
 - tapOn: "Add a to-do"
-- assertVisible: "Add to-do"
+# ComposeSheet's header reads "Cancel  Add to-do  Done" as one
+# concatenated accessibility label, so use a regex substring match.
+- assertVisible:
+    text: ".*Add to-do.*"

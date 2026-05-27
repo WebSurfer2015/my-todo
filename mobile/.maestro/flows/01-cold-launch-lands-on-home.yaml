@@ -21,5 +21,8 @@ appId: com.websurfer.mytodo
 # `text:` form for regex/substring.
 - assertVisible:
     text: "Open Todos showing.*"
-# Lifetime cairn footer — unique to Home.
-- assertVisible: "pebbles placed"
+# Dashboard-unique element: the What's Next teaser. The lifetime cairn
+# footer that used to anchor Home moved to Profile in v1.5 (task #8),
+# so we no longer use "pebbles placed" as a Dashboard sentinel.
+- assertVisible:
+    text: "What's Next.*"
