@@ -798,13 +798,16 @@ function TaskItem({
             >
               {todo.text}
             </Text>
-            {!inTrash && hasSubs && (
-              <View style={styles.progressPill}>
-                <Text style={styles.progressPillText}>
-                  {t.subtaskProgress(subsDoneCount, subs.length)}
-                </Text>
-              </View>
-            )}
+            {/* Priority is now the top-right glance, swapped with
+                the steps badge below. Reads as "what's the urgency"
+                next to the title; steps progress drops into the
+                meta row where the category chip lives. */}
+            <View
+              style={styles.priorityBtn}
+              accessibilityLabel={`Priority ${todo.priority}${todo.recurrence ? ', recurring' : ''}`}
+            >
+              <PriorityDot level={todo.priority} size={11} />
+            </View>
           </View>
 
           <View style={styles.metaLine}>
@@ -871,12 +874,16 @@ function TaskItem({
 
             <View style={{ flex: 1 }} />
 
-            <View
-              style={styles.priorityBtn}
-              accessibilityLabel={`Priority ${todo.priority}${todo.recurrence ? ', recurring' : ''}`}
-            >
-              <PriorityDot level={todo.priority} size={11} />
-            </View>
+            {/* Steps progress (formerly top-right) lives down here
+                with the rest of the meta — kept in the same right-
+                edge spot where the priority dot used to sit. */}
+            {!inTrash && hasSubs && (
+              <View style={styles.progressPill}>
+                <Text style={styles.progressPillText}>
+                  {t.subtaskProgress(subsDoneCount, subs.length)}
+                </Text>
+              </View>
+            )}
           </View>
 
           {expanded && detailsAvailable && !inTrash && visibleSubs.length > 0 && (

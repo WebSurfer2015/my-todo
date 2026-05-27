@@ -95,22 +95,29 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
     const grew = store.lifetimePebbles > lifetimeRef.current
     lifetimeRef.current = store.lifetimePebbles
     if (!grew || !store.animationOn) return
-    // 600ms sequence: quick bounce up, settle back. Rotation wiggle
-    // runs in parallel for the "shimmy" feel.
-    Animated.parallel([
-      Animated.sequence([
-        Animated.timing(scale, { toValue: 1.18, duration: 140, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.timing(scale, { toValue: 0.95, duration: 120, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(scale, { toValue: 1.05, duration: 120, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(scale, { toValue: 1, duration: 180, easing: Easing.in(Easing.quad), useNativeDriver: true }),
-      ]),
-      Animated.sequence([
-        Animated.timing(rotate, { toValue: 1, duration: 110, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.timing(rotate, { toValue: -1, duration: 140, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(rotate, { toValue: 0.4, duration: 120, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(rotate, { toValue: 0, duration: 130, easing: Easing.in(Easing.quad), useNativeDriver: true }),
-      ]),
-    ]).start()
+    // Stagger: the lifetimePebbles increment fires AT arrival
+    // (PEBBLE_DEFERRAL_MS = same as the flight's DROP_MS), which
+    // means chime + sparkles + this wiggle would all hit the same
+    // frame. Delay the wiggle by 120ms so the avatar reacts *after*
+    // catching the sparkle bloom — reads as cause-and-effect, not
+    // simultaneous flash.
+    const handle = setTimeout(() => {
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(scale, { toValue: 1.18, duration: 140, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+          Animated.timing(scale, { toValue: 0.95, duration: 120, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          Animated.timing(scale, { toValue: 1.05, duration: 120, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          Animated.timing(scale, { toValue: 1, duration: 180, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.timing(rotate, { toValue: 1, duration: 110, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+          Animated.timing(rotate, { toValue: -1, duration: 140, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          Animated.timing(rotate, { toValue: 0.4, duration: 120, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          Animated.timing(rotate, { toValue: 0, duration: 130, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+        ]),
+      ]).start()
+    }, 120)
+    return () => clearTimeout(handle)
   }, [store.lifetimePebbles, store.animationOn, scale, rotate])
   const rotateDeg = rotate.interpolate({
     inputRange: [-1, 1],

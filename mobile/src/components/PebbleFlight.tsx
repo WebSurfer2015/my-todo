@@ -205,10 +205,11 @@ export function useTriggerPebbleFlight() {
 // larger than the 44pt avatar so the moment registers, but smaller
 // than the prior 76pt so it stays discreet during multi-completes.
 const MOCHI_SIZE = 52
-// 1400ms total — slower than the prior 800ms so each beat reads
-// clearly without feeling rushed. Roughly: 280ms spring-in,
-// 770ms glide, 350ms arrival shrink.
-const FLIGHT_MS = 1400
+// 1800ms total — slower + simpler. Single-arc path (no S-curve)
+// gives the glide room to breathe at this longer duration without
+// reading as busy. Beats: ~360ms spring-in, ~990ms glide,
+// ~450ms arrival shrink.
+const FLIGHT_MS = 1800
 // Beat boundaries within FLIGHT_MS (as fractions of progress 0→1):
 //   SPRING_END   spring-in done
 //   ARRIVAL_AT   Mochi at the avatar (chime fires here)
@@ -246,47 +247,57 @@ function FlyingMochi({ flight, onDone }: { flight: Flight; onDone: () => void })
     }).start(({ finished }) => {
       if (finished) onDone()
     })
-    // Chime fires at arrival (= peak moment, not start/end).
+    // Arrival cluster — stagger by ~60ms each so the chime,
+    // avatar wiggle (already driven by lifetimePebbles increment),
+    // and sparkle bloom don't all hit the same frame. Reads as a
+    // small chain of cause-and-effect instead of a simultaneous
+    // flash. Chime is the first beat (Mochi lands), sparkles
+    // visually bloom second (driven by SparkleBurst's own
+    // interpolation), avatar's happy-dance is third.
     const t = flight.chime ? setTimeout(playChime, DROP_MS) : null
     return () => { if (t) clearTimeout(t) }
   }, [progress, onDone, flight.chime])
 
-  // Three beats — spring-in (0 → SPRING_END), S-curve glide
+  // Three beats — spring-in (0 → SPRING_END), single-arc glide
   // (SPRING_END → ARRIVAL_AT), shrink-fade at avatar (ARRIVAL_AT
   // → 1).
   const dx = flight.to.x - flight.from.x
   const dy = flight.to.y - flight.from.y
-  // S-curve path: Mochi swings RIGHT first, then LEFT past the
-  // straight line, then settles at the avatar. The swing amplitude
-  // scales with the journey length so short trips get a smaller
-  // wiggle and long trips get a more pronounced sweep.
-  const swingAmp = Math.min(70, Math.hypot(dx, dy) * 0.18 + 30)
+  // Single C-curve: the arc bulges to the OPPOSITE side from the
+  // tap. Tap on the left half → curve bulges RIGHT (Mochi takes
+  // the long way around). Tap on the right half → curve bulges
+  // LEFT. Reads as "Mochi swings out and around to the avatar"
+  // instead of a chaotic S-shape, and gives the glide visible
+  // path length without the back-and-forth busy-ness.
+  const screenW = Dimensions.get('window').width
+  const tapOnLeft = flight.from.x < screenW / 2
+  // Positive amp = bulge right; negative = bulge left. Scales with
+  // journey length so short trips get a subtle wiggle and long
+  // trips get a more pronounced sweep.
+  const swingAmp =
+    (tapOnLeft ? 1 : -1) * Math.min(80, Math.hypot(dx, dy) * 0.20 + 30)
   // Arc lift: gentle vertical parabola peak above the straight
-  // line so the swing feels lifted, not just zigzagged.
+  // line so the curve feels lifted, not just sideways.
   const arcLift = Math.min(40, Math.abs(dy) * 0.18 + 20)
 
-  // X: hold at 0 during spring-in, then trace an S — left of the
-  // straight line at the 1/3 mark, right of it at the 2/3 mark,
-  // landing at dx at arrival. The "left then right" path makes
-  // Mochi feel like it's wandering home with character, not
-  // taking a direct shortcut.
-  const oneThird = SPRING_END + (ARRIVAL_AT - SPRING_END) * 0.33
-  const twoThirds = SPRING_END + (ARRIVAL_AT - SPRING_END) * 0.66
+  // Midpoint of the glide — used for both the X lateral bulge and
+  // the Y arc apex so the lift and the swing peak at the same
+  // moment (one cohesive crest, not two competing humps).
+  const glideMid = SPRING_END + (ARRIVAL_AT - SPRING_END) / 2
+  // X: hold at 0 during spring-in, bulge to (dx/2 + swingAmp) at
+  // the midpoint, land at dx at arrival. One smooth single curve.
   const translateX = progress.interpolate({
-    inputRange: [0, SPRING_END, oneThird, twoThirds, ARRIVAL_AT, 1],
+    inputRange: [0, SPRING_END, glideMid, ARRIVAL_AT, 1],
     outputRange: [
       0,
       0,
-      dx * 0.33 - swingAmp,   // swing LEFT past midline
-      dx * 0.66 + swingAmp,   // swing RIGHT past midline
+      dx / 2 + swingAmp,  // midpoint pushed laterally
       dx,
       dx,
     ],
   })
   // Y: hold at 0 during spring-in, arc up-then-down to dy by
-  // arrival, hold during shrink-fade. Apex at the midpoint of
-  // the glide.
-  const glideMid = SPRING_END + (ARRIVAL_AT - SPRING_END) / 2
+  // arrival, hold during shrink-fade. Apex at glideMid.
   const translateY = progress.interpolate({
     inputRange: [0, SPRING_END, glideMid, ARRIVAL_AT, 1],
     outputRange: [0, 0, dy / 2 - arcLift, dy, dy],
@@ -310,12 +321,14 @@ function FlyingMochi({ flight, onDone }: { flight: Flight; onDone: () => void })
     inputRange: [0, SPRING_END * 0.5, ARRIVAL_AT, FADE_END],
     outputRange: [0, 1, 1, 0],
   })
-  // Tilt: lean into the S-curve. Left at first (matching the
-  // first swing), then right (matching the second swing), then
-  // straight at arrival. Reads as Mochi banking through the turn.
+  // Tilt: lean OUT of the curve at its apex — gives Mochi a
+  // banking-into-the-turn read. Sign tracks the direction of the
+  // lateral bulge (left bulge = tilt left, right = tilt right),
+  // settles to 0° on arrival.
+  const tiltDeg = swingAmp > 0 ? 12 : -12
   const mochiRotate = progress.interpolate({
-    inputRange: [0, SPRING_END, oneThird, twoThirds, ARRIVAL_AT, FADE_END],
-    outputRange: ['0deg', '0deg', '-10deg', '10deg', '0deg', '0deg'],
+    inputRange: [0, SPRING_END, glideMid, ARRIVAL_AT, FADE_END],
+    outputRange: ['0deg', '0deg', `${tiltDeg}deg`, '0deg', '0deg'],
   })
 
   return (
@@ -364,9 +377,13 @@ function SparkleBurst({
   avatar: Avatar | undefined
 }) {
   const glyph = collectedGlyphFor(avatar)
-  // 6 directions in a fan biased slightly upward — feels festive
-  // without being a full circle (a circle reads as a shockwave).
-  const angles = [-110, -75, -45, -15, 15, 55]
+  // 6 directions in a fan biased DOWNWARD and outward — the avatar
+  // sits at the top of the screen, so an upward fan partially
+  // clipped into the notch / safe-area dead zone. Downward angles
+  // (south-east + south-west) keep every sparkle on-screen AND
+  // reads as "winning energy radiating into the workspace" instead
+  // of "into the system chrome."
+  const angles = [30, 60, 90, 120, 150, 180]
   const distance = 38
   // Each sparkle: invisible until ARRIVAL_AT, blooms out + fades.
   return (
