@@ -14,9 +14,15 @@ import {
 
 const knownCats = new Set(['home', 'work', 'school'])
 
+const knownTodoIds = new Set(['t-1', 't-2', 't-3'])
+
 describe('AGENT_TOOLS registry', () => {
-  it('exposes createTodo today (Phase 0 scope)', () => {
-    expect(AGENT_TOOLS.some((t) => t.name === 'createTodo')).toBe(true)
+  it('exposes the v1 proposal-style tool set', () => {
+    const names = AGENT_TOOLS.map((t) => t.name)
+    expect(names).toContain('createTodo')
+    expect(names).toContain('editTodo')
+    expect(names).toContain('addSteps')
+    expect(names).toContain('markDone')
   })
   it('every tool has a name, description, and JSON-schema-shaped input', () => {
     for (const tool of AGENT_TOOLS) {
@@ -127,5 +133,185 @@ describe('validateOperation — createTodo', () => {
       knownCats,
     )
     expect(op?.args.notes).toBeUndefined()
+  })
+})
+
+// ─── editTodo ──────────────────────────────────────────────────────
+
+describe('validateOperation — editTodo', () => {
+  it('returns null when todoId is missing or unknown', () => {
+    expect(validateOperation('editTodo', { text: 'x' }, knownCats, knownTodoIds)).toBeNull()
+    expect(
+      validateOperation('editTodo', { todoId: 'missing', text: 'x' }, knownCats, knownTodoIds),
+    ).toBeNull()
+  })
+  it('returns null when no field is changed', () => {
+    expect(
+      validateOperation('editTodo', { todoId: 't-1' }, knownCats, knownTodoIds),
+    ).toBeNull()
+  })
+  it('accepts a text patch', () => {
+    const op = validateOperation(
+      'editTodo',
+      { todoId: 't-1', text: 'Updated' },
+      knownCats,
+      knownTodoIds,
+    )
+    expect(op?.kind).toBe('editTodo')
+    expect(op?.args.text).toBe('Updated')
+  })
+  it('drops whitespace-only text patch', () => {
+    expect(
+      validateOperation('editTodo', { todoId: 't-1', text: '   ' }, knownCats, knownTodoIds),
+    ).toBeNull()
+  })
+  it('preserves empty-string dueDate as a clear signal', () => {
+    const op = validateOperation(
+      'editTodo',
+      { todoId: 't-1', dueDate: '' },
+      knownCats,
+      knownTodoIds,
+    )
+    expect(op?.args.dueDate).toBe('')
+  })
+  it('preserves empty-string notes as a clear signal', () => {
+    const op = validateOperation(
+      'editTodo',
+      { todoId: 't-1', notes: '' },
+      knownCats,
+      knownTodoIds,
+    )
+    expect(op?.args.notes).toBe('')
+  })
+  it('only accepts known category ids', () => {
+    expect(
+      validateOperation(
+        'editTodo',
+        { todoId: 't-1', category: 'unknown' },
+        knownCats,
+        knownTodoIds,
+      ),
+    ).toBeNull() // no other field changed, so null
+    const op = validateOperation(
+      'editTodo',
+      { todoId: 't-1', category: 'home' },
+      knownCats,
+      knownTodoIds,
+    )
+    expect(op?.args.category).toBe('home')
+  })
+  it('drops malformed dueDate', () => {
+    expect(
+      validateOperation(
+        'editTodo',
+        { todoId: 't-1', dueDate: 'tomorrow' },
+        knownCats,
+        knownTodoIds,
+      ),
+    ).toBeNull() // no other field, so null
+  })
+})
+
+// ─── addSteps ──────────────────────────────────────────────────────
+
+describe('validateOperation — addSteps', () => {
+  it('returns null when todoId is missing or unknown', () => {
+    expect(
+      validateOperation(
+        'addSteps',
+        { steps: [{ text: 'a' }] },
+        knownCats,
+        knownTodoIds,
+      ),
+    ).toBeNull()
+    expect(
+      validateOperation(
+        'addSteps',
+        { todoId: 'missing', steps: [{ text: 'a' }] },
+        knownCats,
+        knownTodoIds,
+      ),
+    ).toBeNull()
+  })
+  it('returns null when steps is missing / empty / non-array', () => {
+    expect(
+      validateOperation('addSteps', { todoId: 't-1' }, knownCats, knownTodoIds),
+    ).toBeNull()
+    expect(
+      validateOperation('addSteps', { todoId: 't-1', steps: [] }, knownCats, knownTodoIds),
+    ).toBeNull()
+    expect(
+      validateOperation(
+        'addSteps',
+        { todoId: 't-1', steps: 'not an array' },
+        knownCats,
+        knownTodoIds,
+      ),
+    ).toBeNull()
+  })
+  it('returns null when every step has no usable text', () => {
+    expect(
+      validateOperation(
+        'addSteps',
+        { todoId: 't-1', steps: [{ text: '' }, { text: '   ' }] },
+        knownCats,
+        knownTodoIds,
+      ),
+    ).toBeNull()
+  })
+  it('trims, caps, and dedupes empty entries', () => {
+    const op = validateOperation(
+      'addSteps',
+      {
+        todoId: 't-1',
+        steps: [
+          { text: '  Step one  ' },
+          { text: '' },
+          { text: 'x'.repeat(200) },
+          { foo: 'bar' },
+          { text: 42 },
+        ],
+      },
+      knownCats,
+      knownTodoIds,
+    )
+    expect(op?.kind).toBe('addSteps')
+    if (op?.kind === 'addSteps') {
+      expect(op.args.steps.length).toBe(2)
+      expect(op.args.steps[0]).toEqual({ text: 'Step one' })
+      expect(op.args.steps[1].text.length).toBe(80)
+    }
+  })
+  it('caps step count at 8', () => {
+    const tenSteps = Array.from({ length: 10 }, (_, i) => ({ text: `step ${i}` }))
+    const op = validateOperation(
+      'addSteps',
+      { todoId: 't-1', steps: tenSteps },
+      knownCats,
+      knownTodoIds,
+    )
+    if (op?.kind === 'addSteps') {
+      expect(op.args.steps.length).toBe(8)
+    }
+  })
+})
+
+// ─── markDone ──────────────────────────────────────────────────────
+
+describe('validateOperation — markDone', () => {
+  it('accepts a known todoId', () => {
+    const op = validateOperation('markDone', { todoId: 't-2' }, knownCats, knownTodoIds)
+    expect(op).toEqual({ kind: 'markDone', args: { todoId: 't-2' } })
+  })
+  it('rejects unknown todoIds', () => {
+    expect(
+      validateOperation('markDone', { todoId: 'ghost' }, knownCats, knownTodoIds),
+    ).toBeNull()
+  })
+  it('rejects missing todoId', () => {
+    expect(validateOperation('markDone', {}, knownCats, knownTodoIds)).toBeNull()
+  })
+  it('safe-by-default when knownTodoIds is omitted (returns null)', () => {
+    expect(validateOperation('markDone', { todoId: 't-1' }, knownCats)).toBeNull()
   })
 })
