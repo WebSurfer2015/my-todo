@@ -1,0 +1,50 @@
+import { defineConfig } from 'vitest/config'
+import react from '@vitejs/plugin-react'
+
+/**
+ * Vitest-specific config. Separate from vite.config.ts so the build
+ * pipeline doesn't have to load test infrastructure.
+ *
+ * Coverage notes:
+ *   - V8 provider, html + json-summary so CI can both browse the
+ *     artifact and parse the summary numbers.
+ *   - The actual test suite covers `core/*` and a handful of
+ *     `mobile/src/*` modules through relative imports, but v8 +
+ *     Vite + cross-workspace boundaries make it tricky to attribute
+ *     those reads back as covered lines in this report. So this
+ *     config focuses coverage on web/src itself (where we have no
+ *     tests yet — every file at 0% is a real opportunity).
+ *   - Thresholds intentionally NOT set: the right time to add them
+ *     is after web/src component tests land. The 378-test green
+ *     status from CI is today's gate.
+ *
+ * Future work:
+ *   - Migrate to a vitest workspace (top-level vitest.config) so
+ *     core/ and mobile/ tests run in a unified report.
+ *   - Add component tests for web/src (CategoryPopover, Sidebar,
+ *     SignIn, TaskItem, AddTask) using RTL + happy-dom.
+ */
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'json-summary'],
+      include: ['src/**/*.ts', 'src/**/*.tsx'],
+      exclude: [
+        '**/*.test.ts',
+        '**/*.d.ts',
+        'src/main.tsx',
+        'src/vite-env.d.ts',
+        // Re-exports / type-only modules — coverage is meaningless.
+        'src/categories.ts',
+        'src/groceries.ts',
+        'src/groups.ts',
+        'src/i18n.ts',
+        'src/persistence.ts',
+        'src/profile.ts',
+        'src/selection.ts',
+      ],
+    },
+  },
+})
