@@ -200,25 +200,30 @@ function TodosScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={0}
       >
+        {/* AppHeader + PebbleStrip live OUTSIDE the ScrollView so the
+            sticky-header math (stickyHeaderIndices) doesn't shift when
+            the strip toggles. This also matches Dashboard's structure
+            where the strip pins just under the header above scrollable
+            content. */}
+        <AppHeader
+          title="Todos"
+          onSearchPress={() => setSearchOpen(true)}
+          onFilterPress={() => sheets.openSelectFilter()}
+          onGearPress={() => sheets.openManageFilter()}
+        />
+        {store.animationOn &&
+          !store.inTrashView &&
+          store.filter !== "done" && (
+            <PebbleStrip count={store.todayPebbles} active={isFocused} />
+          )}
         <ScrollView
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
-          stickyHeaderIndices={[1]}
+          stickyHeaderIndices={[0]}
         >
-          <AppHeader
-            title="Todos"
-            onSearchPress={() => setSearchOpen(true)}
-            onFilterPress={() => sheets.openSelectFilter()}
-            onGearPress={() => sheets.openManageFilter()}
-          />
-
-          {/* Single sticky container — filter row + pebble strip stack
-              together so neither displaces the other during scroll.
-              Earlier setup used stickyHeaderIndices=[1,2] which caused
-              the strip to push the filter offscreen, and if strip's
-              height was shorter than the filter's, list content
-              briefly peeked through the gap during the transition.
-              One-region sticky avoids the issue entirely. */}
+          {/* Single sticky container — filter row only now. The pebble
+              strip used to live here too, but per the v1.5 unification
+              it moved above to match Dashboard + Shopping placement. */}
           <View style={styles.stickyFilter}>
             <SearchTopSheet
               visible={isFocused && searchOpen}
@@ -255,9 +260,6 @@ function TodosScreen() {
               }
               groceriesEnabled={store.profile.groceriesEnabled !== false}
             />
-            {!store.inTrashView && store.filter !== "done" && (
-              <PebbleStrip count={store.todayPebbles} active={isFocused} />
-            )}
           </View>
 
           <View style={styles.body}>

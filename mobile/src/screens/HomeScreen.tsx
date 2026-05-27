@@ -303,10 +303,13 @@ export default function HomeScreen() {
   return (
     <View style={[styles.flex, { paddingTop: insets.top }]}>
       <AppHeader onGearPress={sheets.openSettings} />
-      {/* Home strip — same render shape as Todos so the pebble-flight
-          target math is identical. Active gates which screen owns the
-          registered cairn. */}
-      <PebbleStrip count={store.todayPebbles} active={isFocused} />
+      {/* Dashboard strip — same render shape + position on every tab
+          (Todos, Shopping). Active gates which screen owns the
+          registered cairn. Hidden entirely when the user has opted
+          out of completion animations / motion. */}
+      {store.animationOn && (
+        <PebbleStrip count={store.todayPebbles} active={isFocused} />
+      )}
       <ScrollView
         style={styles.flex}
         contentContainerStyle={[styles.body, { paddingBottom: 120 }]}

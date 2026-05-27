@@ -37,6 +37,7 @@ import {
   migrateGroceryGroups,
   newGroceryItem,
   groceryToggleChecked,
+  shoppingBucketPebbleDelta,
   groceryEdit,
   groceryDelete,
   MAX_GROCERY_ITEMS,
@@ -1415,9 +1416,26 @@ export function useTodoStore() {
 
   const toggleGroceryChecked = useCallback(
     (id: string) => {
-      setGroceries((prev) => groceryToggleChecked(prev, id));
+      setGroceries((prev) => {
+        const next = groceryToggleChecked(prev, id);
+        // Award (or refund) a pebble when the toggle completes (or
+        // un-completes) a (store × department) bucket. The delta runs
+        // through the same chokepoint as todo completions so the
+        // strip + lifetime cairn stay in sync. Animation-aware: when
+        // motion is off, applyPebbleDeltaTimed fires immediately.
+        const bucketDelta = shoppingBucketPebbleDelta(prev, next, id);
+        if (bucketDelta !== 0) {
+          // Use the subtask channel (typed `number`) since one toggle
+          // can complete multiple buckets at once via a multi-store
+          // item; PebbleDelta.task is constrained to -1|0|1 and can't
+          // express that. Each bucket is its own mini-completion, so
+          // subtask grain is the right semantic too.
+          applyPebbleDeltaTimed({ task: 0, subtask: bucketDelta });
+        }
+        return next;
+      });
     },
-    [setGroceries],
+    [setGroceries, applyPebbleDeltaTimed],
   );
 
   const editGrocery = useCallback(
@@ -1506,6 +1524,11 @@ export function useTodoStore() {
     todayTaskPebbles,
     todaySubtaskPebbles,
     lifetimePebbles,
+    /** True when the user has both completionAnimation on AND
+     * reduceMotion off — the same check used internally for
+     * deferred pebble flights. Exposed so screens can hide the
+     * PebbleStrip entirely when the user has opted out of motion. */
+    animationOn,
     orderedStatuses,
     orderedVisibleStatuses,
     setFilter,

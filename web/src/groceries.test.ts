@@ -13,6 +13,7 @@ import {
   resolveGroup,
   deriveStores,
   groceryToggleChecked,
+  shoppingBucketPebbleDelta,
   groceryEdit,
   groceryDelete,
   inferGroceryGroupLocal,
@@ -214,6 +215,65 @@ describe('groceryToggleChecked', () => {
     const out = groceryToggleChecked(items, 'a')
     expect(out).not.toBe(items)
     expect(items[0].checked).toBe(false)
+  })
+})
+
+describe('shoppingBucketPebbleDelta', () => {
+  // Test fixtures: 3 items at Stop & Shop in Dairy, 2 items at Stop & Shop
+  // in Produce, 1 item at Costco in Dairy. All start unchecked.
+  function fixture(): GroceryItem[] {
+    return [
+      { id: '1', text: 'Milk',  groupId: 'dairy',   stores: ['Stop'], checked: false, addedAt: 1 },
+      { id: '2', text: 'Cheese',groupId: 'dairy',   stores: ['Stop'], checked: false, addedAt: 1 },
+      { id: '3', text: 'Yogurt',groupId: 'dairy',   stores: ['Stop'], checked: false, addedAt: 1 },
+      { id: '4', text: 'Apples',groupId: 'produce', stores: ['Stop'], checked: false, addedAt: 1 },
+      { id: '5', text: 'Kale',  groupId: 'produce', stores: ['Stop'], checked: false, addedAt: 1 },
+      { id: '6', text: 'Cream', groupId: 'dairy',   stores: ['Costco'], checked: false, addedAt: 1 },
+    ]
+  }
+  it('returns 0 when checking off a non-last item in a bucket', () => {
+    const before = fixture()
+    const after = groceryToggleChecked(before, '1') // Milk done; 2 Stop+Dairy still open
+    expect(shoppingBucketPebbleDelta(before, after, '1')).toBe(0)
+  })
+  it('returns +1 when the toggle completes a (store × dept) bucket', () => {
+    // Check off Milk + Cheese first, then check off Yogurt — that
+    // final toggle should fire the pebble.
+    let items = groceryToggleChecked(fixture(), '1')
+    items = groceryToggleChecked(items, '2')
+    const before = items
+    const after = groceryToggleChecked(items, '3')
+    expect(shoppingBucketPebbleDelta(before, after, '3')).toBe(1)
+  })
+  it('returns +1 when an item belongs to one bucket that just completed (multi-store unrelated)', () => {
+    // Cream is the only Costco+Dairy item. Checking it off completes
+    // that bucket independently of Stop & Shop progress.
+    const before = fixture()
+    const after = groceryToggleChecked(before, '6')
+    expect(shoppingBucketPebbleDelta(before, after, '6')).toBe(1)
+  })
+  it('returns -1 when un-checking the only remaining done item in a complete bucket', () => {
+    // Complete Costco+Dairy by checking item 6, then re-add it.
+    const completed = groceryToggleChecked(fixture(), '6')
+    const reopened = groceryToggleChecked(completed, '6')
+    expect(shoppingBucketPebbleDelta(completed, reopened, '6')).toBe(-1)
+  })
+  it('returns +2 when one toggle completes two buckets via multi-store', () => {
+    // Item assigned to both Stop and Costco in a brand-new "snacks"
+    // dept. If both stores have only this one snacks item, completing
+    // it should fire two bucket pebbles (one per store).
+    const before: GroceryItem[] = [
+      { id: 'x', text: 'Chips', groupId: 'snacks', stores: ['Stop', 'Costco'], checked: false, addedAt: 1 },
+    ]
+    const after = groceryToggleChecked(before, 'x')
+    expect(shoppingBucketPebbleDelta(before, after, 'x')).toBe(2)
+  })
+  it('returns 0 for an orphaned item (no stores)', () => {
+    const before: GroceryItem[] = [
+      { id: 'o', text: 'Mystery', groupId: 'other', stores: [], checked: false, addedAt: 1 },
+    ]
+    const after = groceryToggleChecked(before, 'o')
+    expect(shoppingBucketPebbleDelta(before, after, 'o')).toBe(0)
   })
 })
 

@@ -299,6 +299,51 @@ export function deriveStores(items: GroceryItem[]): string[] {
 
 // ── Mutation helpers (pure) ─────────────────────────────────────────
 
+/** Net pebble delta for a Shopping toggle. Positive when the toggle
+ * COMPLETES a (store × department) bucket (every unchecked item in
+ * that bucket is now done). Negative when an unchecked re-add
+ * un-completes a previously-complete bucket. An item with no stores
+ * (orphaned) earns nothing. An item with multiple stores can complete
+ * multiple buckets in a single toggle, so the delta is summed.
+ *
+ * Returns the delta from `before` → `after`. Callers should pass the
+ * same two arrays they pass to React state (i.e. the result of
+ * groceryToggleChecked is `after`).
+ */
+export function shoppingBucketPebbleDelta(
+  before: GroceryItem[],
+  after: GroceryItem[],
+  toggledId: string,
+): number {
+  const item = after.find((x) => x.id === toggledId)
+  if (!item || item.stores.length === 0) return 0
+  const dept = item.groupId
+  let delta = 0
+  for (const store of item.stores) {
+    const beforeUnchecked = before.filter(
+      (x) => x.groupId === dept && x.stores.includes(store) && !x.checked,
+    ).length
+    const afterUnchecked = after.filter(
+      (x) => x.groupId === dept && x.stores.includes(store) && !x.checked,
+    ).length
+    // Bucket needs at least 1 item to be "completable". Empty buckets
+    // can't earn a pebble (avoids the degenerate "no items completed
+    // = a pebble" award when a user removes the last item).
+    const beforeTotal = before.filter(
+      (x) => x.groupId === dept && x.stores.includes(store),
+    ).length
+    const afterTotal = after.filter(
+      (x) => x.groupId === dept && x.stores.includes(store),
+    ).length
+    if (beforeTotal === 0 || afterTotal === 0) continue
+    // Bucket transitioned not-complete → complete: +1 pebble.
+    if (beforeUnchecked > 0 && afterUnchecked === 0) delta += 1
+    // Bucket transitioned complete → not-complete: refund −1.
+    else if (beforeUnchecked === 0 && afterUnchecked > 0) delta -= 1
+  }
+  return delta
+}
+
 /** Toggle an item's checked state. Sets checkedAt on flip-to-checked,
  * clears it on re-add, and bumps addedAt on re-add so the item floats
  * to the top of its group. On check-off, prepends to `purchases` (cap
