@@ -229,7 +229,10 @@ export function useTriggerPebbleFlight() {
 // larger than the 44pt avatar so the moment registers, but smaller
 // than the prior 76pt so it stays discreet during multi-completes.
 const MOCHI_SIZE = 52
-const FLIGHT_MS = 800
+// 1400ms total — slower than the prior 800ms so each beat reads
+// clearly without feeling rushed. Roughly: 280ms spring-in,
+// 770ms glide, 350ms arrival shrink.
+const FLIGHT_MS = 1400
 // Beat boundaries within FLIGHT_MS (as fractions of progress 0→1):
 //   SPRING_END   spring-in done
 //   ARRIVAL_AT   Mochi at the avatar (chime fires here)
@@ -238,11 +241,11 @@ const SPRING_END = 0.20
 const ARRIVAL_AT = 0.75
 const FADE_END = 1.0
 const DROP_MS = FLIGHT_MS * ARRIVAL_AT
-// Nod fallback for rapid-fire completions (3+ within 2s): 500ms
+// Nod fallback for rapid-fire completions (3+ within 2.5s): 800ms
 // in-place pulse instead of a full glide. Prevents motion overload
 // without losing per-tap feedback.
-const NOD_MS = 500
-const BURST_WINDOW_MS = 2000
+const NOD_MS = 800
+const BURST_WINDOW_MS = 2500
 const BURST_THRESHOLD = 2 // 1st within window = full glide; 2nd+ = nod
 
 /**
