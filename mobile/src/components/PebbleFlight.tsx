@@ -42,10 +42,6 @@ interface Flight {
   /** Whether the chime should fire at landing for this flight. False
    * when the user has turned the completion sound off in Profile. */
   chime: boolean
-  /** 'glide' = full Quick Glide Home (spring-in → arc → land at
-   *  avatar). 'nod' = lightweight in-place pulse for rapid-fire
-   *  completions (2nd+ within the burst window). */
-  mode: 'glide' | 'nod'
 }
 
 interface TriggerOptions {
@@ -140,18 +136,12 @@ export function PebbleFlightProvider({ children }: { children: React.ReactNode }
   }, [])
 
   const launchFlight = useCallback(
-    (from: Point, to: Point, chime: boolean, mode: 'glide' | 'nod') => {
+    (from: Point, to: Point, chime: boolean) => {
       const id = nextIdRef.current++
-      setFlights((prev) => [...prev, { id, from, to, chime, mode }])
+      setFlights((prev) => [...prev, { id, from, to, chime }])
     },
     [],
   )
-
-  // Burst detector: completions within BURST_WINDOW_MS count toward
-  // a streak. First completion in a streak gets the full glide; 2nd+
-  // get the lightweight nod (no cross-screen travel). Resets after
-  // the user pauses for the window.
-  const burstRef = useRef<{ count: number; lastAt: number }>({ count: 0, lastAt: 0 })
 
   const trigger = useCallback(
     (from: Point, opts?: TriggerOptions) => {
@@ -161,29 +151,14 @@ export function PebbleFlightProvider({ children }: { children: React.ReactNode }
         if (wantsChime) playChime()
         return
       }
-      // Update burst tracker. Inside the window → increment; outside
-      // → reset to 1 (this completion starts a new streak).
-      const now = Date.now()
-      const within = now - burstRef.current.lastAt < BURST_WINDOW_MS
-      burstRef.current.count = within ? burstRef.current.count + 1 : 1
-      burstRef.current.lastAt = now
-      const mode: 'glide' | 'nod' =
-        burstRef.current.count >= BURST_THRESHOLD ? 'nod' : 'glide'
-
-      // Nod mode: no destination needed — fire in place. Tap location
-      // is also where the nod plays.
-      if (mode === 'nod') {
-        launchFlight(from, from, wantsChime, 'nod')
-        return
-      }
       const resolver = cairnResolverRef.current
       const fallback = fallbackPointRef.current
       if (!resolver) {
-        launchFlight(from, fallback, wantsChime, 'glide')
+        launchFlight(from, fallback, wantsChime)
         return
       }
       resolver((to) => {
-        launchFlight(from, to ?? fallback, wantsChime, 'glide')
+        launchFlight(from, to ?? fallback, wantsChime)
       })
     },
     [launchFlight],
@@ -241,12 +216,6 @@ const SPRING_END = 0.20
 const ARRIVAL_AT = 0.75
 const FADE_END = 1.0
 const DROP_MS = FLIGHT_MS * ARRIVAL_AT
-// Nod fallback for rapid-fire completions (3+ within 2.5s): 800ms
-// in-place pulse instead of a full glide. Prevents motion overload
-// without losing per-tap feedback.
-const NOD_MS = 800
-const BURST_WINDOW_MS = 2500
-const BURST_THRESHOLD = 2 // 1st within window = full glide; 2nd+ = nod
 
 /**
  * Time (ms) between a completion gesture and Mochi reaching the cairn
@@ -264,88 +233,71 @@ function FlyingMochi({ flight, onDone }: { flight: Flight; onDone: () => void })
   // avatar or any path that doesn't yield a preset/image.
   const avatar: Avatar | undefined = useStore().profile.avatar
   const progress = useRef(new Animated.Value(0)).current
-  const isNod = flight.mode === 'nod'
 
   useEffect(() => {
     Animated.timing(progress, {
       toValue: 1,
-      duration: isNod ? NOD_MS : FLIGHT_MS,
-      // Glide uses the Material standard fast-out-slow-in bezier
-      // — accelerates out, settles softly at the avatar. Nod uses
-      // a simple ease for the in-place pulse.
-      easing: isNod ? Easing.inOut(Easing.quad) : Easing.bezier(0.25, 0.1, 0.25, 1),
+      duration: FLIGHT_MS,
+      // Material standard fast-out-slow-in — accelerates out,
+      // settles softly at the avatar.
+      easing: Easing.bezier(0.25, 0.1, 0.25, 1),
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (finished) onDone()
     })
-    // Chime fires at arrival (glide) or at the nod peak (nod). Both
-    // sync the audio to the visual peak rather than the start/end.
-    const delay = isNod ? NOD_MS * 0.4 : DROP_MS
-    const t = flight.chime ? setTimeout(playChime, delay) : null
+    // Chime fires at arrival (= peak moment, not start/end).
+    const t = flight.chime ? setTimeout(playChime, DROP_MS) : null
     return () => { if (t) clearTimeout(t) }
-  }, [progress, onDone, flight.chime, isNod])
+  }, [progress, onDone, flight.chime])
 
-  // ── NOD branch ──────────────────────────────────────────────────────
-  // 500ms in-place pulse for rapid-fire completions. No travel —
-  // just a quick fade-in + scale bump + fade-out at the tap point.
-  if (isNod) {
-    const nodScale = progress.interpolate({
-      inputRange: [0, 0.4, 1],
-      outputRange: [0.8, 1.12, 1.0],
-    })
-    const nodOpacity = progress.interpolate({
-      inputRange: [0, 0.2, 0.7, 1],
-      outputRange: [0, 1, 1, 0],
-    })
-    return (
-      <Animated.View
-        style={[
-          styles.mochi,
-          {
-            left: flight.from.x - MOCHI_SIZE / 2,
-            top: flight.from.y - MOCHI_SIZE / 2,
-            opacity: nodOpacity,
-            transform: [{ scale: nodScale }],
-          },
-        ]}
-      >
-        {renderAvatarGlyph(avatar)}
-      </Animated.View>
-    )
-  }
-
-  // ── GLIDE branch ────────────────────────────────────────────────────
-  // Three beats — spring-in (0 → SPRING_END), arc-glide (SPRING_END
-  // → ARRIVAL_AT), shrink-fade at avatar (ARRIVAL_AT → 1).
+  // Three beats — spring-in (0 → SPRING_END), S-curve glide
+  // (SPRING_END → ARRIVAL_AT), shrink-fade at avatar (ARRIVAL_AT
+  // → 1).
   const dx = flight.to.x - flight.from.x
   const dy = flight.to.y - flight.from.y
-  // Arc apex: lift halfway between for a gentle parabola. Doesn't
-  // dwarf the tap-to-avatar straight line — keeps the path
-  // recognizable as "purposeful delivery."
+  // S-curve path: Mochi swings RIGHT first, then LEFT past the
+  // straight line, then settles at the avatar. The swing amplitude
+  // scales with the journey length so short trips get a smaller
+  // wiggle and long trips get a more pronounced sweep.
+  const swingAmp = Math.min(70, Math.hypot(dx, dy) * 0.18 + 30)
+  // Arc lift: gentle vertical parabola peak above the straight
+  // line so the swing feels lifted, not just zigzagged.
   const arcLift = Math.min(40, Math.abs(dy) * 0.18 + 20)
 
-  // X: hold at 0 during spring-in, glide to dx by arrival, hold
-  // during the shrink-fade.
+  // X: hold at 0 during spring-in, then trace an S — left of the
+  // straight line at the 1/3 mark, right of it at the 2/3 mark,
+  // landing at dx at arrival. The "left then right" path makes
+  // Mochi feel like it's wandering home with character, not
+  // taking a direct shortcut.
+  const oneThird = SPRING_END + (ARRIVAL_AT - SPRING_END) * 0.33
+  const twoThirds = SPRING_END + (ARRIVAL_AT - SPRING_END) * 0.66
   const translateX = progress.interpolate({
-    inputRange: [0, SPRING_END, ARRIVAL_AT, 1],
-    outputRange: [0, 0, dx, dx],
+    inputRange: [0, SPRING_END, oneThird, twoThirds, ARRIVAL_AT, 1],
+    outputRange: [
+      0,
+      0,
+      dx * 0.33 - swingAmp,   // swing LEFT past midline
+      dx * 0.66 + swingAmp,   // swing RIGHT past midline
+      dx,
+      dx,
+    ],
   })
   // Y: hold at 0 during spring-in, arc up-then-down to dy by
-  // arrival, hold during shrink-fade.
-  const arcMid = SPRING_END + (ARRIVAL_AT - SPRING_END) / 2
+  // arrival, hold during shrink-fade. Apex at the midpoint of
+  // the glide.
+  const glideMid = SPRING_END + (ARRIVAL_AT - SPRING_END) / 2
   const translateY = progress.interpolate({
-    inputRange: [0, SPRING_END, arcMid, ARRIVAL_AT, 1],
+    inputRange: [0, SPRING_END, glideMid, ARRIVAL_AT, 1],
     outputRange: [0, 0, dy / 2 - arcLift, dy, dy],
   })
-  // Scale: spring-in (0.7 → 1.08 → 1.0), subtle breath during glide
-  // (1.0 ↔ 0.94 ↔ 1.0), shrink at arrival (1.0 → 0.2).
-  const breathMid = SPRING_END + (ARRIVAL_AT - SPRING_END) / 2
+  // Scale: spring-in (0.7 → 1.08 → 1.0), subtle breath during
+  // glide (1.0 ↔ 0.94 ↔ 1.0), shrink at arrival (1.0 → 0.2).
   const mochiScale = progress.interpolate({
     inputRange: [
       0,
       SPRING_END * 0.6,  // peak of spring-in
       SPRING_END,        // spring-in settled
-      breathMid,         // breath low point
+      glideMid,          // breath low point
       ARRIVAL_AT,        // at avatar
       FADE_END,          // shrunk to dot
     ],
@@ -357,12 +309,12 @@ function FlyingMochi({ flight, onDone }: { flight: Flight; onDone: () => void })
     inputRange: [0, SPRING_END * 0.5, ARRIVAL_AT, FADE_END],
     outputRange: [0, 1, 1, 0],
   })
-  // Tilt: lean into the glide direction (toward avatar). Static
-  // during spring-in and shrink-fade.
-  const tiltDeg = dx === 0 ? 0 : dx > 0 ? 8 : -8
+  // Tilt: lean into the S-curve. Left at first (matching the
+  // first swing), then right (matching the second swing), then
+  // straight at arrival. Reads as Mochi banking through the turn.
   const mochiRotate = progress.interpolate({
-    inputRange: [0, SPRING_END, ARRIVAL_AT, FADE_END],
-    outputRange: ['0deg', `${tiltDeg}deg`, '0deg', '0deg'],
+    inputRange: [0, SPRING_END, oneThird, twoThirds, ARRIVAL_AT, FADE_END],
+    outputRange: ['0deg', '0deg', '-10deg', '10deg', '0deg', '0deg'],
   })
 
   return (
