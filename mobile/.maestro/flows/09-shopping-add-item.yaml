@@ -1,0 +1,23 @@
+# Flow 09 — Add an item to Shopping via the FAB → GroceryComposeSheet.
+# Verifies the v1.5 multi-store compose UX: header Done (not in-body),
+# textbox accepts text, Done commits + closes the sheet, item appears
+# in the list.
+#
+# Precondition: user has at least one store configured. If running
+# fresh, flow 11-shopping-add-store should run first.
+appId: com.websurfer.mytodo
+---
+- launchApp
+- tapOn:
+    text: "Shopping, tab.*"
+# Shopping FAB (same bottom-right position as Todos).
+- tapOn:
+    point: 88%, 88%
+# Add Item sheet should be visible. Header has "Add Item" + "Done".
+- assertVisible: "Add Item"
+- inputText: "Maestro test item"
+# Top-right Done — single button per header per the design system.
+- tapOn:
+    text: "Done"
+    index: 0
+- assertVisible: "Maestro test item"

@@ -1,0 +1,12 @@
+# Flow 12 — Empty Todos shows the unified EmptyStateCard with the
+# "Add a to-do" CTA. Tapping it opens the compose sheet.
+#
+# Precondition: user has zero non-trashed todos.
+appId: com.websurfer.mytodo
+---
+- launchApp
+- tapOn:
+    text: "Todos, tab.*"
+- assertVisible: "You're all caught up."
+- tapOn: "Add a to-do"
+- assertVisible: "Add to-do"

@@ -1,0 +1,19 @@
+# Flow 10 — Shopping with zero stores configured shows the unified
+# empty-state card with an "Add Store" CTA. Tapping it opens
+# Manage Store straight into the inline-add row (no extra "+ Add
+# store" tap needed).
+#
+# Precondition: user has zero stores configured. Flow assumes a
+# fresh dev install or a sim where the user has deleted all stores.
+appId: com.websurfer.mytodo
+---
+- launchApp
+- tapOn:
+    text: "Shopping, tab.*"
+- assertVisible: "No stores yet."
+- assertVisible: "Add the stores you shop at."
+- tapOn: "Add Store"
+# Manage Store opens with the inline-add row already showing.
+# StorePicker title is "Manage Store" in edit mode.
+- assertVisible: "Manage Store"
+- assertVisible: "Store name"

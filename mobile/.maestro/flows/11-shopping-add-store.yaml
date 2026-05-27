@@ -1,0 +1,28 @@
+# Flow 11 — Add a new store via Manage Store.
+# Covers the "+ Add store" inline input flow. Skips the AI link-items
+# verification (Mochi-thinking + Linked N items snackbar) because the
+# CF call timing isn't deterministic for Maestro to assert against.
+#
+# Precondition: user is on the Shopping tab.
+appId: com.websurfer.mytodo
+---
+- launchApp
+- tapOn:
+    text: "Shopping, tab.*"
+# Open Manage Store via the gear icon on the Shopping AppHeader.
+# Gear has no testID today; tap the top-right region.
+- tapOn:
+    point: 92%, 12%
+- assertVisible: "Manage Store"
+# Tap "+ Add store" then type the new store name.
+- tapOn: "+ Add store"
+- inputText: "Maestro Mart"
+# Submit by tapping Done in the header.
+- tapOn:
+    text: "Done"
+    index: 0
+# Manage Store closes; the new store should now appear in the
+# Shopping filter row or be visible if we reopen Manage.
+- tapOn:
+    point: 92%, 12%
+- assertVisible: "Maestro Mart"
