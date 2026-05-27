@@ -301,16 +301,20 @@ export function CairnGlyph({ size = 22 }: { size?: number }) {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: {
-      // Tight vertical padding now that icon + caption render on a
-      // single row — earlier 6+6 was sized for a stacked layout.
-      paddingVertical: 4,
-      paddingHorizontal: SIDE_PADDING,
+      // Vertical padding bumped from 4 → 8 now that the strip is a
+      // tinted band — extra breathing room so the background doesn't
+      // pinch the pebble row. Horizontal padding bumped from 4 → 16
+      // so content aligns with the app's 16px gutters.
+      paddingVertical: 8,
+      paddingHorizontal: 16,
       alignItems: 'flex-start',
       justifyContent: 'center',
       gap: 4,
-      // Transparent — let the AppBackground / canvas show through
-      // instead of painting a separate cream band that fragments
-      // the visual flow between header → strip → list.
+      // Pale theme-tinted surface so the strip reads as chrome
+      // (between AppHeader and content) rather than blending into
+      // the canvas. primarySoft adapts to avatar theme + dark mode
+      // so it stays subtle across every palette.
+      backgroundColor: c.primarySoft,
     },
     row: {
       flexDirection: 'row',
