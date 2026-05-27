@@ -124,7 +124,17 @@ export async function suggestSubtasks(input: BreakdownInput): Promise<BreakdownR
 export async function classifyGroceryDept(input: ClassifyDeptInput): Promise<ClassifyDeptResult> {
   try {
     return await callAiInfer<ClassifyDeptResult>('classify-grocery-dept', input)
-  } catch {
+  } catch (err) {
+    // Surface 429s + network errors to the console so they don't
+    // disappear into the all-null fallback. Catching at all is
+    // intentional — this is an ambient feature, not a load-bearing
+    // call, so we never want it to break the compose UX.
+    const msg = err instanceof Error ? err.message : String(err)
+    if (msg.includes('429') || msg.includes('rate')) {
+      console.warn('[ai] classifyGroceryDept rate-limited — store auto-select skipped')
+    } else {
+      console.warn('[ai] classifyGroceryDept failed:', msg)
+    }
     return { groupId: null, newGroupLabel: null, storeHint: null, recommendedStores: [] }
   }
 }

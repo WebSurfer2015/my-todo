@@ -107,10 +107,13 @@ const MODES: Record<Mode, ModeConfig> = {
   'classify-grocery-dept': {
     // Haiku 4.5 — one-shot classification against a small label set,
     // so reasoning depth doesn't help and the smaller model is ~4x
-    // cheaper. max_tokens=120 covers the {"groupId":"...","storeHint":...,
-    // "recommendedStores":["A","B","C"]} envelope.
+    // cheaper. max_tokens=240 covers the {"groupId":"...","storeHint":...,
+    // "recommendedStores":["A","B","C"]} envelope with a comfortable
+    // margin (was 120 — too tight when recommendedStores has 3 long
+    // names like "Trader Joe's", forcing the model to either truncate
+    // or output empty).
     model: 'claude-haiku-4-5',
-    maxTokens: 120,
+    maxTokens: 240,
     system: CLASSIFY_DEPT_SYSTEM,
     validateInput: validateClassifyDeptInput,
     buildUserBlock: (input) => buildClassifyDeptUserBlock(input as ClassifyDeptInput),
