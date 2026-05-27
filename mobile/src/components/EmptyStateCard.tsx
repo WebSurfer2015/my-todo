@@ -18,6 +18,7 @@
 import React, { useMemo } from 'react'
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { useTheme, ThemeColors } from '../theme'
+import EmptyStateGlyph from './EmptyStateGlyph'
 
 interface Props {
   /** Headline — short, sentence case with a period. */
@@ -42,6 +43,10 @@ interface Props {
    * must provide a flex height (e.g. ScrollView with
    * contentContainerStyle:{flexGrow:1}) for this to do anything. */
   centered?: boolean
+  /** Suppress the theme-aware glyph at the top of the card. Defaults
+   * to false (glyph shown). Used by tight sub-empty states where the
+   * extra ornament would compete with surrounding chrome. */
+  hideGlyph?: boolean
 }
 
 export default function EmptyStateCard({
@@ -52,11 +57,13 @@ export default function EmptyStateCard({
   onAction,
   actionAccessibilityLabel,
   centered = false,
+  hideGlyph = false,
 }: Props) {
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
   const card = (
     <View style={styles.card}>
+      {!hideGlyph && <EmptyStateGlyph />}
       <Text style={styles.title}>{title}</Text>
       {subline && <Text style={styles.subline}>{subline}</Text>}
       {hint && <Text style={styles.hint}>{hint}</Text>}
