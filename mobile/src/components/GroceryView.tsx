@@ -615,7 +615,6 @@ export default function GroceryView({
               setStorePickerAutoAdd(true)
               setStorePickerOpen(true)
             }}
-            centered
           />
         ) : groceries.length === 0 ? (
           <EmptyStateCard
@@ -626,7 +625,6 @@ export default function GroceryView({
               void Analytics.emptyStateCtaTapped('shopping-no-item')
               setComposeOpen(true)
             }}
-            centered
           />
         ) : null}
 

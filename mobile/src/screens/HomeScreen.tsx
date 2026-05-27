@@ -31,6 +31,8 @@ import {
   type Filter,
   isCategoryFilter,
   categoryIdFromFilter,
+  isPriorityFilter,
+  priorityFromFilter,
 } from '../../../core/src/types'
 import { categoryLabel } from '../../../core/src/categories'
 import { buildGroups, type GroupKey } from '../../../core/src/groups'
@@ -38,6 +40,7 @@ import PebbleStrip from '../components/PebbleStrip'
 import EmptyStateCard from '../components/EmptyStateCard'
 import StatusIcon, { statusColor } from '../components/StatusIcon'
 import CategoryIcon from '../components/CategoryIcon'
+import PriorityBars from '../components/PriorityBars'
 import AppHeader from '../components/AppHeader'
 import Fab from '../components/Fab'
 import TaskItem from '../components/TaskItem'
@@ -736,6 +739,14 @@ function resolveTile(
       icon: <CheckCircle2 size={11} color={theme.label3} strokeWidth={2.4} />,
       label: '—',
       count: 0,
+    }
+  }
+  if (isPriorityFilter(f)) {
+    const p = priorityFromFilter(f)
+    return {
+      icon: <PriorityBars level={p} size={11} />,
+      label: t.priority[p],
+      count: store.byPriority[p] ?? 0,
     }
   }
   const counts = store.systemCounts

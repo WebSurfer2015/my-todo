@@ -323,7 +323,6 @@ export const AVATAR_PRESET_LIBRARY: PresetAvatar[] = [
   { key: 'dog',       emoji: '🐶',  bg: '#E8DCC4', imageKey: 'dog' },       // cream biscuit
   { key: 'bird',      emoji: '🐦',  bg: '#BFD0DC', imageKey: 'bird' },      // powder blue sky
   { key: 'fish',      emoji: '🐠',  bg: '#BDD7D2', imageKey: 'fish' },      // sea foam
-  { key: 'flower',    emoji: '🌸',  bg: '#DCC0BD', imageKey: 'flower' },    // dusty rose
   { key: 'butterfly', emoji: '🦋',  bg: '#C8BCD1', imageKey: 'butterfly' }, // soft heather
   { key: 'owl',       emoji: '🦉',  bg: '#C9B89A', imageKey: 'owl' },       // walnut beige
   { key: 'elephant',  emoji: '🐘',  bg: '#C2C7CC', imageKey: 'elephant' },  // slate grey
@@ -344,7 +343,6 @@ export const AVATAR_ICON_LIBRARY: Avatar[] = [
   { kind: 'icon', icon: 'heart',     color: '#FF3B30' },
   { kind: 'icon', icon: 'sparkles',  color: '#AF52DE' },
   { kind: 'icon', icon: 'rocket',    color: '#007AFF' },
-  { kind: 'icon', icon: 'flower',    color: '#FF2D92' },
   { kind: 'icon', icon: 'sun',       color: '#FF9500' },
 ]
 
@@ -360,7 +358,6 @@ const COLLECTED_GLYPHS: Record<string, string> = {
   dog: '🦴',
   bird: '🪶',
   fish: '🫧',
-  flower: '🩷',
   butterfly: '🌸',
   owl: '📚',
   elephant: '🌱',
@@ -385,7 +382,6 @@ const COLLECTED_NOUN_KEYS: Record<string, string> = {
   dog: 'bones',
   bird: 'feathers',
   fish: 'bubbles',
-  flower: 'petals',
   butterfly: 'flowers',
   owl: 'books',
   elephant: 'grass',
@@ -633,7 +629,7 @@ const DROPPED_PRESET_MIGRATIONS: Record<string, string> = {
   // Original v1.2.x dropped loud presets.
   smile:    'cat',     // sun was the old fallback; sun is gone too, route warm presets to cat
   star:     'cat',     // ditto
-  heart:    'flower',
+  heart:    'rabbit',  // rose blush bg — closest warm/delicate cousin (flower was dropped in v1.5)
   sparkles: 'butterfly',
   rocket:   'bird',
   // v1.5 curation removed cloud/moon/sun/leaf/tree. Map each to a
@@ -644,4 +640,6 @@ const DROPPED_PRESET_MIGRATIONS: Record<string, string> = {
   sun:   'cat',       // warm/contented vibe
   leaf:  'rabbit',    // soft nature pairing
   tree:  'squirrel',  // squirrel lives in tree
+  // v1.5.x removed flower — route to butterfly (both gentle/floral).
+  flower: 'butterfly',
 }
