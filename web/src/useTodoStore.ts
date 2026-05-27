@@ -403,9 +403,14 @@ export function useTodoStore() {
 
   // ---- Derived state (memoized via core.deriveState) ----
 
+  // Web hasn't migrated to multi-select yet — wrap the single filter
+  // as a one-element array (or empty for 'all') to satisfy the new
+  // DeriveInput shape. The multi-select UI lives on mobile first;
+  // mirror here when web picks it up.
+  const filters: Filter[] = filter === 'all' ? [] : [filter];
   const derived = useMemo(
-    () => deriveState({ todos, filter, categories, t }),
-    [todos, filter, categories, t],
+    () => deriveState({ todos, filters, categories, t }),
+    [todos, filters, categories, t],
   );
 
   const hour = new Date().getHours();

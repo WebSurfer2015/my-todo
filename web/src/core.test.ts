@@ -936,7 +936,7 @@ describe("deriveState", () => {
       mk({ id: "done", done: true, trashed: true, completionDate: "2026-05-13" }),
       mk({ id: "trashed", trashed: true, trashedAt: Date.now() }),
     ];
-    const state = deriveState({ todos, filter: "all", categories: cats, t });
+    const state = deriveState({ todos, filters: [], categories: cats, t });
     expect(state.filtered.map((x) => x.id).sort()).toEqual(["done", "open", "trashed"]);
   });
 
@@ -947,7 +947,7 @@ describe("deriveState", () => {
       mk({ id: "doneToday", done: true, trashed: true, completionDate: "2026-05-13" }),
       mk({ id: "notDo", done: false, trashed: true, trashedAt: Date.now() }),
     ];
-    const state = deriveState({ todos, filter: "open", categories: cats, t });
+    const state = deriveState({ todos, filters: ["open"], categories: cats, t });
     // Only the truly-open row remains. No completedToday grace.
     expect(state.filtered.map((x) => x.id)).toEqual(["open"]);
   });
@@ -958,7 +958,7 @@ describe("deriveState", () => {
       mk({ id: "done", done: true, trashed: true }),
       mk({ id: "trashedOnly", trashed: true }),
     ];
-    const state = deriveState({ todos, filter: "done", categories: cats, t });
+    const state = deriveState({ todos, filters: ["done"], categories: cats, t });
     expect(state.filtered.map((x) => x.id).sort()).toEqual(["done", "trashedOnly"]);
   });
 
@@ -975,7 +975,7 @@ describe("deriveState", () => {
       mk({ id: "today", dueDate: "2026-05-13" }),
       mk({ id: "future", dueDate: "2026-05-20" }),
     ];
-    const state = deriveState({ todos, filter: "overdue", categories: cats, t });
+    const state = deriveState({ todos, filters: ["overdue"], categories: cats, t });
     // Trashed past-due items aren't filtered into the view, but the
     // carried-over COUNT includes history (done past-due items count).
     expect(state.filtered.map((x) => x.id)).toContain("overdue");
@@ -997,7 +997,7 @@ describe("deriveState", () => {
     ];
     const state = deriveState({
       todos,
-      filter: "cat:home" as Filter,
+      filters: ["cat:home" as Filter],
       categories: cats,
       t,
     });
@@ -1010,7 +1010,7 @@ describe("deriveState", () => {
       mk({ id: "b", done: true, trashed: true }),
       mk({ id: "c", trashed: true }),
     ];
-    const state = deriveState({ todos, filter: "all", categories: cats, t });
+    const state = deriveState({ todos, filters: [], categories: cats, t });
     expect(state.systemCounts.open).toBe(1);
     expect(state.systemCounts.done).toBe(2);
     expect(state.systemCounts.all).toBe(3);
@@ -1023,7 +1023,7 @@ describe("deriveState", () => {
       mk({ id: "h3", category: "home", done: true, trashed: true }),
       mk({ id: "w1", category: "work" }),
     ];
-    const state = deriveState({ todos, filter: "all", categories: cats, t });
+    const state = deriveState({ todos, filters: [], categories: cats, t });
     expect(state.byCategoryOpen.home).toBe(2);
     expect(state.byCategoryOpen.work).toBe(1);
   });
@@ -1033,7 +1033,7 @@ describe("deriveState", () => {
     const justOther = [{ id: "other", color: "#8E8E93", icon: "tag" }];
     const state = deriveState({
       todos: [],
-      filter: "all",
+      filters: [],
       categories: justOther,
       t,
     });
@@ -1055,7 +1055,7 @@ describe("deriveState", () => {
       { id: "3", text: "c", category: "home",   priority: "medium", dueDate: "",
         done: false, trashed: false, updatedAt: 200 } as Todo,
     ];
-    const state = deriveState({ todos, filter: "all", categories: cats, t });
+    const state = deriveState({ todos, filters: [], categories: cats, t });
     expect(state.defaultCategory).toBe("work");
   });
 });
@@ -1107,14 +1107,14 @@ describe("deriveState — section labels (continued)", () => {
     const cats2 = [{ id: "home", label: "House", color: "#34C759", icon: "home" }];
     const sOverdue = deriveState({
       todos: [],
-      filter: "overdue",
+      filters: ["overdue"],
       categories: cats2,
       t,
     });
     expect(sOverdue.sectionLabel).toBe(t.filters.overdue);
     const sCat = deriveState({
       todos: [],
-      filter: "cat:home" as Filter,
+      filters: ["cat:home" as Filter],
       categories: cats2,
       t,
     });

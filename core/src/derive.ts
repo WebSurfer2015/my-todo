@@ -1001,7 +1001,18 @@ export interface DerivedState {
 
 export interface DeriveInput {
   todos: Todo[];
-  filter: Filter;
+  /**
+   * Active filter set. Empty array OR `['all']` means no constraint.
+   * Multiple filters are combined as:
+   *   - OR within type (open ∪ done, Home ∪ Work, high ∪ medium)
+   *   - AND across types ((open ∪ done) ∩ (Home ∪ Work))
+   * Status/grocery filters: each item passes one status. Currently the
+   * picker only supports picking one status at a time of {overdue,open,
+   * done,trash} since they're mutually exclusive in meaning; the multi-
+   * select shape still expresses this naturally as a one-element status
+   * group.
+   */
+  filters: Filter[];
   categories: CategoryDef[];
   t: Strings;
 }
@@ -1122,7 +1133,25 @@ export function inferDefaultCategory(
 }
 
 export function deriveState(input: DeriveInput): DerivedState {
-  const { todos, filter, categories, t } = input;
+  const { todos, filters: filtersRaw, categories, t } = input;
+  // Normalize: treat empty array AND explicit ['all'] as "no
+  // constraint" so downstream code can branch uniformly.
+  const filters: Filter[] =
+    filtersRaw.length === 0 || filtersRaw.includes('all') ? [] : filtersRaw;
+  // Group selected filters by type for the OR-within / AND-across rule.
+  const selectedStatuses = filters.filter((f): f is Exclude<Filter, `cat:${string}` | `pri:${string}` | 'all'> =>
+    f === 'overdue' || f === 'open' || f === 'done' || f === 'trash' || f === 'groceries',
+  );
+  const selectedCategoryIds = filters
+    .filter(isCategoryFilter)
+    .map((f) => categoryIdFromFilter(f));
+  const selectedPriorities = filters
+    .filter(isPriorityFilter)
+    .map((f) => priorityFromFilter(f));
+  // Legacy single-filter alias for code paths that still need a single
+  // primary filter (section label, empty state, defaultCategory). Picks
+  // the lone selection when exactly one filter is active; else 'all'.
+  const filter: Filter = filters.length === 1 ? filters[0] : 'all';
   const today = todayLocal();
   // "Carried over" / overdue counts every task whose dueDate is before today,
   // including tasks the user already completed. The done state is meaningful
@@ -1141,26 +1170,46 @@ export function deriveState(input: DeriveInput): DerivedState {
   const completedToday = (td: Todo) =>
     td.done && td.completionDate === today;
 
-  const filtered = todos.filter((td) => {
-    // Done and Trash are merged into one bin: anything with done=true OR
-    // trashed=true. The legacy "trash" filter still works (returns the
-    // same set as "done" now) so old saved filters don't break.
-    if (filter === "all") return true;
-    if (filter === "done" || filter === "trash") return td.done || td.trashed;
-    // Trashed items normally drop out of active views, but
-    // just-checked-off items get a one-day grace period so the strike-
-    // through is visible to the user before the row leaves the list.
+  // Per-type status predicate. Pulled out so the multi-faceted match
+  // below can reuse it for each selected status.
+  const matchesStatus = (td: Todo, status: typeof selectedStatuses[number]): boolean => {
+    if (status === 'done' || status === 'trash') return td.done || td.trashed;
+    // For non-done/trash statuses, trashed items drop out unless
+    // they were just completed today (grace period for the strike-
+    // through animation).
     if (td.trashed && !completedToday(td)) return false;
-    if (filter === "overdue") return isOverdue(td);
-    // Open filter is strict — no completedToday grace. Done and
-    // Not-Do (trashed) rows leave the list as soon as they flip,
-    // matching the user's mental model of "Open = still actionable".
-    // The Done bin is one tap away if they need to undo.
-    if (filter === "open") return !td.done && !td.trashed;
-    if (isCategoryFilter(filter))
-      return td.category === categoryIdFromFilter(filter);
-    if (isPriorityFilter(filter))
-      return td.priority === priorityFromFilter(filter);
+    if (status === 'overdue') return isOverdue(td);
+    if (status === 'open') return !td.done && !td.trashed;
+    // 'groceries' isn't a real Todo predicate — the grocery filter
+    // routes to a different view. Treat as no-match here.
+    return false;
+  };
+
+  const filtered = todos.filter((td) => {
+    // No filters selected → "all" semantics: include everything
+    // (including trashed items, matching the old "all" behavior).
+    if (filters.length === 0) return true;
+    // Status group (OR within). If a Done/Trash status is selected,
+    // its predicate intentionally includes trashed items; other
+    // statuses exclude them. The matchesStatus helper handles the
+    // grace-period rule per status, so we don't need a separate
+    // trash short-circuit here.
+    if (selectedStatuses.length > 0) {
+      if (!selectedStatuses.some((s) => matchesStatus(td, s))) return false;
+    } else if (td.trashed && !completedToday(td)) {
+      // No status filter active but category/priority filters are;
+      // exclude trashed items (matching the legacy category/priority
+      // filter behavior).
+      return false;
+    }
+    // Category group (OR within).
+    if (selectedCategoryIds.length > 0) {
+      if (!selectedCategoryIds.some((id) => td.category === id)) return false;
+    }
+    // Priority group (OR within).
+    if (selectedPriorities.length > 0) {
+      if (!selectedPriorities.some((p) => td.priority === p)) return false;
+    }
     return true;
   });
 

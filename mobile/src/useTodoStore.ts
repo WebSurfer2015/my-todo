@@ -253,7 +253,31 @@ export function useTodoStore() {
     onSaved,
   );
 
-  const [filter, setFilter] = useState<Filter>("all");
+  // Multi-faceted filter selection. Empty array = "all" (no constraint).
+  // Filters within the same type group are OR'd (e.g., Home + Work =
+  // either); across type groups they're AND'd ((open OR done) AND
+  // (Home OR Work)). See core/derive.ts for the matching predicate.
+  const [filters, setFiltersState] = useState<Filter[]>([]);
+  // Legacy single-filter API. setFilter replaces the multi-array with
+  // a single pick; reading `filter` returns the lone selection if
+  // exactly one is active, else 'all'. Keeps every existing
+  // `store.filter === '...'` comparison working in the simple case.
+  const filter: Filter = filters.length === 1 ? filters[0] : 'all';
+  const setFilter = useCallback((f: Filter) => {
+    if (f === 'all') setFiltersState([]);
+    else setFiltersState([f]);
+  }, []);
+  const toggleFilter = useCallback((f: Filter) => {
+    if (f === 'all') {
+      setFiltersState([]);
+      return;
+    }
+    setFiltersState((prev) =>
+      prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f],
+    );
+  }, []);
+  const clearFilters = useCallback(() => setFiltersState([]), []);
+  const setFilters = useCallback((f: Filter[]) => setFiltersState(f), []);
   const view: ViewMode = profile.view ?? "status";
   const [selectedTrashIds, setSelectedTrashIds] = useState<Set<string>>(
     new Set(),
@@ -1012,11 +1036,11 @@ export function useTodoStore() {
     () =>
       deriveState({
         todos,
-        filter,
+        filters,
         categories,
         t,
       }),
-    [todos, filter, categories, t],
+    [todos, filters, categories, t],
   );
 
   const hour = new Date().getHours();
@@ -1536,6 +1560,12 @@ export function useTodoStore() {
     orderedStatuses,
     orderedVisibleStatuses,
     setFilter,
+    // Multi-select filter API. `filters` is the source of truth;
+    // `filter` (above) is the single-pick alias for legacy code paths.
+    filters,
+    setFilters,
+    toggleFilter,
+    clearFilters,
     pinFilter,
     toggleHomeStatTile,
     clearHomeStatTiles,
