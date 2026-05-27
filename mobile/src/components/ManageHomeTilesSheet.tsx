@@ -275,25 +275,29 @@ function makeStyles(c: ThemeColors) {
       paddingBottom: 12,
     },
     sectionHeader: {
-      fontSize: 11,
+      // Comfort: was 11/12/6 — bumped to 12/20/12 to match
+      // CategorySheet's exhale.
+      fontSize: 12,
       fontWeight: "700",
       letterSpacing: 0.6,
       color: c.label3,
-      marginTop: 12,
-      marginBottom: 6,
+      marginTop: 20,
+      marginBottom: 12,
       paddingHorizontal: 4,
     },
     listCard: {
-      borderRadius: 12,
+      borderRadius: 14,
       backgroundColor: c.card,
       overflow: "hidden",
     },
     row: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 12,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
+      // Comfort: gap 12 → 14, paddings 14/12 → 16/18 mirroring
+      // CategorySheet's viewRow scale.
+      gap: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 18,
     },
     rowDivider: {
       borderBottomWidth: StyleSheet.hairlineWidth,
@@ -301,15 +305,15 @@ function makeStyles(c: ThemeColors) {
     },
     rowLabel: {
       flex: 1,
-      fontSize: 15,
+      fontSize: 17,
       color: c.label,
       fontWeight: "500",
     },
     badge: {
-      minWidth: 26,
-      height: 20,
-      paddingHorizontal: 6,
-      borderRadius: 4,
+      minWidth: 30,
+      height: 24,
+      paddingHorizontal: 8,
+      borderRadius: 6,
       borderWidth: 1,
       borderColor: c.gray3,
       alignItems: "center",
@@ -324,10 +328,10 @@ function makeStyles(c: ThemeColors) {
       opacity: 0.35,
     },
     badgeText: {
-      fontSize: 12,
+      fontSize: 13,
       fontWeight: "700",
       color: c.label2,
-      lineHeight: 14,
+      lineHeight: 16,
     },
     badgeTextPicked: {
       color: "#fff",

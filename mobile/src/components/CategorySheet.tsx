@@ -787,17 +787,19 @@ function makeStyles(c: ThemeColors) {
     body: { flexShrink: 1 },
     bodyContent: { paddingTop: 4, paddingBottom: 12 },
     sectionHeader: {
-      fontSize: 11,
+      // Comfort: was 11/14/8 — bumped to 12/20/12 so section breaks
+      // breathe and the sheet feels less crammed.
+      fontSize: 12,
       fontWeight: "700",
       letterSpacing: 0.6,
       color: c.label3,
-      marginTop: 14,
-      marginBottom: 8,
+      marginTop: 20,
+      marginBottom: 12,
       paddingHorizontal: 4,
     },
     listCard: {
       backgroundColor: c.card,
-      borderRadius: 12,
+      borderRadius: 14,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
       overflow: "hidden",
@@ -805,19 +807,21 @@ function makeStyles(c: ThemeColors) {
     viewRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 12,
-      paddingHorizontal: 14,
-      paddingVertical: 14,
+      // Comfort: gap 12 → 14, paddings 14 → 16/18 so rows have the
+      // same exhale as EmptyStateCard's interior.
+      gap: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 18,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.separator,
     },
     rowIcon: { width: 20, alignItems: "center" },
-    viewRowLabel: { flex: 1, fontSize: 16, fontWeight: "500", color: c.label },
+    viewRowLabel: { flex: 1, fontSize: 17, fontWeight: "500", color: c.label },
     viewRowCount: {
-      fontSize: 14,
+      fontSize: 15,
       color: c.label3,
       fontVariant: ["tabular-nums"],
-      minWidth: 24,
+      minWidth: 28,
       textAlign: "right",
     },
     checkPlaceholder: { width: 18 },
