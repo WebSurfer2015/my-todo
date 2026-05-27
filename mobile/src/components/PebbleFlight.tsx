@@ -7,9 +7,10 @@ import React, {
   useState,
 } from 'react'
 import { Animated, Dimensions, Easing, Image, StyleSheet, Text, View } from 'react-native'
+import Svg, { Ellipse } from 'react-native-svg'
 import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from 'expo-audio'
 import { useStore } from '../StoreContext'
-import { findPreset, type Avatar } from '../profile'
+import { collectedGlyphFor, findPreset, type Avatar } from '../profile'
 
 /**
  * Cross-component overlay: when a task transitions to done, a Mochi sprite
@@ -318,24 +319,115 @@ function FlyingMochi({ flight, onDone }: { flight: Flight; onDone: () => void })
   })
 
   return (
-    <Animated.View
-      style={[
-        styles.mochi,
-        {
-          left: flight.from.x - MOCHI_SIZE / 2,
-          top: flight.from.y - MOCHI_SIZE / 2,
-          opacity: mochiOpacity,
-          transform: [
-            { translateX },
-            { translateY },
-            { rotate: mochiRotate },
-            { scale: mochiScale },
-          ],
-        },
-      ]}
+    <>
+      <Animated.View
+        style={[
+          styles.mochi,
+          {
+            left: flight.from.x - MOCHI_SIZE / 2,
+            top: flight.from.y - MOCHI_SIZE / 2,
+            opacity: mochiOpacity,
+            transform: [
+              { translateX },
+              { translateY },
+              { rotate: mochiRotate },
+              { scale: mochiScale },
+            ],
+          },
+        ]}
+      >
+        {renderCollectedGlyph(avatar)}
+      </Animated.View>
+      <SparkleBurst at={flight.to} progress={progress} avatar={avatar} />
+    </>
+  )
+}
+
+/**
+ * Festive sparkle burst that fires at the avatar when Mochi arrives.
+ * 6 themed glyphs (fish/feather/petal/etc. when the avatar maps to
+ * one, falls back to small primary-colored dots) emit outward in a
+ * radial fan, lifting up + fading. Tied to the same progress driver
+ * as the flight so the burst lights up exactly when Mochi lands.
+ *
+ * Timing window: ARRIVAL_AT → FADE_END. Before arrival the burst
+ * is invisible; on arrival each glyph blooms outward; by fade end
+ * each glyph has drifted ~30pt out, scaled down, and faded to 0.
+ */
+function SparkleBurst({
+  at,
+  progress,
+  avatar,
+}: {
+  at: Point
+  progress: Animated.Value
+  avatar: Avatar | undefined
+}) {
+  const glyph = collectedGlyphFor(avatar)
+  // 6 directions in a fan biased slightly upward — feels festive
+  // without being a full circle (a circle reads as a shockwave).
+  const angles = [-110, -75, -45, -15, 15, 55]
+  const distance = 38
+  // Each sparkle: invisible until ARRIVAL_AT, blooms out + fades.
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        left: at.x,
+        top: at.y,
+        width: 0,
+        height: 0,
+      }}
     >
-      {renderAvatarGlyph(avatar)}
-    </Animated.View>
+      {angles.map((deg, i) => {
+        const rad = (deg * Math.PI) / 180
+        const targetX = Math.cos(rad) * distance
+        const targetY = Math.sin(rad) * distance
+        // Stagger each sparkle's bloom slightly so they don't all
+        // peak at the exact same frame — reads as alive vs. mech.
+        const stagger = 0.02 * i
+        const start = ARRIVAL_AT - 0.05 + stagger
+        const peak = ARRIVAL_AT + 0.05 + stagger
+        const end = Math.min(FADE_END, ARRIVAL_AT + 0.22 + stagger)
+        const translateX = progress.interpolate({
+          inputRange: [0, start, end, 1],
+          outputRange: [0, 0, targetX, targetX],
+          extrapolate: 'clamp',
+        })
+        const translateY = progress.interpolate({
+          inputRange: [0, start, end, 1],
+          outputRange: [0, 0, targetY, targetY],
+          extrapolate: 'clamp',
+        })
+        const opacity = progress.interpolate({
+          inputRange: [0, start, peak, end, 1],
+          outputRange: [0, 0, 1, 0, 0],
+          extrapolate: 'clamp',
+        })
+        const scale = progress.interpolate({
+          inputRange: [0, start, peak, end, 1],
+          outputRange: [0.4, 0.4, 1.0, 0.6, 0.6],
+          extrapolate: 'clamp',
+        })
+        return (
+          <Animated.View
+            key={i}
+            style={{
+              position: 'absolute',
+              opacity,
+              transform: [{ translateX }, { translateY }, { scale }],
+            }}
+          >
+            {glyph ? (
+              <Text style={styles.sparkleGlyph}>{glyph}</Text>
+            ) : (
+              <View style={styles.sparkleDot} />
+            )}
+          </Animated.View>
+        )
+      })}
+    </View>
   )
 }
 
@@ -361,12 +453,53 @@ const FLIGHT_PRESET_IMAGES: Record<string, ReturnType<typeof require>> = {
 }
 
 /**
- * Render the airborne glyph based on the user's current avatar.
- * Preset with a bundled PNG (e.g. mochi) → the bundled illustration,
- * so the brand mascot flies as itself instead of the small fallback
- * emoji. Preset without art → emoji. Image (user upload) → photo.
- * Anything else (icon avatar, missing) → the brand Mochi turtle.
+ * Render the gliding sprite as the user's THEMED COLLECTED GLYPH —
+ * the same vocabulary used elsewhere as the celebration token (fish
+ * for cat, feathers for bird, bubbles for fish, …). Default Mochi
+ * has no themed glyph; falls back to a single soft pebble SVG.
+ *
+ * Decoupling the gliding sprite from the avatar identity avoids
+ * the "two Mochis on screen" duplication (one in the header, one
+ * flying) and lets the celebration token feel like the *win itself*
+ * being carried home, not the mascot doing a lap.
  */
+function renderCollectedGlyph(avatar: Avatar | undefined): React.ReactNode {
+  const glyph = collectedGlyphFor(avatar)
+  if (glyph) {
+    return <Text style={styles.flyingGlyph}>{glyph}</Text>
+  }
+  // Default Mochi → single soft pebble. SVG so it scales crisply
+  // and uses the brand cream/teal palette.
+  const w = MOCHI_SIZE * 0.78
+  const h = MOCHI_SIZE * 0.52
+  return (
+    <Svg width={w} height={h}>
+      <Ellipse
+        cx={w / 2}
+        cy={h / 2 + 1.5}
+        rx={w / 2 - 2}
+        ry={h / 2 - 2}
+        fill="#A8C9B4"
+        opacity={0.25}
+      />
+      <Ellipse
+        cx={w / 2}
+        cy={h / 2}
+        rx={w / 2 - 2}
+        ry={h / 2 - 2}
+        fill="#D8CDA8"
+        stroke="#A89A77"
+        strokeWidth={1.6}
+      />
+    </Svg>
+  )
+}
+
+/**
+ * @deprecated — kept temporarily so any older caller compiles.
+ * The new renderCollectedGlyph above is what FlyingMochi uses.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function renderAvatarGlyph(avatar: Avatar | undefined): React.ReactNode {
   if (avatar?.kind === 'preset') {
     const preset = findPreset(avatar.key)
@@ -437,5 +570,29 @@ const styles = StyleSheet.create({
     width: MOCHI_SIZE,
     height: MOCHI_SIZE,
     borderRadius: MOCHI_SIZE / 2,
+  },
+  // Big themed glyph that does the gliding (fish/feather/etc.).
+  // Sized to fill the MOCHI_SIZE container, with line-height bumped
+  // so tall emoji like 🥕 / 🪶 don't clip at the top.
+  flyingGlyph: {
+    fontSize: MOCHI_SIZE * 0.75,
+    lineHeight: MOCHI_SIZE,
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+  // Smaller themed glyph used by SparkleBurst at arrival — 6 of
+  // these emit outward in a fan.
+  sparkleGlyph: {
+    fontSize: 20,
+    lineHeight: 22,
+    includeFontPadding: false,
+  },
+  // Fallback sparkle for default Mochi (no collected glyph): a
+  // small filled dot in the primary color.
+  sparkleDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4F8A75', // theme.primary fallback; matches default Mochi mint
   },
 })
