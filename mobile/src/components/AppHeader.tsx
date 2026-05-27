@@ -127,6 +127,11 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 20,
       paddingTop: 14,
       paddingBottom: 12,
+      // Same primarySoft tint that PebbleStrip uses, so the two
+      // visually merge into one continuous header chrome region
+      // instead of two stacked tinted bands. Theme-aware (avatar
+      // theme retints both surfaces together) + dark-mode safe.
+      backgroundColor: c.primarySoft,
     },
     avatarTouch: {
       flex: 1,

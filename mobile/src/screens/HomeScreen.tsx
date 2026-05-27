@@ -302,7 +302,43 @@ export default function HomeScreen() {
   // here. Todos has the same focus-gate pattern.
   const isFocused = useIsFocused()
 
-
+  // Day-1 / "empty workspace" mode: when there are NO non-trashed
+  // todos anywhere, the Dashboard collapses to a single full-screen
+  // welcome empty state. Hides the pebble strip, TODAY band, tile
+  // row, and What's Next button — all of which have no meaning when
+  // the user has no items. Reveals each surface progressively as the
+  // user invests (adds first todo → TODAY band + tiles return; checks
+  // one off → pebble strip becomes informative). The FAB stays
+  // visible as a secondary "add" affordance for users who'd rather
+  // tap the corner than the centered card.
+  if (store.activeCount === 0) {
+    const firstName =
+      store.profile.firstName?.trim() || store.profile.name?.trim() || ''
+    return (
+      <View style={[styles.flex, { paddingTop: insets.top }]}>
+        <AppHeader onGearPress={sheets.openSettings} />
+        <View style={styles.dayOneEmptyWrap}>
+          <EmptyStateCard
+            title={firstName ? `Welcome, ${firstName}.` : 'Welcome.'}
+            hint="Let's add your first to-do."
+            actionLabel="Add a to-do"
+            onAction={() => {
+              void Analytics.emptyStateCtaTapped('todos')
+              sheets.openCompose()
+            }}
+          />
+        </View>
+        <Fab
+          onPress={() => {
+            void Analytics.fabTapped('dashboard')
+            sheets.openCompose()
+          }}
+          accessibilityLabel={t.addPlaceholder}
+          agentEnabled={store.profile.agentEnabled !== false}
+        />
+      </View>
+    )
+  }
 
   return (
     <View style={[styles.flex, { paddingTop: insets.top }]}>
@@ -322,30 +358,40 @@ export default function HomeScreen() {
         {/* Today section — actionable focus right at the top. When
             today's bucket is empty the chip becomes "done" and routes
             to the Done filter (review surface), since there's no "to
-            do" left to land on in Todos. */}
-        <TouchableOpacity
-          style={styles.sectionHeaderRow}
-          onPress={() => openTodos(openCount === 0 ? 'done' : 'all')}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={
-            openCount === 0
-              ? 'Open Todos showing Done items'
-              : `Open Todos showing ${openCount} items`
-          }
-        >
-          <Text style={styles.sectionHeader}>TODAY</Text>
-          <View style={styles.sectionRight}>
-            <Text style={styles.sectionCount}>
-              {openCount === 0
-                ? `${store.todayPebbles} done`
-                : openCount === 1
-                  ? '1 to do'
-                  : `${openCount} to do`}
-            </Text>
-            <ChevronRight size={14} color={theme.label3} strokeWidth={2.5} />
+            do" left to land on in Todos.
+            Zero-zero case (no open + no done today): render as a
+            plain label, no chevron, no tap target — there's nowhere
+            useful to navigate. Reads as a quiet section header
+            instead of a misleading "0 done →" scoreboard. */}
+        {openCount === 0 && store.todayPebbles === 0 ? (
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionHeader}>TODAY</Text>
           </View>
-        </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.sectionHeaderRow}
+            onPress={() => openTodos(openCount === 0 ? 'done' : 'all')}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={
+              openCount === 0
+                ? 'Open Todos showing Done items'
+                : `Open Todos showing ${openCount} items`
+            }
+          >
+            <Text style={styles.sectionHeader}>TODAY</Text>
+            <View style={styles.sectionRight}>
+              <Text style={styles.sectionCount}>
+                {openCount === 0
+                  ? `${store.todayPebbles} done`
+                  : openCount === 1
+                    ? '1 to do'
+                    : `${openCount} to do`}
+              </Text>
+              <ChevronRight size={14} color={theme.label3} strokeWidth={2.5} />
+            </View>
+          </TouchableOpacity>
+        )}
 
         {/* When What's Next is expanded, the TODAY band's content
             collapses so the next group can take the focus. The header
@@ -621,8 +667,13 @@ export default function HomeScreen() {
           driven by profile.homeStatTiles (picked in the Dashboard gear's
           Manage Home Tiles sheet). Default trio: Home/Work/Done. The row
           is hidden when the user unpicks all; otherwise it horizontally
-          scrolls so any number of picks lays out cleanly. */}
-      {effectiveHomeStatTiles.length > 0 && (
+          scrolls so any number of picks lays out cleanly.
+          Also hidden when ALL picked tiles have zero count — no point
+          rendering a sticky strip of "0 / 0 / 0", and the per-tile
+          filter below already drops the zero entries. */}
+      {effectiveHomeStatTiles.some(
+        (f) => resolveTile(f, store, t, theme).count > 0,
+      ) && (
         <View
           style={styles.statsRowSticky}
           onLayout={(e) => setStatsRowHeight(e.nativeEvent.layout.height)}
@@ -639,9 +690,14 @@ export default function HomeScreen() {
               effectiveHomeStatTiles.length <= 3 && styles.statsRowScrollCenter,
             ]}
           >
-            {effectiveHomeStatTiles.map((f, i) => {
-              const tile = resolveTile(f, store, t, theme)
-              return (
+            {effectiveHomeStatTiles
+              .map((f, i) => ({ f, i, tile: resolveTile(f, store, t, theme) }))
+              // Hide zero-value tiles — "0 / Home" reads as "I'm
+              // failing" to less-techy users and adds visual noise
+              // without information. Tiles return as soon as the
+              // user puts an item in that category/priority.
+              .filter(({ tile }) => tile.count > 0)
+              .map(({ f, i, tile }) => (
                 <FilterTile
                   key={`${f}-${i}`}
                   icon={tile.icon}
@@ -650,8 +706,7 @@ export default function HomeScreen() {
                   onPress={() => openTodos(f)}
                   styles={styles}
                 />
-              )
-            })}
+              ))}
           </ScrollView>
         </View>
       )}
@@ -792,6 +847,16 @@ function resolveTile(
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     flex: { flex: 1 },
+    // Day-1 empty mode: center the welcome EmptyStateCard in the
+    // remaining viewport. flex:1 absorbs the space between
+    // AppHeader and the tab bar; paddingHorizontal mirrors the
+    // body inset so the card edges line up with the rest of the
+    // app's content rhythm.
+    dayOneEmptyWrap: {
+      flex: 1,
+      justifyContent: 'center',
+      paddingHorizontal: 20,
+    },
     body: { paddingHorizontal: 20, gap: 16, paddingTop: 4 },
     sectionHeaderRow: {
       flexDirection: 'row',
