@@ -3,13 +3,18 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActionSheetIOS, A
 import { Pin } from 'lucide-react-native'
 import {
   Filter,
+  Priority,
+  PRIORITY_COLORS,
   StatusFilter,
   categoryIdFromFilter,
   isCategoryFilter,
+  isPriorityFilter,
+  priorityFromFilter,
 } from '../types'
 import { CategoryDef, categoryLabel } from '../categories'
 import CategoryIcon from './CategoryIcon'
 import StatusIcon, { statusColor } from './StatusIcon'
+import PriorityBars from './PriorityBars'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
 
@@ -26,6 +31,9 @@ interface Props {
   orderedVisibleStatuses: { id: StatusFilter; label: string }[]
   systemCounts: { all: number; overdue: number; open: number; done: number; trash: number }
   byCategory: Record<string, number>
+  /** Total task counts per priority, used to badge priority pills.
+   * Items with no priority don't count toward any bucket. */
+  byPriority: Record<Priority, number>
   /** Active (unchecked) grocery item count for the Groceries pill badge.
    * The Groceries pill is the leftmost pill in the row when the user has
    * the feature enabled (profile.groceriesEnabled !== false). */
@@ -64,6 +72,7 @@ export default function FilterBar({
   orderedVisibleStatuses,
   systemCounts,
   byCategory,
+  byPriority,
   groceriesActiveCount = 0,
   groceriesEnabled = true,
   scrolledPebbleCount = 0,
@@ -127,6 +136,16 @@ export default function FilterBar({
         label: categoryLabel(c, t),
         count: byCategory[c.id] ?? 0,
         color: c.color,
+      }
+    }
+    if (isPriorityFilter(f)) {
+      const p = priorityFromFilter(f)
+      return {
+        filter: f,
+        icon: <PriorityBars level={p} size={14} />,
+        label: t.priority[p],
+        count: byPriority[p] ?? 0,
+        color: PRIORITY_COLORS[p],
       }
     }
     const s = orderedVisibleStatuses.find((x) => x.id === f)

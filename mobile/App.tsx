@@ -253,6 +253,7 @@ function TodosScreen() {
               onOpenSheet={() => sheets.openSelectFilter()}
               systemCounts={store.systemCounts}
               byCategory={store.byCategory}
+              byPriority={store.byPriority}
               categories={store.categories}
               orderedVisibleStatuses={store.orderedVisibleStatuses}
               groceriesActiveCount={

@@ -9,6 +9,9 @@ import {
   TodoReference,
   isCategoryFilter,
   categoryIdFromFilter,
+  isPriorityFilter,
+  priorityFromFilter,
+  PRIORITY_VALUES,
 } from "./types";
 import { CategoryDef, categoryLabel } from "./categories";
 import { buildGroups, TodoGroup } from "./groups";
@@ -988,6 +991,8 @@ export interface DerivedState {
   };
   byCategoryOpen: Record<string, number>; // open todos per category
   byCategoryTotal: Record<string, number>; // all (active) todos per category
+  byPriorityOpen: Record<Priority, number>; // open todos per priority
+  byPriorityTotal: Record<Priority, number>; // all todos per priority (exact match)
   sectionLabel: string | null;
   subtitle: string;
   emptyState: EmptyState;
@@ -1154,6 +1159,8 @@ export function deriveState(input: DeriveInput): DerivedState {
     if (filter === "open") return !td.done && !td.trashed;
     if (isCategoryFilter(filter))
       return td.category === categoryIdFromFilter(filter);
+    if (isPriorityFilter(filter))
+      return td.priority === priorityFromFilter(filter);
     return true;
   });
 
@@ -1179,6 +1186,18 @@ export function deriveState(input: DeriveInput): DerivedState {
     byCategoryTotal[c.id] = todos.filter((td) => td.category === c.id).length;
   }
 
+  // Priority counts — exact match against td.priority. Items with no
+  // priority (undefined) don't count toward any priority bucket; they
+  // only surface via "All", category filters, or status filters. Same
+  // open-vs-total split as categories.
+  const byPriorityOpen: Record<Priority, number> = { high: 0, medium: 0, low: 0 };
+  const byPriorityTotal: Record<Priority, number> = { high: 0, medium: 0, low: 0 };
+  for (const p of PRIORITY_VALUES) {
+    const inP = active.filter((td) => td.priority === p);
+    byPriorityOpen[p] = inP.filter((td) => !td.done).length;
+    byPriorityTotal[p] = todos.filter((td) => td.priority === p).length;
+  }
+
   const systemCounts = {
     // "All" = open + everything in the merged Done bin.
     all: totalOpen + completedCount,
@@ -1198,6 +1217,9 @@ export function deriveState(input: DeriveInput): DerivedState {
     const id = categoryIdFromFilter(filter);
     const cat = categories.find((c) => c.id === id);
     sectionLabel = cat ? categoryLabel(cat, t) : null;
+  }
+  else if (isPriorityFilter(filter)) {
+    sectionLabel = t.priority[priorityFromFilter(filter)];
   }
 
   const filteredDone = filtered.filter((td) => td.done).length;
@@ -1234,6 +1256,12 @@ export function deriveState(input: DeriveInput): DerivedState {
       hint: t.emptyHint,
       ctaLabel: t.addFirstTask,
     };
+  } else if (isPriorityFilter(filter)) {
+    emptyState = {
+      title: t.emptyPriorityTitle(t.priority[priorityFromFilter(filter)]),
+      hint: t.emptyHint,
+      ctaLabel: t.addFirstTask,
+    };
   } else {
     emptyState = { title: "", hint: "" };
   }
@@ -1254,6 +1282,8 @@ export function deriveState(input: DeriveInput): DerivedState {
     systemCounts,
     byCategoryOpen,
     byCategoryTotal,
+    byPriorityOpen,
+    byPriorityTotal,
     sectionLabel,
     subtitle,
     emptyState,

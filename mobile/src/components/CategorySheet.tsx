@@ -21,13 +21,19 @@ import { CategoryDef, COLOR_PALETTE, categoryLabel } from "../categories";
 import { ICON_KEYS } from "../icons";
 import {
   Filter,
+  Priority,
+  PRIORITY_VALUES,
   StatusFilter,
   categoryFilter,
   categoryIdFromFilter,
   isCategoryFilter,
+  isPriorityFilter,
+  priorityFilter,
+  priorityFromFilter,
 } from "../types";
 import CategoryIcon from "./CategoryIcon";
 import StatusIcon, { statusColor } from "./StatusIcon";
+import PriorityBars from "./PriorityBars";
 import { useLang } from "../LangContext";
 import { useTheme, ThemeColors } from "../theme";
 
@@ -49,6 +55,9 @@ interface Props {
   /** Total task counts per category (used for delete confirm + row badges). */
   taskCounts: Record<string, number>;
   systemCounts: { all: number; overdue: number; open: number; done: number; trash: number };
+  /** Total task counts per priority — used by the PRIORITIES section.
+   * Items with no priority don't count toward any bucket. */
+  priorityCounts: Record<Priority, number>;
   /** Full status list — used in Edit mode so hidden statuses can be unhidden. */
   orderedStatuses: StatusEntry[];
   /** Visible-only status list — used in View mode picker. */
@@ -97,6 +106,7 @@ export default function CategorySheet({
   categories,
   taskCounts,
   systemCounts,
+  priorityCounts,
   orderedStatuses,
   orderedVisibleStatuses,
   onAdd,
@@ -222,6 +232,26 @@ export default function CategorySheet({
           <StatusIcon id={s.id} size={18} color={statusColor(s.id, theme)} />
         </View>
         <Text style={styles.viewRowLabel}>{s.label}</Text>
+        <Text style={styles.viewRowCount}>{count}</Text>
+        {active ? <Check size={18} color={theme.primary} strokeWidth={2.5} /> : <View style={styles.checkPlaceholder} />}
+      </TouchableOpacity>
+    );
+  }
+
+  function viewPriorityRow(p: Priority) {
+    const active = isPriorityFilter(currentFilter) && priorityFromFilter(currentFilter) === p;
+    const count = priorityCounts[p] ?? 0;
+    return (
+      <TouchableOpacity
+        key={`pri-${p}`}
+        style={styles.viewRow}
+        onPress={() => pickFilter(priorityFilter(p))}
+        activeOpacity={0.65}
+      >
+        <View style={styles.rowIcon}>
+          <PriorityBars level={p} size={16} />
+        </View>
+        <Text style={styles.viewRowLabel}>{t.priority[p]}</Text>
         <Text style={styles.viewRowCount}>{count}</Text>
         {active ? <Check size={18} color={theme.primary} strokeWidth={2.5} /> : <View style={styles.checkPlaceholder} />}
       </TouchableOpacity>
@@ -525,6 +555,10 @@ export default function CategorySheet({
                       <Text style={styles.sectionHeader}>STATUSES</Text>
                       <View style={styles.listCard}>
                         {orderedVisibleStatuses.map(viewStatusRow)}
+                      </View>
+                      <Text style={styles.sectionHeader}>PRIORITIES</Text>
+                      <View style={styles.listCard}>
+                        {PRIORITY_VALUES.map(viewPriorityRow)}
                       </View>
                       <Text style={styles.sectionHeader}>CATEGORIES</Text>
                       <View style={styles.listCard}>

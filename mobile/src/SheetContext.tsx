@@ -323,6 +323,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         categories={store.categories}
         taskCounts={store.taskCountsForSheet}
         systemCounts={store.systemCounts}
+        priorityCounts={store.byPriority}
         orderedStatuses={store.orderedStatuses}
         orderedVisibleStatuses={store.orderedVisibleStatuses}
         onAdd={store.addCategory}

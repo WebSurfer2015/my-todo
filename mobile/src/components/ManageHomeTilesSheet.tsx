@@ -21,11 +21,14 @@ import {
 import { CategoryDef, categoryLabel } from "../categories";
 import {
   Filter,
+  PRIORITY_VALUES,
   StatusFilter,
   categoryFilter,
+  priorityFilter,
 } from "../types";
 import CategoryIcon from "./CategoryIcon";
 import StatusIcon, { statusColor } from "./StatusIcon";
+import PriorityBars from "./PriorityBars";
 import { useLang } from "../LangContext";
 import { useTheme, ThemeColors } from "../theme";
 
@@ -143,6 +146,29 @@ export default function ManageHomeTilesSheet({
                   {renderBadge(s.id, s.label)}
                 </View>
               ))}
+            </View>
+
+            <Text style={styles.sectionHeader}>PRIORITIES</Text>
+            <View style={styles.listCard}>
+              {PRIORITY_VALUES.map((p, i) => {
+                const label = t.priority[p]
+                const f = priorityFilter(p)
+                return (
+                  <View
+                    key={`pri-${p}`}
+                    style={[
+                      styles.row,
+                      i < PRIORITY_VALUES.length - 1 && styles.rowDivider,
+                    ]}
+                  >
+                    <PriorityBars level={p} size={18} />
+                    <Text style={styles.rowLabel} numberOfLines={1}>
+                      {label}
+                    </Text>
+                    {renderBadge(f, label)}
+                  </View>
+                )
+              })}
             </View>
 
             <Text style={styles.sectionHeader}>CATEGORIES</Text>

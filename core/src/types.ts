@@ -2,7 +2,7 @@ export type ViewMode = 'category' | 'status'
 
 export type SystemFilter = 'groceries' | 'all' | 'overdue' | 'open' | 'done' | 'trash'
 export type StatusFilter = Exclude<SystemFilter, 'all' | 'groceries'>
-export type Filter = SystemFilter | `cat:${string}`
+export type Filter = SystemFilter | `cat:${string}` | `pri:${Priority}`
 
 // `trash` is kept in the type for backward-compat with stored profiles
 // that may still reference it, but the picker UI no longer surfaces it
@@ -184,4 +184,16 @@ export function categoryIdFromFilter(f: `cat:${string}`): string {
 
 export function categoryFilter(id: string): Filter {
   return `cat:${id}`
+}
+
+export function isPriorityFilter(f: Filter): f is `pri:${Priority}` {
+  return typeof f === 'string' && f.startsWith('pri:')
+}
+
+export function priorityFromFilter(f: `pri:${Priority}`): Priority {
+  return f.slice(4) as Priority
+}
+
+export function priorityFilter(p: Priority): Filter {
+  return `pri:${p}`
 }

@@ -1513,6 +1513,10 @@ export function useTodoStore() {
     // of "this category has N things in it, regardless of state".
     byCategory: derived.byCategoryTotal,
     taskCountsForSheet: derived.byCategoryTotal,
+    // Same shape as byCategory but keyed by Priority. Used by
+    // CategorySheet + ManageHomeTilesSheet to render the new
+    // PRIORITIES section.
+    byPriority: derived.byPriorityTotal,
     activeCount: derived.active.length,
     headerLine,
     quoteLine,
