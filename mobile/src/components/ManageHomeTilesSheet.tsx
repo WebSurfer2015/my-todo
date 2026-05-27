@@ -269,7 +269,13 @@ function makeStyles(c: ThemeColors) {
       color: c.label2,
     },
     body: {
-      flexGrow: 0,
+      // flex:1 so the ScrollView absorbs whatever space remains
+      // inside the sheet's maxHeight cap and scrolls internally
+      // when content exceeds it. Was flexGrow:0 — fine when the
+      // body only had STATUSES + CATEGORIES, but overflowed off-
+      // screen once PRIORITIES was added + rows got the comfort
+      // bump.
+      flex: 1,
     },
     bodyContent: {
       paddingBottom: 12,
