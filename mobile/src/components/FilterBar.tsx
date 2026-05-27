@@ -20,6 +20,14 @@ import { useTheme, ThemeColors } from '../theme'
 
 interface Props {
   filter: Filter
+  /** Multi-select source of truth. Each entry renders as a "selected"
+   * pill — tapping removes it from the selection (calls
+   * onToggleFilter). Pinned-but-not-selected filters render as
+   * "extra" pills — tapping adds them. Empty array = "All"
+   * semantics; the All pill becomes the only active visual. */
+  selectedFilters: Filter[]
+  onToggleFilter: (f: Filter) => void
+  onClearFilters: () => void
   /** Profile.pinnedFilters — ordered list of quick-access pills the user
    * has pinned. Long-pressing any pill toggles its pin status. Each pinned
    * pill renders with a small Pin icon next to its label. */
@@ -64,6 +72,9 @@ interface ResolvedPill {
  */
 export default function FilterBar({
   filter,
+  selectedFilters,
+  onToggleFilter,
+  onClearFilters,
   pinnedFilters,
   onFilter,
   onPinFilter,
@@ -97,13 +108,12 @@ export default function FilterBar({
   // so this effect IS the only place that resets pillXRef.
   useEffect(() => {
     pillXRef.current = {}
-    if (filter === 'all') {
-      // The All pill lives OUTSIDE the scrollable row (pinned to the
-      // left next to the funnel), so its x never lands in pillXRef.
-      // Picking All should just rewind the scroll to the start.
+    if (selectedFilters.length === 0) {
+      // No filters selected → rewind the scroll to the start so the
+      // user lands cleanly on the "All" pill.
       scrollRef.current?.scrollTo({ x: 0, animated: true })
     }
-  }, [filter, pinnedFilters])
+  }, [selectedFilters, pinnedFilters])
 
   // Resolve display info (icon/label/count/color) for any Filter. Returns
   // null when the underlying status is hidden or the category was deleted.
@@ -187,30 +197,37 @@ export default function FilterBar({
   // rendered OUTSIDE this list (pinned to the left of the row, next to
   // the funnel) so it's always visible no matter how far the user has
   // scrolled through their pinned filters.
-  const visiblePills: { pill: ResolvedPill; pinned: boolean }[] = []
+  //
+  // Multi-select semantics: every entry in `selectedFilters` renders
+  // as an "active" pill at the front of the row (tap to deselect via
+  // onToggleFilter). Pinned filters that aren't currently selected
+  // render after as "extra" pills (tap to add). Same long-press →
+  // pin/unpin contract as before.
+  const visiblePills: { pill: ResolvedPill; pinned: boolean; selected: boolean }[] = []
   const allPill = resolvePill('all')!
   // Groceries pill removed in v1.3 — Groceries is its own bottom tab
   // now. The `groceries` filter value + resolver stay for back-compat
   // with any persisted state; they just don't render as a pill.
 
-  // The selected filter always sits FIRST in the scroll row (right
-  // next to the anchored "All" pill), regardless of whether it's
-  // pinned. That way the user always sees their current scope
-  // without scrolling, and the leftmost cluster is "All ⟷ active".
-  // Other pinned filters follow.
-  if (filter !== 'all' && filter !== 'groceries') {
-    const sel = resolvePill(filter)
-    if (sel) {
+  // Selected filters first — preserve the order the user picked them
+  // in (matches the order returned by the multi-select sheet, which
+  // tracks insertion order).
+  for (const f of selectedFilters) {
+    if (f === 'all' || f === 'groceries') continue
+    const p = resolvePill(f)
+    if (p) {
       visiblePills.push({
-        pill: sel,
-        pinned: pinnedFilters.includes(filter),
+        pill: p,
+        pinned: pinnedFilters.includes(f),
+        selected: true,
       })
     }
   }
+  // Pinned-but-not-selected filters follow as quick-add shortcuts.
   for (const f of pinnedFilters) {
-    if (f === 'all' || f === 'groceries' || f === filter) continue
+    if (f === 'all' || f === 'groceries' || selectedFilters.includes(f)) continue
     const p = resolvePill(f)
-    if (p) visiblePills.push({ pill: p, pinned: true })
+    if (p) visiblePills.push({ pill: p, pinned: true, selected: false })
   }
 
   // onOpenSheet kept in the prop signature (parent still passes it)
@@ -221,30 +238,29 @@ export default function FilterBar({
   void onOpenSheet
 
   // Hide the entire filter row when there's nothing meaningful to
-  // render: no active non-default filter AND no pinned pills to
-  // surface. Removes a useless strip from the empty-state view.
-  if (filter === 'all' && visiblePills.length === 0) return null
+  // render: no selected filters AND no pinned pills to surface.
+  // Removes a useless strip from the empty-state view.
+  if (selectedFilters.length === 0 && visiblePills.length === 0) return null
 
   return (
     <View style={styles.row}>
-      {/* "All" pill — only rendered when a NON-All filter is active,
-          so it acts as a "reset" affordance only when there's
-          something to reset. When All is already the active filter
-          the pill would be redundant (and visually noisy at the top
-          of an empty list), so we hide it. */}
-      {filter !== allPill.filter && (
+      {/* "All" pill — only rendered when at least one non-default
+          filter is selected, acting as a "Clear" affordance. When
+          nothing's selected the pill would be redundant (the user IS
+          on "All"). */}
+      {selectedFilters.length > 0 && (
         <TouchableOpacity
           style={[
             styles.pill,
             pinnedFilters.includes('all') ? styles.pillSticky : styles.pillExtra,
           ]}
-          onPress={() => onFilter(allPill.filter)}
+          onPress={() => onClearFilters()}
           onLongPress={() => promptPin(allPill.filter, allPill.label)}
           delayLongPress={350}
           activeOpacity={0.75}
           accessibilityRole="button"
           accessibilityState={{ selected: false }}
-          accessibilityLabel={`${allPill.label}, ${allPill.count}`}
+          accessibilityLabel={`${allPill.label} — clear ${selectedFilters.length} selected filter${selectedFilters.length === 1 ? '' : 's'}`}
           accessibilityHint="Long-press to pin or unpin"
         >
           {pinnedFilters.includes('all') && (
@@ -272,51 +288,49 @@ export default function FilterBar({
         contentContainerStyle={styles.pillsScroll}
         keyboardShouldPersistTaps="handled"
       >
-        {visiblePills.map(({ pill, pinned }) => {
-          const active = filter === pill.filter
-          // Pinned-and-active: filled primary (the canonical "current" look).
-          // Pinned-not-active: dim shortcut, gentle accent color.
-          // Not-pinned-and-active (the "extra" trailing pill): soft selected.
+        {visiblePills.map(({ pill, pinned, selected }) => {
+          // Selected (in the multi-select set): filled primary
+          //   "current" look. Tap removes (toggle off).
+          // Pinned-but-not-selected: dim shortcut. Tap adds (toggle on).
+          // Same long-press → pin/unpin contract for both.
           return (
             <TouchableOpacity
               key={pill.filter}
               style={[
                 styles.pill,
-                active ? styles.pillActive : pinned ? styles.pillSticky : styles.pillExtra,
+                selected ? styles.pillActive : pinned ? styles.pillSticky : styles.pillExtra,
               ]}
               onLayout={(e) => {
                 const x = e.nativeEvent.layout.x
                 pillXRef.current[pill.filter] = x
-                // Auto-scroll fires HERE (instead of from a useEffect) so
-                // we always use the freshly measured x rather than a
-                // stale cached one — see the pillXRef invalidation
-                // comment above for why.
-                if (pill.filter === filter) {
+                // Auto-scroll to the first selected pill so the user
+                // always sees their current scope without swiping.
+                if (selected && selectedFilters[0] === pill.filter) {
                   scrollRef.current?.scrollTo({
                     x: Math.max(0, x - 16),
                     animated: true,
                   })
                 }
               }}
-              onPress={() => onFilter(pill.filter)}
+              onPress={() => onToggleFilter(pill.filter)}
               onLongPress={() => promptPin(pill.filter, pill.label)}
               delayLongPress={350}
               activeOpacity={0.75}
               accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-              accessibilityLabel={`${pill.label}, ${pill.count}${active ? ', selected' : ''}${pinned ? ', pinned' : ''}`}
+              accessibilityState={{ selected }}
+              accessibilityLabel={`${pill.label}, ${pill.count}${selected ? ', selected — tap to remove' : ', tap to add'}${pinned ? ', pinned' : ''}`}
               accessibilityHint="Long-press to pin or unpin"
             >
               {pinned && (
                 <Pin
                   size={10}
-                  color={active ? '#fff' : theme.label3}
+                  color={selected ? '#fff' : theme.label3}
                   strokeWidth={2.5}
                 />
               )}
               {pill.icon}
               <Text
-                style={[styles.pillLabel, active && styles.pillLabelActive]}
+                style={[styles.pillLabel, selected && styles.pillLabelActive]}
                 numberOfLines={1}
                 maxFontSizeMultiplier={1.3}
               >
@@ -324,7 +338,7 @@ export default function FilterBar({
               </Text>
               {pill.count > 0 && (
                 <Text
-                  style={[styles.pillCount, active && styles.pillCountActive]}
+                  style={[styles.pillCount, selected && styles.pillCountActive]}
                   maxFontSizeMultiplier={1.3}
                 >
                   {pill.count}

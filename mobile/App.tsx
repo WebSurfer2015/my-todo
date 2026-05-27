@@ -247,6 +247,9 @@ function TodosScreen() {
             )}
             <FilterBar
               filter={store.filter}
+              selectedFilters={store.filters}
+              onToggleFilter={store.toggleFilter}
+              onClearFilters={store.clearFilters}
               pinnedFilters={(store.profile.pinnedFilters ?? []) as Filter[]}
               onFilter={store.setFilter}
               onPinFilter={store.pinFilter}
