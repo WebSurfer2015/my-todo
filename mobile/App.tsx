@@ -347,15 +347,47 @@ function TodosScreen() {
                 </View>
               )
             ) : displayGroups.length === 0 ? (
-              <EmptyStateCard
-                title={store.emptyState.title}
-                hint={store.emptyState.hint}
-                actionLabel={store.emptyState.ctaLabel}
-                onAction={() => {
-                  void Analytics.emptyStateCtaTapped('todos')
-                  sheets.openCompose()
-                }}
-              />
+              // Filter-mismatch empty state: when the user has todos
+              // but none match the current filter, swap the generic
+              // "Add a to-do" CTA for a "View all" affordance that
+              // clears the filter. Triggers when (a) not searching,
+              // (b) on a non-all filter, (c) there are active todos
+              // outside the current bucket. Helps after the common
+              // "added a Work todo while filtered to Home" footgun.
+              (() => {
+                const filterMismatch =
+                  !searchNeedle &&
+                  store.filter !== 'all' &&
+                  store.activeCount > 0
+                if (filterMismatch) {
+                  return (
+                    <EmptyStateCard
+                      title={store.emptyState.title}
+                      hint={
+                        store.activeCount === 1
+                          ? "You have 1 to-do — it's just hidden by this filter."
+                          : `You have ${store.activeCount} to-dos — they're hidden by this filter.`
+                      }
+                      actionLabel="View all"
+                      onAction={() => {
+                        void Analytics.emptyStateCtaTapped('todos')
+                        store.setFilter('all')
+                      }}
+                    />
+                  )
+                }
+                return (
+                  <EmptyStateCard
+                    title={store.emptyState.title}
+                    hint={store.emptyState.hint}
+                    actionLabel={store.emptyState.ctaLabel}
+                    onAction={() => {
+                      void Analytics.emptyStateCtaTapped('todos')
+                      sheets.openCompose()
+                    }}
+                  />
+                )
+              })()
             ) : store.filter === "done" ? (
               <>
                 {displayFiltered.length > 0 && (
