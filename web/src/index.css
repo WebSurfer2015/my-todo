@@ -2358,6 +2358,12 @@ h1 { margin: 0; }
   background: rgba(110, 148, 168, 0.06);
   margin-bottom: 8px;
 }
+.suggest-steps-hint {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--label3);
+}
 .suggest-steps-list {
   list-style: none;
   margin: 0;

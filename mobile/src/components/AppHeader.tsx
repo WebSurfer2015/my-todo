@@ -35,9 +35,14 @@ interface Props {
    * category-picker sheet from the header instead of the in-list
    * FilterBar pill. */
   onFilterPress?: () => void
+  /** Tap handler for the gear icon. When omitted, gear isn't rendered
+   * — Settings now lives inside ProfileSheet, so a screen that has no
+   * tab-specific manage action just shows search (if any) and nothing
+   * else on the right. */
+  onGearPress?: () => void
 }
 
-export default function AppHeader({ title, onSearchPress, onFilterPress }: Props) {
+export default function AppHeader({ title, onSearchPress, onFilterPress, onGearPress }: Props) {
   const store = useStore()
   const sheets = useSheets()
   const { t } = useLang()
@@ -88,23 +93,24 @@ export default function AppHeader({ title, onSearchPress, onFilterPress }: Props
           <FilterIcon size={22} color={theme.label3} strokeWidth={1.8} />
         </TouchableOpacity>
       )}
-      {onSearchPress ? (
+      {onSearchPress && (
         <TouchableOpacity
           onPress={onSearchPress}
-          style={styles.gearTouch}
+          style={styles.headerRightIcon}
           hitSlop={12}
           accessibilityRole="button"
           accessibilityLabel="Search"
         >
           <SearchIcon size={22} color={theme.label3} strokeWidth={1.8} />
         </TouchableOpacity>
-      ) : (
+      )}
+      {onGearPress && (
         <TouchableOpacity
-          onPress={sheets.openSettings}
+          onPress={onGearPress}
           style={styles.gearTouch}
           hitSlop={12}
           accessibilityRole="button"
-          accessibilityLabel="Settings"
+          accessibilityLabel="Manage"
         >
           <SettingsIcon size={22} color={theme.label3} strokeWidth={1.8} />
         </TouchableOpacity>

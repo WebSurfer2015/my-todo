@@ -105,9 +105,21 @@ export default function GuideSheet({ visible, guide, onComplete, onClose }: Prop
                   Page is wrapped in a ScrollView so tall mockup +
                   long body combinations don't get clipped on shorter
                   screens. */}
-              {!s.visual && (
-                <Text style={styles.glyph}>{s.glyph ?? guide.glyph}</Text>
-              )}
+              {!s.visual && (() => {
+                // Slide-level glyph (emoji) wins when provided —
+                // some slides use a specific emoji for thematic
+                // moments. Otherwise fall back to the guide's
+                // lucide icon in a tinted bubble.
+                if (s.glyph) {
+                  return <Text style={styles.glyph}>{s.glyph}</Text>
+                }
+                const Icon = guide.icon
+                return (
+                  <View style={styles.glyphBubble}>
+                    <Icon size={40} color={theme.primary} strokeWidth={1.8} />
+                  </View>
+                )
+              })()}
               <Text style={styles.title}>{s.title}</Text>
               <Text style={styles.body}>{renderBody(s.body, styles)}</Text>
               {s.visual && (
@@ -193,6 +205,15 @@ function makeStyles(c: ThemeColors, _width: number) {
       paddingVertical: 16,
     },
     glyph: { fontSize: 64, lineHeight: 72, marginBottom: 24, textAlign: 'center' },
+    glyphBubble: {
+      width: 88,
+      height: 88,
+      borderRadius: 22,
+      backgroundColor: c.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 24,
+    },
     visualWrap: {
       width: '100%',
       maxWidth: 340,

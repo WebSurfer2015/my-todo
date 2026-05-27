@@ -383,19 +383,44 @@ export function dateSeed(isoDate: string): number {
 }
 
 /**
+ * Per-language regex for the "pebble" noun(s) used in the brand mascot
+ * lines. When the user has opted into theme-from-avatar with a non-
+ * default preset, any line matching the language's pattern is filtered
+ * out so the mascot voice no longer references pebbles. Patterns cover
+ * the singular and plural forms used in the lines above.
+ */
+const PEBBLE_PATTERNS: Record<Lang, RegExp> = {
+  en: /\bpebbles?\b/i,
+  zh: /石子|石/,
+  es: /\bpiedras?\b/i,
+  fr: /\bpierres?\b/i,
+  ja: /石/,
+  de: /\bSteine?\b/,
+};
+
+/**
  * Picks a mascot line for the given locale + time-of-day + plate state.
  * `today` is the local ISO date string used as the rotation seed; passed
  * in (rather than read from a clock) so this function stays pure and
  * testable. Falls back to English if the requested locale is missing
- * (shouldn't happen — all six Lang values are populated).
+ * (shouldn't happen — all six Lang values are populated). When
+ * `dethemePebbles` is true, lines that mention the language's pebble
+ * token are dropped from the pool — used when the user has switched
+ * to a themed avatar so the mascot voice stops referencing pebbles.
  */
 export function pickMascotLine(
   lang: Lang,
   timeOfDay: TimeOfDay,
   plateCount: number,
   today: string,
+  dethemePebbles: boolean = false,
 ): string {
   const set = (MASCOT_LINES[lang] ?? MASCOT_LINES.en)[timeOfDay];
-  const variants = plateCount === 0 ? set.fresh : set.going;
+  let variants = plateCount === 0 ? set.fresh : set.going;
+  if (dethemePebbles) {
+    const pattern = PEBBLE_PATTERNS[lang] ?? PEBBLE_PATTERNS.en;
+    const filtered = variants.filter((line) => !pattern.test(line));
+    if (filtered.length > 0) variants = filtered;
+  }
   return variants[dateSeed(today) % variants.length];
 }

@@ -115,6 +115,7 @@ export function SuggestStepsReview({
 
   return (
     <div className="suggest-steps-panel">
+      <p className="suggest-steps-hint">{t.suggestStepsHint}</p>
       <ul className="suggest-steps-list">
         {suggestions.map((text, i) => (
           <li key={i} className="suggest-steps-item">
@@ -139,7 +140,7 @@ export function SuggestStepsReview({
           onClick={handleAdd}
           disabled={selected.size === 0}
         >
-          {t.addSelected}
+          {t.addSelected}{selected.size > 0 ? ` (${selected.size})` : ''}
         </button>
       </div>
     </div>

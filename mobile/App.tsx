@@ -1,5 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Animated,
+  Easing,
   View,
   Text,
   ScrollView,
@@ -21,7 +23,7 @@ import {
   ThemeOverrideProvider,
   deriveThemeFromAvatarBg,
 } from "./src/theme";
-import { findPreset } from "./src/profile";
+import { findPreset, type Avatar as AvatarT } from "./src/profile";
 import {
   pairFromAvatarBg,
   lookupPattern,
@@ -31,19 +33,16 @@ import {
 import "./src/notifications";
 import FilterBar from "./src/components/FilterBar";
 import Fab from "./src/components/Fab";
-import ComposeSheet from "./src/components/ComposeSheet";
 import TaskItem from "./src/components/TaskItem";
 import Footer from "./src/components/Footer";
 import Avatar from "./src/components/Avatar";
 import GroceryView from "./src/components/GroceryView";
 import AppBackground from "./src/components/AppBackground";
-import CategorySheet from "./src/components/CategorySheet";
 import ChatSheet from "./src/components/ChatSheet";
 import SearchTopSheet from "./src/components/SearchTopSheet";
 import SearchPill from "./src/components/SearchPill";
 import DeferModal from "./src/components/DeferModal";
 import { SEED_GROCERY_STORES } from "./src/groceries";
-import { COLOR_PALETTE } from "./src/categories";
 import type { Filter } from "./src/types";
 import { LangProvider, useLang } from "./src/LangContext";
 import { AuthProvider, useAuth } from "./src/AuthContext";
@@ -72,7 +71,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { House, ListTodo, ShoppingBag } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { StoreProvider, useStore } from "./src/StoreContext";
-import { SheetProvider, useSheets } from "./src/SheetContext";
+import { SheetProvider, useSheets, sheetNavigationRef } from "./src/SheetContext";
 import HomeScreen from "./src/screens/HomeScreen";
 import GroceriesScreen from "./src/screens/GroceriesScreen";
 import AppHeader from "./src/components/AppHeader";
@@ -99,12 +98,11 @@ function TodosScreen() {
   // tab switches; only the rendered Modal is suppressed when blurred.
   const isFocused = useIsFocused();
 
-  // Profile / Settings / Background picker now live in SheetContext at
-  // the app shell so they're reachable from any tab. Per-tab sheets
-  // (CategorySheet / ComposeSheet / ChatSheet) stay here.
+  // Profile / Settings / Background picker / Compose now live in
+  // SheetContext at the app shell so they're reachable from any tab.
+  // ChatSheet still per-tab. CategorySheet moved to SheetContext so
+  // Settings → Manage Todos can open it from any tab.
   const sheets = useSheets();
-  const [categorySheetOpen, setCategorySheetOpen] = useState(false);
-  const [composeOpen, setComposeOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -209,7 +207,8 @@ function TodosScreen() {
           <AppHeader
             title="Todos"
             onSearchPress={() => setSearchOpen(true)}
-            onFilterPress={() => setCategorySheetOpen(true)}
+            onFilterPress={() => sheets.openSelectFilter()}
+            onGearPress={() => sheets.openManageFilter()}
           />
 
           {/* Single sticky container — filter row + pebble strip stack
@@ -245,7 +244,7 @@ function TodosScreen() {
               pinnedFilters={(store.profile.pinnedFilters ?? []) as Filter[]}
               onFilter={store.setFilter}
               onPinFilter={store.pinFilter}
-              onOpenSheet={() => setCategorySheetOpen(true)}
+              onOpenSheet={() => sheets.openSelectFilter()}
               systemCounts={store.systemCounts}
               byCategory={store.byCategory}
               categories={store.categories}
@@ -348,7 +347,7 @@ function TodosScreen() {
                 title={store.emptyState.title}
                 hint={store.emptyState.hint}
                 ctaLabel={store.emptyState.ctaLabel}
-                onCta={() => setComposeOpen(true)}
+                onCta={() => sheets.openCompose()}
               />
             ) : store.filter === "done" ? (
               <>
@@ -693,7 +692,7 @@ function TodosScreen() {
         store.filter !== "done" &&
         store.filter !== "groceries" && (
           <Fab
-            onPress={() => setComposeOpen(true)}
+            onPress={() => sheets.openCompose()}
             accessibilityLabel={t.addPlaceholder}
             agentEnabled={store.profile.agentEnabled !== false}
           />
@@ -723,47 +722,6 @@ function TodosScreen() {
         </TouchableOpacity>
       )}
 
-      {/* ProfileSheet / SettingsSheet / BackgroundPicker mounted in
-          SheetProvider at the app shell — reachable from any tab via
-          useSheets() in AppHeader. */}
-      <CategorySheet
-        visible={categorySheetOpen}
-        currentFilter={store.filter}
-        pinnedFilters={(store.profile.pinnedFilters ?? []) as Filter[]}
-        onSelectFilter={store.setFilter}
-        onPinFilter={store.pinFilter}
-        categories={store.categories}
-        taskCounts={store.taskCountsForSheet}
-        systemCounts={store.systemCounts}
-        orderedStatuses={store.orderedStatuses}
-        orderedVisibleStatuses={store.orderedVisibleStatuses}
-        onAdd={store.addCategory}
-        onEdit={store.editCategory}
-        onDelete={store.deleteCategory}
-        onReorder={store.reorderCategories}
-        onRenameStatus={store.renameStatus}
-        onToggleStatusHidden={store.toggleStatusHidden}
-        onReorderStatuses={store.reorderStatuses}
-        onClose={() => setCategorySheetOpen(false)}
-      />
-      <ComposeSheet
-        visible={composeOpen}
-        categories={store.categories}
-        defaultCategory={store.defaultCategory}
-        references={store.todoReferences}
-        agentEnabled={store.profile.agentEnabled !== false}
-        onCreateCategory={(label) => {
-          // Rotate through COLOR_PALETTE so successive AI-created
-          // categories don't all look identical. Icon defaults to
-          // 'tag' (the CategoryIcon fallback) — user can edit both
-          // later from the sidebar.
-          const color =
-            COLOR_PALETTE[store.categories.length % COLOR_PALETTE.length]
-          return store.addCategory({ label, color, icon: 'tag' })
-        }}
-        onAdd={store.addTask}
-        onClose={() => setComposeOpen(false)}
-      />
       <DeferModal
         visible={deferTarget !== null}
         filterLabel={deferTarget?.label}
@@ -799,7 +757,7 @@ function TodosScreen() {
           store.saveProfile({ ...store.profile, onboardingDone: true });
           if (intent === "firstTask") {
             // Defer compose so the onboarding modal animates out first.
-            setTimeout(() => setComposeOpen(true), 250);
+            setTimeout(() => sheets.openCompose(), 250);
           }
         }}
         onSkip={() => {
@@ -870,11 +828,14 @@ function AppGate() {
   // Splash + sign-in + hydration + onboarding gates run BEFORE the tab
   // navigator mounts, so screens can assume store + user are ready.
   if (loading) {
-    return <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }} edges={["top", "bottom"]} />;
+    // Pre-auth: we don't have a profile yet, so use the brand Mochi
+    // mascot. Once auth resolves, the hydrating branch below switches
+    // to the user's chosen avatar.
+    return <LoadingScreen />;
   }
   if (!user) return <SignIn />;
   if (!store.loaded) {
-    return <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }} edges={["top", "bottom"]} />;
+    return <LoadingScreen avatar={store.profile.avatar} />;
   }
 
   // Calm-app stance: no badge counters on the bottom tabs. Numbers in a
@@ -889,7 +850,7 @@ function AppGate() {
           tab. Mounted here (not per-screen) so Home, Todos, and
           Groceries all share the same backdrop. */}
       <AppBackground choice={store.profile.background} override={bgOverride} />
-      <NavigationContainer>
+      <NavigationContainer ref={sheetNavigationRef}>
         <Tab.Navigator
           initialRouteName="Home"
           screenOptions={{
@@ -920,6 +881,11 @@ function AppGate() {
           name="Home"
           component={HomeScreen}
           options={{
+            // Tab label is "Dashboard" so it doesn't collide with the
+            // user's Home *category*. Route name stays "Home" for
+            // stable navigation calls — navigation.navigate('Home')
+            // still works app-wide.
+            tabBarLabel: 'Dashboard',
             tabBarIcon: ({ color, size }) => (
               <House size={size ?? 22} color={color} strokeWidth={2} />
             ),
@@ -938,6 +904,11 @@ function AppGate() {
           name="Groceries"
           component={GroceriesScreen}
           options={{
+            // Tab label "Shopping" covers groceries + clothing + any
+            // other shopping. Route name stays "Groceries" so existing
+            // navigation calls + the cross-tab manage signal in
+            // SheetContext keep working without a rename cascade.
+            tabBarLabel: 'Shopping',
             tabBarIcon: ({ color, size }) => (
               <ShoppingBag size={size ?? 22} color={color} strokeWidth={2} />
             ),
@@ -971,6 +942,49 @@ export default function App() {
         </ErrorBoundary>
       </GestureHandlerRootView>
     </SafeAreaProvider>
+  );
+}
+
+/**
+ * Splash / hydration placeholder. Shows the user's current avatar in
+ * the center (Mochi mascot if no avatar yet) at a large size with a
+ * gentle continuous pulse. Mirrors the calm-app stance — no spinner,
+ * no progress bar, just a quiet "we're here" beat that matches the
+ * user's identity.
+ */
+function LoadingScreen({ avatar }: { avatar?: AvatarT }) {
+  const theme = useTheme();
+  const pulse = useRef(new Animated.Value(0.85)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0.85,
+          duration: 900,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+  const effectiveAvatar: AvatarT = avatar ?? { kind: 'preset', key: 'mochi' };
+  return (
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: theme.bg, alignItems: 'center', justifyContent: 'center' }}
+      edges={['top', 'bottom']}
+    >
+      <Animated.View style={{ transform: [{ scale: pulse }] }}>
+        <Avatar avatar={effectiveAvatar} size={96} />
+      </Animated.View>
+    </SafeAreaView>
   );
 }
 

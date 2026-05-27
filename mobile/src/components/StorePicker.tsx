@@ -11,7 +11,7 @@
  * Toggled via a "Manage" / "Done" button in the sheet header.
  */
 
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   KeyboardAvoidingView,
@@ -74,6 +74,10 @@ interface Props {
   // stays as a separate component for the in-line pick experience.
   groups: GroceryGroup[]
   onSetGroups: (next: GroceryGroup[]) => void
+  /** When true, the sheet mounts in Manage (edit) mode. Used by the
+   * Groceries AppHeader gear icon and Settings → Manage Groceries.
+   * Default false (Pick mode). Resets on every open. */
+  defaultEditing?: boolean
   onClose: () => void
 }
 
@@ -93,16 +97,31 @@ export default function StorePicker({
   onToggleHidden,
   groups,
   onSetGroups,
+  defaultEditing = false,
   onClose,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
 
-  const [editing, setEditing] = useState(false)
+  const [editing, setEditing] = useState(defaultEditing)
+  // On every open, snap to the caller's requested mode (matches the
+  // pattern CategorySheet uses for its funnel/gear split).
+  useEffect(() => {
+    if (visible) setEditing(defaultEditing)
+  }, [visible, defaultEditing])
   const [inlineName, setInlineName] = useState<string | null>(null)
   const [inlineDraft, setInlineDraft] = useState('')
   const [newName, setNewName] = useState('')
+  // True while the inline "+ Add store" row is in edit mode (an empty
+  // input row above the Add button). Separated from `newName` so the
+  // input text doesn't double as a visibility flag.
+  const [addingNew, setAddingNew] = useState(false)
+  // True while the user is actively dragging a row's reorder handle.
+  // We freeze the outer ScrollView during a drag so the sheet doesn't
+  // appear to "scroll up" along with the dragged row — DraggableFlatList
+  // and the ScrollView were competing for the vertical pan gesture.
+  const [dragActive, setDragActive] = useState(false)
 
   // Per-department active-item counts shown in pick mode.
   const deptCounts = useMemo(() => {
@@ -138,7 +157,7 @@ export default function StorePicker({
     if (g.id === OTHERS_GROUP_ID) return
     Alert.alert(
       'Delete department',
-      `Delete "${g.label}"? Items in this department will fall back to Uncategorized.`,
+      `Delete "${g.label}"? Items in this department will fall back to Miscellaneous.`,
       [
         { text: t.cancel, style: 'cancel' },
         {
@@ -223,16 +242,19 @@ export default function StorePicker({
   // a specific store also surfaces those — keeps the count consistent
   // with what the user will actually see after tap.
   const counts = useMemo(() => {
-    let anyStoreActive = 0
+    // Multi-store semantics: an item tagged with N stores contributes
+    // +1 to each of those stores' counts. Untagged items don't count
+    // toward any specific store filter (they appear in All only).
     const tagged = new Map<string, number>()
     for (const it of items) {
       if (it.checked) continue
-      if (!it.store) anyStoreActive += 1
-      else tagged.set(it.store, (tagged.get(it.store) ?? 0) + 1)
+      for (const s of it.stores) {
+        tagged.set(s, (tagged.get(s) ?? 0) + 1)
+      }
     }
     const m = new Map<string, number>()
     for (const s of stores) {
-      m.set(s, (tagged.get(s) ?? 0) + anyStoreActive)
+      m.set(s, tagged.get(s) ?? 0)
     }
     return m
   }, [items, stores])
@@ -317,13 +339,7 @@ export default function StorePicker({
               <>
             <View style={styles.titleRow}>
               <TouchableOpacity
-                onPress={() => {
-                  // In Manage mode, Cancel exits the edit affordances
-                  // without dismissing the sheet so the user can keep
-                  // picking a filter; outside Manage, Cancel closes.
-                  if (editing) setEditing(false)
-                  else onClose()
-                }}
+                onPress={onClose}
                 hitSlop={10}
                 style={styles.titleSideBtn}
                 accessibilityRole="button"
@@ -331,15 +347,20 @@ export default function StorePicker({
               >
                 <Text style={styles.cancelText}>{t.cancel}</Text>
               </TouchableOpacity>
-              <Text style={styles.title}>Select Filter</Text>
+              <Text style={styles.title}>
+                {editing ? 'Manage Store' : 'Select Filter'}
+              </Text>
               <TouchableOpacity
-                onPress={() => setEditing((v) => !v)}
+                // Both modes: "Done" closes the sheet. The two flows
+                // are reached from separate entry-points (funnel →
+                // Select, gear → Manage); we no longer let the user
+                // toggle modes from within the sheet so each one
+                // stays purely-pick or purely-manage.
+                onPress={onClose}
                 hitSlop={10}
                 style={styles.titleSideBtn}
               >
-                <Text style={styles.manageText}>
-                  {editing ? t.done : 'Manage'}
-                </Text>
+                <Text style={styles.manageText}>{t.done}</Text>
               </TouchableOpacity>
             </View>
 
@@ -349,6 +370,7 @@ export default function StorePicker({
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
               nestedScrollEnabled
+              scrollEnabled={!dragActive}
             >
               {/* STORES section header. Mirrors the DEPARTMENTS header
                   below so the two sections read as siblings. */}
@@ -382,7 +404,11 @@ export default function StorePicker({
                     keyExtractor={(s) => `store-${s}`}
                     scrollEnabled={false}
                     activationDistance={20}
-                    onDragEnd={({ data }) => onReorder(data)}
+                    onDragBegin={() => setDragActive(true)}
+                    onDragEnd={({ data }) => {
+                      setDragActive(false)
+                      onReorder(data)
+                    }}
                     renderItem={({ item: s, drag, isActive }: RenderItemParams<string>) => {
                       const isInline = inlineName === s
                       const hidden = hiddenStores.includes(s)
@@ -477,208 +503,59 @@ export default function StorePicker({
                     </TouchableOpacity>
                   ))
                 )}
-                {editing && (
-                  <View style={styles.addRow}>
+                {/* New-store row — appears INSIDE the stores list
+                    (above the "+ Add store" button) when the user
+                    taps Add. Mirrors the existing edit-row chrome
+                    so the new line reads as part of the list, not
+                    a popup. */}
+                {editing && addingNew && (
+                  <View style={[styles.editRow, styles.editRowActive]}>
+                    <GroceryIcon kind="store" id="_" size={18} />
                     <TextInput
-                      style={styles.addRowInput}
+                      style={[styles.editRowLabel, styles.inlineInput]}
                       value={newName}
                       onChangeText={setNewName}
-                      placeholder="+ Add store"
-                      placeholderTextColor={theme.primary}
-                      maxLength={MAX_GROCERY_STORE_LEN}
+                      placeholder="Store name"
+                      placeholderTextColor={theme.label3}
+                      autoFocus
                       returnKeyType="done"
+                      maxLength={MAX_GROCERY_STORE_LEN}
                       onSubmitEditing={() => {
-                        onAdd(newName)
+                        const name = newName.trim()
+                        if (name) onAdd(name)
                         setNewName('')
+                        setAddingNew(false)
+                      }}
+                      onBlur={() => {
+                        const name = newName.trim()
+                        if (name) onAdd(name)
+                        setNewName('')
+                        setAddingNew(false)
                       }}
                     />
-                    {newName.trim() && (
-                      <TouchableOpacity
-                        onPress={() => {
-                          onAdd(newName)
-                          setNewName('')
-                        }}
-                        style={styles.addPill}
-                      >
-                        <Text style={styles.addPillText}>+</Text>
-                      </TouchableOpacity>
-                    )}
+                    <View style={styles.rowAction} />
+                    <View style={styles.rowAction} />
+                    <View style={styles.dragHandle} />
                   </View>
+                )}
+                {editing && !addingNew && (
+                  <TouchableOpacity
+                    style={[styles.addRow, styles.addRowBtn]}
+                    onPress={() => {
+                      setNewName('')
+                      setAddingNew(true)
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Add a store"
+                  >
+                    <Text style={styles.addRowBtnText}>+ Add store</Text>
+                  </TouchableOpacity>
                 )}
               </View>
 
-              {/* DEPARTMENTS */}
-              <Text style={[styles.sectionHeader, styles.sectionHeaderSpaced]}>DEPARTMENTS</Text>
-              <View style={styles.card}>
-                {/* "Any" — pick mode only. Mirrors the stores section
-                    so the user has a clear "drop the dept narrowing"
-                    row without having to remember the tap-active-to-
-                    clear gesture. */}
-                {!editing && (
-                  <TouchableOpacity
-                    style={styles.viewRow}
-                    onPress={() => {
-                      onSelectDept(undefined)
-                      onClose()
-                    }}
-                    activeOpacity={0.65}
-                    accessibilityRole="button"
-                    accessibilityLabel="Any department"
-                  >
-                    <View style={styles.deptIconSpacer} />
-                    <Text style={styles.viewRowLabel}>Any</Text>
-                    <Text style={styles.viewRowCount}>
-                      {items.filter((it) => !it.checked).length}
-                    </Text>
-                    {activeDept === undefined ? (
-                      <Check size={18} color={theme.primary} strokeWidth={2.5} />
-                    ) : (
-                      <View style={styles.checkPlaceholder} />
-                    )}
-                  </TouchableOpacity>
-                )}
-                {editing ? (
-                  <>
-                    <DraggableFlatList
-                      data={draggableDepts}
-                      keyExtractor={(g) => `dept-${g.id}`}
-                      scrollEnabled={false}
-                      activationDistance={20}
-                      onDragEnd={({ data }) => commitGroups(data)}
-                      renderItem={({
-                        item: g,
-                        drag,
-                        isActive,
-                      }: RenderItemParams<GroceryGroup>) => {
-                        return (
-                          <View style={[styles.editRow, isActive && styles.editRowActive]}>
-                            <GroceryIcon
-                              kind="department"
-                              id={g.id}
-                              customIcon={g.icon}
-                              customColor={g.color}
-                              size={18}
-                              color={g.hidden ? theme.label3 : undefined}
-                            />
-                            <TouchableOpacity
-                              style={styles.editRowLabelTap}
-                              onPress={() => openEditDept(g)}
-                              activeOpacity={0.6}
-                              accessibilityLabel={`Edit ${g.label}`}
-                            >
-                              <View style={styles.editRowLabelInner}>
-                                <Text
-                                  style={[
-                                    styles.editRowLabel,
-                                    g.hidden && styles.editRowLabelHidden,
-                                  ]}
-                                  numberOfLines={1}
-                                >
-                                  {g.label}
-                                </Text>
-                                <Pencil size={11} color={theme.label3} strokeWidth={2} />
-                              </View>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              onPress={() => toggleDeptHidden(g)}
-                              hitSlop={6}
-                              style={styles.rowAction}
-                              accessibilityRole="switch"
-                              accessibilityState={{ checked: !g.hidden }}
-                            >
-                              {g.hidden ? (
-                                <EyeOff size={16} color={theme.label3} strokeWidth={2} />
-                              ) : (
-                                <Eye size={16} color={theme.label2} strokeWidth={2} />
-                              )}
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              onPress={() => deleteDept(g)}
-                              hitSlop={6}
-                              style={styles.rowAction}
-                            >
-                              <Trash2 size={14} color={theme.red} strokeWidth={2} />
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              onLongPress={drag}
-                              delayLongPress={150}
-                              disabled={isActive}
-                              style={styles.dragHandle}
-                            >
-                              <Text style={styles.dragHandleIcon}>≡</Text>
-                            </TouchableOpacity>
-                          </View>
-                        )
-                      }}
-                    />
-                    {othersDept && (
-                      <View style={[styles.editRow, { opacity: 0.8 }]}>
-                        <GroceryIcon kind="department" id={othersDept.id} size={18} />
-                        <Text style={styles.editRowLabel} numberOfLines={1}>
-                          {othersDept.label}
-                        </Text>
-                        <Text style={{ fontSize: 12, color: theme.label3, fontStyle: 'italic' }}>
-                          locked
-                        </Text>
-                      </View>
-                    )}
-                    <TouchableOpacity
-                      style={[styles.addRow, styles.addRowBtn]}
-                      onPress={openAddDept}
-                      accessibilityRole="button"
-                      accessibilityLabel="Add a department"
-                    >
-                      <Text style={styles.addRowBtnText}>+ Add department</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  visibleDepts.map((g) => {
-                    const selected = activeDept === g.id
-                    return (
-                      <TouchableOpacity
-                        key={g.id}
-                        style={styles.viewRow}
-                        activeOpacity={0.65}
-                        onPress={() => {
-                          // Tapping the already-active dept clears the
-                          // filter; otherwise switch to that dept.
-                          onSelectDept(selected ? undefined : g.id)
-                          onClose()
-                        }}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected }}
-                        accessibilityLabel={`Filter by ${g.label}, ${deptCounts.get(g.id) ?? 0} items${selected ? ', currently active. Tap to clear.' : ''}`}
-                      >
-                        <GroceryIcon
-                          kind="department"
-                          id={g.id}
-                          customIcon={g.icon}
-                          customColor={g.color}
-                          size={18}
-                          color={g.hidden ? theme.label3 : undefined}
-                        />
-                        <Text
-                          style={[
-                            styles.viewRowLabel,
-                            g.hidden && styles.editRowLabelHidden,
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {g.label}
-                        </Text>
-                        <Text style={styles.viewRowCount}>
-                          {deptCounts.get(g.id) ?? 0}
-                        </Text>
-                        {selected ? (
-                          <Check size={18} color={theme.primary} strokeWidth={2.5} />
-                        ) : (
-                          <View style={styles.checkPlaceholder} />
-                        )}
-                      </TouchableOpacity>
-                    )
-                  })
-                )}
-              </View>
+              {/* DEPARTMENTS section removed in Phase 1 — Manage
+                  Store is store-only. Departments are AI-managed and
+                  appear as grouping headers in the filtered list. */}
               <View style={{ height: 24 }} />
             </ScrollView>
               </>

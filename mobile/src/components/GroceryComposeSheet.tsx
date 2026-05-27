@@ -54,11 +54,15 @@ interface Props {
   /** Initial active department from the parent — used to seed the
    * department field. Defaults to Uncategorized when undefined. */
   initialDepartmentId?: string
-  onAdd: (args: { text: string; groupId: string; store: string | undefined }) => void
+  onAdd: (args: { text: string; groupId: string; stores: string[] }) => void
   /** Creates a new store name in the user's profile. Tapped from the
    * "+ Create '<name>'" row in the Store sub-view after the user
    * confirms via an Alert. The store is also selected for this add. */
   onCreateStore?: (name: string) => void
+  /** Open the Manage Store sheet — surfaced from the "Add stores first"
+   * nudge when the user has no stores configured. Parent does the
+   * Compose-close + sheet-open handoff (iOS dislikes stacked modals). */
+  onOpenManageStore?: () => void
   /** Creates a new grocery dept from a label, returning the new id.
    * Tapped from the "+ Create '<label>'" dept pill after the user
    * confirms via Alert. Optional — when omitted the dept-create pill
@@ -79,6 +83,7 @@ export default function GroceryComposeSheet({
   initialDepartmentId,
   onAdd,
   onCreateStore,
+  onOpenManageStore,
   onCreateGroup,
   agentEnabled = false,
   onClose,
@@ -94,7 +99,17 @@ export default function GroceryComposeSheet({
   const [groupId, setGroupId] = useState<string>(
     initialDepartmentId ?? OTHERS_GROUP_ID,
   )
-  const [store, setStore] = useState<string | undefined>(initialStore)
+  // Multi-store picks for this item. Seeded from the active store
+   // filter (when set) so adding while filtering Trader Joe's pre-
+   // tags the item with Trader Joe's.
+  const [selectedStores, setSelectedStores] = useState<string[]>(
+    initialStore ? [initialStore] : [],
+  )
+  function toggleSelectedStore(name: string) {
+    setSelectedStores((prev) =>
+      prev.includes(name) ? prev.filter((s) => s !== name) : [...prev, name],
+    )
+  }
   // Flips true once the user opens the dept picker, signaling they
   // intend to choose the dept themselves — we stop auto-inferring
   // from the text after that. Reset on each open of the sheet.
@@ -120,7 +135,7 @@ export default function GroceryComposeSheet({
       setSubView('main')
       setText('')
       setGroupId(initialDepartmentId ?? OTHERS_GROUP_ID)
-      setStore(initialStore)
+      setSelectedStores(initialStore ? [initialStore] : [])
       userPickedDeptRef.current = false
       userPickedStoreRef.current = false
       setNewDeptProposal(null)
@@ -248,7 +263,10 @@ export default function GroceryComposeSheet({
             (s) => s.toLowerCase() === res.storeHint!.name.toLowerCase(),
           )
           if (matching) {
-            setStore(matching)
+            // Append the AI-matched store to the picks (dedupe).
+            setSelectedStores((prev) =>
+              prev.includes(matching) ? prev : [...prev, matching],
+            )
             setNewStoreProposal(null)
           } else if (res.storeHint.isNew && onCreateStore) {
             setNewStoreProposal(res.storeHint.name)
@@ -300,7 +318,9 @@ export default function GroceryComposeSheet({
           text: t.create,
           onPress: () => {
             onCreateStore(name)
-            setStore(name)
+            setSelectedStores((prev) =>
+              prev.includes(name) ? prev : [...prev, name],
+            )
             setNewStoreProposal(null)
             Haptics.selectionAsync().catch(() => {})
           },
@@ -319,7 +339,7 @@ export default function GroceryComposeSheet({
     const trimmed = text.trim()
     if (!trimmed) return false
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
-    onAdd({ text: trimmed, groupId, store })
+    onAdd({ text: trimmed, groupId, stores: selectedStores })
     return true
   }
 
@@ -374,78 +394,87 @@ export default function GroceryComposeSheet({
                     onSubmitEditing={handleAddAnother}
                   />
 
-                  {(newDeptProposal || newStoreProposal) && (
+                  {/* AI dept hint — the AI-suggested NEW department
+                      proposal still surfaces here. Department + Store
+                      pickers were removed in Phase 1 (dept is inferred
+                      silently, store is set from the active filter or
+                      stays empty for later edit). The AI store pill
+                      will return in Phase 2. */}
+                  {newDeptProposal && (
                     <View style={styles.aiPillRow}>
                       <Sparkles size={12} color={theme.primary} strokeWidth={2.2} />
-                      {newDeptProposal && (
-                        <TouchableOpacity
-                          style={styles.aiPill}
-                          onPress={() => confirmCreateDept(newDeptProposal)}
-                          activeOpacity={0.6}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Create new department ${newDeptProposal}`}
-                        >
-                          <Plus size={12} color={theme.primary} strokeWidth={2.4} />
-                          <Text style={styles.aiPillText}>{newDeptProposal}</Text>
-                        </TouchableOpacity>
-                      )}
-                      {newStoreProposal && (
-                        <TouchableOpacity
-                          style={styles.aiPill}
-                          onPress={() => confirmCreateStore(newStoreProposal)}
-                          activeOpacity={0.6}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Create new store ${newStoreProposal}`}
-                        >
-                          <StoreIcon size={12} color={theme.primary} strokeWidth={2.2} />
-                          <Text style={styles.aiPillText}>{newStoreProposal}</Text>
-                        </TouchableOpacity>
-                      )}
+                      <TouchableOpacity
+                        style={styles.aiPill}
+                        onPress={() => confirmCreateDept(newDeptProposal)}
+                        activeOpacity={0.6}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Create new department ${newDeptProposal}`}
+                      >
+                        <Plus size={12} color={theme.primary} strokeWidth={2.4} />
+                        <Text style={styles.aiPillText}>{newDeptProposal}</Text>
+                      </TouchableOpacity>
                     </View>
                   )}
 
-                  <View style={styles.fieldGroup}>
-                    <TouchableOpacity
-                      style={styles.fieldRow}
-                      onPress={() => setSubView('department')}
-                      activeOpacity={0.6}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Department, ${activeGroup.label}. Tap to change.`}
-                    >
-                      <GroceryIcon
-                        kind="department"
-                        id={activeGroup.id}
-                        customIcon={activeGroup.icon}
-                        customColor={activeGroup.color}
-                        size={18}
-                      />
-                      <Text style={styles.fieldLabel}>Department</Text>
-                      <Text style={styles.fieldValue} numberOfLines={1}>
-                        {activeGroup.label}
-                      </Text>
-                      <Text style={styles.chevron}>›</Text>
-                    </TouchableOpacity>
+                  {/* Store picker — multi-select chips. Tap each store
+                      to include / exclude. Pre-seeded with the active
+                      store filter when one's set so adding while
+                      filtering Trader Joe's auto-tags TJ.  */}
+                  {stores.length > 0 && (
+                    <View style={styles.storeBlock}>
+                      <Text style={styles.storeBlockLabel}>Stores</Text>
+                      <View style={styles.storeChipRow}>
+                        {stores.map((s) => {
+                          const on = selectedStores.includes(s)
+                          return (
+                            <TouchableOpacity
+                              key={s}
+                              onPress={() => toggleSelectedStore(s)}
+                              style={[
+                                styles.storeChip,
+                                on && styles.storeChipOn,
+                              ]}
+                              accessibilityRole="button"
+                              accessibilityState={{ selected: on }}
+                              accessibilityLabel={`${on ? 'Remove' : 'Add'} ${s}`}
+                            >
+                              <Text
+                                style={[
+                                  styles.storeChipText,
+                                  on && styles.storeChipTextOn,
+                                ]}
+                              >
+                                {s}
+                              </Text>
+                            </TouchableOpacity>
+                          )
+                        })}
+                      </View>
+                    </View>
+                  )}
 
-                    <View style={styles.divider} />
-
+                  {/* No-stores nudge — when the user hasn't configured
+                      any stores yet, surface a friendly prompt with a
+                      CTA to open Manage Store. Items added here will
+                      land storeless and the user can tag them later
+                      from the Edit sheet. */}
+                  {stores.length === 0 && onOpenManageStore && (
                     <TouchableOpacity
-                      style={styles.fieldRow}
-                      onPress={() => setSubView('store')}
-                      activeOpacity={0.6}
+                      style={styles.noStoresHint}
+                      onPress={() => {
+                        onClose()
+                        // Same iOS modal-handoff delay used by every
+                        // sheet-to-sheet transition in this app.
+                        setTimeout(() => onOpenManageStore(), 280)
+                      }}
                       accessibilityRole="button"
-                      accessibilityLabel={`Store, ${store ?? 'any'}. Tap to change.`}
+                      accessibilityLabel="Add stores first — opens Manage Store"
                     >
-                      <GroceryIcon kind="store" id={store ?? '_'} size={18} />
-                      <Text style={styles.fieldLabel}>Store</Text>
-                      <Text
-                        style={[styles.fieldValue, !store && styles.fieldValueMuted]}
-                        numberOfLines={1}
-                      >
-                        {store ?? 'Any'}
+                      <Text style={styles.noStoresHintText}>
+                        Add stores first to organize this item ›
                       </Text>
-                      <Text style={styles.chevron}>›</Text>
                     </TouchableOpacity>
-                  </View>
+                  )}
 
                   <View style={styles.actionRow}>
                     <TouchableOpacity
@@ -493,150 +522,9 @@ export default function GroceryComposeSheet({
               </>
             )}
 
-            {subView === 'department' && (
-              <SubViewList
-                title="Department"
-                onBack={() => setSubView('main')}
-                styles={styles}
-              >
-                {visibleGroups.map((g) => (
-                  <TouchableOpacity
-                    key={g.id}
-                    style={styles.subRow}
-                    onPress={() => {
-                      // Mark as an explicit user pick so the live
-                      // inference effect stops overriding the dept
-                      // on subsequent text changes.
-                      userPickedDeptRef.current = true
-                      setGroupId(g.id)
-                      setSubView('main')
-                    }}
-                    activeOpacity={0.65}
-                  >
-                    <GroceryIcon
-                      kind="department"
-                      id={g.id}
-                      customIcon={g.icon}
-                      customColor={g.color}
-                      size={20}
-                    />
-                    <Text style={styles.subRowLabel}>{g.label}</Text>
-                    {groupId === g.id ? (
-                      <Check size={18} color={theme.primary} strokeWidth={2.5} />
-                    ) : (
-                      <View style={styles.subRowCheckSpacer} />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </SubViewList>
-            )}
-
-            {subView === 'store' && (() => {
-              const searchTrimmed = storeSearch.trim()
-              const searchLower = searchTrimmed.toLowerCase()
-              const filteredStores = searchTrimmed
-                ? stores.filter((s) => s.toLowerCase().includes(searchLower))
-                : stores
-              const exactMatch =
-                searchTrimmed.length > 0 &&
-                stores.some((s) => s.toLowerCase() === searchLower)
-              const canCreate =
-                !!onCreateStore && searchTrimmed.length > 0 && !exactMatch
-              const handleCreate = () => {
-                if (!canCreate || !onCreateStore) return
-                Alert.alert(
-                  t.groceryNewStorePrompt(searchTrimmed),
-                  '',
-                  [
-                    { text: t.cancel, style: 'cancel' },
-                    {
-                      text: t.create,
-                      onPress: () => {
-                        onCreateStore(searchTrimmed)
-                        userPickedStoreRef.current = true
-                        setStore(searchTrimmed)
-                        setStoreSearch('')
-                        setSubView('main')
-                      },
-                    },
-                  ],
-                )
-              }
-              return (
-                <SubViewList
-                  title="Store"
-                  onBack={() => setSubView('main')}
-                  styles={styles}
-                >
-                  <View style={styles.storeSearchWrap}>
-                    <TextInput
-                      ref={storeSearchRef}
-                      style={styles.storeSearchInput}
-                      placeholder={t.groceryStoreSearchPlaceholder}
-                      placeholderTextColor={theme.gray3}
-                      value={storeSearch}
-                      onChangeText={setStoreSearch}
-                      autoCapitalize="words"
-                      autoCorrect={false}
-                      returnKeyType="done"
-                      onSubmitEditing={handleCreate}
-                    />
-                  </View>
-                  {!searchTrimmed && (
-                    <TouchableOpacity
-                      style={styles.subRow}
-                      onPress={() => {
-                        userPickedStoreRef.current = true
-                        setStore(undefined)
-                        setSubView('main')
-                      }}
-                      activeOpacity={0.65}
-                    >
-                      <View style={{ width: 20 }} />
-                      <Text style={styles.subRowLabel}>Any</Text>
-                      {store === undefined ? (
-                        <Check size={18} color={theme.primary} strokeWidth={2.5} />
-                      ) : (
-                        <View style={styles.subRowCheckSpacer} />
-                      )}
-                    </TouchableOpacity>
-                  )}
-                  {filteredStores.map((s) => (
-                    <TouchableOpacity
-                      key={s}
-                      style={styles.subRow}
-                      onPress={() => {
-                        userPickedStoreRef.current = true
-                        setStore(s)
-                        setSubView('main')
-                      }}
-                      activeOpacity={0.65}
-                    >
-                      <GroceryIcon kind="store" id={s} size={20} />
-                      <Text style={styles.subRowLabel}>{s}</Text>
-                      {store === s ? (
-                        <Check size={18} color={theme.primary} strokeWidth={2.5} />
-                      ) : (
-                        <View style={styles.subRowCheckSpacer} />
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                  {canCreate && (
-                    <TouchableOpacity
-                      style={styles.subRow}
-                      onPress={handleCreate}
-                      activeOpacity={0.65}
-                    >
-                      <Plus size={18} color={theme.primary} strokeWidth={2.4} />
-                      <Text style={[styles.subRowLabel, { color: theme.primary }]}>
-                        {`Create "${searchTrimmed}"`}
-                      </Text>
-                      <View style={styles.subRowCheckSpacer} />
-                    </TouchableOpacity>
-                  )}
-                </SubViewList>
-              )
-            })()}
+            {/* Department + Store sub-view pickers were removed in
+                Phase 1 — Add Item is now name-only. Inferred dept +
+                inherited active-store filter handle the rest. */}
           </Pressable>
         </Pressable>
       </KeyboardAvoidingView>
@@ -745,6 +633,53 @@ function makeStyles(c: ThemeColors) {
       color: c.primary,
       letterSpacing: -0.1,
     },
+    noStoresHint: {
+      marginTop: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 10,
+      backgroundColor: c.primarySoft,
+      alignItems: 'center',
+    },
+    noStoresHintText: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: c.primary,
+    },
+    storeBlock: {
+      marginTop: 12,
+    },
+    storeBlockLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      letterSpacing: 0.4,
+      color: c.label3,
+      textTransform: 'uppercase',
+      marginBottom: 6,
+    },
+    storeChipRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    storeChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 999,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      backgroundColor: c.card,
+    },
+    storeChipOn: {
+      backgroundColor: c.primary,
+      borderColor: c.primary,
+    },
+    storeChipText: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: c.label,
+    },
+    storeChipTextOn: { color: '#fff' },
     fieldRow: {
       flexDirection: 'row',
       alignItems: 'center',

@@ -26,9 +26,12 @@ export interface GroceryItem {
   /** FK to GroceryGroup.id. Falls back to OTHERS_GROUP_ID on read if
    * the group has been deleted. */
   groupId: string
-  /** Optional store hint ("Costco", "Trader Joe's"). Drives the
-   * view's store-filter dropdown. Empty / undefined = no specific store. */
-  store?: string
+  /** List of stores the item is available at ("Costco", "Trader Joe's",
+   * etc.). Empty array = not linked to any store; the item appears in
+   * the All view and is invisible under any specific store filter.
+   * When a store filter is active, the item shows in EACH matching
+   * store's filtered view, grouped by its department. */
+  stores: string[]
   /** True once the user has checked the item off. Checked items live
    * in the derived "Future" bucket. */
   checked: boolean
@@ -74,7 +77,7 @@ export const SEED_GROCERY_GROUPS: GroceryGroup[] = [
   { id: 'pantry',    label: 'Pantry' },
   { id: 'beverages', label: 'Beverages' },
   { id: 'household', label: 'Household' },
-  { id: OTHERS_GROUP_ID, label: 'Uncategorized' },
+  { id: OTHERS_GROUP_ID, label: 'Miscellaneous' },
 ]
 
 /** Seeded stores shown to new users so the STORES list isn't empty on
@@ -112,16 +115,37 @@ export const FREQUENT_GROCERY_WINDOW_MS = 6 * 30 * 24 * 60 * 60 * 1000
 export function newGroceryItem(args: {
   text: string
   groupId?: string
-  store?: string
+  /** Initial stores list. Pass an empty array (or omit) when the item
+   * isn't tied to any specific store yet. */
+  stores?: string[]
 }): GroceryItem {
   return {
     id: genUuid(),
     text: args.text.slice(0, MAX_GROCERY_TEXT_LEN),
     groupId: args.groupId?.slice(0, MAX_GROCERY_GROUP_ID_LEN) || OTHERS_GROUP_ID,
-    store: args.store ? args.store.slice(0, MAX_GROCERY_STORE_LEN) : undefined,
+    stores: normalizeStores(args.stores),
     checked: false,
     addedAt: Date.now(),
   }
+}
+
+/** Trim + cap + dedupe a stores list. Used by newGroceryItem and the
+ * read-time migrator so the rest of the codebase can assume the array
+ * is well-formed. */
+function normalizeStores(input: readonly unknown[] | undefined): string[] {
+  if (!Array.isArray(input)) return []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const s of input) {
+    if (typeof s !== 'string') continue
+    const trimmed = s.trim().slice(0, MAX_GROCERY_STORE_LEN)
+    if (!trimmed) continue
+    const key = trimmed.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(trimmed)
+  }
+  return out
 }
 
 export function newGroceryGroup(label: string): GroceryGroup {
@@ -151,18 +175,23 @@ export function migrateGroceries(raw: unknown): GroceryItem[] {
     if (typeof o.groupId !== 'string' || o.groupId.length === 0) continue
     if (seen.has(o.id)) continue
     seen.add(o.id)
+    // Migration: legacy items carried `store: string`. Promote to the
+    // new `stores: string[]` shape on read — single value becomes a
+    // one-element array; existing arrays come through normalized.
+    const legacyStore = typeof o.store === 'string' && o.store.length > 0
+      ? [o.store]
+      : []
+    const rawStores = Array.isArray(o.stores) ? o.stores : legacyStore
     const item: GroceryItem = {
       id: o.id.slice(0, 64),
       text: o.text.slice(0, MAX_GROCERY_TEXT_LEN),
       groupId: o.groupId.slice(0, MAX_GROCERY_GROUP_ID_LEN),
+      stores: normalizeStores(rawStores),
       checked: o.checked === true,
       addedAt:
         typeof o.addedAt === 'number' && o.addedAt > 0
           ? Math.floor(o.addedAt)
           : Date.now(),
-    }
-    if (typeof o.store === 'string' && o.store.length > 0) {
-      item.store = o.store.slice(0, MAX_GROCERY_STORE_LEN)
     }
     if (typeof o.checkedAt === 'number' && o.checkedAt > 0) {
       item.checkedAt = Math.floor(o.checkedAt)
@@ -218,16 +247,18 @@ export function migrateGroceryGroups(raw: unknown): GroceryGroup[] {
     if (out.length >= MAX_GROCERY_GROUPS) break
   }
   // Guarantee the reserved catch-all exists, and that it sits last.
-  // Upgrade the legacy default label "Others" → "Uncategorized" so
-  // existing users see the new name; user-renamed labels are preserved.
+  // Upgrade legacy default labels ("Others", then "Uncategorized") to
+  // the current "Miscellaneous" so existing users see the new name;
+  // user-renamed labels are preserved untouched.
+  const LEGACY_OTHERS_LABELS = new Set(['Others', 'Uncategorized'])
   const withoutOthers = out.filter((g) => g.id !== OTHERS_GROUP_ID)
   const othersFromInput = out.find((g) => g.id === OTHERS_GROUP_ID)
   const others =
     othersFromInput
-      ? othersFromInput.label === 'Others'
-        ? { ...othersFromInput, label: 'Uncategorized' }
+      ? LEGACY_OTHERS_LABELS.has(othersFromInput.label)
+        ? { ...othersFromInput, label: 'Miscellaneous' }
         : othersFromInput
-      : { id: OTHERS_GROUP_ID, label: 'Uncategorized' }
+      : { id: OTHERS_GROUP_ID, label: 'Miscellaneous' }
   withoutOthers.push(others)
   return withoutOthers
 }
@@ -249,14 +280,17 @@ export function resolveGroup(
 
 /** Stable list of stores the user has typed at least once, sorted by
  * most-recent-use first. Drawn from the items list (no separate stored
- * config — store names are emergent). */
+ * config — store names are emergent). A multi-store item bumps the
+ * recency of EVERY store in its list. */
 export function deriveStores(items: GroceryItem[]): string[] {
   const seen = new Map<string, number>() // store → most-recent ms
   for (const it of items) {
-    if (!it.store) continue
-    const prev = seen.get(it.store) ?? 0
+    if (!it.stores || it.stores.length === 0) continue
     const ts = Math.max(it.checkedAt ?? 0, it.addedAt)
-    if (ts > prev) seen.set(it.store, ts)
+    for (const s of it.stores) {
+      const prev = seen.get(s) ?? 0
+      if (ts > prev) seen.set(s, ts)
+    }
   }
   return [...seen.entries()]
     .sort((a, b) => b[1] - a[1])
@@ -288,11 +322,12 @@ export function groceryToggleChecked(
   })
 }
 
-/** Apply text/group/store edits to a single item. Caps strings. */
+/** Apply text/group/stores edits to a single item. Caps + normalizes
+ * the stores list. Pass an empty array to clear all stores. */
 export function groceryEdit(
   items: GroceryItem[],
   id: string,
-  patch: { text?: string; groupId?: string; store?: string | null },
+  patch: { text?: string; groupId?: string; stores?: string[] },
 ): GroceryItem[] {
   return items.map((it) => {
     if (it.id !== id) return it
@@ -303,8 +338,8 @@ export function groceryEdit(
     if (patch.groupId !== undefined) {
       next.groupId = patch.groupId.slice(0, MAX_GROCERY_GROUP_ID_LEN)
     }
-    if (patch.store !== undefined) {
-      next.store = patch.store ? patch.store.slice(0, MAX_GROCERY_STORE_LEN) : undefined
+    if (patch.stores !== undefined) {
+      next.stores = normalizeStores(patch.stores)
     }
     return next
   })

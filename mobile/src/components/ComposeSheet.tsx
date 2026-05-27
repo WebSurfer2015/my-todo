@@ -1022,11 +1022,22 @@ export default function ComposeSheet({
               <>
                 <View style={styles.headerRow}>
                   <TouchableOpacity onPress={() => setSubView('main')} hitSlop={10}>
-                    <Text style={styles.cancelText}>‹ Back</Text>
+                    <Text style={styles.cancelText}>‹ {t.back}</Text>
                   </TouchableOpacity>
-                  <Text style={styles.title}>Completed by</Text>
-                  <TouchableOpacity onPress={clearInlineDate} hitSlop={10}>
-                    <Text style={styles.clearBtnText}>{t.clear}</Text>
+                  <Text style={styles.title}>{t.composeDateLabel}</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      // Commit the picker's current value even when the
+                      // user didn't interact (e.g., today was already
+                      // pre-selected and they just tapped Done) — the
+                      // DateTimePicker's onChange doesn't fire for a
+                      // no-op tap, so we sync it explicitly here.
+                      setDueDate(isoLocalDateTime(pickerDate))
+                      setSubView('main')
+                    }}
+                    hitSlop={10}
+                  >
+                    <Text style={styles.doneHeaderText}>{t.done}</Text>
                   </TouchableOpacity>
                 </View>
                 <View style={styles.dateWrap}>
@@ -1043,22 +1054,11 @@ export default function ComposeSheet({
                     onChange={handleInlineDateChange}
                   />
                 </View>
-                <View style={styles.dateActions}>
-                  <TouchableOpacity
-                    onPress={() => {
-                      // Commit the picker's current value even when the
-                      // user didn't interact (e.g., today was already
-                      // pre-selected and they just tapped Done) — the
-                      // DateTimePicker's onChange doesn't fire for a
-                      // no-op tap, so we sync it explicitly here.
-                      setDueDate(isoLocalDateTime(pickerDate))
-                      setSubView('main')
-                    }}
-                    style={[styles.addBtn, styles.applyBtn, { flex: 1 }]}
-                  >
-                    <Text style={styles.addBtnText}>Save</Text>
+                {dueDate ? (
+                  <TouchableOpacity onPress={clearInlineDate} style={styles.clearLink} hitSlop={8}>
+                    <Text style={styles.clearLinkText}>{t.clear}</Text>
                   </TouchableOpacity>
-                </View>
+                ) : null}
               </>
             )}
           </Pressable>
@@ -1474,6 +1474,23 @@ function makeStyles(c: ThemeColors) {
     },
     applyBtn: {
       flex: 1.4,
+    },
+    doneHeaderText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: c.blue,
+      width: 56,
+      textAlign: 'right',
+    },
+    clearLink: {
+      alignSelf: 'center',
+      paddingVertical: 6,
+      marginTop: 4,
+    },
+    clearLinkText: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: c.red,
     },
   })
 }

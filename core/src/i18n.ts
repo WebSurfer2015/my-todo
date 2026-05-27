@@ -186,7 +186,38 @@ export const strings = {
     suggestSteps: 'Suggest steps',
     suggestStepsThinking: "Mochi's thinking…",
     suggestStepsError: "Couldn't get suggestions.",
+    suggestStepsHint: 'Tap to select',
     addSelected: 'Add selected',
+    /** Label for the Home lifetime card. `nounKey` is the avatar-derived
+     * token from `collectedNounKeyFor` (e.g. "fish", "bones"); when null
+     * (default Mochi or theme-from-avatar off), returns "pebbles placed". */
+    lifetimeLabel: (nounKey: string | null) => {
+      const nouns: Record<string, string> = {
+        fish: 'fish', bones: 'bones', feathers: 'feathers', bubbles: 'bubbles',
+        petals: 'petals', books: 'books',
+        acorns: 'acorns', carrots: 'carrots',
+        grass: 'grass', flowers: 'flowers', spouts: 'spouts',
+      }
+      const noun = nounKey ? nouns[nounKey] : null
+      return noun ? `${noun} collected` : 'pebbles placed'
+    },
+    /** Caption for the daily strip when count == 0. `nounKey` follows the
+     * same convention as `lifetimeLabel`; null returns the default
+     * "One pebble. That's it." copy. */
+    oneItemCaption: (nounKey: string | null) => {
+      const singulars: Record<string, string> = {
+        fish: 'fish', bones: 'bone', feathers: 'feather', bubbles: 'bubble',
+        petals: 'petal', books: 'book',
+        acorns: 'acorn', carrots: 'carrot',
+        grass: 'blade', flowers: 'flower', spouts: 'spout',
+      }
+      const noun = nounKey ? singulars[nounKey] : null
+      return noun ? `One ${noun}. That's it.` : `One pebble. That's it.`
+    },
+    resetLifetimeAction: 'Reset lifetime count',
+    resetLifetimeConfirm: 'Reset your lifetime count to zero?',
+    resetLifetimeConfirmBody: "This can't be undone.",
+    reset: 'Reset',
     aiSuggestionA11y: 'AI suggestion',
     clearAllSteps: 'Clear all steps',
     clearAllStepsConfirm: 'Remove every step from this to-do?',
@@ -420,7 +451,32 @@ export const strings = {
     suggestSteps: '建议步骤',
     suggestStepsThinking: 'Mochi 在思考…',
     suggestStepsError: '暂时无法获取建议。',
+    suggestStepsHint: '点击选择',
     addSelected: '添加所选',
+    lifetimeLabel: (nounKey: string | null) => {
+      const nouns: Record<string, string> = {
+        fish: '鱼', bones: '骨头', feathers: '羽毛', bubbles: '泡泡',
+        petals: '花瓣', books: '书',
+        acorns: '橡子', carrots: '胡萝卜',
+        grass: '草', flowers: '花', spouts: '水花',
+      }
+      const noun = nounKey ? nouns[nounKey] : null
+      return noun ? `已收集 ${noun}` : '放置的石子'
+    },
+    oneItemCaption: (nounKey: string | null) => {
+      const singulars: Record<string, string> = {
+        fish: '鱼', bones: '骨头', feathers: '羽毛', bubbles: '泡泡',
+        petals: '花瓣', books: '书',
+        acorns: '橡子', carrots: '胡萝卜',
+        grass: '草', flowers: '花', spouts: '水花',
+      }
+      const noun = nounKey ? singulars[nounKey] : null
+      return noun ? `一颗${noun}，就这样。` : '一颗石子，就这样。'
+    },
+    resetLifetimeAction: '重置累计次数',
+    resetLifetimeConfirm: '将累计次数清零？',
+    resetLifetimeConfirmBody: '此操作无法撤销。',
+    reset: '重置',
     aiSuggestionA11y: 'AI 建议',
     clearAllSteps: '清除所有步骤',
     clearAllStepsConfirm: '从此待办移除所有步骤？',
@@ -654,7 +710,32 @@ export const strings = {
     suggestSteps: 'Sugerir pasos',
     suggestStepsThinking: 'Mochi está pensando…',
     suggestStepsError: 'No se pudieron obtener sugerencias.',
+    suggestStepsHint: 'Toca para seleccionar',
     addSelected: 'Añadir seleccionados',
+    lifetimeLabel: (nounKey: string | null) => {
+      const nouns: Record<string, string> = {
+        fish: 'peces', bones: 'huesos', feathers: 'plumas', bubbles: 'burbujas',
+        petals: 'pétalos', books: 'libros',
+        acorns: 'bellotas', carrots: 'zanahorias',
+        grass: 'hierba', flowers: 'flores', spouts: 'chorros',
+      }
+      const noun = nounKey ? nouns[nounKey] : null
+      return noun ? `${noun} recogidos` : 'piedras colocadas'
+    },
+    oneItemCaption: (nounKey: string | null) => {
+      const singulars: Record<string, string> = {
+        fish: 'pez', bones: 'hueso', feathers: 'pluma', bubbles: 'burbuja',
+        petals: 'pétalo', books: 'libro',
+        acorns: 'bellota', carrots: 'zanahoria',
+        grass: 'brizna', flowers: 'flor', spouts: 'chorro',
+      }
+      const noun = nounKey ? singulars[nounKey] : null
+      return noun ? `Un ${noun}. Eso es todo.` : 'Una piedra. Eso es todo.'
+    },
+    resetLifetimeAction: 'Restablecer total',
+    resetLifetimeConfirm: '¿Restablecer tu total a cero?',
+    resetLifetimeConfirmBody: 'Esta acción no se puede deshacer.',
+    reset: 'Restablecer',
     aiSuggestionA11y: 'Sugerencia de IA',
     clearAllSteps: 'Borrar todos los pasos',
     clearAllStepsConfirm: '¿Quitar todos los pasos de esta tarea?',
@@ -888,7 +969,32 @@ export const strings = {
     suggestSteps: 'Suggérer des étapes',
     suggestStepsThinking: 'Mochi réfléchit…',
     suggestStepsError: 'Aucune suggestion pour l\'instant.',
+    suggestStepsHint: 'Touchez pour sélectionner',
     addSelected: 'Ajouter la sélection',
+    lifetimeLabel: (nounKey: string | null) => {
+      const nouns: Record<string, string> = {
+        fish: 'poissons', bones: 'os', feathers: 'plumes', bubbles: 'bulles',
+        petals: 'pétales', books: 'livres',
+        acorns: 'glands', carrots: 'carottes',
+        grass: 'herbes', flowers: 'fleurs', spouts: 'jets',
+      }
+      const noun = nounKey ? nouns[nounKey] : null
+      return noun ? `${noun} collectés` : 'galets posés'
+    },
+    oneItemCaption: (nounKey: string | null) => {
+      const singulars: Record<string, string> = {
+        fish: 'poisson', bones: 'os', feathers: 'plume', bubbles: 'bulle',
+        petals: 'pétale', books: 'livre',
+        acorns: 'gland', carrots: 'carotte',
+        grass: 'herbe', flowers: 'fleur', spouts: 'jet',
+      }
+      const noun = nounKey ? singulars[nounKey] : null
+      return noun ? `Un(e) ${noun}. C'est tout.` : `Une pierre. C'est tout.`
+    },
+    resetLifetimeAction: 'Réinitialiser le total',
+    resetLifetimeConfirm: 'Remettre votre total à zéro ?',
+    resetLifetimeConfirmBody: 'Cette action est irréversible.',
+    reset: 'Réinitialiser',
     aiSuggestionA11y: 'Suggestion IA',
     clearAllSteps: 'Effacer toutes les étapes',
     clearAllStepsConfirm: 'Retirer toutes les étapes de cette tâche ?',
@@ -1122,7 +1228,32 @@ export const strings = {
     suggestSteps: 'ステップを提案',
     suggestStepsThinking: 'Mochi が考えています…',
     suggestStepsError: '提案を取得できませんでした。',
+    suggestStepsHint: 'タップして選択',
     addSelected: '選択を追加',
+    lifetimeLabel: (nounKey: string | null) => {
+      const nouns: Record<string, string> = {
+        fish: '魚', bones: '骨', feathers: '羽', bubbles: '泡',
+        petals: '花びら', books: '本',
+        acorns: 'どんぐり', carrots: 'にんじん',
+        grass: '草', flowers: '花', spouts: '水しぶき',
+      }
+      const noun = nounKey ? nouns[nounKey] : null
+      return noun ? `集めた${noun}` : '積んだ小石'
+    },
+    oneItemCaption: (nounKey: string | null) => {
+      const singulars: Record<string, string> = {
+        fish: '魚', bones: '骨', feathers: '羽', bubbles: '泡',
+        petals: '花びら', books: '本',
+        acorns: 'どんぐり', carrots: 'にんじん',
+        grass: '草', flowers: '花', spouts: '水しぶき',
+      }
+      const noun = nounKey ? singulars[nounKey] : null
+      return noun ? `${noun}をひとつ。それでいい。` : '小石ひとつ。それでいい。'
+    },
+    resetLifetimeAction: '累計をリセット',
+    resetLifetimeConfirm: '累計をゼロに戻しますか？',
+    resetLifetimeConfirmBody: 'この操作は取り消せません。',
+    reset: 'リセット',
     aiSuggestionA11y: 'AI による提案',
     clearAllSteps: 'すべてのステップを消去',
     clearAllStepsConfirm: 'この To-do からすべてのステップを削除しますか？',
@@ -1356,7 +1487,32 @@ export const strings = {
     suggestSteps: 'Schritte vorschlagen',
     suggestStepsThinking: 'Mochi denkt nach…',
     suggestStepsError: 'Keine Vorschläge möglich.',
+    suggestStepsHint: 'Zum Auswählen tippen',
     addSelected: 'Auswahl hinzufügen',
+    lifetimeLabel: (nounKey: string | null) => {
+      const nouns: Record<string, string> = {
+        fish: 'Fische', bones: 'Knochen', feathers: 'Federn', bubbles: 'Blasen',
+        petals: 'Blütenblätter', books: 'Bücher',
+        acorns: 'Eicheln', carrots: 'Karotten',
+        grass: 'Gräser', flowers: 'Blumen', spouts: 'Fontänen',
+      }
+      const noun = nounKey ? nouns[nounKey] : null
+      return noun ? `${noun} gesammelt` : 'Steine gelegt'
+    },
+    oneItemCaption: (nounKey: string | null) => {
+      const singulars: Record<string, string> = {
+        fish: 'Fisch', bones: 'Knochen', feathers: 'Feder', bubbles: 'Blase',
+        petals: 'Blütenblatt', books: 'Buch',
+        acorns: 'Eichel', carrots: 'Karotte',
+        grass: 'Halm', flowers: 'Blume', spouts: 'Fontäne',
+      }
+      const noun = nounKey ? singulars[nounKey] : null
+      return noun ? `Ein ${noun}. Mehr nicht.` : 'Ein Stein. Mehr nicht.'
+    },
+    resetLifetimeAction: 'Gesamtwert zurücksetzen',
+    resetLifetimeConfirm: 'Deinen Gesamtwert auf null setzen?',
+    resetLifetimeConfirmBody: 'Das lässt sich nicht rückgängig machen.',
+    reset: 'Zurücksetzen',
     aiSuggestionA11y: 'KI-Vorschlag',
     clearAllSteps: 'Alle Schritte löschen',
     clearAllStepsConfirm: 'Alle Schritte aus diesem To-do entfernen?',

@@ -63,6 +63,11 @@ interface Props {
   onRenameStatus: (id: StatusFilter, label: string) => void;
   onToggleStatusHidden: (id: StatusFilter) => void;
   onReorderStatuses: (newOrder: StatusFilter[]) => void;
+  /** Which mode to land in when the sheet opens. Funnel entry-point
+   * uses "view" (filter picker); gear entry-point uses "edit"
+   * (Manage Filter). Resets on every open so the same sheet can
+   * serve both flows. */
+  defaultMode?: "view" | "edit";
   onClose: () => void;
 }
 
@@ -101,12 +106,13 @@ export default function CategorySheet({
   onRenameStatus,
   onToggleStatusHidden,
   onReorderStatuses,
+  defaultMode = "view",
   onClose,
 }: Props) {
   const { t } = useLang();
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
-  const [mode, setMode] = useState<Mode>({ kind: "view" });
+  const [mode, setMode] = useState<Mode>({ kind: defaultMode });
   const [name, setName] = useState("");
   const [color, setColor] = useState(COLOR_PALETTE[5]);
   const [icon, setIcon] = useState<string>("tag");
@@ -115,6 +121,9 @@ export default function CategorySheet({
   // when no row is open); `inlineText` is the staged new label.
   const [inlineId, setInlineId] = useState<string | null>(null);
   const [inlineText, setInlineText] = useState("");
+  // Freeze the outer scroll while a row is being dragged so the sheet
+  // doesn't appear to scroll along with the dragged row.
+  const [dragActive, setDragActive] = useState(false);
 
   function startInlineEdit(id: string, currentLabel: string) {
     setInlineId(id);
@@ -136,8 +145,11 @@ export default function CategorySheet({
   }
 
   useEffect(() => {
-    if (visible) setMode({ kind: "view" });
-  }, [visible]);
+    // On every open, snap to the caller's requested mode. Closing the
+    // sheet doesn't change `defaultMode`, so a re-open from the same
+    // entry-point lands in the same place.
+    if (visible) setMode({ kind: defaultMode });
+  }, [visible, defaultMode]);
 
   function startAdd() {
     setName("");
@@ -219,13 +231,15 @@ export default function CategorySheet({
   function viewCategoryRow(c: CategoryDef) {
     const active = isCategoryFilter(currentFilter) && categoryIdFromFilter(currentFilter) === c.id;
     const count = taskCounts[c.id] ?? 0;
+    // View mode is purely for picking a filter — no edit affordances
+    // (no pencil, no long-press shortcut). All editing lives in the
+    // Manage Todo's Filter (Configure) view, reached via the right-
+    // side "Manage" header button.
     return (
       <TouchableOpacity
         key={c.id}
         style={styles.viewRow}
         onPress={() => pickFilter(categoryFilter(c.id))}
-        onLongPress={() => startEditCategory(c)}
-        delayLongPress={350}
         activeOpacity={0.65}
       >
         <View style={styles.rowIcon}>
@@ -233,17 +247,6 @@ export default function CategorySheet({
         </View>
         <Text style={styles.viewRowLabel}>{categoryLabel(c, t)}</Text>
         <Text style={styles.viewRowCount}>{count}</Text>
-        {/* Pencil — same action as long-press, gives users a visible
-            affordance for editing color/icon/label without bulk-edit. */}
-        <TouchableOpacity
-          onPress={() => startEditCategory(c)}
-          hitSlop={8}
-          style={styles.viewRowEdit}
-          accessibilityRole="button"
-          accessibilityLabel={`Edit ${categoryLabel(c, t)}`}
-        >
-          <Pencil size={14} color={theme.label3} strokeWidth={2} />
-        </TouchableOpacity>
         {active ? <Check size={18} color={theme.primary} strokeWidth={2.5} /> : <View style={styles.checkPlaceholder} />}
       </TouchableOpacity>
     );
@@ -276,19 +279,28 @@ export default function CategorySheet({
                     <TouchableOpacity onPress={onClose} hitSlop={8}>
                       <Text style={styles.headerLeft}>{t.cancel}</Text>
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>{isEditing ? t.configureFilter : 'Select Filter'}</Text>
+                    <Text style={styles.headerTitle}>
+                      {isEditing ? "Manage Todo's Filter" : 'Select Filter'}
+                    </Text>
                     <TouchableOpacity
-                      onPress={() => setMode(isEditing ? { kind: "view" } : { kind: "edit" })}
+                      // Both modes: "Done" closes the sheet. The two flows
+                      // are reached from separate entry-points (funnel →
+                      // Select, gear → Manage); we no longer let the user
+                      // toggle modes from within the sheet so each one
+                      // stays purely-pick or purely-manage.
+                      onPress={onClose}
                       hitSlop={8}
                     >
-                      <Text style={styles.headerRight}>
-                        {isEditing ? t.done : t.configure}
-                      </Text>
+                      <Text style={styles.headerRight}>{t.done}</Text>
                     </TouchableOpacity>
                   </View>
 
                   {isEditing ? (
-                    <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+                    <ScrollView
+                      style={styles.body}
+                      contentContainerStyle={styles.bodyContent}
+                      scrollEnabled={!dragActive}
+                    >
                       <Text style={styles.sectionHeader}>STATUSES</Text>
                       <View style={styles.listCard}>
                         <DraggableFlatList
@@ -296,7 +308,9 @@ export default function CategorySheet({
                           keyExtractor={(s) => s.id}
                           scrollEnabled={false}
                           activationDistance={8}
+                          onDragBegin={() => setDragActive(true)}
                           onDragEnd={({ data }) => {
+                            setDragActive(false);
                             onReorderStatuses(data.map((s) => s.id));
                           }}
                           renderItem={({
@@ -390,7 +404,9 @@ export default function CategorySheet({
                           keyExtractor={(c) => c.id}
                           scrollEnabled={false}
                           activationDistance={8}
+                          onDragBegin={() => setDragActive(true)}
                           onDragEnd={({ data }) => {
+                            setDragActive(false);
                             for (let i = 0; i < categories.length; i++) {
                               if (categories[i].id !== data[i].id) {
                                 const movedItem = data[i];
@@ -630,7 +646,67 @@ export default function CategorySheet({
   );
 }
 
+/**
+ * Inline 1/2/3/+ badge rendered in Configure mode next to the Pin button.
+ * Shows the slot number (1, 2, 3) when the row is picked as a Home tile,
+ * or "+" when not picked. Disabled (no-op + dim) once 3 are picked and
+ * this row isn't one of them.
+ */
+interface HomeTileBadgeProps {
+  filter: Filter;
+  homeStatTiles: Filter[];
+  onToggle: (f: Filter) => void;
+  styles: ReturnType<typeof makeStyles>;
+  theme: ThemeColors;
+  label: string;
+}
 
+function HomeTileBadge({
+  filter,
+  homeStatTiles,
+  onToggle,
+  styles,
+  theme,
+  label,
+}: HomeTileBadgeProps) {
+  const idx = homeStatTiles.indexOf(filter);
+  const isPicked = idx >= 0;
+  const isFull = !isPicked && homeStatTiles.length >= 3;
+  const a11y = isPicked
+    ? `Remove ${label} from Home tiles, slot ${idx + 1}`
+    : isFull
+      ? `Home tiles full, deselect one to add ${label}`
+      : `Add ${label} as a Home tile`;
+  return (
+    <TouchableOpacity
+      onPress={() => {
+        if (isFull) return;
+        onToggle(filter);
+      }}
+      disabled={isFull}
+      hitSlop={6}
+      style={[
+        styles.tileBadge,
+        isPicked && styles.tileBadgePicked,
+        isFull && styles.tileBadgeDisabled,
+      ]}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: isFull, selected: isPicked }}
+      accessibilityLabel={a11y}
+    >
+      <Text
+        style={[
+          styles.tileBadgeText,
+          isPicked && styles.tileBadgeTextPicked,
+          isFull && styles.tileBadgeTextDisabled,
+        ]}
+      >
+        {isPicked ? String(idx + 1) : "+"}
+      </Text>
+    </TouchableOpacity>
+  );
+  void theme;
+}
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
@@ -818,6 +894,57 @@ function makeStyles(c: ThemeColors) {
     // Edit/Delete). Compact text so 3 actions plus the drag handle still
     // fit on a single row at default density.
     rowAction: { paddingHorizontal: 6, paddingVertical: 4 },
+    tileBadge: {
+      marginHorizontal: 6,
+      minWidth: 26,
+      height: 20,
+      paddingHorizontal: 6,
+      borderRadius: 4,
+      borderWidth: 1,
+      borderColor: c.gray3,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "transparent",
+    },
+    tileBadgePicked: {
+      backgroundColor: c.primary,
+      borderColor: c.primary,
+    },
+    tileBadgeDisabled: {
+      opacity: 0.35,
+    },
+    tileBadgeText: {
+      fontSize: 12,
+      fontWeight: "700",
+      color: c.label2,
+      lineHeight: 14,
+    },
+    tileBadgeTextPicked: {
+      color: "#fff",
+    },
+    tileBadgeTextDisabled: {
+      color: c.label3,
+    },
+    homeTilesBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "flex-end",
+      gap: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      marginBottom: 4,
+    },
+    homeTilesBannerLabel: {
+      fontSize: 11,
+      fontWeight: "700",
+      letterSpacing: 0.6,
+      color: c.label2,
+    },
+    homeTilesBannerReset: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: c.red,
+    },
     rowActionText: {
       fontSize: 12,
       fontWeight: "600",

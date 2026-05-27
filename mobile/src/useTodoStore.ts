@@ -27,7 +27,7 @@ import {
   migrateCategory,
   newCategoryId,
 } from "./categories";
-import { Profile, SEED_PROFILE, migrateProfile, getTodayPebbles, incrementPebble, decrementPebble } from "./profile";
+import { Profile, SEED_PROFILE, migrateProfile, getTodayPebbles, incrementPebble, decrementPebble, collectedNounKeyFor } from "./profile";
 import {
   GroceryItem,
   GroceryGroup,
@@ -132,6 +132,12 @@ const parseTodoReferences = (raw: string | null): TodoReference[] =>
 // enforced by migratePinnedFilters in core, so the persisted profile
 // stays bounded even if the limit drifts between platforms.
 const PIN_LIMIT = 12;
+
+// Default trio when the user hasn't picked any Home stat tiles. Resolved
+// at render so the Home screen + Manage Filter sheet stay in sync, and
+// so a user renaming or deleting a category falls through to whatever
+// is still valid here without us writing dead pins to disk.
+const DEFAULT_HOME_STAT_TILES: string[] = ["cat:home", "cat:work", "done"];
 
 const parseProfile = (raw: string | null): Profile => {
   const data = unwrap(raw);
@@ -345,6 +351,36 @@ export function useTodoStore() {
       });
     },
     [setProfile, notify, t],
+  );
+
+  // Explicit clear-all from the Manage Dashboard Tiles sheet header.
+  // Writes an empty array (NOT undefined) so the Dashboard hides the
+  // tile row entirely — undefined would re-trigger the defaults.
+  const clearHomeStatTiles = useCallback(() => {
+    setProfile((prev) => ({ ...prev, homeStatTiles: [] }));
+  }, [setProfile]);
+
+  // Pick a Filter as a Dashboard stat tile. Toggling a picked tile
+  // removes it; no max-count cap — the Dashboard row scrolls
+  // horizontally when picks exceed the visible width. First
+  // interaction (homeStatTiles === undefined) materializes the defaults
+  // so tapping "1" on a default actually removes it. Removing every
+  // tile leaves the array empty (Dashboard hides the row); we never
+  // auto-revert to defaults.
+  const toggleHomeStatTile = useCallback(
+    (f: Filter) => {
+      setProfile((prev) => {
+        const current: string[] =
+          prev.homeStatTiles === undefined
+            ? DEFAULT_HOME_STAT_TILES
+            : prev.homeStatTiles;
+        if (current.includes(f)) {
+          return { ...prev, homeStatTiles: current.filter((x) => x !== f) };
+        }
+        return { ...prev, homeStatTiles: [...current, f] };
+      });
+    },
+    [setProfile],
   );
 
   const loaded =
@@ -989,7 +1025,13 @@ export function useTodoStore() {
     (td) => !td.trashed && td.dueDate === todayDate,
   ).length;
   const plateLine = t.todayPlate(todayCount);
-  const mascotLine = pickMascotLine(lang, greetingKey, todayCount, todayDate);
+  // De-pebble the mascot voice when the user has opted into
+  // theme-from-avatar with a non-default preset. The picker drops any
+  // lines mentioning the language's pebble token so the home subtitle
+  // stays consistent with the themed cairn copy.
+  const dethemePebbles =
+    profile.themeFromAvatar === true && !!collectedNounKeyFor(profile.avatar);
+  const mascotLine = pickMascotLine(lang, greetingKey, todayCount, todayDate, dethemePebbles);
   // When the user has set a personal quote, alternate it with Mochi's
   // line by day-stable seed so neither one permanently silences the
   // other. Same seed mechanism as pickMascotLine — predictable rotation
@@ -1009,7 +1051,7 @@ export function useTodoStore() {
 
   // ---- Grocery mutations (stable callbacks) ------------------------
   const addGrocery = useCallback(
-    (args: { text: string; groupId?: string; store?: string }) => {
+    (args: { text: string; groupId?: string; stores?: string[] }) => {
       const text = args.text.trim();
       if (!text) return;
       // Local-first department inference. Only kicks in when the
@@ -1022,22 +1064,29 @@ export function useTodoStore() {
           : undefined;
       const localGuess =
         explicit ?? inferGroceryGroupLocal(text, groceryGroupsRef.current);
-      const item = newGroceryItem({ ...args, text, groupId: localGuess });
+      const item = newGroceryItem({
+        text,
+        groupId: localGuess,
+        stores: args.stores,
+      });
       setGroceries((prev) => {
         if (prev.length >= MAX_GROCERY_ITEMS) return prev;
         return [item, ...prev];
       });
-      // Auto-register the store on first use so the Configure Filter
-      // sheet shows it in the STORES section even before the user goes
-      // there to add it explicitly. Also stamp `lastAddedGroceryStore`
-      // (including the undefined → "Any" case) so a fresh launch's
-      // first add lands where the user left off.
-      const store = args.store?.trim() || undefined;
+      // Auto-register any newly-mentioned store on first use, and
+      // stamp lastAddedGroceryStore from the FIRST entry in the list
+      // (only one slot, so we pick the most representative). When the
+      // item has no stores attached, last-added stays as-is.
+      const newStores = item.stores;
+      const lastAdded = newStores[0];
       setProfile((p) => {
-        const next = { ...p, lastAddedGroceryStore: store };
-        if (store) {
+        const next = { ...p, lastAddedGroceryStore: lastAdded ?? p.lastAddedGroceryStore };
+        if (newStores.length > 0) {
           const list = p.groceryStores ?? SEED_GROCERY_STORES;
-          if (!list.includes(store)) next.groceryStores = [...list, store];
+          const additions = newStores.filter((s) => !list.includes(s));
+          if (additions.length > 0) {
+            next.groceryStores = [...list, ...additions];
+          }
         }
         return next;
       });
@@ -1060,7 +1109,7 @@ export function useTodoStore() {
           .map((g) => ({ id: g.id, label: g.label }));
         const storesInProfile =
           profileRef.current.groceryStores ?? SEED_GROCERY_STORES;
-        const explicitStore = !!args.store?.trim();
+        const explicitStore = !!args.stores && args.stores.length > 0;
         if (departments.length > 0) {
           // Snapshot where local placed the item — used in the .then
           // to decide whether AI's pick differs from local (snackbar)
@@ -1081,11 +1130,14 @@ export function useTodoStore() {
                 (s) => s.toLowerCase() === hint.name.toLowerCase(),
               );
               if (existing) {
-                // Silently set the item's store to the matching one.
+                // Silently append the matched store to the item's
+                // stores list (dedupe in case it's already there).
                 setGroceries((prev) =>
-                  prev.map((it) =>
-                    it.id === item.id ? { ...it, store: existing } : it,
-                  ),
+                  prev.map((it) => {
+                    if (it.id !== item.id) return it
+                    if (it.stores.includes(existing)) return it
+                    return { ...it, stores: [...it.stores, existing] }
+                  }),
                 );
               } else if (hint.isNew) {
                 // New store — ask before creating it in the profile.
@@ -1109,9 +1161,11 @@ export function useTodoStore() {
                       });
                     }
                     setGroceries((prev) =>
-                      prev.map((it) =>
-                        it.id === item.id ? { ...it, store: targetName } : it,
-                      ),
+                      prev.map((it) => {
+                        if (it.id !== item.id) return it
+                        if (it.stores.includes(targetName)) return it
+                        return { ...it, stores: [...it.stores, targetName] }
+                      }),
                     );
                   },
                 });
@@ -1221,9 +1275,16 @@ export function useTodoStore() {
           p.activeGroceryStore === oldName ? next : p.activeGroceryStore;
         return { ...p, groceryStores: updated, activeGroceryStore: activeUpdated };
       });
-      // Batch-update items that carried the old store name.
+      // Batch-update items that carried the old store name in their
+      // stores list — swap to the new name, dedupe in case the item
+      // already had the new name too.
       setGroceries((prev) =>
-        prev.map((it) => (it.store === oldName ? { ...it, store: next } : it)),
+        prev.map((it) => {
+          if (!it.stores.includes(oldName)) return it
+          const replaced = it.stores.map((s) => (s === oldName ? next : s))
+          const deduped = Array.from(new Set(replaced))
+          return { ...it, stores: deduped }
+        }),
       );
     },
     [setProfile, setGroceries],
@@ -1237,8 +1298,15 @@ export function useTodoStore() {
           p.activeGroceryStore === name ? undefined : p.activeGroceryStore;
         return { ...p, groceryStores: list, activeGroceryStore: active };
       });
+      // Drop the deleted store from every item's stores list. Items
+      // tagged ONLY with this store become storeless (no store filter
+      // match), which the user can fix via the edit sheet.
       setGroceries((prev) =>
-        prev.map((it) => (it.store === name ? { ...it, store: undefined } : it)),
+        prev.map((it) =>
+          it.stores.includes(name)
+            ? { ...it, stores: it.stores.filter((s) => s !== name) }
+            : it,
+        ),
       );
     },
     [setProfile, setGroceries],
@@ -1329,7 +1397,7 @@ export function useTodoStore() {
   );
 
   const editGrocery = useCallback(
-    (id: string, patch: { text?: string; groupId?: string; store?: string | null }) => {
+    (id: string, patch: { text?: string; groupId?: string; stores?: string[] }) => {
       setGroceries((prev) => groceryEdit(prev, id, patch));
     },
     [setGroceries],
@@ -1417,6 +1485,17 @@ export function useTodoStore() {
     orderedVisibleStatuses,
     setFilter,
     pinFilter,
+    toggleHomeStatTile,
+    clearHomeStatTiles,
+    // Effective tiles for both Home rendering and Manage Filter badge
+    // display. undefined (never customized) falls through to defaults;
+    // an explicit empty array is respected as "no tiles" so the user
+    // can opt out of the stats row entirely.
+    effectiveHomeStatTiles: (
+      profile.homeStatTiles === undefined
+        ? DEFAULT_HOME_STAT_TILES
+        : profile.homeStatTiles
+    ) as Filter[],
     saveProfile: setProfile,
     changeView,
     renameStatus,

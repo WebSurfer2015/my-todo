@@ -18,6 +18,7 @@ import React, {
   ReactNode,
   useCallback,
 } from 'react'
+import { createNavigationContainerRef } from '@react-navigation/native'
 import { useStore } from './StoreContext'
 import ProfileSheet from './components/ProfileSheet'
 import SettingsSheet from './components/SettingsSheet'
@@ -25,7 +26,23 @@ import BackgroundPicker from './components/BackgroundPicker'
 import GuideMenuSheet from './components/GuideMenuSheet'
 import GuideSheet from './components/GuideSheet'
 import GuidesPrompt from './components/GuidesPrompt'
+import ComposeSheet from './components/ComposeSheet'
+import ManageHomeTilesSheet from './components/ManageHomeTilesSheet'
+import ManageAnimationSoundSheet from './components/ManageAnimationSoundSheet'
+import CategorySheet from './components/CategorySheet'
+import { COLOR_PALETTE } from './categories'
+import type { Filter } from './types'
 import type { Guide } from './guides'
+
+/** Signal that a screen should open its tab-local manage sheet. The
+ * `seq` bumps so a repeat-trigger fires even when target stays the
+ * same; screens read on focus and act when both target + seq change.
+ * Used for Groceries today since StorePicker still lives inside
+ * GroceryView. */
+export interface ManageRequest {
+  target: 'todos' | 'groceries' | null
+  seq: number
+}
 
 interface Sheets {
   openProfile: () => void
@@ -33,9 +50,37 @@ interface Sheets {
   openBackgrounds: () => void
   /** Open the Tips & guides menu (entry point for Settings). */
   openGuides: () => void
+  /** Open the add-todo compose sheet from any tab. */
+  openCompose: () => void
+  /** Open the Home Tiles picker (Dashboard gear icon). */
+  openHomeTiles: () => void
+  /** Open the Manage Filter sheet (Todos gear icon, Settings entry). */
+  openManageFilter: () => void
+  /** Open the Select Filter sheet (Todos funnel). */
+  openSelectFilter: () => void
+  /** Open Manage Groceries — navigates to Groceries tab then signals
+   * the screen to open StorePicker in edit mode (since StorePicker
+   * still lives inside GroceryView). */
+  openManageGroceries: () => void
+  /** Latest manage-sheet request the SheetContext has dispatched.
+   * Tab screens read this to know when to open their local sheets. */
+  manageRequest: ManageRequest
 }
 
 const SheetContext = createContext<Sheets | null>(null)
+
+/**
+ * Module-level NavigationContainer ref. SheetProvider is mounted ABOVE
+ * NavigationContainer in App.tsx, so `useNavigation` isn't available
+ * here — instead App.tsx threads this same ref to NavigationContainer.
+ * Once the container mounts, `isReady()` returns true and we can
+ * `.navigate('Todos' | 'Groceries')` from Settings entries.
+ */
+export const sheetNavigationRef = createNavigationContainerRef<{
+  Home: undefined
+  Todos: undefined
+  Groceries: undefined
+}>()
 
 export function SheetProvider({ children }: { children: ReactNode }) {
   const store = useStore()
@@ -43,6 +88,12 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [bgPickerOpen, setBgPickerOpen] = useState(false)
   const [guideMenuOpen, setGuideMenuOpen] = useState(false)
+  const [composeOpen, setComposeOpen] = useState(false)
+  const [homeTilesOpen, setHomeTilesOpen] = useState(false)
+  const [animationSoundOpen, setAnimationSoundOpen] = useState(false)
+  const [categorySheetOpen, setCategorySheetOpen] = useState(false)
+  const [categorySheetMode, setCategorySheetMode] = useState<'view' | 'edit'>('view')
+  const [manageRequest, setManageRequest] = useState<ManageRequest>({ target: null, seq: 0 })
   // Currently-playing single guide. Null when only the menu is up
   // (or both are closed). Setting this immediately renders the
   // guide carousel over the menu.
@@ -56,6 +107,25 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   const openSettings = useCallback(() => setSettingsOpen(true), [])
   const openBackgrounds = useCallback(() => setBgPickerOpen(true), [])
   const openGuides = useCallback(() => setGuideMenuOpen(true), [])
+  const openCompose = useCallback(() => setComposeOpen(true), [])
+  const openHomeTiles = useCallback(() => setHomeTilesOpen(true), [])
+  const openManageFilter = useCallback(() => {
+    setCategorySheetMode('edit')
+    setCategorySheetOpen(true)
+  }, [])
+  const openSelectFilter = useCallback(() => {
+    setCategorySheetMode('view')
+    setCategorySheetOpen(true)
+  }, [])
+  const openManageGroceries = useCallback(() => {
+    // Navigate to the Groceries tab so the signal fires when its
+    // screen is on top, then bump the manage request. GroceriesScreen
+    // watches manageRequest and opens StorePicker in edit mode.
+    if (sheetNavigationRef.isReady()) {
+      sheetNavigationRef.navigate('Groceries')
+    }
+    setManageRequest((prev) => ({ target: 'groceries', seq: prev.seq + 1 }))
+  }, [])
 
   // Mount the first-run prompt the first time the user lands in
   // the app post-onboarding with the flag unset. Stamping the
@@ -82,7 +152,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <SheetContext.Provider value={{ openProfile, openSettings, openBackgrounds, openGuides }}>
+    <SheetContext.Provider value={{ openProfile, openSettings, openBackgrounds, openGuides, openCompose, openHomeTiles, openManageFilter, openSelectFilter, openManageGroceries, manageRequest }}>
       {children}
       <ProfileSheet
         visible={profileOpen}
@@ -91,6 +161,9 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           store.saveProfile(p)
           setProfileOpen(false)
         }}
+        onResetLifetime={() =>
+          store.saveProfile({ ...store.profile, lifetimePebbles: 0 })
+        }
         onClose={() => setProfileOpen(false)}
       />
       <SettingsSheet
@@ -104,13 +177,29 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           store.saveProfile({ ...store.profile, onboardingDone: false })
         }
         onOpenGuides={openGuides}
+        onOpenDashboardTiles={() => {
+          // Settings row already closed Settings before invoking this;
+          // just promote the tiles sheet.
+          setHomeTilesOpen(true)
+        }}
+        onOpenManageTodos={openManageFilter}
+        onOpenManageGroceries={openManageGroceries}
+        onOpenAnimationSound={() => setAnimationSoundOpen(true)}
         onClose={() => setSettingsOpen(false)}
       />
       <BackgroundPicker
         visible={bgPickerOpen}
         value={store.profile.background}
         onChange={(next) =>
-          store.saveProfile({ ...store.profile, background: next })
+          // Manual pick wins: also flip `themeFromAvatar` off so the
+          // avatar-derived theme doesn't keep overriding the user's
+          // explicit choice. Re-enabling the toggle in Settings brings
+          // the avatar theme back.
+          store.saveProfile({
+            ...store.profile,
+            background: next,
+            themeFromAvatar: undefined,
+          })
         }
         onClose={() => setBgPickerOpen(false)}
       />
@@ -155,6 +244,64 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           setActiveGuide(null)
           setTimeout(() => setGuideMenuOpen(true), 280)
         }}
+      />
+      {/* ComposeSheet promoted to the app shell so the Add FAB works
+          from any tab (Home, Todos). Per-tab compose wiring inside
+          TodosScreen was removed when this moved up. */}
+      <ComposeSheet
+        visible={composeOpen}
+        categories={store.categories}
+        defaultCategory={store.defaultCategory}
+        references={store.todoReferences}
+        agentEnabled={store.profile.agentEnabled !== false}
+        onCreateCategory={(label) => {
+          const color =
+            COLOR_PALETTE[store.categories.length % COLOR_PALETTE.length]
+          return store.addCategory({ label, color, icon: 'tag' })
+        }}
+        onAdd={store.addTask}
+        onClose={() => setComposeOpen(false)}
+      />
+      <ManageHomeTilesSheet
+        visible={homeTilesOpen}
+        homeStatTiles={store.effectiveHomeStatTiles}
+        categories={store.categories}
+        orderedVisibleStatuses={store.orderedVisibleStatuses}
+        onToggleHomeStatTile={store.toggleHomeStatTile}
+        onClearAll={store.clearHomeStatTiles}
+        onClose={() => setHomeTilesOpen(false)}
+      />
+      <ManageAnimationSoundSheet
+        visible={animationSoundOpen}
+        profile={store.profile}
+        onSavePartial={(patch) =>
+          store.saveProfile({ ...store.profile, ...patch })
+        }
+        onClose={() => setAnimationSoundOpen(false)}
+      />
+      {/* CategorySheet promoted out of TodosScreen so Settings (on
+          any tab) can open it via sheets.openManageFilter. Todos'
+          funnel/gear still drive it via openSelectFilter / openManageFilter. */}
+      <CategorySheet
+        visible={categorySheetOpen}
+        defaultMode={categorySheetMode}
+        currentFilter={store.filter}
+        pinnedFilters={(store.profile.pinnedFilters ?? []) as Filter[]}
+        onSelectFilter={store.setFilter}
+        onPinFilter={store.pinFilter}
+        categories={store.categories}
+        taskCounts={store.taskCountsForSheet}
+        systemCounts={store.systemCounts}
+        orderedStatuses={store.orderedStatuses}
+        orderedVisibleStatuses={store.orderedVisibleStatuses}
+        onAdd={store.addCategory}
+        onEdit={store.editCategory}
+        onDelete={store.deleteCategory}
+        onReorder={store.reorderCategories}
+        onRenameStatus={store.renameStatus}
+        onToggleStatusHidden={store.toggleStatusHidden}
+        onReorderStatuses={store.reorderStatuses}
+        onClose={() => setCategorySheetOpen(false)}
       />
     </SheetContext.Provider>
   )

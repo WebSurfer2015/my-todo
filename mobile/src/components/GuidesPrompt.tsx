@@ -19,6 +19,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
+import { Sparkles } from 'lucide-react-native'
 import { GUIDES } from '../guides'
 import { useTheme, ThemeColors } from '../theme'
 
@@ -40,7 +41,9 @@ export default function GuidesPrompt({ visible, onAccept, onDismiss }: Props) {
       <View style={styles.backdrop}>
         <Pressable style={styles.fill} onPress={onDismiss} />
         <View style={styles.card}>
-          <Text style={styles.glyph}>✨</Text>
+          <View style={styles.iconBubble}>
+            <Sparkles size={26} color={theme.primary} strokeWidth={2} />
+          </View>
           <Text style={styles.title}>A few quick tips?</Text>
           <Text style={styles.body}>
             Sagely has {GUIDES.length} short walkthroughs of its newer features —
@@ -93,7 +96,15 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center',
       maxWidth: 360,
     },
-    glyph: { fontSize: 44, lineHeight: 50, marginBottom: 12 },
+    iconBubble: {
+      width: 56,
+      height: 56,
+      borderRadius: 14,
+      backgroundColor: c.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 14,
+    },
     title: {
       fontSize: 19,
       fontWeight: '700',

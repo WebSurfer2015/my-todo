@@ -202,10 +202,14 @@ export function useTriggerPebbleFlight() {
 // ── overlay sprite ────────────────────────────────────────────────────────
 
 const MOCHI_SIZE = 56
-const FLIGHT_MS = 1800
+// Slowed from 1800 → 2400 so the arc reads as "carried", not "flung".
+// LAND_AT/DROP_AT keep their relative ratios; the new total gives the
+// avatar room to land, do a small two-beat celebration, and fade out
+// without feeling rushed.
+const FLIGHT_MS = 2400
 const LAND_AT = 0.40
 const DROP_AT = 0.52
-const FADE_START = 0.78
+const FADE_START = 0.82
 const DROP_MS = FLIGHT_MS * DROP_AT
 
 /**
@@ -230,7 +234,10 @@ function FlyingMochi({ flight, onDone }: { flight: Flight; onDone: () => void })
     Animated.timing(progress, {
       toValue: 1,
       duration: FLIGHT_MS,
-      easing: Easing.bezier(0.42, 0.05, 0.5, 1),
+      // Gentler ease — easeInOutSine-ish — so the arc accelerates and
+      // settles softly rather than the previous custom curve which
+      // landed with a slight snap. Reads as natural / "carried".
+      easing: Easing.bezier(0.45, 0, 0.55, 1),
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (finished) onDone()
@@ -256,9 +263,36 @@ function FlyingMochi({ flight, onDone }: { flight: Flight; onDone: () => void })
     inputRange: [0, LAND_AT / 2, LAND_AT, 1],
     outputRange: [0, dy / 2 - peakLift, dy, dy],
   })
+  // Two-beat celebration on landing: a small squash-and-stretch on
+  // touchdown, then a softer aftershock, then fade-out shrink. Reads
+  // as a happy little arrival rather than a static drop.
   const mochiScale = progress.interpolate({
-    inputRange: [0, LAND_AT, FADE_START, 1],
-    outputRange: [1, 1, 1, 0.7],
+    inputRange: [
+      0,
+      LAND_AT,           // arrives at cairn
+      LAND_AT + 0.04,    // first bounce up
+      LAND_AT + 0.09,    // settles
+      LAND_AT + 0.14,    // little second bounce
+      LAND_AT + 0.20,    // resting size
+      FADE_START,
+      1,
+    ],
+    outputRange: [1, 1, 1.22, 0.95, 1.08, 1, 1, 0.7],
+  })
+  // Wiggle: a small left-right rotation right after landing reads as
+  // "happy dance" before the avatar settles + fades. Disabled before
+  // landing (rotation: 0) so the airborne arc doesn't tilt.
+  const mochiRotate = progress.interpolate({
+    inputRange: [
+      0,
+      LAND_AT,
+      LAND_AT + 0.05,
+      LAND_AT + 0.10,
+      LAND_AT + 0.15,
+      LAND_AT + 0.20,
+      1,
+    ],
+    outputRange: ['0deg', '0deg', '-7deg', '6deg', '-4deg', '0deg', '0deg'],
   })
   const mochiOpacity = progress.interpolate({
     inputRange: [0, 0.08, FADE_START, 1],
@@ -275,7 +309,12 @@ function FlyingMochi({ flight, onDone }: { flight: Flight; onDone: () => void })
           left: flight.from.x - (MOCHI_SIZE * 1.4) / 2,
           top: flight.from.y - MOCHI_SIZE / 2,
           opacity: mochiOpacity,
-          transform: [{ translateX }, { translateY }, { scale: mochiScale }],
+          transform: [
+            { translateX },
+            { translateY },
+            { rotate: mochiRotate },
+            { scale: mochiScale },
+          ],
         },
       ]}
     >
@@ -285,15 +324,46 @@ function FlyingMochi({ flight, onDone }: { flight: Flight; onDone: () => void })
 }
 
 /**
+ * Bundled image assets for presets that ship with their own PNG.
+ * Keep in sync with PRESET_IMAGES in components/Avatar.tsx — when
+ * art is added there it should be added here too so the flight uses
+ * the same illustration users see on the avatar tile.
+ */
+const FLIGHT_PRESET_IMAGES: Record<string, ReturnType<typeof require>> = {
+  mochi: require('../../assets/mochi-mascot.png'),
+  // cat:       require('../../assets/preset-avatars/cat.png'),
+  // dog:       require('../../assets/preset-avatars/dog.png'),
+  // bird:      require('../../assets/preset-avatars/bird.png'),
+  // fish:      require('../../assets/preset-avatars/fish.png'),
+  // flower:    require('../../assets/preset-avatars/flower.png'),
+  // butterfly: require('../../assets/preset-avatars/butterfly.png'),
+  // owl:       require('../../assets/preset-avatars/owl.png'),
+  // elephant:  require('../../assets/preset-avatars/elephant.png'),
+  // whale:     require('../../assets/preset-avatars/whale.png'),
+  // squirrel:  require('../../assets/preset-avatars/squirrel.png'),
+  // rabbit:    require('../../assets/preset-avatars/rabbit.png'),
+}
+
+/**
  * Render the airborne glyph based on the user's current avatar.
- * Preset → emoji on its tinted circle (matches the avatar in the
- * profile header). Image → the uploaded photo, fit + clipped to a
- * circle. Anything else (icon avatar, missing) → the brand Mochi
- * turtle asset, which is the original behavior.
+ * Preset with a bundled PNG (e.g. mochi) → the bundled illustration,
+ * so the brand mascot flies as itself instead of the small fallback
+ * emoji. Preset without art → emoji. Image (user upload) → photo.
+ * Anything else (icon avatar, missing) → the brand Mochi turtle.
  */
 function renderAvatarGlyph(avatar: Avatar | undefined): React.ReactNode {
   if (avatar?.kind === 'preset') {
     const preset = findPreset(avatar.key)
+    const bundled = preset.imageKey ? FLIGHT_PRESET_IMAGES[preset.imageKey] : undefined
+    if (bundled) {
+      return (
+        <Image
+          source={bundled}
+          style={styles.mochiImage}
+          resizeMode="contain"
+        />
+      )
+    }
     // No tinted bg circle during flight — the emoji rides on its
     // own so the motion reads as "the thing itself" not "the thing
     // in a sticker". The avatar tile (with bg) stays as-is in

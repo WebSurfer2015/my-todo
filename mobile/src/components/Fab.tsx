@@ -18,9 +18,13 @@ interface Props {
   /** When true, a small Sparkles glyph renders alongside the + to
    * signal that the compose flow includes ambient AI suggestions. */
   agentEnabled?: boolean
+  /** Extra bottom offset (pt) on top of the safe-area baseline. Used
+   * when the screen has its own sticky footer (e.g. Home's stats row)
+   * so the FAB clears it instead of sitting on top. */
+  extraBottom?: number
 }
 
-export default function Fab({ onPress, accessibilityLabel, agentEnabled = false }: Props) {
+export default function Fab({ onPress, accessibilityLabel, agentEnabled = false, extraBottom = 0 }: Props) {
   const theme = useTheme()
   const insets = useSafeAreaInsets()
 
@@ -49,8 +53,10 @@ export default function Fab({ onPress, accessibilityLabel, agentEnabled = false 
   }, [])
 
   // With keyboard up: sit 12pt above the keyboard. Closed: sit on the
-  // safe-area baseline + 4pt the design uses.
-  const bottom = kbHeight > 0 ? kbHeight + 12 : 4 + insets.bottom
+  // safe-area baseline + 4pt the design uses, plus an optional extra
+  // offset so screens with their own sticky footer can lift the FAB
+  // above it (Home's stats row, for one).
+  const bottom = kbHeight > 0 ? kbHeight + 12 : 4 + insets.bottom + extraBottom
   const styles = useMemo(() => makeStyles(theme, bottom), [theme, bottom])
 
   return (

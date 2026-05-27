@@ -23,11 +23,22 @@ import { useIsFocused, useNavigation } from '@react-navigation/native'
 import { CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react-native'
 import { useStore } from '../StoreContext'
 import { useLang } from '../LangContext'
+import { useSheets } from '../SheetContext'
 import { useTheme, ThemeColors } from '../theme'
 import { todayLocal } from '../../../core/src/utils'
-import type { Todo } from '../../../core/src/types'
-import PebbleStrip, { CairnGlyph } from '../components/PebbleStrip'
+import {
+  type Todo,
+  type Filter,
+  isCategoryFilter,
+  categoryIdFromFilter,
+} from '../../../core/src/types'
+import { categoryLabel } from '../../../core/src/categories'
+import { buildGroups, type GroupKey } from '../../../core/src/groups'
+import PebbleStrip from '../components/PebbleStrip'
+import StatusIcon, { statusColor } from '../components/StatusIcon'
+import CategoryIcon from '../components/CategoryIcon'
 import AppHeader from '../components/AppHeader'
+import Fab from '../components/Fab'
 import TaskItem from '../components/TaskItem'
 import DeferModal from '../components/DeferModal'
 
@@ -53,6 +64,12 @@ export default function HomeScreen() {
   const styles = useMemo(() => makeStyles(theme), [theme])
   const insets = useSafeAreaInsets()
   const navigation = useNavigation<any>()
+  const sheets = useSheets()
+
+  // Measured height of the sticky stats row at the bottom. The Add FAB
+  // reads this so it can sit ABOVE the tiles instead of overlapping
+  // them. onLayout from the tiles' wrapping View populates it.
+  const [statsRowHeight, setStatsRowHeight] = useState(0)
 
   const today = todayLocal()
 
@@ -164,13 +181,100 @@ export default function HomeScreen() {
   const overflow = remainingAfterPage
   const isLastPage = safePageIndex >= pageCount - 1
 
+  // "What's Next?" cycles through Todos' time buckets in order. State:
+  //   `nextExpanded` — section visible / TODAY's content collapsed.
+  //   `nextGroupKey` — which bucket is being shown (sticks even when
+  //     the user empties it by completing things, so we can render
+  //     an empty-state inside it and advance to the next bucket).
+  //   `nextPageIndex` — paging within the current bucket.
+  const NEXT_GROUP_SEQUENCE: GroupKey[] = ['overdue', 'week', 'upcoming', 'noDate']
+  const [nextExpanded, setNextExpanded] = useState(false)
+  const [nextGroupKey, setNextGroupKey] = useState<GroupKey | null>(null)
+  const [nextPageIndex, setNextPageIndex] = useState(0)
+
+  // Open-only buckets, derived from the same buildGroups pipeline Todos
+  // uses. Empty buckets are dropped by buildGroups, so groupsByKey only
+  // has entries for buckets that currently have at least one open todo.
+  const groupsByKey = useMemo(() => {
+    const openOnly = store.todos.filter((td) => !td.done && !td.trashed)
+    const groups = buildGroups(openOnly)
+    const map: Partial<Record<GroupKey, typeof groups[number]['todos']>> = {}
+    for (const g of groups) map[g.key] = g.todos
+    return map
+  }, [store.todos])
+
+  // First bucket after TODAY that has open todos right now — used as
+  // the entry-point when the user first taps What's Next, and as a
+  // fallback if their chosen group ceased to exist (e.g. between
+  // session switches).
+  const firstAvailableNextKey = useMemo<GroupKey | null>(
+    () =>
+      NEXT_GROUP_SEQUENCE.find((k) => (groupsByKey[k]?.length ?? 0) > 0) ??
+      null,
+    [NEXT_GROUP_SEQUENCE, groupsByKey],
+  )
+
+  // Given the currently-shown group key, find the next sequence entry
+  // that has open todos. null when there's nothing left — drives the
+  // "no What's Next button on the last group" rule.
+  function nextGroupAfter(current: GroupKey | null): GroupKey | null {
+    if (!current) return firstAvailableNextKey
+    const i = NEXT_GROUP_SEQUENCE.indexOf(current)
+    for (let j = i + 1; j < NEXT_GROUP_SEQUENCE.length; j++) {
+      if ((groupsByKey[NEXT_GROUP_SEQUENCE[j]]?.length ?? 0) > 0) {
+        return NEXT_GROUP_SEQUENCE[j]
+      }
+    }
+    return null
+  }
+
+  const nextBucket = nextGroupKey ? groupsByKey[nextGroupKey] ?? [] : []
+  const nextSectionLabel = nextGroupKey ? t.groups[nextGroupKey] : "What's next"
+  const hasNextGroupAfter = nextGroupAfter(nextGroupKey) !== null
+
+  const nextPageCount = Math.max(
+    1,
+    Math.ceil(nextBucket.length / TODAY_PREVIEW_CAP),
+  )
+  const safeNextPageIndex = Math.min(nextPageIndex, nextPageCount - 1)
+  const nextPageStart = safeNextPageIndex * TODAY_PREVIEW_CAP
+  const nextPreviewItems = nextBucket.slice(
+    nextPageStart,
+    nextPageStart + TODAY_PREVIEW_CAP,
+  )
+  const nextRemainingAfterPage = Math.max(
+    0,
+    nextBucket.length - (nextPageStart + TODAY_PREVIEW_CAP),
+  )
+  const nextOverflow = nextRemainingAfterPage
+  const nextIsLastPage = safeNextPageIndex >= nextPageCount - 1
+
   const openTodos = useCallback(
-    (filter?: 'all' | 'overdue' | 'open') => {
+    (filter?: Filter) => {
       if (filter) store.setFilter(filter)
       navigation.navigate('Todos')
     },
     [navigation, store],
   )
+
+  const openWhatsNext = useCallback(() => {
+    setNextPageIndex(0)
+    setNextGroupKey(firstAvailableNextKey)
+    setNextExpanded(true)
+  }, [firstAvailableNextKey])
+  // Advance to the next available group (used by the in-section
+  // What's Next button when the current bucket has been emptied).
+  const advanceToNextGroup = useCallback(() => {
+    const next = nextGroupAfter(nextGroupKey)
+    if (!next) return
+    setNextPageIndex(0)
+    setNextGroupKey(next)
+  }, [nextGroupKey, groupsByKey])
+
+  // Effective tiles come from the store (defaults to Home/Work/Done when
+  // the user hasn't customized). Computed there so the Manage Filter
+  // badges stay in sync with what the Home tiles actually render.
+  const effectiveHomeStatTiles = store.effectiveHomeStatTiles
 
   // Pass-through render of TaskItem for each row, so Home inherits the
   // unified tap/long-press/swipe model and the embedded TaskDetailsSheet
@@ -197,7 +301,7 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.flex, { paddingTop: insets.top }]}>
-      <AppHeader />
+      <AppHeader onGearPress={sheets.openSettings} />
       {/* Home strip — same render shape as Todos so the pebble-flight
           target math is identical. Active gates which screen owns the
           registered cairn. */}
@@ -207,19 +311,26 @@ export default function HomeScreen() {
         contentContainerStyle={[styles.body, { paddingBottom: 120 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Today section — actionable focus right at the top. */}
+        {/* Today section — actionable focus right at the top. When
+            today's bucket is empty the chip becomes "done" and routes
+            to the Done filter (review surface), since there's no "to
+            do" left to land on in Todos. */}
         <TouchableOpacity
           style={styles.sectionHeaderRow}
-          onPress={() => openTodos('all')}
+          onPress={() => openTodos(openCount === 0 ? 'done' : 'all')}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel={`Open Todos showing ${openCount} items`}
+          accessibilityLabel={
+            openCount === 0
+              ? 'Open Todos showing Done items'
+              : `Open Todos showing ${openCount} items`
+          }
         >
           <Text style={styles.sectionHeader}>TODAY</Text>
           <View style={styles.sectionRight}>
             <Text style={styles.sectionCount}>
               {openCount === 0
-                ? 'all clear'
+                ? `${store.todayPebbles} done`
                 : openCount === 1
                   ? '1 to do'
                   : `${openCount} to do`}
@@ -228,9 +339,13 @@ export default function HomeScreen() {
           </View>
         </TouchableOpacity>
 
-        {todayBucket.length === 0 ? (
+        {/* When What's Next is expanded, the TODAY band's content
+            collapses so the next group can take the focus. The header
+            above still shows, so the user knows TODAY is still here
+            and can collapse NEXT to return to it. */}
+        {nextExpanded ? null : todayBucket.length === 0 ? (
           <View style={styles.todayEmpty}>
-            <Text style={styles.todayEmptyTitle}>Nothing pending today.</Text>
+            <Text style={styles.todayEmptyTitle}>Nothing pending.</Text>
             {store.todayPebbles > 0 && (
               <Text style={styles.todayEmptyCount}>
                 {store.todayPebbles === 1
@@ -241,6 +356,15 @@ export default function HomeScreen() {
             <Text style={styles.todayEmptyHint}>
               Enjoy the breathing room.
             </Text>
+            <TouchableOpacity
+              style={styles.whatsNextBtn}
+              onPress={openWhatsNext}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="What's Next? Ask Mochi or open the upcoming list."
+            >
+              <Text style={styles.whatsNextBtnText}>What&apos;s Next?</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.todayList}>
@@ -337,25 +461,189 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Stats row (Yesterday / Week / Month) */}
-        <View style={styles.statsRow}>
-          <StatTile label="Yesterday" value={counts.dYesterday} styles={styles} />
-          <StatTile label="This Week" value={counts.dWeek} styles={styles} />
-          <StatTile label="This Month" value={counts.dMonth} styles={styles} />
-        </View>
+        {/* NEXT — open todos NOT due today, surfaced inline when the
+            user taps "What's Next?". Same paging UX as TODAY. Tap the
+            header chevron to collapse. */}
+        {nextExpanded && (
+          <>
+            <TouchableOpacity
+              style={styles.sectionHeaderRow}
+              onPress={() => setNextExpanded(false)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Collapse ${nextSectionLabel}, ${nextBucket.length} items`}
+            >
+              <Text style={styles.sectionHeader}>
+                {nextSectionLabel.toUpperCase()}
+              </Text>
+              <View style={styles.sectionRight}>
+                <Text style={styles.sectionCount}>
+                  {nextBucket.length === 0
+                    ? 'nothing queued'
+                    : nextBucket.length === 1
+                      ? '1 open'
+                      : `${nextBucket.length} open`}
+                </Text>
+                <Text style={styles.sectionCollapse}>×</Text>
+              </View>
+            </TouchableOpacity>
+            {nextBucket.length === 0 ? (
+              // Group emptied (or starting empty) — mirror TODAY's
+              // empty state. The "What's Next?" button advances to
+              // the next available group; hidden on the last group
+              // so the user lands cleanly at the end.
+              <View style={styles.todayEmpty}>
+                <Text style={styles.todayEmptyTitle}>Nothing pending.</Text>
+                <Text style={styles.todayEmptyHint}>
+                  Enjoy the breathing room.
+                </Text>
+                {hasNextGroupAfter && (
+                  <TouchableOpacity
+                    style={styles.whatsNextBtn}
+                    onPress={advanceToNextGroup}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Show the next group"
+                  >
+                    <Text style={styles.whatsNextBtnText}>What&apos;s Next?</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : (
+              <View style={styles.todayList}>
+                {nextPreviewItems.map((td) => (
+                  <TaskItem
+                    key={td.id}
+                    todo={td}
+                    categories={store.categories}
+                    density={store.profile.density}
+                    celebrate={celebrate}
+                    playSound={playSound}
+                    onToggle={store.toggle}
+                    onMoveToTrash={store.moveToTrash}
+                    onRestore={store.restoreFromTrash}
+                    onPermanentDelete={store.permanentlyDelete}
+                    onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
+                    onApplySeriesFutureEdits={store.applySeriesFutureEdits}
+                    onUpdatePriority={store.updatePriority}
+                    onUpdateDueDate={store.updateDueDate}
+                    onSnooze={store.snooze}
+                    onLongPressDefer={openSingleDefer}
+                    onUpdateCategory={store.updateTaskCategory}
+                    onUpdateText={store.updateText}
+                    onUpdateNotes={store.updateNotes}
+                    onUpdateRecurrence={store.updateRecurrence}
+                    onUpdateReminder={store.updateReminder}
+                    onAddSubtask={store.addSubtask}
+                    onToggleSubtask={store.toggleSubtask}
+                    onUpdateSubtaskText={store.updateSubtaskText}
+                    onUpdateSubtaskPriority={store.updateSubtaskPriority}
+                    onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
+                    onRemoveSubtask={store.removeSubtask}
+                    agentEnabled={store.profile.agentEnabled !== false}
+                    onClearSubtasks={store.clearSubtasks}
+                    subtaskVisibility="open"
+                    dateChipFormat="home-today"
+                    tapBehavior="expandIfHasSubs"
+                  />
+                ))}
+                {nextPageCount > 1 && (
+                  <View style={styles.todayPaginator}>
+                    {safeNextPageIndex === 0 ? (
+                      <TouchableOpacity
+                        style={styles.todayPaginatorCenter}
+                        onPress={() => setNextPageIndex((i) => i + 1)}
+                        activeOpacity={0.65}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Show next ${Math.min(TODAY_PREVIEW_CAP, nextOverflow)} What's Next items`}
+                      >
+                        <Text style={styles.todayMoreText}>+ {nextOverflow} more</Text>
+                        <ChevronRight size={14} color={theme.primary} strokeWidth={2.5} />
+                      </TouchableOpacity>
+                    ) : nextIsLastPage ? (
+                      <TouchableOpacity
+                        style={styles.todayPaginatorCenter}
+                        onPress={() => setNextPageIndex(0)}
+                        activeOpacity={0.65}
+                        accessibilityRole="button"
+                        accessibilityLabel="Start over from the top of What's Next"
+                      >
+                        <Text style={styles.todayMoreText}>↺ Start over</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <>
+                        <TouchableOpacity
+                          style={styles.todayPaginatorBtn}
+                          onPress={() => setNextPageIndex((i) => i - 1)}
+                          activeOpacity={0.65}
+                          accessibilityRole="button"
+                          accessibilityLabel="Previous What's Next page"
+                        >
+                          <ChevronLeft size={14} color={theme.primary} strokeWidth={2.5} />
+                          <Text style={styles.todayMoreText}>Previous</Text>
+                        </TouchableOpacity>
+                        <View style={{ flex: 1 }} />
+                        <TouchableOpacity
+                          style={styles.todayPaginatorBtn}
+                          onPress={() => setNextPageIndex((i) => i + 1)}
+                          activeOpacity={0.65}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Show next ${Math.min(TODAY_PREVIEW_CAP, nextOverflow)} What's Next items`}
+                        >
+                          <Text style={styles.todayMoreText}>+ {nextOverflow} more</Text>
+                          <ChevronRight size={14} color={theme.primary} strokeWidth={2.5} />
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
+                )}
+              </View>
+            )}
+          </>
+        )}
 
-        {/* Cairn / lifetime */}
-        <View style={styles.cairnCard}>
-          <View style={styles.cairnGlyph}>
-            <CairnGlyph size={52} />
-          </View>
-          <Text style={styles.cairnValue}>{store.lifetimePebbles}</Text>
-          <Text style={styles.cairnLabel}>pebbles placed</Text>
-          <Text style={styles.cairnHint}>
-            Every task you've finished, since you started.
-          </Text>
-        </View>
+        {/* Lifetime card moved into ProfileSheet (YOUR JOURNEY) so the
+            destructive Reset action lives alongside identity. */}
       </ScrollView>
+      {/* Stats row pinned to the bottom — sits above the tab bar so the
+          counts stay glanceable while the today list scrolls. Tiles are
+          driven by profile.homeStatTiles (picked in the Dashboard gear's
+          Manage Home Tiles sheet). Default trio: Home/Work/Done. The row
+          is hidden when the user unpicks all; otherwise it horizontally
+          scrolls so any number of picks lays out cleanly. */}
+      {effectiveHomeStatTiles.length > 0 && (
+        <View
+          style={styles.statsRowSticky}
+          onLayout={(e) => setStatsRowHeight(e.nativeEvent.layout.height)}
+        >
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[
+              styles.statsRowScroll,
+              // Center the tiles when 3 or fewer fit comfortably on
+              // screen. Beyond 3 the user scrolls, so left-align so
+              // the scroll feels natural and the first tile lines up
+              // with the rest of the screen padding.
+              effectiveHomeStatTiles.length <= 3 && styles.statsRowScrollCenter,
+            ]}
+          >
+            {effectiveHomeStatTiles.map((f, i) => {
+              const tile = resolveTile(f, store, t, theme)
+              return (
+                <FilterTile
+                  key={`${f}-${i}`}
+                  icon={tile.icon}
+                  label={tile.label}
+                  value={tile.count}
+                  onPress={() => openTodos(f)}
+                  styles={styles}
+                />
+              )
+            })}
+          </ScrollView>
+        </View>
+      )}
       <DeferModal
         visible={deferTarget !== null}
         filterLabel={deferTarget?.text}
@@ -365,6 +653,18 @@ export default function HomeScreen() {
           if (deferTarget) store.bulkDeferTodos([deferTarget.id], targetISO)
         }}
         onClose={() => setDeferTarget(null)}
+      />
+      {/* Add FAB — same component Todos uses; the compose sheet now
+          lives in SheetContext so this can fire from any tab. The
+          extraBottom offset lifts the FAB above the sticky stats row
+          (measured at runtime via onLayout above). */}
+      <Fab
+        onPress={() => sheets.openCompose()}
+        accessibilityLabel={t.addPlaceholder}
+        agentEnabled={store.profile.agentEnabled !== false}
+        extraBottom={
+          effectiveHomeStatTiles.length > 0 ? statsRowHeight + 4 : 0
+        }
       />
     </View>
   )
@@ -389,6 +689,82 @@ function StatTile({ label, value, styles }: StatProps) {
       </View>
     </View>
   )
+}
+
+interface FilterTileProps {
+  icon: React.ReactNode
+  label: string
+  value: number
+  onPress: () => void
+  styles: ReturnType<typeof makeStyles>
+}
+
+function FilterTile({ icon, label, value, onPress, styles }: FilterTileProps) {
+  return (
+    <TouchableOpacity
+      style={styles.statTile}
+      onPress={onPress}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}, ${value}. Tap to open in Todos.`}
+    >
+      <Text style={styles.statValue}>{value}</Text>
+      <View style={styles.statLabelRow}>
+        {icon}
+        <Text style={styles.statLabel} numberOfLines={1}>
+          {label}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  )
+}
+
+/** Resolve a Filter to its render parts for the sticky Home stats row. */
+function resolveTile(
+  f: Filter,
+  store: ReturnType<typeof useStore>,
+  t: ReturnType<typeof useLang>['t'],
+  theme: ThemeColors,
+): { icon: React.ReactNode; label: string; count: number } {
+  if (isCategoryFilter(f)) {
+    const catId = categoryIdFromFilter(f)
+    const cat = catId ? store.categories.find((c) => c.id === catId) : undefined
+    if (cat) {
+      return {
+        icon: <CategoryIcon icon={cat.icon} color={cat.color} size={11} />,
+        label: categoryLabel(cat, t),
+        count: store.byCategory[cat.id] ?? 0,
+      }
+    }
+    // Category was deleted after being picked — render a neutral placeholder
+    // and a zero count. User can re-pick a valid filter via the sheet.
+    return {
+      icon: <CheckCircle2 size={11} color={theme.label3} strokeWidth={2.4} />,
+      label: '—',
+      count: 0,
+    }
+  }
+  const counts = store.systemCounts
+  if (f === 'all' || f === 'open' || f === 'done' || f === 'overdue' || f === 'trash') {
+    const count = counts[f] ?? 0
+    const sysLabel = (t.filters as Record<string, string>)[f] ?? f
+    return {
+      icon:
+        f === 'all' ? (
+          <CheckCircle2 size={11} color={theme.primary} strokeWidth={2.4} />
+        ) : (
+          <StatusIcon id={f} size={11} color={statusColor(f, theme)} />
+        ),
+      label: sysLabel,
+      count,
+    }
+  }
+  // Groceries (or any unknown filter shape) — neutral placeholder.
+  return {
+    icon: <CheckCircle2 size={11} color={theme.label3} strokeWidth={2.4} />,
+    label: '—',
+    count: 0,
+  }
 }
 
 function makeStyles(c: ThemeColors) {
@@ -421,6 +797,13 @@ function makeStyles(c: ThemeColors) {
       color: c.label3,
       letterSpacing: 0.2,
     },
+    sectionCollapse: {
+      fontSize: 18,
+      lineHeight: 18,
+      color: c.label3,
+      fontWeight: '300',
+      marginLeft: 2,
+    },
     todayEmpty: {
       backgroundColor: c.card,
       borderRadius: 14,
@@ -445,6 +828,19 @@ function makeStyles(c: ThemeColors) {
       fontSize: 12,
       color: c.label3,
       fontStyle: 'italic',
+    },
+    whatsNextBtn: {
+      marginTop: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 999,
+      backgroundColor: c.primarySoft,
+    },
+    whatsNextBtnText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: c.primary,
+      letterSpacing: -0.1,
     },
     todayCard: {
       backgroundColor: c.card,
@@ -576,8 +972,30 @@ function makeStyles(c: ThemeColors) {
       gap: 10,
       marginTop: 4,
     },
+    statsRowSticky: {
+      paddingTop: 8,
+      paddingBottom: 8,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.separator,
+      backgroundColor: c.bg,
+    },
+    statsRowScroll: {
+      flexDirection: 'row',
+      gap: 10,
+      paddingHorizontal: 16,
+    },
+    statsRowScrollCenter: {
+      // flexGrow lets the contentContainer span the ScrollView width,
+      // so justifyContent: 'center' actually centers the children.
+      flexGrow: 1,
+      justifyContent: 'center',
+    },
     statTile: {
-      flex: 1,
+      // Fixed minWidth so the horizontal scroll lays out cleanly when
+      // the user picks many tiles. ~3 fit comfortably without
+      // scrolling on iPhone 17 Pro width (393pt - 32 pad = 361pt;
+      // 3 × 110 + 2 × 10 = 350).
+      minWidth: 110,
       backgroundColor: c.card,
       borderRadius: 14,
       paddingVertical: 18,
@@ -602,41 +1020,6 @@ function makeStyles(c: ThemeColors) {
       color: c.label3,
       fontWeight: '600',
       letterSpacing: 0.2,
-    },
-    cairnCard: {
-      backgroundColor: c.primarySoft,
-      borderRadius: 18,
-      paddingVertical: 28,
-      paddingHorizontal: 16,
-      alignItems: 'center',
-      marginTop: 4,
-    },
-    cairnGlyph: { marginBottom: 8 },
-    cairnValue: {
-      fontSize: 40,
-      fontWeight: '700',
-      color: c.primary,
-      lineHeight: 44,
-      fontVariant: ['tabular-nums'],
-      letterSpacing: -0.6,
-    },
-    cairnLabel: {
-      fontSize: 13,
-      lineHeight: 18,
-      fontWeight: '600',
-      color: c.label2,
-      marginTop: 2,
-      paddingBottom: 2,
-    },
-    cairnHint: {
-      fontSize: 12,
-      lineHeight: 17,
-      color: c.label3,
-      fontStyle: 'italic',
-      textAlign: 'center',
-      marginTop: 12,
-      maxWidth: 260,
-      paddingBottom: 2,
     },
     footnote: {
       fontSize: 13,

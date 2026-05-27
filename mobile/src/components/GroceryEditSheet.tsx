@@ -37,7 +37,7 @@ interface Props {
    * type freely encourages typos that hide items behind store
    * filters. Plus "Any store" as an explicit clear option. */
   stores: string[]
-  onSave: (id: string, patch: { text?: string; groupId?: string; store?: string | null }) => void
+  onSave: (id: string, patch: { text?: string; groupId?: string; stores?: string[] }) => void
   onDelete: (id: string) => void
   onClose: () => void
 }
@@ -57,16 +57,22 @@ export default function GroceryEditSheet({
 
   const [text, setText] = useState('')
   const [groupId, setGroupId] = useState<string>('')
-  const [store, setStore] = useState('')
+  const [storesList, setStoresList] = useState<string[]>([])
 
   // Re-seed local state every time a new item opens.
   useEffect(() => {
     if (visible && item) {
       setText(item.text)
       setGroupId(item.groupId)
-      setStore(item.store ?? '')
+      setStoresList(item.stores)
     }
   }, [visible, item])
+
+  function toggleStore(name: string) {
+    setStoresList((prev) =>
+      prev.includes(name) ? prev.filter((s) => s !== name) : [...prev, name],
+    )
+  }
 
   const visibleGroups = useMemo(
     () => groups.filter((g) => !g.hidden),
@@ -80,7 +86,7 @@ export default function GroceryEditSheet({
     onSave(item.id, {
       text: trimmed,
       groupId,
-      store: store.trim() ? store.trim() : null,
+      stores: storesList,
     })
     onClose()
   }
@@ -109,34 +115,6 @@ export default function GroceryEditSheet({
     }
   }
 
-  function openStorePicker() {
-    // "Any" clears the store assignment (item.store = null); each
-    // configured store sets it. Free-text was error-prone — typos
-    // produced ghost stores that hid items under the filter.
-    const ANY = 'Any store'
-    const options = [
-      `${ANY}${store === '' ? ' ✓' : ''}`,
-      ...stores.map((s) => `${s}${s === store ? ' ✓' : ''}`),
-      t.cancel,
-    ]
-    const cancelIndex = options.length - 1
-    function pick(i: number) {
-      if (i === 0) setStore('')
-      else if (i > 0 && i < cancelIndex) setStore(stores[i - 1])
-    }
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        { options, cancelButtonIndex: cancelIndex, title: 'Store' },
-        pick,
-      )
-    } else {
-      Alert.alert('Store', undefined, [
-        { text: ANY, onPress: () => setStore('') },
-        ...stores.map((s) => ({ text: s, onPress: () => setStore(s) })),
-        { text: t.cancel, style: 'cancel' as const },
-      ])
-    }
-  }
 
   function handleDelete() {
     if (!item) return
@@ -233,29 +211,42 @@ export default function GroceryEditSheet({
                   </View>
                 </TouchableOpacity>
                 <View style={styles.divider} />
-                <TouchableOpacity
-                  style={styles.field}
-                  onPress={openStorePicker}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Store: ${store || 'Any store'}. Tap to change.`}
-                >
-                  <Text style={styles.fieldLabel}>Store</Text>
-                  <View style={styles.rowValueWrap}>
-                    {store ? (
-                      <GroceryIcon kind="store" id={store} size={16} />
-                    ) : null}
-                    <Text
-                      style={[
-                        styles.rowValue,
-                        !store && styles.rowValueMuted,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {store || 'Any store'}
+                <View style={styles.field}>
+                  <Text style={styles.fieldLabel}>Stores</Text>
+                  {stores.length === 0 ? (
+                    <Text style={[styles.rowValue, styles.rowValueMuted]}>
+                      No stores configured
                     </Text>
-                    <Text style={styles.rowChevron}>›</Text>
-                  </View>
-                </TouchableOpacity>
+                  ) : (
+                    <View style={styles.storeChipRow}>
+                      {stores.map((s) => {
+                        const on = storesList.includes(s)
+                        return (
+                          <TouchableOpacity
+                            key={s}
+                            onPress={() => toggleStore(s)}
+                            style={[
+                              styles.storeChip,
+                              on && styles.storeChipOn,
+                            ]}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: on }}
+                            accessibilityLabel={`${on ? 'Remove' : 'Add'} ${s}`}
+                          >
+                            <Text
+                              style={[
+                                styles.storeChipText,
+                                on && styles.storeChipTextOn,
+                              ]}
+                            >
+                              {s}
+                            </Text>
+                          </TouchableOpacity>
+                        )
+                      })}
+                    </View>
+                  )}
+                </View>
               </View>
 
               <TouchableOpacity
@@ -370,5 +361,29 @@ function makeStyles(c: ThemeColors) {
       marginTop: 8,
       lineHeight: 16,
     },
+    storeChipRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginTop: 8,
+    },
+    storeChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 999,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      backgroundColor: c.card,
+    },
+    storeChipOn: {
+      backgroundColor: c.primary,
+      borderColor: c.primary,
+    },
+    storeChipText: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: c.label,
+    },
+    storeChipTextOn: { color: '#fff' },
   })
 }

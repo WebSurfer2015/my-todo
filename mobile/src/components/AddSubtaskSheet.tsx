@@ -189,9 +189,13 @@ export default function AddSubtaskSheet({ visible, onAdd, onClose, defaultDueDat
             {subView === 'date' && (
               <View style={styles.subViewWrap}>
                 <View style={styles.headerRow}>
-                  <View style={{ width: 56 }} />
-                  <Text style={styles.title}>Completed by</Text>
-                  <View style={{ width: 56 }} />
+                  <TouchableOpacity onPress={() => setSubView('main')} hitSlop={10}>
+                    <Text style={styles.cancelText}>{t.cancel}</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.title}>{t.composeDateLabel}</Text>
+                  <TouchableOpacity onPress={applyInlineDate} hitSlop={10}>
+                    <Text style={styles.doneHeaderText}>{t.done}</Text>
+                  </TouchableOpacity>
                 </View>
                 <View style={styles.dateWrap}>
                   {dueDate ? (
@@ -207,17 +211,11 @@ export default function AddSubtaskSheet({ visible, onAdd, onClose, defaultDueDat
                     onChange={handleInlineDateChange}
                   />
                 </View>
-                <View style={styles.dateActions}>
-                  <TouchableOpacity onPress={() => setDueDate('')} style={styles.clearBtn}>
-                    <Text style={styles.clearBtnText}>{t.clear}</Text>
+                {dueDate ? (
+                  <TouchableOpacity onPress={() => setDueDate('')} style={styles.clearLink} hitSlop={8}>
+                    <Text style={styles.clearLinkText}>{t.clear}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={applyInlineDate}
-                    style={[styles.addBtn, styles.applyBtn]}
-                  >
-                    <Text style={styles.addBtnText}>{t.done}</Text>
-                  </TouchableOpacity>
-                </View>
+                ) : null}
               </View>
             )}
           </Pressable>
@@ -385,6 +383,23 @@ function makeStyles(c: ThemeColors) {
     },
     applyBtn: {
       flex: 1.4,
+    },
+    doneHeaderText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: c.blue,
+      width: 56,
+      textAlign: 'right',
+    },
+    clearLink: {
+      alignSelf: 'center',
+      paddingVertical: 6,
+      marginTop: 4,
+    },
+    clearLinkText: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: c.red,
     },
   })
 }

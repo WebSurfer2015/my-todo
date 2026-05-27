@@ -18,6 +18,15 @@
 import React from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import {
+  Bell as BellMenuIcon,
+  Hand as HandIcon,
+  ListChecks,
+  Palette,
+  ShoppingBag as ShoppingBagMenuIcon,
+  Sparkles as SparklesMenuIcon,
+  type LucideIcon,
+} from 'lucide-react-native'
+import {
   MockupChips,
   MockupHighlight,
   MockupPills,
@@ -54,7 +63,12 @@ export interface Guide {
   title: string
   /** Tag line below the title in the menu. Keep under ~70 chars. */
   blurb: string
-  /** Lead-in glyph for the menu row. */
+  /** Lucide icon for the menu row + the prompt + the fallback for
+   * slides without a visual. Sleeker than emoji on the menu and
+   * matches the rest of the app's iconography. */
+  icon: LucideIcon
+  /** Legacy emoji glyph — still used for backward-compat in places
+   * where rendering a React icon would be awkward (none currently). */
   glyph: string
   slides: GuideSlide[]
 }
@@ -237,6 +251,7 @@ export const GUIDES: Guide[] = [
     id: 'ai-fields',
     title: 'AI for to-dos',
     blurb: 'Type naturally — Sagely fills the fields.',
+    icon: SparklesMenuIcon,
     glyph: '✨',
     slides: [
       {
@@ -305,6 +320,7 @@ export const GUIDES: Guide[] = [
     id: 'reminders',
     title: 'Reminders that repeat',
     blurb: 'One-shot or every N hours until a cutoff.',
+    icon: BellMenuIcon,
     glyph: '🔔',
     slides: [
       {
@@ -365,6 +381,7 @@ export const GUIDES: Guide[] = [
     id: 'subtasks',
     title: 'Break a task into steps',
     blurb: 'Suggest steps + clear all + roll-forward.',
+    icon: ListChecks,
     glyph: '🪜',
     slides: [
       {
@@ -416,6 +433,7 @@ export const GUIDES: Guide[] = [
     id: 'groceries',
     title: 'Smart grocery list',
     blurb: 'Departments auto-fill. AI catches the store too.',
+    icon: ShoppingBagMenuIcon,
     glyph: '🥬',
     slides: [
       {
@@ -442,7 +460,7 @@ export const GUIDES: Guide[] = [
                 { icon: <IconStore />, label: 'Target' },
               ]}
             />
-            <MockupRow label="Department" value="Uncategorized" muted />
+            <MockupRow label="Department" value="Miscellaneous" muted />
           </MockupSheet>
         ),
       },
@@ -485,6 +503,7 @@ export const GUIDES: Guide[] = [
     id: 'hidden-actions',
     title: 'Hidden gestures',
     blurb: 'Long-press, swipe, drag — the shortcuts.',
+    icon: HandIcon,
     glyph: '👆',
     slides: [
       {
@@ -566,6 +585,7 @@ export const GUIDES: Guide[] = [
     id: 'personalize',
     title: 'Make it yours',
     blurb: 'Backgrounds, avatar theme, motion, sound.',
+    icon: Palette,
     glyph: '🎨',
     slides: [
       {

@@ -4,7 +4,8 @@ import Svg, { Ellipse } from 'react-native-svg'
 import { useTheme, ThemeColors } from '../theme'
 import { useRegisterCairn } from './PebbleFlight'
 import { useStore } from '../StoreContext'
-import { collectedGlyphFor } from '../profile'
+import { useLang } from '../LangContext'
+import { collectedGlyphFor, collectedNounKeyFor } from '../profile'
 import { darkenHex } from '../backgrounds'
 
 /**
@@ -98,11 +99,18 @@ interface Props {
 export default function PebbleStrip({ count, active = true }: Props) {
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
+  const { t } = useLang()
+  const profile = useStore().profile
   // Themed collectable for the current preset avatar — fish for
   // the cat, bone for the dog, etc. null means render the default
   // SVG pebble. Read at render so changes to the avatar (Edit
   // profile → Save) re-render the strip with the new glyph.
-  const collectedGlyph = collectedGlyphFor(useStore().profile.avatar)
+  const collectedGlyph = collectedGlyphFor(profile.avatar)
+  // Themed caption noun. Only when the user has opted into theme-from-
+  // avatar AND the preset has a noun mapping — otherwise the caption
+  // keeps the default "One pebble. That's it." brand copy.
+  const captionNounKey =
+    profile.themeFromAvatar === true ? collectedNounKeyFor(profile.avatar) : null
 
   // Register a LIVE resolver with the PebbleFlight overlay so flying
   // Mochis land exactly where the new pebble materializes. Measuring at
@@ -159,24 +167,32 @@ export default function PebbleStrip({ count, active = true }: Props) {
         style={styles.container}
         accessible
         accessibilityRole="text"
-        accessibilityLabel="No pebbles placed today yet. One pebble. That's it."
+        accessibilityLabel={`Nothing today yet. ${t.oneItemCaption(captionNounKey)}`}
       >
         <View style={styles.row}>
-          <Svg width={26} height={16}>
-            <Ellipse
-              cx={13}
-              cy={8}
-              rx={11}
-              ry={5.5}
-              fill="none"
-              stroke={theme.label3}
-              strokeWidth={1.3}
-              strokeDasharray="2,2.5"
-              opacity={0.55}
-            />
-          </Svg>
+          {collectedGlyph ? (
+            // Themed avatar: ghost-render the themed glyph itself so the
+            // empty-state outline matches the noun in the caption ("One
+            // star. That's it." → faded ⭐). Default Mochi falls back to
+            // the dashed pebble ellipse below.
+            <Text style={styles.emptyGlyph}>{collectedGlyph}</Text>
+          ) : (
+            <Svg width={26} height={16}>
+              <Ellipse
+                cx={13}
+                cy={8}
+                rx={11}
+                ry={5.5}
+                fill="none"
+                stroke={theme.label3}
+                strokeWidth={1.3}
+                strokeDasharray="2,2.5"
+                opacity={0.55}
+              />
+            </Svg>
+          )}
         </View>
-        <Text style={styles.caption}>One pebble. That's it.</Text>
+        <Text style={styles.caption}>{t.oneItemCaption(captionNounKey)}</Text>
       </View>
     )
   }
@@ -303,13 +319,21 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center',
       flexWrap: 'nowrap',
       gap: GAP,
-      minHeight: 22,
+      // Min-height generous enough to fit themed emoji glyphs without
+      // clipping their bottoms. Some emoji (🌰, 🥕) render taller than
+      // their declared lineHeight on iOS — give the row breathing room.
+      minHeight: 32,
     },
     caption: {
       fontSize: 12,
       color: c.label3,
       fontWeight: '500',
       letterSpacing: 0.1,
+    },
+    emptyGlyph: {
+      fontSize: 18,
+      lineHeight: 22,
+      opacity: 0.45,
     },
     overflow: {
       fontSize: 12,
@@ -320,10 +344,16 @@ function makeStyles(c: ThemeColors) {
     },
     // Avatar-themed collectable. Sized to roughly match the SVG
     // pebble footprint so layout doesn't jump when the avatar changes.
+    // Emoji render bigger than their declared font size on iOS, so we
+    // size BELOW PEBBLE_SIZE rather than above. lineHeight is bumped
+    // above fontSize so tall emoji like 🌰 / 🥕 don't clip at the
+    // bottom of the row.
     collectedGlyph: {
-      fontSize: PEBBLE_SIZE + 4,
-      lineHeight: PEBBLE_SIZE + 6,
+      fontSize: PEBBLE_SIZE - 2,
+      lineHeight: PEBBLE_SIZE + 8,
       marginHorizontal: 1,
+      includeFontPadding: false,
+      textAlignVertical: 'center',
     },
   })
 }

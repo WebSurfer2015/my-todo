@@ -9,9 +9,27 @@ import { darkenHex } from '../backgrounds'
  * transparent-background mascot rather than the app icon — the icon is full-
  * bleed (the turtle touches its edges) and gets corner-clipped by the
  * circular avatar mask.
+ *
+ * To replace an emoji preset with a custom illustration:
+ *   1. Drop the PNG at `mobile/assets/preset-avatars/<key>.png` (transparent
+ *      background, square ~256×256, subject centered with breathing room).
+ *   2. Uncomment the matching `require` line below.
+ * The avatar renderer checks PRESET_IMAGES[preset.imageKey] before falling
+ * back to the emoji, so this is the only edit needed once the asset exists.
  */
 const PRESET_IMAGES: Record<string, ReturnType<typeof require>> = {
   mochi: require('../../assets/mochi-mascot.png'),
+  // cat:       require('../../assets/preset-avatars/cat.png'),
+  // dog:       require('../../assets/preset-avatars/dog.png'),
+  // bird:      require('../../assets/preset-avatars/bird.png'),
+  // fish:      require('../../assets/preset-avatars/fish.png'),
+  // flower:    require('../../assets/preset-avatars/flower.png'),
+  // butterfly: require('../../assets/preset-avatars/butterfly.png'),
+  // owl:       require('../../assets/preset-avatars/owl.png'),
+  // elephant:  require('../../assets/preset-avatars/elephant.png'),
+  // whale:     require('../../assets/preset-avatars/whale.png'),
+  // squirrel:  require('../../assets/preset-avatars/squirrel.png'),
+  // rabbit:    require('../../assets/preset-avatars/rabbit.png'),
 }
 
 /** Avatar ring uses ~7.5% darken — subtle, hue-matched, never overpowering. */

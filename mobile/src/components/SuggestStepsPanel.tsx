@@ -121,6 +121,7 @@ export function SuggestStepsReview({
 
   return (
     <View style={styles.panel}>
+      <Text style={styles.hint}>{t.suggestStepsHint}</Text>
       {suggestions.map((text, i) => {
         const isOn = selected.has(i)
         return (
@@ -149,7 +150,10 @@ export function SuggestStepsReview({
           disabled={selected.size === 0}
           activeOpacity={0.6}
         >
-          <Text style={styles.btnPrimaryText}>{t.addSelected}</Text>
+          <Text style={styles.btnPrimaryText}>
+            {t.addSelected}
+            {selected.size > 0 ? ` (${selected.size})` : ''}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -197,6 +201,13 @@ function makeReviewStyles(c: ThemeColors) {
       padding: 12,
       gap: 6,
       marginVertical: 6,
+    },
+    hint: {
+      fontSize: 12,
+      fontWeight: '500',
+      color: c.label3,
+      letterSpacing: -0.05,
+      marginBottom: 4,
     },
     row: {
       flexDirection: 'row',

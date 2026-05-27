@@ -64,29 +64,34 @@ export default function GuideMenuSheet({ visible, seen, onSelect, onClose }: Pro
               showsVerticalScrollIndicator={false}
             >
               <View style={styles.card}>
-                {GUIDES.map((g, i) => (
-                  <React.Fragment key={g.id}>
-                    {i > 0 && <View style={styles.divider} />}
-                    <TouchableOpacity
-                      style={styles.row}
-                      onPress={() => onSelect(g)}
-                      activeOpacity={0.6}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${g.title}. ${g.blurb}.${seenSet.has(g.id) ? ' Already viewed.' : ''}`}
-                    >
-                      <Text style={styles.glyph}>{g.glyph}</Text>
-                      <View style={styles.rowMain}>
-                        <Text style={styles.rowTitle} numberOfLines={1}>{g.title}</Text>
-                        <Text style={styles.rowBlurb} numberOfLines={2}>{g.blurb}</Text>
-                      </View>
-                      {seenSet.has(g.id) ? (
-                        <Check size={18} color={theme.primary} strokeWidth={2.4} />
-                      ) : (
-                        <Text style={styles.rowChevron}>›</Text>
-                      )}
-                    </TouchableOpacity>
-                  </React.Fragment>
-                ))}
+                {GUIDES.map((g, i) => {
+                  const Icon = g.icon
+                  return (
+                    <React.Fragment key={g.id}>
+                      {i > 0 && <View style={styles.divider} />}
+                      <TouchableOpacity
+                        style={styles.row}
+                        onPress={() => onSelect(g)}
+                        activeOpacity={0.6}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${g.title}. ${g.blurb}.${seenSet.has(g.id) ? ' Already viewed.' : ''}`}
+                      >
+                        <View style={styles.iconBubble}>
+                          <Icon size={18} color={theme.primary} strokeWidth={2} />
+                        </View>
+                        <View style={styles.rowMain}>
+                          <Text style={styles.rowTitle} numberOfLines={1}>{g.title}</Text>
+                          <Text style={styles.rowBlurb} numberOfLines={2}>{g.blurb}</Text>
+                        </View>
+                        {seenSet.has(g.id) ? (
+                          <Check size={18} color={theme.primary} strokeWidth={2.4} />
+                        ) : (
+                          <Text style={styles.rowChevron}>›</Text>
+                        )}
+                      </TouchableOpacity>
+                    </React.Fragment>
+                  )
+                })}
               </View>
               <View style={{ height: 24 }} />
             </ScrollView>
@@ -143,14 +148,21 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center',
       paddingHorizontal: 14,
       paddingVertical: 14,
-      gap: 14,
+      gap: 12,
       minHeight: 64,
     },
-    glyph: { fontSize: 22, lineHeight: 28, width: 28, textAlign: 'center' },
+    iconBubble: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: c.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     rowMain: { flex: 1, gap: 2 },
     rowTitle: { fontSize: 15, color: c.label, fontWeight: '600' },
     rowBlurb: { fontSize: 13, color: c.label3, lineHeight: 17 },
     rowChevron: { fontSize: 18, color: c.gray3, fontWeight: '300' },
-    divider: { height: StyleSheet.hairlineWidth, backgroundColor: c.separator, marginLeft: 56 },
+    divider: { height: StyleSheet.hairlineWidth, backgroundColor: c.separator, marginLeft: 62 },
   })
 }

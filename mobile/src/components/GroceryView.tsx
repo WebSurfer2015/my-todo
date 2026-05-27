@@ -66,7 +66,7 @@ interface Props {
   onSearchPillPress: () => void
   /** Tap the X on the search pill → clear the query. */
   onSearchClear: () => void
-  onAdd: (args: { text: string; groupId?: string; store?: string }) => void
+  onAdd: (args: { text: string; groupId?: string; stores?: string[] }) => void
   /** When true, the grocery FAB shows a small Sparkles badge —
    * matches the to-do FAB and signals that AI dept inference runs
    * silently on add. */
@@ -99,6 +99,14 @@ interface Props {
    * inline funnel state. */
   storePickerOpen?: boolean
   onStorePickerOpenChange?: (open: boolean) => void
+  /** When true, StorePicker mounts in Manage (edit) mode. Used by
+   * the Groceries AppHeader gear icon and the Settings → Manage
+   * Groceries entry. Default false (Pick mode). */
+  storePickerEditing?: boolean
+  /** Forwarded to GroceryComposeSheet — surfaces a "Add stores first"
+   * nudge when the user has no stores configured. Owner navigates +
+   * promotes the Manage Store sheet. */
+  onOpenManageStore?: () => void
 }
 
 
@@ -134,6 +142,8 @@ export default function GroceryView({
   onSetGroceryGroups,
   storePickerOpen: storePickerOpenProp,
   onStorePickerOpenChange,
+  storePickerEditing,
+  onOpenManageStore,
 }: Props) {
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
@@ -208,14 +218,15 @@ export default function GroceryView({
   const filteredItems = useMemo(() => {
     return groceries.filter((g) => {
       if (activeStore !== undefined) {
-        const storeVal = g.store ?? ''
-        // Empty store = "Any" — always included. Otherwise must match.
-        if (storeVal !== '' && storeVal !== activeStore) return false
+        // Multi-store: item must explicitly include the active store.
+        // Items with an empty stores list don't appear under any
+        // specific store filter — they live in the All view only.
+        if (!g.stores.includes(activeStore)) return false
       }
       if (effectiveDept !== undefined && g.groupId !== effectiveDept) return false
       if (searchNeedle) {
         if (g.text.toLowerCase().includes(searchNeedle)) return true
-        if (g.store && g.store.toLowerCase().includes(searchNeedle)) return true
+        if (g.stores.some((s) => s.toLowerCase().includes(searchNeedle))) return true
         const group = groceryGroups.find((x) => x.id === g.groupId)
         if (group && group.label.toLowerCase().includes(searchNeedle)) return true
         return false
@@ -233,26 +244,18 @@ export default function GroceryView({
     () => groceries.filter((g) => !g.checked).length,
     [groceries],
   )
-  // Per-store active counts include items with no store tag, because
-  // tapping the store pill also surfaces those (see `filteredItems`).
-  // The count answers "how many items will I see if I tap this pill?"
-  // rather than "how many are tagged exactly this store?".
+  // Per-store active counts — count of active items tagged with each
+  // store. A multi-store item contributes +1 to each of its stores'
+  // counts. Untagged items don't appear under any store filter, so
+  // they aren't counted here (they only show in the All view).
   const perStoreActiveCount = useMemo(() => {
     const m = new Map<string, number>()
-    // Seed every configured store with 0 so untagged-only-stores still
-    // appear with a count, then add Any items at the end.
     for (const s of configuredStores) m.set(s, 0)
-    let anyStoreActive = 0
     for (const it of groceries) {
       if (it.checked) continue
-      if (!it.store) {
-        anyStoreActive += 1
-      } else if (m.has(it.store)) {
-        m.set(it.store, (m.get(it.store) ?? 0) + 1)
+      for (const s of it.stores) {
+        if (m.has(s)) m.set(s, (m.get(s) ?? 0) + 1)
       }
-    }
-    if (anyStoreActive > 0) {
-      for (const s of m.keys()) m.set(s, (m.get(s) ?? 0) + anyStoreActive)
     }
     return m
   }, [groceries, configuredStores])
@@ -713,6 +716,7 @@ export default function GroceryView({
     />
     <StorePicker
       visible={storePickerOpen}
+      defaultEditing={storePickerEditing}
       items={groceries}
       stores={configuredStores}
       hiddenStores={hiddenStores}
@@ -733,14 +737,18 @@ export default function GroceryView({
       visible={composeOpen}
       groups={groceryGroups}
       stores={configuredStores.filter((s) => !hiddenStores.includes(s))}
-      initialStore={lastAddedStore}
+      initialStore={activeStore ?? lastAddedStore}
       initialDepartmentId={effectiveDept}
-      onAdd={({ text, groupId, store }) => {
-        setLastAddedStore(store)
-        onAdd({ text, groupId, store })
+      onAdd={({ text, groupId, stores }) => {
+        // Stamp lastAddedGroceryStore from the first pick so "Add
+        // another" can re-pre-select it; falls back to undefined
+        // when the user submitted with no stores attached.
+        setLastAddedStore(stores[0])
+        onAdd({ text, groupId, stores })
       }}
       onCreateStore={onAddStore}
       onCreateGroup={onAddGroup}
+      onOpenManageStore={onOpenManageStore}
       agentEnabled={agentEnabled}
       onClose={() => setComposeOpen(false)}
     />
@@ -901,9 +909,9 @@ function Row({ item, onToggle, onOpenEdit, styles, futureMode }: RowProps) {
         >
           {item.text}
         </Text>
-        {item.store && (
+        {item.stores.length > 0 && (
           <Text style={styles.rowStore} numberOfLines={1}>
-            {item.store}
+            {item.stores.join(' · ')}
           </Text>
         )}
       </TouchableOpacity>

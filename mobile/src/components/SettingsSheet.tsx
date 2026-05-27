@@ -49,6 +49,18 @@ interface Props {
   onShowIntro: () => void;
   /** Opens the Tips & guides menu (parent owns the modal). */
   onOpenGuides: () => void;
+  /** Opens the Manage Dashboard Tiles picker. Parent handles the
+   * Settings → Dashboard-Tiles modal handoff (iOS can't stack). */
+  onOpenDashboardTiles: () => void;
+  /** Opens Manage Filter (CategorySheet in edit mode). Settings hands
+   * off to SheetContext.openManageFilter via the parent. */
+  onOpenManageTodos: () => void;
+  /** Opens Manage Groceries (StorePicker in edit mode). Navigates to
+   * the Groceries tab + signals GroceriesScreen via the parent. */
+  onOpenManageGroceries: () => void;
+  /** Opens the Animation & Sound preferences sheet (the three toggles
+   * that used to live inline in this Settings sheet). */
+  onOpenAnimationSound: () => void;
   onClose: () => void;
 }
 
@@ -59,6 +71,10 @@ export default function SettingsSheet({
   onOpenBackgrounds,
   onShowIntro,
   onOpenGuides,
+  onOpenDashboardTiles,
+  onOpenManageTodos,
+  onOpenManageGroceries,
+  onOpenAnimationSound,
   onClose,
 }: Props) {
   const { t } = useLang();
@@ -125,19 +141,16 @@ export default function SettingsSheet({
                 />
                 <View style={styles.divider} />
                 <TouchableOpacity
-                  style={[styles.row, themeFromAvatarOn && { opacity: 0.4 }]}
+                  style={styles.row}
                   onPress={() => {
-                    if (themeFromAvatarOn) return;
                     onClose();
                     // Defer so this modal can finish dismissing before the
                     // picker modal slides up — iOS dislikes modal-on-modal.
                     setTimeout(() => onOpenBackgrounds(), 280);
                   }}
-                  activeOpacity={themeFromAvatarOn ? 1 : 0.7}
-                  disabled={themeFromAvatarOn}
+                  activeOpacity={0.7}
                   accessibilityRole="button"
-                  accessibilityState={{ disabled: themeFromAvatarOn }}
-                  accessibilityLabel={`Background, ${bgPair.label}, ${bgPattern.label}.${themeFromAvatarOn ? ' Disabled while Theme from avatar is on.' : ' Tap to change.'}`}
+                  accessibilityLabel={`Background, ${bgPair.label}, ${bgPattern.label}. Tap to change.`}
                 >
                   <View style={styles.bgPreview}>
                     {renderPattern(bgPattern.key, {
@@ -154,40 +167,76 @@ export default function SettingsSheet({
                 </TouchableOpacity>
               </View>
 
+              {/* CONFIGURATION — entry-points to the per-surface manage
+                  sheets. Each row closes Settings and (after the 280ms
+                  iOS modal-handoff delay) opens its target sheet. */}
+              <Text style={styles.sectionLabel}>CONFIGURATION</Text>
+              <View style={styles.card}>
+                <TouchableOpacity
+                  style={styles.row}
+                  onPress={() => {
+                    onClose();
+                    setTimeout(() => onOpenDashboardTiles(), 280);
+                  }}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Manage Dashboard Tiles"
+                >
+                  <Text style={styles.rowLabel}>Manage Dashboard Tiles</Text>
+                  <Text style={styles.rowChevron}>›</Text>
+                </TouchableOpacity>
+                <View style={styles.divider} />
+                <TouchableOpacity
+                  style={styles.row}
+                  onPress={() => {
+                    onClose();
+                    setTimeout(() => onOpenManageTodos(), 280);
+                  }}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Manage Todos"
+                >
+                  <Text style={styles.rowLabel}>Manage Todos</Text>
+                  <Text style={styles.rowChevron}>›</Text>
+                </TouchableOpacity>
+                <View style={styles.divider} />
+                <TouchableOpacity
+                  style={styles.row}
+                  onPress={() => {
+                    onClose();
+                    // Manage Groceries navigates first (since StorePicker
+                    // still lives in GroceryView) and then signals
+                    // GroceriesScreen to open it in edit mode.
+                    setTimeout(() => onOpenManageGroceries(), 280);
+                  }}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Manage Store"
+                >
+                  <Text style={styles.rowLabel}>Manage Store</Text>
+                  <Text style={styles.rowChevron}>›</Text>
+                </TouchableOpacity>
+                <View style={styles.divider} />
+                <TouchableOpacity
+                  style={styles.row}
+                  onPress={() => {
+                    onClose();
+                    setTimeout(() => onOpenAnimationSound(), 280);
+                  }}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Manage Animation & Sound"
+                >
+                  <Text style={styles.rowLabel}>Manage Animation &amp; Sound</Text>
+                  <Text style={styles.rowChevron}>›</Text>
+                </TouchableOpacity>
+              </View>
+
               {/* Daily check-in + Reminder time were removed pending a
                   full notifications & reminders redesign. The underlying
                   profile fields (dailyCheckinEnabled, dailyCheckinHour)
                   are preserved in core/profile.ts so the toggle state
                   isn't lost; we just don't surface the UI right now. */}
-
-              {/* ANIMATIONS & SOUND */}
-              <Text style={styles.sectionLabel}>ANIMATIONS & SOUND</Text>
-              <View style={styles.card}>
-                <ToggleRow
-                  label="Reduce motion"
-                  hint="Suppresses Mochi flight, row flash, and the checkbox bounce. Use this if motion makes you queasy."
-                  value={reduceMotionOn}
-                  onChange={(v) => patch({ reduceMotion: v })}
-                  styles={styles}
-                />
-                <View style={styles.divider} />
-                <ToggleRow
-                  label="Completion animation"
-                  hint="A calm scale pulse when you mark a task done."
-                  value={animationOn && !reduceMotionOn}
-                  onChange={(v) => patch({ completionAnimation: v })}
-                  disabled={reduceMotionOn}
-                  styles={styles}
-                />
-                <View style={styles.divider} />
-                <ToggleRow
-                  label="Completion sound"
-                  hint="A soft chime when you mark a task done."
-                  value={soundOn}
-                  onChange={(v) => patch({ completionSound: v })}
-                  styles={styles}
-                />
-              </View>
 
               {/* MOCHI */}
               <Text style={styles.sectionLabel}>MOCHI</Text>

@@ -78,19 +78,22 @@ export default function FilterBar({
   // accumulate; this keeps it visible without the user having to swipe.
   const scrollRef = useRef<ScrollView>(null)
   const pillXRef = useRef<Record<string, number>>({})
+  // When filter or pinned set changes, the scroll's pill order reshuffles
+  // (active pill is rendered first, others shift). Cached positions from
+  // the prior layout are now stale, so blow them away — the onLayout
+  // handler below will re-populate AND scroll to the active pill once
+  // the new layout is measured. Without this invalidation, the Done pill
+  // ends up clipped after a tile-tap nav-back because we scroll to its
+  // old (post-active-shift) x. Tab navigator keeps the screen mounted,
+  // so this effect IS the only place that resets pillXRef.
   useEffect(() => {
-    // The All pill lives OUTSIDE the scrollable row (pinned to the
-    // left next to the funnel), so its x never lands in pillXRef.
-    // Picking All should just rewind the scroll to the start.
+    pillXRef.current = {}
     if (filter === 'all') {
+      // The All pill lives OUTSIDE the scrollable row (pinned to the
+      // left next to the funnel), so its x never lands in pillXRef.
+      // Picking All should just rewind the scroll to the start.
       scrollRef.current?.scrollTo({ x: 0, animated: true })
-      return
     }
-    const x = pillXRef.current[filter]
-    if (x === undefined || !scrollRef.current) return
-    // Land the pill 16pt from the left edge of the viewport (matches the
-    // row's leading padding) and clamp at 0 so we don't bounce.
-    scrollRef.current.scrollTo({ x: Math.max(0, x - 16), animated: true })
   }, [filter, pinnedFilters])
 
   // Resolve display info (icon/label/count/color) for any Filter. Returns
@@ -270,7 +273,20 @@ export default function FilterBar({
                 styles.pill,
                 active ? styles.pillActive : pinned ? styles.pillSticky : styles.pillExtra,
               ]}
-              onLayout={(e) => { pillXRef.current[pill.filter] = e.nativeEvent.layout.x }}
+              onLayout={(e) => {
+                const x = e.nativeEvent.layout.x
+                pillXRef.current[pill.filter] = x
+                // Auto-scroll fires HERE (instead of from a useEffect) so
+                // we always use the freshly measured x rather than a
+                // stale cached one — see the pillXRef invalidation
+                // comment above for why.
+                if (pill.filter === filter) {
+                  scrollRef.current?.scrollTo({
+                    x: Math.max(0, x - 16),
+                    animated: true,
+                  })
+                }
+              }}
               onPress={() => onFilter(pill.filter)}
               onLongPress={() => promptPin(pill.filter, pill.label)}
               delayLongPress={350}

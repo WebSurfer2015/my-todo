@@ -63,9 +63,10 @@ export interface Profile {
    *   when it's un-checked (min 0). At local midnight (pebblesDate change)
    *   both reset to 0.
    *
-   * - `lifetimePebbles` is cumulative and monotonic. Trashing or undoing a
-   *   task does not lower it — it represents "every check-off you've ever
-   *   completed, since you started." Shown on the Profile sheet.
+   * - `lifetimePebbles` mirrors total completions over time and moves in
+   *   both directions: a check-off increments, an uncheck decrements (min
+   *   0). Trashing a completed task still removes its pebble. Shown on
+   *   the Profile sheet's YOUR JOURNEY card.
    *
    * Splitting today into task vs subtask lets the UI render them at
    * different sizes (big stones for tasks, small stones for subtasks).
@@ -119,6 +120,14 @@ export interface Profile {
    * on `'all'`; pins are just shortcut pills.
    */
   pinnedFilters?: string[]
+  /**
+   * Filters the user has picked as stat tiles on the Dashboard. Ordered
+   * (index 0 = leftmost). Stored as raw `Filter` strings (same shape as
+   * `pinnedFilters`) so picks survive category reorder. No cap — the
+   * Dashboard row scrolls horizontally if the user picks many. When
+   * undefined the effective tiles default to ['cat:home','cat:work','done'];
+   * an explicit empty array hides the row entirely. */
+  homeStatTiles?: string[]
   /**
    * App background choice — pairs a pattern key (e.g. 'solid', 'gradient',
    * 'blob') with a color-pair key (e.g. 'cream', 'mochi-shell'). Rendering
@@ -232,17 +241,29 @@ export function incrementPebble(p: Profile, today: string, kind: PebbleKind): Pr
 }
 
 /**
- * Decrement today (for the given kind), clamped at 0. Lifetime is unchanged
- * — historical completions stay on the record even when something is undone.
- * If the user undoes a task completed yesterday, today's counters don't move
- * (pebblesDate mismatch).
+ * Decrement today (for the given kind), clamped at 0. Lifetime also
+ * decrements — unchecking a completion removes its pebble from the
+ * lifetime count so the surface stays accurate, not aspirational. Today's
+ * counters only move if pebblesDate matches today; lifetime always moves
+ * (a yesterday-completion being undone still removes the pebble).
  */
 export function decrementPebble(p: Profile, today: string, kind: PebbleKind): Profile {
-  if (p.pebblesDate !== today) return p
-  if (kind === 'task') {
-    return { ...p, todayTaskPebbles: Math.max(0, (p.todayTaskPebbles ?? 0) - 1) }
+  const lifetimePebbles = Math.max(0, (p.lifetimePebbles ?? 0) - 1)
+  if (p.pebblesDate !== today) {
+    return { ...p, lifetimePebbles }
   }
-  return { ...p, todaySubtaskPebbles: Math.max(0, (p.todaySubtaskPebbles ?? 0) - 1) }
+  if (kind === 'task') {
+    return {
+      ...p,
+      lifetimePebbles,
+      todayTaskPebbles: Math.max(0, (p.todayTaskPebbles ?? 0) - 1),
+    }
+  }
+  return {
+    ...p,
+    lifetimePebbles,
+    todaySubtaskPebbles: Math.max(0, (p.todaySubtaskPebbles ?? 0) - 1),
+  }
 }
 
 export const SEED_PROFILE: Profile = {
@@ -291,19 +312,24 @@ export interface PresetAvatar {
  * Stable keys so cross-device sync works.
  */
 export const AVATAR_PRESET_LIBRARY: PresetAvatar[] = [
-  { key: 'mochi',     emoji: '🐢', bg: '#E8F0E5', imageKey: 'mochi' },  // brand mascot — emoji is fallback only
-  { key: 'cat',       emoji: '🐱', bg: '#C7D3CB' },  // sage
-  { key: 'dog',       emoji: '🐶', bg: '#E5D4A8' },  // honey
-  { key: 'bird',      emoji: '🐦', bg: '#C9DAD8' },  // sea-glass
-  { key: 'fish',      emoji: '🐠', bg: '#D6CFE1' },  // lavender
-  { key: 'flower',    emoji: '🌸', bg: '#EDD4D0' },  // misty rose
-  { key: 'sun',       emoji: '☀️', bg: '#F1D9C0' },  // peach
-  { key: 'leaf',      emoji: '🌿', bg: '#C2D9C9' },  // mint
-  { key: 'moon',      emoji: '🌙', bg: '#C8CFDA' },  // cool dawn
-  { key: 'butterfly', emoji: '🦋', bg: '#E0D2EA' },  // soft lavender
-  { key: 'cloud',     emoji: '☁️', bg: '#D6E0DF' },  // sea-glass light
-  { key: 'tree',      emoji: '🌲', bg: '#B9CCB4' },  // sage light
-  { key: 'owl',       emoji: '🦉', bg: '#D6C5A5' },  // warm sand
+  // Backgrounds are hand-picked muted hues that read as the subject's
+  // natural habitat / palette rather than generic pair colors. When a
+  // PNG illustration is dropped at `mobile/assets/preset-avatars/<key>.png`
+  // and the corresponding `require` is added to PRESET_IMAGES in
+  // mobile/src/components/Avatar.tsx, that art replaces the emoji
+  // automatically — no other wiring needed. Emoji stays the fallback.
+  { key: 'mochi',     emoji: '🐢',  bg: '#E8F0E5', imageKey: 'mochi' },     // brand mascot — uses bundled PNG today
+  { key: 'cat',       emoji: '🐱',  bg: '#D7C4B5', imageKey: 'cat' },       // warm clay
+  { key: 'dog',       emoji: '🐶',  bg: '#E8DCC4', imageKey: 'dog' },       // cream biscuit
+  { key: 'bird',      emoji: '🐦',  bg: '#BFD0DC', imageKey: 'bird' },      // powder blue sky
+  { key: 'fish',      emoji: '🐠',  bg: '#BDD7D2', imageKey: 'fish' },      // sea foam
+  { key: 'flower',    emoji: '🌸',  bg: '#DCC0BD', imageKey: 'flower' },    // dusty rose
+  { key: 'butterfly', emoji: '🦋',  bg: '#C8BCD1', imageKey: 'butterfly' }, // soft heather
+  { key: 'owl',       emoji: '🦉',  bg: '#C9B89A', imageKey: 'owl' },       // walnut beige
+  { key: 'elephant',  emoji: '🐘',  bg: '#C2C7CC', imageKey: 'elephant' },  // slate grey
+  { key: 'whale',     emoji: '🐋',  bg: '#B3C4CC', imageKey: 'whale' },     // deep ocean blue
+  { key: 'squirrel',  emoji: '🐿️', bg: '#D4B89A', imageKey: 'squirrel' },  // warm autumn tan
+  { key: 'rabbit',    emoji: '🐰',  bg: '#E1C8C8', imageKey: 'rabbit' },    // rose blush
 ]
 
 /** Web's lucide-style icon avatars. Hex colors so they're cross-platform safe. */
@@ -333,19 +359,44 @@ const COLLECTED_GLYPHS: Record<string, string> = {
   cat: '🐟',
   dog: '🦴',
   bird: '🪶',
-  flower: '🌸',
-  sun: '☀️',
-  leaf: '🍃',
-  moon: '🌙',
-  butterfly: '🦋',
-  cloud: '☁️',
-  tree: '🍂',
-  owl: '🦉',
+  fish: '🫧',
+  flower: '🩷',
+  butterfly: '🌸',
+  owl: '📚',
+  elephant: '🌱',
+  whale: '💦',
+  squirrel: '🌰',
+  rabbit: '🥕',
 }
 
 export function collectedGlyphFor(avatar: Avatar | undefined): string | null {
   if (!avatar || avatar.kind !== 'preset') return null
   return COLLECTED_GLYPHS[avatar.key] ?? null
+}
+
+/**
+ * Stable noun token per preset, used as the lifetime-count label
+ * when themeFromAvatar is on. mochi (and any unmapped key) returns
+ * null so the caller can fall back to the default "pebbles placed".
+ * The token is resolved to a localized phrase by i18n.lifetimeLabel.
+ */
+const COLLECTED_NOUN_KEYS: Record<string, string> = {
+  cat: 'fish',
+  dog: 'bones',
+  bird: 'feathers',
+  fish: 'bubbles',
+  flower: 'petals',
+  butterfly: 'flowers',
+  owl: 'books',
+  elephant: 'grass',
+  whale: 'spouts',
+  squirrel: 'acorns',
+  rabbit: 'carrots',
+}
+
+export function collectedNounKeyFor(avatar: Avatar | undefined): string | null {
+  if (!avatar || avatar.kind !== 'preset') return null
+  return COLLECTED_NOUN_KEYS[avatar.key] ?? null
 }
 
 export function findPreset(key: string): PresetAvatar {
@@ -429,6 +480,7 @@ export function migrateProfile(raw: unknown): Profile {
         ? Math.floor(p.dailyCheckinHour)
         : undefined,
     pinnedFilters: migratePinnedFilters(p.pinnedFilters ?? p.pinnedFilter),
+    homeStatTiles: migrateHomeStatTiles(p.homeStatTiles),
     background: migrateBackground(p.background),
     groceriesEnabled: p.groceriesEnabled === false ? false : undefined,
     activeGroceryStore:
@@ -486,6 +538,27 @@ function migrateBackground(raw: unknown): BackgroundChoice | undefined {
  * occurrence and caps at 12 (sane upper bound — the FilterBar row would
  * scroll past viewport long before then). Falls back to a single-string
  * legacy value (the field used to be `pinnedFilter`) for backward compat. */
+/** Same shape as `migratePinnedFilters`. No hard cap on count — the
+ * Dashboard scrolls horizontally — but we still apply the same 12-item
+ * safety ceiling that pinned filters use, to defend against malformed
+ * cloud writes. */
+function migrateHomeStatTiles(raw: unknown): string[] | undefined {
+  const valid = (s: unknown): s is string => {
+    if (typeof s !== 'string' || s.length === 0) return false
+    if (s === 'all' || s === 'open' || s === 'overdue' || s === 'done' || s === 'trash') {
+      return true
+    }
+    return s.startsWith('cat:') && s.length > 4 && s.length <= 200
+  }
+  if (!Array.isArray(raw)) return undefined
+  const items: string[] = []
+  for (const item of raw) {
+    if (valid(item) && !items.includes(item)) items.push(item)
+    if (items.length >= 12) break
+  }
+  return items.length > 0 ? items : undefined
+}
+
 function migratePinnedFilters(raw: unknown): string[] | undefined {
   const valid = (s: unknown): s is string => {
     if (typeof s !== 'string' || s.length === 0) return false
@@ -557,10 +630,18 @@ function migrateAvatar(raw: unknown): Avatar | null {
 }
 
 const DROPPED_PRESET_MIGRATIONS: Record<string, string> = {
-  smile:    'sun',
-  rabbit:   'cat',
-  star:     'sun',
+  // Original v1.2.x dropped loud presets.
+  smile:    'cat',     // sun was the old fallback; sun is gone too, route warm presets to cat
+  star:     'cat',     // ditto
   heart:    'flower',
-  sparkles: 'moon',
+  sparkles: 'butterfly',
   rocket:   'bird',
+  // v1.5 curation removed cloud/moon/sun/leaf/tree. Map each to a
+  // calmer animal/object cousin so existing users don't silently flip
+  // to the brand mochi fallback when they re-open the app.
+  cloud: 'whale',     // both calm + blue/sea-tone
+  moon:  'owl',       // nocturnal companions
+  sun:   'cat',       // warm/contented vibe
+  leaf:  'rabbit',    // soft nature pairing
+  tree:  'squirrel',  // squirrel lives in tree
 }

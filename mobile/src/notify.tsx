@@ -38,7 +38,7 @@ interface NotifyApi {
 
 const NotifyContext = createContext<NotifyApi>(null!)
 
-const DEFAULT_DURATION = 10000
+const DEFAULT_DURATION = 3500
 
 export function NotifyProvider({ children }: { children: ReactNode }) {
   const [snackbar, setSnackbar] = useState<SnackbarState | null>(null)

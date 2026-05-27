@@ -170,9 +170,12 @@ Output ONLY a JSON object on a single line, no prose, no markdown, no code fence
 {"groupId":"<id>" or null,"newGroupLabel":"<label>" or null,"storeHint":{"name":"<store>","isNew":true|false} or null}
 
 storeHint examples:
-  "book from target"   → ...,"storeHint":{"name":"Target","isNew":true}
-  "milk at costco"     → ...,"storeHint":{"name":"Costco","isNew":<true if not in stores>}
-  "diapers"            → ...,"storeHint":null  (no store mention)
+  "book from target"        → ...,"storeHint":{"name":"Target","isNew":true}
+  "milk at costco"          → ...,"storeHint":{"name":"Costco","isNew":<true if not in stores>}
+  "coffee from dunkin"      → ...,"storeHint":{"name":"Dunkin'","isNew":<…>}      (lowercase → Title Case + apostrophe)
+  "burger from mcdonalds"   → ...,"storeHint":{"name":"McDonald's","isNew":<…>}    (lowercase → CamelCase + apostrophe)
+  "rice from h mart"        → ...,"storeHint":{"name":"H Mart","isNew":<…>}        (multi-word, normalize spacing)
+  "diapers"                 → ...,"storeHint":null  (no store mention)
 
 Rules — at most one of groupId / newGroupLabel is non-null:
 - PREFER an existing id. Only suggest a new dept when the item clearly
@@ -192,11 +195,15 @@ Rules — at most one of groupId / newGroupLabel is non-null:
 - Match on the item's primary type, not garnish or packaging.
 - storeHint: extract a real store name ONLY when the text explicitly
   mentions one with a preposition ("from <X>", "at <X>", "@ <X>",
-  "<item> at <store>"). Use Title Case. Don't infer stores from item
-  type alone ("book" alone is NOT enough to suggest a bookstore).
-  isNew = true when the name isn't present (case-insensitive) in the
-  Stores list provided below; false when it matches an existing one.
-  Set storeHint to null when no explicit store appears in the text.
+  "<item> at <store>"). NORMALIZE the extracted name even if the
+  user typed it in lowercase or without punctuation — output Title
+  Case for the noun phrase, and add the canonical apostrophe for
+  well-known brands (Dunkin' / McDonald's / Trader Joe's / Wendy's /
+  Macy's). Don't infer stores from item type alone ("book" alone is
+  NOT enough to suggest a bookstore). isNew = true when the name
+  isn't present (case-insensitive) in the Stores list provided
+  below; false when it matches an existing one. Set storeHint to
+  null when no explicit store appears in the text.
 
 Trust model:
 - The item text and department list are wrapped in <grocery>…</grocery>.

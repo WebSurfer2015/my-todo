@@ -20,6 +20,8 @@ import {
   Profile,
   Avatar as AvatarT,
   AVATAR_LIBRARY,
+  collectedGlyphFor,
+  collectedNounKeyFor,
 } from "../profile";
 
 /**
@@ -36,6 +38,7 @@ function normalizeAvatar(a: AvatarT | undefined | null): AvatarT {
   return a;
 }
 import Avatar from "./Avatar";
+import { CairnGlyph } from "./PebbleStrip";
 import { useLang } from "../LangContext";
 import { useAuth } from "../AuthContext";
 import { useTheme, ThemeColors } from "../theme";
@@ -44,6 +47,9 @@ interface Props {
   visible: boolean;
   profile: Profile;
   onSave: (p: Profile) => void;
+  /** Resets the cumulative lifetime count to zero. Owned by the parent
+   * so the destructive write doesn't depend on the local edit state. */
+  onResetLifetime: () => void;
   onClose: () => void;
 }
 
@@ -51,6 +57,7 @@ export default function ProfileSheet({
   visible,
   profile,
   onSave,
+  onResetLifetime,
   onClose,
 }: Props) {
   const { t } = useLang();
@@ -285,8 +292,25 @@ export default function ProfileSheet({
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
             <View style={styles.handle} />
             <View style={styles.titleRow}>
-              <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.titleSideBtn}>
-                <Text style={styles.cancelHeaderText}>{t.cancel}</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  onClose();
+                  signOut();
+                }}
+                hitSlop={10}
+                style={styles.titleSideBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t.signOut}
+                disabled={!user}
+              >
+                <Text
+                  style={[
+                    styles.signOutHeaderText,
+                    !user && styles.signOutHeaderTextDisabled,
+                  ]}
+                >
+                  {t.signOut}
+                </Text>
               </TouchableOpacity>
               <Text style={styles.title}>{t.editProfile}</Text>
               <TouchableOpacity
@@ -308,6 +332,16 @@ export default function ProfileSheet({
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
+            {/* Signed-in identity line — sits above the avatar so the
+                user sees who they're editing as before anything else.
+                "Signed in as <email>" all on one row; Sign out lives
+                in the title bar (top-left). */}
+            <Text style={styles.signedInLine} numberOfLines={1}>
+              {user?.email
+                ? `Signed in as  ${user.email}`
+                : 'Not signed in'}
+            </Text>
+
             {/* Avatar header */}
             <View style={styles.avatarRow}>
               <TouchableOpacity onPress={openAvatarPicker} activeOpacity={0.8}>
@@ -410,28 +444,60 @@ export default function ProfileSheet({
               </View>
             </View>
 
-            {/* ACCOUNT — email-only card. Lifetime pebbles now live on
-                the Home tab, so YOUR JOURNEY was removed from here. */}
-            <Text style={styles.sectionLabel}>ACCOUNT</Text>
-            <View style={styles.card}>
-              {user?.email ? (
-                <View style={styles.accountRowStatic}>
-                  <Text style={styles.accountRowLabel}>Signed in as</Text>
-                  <Text style={styles.accountRowValue} numberOfLines={1}>
-                    {user.email}
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.accountRowStatic}>
-                  <Text style={styles.accountRowLabel}>Not signed in</Text>
-                </View>
-              )}
-            </View>
+            {/* YOUR JOURNEY — lifetime count card with a Reset action.
+                Themed glyph + label follow the user's avatar choice
+                (preview against local `avatar` state so it updates
+                instantly when they pick a new preset above). */}
+            {(() => {
+              const themed =
+                profile.themeFromAvatar === true ? collectedGlyphFor(avatar) : null;
+              const nounKey =
+                profile.themeFromAvatar === true ? collectedNounKeyFor(avatar) : null;
+              return (
+                <>
+                  <Text style={styles.sectionLabel}>YOUR JOURNEY</Text>
+                  <View style={[styles.card, styles.journeyCard]}>
+                    {themed ? (
+                      <Text style={styles.journeyGlyph}>{themed}</Text>
+                    ) : (
+                      <View style={styles.journeyCairn}>
+                        <CairnGlyph size={48} />
+                      </View>
+                    )}
+                    <Text style={styles.journeyValue}>{profile.lifetimePebbles ?? 0}</Text>
+                    <Text style={styles.journeyLabel}>{t.lifetimeLabel(nounKey)}</Text>
+                    <Text style={styles.journeyHint}>
+                      Every task you've finished, since you started.
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.journeyResetBtn}
+                      hitSlop={8}
+                      onPress={() => {
+                        Alert.alert(
+                          t.resetLifetimeConfirm,
+                          t.resetLifetimeConfirmBody,
+                          [
+                            { text: t.cancel, style: "cancel" },
+                            {
+                              text: t.reset,
+                              style: "destructive",
+                              onPress: onResetLifetime,
+                            },
+                          ],
+                        );
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={t.resetLifetimeAction}
+                    >
+                      <Text style={styles.journeyResetText}>{t.resetLifetimeAction}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              );
+            })()}
 
-            {/* Bottom action row — Delete account on the left
-                (destructive), Sign out on the right (neutral). Sits
-                outside the ACCOUNT card so destructive copy doesn't
-                stay inside the visual grouped block. */}
+            {/* Bottom action — Delete account (destructive). Sign out
+                + Signed-in-as moved to the top of the sheet. */}
             <View style={styles.bottomActionsRow}>
               <TouchableOpacity
                 disabled={deleting}
@@ -480,17 +546,6 @@ export default function ProfileSheet({
                 >
                   {deleting ? t.deleting : t.deleteAccount}
                 </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => {
-                  onClose();
-                  signOut();
-                }}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel={t.signOut}
-              >
-                <Text style={styles.bottomActionNeutral}>{t.signOut}</Text>
               </TouchableOpacity>
             </View>
 
@@ -568,6 +623,54 @@ function makeStyles(c: ThemeColors) {
       overflow: "hidden",
       marginBottom: 4,
     },
+    journeyCard: {
+      alignItems: "center",
+      paddingVertical: 24,
+      paddingHorizontal: 16,
+    },
+    journeyGlyph: {
+      fontSize: 48,
+      lineHeight: 56,
+      marginBottom: 6,
+    },
+    journeyCairn: {
+      marginBottom: 6,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    journeyValue: {
+      fontSize: 36,
+      fontWeight: "700",
+      color: c.primary,
+      lineHeight: 40,
+      fontVariant: ["tabular-nums"],
+      letterSpacing: -0.6,
+    },
+    journeyLabel: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: c.label2,
+      marginTop: 2,
+    },
+    journeyHint: {
+      fontSize: 12,
+      lineHeight: 17,
+      color: c.label3,
+      fontStyle: "italic",
+      textAlign: "center",
+      marginTop: 10,
+      maxWidth: 260,
+    },
+    journeyResetBtn: {
+      marginTop: 14,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+    },
+    journeyResetText: {
+      fontSize: 13,
+      fontWeight: "500",
+      color: c.red,
+    },
     cardWithTopGap: {
       // For a card that sits without its own section label above it —
       // restore the breathing room a label would normally provide.
@@ -642,6 +745,26 @@ function makeStyles(c: ThemeColors) {
       marginLeft: "auto",
       textAlign: "right",
       flexShrink: 1,
+    },
+    accountTopRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    accountOneLine: {
+      flex: 1,
+      fontSize: 14,
+      color: c.label2,
+      fontWeight: "500",
+    },
+    signedInLine: {
+      fontSize: 13,
+      color: c.label3,
+      fontWeight: "500",
+      paddingHorizontal: 4,
+      paddingBottom: 8,
     },
     accountRowAction: {
       fontSize: 15,
@@ -975,10 +1098,30 @@ function makeStyles(c: ThemeColors) {
     titleSideBtn: {
       minWidth: 56,
     },
+    titleSideGroup: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      minWidth: 56,
+      justifyContent: "flex-end",
+    },
+    settingsIconBtn: {
+      paddingVertical: 4,
+      paddingHorizontal: 2,
+    },
     cancelHeaderText: {
       fontSize: 15,
       color: c.blue,
       fontWeight: "500",
+    },
+    signOutHeaderText: {
+      fontSize: 15,
+      color: c.red,
+      fontWeight: "500",
+    },
+    signOutHeaderTextDisabled: {
+      color: c.label3,
+      opacity: 0.55,
     },
     bottomActionsRow: {
       flexDirection: "row",
