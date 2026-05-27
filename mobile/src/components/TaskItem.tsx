@@ -244,6 +244,17 @@ function TaskItem({
   // from its own screen position, not the parent row's. Cleared on
   // unmount via the ref callback's null branch.
   const subMeasureRefs = useRef<Map<string, View>>(new Map())
+  // Category color → fed to PebbleFlight as the `tint` for the
+  // default-Mochi pebble glyph so the celebration carries the
+  // visual identity of the thing the user just completed. Looked
+  // up lazily inside the flight callbacks so the latest category
+  // metadata is used at trigger time (categories can be edited
+  // while a row is mounted).
+  const categoryTint =
+    todo.category
+      ? categories.find((c) => c.id === todo.category)?.color
+      : undefined
+
   const fireSubFlight = useCallback(
     (subId: string) => {
       if (!celebrate && !playSound) return
@@ -258,13 +269,13 @@ function TaskItem({
             typeof x === 'number' && typeof y === 'number' && w > 0 && h > 0
               ? { x: x + w / 2, y: y + h / 2 }
               : fallback
-          triggerPebbleFlight(from, { animate: celebrate, chime: playSound })
+          triggerPebbleFlight(from, { animate: celebrate, chime: playSound, tint: categoryTint })
         })
       } else {
-        triggerPebbleFlight(fallback, { animate: celebrate, chime: playSound })
+        triggerPebbleFlight(fallback, { animate: celebrate, chime: playSound, tint: categoryTint })
       }
     },
-    [celebrate, playSound, triggerPebbleFlight],
+    [celebrate, playSound, triggerPebbleFlight, categoryTint],
   )
   // Fire the pebble flight from the row's CURRENT screen position
   // synchronously on tap — strict Open filters unmount the row
@@ -283,12 +294,12 @@ function TaskItem({
           typeof x === 'number' && typeof y === 'number' && w > 0 && h > 0
             ? { x: x + w / 2, y: y + h / 2 }
             : fallback
-        triggerPebbleFlight(from, { animate: celebrate, chime: playSound })
+        triggerPebbleFlight(from, { animate: celebrate, chime: playSound, tint: categoryTint })
       })
     } else {
-      triggerPebbleFlight(fallback, { animate: celebrate, chime: playSound })
+      triggerPebbleFlight(fallback, { animate: celebrate, chime: playSound, tint: categoryTint })
     }
-  }, [celebrate, playSound, triggerPebbleFlight])
+  }, [celebrate, playSound, triggerPebbleFlight, categoryTint])
   useEffect(() => {
     const becameDone = todo.done && !prevDoneRef.current
     const rolledForward =

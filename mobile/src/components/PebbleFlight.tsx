@@ -11,6 +11,7 @@ import Svg, { Ellipse } from 'react-native-svg'
 import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from 'expo-audio'
 import { useStore } from '../StoreContext'
 import { collectedGlyphFor, findPreset, type Avatar } from '../profile'
+import { darkenHex } from '../backgrounds'
 
 /**
  * Cross-component overlay: when a task transitions to done, a Mochi sprite
@@ -43,6 +44,12 @@ interface Flight {
   /** Whether the chime should fire at landing for this flight. False
    * when the user has turned the completion sound off in Profile. */
   chime: boolean
+  /** Optional hex color of the completed task's category — used to
+   * tint the default-Mochi pebble glyph so the celebration carries
+   * the visual identity of the thing the user just finished. Themed
+   * collected glyphs (fish/feather/etc.) ignore this and render as
+   * the emoji. */
+  tint?: string
 }
 
 interface TriggerOptions {
@@ -51,6 +58,10 @@ interface TriggerOptions {
   animate?: boolean
   /** Play the completion chime. Default true. */
   chime?: boolean
+  /** Hex color of the category the completed item belonged to. Used
+   * to tint the default-Mochi pebble glyph. Themed glyphs (cat → 🐟
+   * etc.) ignore this. */
+  tint?: string
 }
 
 /**
@@ -137,9 +148,9 @@ export function PebbleFlightProvider({ children }: { children: React.ReactNode }
   }, [])
 
   const launchFlight = useCallback(
-    (from: Point, to: Point, chime: boolean) => {
+    (from: Point, to: Point, chime: boolean, tint: string | undefined) => {
       const id = nextIdRef.current++
-      setFlights((prev) => [...prev, { id, from, to, chime }])
+      setFlights((prev) => [...prev, { id, from, to, chime, tint }])
     },
     [],
   )
@@ -148,6 +159,7 @@ export function PebbleFlightProvider({ children }: { children: React.ReactNode }
     (from: Point, opts?: TriggerOptions) => {
       const wantsAnimate = opts?.animate !== false
       const wantsChime = opts?.chime !== false
+      const tint = opts?.tint
       if (!wantsAnimate) {
         if (wantsChime) playChime()
         return
@@ -155,11 +167,11 @@ export function PebbleFlightProvider({ children }: { children: React.ReactNode }
       const resolver = cairnResolverRef.current
       const fallback = fallbackPointRef.current
       if (!resolver) {
-        launchFlight(from, fallback, wantsChime)
+        launchFlight(from, fallback, wantsChime, tint)
         return
       }
       resolver((to) => {
-        launchFlight(from, to ?? fallback, wantsChime)
+        launchFlight(from, to ?? fallback, wantsChime, tint)
       })
     },
     [launchFlight],
@@ -349,7 +361,7 @@ function FlyingMochi({ flight, onDone }: { flight: Flight; onDone: () => void })
           },
         ]}
       >
-        {renderCollectedGlyph(avatar)}
+        {renderCollectedGlyph(avatar, flight.tint)}
       </Animated.View>
       <SparkleBurst at={flight.to} progress={progress} avatar={avatar} />
     </>
@@ -480,13 +492,21 @@ const FLIGHT_PRESET_IMAGES: Record<string, ReturnType<typeof require>> = {
  * flying) and lets the celebration token feel like the *win itself*
  * being carried home, not the mascot doing a lap.
  */
-function renderCollectedGlyph(avatar: Avatar | undefined): React.ReactNode {
+function renderCollectedGlyph(
+  avatar: Avatar | undefined,
+  tint: string | undefined,
+): React.ReactNode {
   const glyph = collectedGlyphFor(avatar)
   if (glyph) {
     return <Text style={styles.flyingGlyph}>{glyph}</Text>
   }
-  // Default Mochi → single soft pebble. SVG so it scales crisply
-  // and uses the brand cream/teal palette.
+  // Default Mochi → single soft pebble, tinted with the category
+  // color when provided so the celebration carries the visual
+  // identity of the thing the user just completed. Falls back to
+  // the brand cream when no category color is passed.
+  const fill = tint ?? '#D8CDA8'
+  const stroke = darkenHex(fill, 0.22)
+  const shadow = darkenHex(fill, 0.35)
   const w = MOCHI_SIZE * 0.78
   const h = MOCHI_SIZE * 0.52
   return (
@@ -496,16 +516,16 @@ function renderCollectedGlyph(avatar: Avatar | undefined): React.ReactNode {
         cy={h / 2 + 1.5}
         rx={w / 2 - 2}
         ry={h / 2 - 2}
-        fill="#A8C9B4"
-        opacity={0.25}
+        fill={shadow}
+        opacity={0.22}
       />
       <Ellipse
         cx={w / 2}
         cy={h / 2}
         rx={w / 2 - 2}
         ry={h / 2 - 2}
-        fill="#D8CDA8"
-        stroke="#A89A77"
+        fill={fill}
+        stroke={stroke}
         strokeWidth={1.6}
       />
     </Svg>
