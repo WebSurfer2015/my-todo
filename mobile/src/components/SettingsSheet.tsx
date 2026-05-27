@@ -36,6 +36,7 @@ import {
   tonesFor,
 } from "../backgrounds";
 import { renderPattern } from "./backgroundPatterns";
+import { Analytics } from "../analytics";
 
 interface Props {
   visible: boolean;
@@ -136,7 +137,10 @@ export default function SettingsSheet({
                       : "Tint the FAB, pill accents, and background to match your current avatar. Preset avatars only (photo support coming later)."
                   }
                   value={themeFromAvatarOn}
-                  onChange={(v) => patch({ themeFromAvatar: v || undefined })}
+                  onChange={(v) => {
+                    void Analytics.themeFromAvatarToggled(v)
+                    patch({ themeFromAvatar: v || undefined })
+                  }}
                   styles={styles}
                 />
                 <View style={styles.divider} />
