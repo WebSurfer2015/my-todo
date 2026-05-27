@@ -1,56 +1,23 @@
 import React, { useMemo, useState } from 'react'
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { Sparkles } from 'lucide-react-native'
-import { suggestSubtasks } from '../aiInfer'
 import { distributeSubtaskDueDates } from '../../../core/src/utils'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
 import MochiThinking from './MochiThinking'
+import { useSuggestSteps } from './useSuggestSteps'
 
 /**
  * Suggest steps — split into hook + trigger + review so the trigger
  * pill can live in the STEPS section header row while the review
  * checklist renders below the subtask list. Mirrors the web pattern
  * in web/src/components/SuggestStepsPanel.tsx.
+ *
+ * The hook itself lives in ./useSuggestSteps so it can be unit-tested
+ * without pulling in React Native; re-exported here for back-compat
+ * with existing import sites.
  */
-
-export function useSuggestSteps({
-  parentTitle,
-  parentNotes,
-}: {
-  parentTitle: string
-  parentNotes?: string
-}) {
-  const { t } = useLang()
-  const [thinking, setThinking] = useState(false)
-  const [suggestions, setSuggestions] = useState<string[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  async function request() {
-    setThinking(true)
-    setError(null)
-    try {
-      const res = await suggestSubtasks({ title: parentTitle, notes: parentNotes })
-      const texts = res.subtasks.map((s) => s.text).filter((s) => s.length > 0)
-      if (texts.length === 0) {
-        setError(t.suggestStepsError)
-        return
-      }
-      setSuggestions(texts)
-    } catch {
-      setError(t.suggestStepsError)
-    } finally {
-      setThinking(false)
-    }
-  }
-
-  function reset() {
-    setSuggestions(null)
-    setError(null)
-  }
-
-  return { thinking, suggestions, error, request, reset }
-}
+export { useSuggestSteps }
 
 interface TriggerProps {
   thinking: boolean
