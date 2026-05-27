@@ -46,6 +46,15 @@ export interface StatusEntry {
 interface Props {
   visible: boolean;
   currentFilter: Filter;
+  /** Multi-select source of truth. View-mode rows render the checkmark
+   * when their filter is in this array; tapping toggles in/out. Empty
+   * array = "all" semantics. Keeps currentFilter as a back-compat
+   * alias for the legacy single-pick code paths. */
+  selectedFilters: Filter[];
+  /** Toggle one filter in/out of the selection. */
+  onToggleFilter: (f: Filter) => void;
+  /** Clear every selected filter — same effect as picking "All". */
+  onClearFilters: () => void;
   /** Ordered list of pinned filters (from Profile.pinnedFilters). Inline Pin
    * buttons in Configure mode check this list to render the pinned state. */
   pinnedFilters: Filter[];
@@ -100,6 +109,9 @@ type Mode =
 export default function CategorySheet({
   visible,
   currentFilter,
+  selectedFilters,
+  onToggleFilter,
+  onClearFilters,
   pinnedFilters,
   onSelectFilter,
   onPinFilter,
@@ -211,22 +223,27 @@ export default function CategorySheet({
     ]);
   }
 
-  function pickFilter(f: Filter) {
-    onSelectFilter(f);
-    onClose();
+  // Multi-select tap: toggle this filter in/out without closing the
+  // sheet. The user closes via the header "Done" button when finished
+  // (lets them pick multiple). Empty selection = "all" semantics.
+  function tapFilterRow(f: Filter) {
+    onToggleFilter(f);
   }
 
   // --- Row renderers ----------------------------------------------------
 
   function viewStatusRow(s: { id: StatusFilter; label: string }) {
-    const active = currentFilter === s.id;
+    const active = selectedFilters.includes(s.id);
     const count = systemCounts[s.id] ?? 0;
     return (
       <TouchableOpacity
         key={s.id}
         style={styles.viewRow}
-        onPress={() => pickFilter(s.id)}
+        onPress={() => tapFilterRow(s.id)}
         activeOpacity={0.65}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: active }}
+        accessibilityLabel={`${s.label}, ${count} items`}
       >
         <View style={styles.rowIcon}>
           <StatusIcon id={s.id} size={18} color={statusColor(s.id, theme)} />
@@ -239,14 +256,18 @@ export default function CategorySheet({
   }
 
   function viewPriorityRow(p: Priority) {
-    const active = isPriorityFilter(currentFilter) && priorityFromFilter(currentFilter) === p;
+    const f = priorityFilter(p);
+    const active = selectedFilters.includes(f);
     const count = priorityCounts[p] ?? 0;
     return (
       <TouchableOpacity
         key={`pri-${p}`}
         style={styles.viewRow}
-        onPress={() => pickFilter(priorityFilter(p))}
+        onPress={() => tapFilterRow(f)}
         activeOpacity={0.65}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: active }}
+        accessibilityLabel={`${t.priority[p]} priority, ${count} items`}
       >
         <View style={styles.rowIcon}>
           <PriorityBars level={p} size={16} />
@@ -259,7 +280,8 @@ export default function CategorySheet({
   }
 
   function viewCategoryRow(c: CategoryDef) {
-    const active = isCategoryFilter(currentFilter) && categoryIdFromFilter(currentFilter) === c.id;
+    const f = categoryFilter(c.id);
+    const active = selectedFilters.includes(f);
     const count = taskCounts[c.id] ?? 0;
     // View mode is purely for picking a filter — no edit affordances
     // (no pencil, no long-press shortcut). All editing lives in the
@@ -269,8 +291,11 @@ export default function CategorySheet({
       <TouchableOpacity
         key={c.id}
         style={styles.viewRow}
-        onPress={() => pickFilter(categoryFilter(c.id))}
+        onPress={() => tapFilterRow(f)}
         activeOpacity={0.65}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: active }}
+        accessibilityLabel={`${categoryLabel(c, t)}, ${count} items`}
       >
         <View style={styles.rowIcon}>
           <CategoryIcon icon={c.icon} color={c.color} size={18} />
@@ -538,13 +563,15 @@ export default function CategorySheet({
                       <View style={[styles.listCard, styles.allCard]}>
                         <TouchableOpacity
                           style={[styles.viewRow, styles.viewRowFlush]}
-                          onPress={() => pickFilter("all")}
+                          onPress={() => onClearFilters()}
                           activeOpacity={0.65}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${t.filters.all} — clear every selected filter`}
                         >
                           <View style={styles.rowIcon} />
                           <Text style={styles.viewRowLabel}>{t.filters.all}</Text>
                           <Text style={styles.viewRowCount}>{systemCounts.all}</Text>
-                          {currentFilter === "all" ? (
+                          {selectedFilters.length === 0 ? (
                             <Check size={18} color={theme.primary} strokeWidth={2.5} />
                           ) : (
                             <View style={styles.checkPlaceholder} />
