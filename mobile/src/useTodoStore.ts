@@ -29,53 +29,17 @@ import {
 import { useCategoriesSlice } from "./slices/useCategoriesSlice";
 import { useProfileSlice } from "./slices/useProfileSlice";
 import { useGroceriesSlice } from "./slices/useGroceriesSlice";
-import { unwrap, serializeAny } from "./storage/envelope";
-import { Profile, getTodayPebbles, incrementPebble, decrementPebble, collectedNounKeyFor } from "./profile";
+import { useTodosSlice } from "./slices/useTodosSlice";
 import { useLang } from "./LangContext";
 import { useAuth } from "./AuthContext";
 import { useNotify } from "./notify";
-import { PEBBLE_DEFERRAL_MS } from "./components/PebbleFlight";
-import {
-  toggleSelection,
-  applyBulkRestore,
-  applyBulkDelete,
-} from "../../core/src/selection";
 import { storage as localAdapter } from "./persistence";
 import { db } from "./firebase";
 import { makeFirestoreAdapter } from "./firestoreAdapter";
-import { useSyncedState } from "./useSyncedState";
 import { StorageAdapter } from "../../core/src/persistence";
-import {
-  newTodo,
-  todoToggle,
-  pebbleDelta,
-  PebbleDelta,
-  todoMoveToTrash,
-  todoMoveToTrashFutureSeries,
-  todoApplySeriesFutureEdits,
-  todoRestoreFromTrash,
-  todoPermanentlyDelete,
-  todoEmptyTrash,
-  todoClearDone,
-  todoSet,
-  migrateTodos,
-  migrateTodoReferences,
-  recordTodoReference,
-  subtaskAdd,
-  subtaskToggle,
-  subtaskUpdateText,
-  subtaskUpdatePriority,
-  subtaskUpdateDueDate,
-  subtaskRemove,
-  subtaskClearAll,
-  categoryDelete,
-  deriveState,
-} from "../../core/src/derive";
-import { todayLocal, isoDate } from "../../core/src/utils";
-
-const parseTodos = (raw: string | null): Todo[] => migrateTodos(unwrap(raw));
-const parseTodoReferences = (raw: string | null): TodoReference[] =>
-  migrateTodoReferences(unwrap(raw));
+import { categoryDelete, deriveState } from "../../core/src/derive";
+import { todayLocal } from "../../core/src/utils";
+import { getTodayPebbles, collectedNounKeyFor } from "./profile";
 
 // Soft cap on pinned filters in the FilterBar quick-access row. Also
 // enforced by migratePinnedFilters in core, so the persisted profile
@@ -153,27 +117,6 @@ export function useTodoStore() {
     editCategory,
     reorderCategories,
   } = useCategoriesSlice(adapter, onSaved);
-  const [todos, setTodos, todosLoaded] = useSyncedState<Todo[]>(
-    adapter,
-    "todos",
-    [],
-    parseTodos,
-    serializeAny,
-    onSaved,
-  );
-  // Long-lived compose-suggestion history. Stored separately from
-  // `todos` so it survives the 30-day done-bin purge — items the user
-  // checked off months ago can still surface as auto-fill suggestions
-  // when they type a familiar title.
-  const [todoReferences, setTodoReferences] = useSyncedState<TodoReference[]>(
-    adapter,
-    "todoReferences",
-    [],
-    parseTodoReferences,
-    serializeAny,
-    onSaved,
-  );
-
   // Multi-faceted filter selection. Empty array = "all" (no constraint).
   // Filters within the same type group are OR'd (e.g., Home + Work =
   // either); across type groups they're AND'd ((open OR done) AND
@@ -206,16 +149,16 @@ export function useTodoStore() {
   const clearFilters = useCallback(() => setFiltersState([]), []);
   const setFilters = useCallback((f: Filter[]) => setFiltersState(f), []);
   const view: ViewMode = profile.view ?? "status";
-  const [selectedTrashIds, setSelectedTrashIds] = useState<Set<string>>(
-    new Set(),
-  );
-  const todosRef = useRef(todos);
-  useEffect(() => {
-    todosRef.current = todos;
-  }, [todos]);
-  // Mirror `filter` into a ref so TaskItem-bound callbacks can read it
-  // without re-firing on every filter change (which would break the
-  // React.memo on TaskItem — see the store-stability rules).
+  // Derived bool re-exposed in the store return so screens can hide
+  // motion-bound chrome (PebbleStrip etc.) when the user has opted
+  // out. Same expression the todos slice uses internally to decide
+  // whether to defer pebble flights.
+  const animationOn =
+    profile.completionAnimation !== false && profile.reduceMotion !== true;
+  // Mirror `filter` into a ref so TaskItem-bound callbacks (now in
+  // useTodosSlice) can read it without re-firing on every filter
+  // change (which would break the React.memo on TaskItem — see the
+  // store-stability rules).
   const filterRef = useRef<Filter>(filter);
   useEffect(() => {
     filterRef.current = filter;
@@ -229,55 +172,6 @@ export function useTodoStore() {
   useEffect(() => {
     profileRef.current = profile;
   }, [profile]);
-
-  // Post-hydrate pebble reconciliation. The stored today*Pebbles counters
-  // drive the cairn slot math during in-session animations (they're
-  // deferred so Mochi lands before the slot fills), but they can fall out
-  // of sync after sign-out → sign-in, a fresh install, or a midnight
-  // rollover — the user would see 0 pebbles even though today's todos
-  // clearly show several DONE items. Once per uid swap, after both
-  // profile + todos have loaded, walk today's `completionDate` timestamps
-  // on the live todos and bump the stored counter up if it's lagging.
-  // Subtasks don't carry a per-sub completion date so we leave their
-  // count alone here.
-  const reconciledForUidRef = useRef<string | null | undefined>(undefined);
-  useEffect(() => {
-    if (!profileLoaded || !todosLoaded) return;
-    const k = uid ?? "(local)";
-    if (reconciledForUidRef.current === k) return;
-    reconciledForUidRef.current = k;
-    const today = todayLocal();
-    const derivedTask = todos.filter(
-      (t) => !t.trashed && t.done && t.completionDate === today,
-    ).length;
-    const isToday = profile.pebblesDate === today;
-    const storedTask = isToday ? profile.todayTaskPebbles ?? 0 : 0;
-    const storedSub = isToday ? profile.todaySubtaskPebbles ?? 0 : 0;
-    if (!isToday || derivedTask > storedTask) {
-      setProfile((p) => ({
-        ...p,
-        pebblesDate: today,
-        todayTaskPebbles: Math.max(storedTask, derivedTask),
-        todaySubtaskPebbles: storedSub,
-      }));
-    }
-  }, [
-    profileLoaded,
-    todosLoaded,
-    uid,
-    todos,
-    profile.pebblesDate,
-    profile.todayTaskPebbles,
-    profile.todaySubtaskPebbles,
-    setProfile,
-  ]);
-
-  // Auto-clear selection when leaving trash view
-  useEffect(() => {
-    if (filter !== "trash" && selectedTrashIds.size > 0) {
-      setSelectedTrashIds(new Set());
-    }
-  }, [filter, selectedTrashIds.size]);
 
   // Toggle a filter's pin in the FilterBar quick-access row. Adding
   // appends to the end so newest pins are last; removing splices it out.
@@ -379,54 +273,71 @@ export function useTodoStore() {
   // as a forward reference so existing reads upstream don't break.
   // ---- Stable callbacks ----
 
-  // Single chokepoint for pebble accounting. Every mutation that can
-  // earn or refund pebbles (toggle / moveToTrash / restoreFromTrash)
-  // computes a PebbleDelta in core and applies it here — so the math
-  // can't drift between paths the way it did pre-B3.
-  const applyPebbleDelta = useCallback(
-    (delta: PebbleDelta) => {
-      if (delta.task === 0 && delta.subtask === 0) return;
-      setProfile((p) => {
-        const today = todayLocal();
-        let next = p;
-        if (delta.task > 0) next = incrementPebble(next, today, "task");
-        else if (delta.task < 0) next = decrementPebble(next, today, "task");
-        for (let i = 0; i < delta.subtask; i++)
-          next = incrementPebble(next, today, "subtask");
-        for (let i = 0; i < -delta.subtask; i++)
-          next = decrementPebble(next, today, "subtask");
-        return next;
-      });
-    },
-    [setProfile],
-  );
+  // PR 4 todos slice — owns todos + todoReferences + selectedTrashIds
+  // state, all todo + subtask mutations, trash bulk ops, and the
+  // pebble-accounting chokepoint (applyPebbleDelta + Timed). The
+  // chokepoint is re-exposed so the grocery slice's bucket completions
+  // can route through the same path.
+  const todosBundle = useTodosSlice(adapter, {
+    onSaved,
+    profile,
+    setProfile,
+    profileRef,
+    profileLoaded,
+    filter,
+    filterRef,
+    uid,
+    t,
+    notify,
+  });
+  const {
+    todos,
+    setTodos,
+    todosLoaded,
+    todoReferences,
+    selectedTrashIds,
+    todosRef,
+    applyPebbleDelta,
+    applyPebbleDeltaTimed,
+    toggle,
+    moveToTrash,
+    restoreFromTrash,
+    permanentlyDelete,
+    updatePriority,
+    updateDueDate,
+    updateReminder,
+    updateTaskCategory,
+    updateText,
+    updateNotes,
+    updateRecurrence,
+    toggleTrashSelection,
+    applySeriesFutureEdits,
+    moveSeriesFutureToTrash,
+    addSubtask,
+    toggleSubtask,
+    updateSubtaskText,
+    updateSubtaskPriority,
+    updateSubtaskDueDate,
+    removeSubtask,
+    clearSubtasks,
+    deferOverdue,
+    bulkDeferTodos,
+    snooze,
+    addTask,
+    emptyTrash,
+    clearTrashSelection,
+    bulkRestore,
+    bulkPermanentDelete,
+    clearDone,
+  } = todosBundle;
+  // applyPebbleDelta is no longer read in the composer body — the
+  // slice handles every call site internally. Composer re-exposes it
+  // in the return for back-compat with any caller that reaches in.
+  void applyPebbleDelta;
 
-  // Positive pebble deltas (a fresh completion) are deferred so the cairn
-  // updates in sync with Mochi landing on it. Negative deltas (undoing a
-  // completion) fire immediately — the visible strikethrough comes off
-  // and the cairn should reflect that without a delay. The delay is
-  // skipped entirely when the user has reduce-motion on or has turned
-  // off completion animations in Profile — there's no Mochi to wait for
-  // and the 940ms gap between chime and pebble would just feel laggy.
-  const animationOn =
-    profile.completionAnimation !== false && profile.reduceMotion !== true;
-  const applyPebbleDeltaTimed = useCallback(
-    (delta: PebbleDelta) => {
-      if (delta.task === 0 && delta.subtask === 0) return;
-      const shouldDefer =
-        (delta.task > 0 || delta.subtask > 0) && animationOn;
-      if (shouldDefer) {
-        setTimeout(() => applyPebbleDelta(delta), PEBBLE_DEFERRAL_MS);
-      } else {
-        applyPebbleDelta(delta);
-      }
-    },
-    [applyPebbleDelta, animationOn],
-  );
-
-  // PR 3 grocery slice — placed after applyPebbleDeltaTimed so
-  // toggleGroceryChecked can route bucket completion deltas through
-  // the same chokepoint as todo completions.
+  // Grocery slice — placed after the todos slice so its
+  // toggleGroceryChecked can route bucket-completion deltas through
+  // applyPebbleDeltaTimed (now owned by the todos slice).
   const {
     groceries,
     setGroceries,
@@ -465,498 +376,6 @@ export function useTodoStore() {
     groceriesLoaded &&
     groceryGroupsLoaded;
 
-  const toggle = useCallback(
-    (id: string) => {
-      // Detect transitions against the current todos via ref so setTodos +
-      // setProfile sit at the same nesting level (React 18 batches them and
-      // StrictMode's double-invoke can't double-bump the counter).
-      const beforeTodo = todosRef.current.find((t) => t.id === id);
-      setTodos((prev) => todoToggle(prev, id));
-      if (!beforeTodo) return;
-      // todoToggle returns either [next] (normal toggle) or
-      // [rolledNext, snapshot] (rolling recurrence). For pebble math
-      // and reference recording we want the row that represents the
-      // completion: the snapshot when it exists, otherwise the
-      // single result.
-      const out = todoToggle([beforeTodo], id);
-      const afterTodo = out[0];
-      const snapshot = out.length > 1 ? out[1] : null;
-      applyPebbleDeltaTimed(pebbleDelta(beforeTodo, afterTodo));
-      // Record a suggestion-history entry on the open→done transition so
-      // ComposeSheet can auto-fill category / priority / recurrence when
-      // the user types the same title again later. Un-checking (done→open)
-      // doesn't update the history. For rolling-recurrence completion,
-      // the SNAPSHOT carries the completion, not the rolled row.
-      const completionRow =
-        snapshot && snapshot.done ? snapshot : afterTodo;
-      if (completionRow && completionRow.done && !beforeTodo.done) {
-        setTodoReferences((prev) => recordTodoReference(prev, completionRow));
-      }
-      // Un-checking inside the Done bin makes the row disappear from
-      // the current view (it's now `open` again). Surface a snackbar
-      // so the user understands where the row went — easy to miss
-      // without context.
-      if (
-        beforeTodo.done &&
-        afterTodo &&
-        !afterTodo.done &&
-        (filterRef.current === "done" || filterRef.current === "trash")
-      ) {
-        notify.showSnackbar({ message: "Moved back to your open list." });
-      }
-    },
-    [setTodos, setTodoReferences, applyPebbleDeltaTimed, notify],
-  );
-
-  const restoreFromTrash = useCallback(
-    (id: string) => {
-      const beforeTodo = todosRef.current.find((t) => t.id === id);
-      setTodos((prev) => todoRestoreFromTrash(prev, id));
-      if (!beforeTodo) return;
-      const afterTodo = todoRestoreFromTrash([beforeTodo], id)[0];
-      // Restore is a refund (negative delta) — apply immediately so the
-      // cairn count drops in sync with the visible un-strike.
-      applyPebbleDelta(pebbleDelta(beforeTodo, afterTodo));
-      // Mirror the toggle path's snackbar: when a Not-Do row (or any
-      // bin row) is reopened while the user is on Done / Trash, they
-      // lose visual context as the row leaves the bin — tell them
-      // where it went.
-      if (filterRef.current === "done" || filterRef.current === "trash") {
-        notify.showSnackbar({ message: "Moved back to your open list." });
-      }
-    },
-    [setTodos, applyPebbleDelta, notify],
-  );
-
-  const moveToTrash = useCallback(
-    (id: string) => {
-      const beforeTodo = todosRef.current.find((t) => t.id === id);
-      setTodos((prev) => todoMoveToTrash(prev, id));
-      if (beforeTodo) {
-        const afterTodo = todoMoveToTrash([beforeTodo], id)[0];
-        applyPebbleDeltaTimed(pebbleDelta(beforeTodo, afterTodo));
-      }
-      notify.showSnackbar({
-        message: t.movedToTrash,
-        actionLabel: t.undo,
-        onAction: () => restoreFromTrash(id),
-        mergeKey: "trash",
-        mergedMessage: (n) => t.movedToTrashMany(n),
-        mergedActionLabel: t.undoAll,
-      });
-    },
-    [setTodos, applyPebbleDeltaTimed, notify, t, restoreFromTrash],
-  );
-
-  const applySeriesFutureEdits = useCallback(
-    (
-      id: string,
-      fields: { text?: string; priority?: Priority; category?: Category | undefined },
-    ) => {
-      let affected = 0;
-      setTodos((prev) => {
-        const result = todoApplySeriesFutureEdits(prev, id, fields);
-        affected = result.affected;
-        return result.next;
-      });
-      notify.showSnackbar({
-        message:
-          affected > 0
-            ? t.series.editsApplied(affected)
-            : t.series.editsNothing,
-      });
-    },
-    [setTodos, notify],
-  );
-
-  const moveSeriesFutureToTrash = useCallback(
-    (id: string) => {
-      let affected = 0;
-      setTodos((prev) => {
-        const result = todoMoveToTrashFutureSeries(prev, id);
-        affected = result.affected;
-        return result.next;
-      });
-      // Snackbar copy reflects how many were tucked away; falls back to
-      // single-task copy when the target wasn't part of a series.
-      notify.showSnackbar({
-        message: affected > 1 ? t.series.trashedMany(affected) : t.movedToTrash,
-      });
-    },
-    [setTodos, notify, t],
-  );
-
-  const permanentlyDelete = useCallback(
-    (id: string) => {
-      setTodos((prev) => todoPermanentlyDelete(prev, id));
-    },
-    [setTodos],
-  );
-
-  const updatePriority = useCallback(
-    (id: string, priority: Priority) => {
-      setTodos((prev) => todoSet(prev, id, "priority", priority));
-    },
-    [setTodos],
-  );
-
-  const updateDueDate = useCallback(
-    (id: string, dueDate: string) => {
-      setTodos((prev) => todoSet(prev, id, "dueDate", dueDate));
-    },
-    [setTodos],
-  );
-
-  // Pass `undefined` to clear. App.tsx's syncTodoReminders effect
-  // diffs against scheduled OS notifications and reconciles.
-  const updateReminder = useCallback(
-    (id: string, reminder: Todo["reminder"] | undefined) => {
-      setTodos((prev) => todoSet(prev, id, "reminder", reminder));
-    },
-    [setTodos],
-  );
-
-  // Overwhelm-mode escape hatch. Shifts every open overdue item's
-  // dueDate forward by `daysFromToday` and shows an undo snackbar that
-  // captures each original date so the action is fully reversible.
-  // Skips done items (they don't need deferral) and trashed items.
-  const deferOverdue = useCallback(
-    (daysFromToday: number) => {
-      const today = todayLocal();
-      const d = new Date();
-      d.setDate(d.getDate() + daysFromToday);
-      const newDate = isoDate(d);
-      const overdue = todosRef.current.filter(
-        (td) => !td.trashed && !td.done && td.dueDate && td.dueDate < today,
-      );
-      if (overdue.length === 0) return;
-      const originals = new Map(overdue.map((td) => [td.id, td.dueDate]));
-      const now = Date.now();
-      setTodos((prev) =>
-        prev.map((td) =>
-          originals.has(td.id)
-            ? { ...td, dueDate: newDate, updatedAt: now }
-            : td,
-        ),
-      );
-      notify.showSnackbar({
-        message: t.defer.done(overdue.length),
-        actionLabel: t.undoAll,
-        onAction: () => {
-          const undoNow = Date.now();
-          setTodos((prev) =>
-            prev.map((td) => {
-              const orig = originals.get(td.id);
-              return orig !== undefined
-                ? { ...td, dueDate: orig, updatedAt: undoNow }
-                : td;
-            }),
-          );
-        },
-      });
-    },
-    [setTodos, notify, t],
-  );
-
-  // Bulk-defer a specific set of open todos to an absolute target
-  // date (ISO yyyy-mm-dd). Used by the group-header "Defer to" action
-  // so the user can move an entire bucket (Today / Week / Upcoming /
-  // Carried Over / …) forward in one tap. Same undo + skip semantics
-  // as `deferOverdue` — done + trashed items are excluded.
-  const bulkDeferTodos = useCallback(
-    (ids: string[], targetISO: string) => {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(targetISO)) return;
-      const want = new Set(ids);
-      const candidates = todosRef.current.filter(
-        (td) => want.has(td.id) && !td.trashed && !td.done,
-      );
-      if (candidates.length === 0) return;
-      const originals = new Map(candidates.map((td) => [td.id, td.dueDate]));
-      const now = Date.now();
-      setTodos((prev) =>
-        prev.map((td) =>
-          originals.has(td.id)
-            ? { ...td, dueDate: targetISO, updatedAt: now }
-            : td,
-        ),
-      );
-      notify.showSnackbar({
-        message:
-          candidates.length === 1
-            ? '1 to-do deferred.'
-            : `${candidates.length} to-dos deferred.`,
-        actionLabel: t.undoAll,
-        onAction: () => {
-          const undoNow = Date.now();
-          setTodos((prev) =>
-            prev.map((td) => {
-              const orig = originals.get(td.id);
-              return orig !== undefined
-                ? { ...td, dueDate: orig, updatedAt: undoNow }
-                : td;
-            }),
-          );
-        },
-      });
-    },
-    [setTodos, notify, t],
-  );
-
-  // Quick "I can't face this today" affordance. Shifts the dueDate
-  // forward by `daysFromToday` (1 = tomorrow, 7 = next week) and shows
-  // an undo snackbar capturing the original date.
-  const snooze = useCallback(
-    (id: string, daysFromToday: number) => {
-      const beforeTodo = todosRef.current.find((t) => t.id === id);
-      if (!beforeTodo) return;
-      const originalDate = beforeTodo.dueDate;
-      const d = new Date();
-      d.setDate(d.getDate() + daysFromToday);
-      const newDate = isoDate(d);
-      setTodos((prev) => todoSet(prev, id, "dueDate", newDate));
-      const label =
-        daysFromToday === 1
-          ? t.snooze.toTomorrow
-          : daysFromToday === 7
-            ? t.snooze.toNextWeek
-            : t.snooze.toDays(daysFromToday);
-      notify.showSnackbar({
-        message: label,
-        actionLabel: t.undo,
-        onAction: () => {
-          setTodos((prev) => todoSet(prev, id, "dueDate", originalDate));
-        },
-      });
-    },
-    [setTodos, notify, t],
-  );
-
-  const updateTaskCategory = useCallback(
-    (id: string, category: Category) => {
-      setTodos((prev) => todoSet(prev, id, "category", category));
-    },
-    [setTodos],
-  );
-
-  const updateText = useCallback(
-    (id: string, text: string) => {
-      setTodos((prev) => todoSet(prev, id, "text", text));
-    },
-    [setTodos],
-  );
-
-  const updateNotes = useCallback(
-    (id: string, notes: string) => {
-      setTodos((prev) => todoSet(prev, id, "notes", notes));
-    },
-    [setTodos],
-  );
-
-  const addSubtask = useCallback(
-    (id: string, text: string, priority?: Priority, dueDate?: string) => {
-      setTodos((prev) => subtaskAdd(prev, id, text, priority, dueDate));
-    },
-    [setTodos],
-  );
-
-  const toggleSubtask = useCallback(
-    (id: string, subId: string) => {
-      // Subtask transitions earn small pebbles. Done → +1, undone → -1.
-      // The auto-cascade that marks the parent done when all subs are done
-      // is a derived state, not a separate action — so it does not earn an
-      // extra task pebble.
-      const beforeTodo = todosRef.current.find((t) => t.id === id);
-      const beforeSub = beforeTodo?.subtasks?.find((s) => s.id === subId);
-      setTodos((prev) => subtaskToggle(prev, id, subId));
-      // If the sub un-check cascaded the parent from done back to open
-      // and the user is on Done / Trash, surface the same snackbar the
-      // restore + un-check paths show.
-      if (
-        beforeTodo?.done &&
-        beforeSub?.done &&
-        (filterRef.current === "done" || filterRef.current === "trash")
-      ) {
-        notify.showSnackbar({ message: "Moved back to your open list." });
-      }
-      if (!beforeSub) return;
-      const becameDone = !beforeSub.done;
-      // Mirror applyPebbleDeltaTimed: positive deltas defer by
-      // PEBBLE_DEFERRAL_MS so the pebble strip's count materializes the
-      // moment Mochi lands, not before it leaves. Negative deltas (undo)
-      // refund immediately.
-      const shouldDefer = becameDone && animationOn;
-      const apply = () =>
-        setProfile((p) =>
-          becameDone
-            ? incrementPebble(p, todayLocal(), 'subtask')
-            : decrementPebble(p, todayLocal(), 'subtask'),
-        );
-      if (shouldDefer) {
-        setTimeout(apply, PEBBLE_DEFERRAL_MS);
-      } else {
-        apply();
-      }
-    },
-    [setTodos, setProfile, animationOn, notify],
-  );
-
-  const updateSubtaskText = useCallback(
-    (id: string, subId: string, text: string) => {
-      setTodos((prev) => subtaskUpdateText(prev, id, subId, text));
-    },
-    [setTodos],
-  );
-
-  const updateSubtaskPriority = useCallback(
-    (id: string, subId: string, priority: Priority) => {
-      setTodos((prev) => subtaskUpdatePriority(prev, id, subId, priority));
-    },
-    [setTodos],
-  );
-
-  const updateSubtaskDueDate = useCallback(
-    (id: string, subId: string, dueDate: string) => {
-      setTodos((prev) => subtaskUpdateDueDate(prev, id, subId, dueDate));
-    },
-    [setTodos],
-  );
-
-  const removeSubtask = useCallback(
-    (id: string, subId: string) => {
-      setTodos((prev) => subtaskRemove(prev, id, subId));
-    },
-    [setTodos],
-  );
-
-  const clearSubtasks = useCallback(
-    (id: string) => {
-      setTodos((prev) => subtaskClearAll(prev, id));
-    },
-    [setTodos],
-  );
-
-  // ---- Non-stable mutations ----
-
-  function addTask(
-    text: string,
-    priority: Priority,
-    dueDate: string,
-    category?: Category,
-    recurrence?: Recurrence,
-    extras?: { notes?: string; subtasks?: Subtask[]; reminder?: Todo["reminder"] },
-  ) {
-    const notes = extras?.notes;
-    const subtasks = extras?.subtasks;
-    const reminder = extras?.reminder;
-    // Record a suggestion-history reference for every added todo —
-    // not just completed ones. The dedupe key is lowercased text, so
-    // re-adding the same item just refreshes the existing reference
-    // with the latest category/priority/recurrence. Cap stays at
-    // MAX_TODO_REFERENCES via recordTodoReference's LRU eviction.
-    setTodoReferences((prev) =>
-      recordTodoReference(prev, { text, priority, category, recurrence }),
-    );
-    setTodos((prev) => {
-      // Fire first_todo_created exactly once per (uid, lifetime) —
-      // the count of non-trashed todos transitioning from 0 → 1.
-      if (prev.length === 0) void Analytics.firstTodoCreated();
-      return [
-        newTodo({ text, priority, dueDate, category, recurrence, subtasks, notes, reminder }),
-        ...prev,
-      ];
-    });
-  }
-
-  const updateRecurrence = useCallback(
-    (id: string, recurrence: Recurrence | undefined) => {
-      setTodos((prev) =>
-        prev.map((td) =>
-          td.id === id
-            ? recurrence
-              ? { ...td, recurrence, updatedAt: Date.now() }
-              : (() => {
-                  const { recurrence: _, ...rest } = td;
-                  return { ...rest, updatedAt: Date.now() };
-                })()
-            : td,
-        ),
-      );
-    },
-    [setTodos],
-  );
-
-  function emptyTrash() {
-    if (todosRef.current.filter((td) => td.trashed).length === 0) return;
-    Alert.alert(t.emptyTrash, t.deletePermanentlyConfirm(t.filters.trash), [
-      { text: t.cancel, style: "cancel" },
-      {
-        text: t.emptyTrash,
-        style: "destructive",
-        onPress: () => setTodos(todoEmptyTrash),
-      },
-    ]);
-  }
-
-  const toggleTrashSelection = useCallback((id: string) => {
-    setSelectedTrashIds((prev) =>
-      toggleSelection({
-        prev,
-        id,
-        shiftKey: false,
-        lastSelected: null,
-        orderedIds: [],
-      }),
-    );
-  }, []);
-
-  function clearTrashSelection() {
-    setSelectedTrashIds(new Set());
-  }
-
-  function bulkRestore() {
-    if (selectedTrashIds.size === 0) return;
-    setTodos((prev) => applyBulkRestore(prev, selectedTrashIds));
-    clearTrashSelection();
-  }
-
-  function bulkPermanentDelete() {
-    const ids = selectedTrashIds;
-    if (ids.size === 0) return;
-    Alert.alert(t.bulkDeletePermanently, t.bulkDeleteConfirm(ids.size), [
-      { text: t.cancel, style: "cancel" },
-      {
-        text: t.bulkDeletePermanently,
-        style: "destructive",
-        onPress: () => {
-          setTodos((prev) => applyBulkDelete(prev, ids));
-          clearTrashSelection();
-        },
-      },
-    ]);
-  }
-
-  function clearDone() {
-    // Permanently delete every item in the bin (anything done OR
-    // trashed). Irreversible — undo via snackbar isn't possible because
-    // todoClearDone removes the items from the array entirely. Confirm
-    // the user really means it.
-    const count = todosRef.current.filter((td) => td.done || td.trashed).length;
-    if (count === 0) return;
-    Alert.alert(
-      t.clearAllCompleted,
-      t.emptyTrashConfirm(count),
-      [
-        { text: t.cancel, style: "cancel" },
-        {
-          text: t.deletePermanently,
-          style: "destructive",
-          onPress: () => {
-            setTodos((prev) => todoClearDone(prev).todos);
-          },
-        },
-      ],
-    );
-  }
 
   function deleteCategory(id: string) {
     if (categories.length <= 1) return;
