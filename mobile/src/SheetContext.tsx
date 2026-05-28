@@ -18,8 +18,17 @@ import React, {
   ReactNode,
   useCallback,
 } from 'react'
+import { Alert, Share } from 'react-native'
 import { createNavigationContainerRef } from '@react-navigation/native'
 import { useStore } from './StoreContext'
+import { useAuth } from './AuthContext'
+import { useLang } from './LangContext'
+import { useNotify } from './notify'
+import {
+  buildExportPayload,
+  serializeExport,
+  isExportEmpty,
+} from '../../core/src/exporter'
 import ProfileSheet from './components/ProfileSheet'
 import SettingsSheet from './components/SettingsSheet'
 import BackgroundPicker from './components/BackgroundPicker'
@@ -85,6 +94,9 @@ export const sheetNavigationRef = createNavigationContainerRef<{
 
 export function SheetProvider({ children }: { children: ReactNode }) {
   const store = useStore()
+  const { deleteAccount } = useAuth()
+  const { t } = useLang()
+  const notify = useNotify()
   const [profileOpen, setProfileOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [bgPickerOpen, setBgPickerOpen] = useState(false)
@@ -127,6 +139,73 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     }
     setManageRequest((prev) => ({ target: 'groceries', seq: prev.seq + 1 }))
   }, [])
+
+  // ----- Settings → DATA section handlers -----
+  // Export, Delete data only, Delete account. Owned here because they
+  // touch cross-slice store data + the auth context. The SettingsSheet
+  // just wires UI to these callbacks.
+  const handleExport = useCallback(async () => {
+    const payload = buildExportPayload({
+      todos: store.todos,
+      todoReferences: store.todoReferences,
+      categories: store.categories,
+      profile: store.profile,
+      groceries: store.groceries,
+      groceryGroups: store.groceryGroups,
+    })
+    if (isExportEmpty(payload)) {
+      Alert.alert(t.exportData, t.exportEmpty)
+      return
+    }
+    try {
+      const json = serializeExport(payload)
+      await Share.share({
+        title: 'sagely-data.json',
+        message: json,
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      Alert.alert(t.exportFailed, message)
+    }
+  }, [
+    store.todos,
+    store.todoReferences,
+    store.categories,
+    store.profile,
+    store.groceries,
+    store.groceryGroups,
+    t,
+  ])
+
+  const handleDeleteData = useCallback(async () => {
+    try {
+      await store.clearAllData()
+      setSettingsOpen(false)
+      notify.showSnackbar({ message: t.dataCleared })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      Alert.alert(t.deleteDataOnly, message)
+    }
+  }, [store, t, notify])
+
+  const handleDeleteAccount = useCallback(async () => {
+    try {
+      // Close the settings sheet first so the SignIn redirect (which
+      // happens automatically when AuthContext sees !user) doesn't
+      // race with an open modal.
+      setSettingsOpen(false)
+      await deleteAccount()
+    } catch (err) {
+      const code = (err as { name?: string } | null)?.name
+      const message =
+        code === 'RecentLoginRequiredError'
+          ? t.deleteAccountReauth
+          : err instanceof Error
+            ? err.message
+            : String(err)
+      Alert.alert(t.deleteAccount, message)
+    }
+  }, [deleteAccount, t])
 
   // Mount the first-run prompt the first time the user lands in
   // the app post-onboarding with the flag unset. Stamping the
@@ -216,6 +295,9 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         onOpenManageTodos={openManageFilter}
         onOpenManageGroceries={openManageGroceries}
         onOpenAnimationSound={() => setAnimationSoundOpen(true)}
+        onExport={handleExport}
+        onDeleteData={handleDeleteData}
+        onDeleteAccount={handleDeleteAccount}
         onClose={() => setSettingsOpen(false)}
       />
       <BackgroundPicker

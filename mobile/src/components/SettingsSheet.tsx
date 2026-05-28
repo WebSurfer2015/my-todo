@@ -13,8 +13,9 @@
  * The header has a single "Done" button that just closes the sheet.
  */
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -62,6 +63,18 @@ interface Props {
   /** Opens the Animation & Sound preferences sheet (the three toggles
    * that used to live inline in this Settings sheet). */
   onOpenAnimationSound: () => void;
+  /** Assembles a JSON snapshot of the user's data and hands it to
+   * the OS share sheet. Owned by the parent (SheetContext) since the
+   * data lives on the store. */
+  onExport: () => Promise<void>;
+  /** Clears every per-user state doc — the user stays signed in and
+   * the UI resets to a clean empty state. Destructive; the sheet
+   * shows a confirm dialog before invoking. */
+  onDeleteData: () => Promise<void>;
+  /** Removes the Firebase Auth user plus all their data. Owned by
+   * the parent so the auth context can manage post-deletion flows
+   * (close all sheets, route to SignIn). */
+  onDeleteAccount: () => Promise<void>;
   onClose: () => void;
 }
 
@@ -76,8 +89,14 @@ export default function SettingsSheet({
   onOpenManageTodos,
   onOpenManageGroceries,
   onOpenAnimationSound,
+  onExport,
+  onDeleteData,
+  onDeleteAccount,
   onClose,
 }: Props) {
+  const [exporting, setExporting] = useState(false);
+  const [deletingData, setDeletingData] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const { t } = useLang();
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
@@ -286,6 +305,102 @@ export default function SettingsSheet({
                 >
                   <Text style={styles.rowLabel}>View intro again</Text>
                   <Text style={styles.rowChevron}>›</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.sectionLabel}>{t.dataSection}</Text>
+              <View style={styles.card}>
+                <TouchableOpacity
+                  style={styles.row}
+                  disabled={exporting || deletingData || deletingAccount}
+                  onPress={async () => {
+                    setExporting(true);
+                    try {
+                      await onExport();
+                    } finally {
+                      setExporting(false);
+                    }
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.exportData}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.rowLabel}>
+                      {exporting ? t.exporting : t.exportData}
+                    </Text>
+                    <Text style={styles.rowHint}>{t.exportDataSubtitle}</Text>
+                  </View>
+                  <Text style={styles.rowChevron}>›</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.row}
+                  disabled={exporting || deletingData || deletingAccount}
+                  onPress={() => {
+                    Alert.alert(
+                      t.deleteDataOnly,
+                      t.deleteDataOnlyConfirm,
+                      [
+                        { text: t.cancel, style: "cancel" },
+                        {
+                          text: t.deleteDataOnly,
+                          style: "destructive",
+                          onPress: async () => {
+                            setDeletingData(true);
+                            try {
+                              await onDeleteData();
+                            } finally {
+                              setDeletingData(false);
+                            }
+                          },
+                        },
+                      ],
+                      { cancelable: true },
+                    );
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.deleteDataOnly}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.rowLabel, { color: theme.red }]}>
+                      {deletingData ? t.deleting : t.deleteDataOnly}
+                    </Text>
+                    <Text style={styles.rowHint}>{t.deleteDataOnlySubtitle}</Text>
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.row}
+                  disabled={exporting || deletingData || deletingAccount}
+                  onPress={() => {
+                    Alert.alert(
+                      t.deleteAccount,
+                      t.deleteAccountConfirm,
+                      [
+                        { text: t.cancel, style: "cancel" },
+                        {
+                          text: t.deleteAccount,
+                          style: "destructive",
+                          onPress: async () => {
+                            setDeletingAccount(true);
+                            try {
+                              await onDeleteAccount();
+                            } finally {
+                              setDeletingAccount(false);
+                            }
+                          },
+                        },
+                      ],
+                      { cancelable: true },
+                    );
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.deleteAccount}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.rowLabel, { color: theme.red }]}>
+                      {deletingAccount ? t.deleting : t.deleteAccount}
+                    </Text>
+                    <Text style={styles.rowHint}>{t.deleteAccountDescription}</Text>
+                  </View>
                 </TouchableOpacity>
               </View>
 

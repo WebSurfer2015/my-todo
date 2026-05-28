@@ -64,7 +64,7 @@ export default function ProfileSheet({
   onClose,
 }: Props) {
   const { t } = useLang();
-  const { user, signOut, deleteAccount } = useAuth();
+  const { user, signOut } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   // Backfill from `name` for legacy profiles that have a single
@@ -75,7 +75,6 @@ export default function ProfileSheet({
   const [lastName, setLastName] = useState(profile.lastName ?? "");
   const [quote, setQuote] = useState(profile.quote ?? "");
   const [avatar, setAvatar] = useState<AvatarT>(normalizeAvatar(profile.avatar));
-  const [deleting, setDeleting] = useState(false);
   const [pickingQuote, setPickingQuote] = useState(false);
 
   // Short anxiety-aware quotes for subheader display. Grouped loosely by
@@ -515,58 +514,10 @@ export default function ProfileSheet({
               );
             })()}
 
-            {/* Bottom action — Delete account (destructive). Sign out
-                + Signed-in-as moved to the top of the sheet. */}
-            <View style={styles.bottomActionsRow}>
-              <TouchableOpacity
-                disabled={deleting}
-                hitSlop={8}
-                onPress={() => {
-                  Alert.alert(
-                    t.deleteAccount,
-                    t.deleteAccountConfirm,
-                    [
-                      { text: t.cancel, style: "cancel" },
-                      {
-                        text: t.deleteAccount,
-                        style: "destructive",
-                        onPress: async () => {
-                          setDeleting(true);
-                          try {
-                            await deleteAccount();
-                            onClose();
-                          } catch (err) {
-                            const code = (err as { name?: string } | null)
-                              ?.name;
-                            const message =
-                              code === "RecentLoginRequiredError"
-                                ? t.deleteAccountReauth
-                                : err instanceof Error
-                                  ? err.message
-                                  : String(err);
-                            Alert.alert(t.deleteAccount, message);
-                          } finally {
-                            setDeleting(false);
-                          }
-                        },
-                      },
-                    ],
-                    { cancelable: true },
-                  );
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={t.deleteAccount}
-              >
-                <Text
-                  style={[
-                    styles.bottomActionDestructive,
-                    deleting && styles.deleteInlineTextDisabled,
-                  ]}
-                >
-                  {deleting ? t.deleting : t.deleteAccount}
-                </Text>
-              </TouchableOpacity>
-            </View>
+            {/* Bottom actions (Export / Delete data / Delete account)
+                live in SettingsSheet, not here. Profile stays identity-
+                only — the gear icon in the header opens Settings, which
+                hosts the DATA section. */}
 
             <View style={{ height: 24 }} />
             </ScrollView>

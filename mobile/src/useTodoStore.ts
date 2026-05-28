@@ -22,7 +22,7 @@ import { useNotify } from "./notify";
 import { storage as localAdapter } from "./persistence";
 import { db } from "./firebase";
 import { makeFirestoreAdapter } from "./firestoreAdapter";
-import { StorageAdapter } from "../../core/src/persistence";
+import { StorageAdapter, clearKnownUserData } from "../../core/src/persistence";
 import { categoryDelete, deriveState } from "../../core/src/derive";
 import { todayLocal } from "../../core/src/utils";
 import { getTodayPebbles, collectedNounKeyFor } from "./profile";
@@ -81,6 +81,15 @@ export function useTodoStore() {
       cancelled = true;
     };
   }, [uid, adapter]);
+
+  // "Delete data only" — clears every per-user state doc the app knows
+  // about. The auth user stays intact; useSyncedState's subscribers
+  // see the deletes (Firestore adapter pushes `null` on doc removal)
+  // and reset each slice to its initial value, so the UI re-renders
+  // empty without needing a sign-out cycle.
+  const clearAllData = useCallback(async () => {
+    await clearKnownUserData(adapter);
+  }, [adapter]);
 
   // ---- Filter state (session — not persisted) ----
   // Multi-faceted selection. Empty = "all". OR within type group, AND
@@ -487,5 +496,6 @@ export function useTodoStore() {
     editCategory,
     deleteCategory,
     reorderCategories,
+    clearAllData,
   };
 }
