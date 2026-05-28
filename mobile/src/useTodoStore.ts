@@ -27,8 +27,9 @@ import {
   priorityReorder,
 } from "../../core/src/priorities";
 import { useCategoriesSlice } from "./slices/useCategoriesSlice";
+import { useProfileSlice } from "./slices/useProfileSlice";
 import { unwrap, serializeAny } from "./storage/envelope";
-import { Profile, SEED_PROFILE, migrateProfile, getTodayPebbles, incrementPebble, decrementPebble, collectedNounKeyFor } from "./profile";
+import { Profile, getTodayPebbles, incrementPebble, decrementPebble, collectedNounKeyFor } from "./profile";
 import {
   GroceryItem,
   GroceryGroup,
@@ -105,11 +106,6 @@ const PIN_LIMIT = 12;
 // is still valid here without us writing dead pins to disk.
 const DEFAULT_HOME_STAT_TILES: string[] = ["cat:home", "cat:work", "done"];
 
-const parseProfile = (raw: string | null): Profile => {
-  const data = unwrap(raw);
-  return data ? migrateProfile(data) : SEED_PROFILE;
-};
-
 const parseGroceries = (raw: string | null): GroceryItem[] =>
   migrateGroceries(unwrap(raw));
 
@@ -165,8 +161,13 @@ export function useTodoStore() {
     };
   }, [uid, adapter]);
 
-  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
-  const onSaved = useCallback((ts: number) => setLastSavedAt(ts), []);
+  const {
+    profile,
+    setProfile,
+    profileLoaded,
+    lastSavedAt,
+    onSaved,
+  } = useProfileSlice(adapter);
 
   const {
     categories,
@@ -197,14 +198,6 @@ export function useTodoStore() {
     "todos",
     [],
     parseTodos,
-    serializeAny,
-    onSaved,
-  );
-  const [profile, setProfile, profileLoaded] = useSyncedState<Profile>(
-    adapter,
-    "profile",
-    SEED_PROFILE,
-    parseProfile,
     serializeAny,
     onSaved,
   );
