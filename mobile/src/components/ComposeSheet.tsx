@@ -193,6 +193,11 @@ export default function ComposeSheet({
   // they want a no-date task. Matches the spec for the Add flow.
   const [dueDate, setDueDate] = useState(todayLocal())
   const [pickerDate, setPickerDate] = useState<Date>(new Date())
+  // Pending buffer for the date subview. Mirrors TaskDetailsSheet's
+  // edit flow — the picker writes here, Save commits to dueDate.
+  // Lets the user dial in a date + time and Cancel back out without
+  // mutating the live field.
+  const [pendingDueDate, setPendingDueDate] = useState('')
   const [recurrence, setRecurrence] = useState<Recurrence | undefined>(undefined)
   // Reminder spec (object or undefined). Stored on the todo at
   // add-time; the post-add syncTodoReminders effect picks it up.
@@ -347,17 +352,14 @@ export default function ComposeSheet({
 
   function openDateView() {
     setPickerDate(dueDate ? new Date(`${dueDate}T00:00:00`) : new Date())
+    setPendingDueDate(dueDate)
     setSubView('date')
   }
 
   function handleInlineDateChange(_event: DateTimePickerEvent, selected?: Date) {
     if (!selected) return
     setPickerDate(selected)
-    setDueDate(isoLocalDateTime(selected))
-  }
-
-  function clearInlineDate() {
-    setDueDate('')
+    setPendingDueDate(isoLocalDateTime(selected))
   }
 
   return (
@@ -1038,28 +1040,25 @@ export default function ComposeSheet({
             {subView === 'date' && (
               <>
                 <View style={styles.headerRow}>
-                  <TouchableOpacity onPress={() => setSubView('main')} hitSlop={10}>
+                  <TouchableOpacity
+                    onPress={() => setSubView('main')}
+                    hitSlop={10}
+                    style={styles.headerSideBtn}
+                  >
                     <Text style={styles.cancelText}>‹ {t.back}</Text>
                   </TouchableOpacity>
                   <Text style={styles.title}>{t.composeDateLabel}</Text>
                   <TouchableOpacity
-                    onPress={() => {
-                      // Commit the picker's current value even when the
-                      // user didn't interact (e.g., today was already
-                      // pre-selected and they just tapped Done) — the
-                      // DateTimePicker's onChange doesn't fire for a
-                      // no-op tap, so we sync it explicitly here.
-                      setDueDate(isoLocalDateTime(pickerDate))
-                      setSubView('main')
-                    }}
+                    onPress={() => setPendingDueDate('')}
                     hitSlop={10}
+                    style={styles.headerSideBtn}
                   >
-                    <Text style={styles.doneHeaderText}>{t.done}</Text>
+                    <Text style={styles.dateClearBtnText}>{t.clear}</Text>
                   </TouchableOpacity>
                 </View>
                 <View style={styles.dateWrap}>
-                  {dueDate ? (
-                    <Text style={styles.datePendingLabel}>{fullDateLabel(dueDate)}</Text>
+                  {pendingDueDate ? (
+                    <Text style={styles.datePendingLabel}>{fullDateLabel(pendingDueDate)}</Text>
                   ) : (
                     <Text style={[styles.datePendingLabel, styles.datePendingLabelEmpty]}>{t.noDate}</Text>
                   )}
@@ -1071,11 +1070,20 @@ export default function ComposeSheet({
                     onChange={handleInlineDateChange}
                   />
                 </View>
-                {dueDate ? (
-                  <TouchableOpacity onPress={clearInlineDate} style={styles.clearLink} hitSlop={8}>
-                    <Text style={styles.clearLinkText}>{t.clear}</Text>
+                <View style={styles.dateActions}>
+                  <TouchableOpacity
+                    style={styles.dateDoneBtnSolo}
+                    onPress={() => {
+                      setDueDate(pendingDueDate)
+                      setSubView('main')
+                    }}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Save"
+                  >
+                    <Text style={styles.dateDoneBtnText}>{t.save}</Text>
                   </TouchableOpacity>
-                ) : null}
+                </View>
               </>
             )}
           </Pressable>
@@ -1492,6 +1500,29 @@ function makeStyles(c: ThemeColors) {
       flexDirection: 'row',
       gap: 12,
       alignItems: 'center',
+      marginTop: 8,
+    },
+    // Mirrors TaskDetailsSheet — header-right "Clear" link tint.
+    dateClearBtnText: {
+      color: c.label2,
+      fontSize: 16,
+      fontWeight: '500',
+    },
+    // Mirrors TaskDetailsSheet — primary-color Save button that spans
+    // the row in the date subview when there's no sibling Clear
+    // button to compete with it.
+    dateDoneBtnSolo: {
+      flex: 1,
+      height: 50,
+      borderRadius: 12,
+      backgroundColor: c.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dateDoneBtnText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '600',
     },
     clearBtn: {
       flex: 1,
