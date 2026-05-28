@@ -59,13 +59,22 @@ Rules — every field is independently nullable. At most ONE of
 - category: PREFER an existing id from the user's list whose label
   fits. Match on intent ("buy milk" → a shopping-like category;
   "call dentist" → a health-like category). Never invent an id; use
-  only ids from the list provided.
+  only ids from the list provided. When uncertain, return null rather
+  than a loose match — a weak suggestion is worse than no suggestion.
+  Travel-specific guard: only pick Travel when the text explicitly
+  mentions a trip, flight, hotel, vacation, destination, passport,
+  itinerary, or visa. Attending an event in your own city
+  (graduation, wedding, party, conference, doctor's appointment) is
+  NOT Travel — pick Family/Personal/Events/Work as appropriate, or
+  null.
 - newCategoryLabel: when nothing in the list fits and a new category
   would clearly help, propose a 1–2 word Title Case label.
   Examples (given a typical seed list of Home/Work/School/Other):
-    "call mom"        → newCategoryLabel:"Family"
-    "renew passport"  → newCategoryLabel:"Travel"
-    "yoga at 6am"     → newCategoryLabel:"Fitness"
+    "call mom"            → newCategoryLabel:"Family"
+    "renew passport"      → newCategoryLabel:"Travel"
+    "book flight to NYC"  → newCategoryLabel:"Travel"
+    "attend graduation"   → newCategoryLabel:"Family"  (NOT Travel)
+    "yoga at 6am"         → newCategoryLabel:"Fitness"
   Use common life-category names (Health, Travel, Fitness, Finance,
   Hobby, Errands, Family, Reading, Shopping). Never generic stand-ins
   like "Tasks", "Stuff", "Misc", "Other". Never similar to any
