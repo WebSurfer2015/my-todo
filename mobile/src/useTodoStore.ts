@@ -25,7 +25,8 @@ import { makeFirestoreAdapter } from "./firestoreAdapter";
 import { StorageAdapter, clearKnownUserData } from "../../core/src/persistence";
 import { categoryDelete, deriveState } from "../../core/src/derive";
 import { todayLocal } from "../../core/src/utils";
-import { getTodayPebbles, collectedNounKeyFor } from "./profile";
+import { getTodayPebbles, collectedNounKeyFor, SEED_PROFILE } from "./profile";
+import { SEED_CATEGORIES } from "./categories";
 
 // Default trio when the user hasn't picked any Home stat tiles. Resolved
 // at render so the Home screen + Manage Filter sheet stay in sync, and
@@ -82,14 +83,6 @@ export function useTodoStore() {
     };
   }, [uid, adapter]);
 
-  // "Delete data only" — clears every per-user state doc the app knows
-  // about. The auth user stays intact; useSyncedState's subscribers
-  // see the deletes (Firestore adapter pushes `null` on doc removal)
-  // and reset each slice to its initial value, so the UI re-renders
-  // empty without needing a sign-out cycle.
-  const clearAllData = useCallback(async () => {
-    await clearKnownUserData(adapter);
-  }, [adapter]);
 
   // ---- Filter state (session — not persisted) ----
   // Multi-faceted selection. Empty = "all". OR within type group, AND
@@ -202,6 +195,7 @@ export function useTodoStore() {
     setTodos,
     todosLoaded,
     todoReferences,
+    setTodoReferences,
     selectedTrashIds,
     todosRef,
     applyPebbleDelta,
@@ -282,6 +276,34 @@ export function useTodoStore() {
     profileLoaded &&
     groceriesLoaded &&
     groceryGroupsLoaded;
+
+  // "Delete data only" — clears every per-user state doc the app
+  // knows about. The auth user stays intact.
+  //
+  // Two-step: (1) reset every slice's local state synchronously so
+  // the UI updates immediately and the debounced write effect picks
+  // up the new (empty / seed) state; (2) explicitly delete the
+  // cloud docs as belt-and-suspenders against any in-flight write
+  // racing the reset. Relying on the Firestore subscribe to push
+  // null wasn't enough — the adapter's `hasPendingWrites` skip + a
+  // write-debounce race could leave stale data visible.
+  const clearAllData = useCallback(async () => {
+    setTodos([]);
+    setTodoReferences([]);
+    setCategories(SEED_CATEGORIES);
+    setProfile(SEED_PROFILE);
+    setGroceries([]);
+    setGroceryGroups([]);
+    await clearKnownUserData(adapter);
+  }, [
+    adapter,
+    setTodos,
+    setTodoReferences,
+    setCategories,
+    setProfile,
+    setGroceries,
+    setGroceryGroups,
+  ]);
 
 
   function deleteCategory(id: string) {
