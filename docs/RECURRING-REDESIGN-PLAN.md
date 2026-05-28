@@ -215,19 +215,30 @@ On first launch after the upgrade:
 Ordered so each PR is independently shippable on `dev` and the user
 can verify on the Amplify dev URL before promoting to `main`.
 
-### PR R1 — Types, constants, expandSeries (core)
+### PR R1 — Types and pure helpers (core)
 
-- Add `STATUS_FILTERS` entry `'notDo'`; add optional `Todo.status` and
-  `Todo.detachedFromSeries: boolean`.
-- Add `RECURRENCE_WINDOW_DAYS` constants keyed by `RecurrenceFreq` to
-  `core/src/types.ts` (daily=7, weekly=~30, monthly=~90, yearly=~1095).
-- Add pure helpers in `core/src/derive.ts`:
-  - `windowCutoffFor(freq, todayISO): string`
-  - `expandSeries(seed: Todo, todayISO: string): Todo[]`
+- Add `'notDo'` to `SystemFilter` union; update `isStatusFilter`. (The
+  `STATUS_FILTERS` array — which drives the visible filter pill row —
+  is **deferred to R5**, where the Skip action lands and there's
+  something to filter for. Adding it sooner surfaces a stale 4th pill.)
+- Add optional `Todo.status?: 'notDo'` and
+  `Todo.detachedFromSeries?: boolean`.
+- Add pure helpers in `core/src/derive.ts`, all calendar-aware via the
+  existing `nextOccurrence`/`expandRecurrence` machinery:
+  - `windowCutoffFor(freq, todayISO): string` — daily +7d, weekly +1mo,
+    monthly +3mo, yearly +3y.
+  - `expandSeries(seed: Todo, todayISO: string): Todo[]` — materializes
+    instances from `seed.dueDate` up to `windowCutoffFor` (or
+    `recurrence.endDate`, whichever is sooner). Cloned subtasks reset
+    on each instance; reminder stays on the seed only.
   - `topUpSeries(todos: Todo[], seriesId: string, todayISO: string): Todo[]`
+    — appends instances after the series' latest materialized dueDate
+    up to the current window cutoff. Idempotent.
   - `seriesFutureFrom(todos: Todo[], seriesId: string, anchorISO: string): Todo[]`
-- Unit tests covering each frequency's window, endDate cap, leap-year
-  edge, and DST boundary.
+    — non-trashed series members with `dueDate >= anchor`.
+- Unit tests in `web/src/core.test.ts` covering each frequency's
+  window, endDate cap, idempotent top-up, and detached-instance
+  inheritance fallback.
 
 Risk: pure functions only, no caller changes yet. Existing rolling
 behavior untouched.

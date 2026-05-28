@@ -15,7 +15,7 @@ import {
 } from "./types";
 import { CategoryDef, categoryLabel } from "./categories";
 import { buildGroups, TodoGroup } from "./groups";
-import { genUuid, todayLocal, nextOccurrence } from "./utils";
+import { genUuid, todayLocal, nextOccurrence, expandRecurrence, MAX_RECURRENCE_INSTANCES } from "./utils";
 import type { Strings } from "./i18n";
 
 export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
@@ -664,6 +664,195 @@ export function todoMoveToTrashFutureSeries(prev: Todo[], id: string): { next: T
   return { next, affected };
 }
 
+// ---- Recurring series: horizon/window helpers ---------------------------
+//
+// R1 of the recurring redesign (see docs/RECURRING-REDESIGN-PLAN.md).
+// Pure functions only — no callers in this PR. Wired into todoToggle
+// (R3), migration (R2), and edit dialogs (R6) by later PRs.
+
+/**
+ * Per-frequency materialization window (calendar-aware).
+ *   daily   → today + 7 days
+ *   weekly  → today + 1 month
+ *   monthly → today + 3 months
+ *   yearly  → today + 3 years
+ *
+ * Returns the inclusive cutoff ISO date. Instances with
+ * `dueDate <= cutoff` are materialized; everything past is left for
+ * future top-ups as the calendar slides forward.
+ */
+export function windowCutoffFor(freq: RecurrenceFreq, todayISO: string): string {
+  const [y, m, d] = dueDateOnly(todayISO).split("-").map(Number);
+  if (!y || !m || !d) return todayISO;
+  const dt = new Date(y, m - 1, d);
+  switch (freq) {
+    case "daily":
+      dt.setDate(dt.getDate() + 7);
+      break;
+    case "weekly":
+      dt.setMonth(dt.getMonth() + 1);
+      break;
+    case "monthly":
+      dt.setMonth(dt.getMonth() + 3);
+      break;
+    case "yearly":
+      dt.setFullYear(dt.getFullYear() + 3);
+      break;
+  }
+  // Use the same yyyy-mm-dd formatter the rest of derive uses.
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Materialize a recurring series from `seed.dueDate` forward to
+ * `windowCutoffFor(freq, todayISO)`, capped at `recurrence.endDate`.
+ * Returns the seed as the head plus one Todo per subsequent occurrence.
+ *
+ * Behavior:
+ *  - Seed retains its existing `id`, `reminder`, `subtasks`, `notes`.
+ *    Reminder lives on the head only — top-ups don't carry it forward.
+ *  - Generated instances get fresh UUIDs, the shared `seriesId`
+ *    (assigned if seed lacks one), and `cloneSubtasksFresh(seed.subtasks)`.
+ *  - Any time-suffix on the seed's dueDate is preserved on each instance.
+ *  - No-op if seed lacks `recurrence` or `dueDate` — returns `[seed]`.
+ */
+export function expandSeries(seed: Todo, todayISO: string): Todo[] {
+  if (!seed.recurrence || !seed.dueDate) return [seed];
+  const rec = seed.recurrence;
+  const seedDateOnly = dueDateOnly(seed.dueDate);
+  const tIdx = seed.dueDate.indexOf("T");
+  const timeSuffix = tIdx === -1 ? "" : seed.dueDate.slice(tIdx);
+  const cutoff = windowCutoffFor(rec.freq, todayISO);
+  const hardEnd = rec.endDate && rec.endDate < cutoff ? rec.endDate : cutoff;
+  const seriesId = seed.seriesId ?? genUuid();
+  const head: Todo = { ...seed, seriesId };
+  if (hardEnd < seedDateOnly) return [head];
+  const dates = expandRecurrence(seedDateOnly, hardEnd, rec);
+  if (dates.length <= 1) return [head];
+  const now = Date.now();
+  const out: Todo[] = [head];
+  // Skip the first generated date (it's the seed). Generate fresh
+  // instances for the rest.
+  for (let i = 1; i < dates.length; i++) {
+    const inst: Todo = {
+      id: genUuid(),
+      text: seed.text,
+      done: false,
+      priority: seed.priority,
+      dueDate: dates[i] + timeSuffix,
+      trashed: false,
+      updatedAt: now,
+      seriesId,
+      recurrence: rec,
+    };
+    if (seed.category) inst.category = seed.category;
+    const subs = cloneSubtasksFresh(seed.subtasks);
+    if (subs) inst.subtasks = subs;
+    if (seed.notes) inst.notes = seed.notes;
+    out.push(inst);
+  }
+  return out;
+}
+
+/**
+ * Append fresh instances to an existing series so its tail reaches
+ * `windowCutoffFor(freq, todayISO)`. Idempotent — calling twice with
+ * the same input returns the same list. No-op when the series is
+ * already at horizon or has been ended by `recurrence.endDate`.
+ *
+ * Inheritance: new tail rows inherit text/priority/category/subtasks/
+ * notes from the *latest non-detached* member of the series. Falling
+ * back to the latest member overall when every instance is detached.
+ * The latest member's recurrence definition (carried on every row) is
+ * what drives `nextOccurrence` forward.
+ */
+export function topUpSeries(
+  todos: Todo[],
+  seriesId: string,
+  todayISO: string,
+): Todo[] {
+  if (!seriesId) return todos;
+  const members = todos.filter((t) => t.seriesId === seriesId);
+  if (members.length === 0) return todos;
+  // Latest dueDate of ANY member (done/trashed/detached) — that's the
+  // current horizon of the series, regardless of state.
+  let latest = "";
+  for (const m of members) {
+    const d = dueDateOnly(m.dueDate);
+    if (d && d > latest) latest = d;
+  }
+  if (!latest) return todos;
+  // Inheritance: prefer the latest non-detached row so per-instance
+  // tweaks don't propagate forward via top-up.
+  let inheritFrom: Todo | undefined;
+  let inheritLatest = "";
+  for (const m of members) {
+    if (m.detachedFromSeries) continue;
+    if (!m.recurrence) continue;
+    const d = dueDateOnly(m.dueDate);
+    if (d && d > inheritLatest) {
+      inheritLatest = d;
+      inheritFrom = m;
+    }
+  }
+  if (!inheritFrom) inheritFrom = members.find((m) => m.recurrence);
+  if (!inheritFrom || !inheritFrom.recurrence) return todos;
+  const rec = inheritFrom.recurrence;
+  const cutoff = windowCutoffFor(rec.freq, todayISO);
+  const hardEnd = rec.endDate && rec.endDate < cutoff ? rec.endDate : cutoff;
+  if (latest >= hardEnd) return todos;
+  const inheritDD = inheritFrom.dueDate;
+  const tIdx = inheritDD.indexOf("T");
+  const timeSuffix = tIdx === -1 ? "" : inheritDD.slice(tIdx);
+  const interval = rec.interval ?? 1;
+  const now = Date.now();
+  const additions: Todo[] = [];
+  let cursor = nextOccurrence(latest, rec.freq, interval, rec.byWeekday, rec.bySetPos);
+  let guard = 0;
+  while (cursor <= hardEnd && guard < MAX_RECURRENCE_INSTANCES) {
+    const inst: Todo = {
+      id: genUuid(),
+      text: inheritFrom.text,
+      done: false,
+      priority: inheritFrom.priority,
+      dueDate: cursor + timeSuffix,
+      trashed: false,
+      updatedAt: now,
+      seriesId,
+      recurrence: rec,
+    };
+    if (inheritFrom.category) inst.category = inheritFrom.category;
+    const subs = cloneSubtasksFresh(inheritFrom.subtasks);
+    if (subs) inst.subtasks = subs;
+    if (inheritFrom.notes) inst.notes = inheritFrom.notes;
+    additions.push(inst);
+    cursor = nextOccurrence(cursor, rec.freq, interval, rec.byWeekday, rec.bySetPos);
+    guard += 1;
+  }
+  if (additions.length === 0) return todos;
+  return [...todos, ...additions];
+}
+
+/**
+ * Non-trashed series members with `dueDate >= anchor`. Used by R6's
+ * "Apply to all future events" path to find the rows a series-wide
+ * edit should touch.
+ */
+export function seriesFutureFrom(
+  todos: Todo[],
+  seriesId: string,
+  anchorISO: string,
+): Todo[] {
+  if (!seriesId) return [];
+  const anchor = dueDateOnly(anchorISO);
+  return todos.filter((t) => {
+    if (t.seriesId !== seriesId) return false;
+    if (t.trashed) return false;
+    const d = dueDateOnly(t.dueDate);
+    return d >= anchor;
+  });
+}
+
 export function todoRestoreFromTrash(prev: Todo[], id: string): Todo[] {
   const now = Date.now();
   return prev.map((td) => {
@@ -988,6 +1177,7 @@ export interface DerivedState {
     open: number;
     done: number;
     trash: number;
+    notDo: number;
   };
   byCategoryOpen: Record<string, number>; // open todos per category
   byCategoryTotal: Record<string, number>; // all (active) todos per category
@@ -1255,6 +1445,9 @@ export function deriveState(input: DeriveInput): DerivedState {
     open: active.filter((td) => !td.done).length,
     done: completedCount,
     trash: trashCount,
+    // Skipped recurring instances (R1 plumbing — populated when R5
+    // lights up the Skip action). Counted across active + non-trashed.
+    notDo: todos.filter((td) => !td.trashed && td.status === "notDo").length,
   };
 
   let sectionLabel: string | null = null;

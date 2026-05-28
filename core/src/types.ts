@@ -1,12 +1,17 @@
 export type ViewMode = 'category' | 'status'
 
-export type SystemFilter = 'groceries' | 'all' | 'overdue' | 'open' | 'done' | 'trash'
+export type SystemFilter = 'groceries' | 'all' | 'overdue' | 'open' | 'done' | 'trash' | 'notDo'
 export type StatusFilter = Exclude<SystemFilter, 'all' | 'groceries'>
 export type Filter = SystemFilter | `cat:${string}` | `pri:${Priority}`
 
 // `trash` is kept in the type for backward-compat with stored profiles
 // that may still reference it, but the picker UI no longer surfaces it
 // as its own filter. Done covers everything in the 30-day bin.
+//
+// `notDo` is part of the type union from R1 (recurring redesign) but is
+// intentionally NOT added to STATUS_FILTERS until R5 — until the Skip
+// action lands and there's something to filter for, a 4th pill would be
+// empty noise.
 export const STATUS_FILTERS: StatusFilter[] = ['overdue', 'open', 'done']
 
 export type Priority = 'high' | 'medium' | 'low'
@@ -93,6 +98,22 @@ export interface Todo {
    */
   seriesId?: string
   /**
+   * Set when the user has applied a per-instance edit to a series row
+   * via the "Apply to this todo only" path. Subsequent series-wide
+   * edits skip detached instances by default (the frequency-change
+   * and subtask-edit confirms surface a "keep modified" option). Pure
+   * series instances stay false/undefined.
+   */
+  detachedFromSeries?: boolean
+  /**
+   * Optional terminal state distinct from `done` and `trashed`.
+   * Currently the only value is `'notDo'` — set when the user Skips a
+   * past-due (recurring) instance. Skipped instances are NOT counted
+   * as completions (no pebble) and NOT counted as overdue; they sit
+   * in a Not-do filter view and can be restored.
+   */
+  status?: 'notDo'
+  /**
    * Free-form notes for the task — what's blocking it, the smallest first
    * step, why it matters, anything that helps the user externalize the
    * thinking around a task instead of carrying it in their head. Capped
@@ -167,7 +188,7 @@ export const PRIORITY_COLORS: Record<Priority, string> = {
 }
 
 export function isStatusFilter(f: Filter): f is StatusFilter {
-  return f === 'overdue' || f === 'open' || f === 'done' || f === 'trash'
+  return f === 'overdue' || f === 'open' || f === 'done' || f === 'trash' || f === 'notDo'
 }
 
 export function isGroceryFilter(f: Filter): f is 'groceries' {

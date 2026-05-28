@@ -73,7 +73,7 @@ interface Props {
   categories: CategoryDef[];
   /** Total task counts per category (used for delete confirm + row badges). */
   taskCounts: Record<string, number>;
-  systemCounts: { all: number; overdue: number; open: number; done: number; trash: number };
+  systemCounts: { all: number; overdue: number; open: number; done: number; trash: number; notDo: number };
   /** Total task counts per priority — used by the PRIORITIES section.
    * Items with no priority don't count toward any bucket. */
   priorityCounts: Record<Priority, number>;

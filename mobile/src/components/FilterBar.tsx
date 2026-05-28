@@ -49,7 +49,7 @@ interface Props {
   onOpenSheet: () => void
   categories: CategoryDef[]
   orderedVisibleStatuses: { id: StatusFilter; label: string }[]
-  systemCounts: { all: number; overdue: number; open: number; done: number; trash: number }
+  systemCounts: { all: number; overdue: number; open: number; done: number; trash: number; notDo: number }
   byCategory: Record<string, number>
   /** Total task counts per priority, used to badge priority pills.
    * Items with no priority don't count toward any bucket. */
