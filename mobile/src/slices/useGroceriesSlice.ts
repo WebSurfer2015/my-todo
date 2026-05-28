@@ -136,6 +136,17 @@ export function useGroceriesSlice(
   useEffect(() => {
     groceryGroupsRef.current = groceryGroups;
   }, [groceryGroups]);
+  // Mirror groceries too so toggleGroceryChecked can compute the
+  // (store × dept) bucket-completion delta SYNCHRONOUSLY and return
+  // it to the caller. setGroceries with an updater fn defers the
+  // computation to the next render, so an outer `let delta` would
+  // read 0 — the Row's pebble-flight gate then skipped every
+  // celebration after the first (which happened to fire on a stale
+  // closure).
+  const groceriesRef = useRef(groceries);
+  useEffect(() => {
+    groceriesRef.current = groceries;
+  }, [groceries]);
 
   const addGrocery = useCallback(
     (args: { text: string; groupId?: string; stores?: string[] }) => {
@@ -432,19 +443,20 @@ export function useGroceriesSlice(
 
   const toggleGroceryChecked = useCallback(
     (id: string): number => {
-      // setGroceries calls the updater synchronously so we can capture
-      // the bucket delta in an outer let and return it — the caller
-      // (GroceryRow) uses sign > 0 to fire the Mochi pebble-flight
-      // celebration only when a (store × dept) bucket just completed.
-      let delta = 0;
-      setGroceries((prev) => {
-        const next = groceryToggleChecked(prev, id);
-        delta = shoppingBucketPebbleDelta(prev, next, id);
-        if (delta !== 0) {
-          applyPebbleDeltaTimed({ task: 0 as const, subtask: delta });
-        }
-        return next;
-      });
+      // Compute next + delta SYNCHRONOUSLY from the ref-mirrored
+      // current state. setGroceries(updater) queues its updater for
+      // the next render, so reading a closure variable set inside the
+      // updater returns the initial value at call time — that broke
+      // the Row's pebble-flight gate (no animation on bucket
+      // completions after the first one). Compute first, dispatch
+      // the result, return the real delta.
+      const prev = groceriesRef.current;
+      const next = groceryToggleChecked(prev, id);
+      const delta = shoppingBucketPebbleDelta(prev, next, id);
+      if (delta !== 0) {
+        applyPebbleDeltaTimed({ task: 0 as const, subtask: delta });
+      }
+      setGroceries(next);
       return delta;
     },
     [setGroceries, applyPebbleDeltaTimed],
