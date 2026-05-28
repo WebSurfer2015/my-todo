@@ -28,27 +28,9 @@ import {
 } from "../../core/src/priorities";
 import { useCategoriesSlice } from "./slices/useCategoriesSlice";
 import { useProfileSlice } from "./slices/useProfileSlice";
+import { useGroceriesSlice } from "./slices/useGroceriesSlice";
 import { unwrap, serializeAny } from "./storage/envelope";
 import { Profile, getTodayPebbles, incrementPebble, decrementPebble, collectedNounKeyFor } from "./profile";
-import {
-  GroceryItem,
-  GroceryGroup,
-  SEED_GROCERY_GROUPS,
-  SEED_GROCERY_STORES,
-  migrateGroceries,
-  migrateGroceryGroups,
-  newGroceryItem,
-  groceryToggleChecked,
-  shoppingBucketPebbleDelta,
-  groceryEdit,
-  groceryDelete,
-  MAX_GROCERY_ITEMS,
-  MAX_GROCERY_GROUPS,
-  OTHERS_GROUP_ID,
-  inferGroceryGroupLocal,
-  newGroceryGroup,
-} from "./groceries";
-import { classifyGroceryDept } from "./aiInfer";
 import { useLang } from "./LangContext";
 import { useAuth } from "./AuthContext";
 import { useNotify } from "./notify";
@@ -105,12 +87,6 @@ const PIN_LIMIT = 12;
 // so a user renaming or deleting a category falls through to whatever
 // is still valid here without us writing dead pins to disk.
 const DEFAULT_HOME_STAT_TILES: string[] = ["cat:home", "cat:work", "done"];
-
-const parseGroceries = (raw: string | null): GroceryItem[] =>
-  migrateGroceries(unwrap(raw));
-
-const parseGroceryGroups = (raw: string | null): GroceryGroup[] =>
-  migrateGroceryGroups(unwrap(raw));
 
 /**
  * Push local AsyncStorage data to cloud, per-key, only when that cloud key is
@@ -177,22 +153,6 @@ export function useTodoStore() {
     editCategory,
     reorderCategories,
   } = useCategoriesSlice(adapter, onSaved);
-  const [groceries, setGroceries, groceriesLoaded] = useSyncedState<GroceryItem[]>(
-    adapter,
-    "groceries",
-    [],
-    parseGroceries,
-    serializeAny,
-    onSaved,
-  );
-  const [groceryGroups, setGroceryGroups, groceryGroupsLoaded] = useSyncedState<GroceryGroup[]>(
-    adapter,
-    "groceryGroups",
-    SEED_GROCERY_GROUPS,
-    parseGroceryGroups,
-    serializeAny,
-    onSaved,
-  );
   const [todos, setTodos, todosLoaded] = useSyncedState<Todo[]>(
     adapter,
     "todos",
@@ -260,15 +220,11 @@ export function useTodoStore() {
   useEffect(() => {
     filterRef.current = filter;
   }, [filter]);
-  // Mirror groceryGroups + profile so addGrocery's stable callback can
-  // read the latest department list and the agentEnabled flag inside
-  // an async AI-classify Promise without taking either as a dep
-  // (which would break the callback's identity and force every
-  // GroceryView render to bind a new addGrocery).
-  const groceryGroupsRef = useRef(groceryGroups);
-  useEffect(() => {
-    groceryGroupsRef.current = groceryGroups;
-  }, [groceryGroups]);
+  // Mirror profile so async paths (AI flows, debounced writes) can
+  // read the latest agentEnabled / groceryStores / pinnedFilters
+  // without taking the live `profile` as a useCallback dep — that
+  // would break callback identity every render and bust TaskItem's
+  // React.memo. The grocery slice owns its own groceryGroupsRef.
   const profileRef = useRef(profile);
   useEffect(() => {
     profileRef.current = profile;
@@ -418,13 +374,9 @@ export function useTodoStore() {
     [setProfile],
   );
 
-  const loaded =
-    categoriesLoaded &&
-    todosLoaded &&
-    profileLoaded &&
-    groceriesLoaded &&
-    groceryGroupsLoaded;
-
+  // `loaded` aggregate computed AFTER the grocery slice initializes
+  // its own *Loaded flags — see further down. Defined here only
+  // as a forward reference so existing reads upstream don't break.
   // ---- Stable callbacks ----
 
   // Single chokepoint for pebble accounting. Every mutation that can
@@ -471,6 +423,47 @@ export function useTodoStore() {
     },
     [applyPebbleDelta, animationOn],
   );
+
+  // PR 3 grocery slice — placed after applyPebbleDeltaTimed so
+  // toggleGroceryChecked can route bucket completion deltas through
+  // the same chokepoint as todo completions.
+  const {
+    groceries,
+    setGroceries,
+    groceriesLoaded,
+    groceryGroups,
+    setGroceryGroups,
+    groceryGroupsLoaded,
+    addGrocery,
+    toggleGroceryChecked,
+    editGrocery,
+    deleteGrocery,
+    addGroceryGroup,
+    addGroceryStore,
+    renameGroceryStore,
+    deleteGroceryStore,
+    linkItemsToStore,
+    reorderGroceryStores,
+    toggleGroceryStoreHidden,
+    pinGroceryStore,
+    setActiveGroceryStore,
+    setActiveGroceryDept,
+    pinGroceryDept,
+  } = useGroceriesSlice(adapter, {
+    onSaved,
+    setProfile,
+    profileRef,
+    notify,
+    t,
+    applyPebbleDeltaTimed,
+  });
+
+  const loaded =
+    categoriesLoaded &&
+    todosLoaded &&
+    profileLoaded &&
+    groceriesLoaded &&
+    groceryGroupsLoaded;
 
   const toggle = useCallback(
     (id: string) => {
@@ -1127,429 +1120,6 @@ export function useTodoStore() {
   const todaySubtaskPebbles = todayPebbleCounts.subtask;
   const todayPebbles = todayTaskPebbles + todaySubtaskPebbles;
   const lifetimePebbles = profile.lifetimePebbles ?? 0;
-
-  // ---- Grocery mutations (stable callbacks) ------------------------
-  const addGrocery = useCallback(
-    (args: { text: string; groupId?: string; stores?: string[] }) => {
-      const text = args.text.trim();
-      if (!text) return;
-      // Local-first department inference. Only kicks in when the
-      // caller didn't pick a department (or picked the Others
-      // catch-all). Pure function — safe to run synchronously here
-      // so the item lands in the right group on the first paint.
-      const explicit =
-        args.groupId && args.groupId !== OTHERS_GROUP_ID
-          ? args.groupId
-          : undefined;
-      const localGuess =
-        explicit ?? inferGroceryGroupLocal(text, groceryGroupsRef.current);
-      const item = newGroceryItem({
-        text,
-        groupId: localGuess,
-        stores: args.stores,
-      });
-      setGroceries((prev) => {
-        if (prev.length >= MAX_GROCERY_ITEMS) return prev;
-        return [item, ...prev];
-      });
-      // Auto-register any newly-mentioned store on first use, and
-      // stamp lastAddedGroceryStore from the FIRST entry in the list
-      // (only one slot, so we pick the most representative). When the
-      // item has no stores attached, last-added stays as-is.
-      const newStores = item.stores;
-      const lastAdded = newStores[0];
-      setProfile((p) => {
-        const next = { ...p, lastAddedGroceryStore: lastAdded ?? p.lastAddedGroceryStore };
-        if (newStores.length > 0) {
-          const list = p.groceryStores ?? SEED_GROCERY_STORES;
-          const additions = newStores.filter((s) => !list.includes(s));
-          if (additions.length > 0) {
-            next.groceryStores = [...list, ...additions];
-          }
-        }
-        return next;
-      });
-      // When the user didn't explicitly pick a department (compose
-      // defaults to Uncategorized), AI is consulted regardless of
-      // whether the local heuristic already produced a guess. Local
-      // gives us an instant placement so the item doesn't flash in
-      // Uncategorized; AI runs in the background and overrides if it
-      // disagrees with the local hit. This matches the user mental
-      // model: "no explicit dept = AI should run", and gives "almond
-      // milk" a chance to be sorted into Beverages instead of Dairy.
-      // Failures (network, quota, no-confidence) leave the item
-      // wherever the local heuristic placed it.
-      const landedInOthers = item.groupId === OTHERS_GROUP_ID;
-      const aiOn = profileRef.current.agentEnabled !== false;
-      if (aiOn && !explicit) {
-        const departments = groceryGroupsRef.current
-          .filter((g) => g.id !== OTHERS_GROUP_ID && !g.hidden)
-          .slice(0, 30)
-          .map((g) => ({ id: g.id, label: g.label }));
-        const storesInProfile =
-          profileRef.current.groceryStores ?? SEED_GROCERY_STORES;
-        const explicitStore = !!args.stores && args.stores.length > 0;
-        if (departments.length > 0) {
-          // Snapshot where local placed the item — used in the .then
-          // to decide whether AI's pick differs from local (snackbar)
-          // or agrees (silent no-op).
-          const placedAt = item.groupId;
-          void classifyGroceryDept({
-            text,
-            departments,
-            stores: storesInProfile,
-          }).then((res) => {
-            // Storefront — handle BEFORE dept so even AI-existing-id
-            // path can also surface a store change. Skip if the user
-            // already picked a store explicitly in compose; respect
-            // their choice over the AI's mention.
-            const hint = res.storeHint;
-            if (hint && !explicitStore) {
-              const existing = storesInProfile.find(
-                (s) => s.toLowerCase() === hint.name.toLowerCase(),
-              );
-              if (existing) {
-                // Silently append the matched store to the item's
-                // stores list (dedupe in case it's already there).
-                setGroceries((prev) =>
-                  prev.map((it) => {
-                    if (it.id !== item.id) return it
-                    if (it.stores.includes(existing)) return it
-                    return { ...it, stores: [...it.stores, existing] }
-                  }),
-                );
-              } else if (hint.isNew) {
-                // New store — ask before creating it in the profile.
-                notify.showSnackbar({
-                  message: t.groceryNewStorePrompt(hint.name),
-                  actionLabel: t.create,
-                  onAction: () => {
-                    const liveStores =
-                      profileRef.current.groceryStores ?? SEED_GROCERY_STORES;
-                    const dupe = liveStores.find(
-                      (s) => s.toLowerCase() === hint.name.toLowerCase(),
-                    );
-                    const targetName = dupe ?? hint.name;
-                    if (!dupe) {
-                      setProfile((p) => {
-                        const list = p.groceryStores ?? SEED_GROCERY_STORES;
-                        if (list.some((s) => s.toLowerCase() === hint.name.toLowerCase())) {
-                          return p;
-                        }
-                        return { ...p, groceryStores: [...list, hint.name] };
-                      });
-                    }
-                    setGroceries((prev) =>
-                      prev.map((it) => {
-                        if (it.id !== item.id) return it
-                        if (it.stores.includes(targetName)) return it
-                        return { ...it, stores: [...it.stores, targetName] }
-                      }),
-                    );
-                  },
-                });
-              }
-            }
-            // Case 1: AI picked an existing group. If it differs
-            // from where local placed the item, move + tell the user
-            // via a brief snackbar so they see AI activity. If it
-            // agrees with local, no-op silently.
-            if (res.groupId) {
-              const dept = groceryGroupsRef.current.find((g) => g.id === res.groupId);
-              if (!dept) return;
-              if (placedAt === res.groupId) return; // local already matched — no move
-              setGroceries((prev) =>
-                prev.map((it) =>
-                  it.id === item.id ? { ...it, groupId: res.groupId! } : it,
-                ),
-              );
-              notify.showSnackbar({
-                message: t.grocerySortedInto(dept.label),
-              });
-              return;
-            }
-            // Case 2: AI proposes a new dept → only useful when the
-            // local heuristic ALSO missed (item is still in
-            // Uncategorized). If local already placed the item in
-            // an existing dept, suggesting to create a brand-new
-            // one is confusing — keep local's pick.
-            if (!landedInOthers) return;
-            const proposed = res.newGroupLabel;
-            if (!proposed) return;
-            const liveGroups = groceryGroupsRef.current;
-            if (liveGroups.length >= MAX_GROCERY_GROUPS) return;
-            // Race guard: a previous parallel suggestion may have
-            // already created a same-label group. If so, just
-            // silent-move into it rather than re-asking.
-            const lower = proposed.toLowerCase();
-            const existing = liveGroups.find(
-              (g) => g.id !== OTHERS_GROUP_ID && g.label.toLowerCase() === lower,
-            );
-            if (existing) {
-              setGroceries((prev) =>
-                prev.map((it) =>
-                  it.id === item.id ? { ...it, groupId: existing.id } : it,
-                ),
-              );
-              return;
-            }
-            notify.showSnackbar({
-              message: t.groceryNewDeptSuggest(proposed),
-              actionLabel: t.create,
-              onAction: () => {
-                // Re-check the live state at commit time — the user
-                // may have already created a same-label group in the
-                // gap between snackbar show and action tap.
-                const groupsAtCommit = groceryGroupsRef.current;
-                if (groupsAtCommit.length >= MAX_GROCERY_GROUPS) return;
-                const dupe = groupsAtCommit.find(
-                  (g) =>
-                    g.id !== OTHERS_GROUP_ID &&
-                    g.label.toLowerCase() === lower,
-                );
-                let targetGroupId: string;
-                if (dupe) {
-                  targetGroupId = dupe.id;
-                } else {
-                  const newGroup = newGroceryGroup(proposed);
-                  targetGroupId = newGroup.id;
-                  setGroceryGroups((prev) => {
-                    // Insert before the trailing Others/Uncategorized
-                    // group so the new dept lands in the visible list,
-                    // not after the catch-all.
-                    const withoutOthers = prev.filter((g) => g.id !== OTHERS_GROUP_ID);
-                    const others = prev.find((g) => g.id === OTHERS_GROUP_ID);
-                    const next = [...withoutOthers, newGroup];
-                    if (others) next.push(others);
-                    return next;
-                  });
-                }
-                setGroceries((prev) =>
-                  prev.map((it) =>
-                    it.id === item.id ? { ...it, groupId: targetGroupId } : it,
-                  ),
-                );
-              },
-            });
-          });
-        }
-      }
-    },
-    [setGroceries, setProfile, setGroceryGroups, notify, t],
-  );
-
-  const renameGroceryStore = useCallback(
-    (oldName: string, newName: string) => {
-      const next = newName.trim();
-      if (!next || next === oldName) return;
-      // Replace in profile list (preserve position; dedupe).
-      setProfile((p) => {
-        const list = p.groceryStores ?? SEED_GROCERY_STORES;
-        const updated: string[] = [];
-        for (const s of list) {
-          const replaced = s === oldName ? next : s;
-          if (!updated.includes(replaced)) updated.push(replaced);
-        }
-        const activeUpdated =
-          p.activeGroceryStore === oldName ? next : p.activeGroceryStore;
-        return { ...p, groceryStores: updated, activeGroceryStore: activeUpdated };
-      });
-      // Batch-update items that carried the old store name in their
-      // stores list — swap to the new name, dedupe in case the item
-      // already had the new name too.
-      setGroceries((prev) =>
-        prev.map((it) => {
-          if (!it.stores.includes(oldName)) return it
-          const replaced = it.stores.map((s) => (s === oldName ? next : s))
-          const deduped = Array.from(new Set(replaced))
-          return { ...it, stores: deduped }
-        }),
-      );
-    },
-    [setProfile, setGroceries],
-  );
-
-  const deleteGroceryStore = useCallback(
-    (name: string) => {
-      setProfile((p) => {
-        const list = (p.groceryStores ?? SEED_GROCERY_STORES).filter((s) => s !== name);
-        const active =
-          p.activeGroceryStore === name ? undefined : p.activeGroceryStore;
-        return { ...p, groceryStores: list, activeGroceryStore: active };
-      });
-      // Drop the deleted store from every item's stores list. Items
-      // tagged ONLY with this store become storeless (no store filter
-      // match), which the user can fix via the edit sheet.
-      setGroceries((prev) =>
-        prev.map((it) =>
-          it.stores.includes(name)
-            ? { ...it, stores: it.stores.filter((s) => s !== name) }
-            : it,
-        ),
-      );
-    },
-    [setProfile, setGroceries],
-  );
-
-  // Append a store name to many items at once. Used by the "+ Add
-  // store" → AI-link flow in StorePicker. Dedupes per-item so a
-  // repeat call is a no-op; skips ids that don't exist.
-  const linkItemsToStore = useCallback(
-    (storeName: string, itemIds: string[]) => {
-      if (itemIds.length === 0) return
-      const idSet = new Set(itemIds)
-      setGroceries((prev) =>
-        prev.map((it) => {
-          if (!idSet.has(it.id)) return it
-          if (it.stores.includes(storeName)) return it
-          return { ...it, stores: [...it.stores, storeName] }
-        }),
-      )
-    },
-    [setGroceries],
-  );
-
-  const reorderGroceryStores = useCallback(
-    (next: string[]) => {
-      setProfile((p) => ({ ...p, groceryStores: next.filter((s) => s.trim().length > 0) }));
-    },
-    [setProfile],
-  );
-
-  const addGroceryStore = useCallback(
-    (name: string) => {
-      const trimmed = name.trim();
-      if (!trimmed) return;
-      setProfile((p) => {
-        const list = p.groceryStores ?? SEED_GROCERY_STORES;
-        if (list.includes(trimmed)) return p;
-        return { ...p, groceryStores: [...list, trimmed] };
-      });
-    },
-    [setProfile],
-  );
-
-  // Create a new grocery department from a proposed label. Returns
-  // the new group's id so the caller can immediately select it on
-  // the in-progress item. Re-uses an existing group when the label
-  // already matches (case-insensitive) — keeps AI's "new" pill from
-  // accidentally creating a near-duplicate.
-  const addGroceryGroup = useCallback(
-    (label: string): string | undefined => {
-      const trimmed = label.trim();
-      if (!trimmed) return undefined;
-      const live = groceryGroupsRef.current;
-      const dupe = live.find(
-        (g) => g.id !== OTHERS_GROUP_ID && g.label.toLowerCase() === trimmed.toLowerCase(),
-      );
-      if (dupe) return dupe.id;
-      if (live.length >= MAX_GROCERY_GROUPS) return undefined;
-      const next = newGroceryGroup(trimmed);
-      setGroceryGroups((prev) => {
-        // Insert before the trailing Others/Uncategorized group so
-        // the new dept lands in the visible list, not after the
-        // catch-all. Same placement as addGrocery's post-add path.
-        const withoutOthers = prev.filter((g) => g.id !== OTHERS_GROUP_ID);
-        const others = prev.find((g) => g.id === OTHERS_GROUP_ID);
-        const out = [...withoutOthers, next];
-        if (others) out.push(others);
-        return out;
-      });
-      return next.id;
-    },
-    [setGroceryGroups],
-  );
-
-  const toggleGroceryStoreHidden = useCallback(
-    (name: string) => {
-      setProfile((p) => {
-        const hidden = p.hiddenGroceryStores ?? [];
-        const next = hidden.includes(name)
-          ? hidden.filter((s) => s !== name)
-          : [...hidden, name];
-        return { ...p, hiddenGroceryStores: next };
-      });
-    },
-    [setProfile],
-  );
-
-  const pinGroceryStore = useCallback(
-    (name: string) => {
-      setProfile((p) => {
-        const pinned = p.pinnedGroceryStores ?? [];
-        const next = pinned.includes(name)
-          ? pinned.filter((s) => s !== name)
-          : [...pinned, name];
-        return { ...p, pinnedGroceryStores: next };
-      });
-    },
-    [setProfile],
-  );
-
-  const toggleGroceryChecked = useCallback(
-    (id: string) => {
-      setGroceries((prev) => {
-        const next = groceryToggleChecked(prev, id);
-        // Award (or refund) a pebble when the toggle completes (or
-        // un-completes) a (store × department) bucket. The delta runs
-        // through the same chokepoint as todo completions so the
-        // strip + lifetime cairn stay in sync. Animation-aware: when
-        // motion is off, applyPebbleDeltaTimed fires immediately.
-        const bucketDelta = shoppingBucketPebbleDelta(prev, next, id);
-        if (bucketDelta !== 0) {
-          // Use the subtask channel (typed `number`) since one toggle
-          // can complete multiple buckets at once via a multi-store
-          // item; PebbleDelta.task is constrained to -1|0|1 and can't
-          // express that. Each bucket is its own mini-completion, so
-          // subtask grain is the right semantic too.
-          applyPebbleDeltaTimed({ task: 0, subtask: bucketDelta });
-        }
-        return next;
-      });
-    },
-    [setGroceries, applyPebbleDeltaTimed],
-  );
-
-  const editGrocery = useCallback(
-    (id: string, patch: { text?: string; groupId?: string; stores?: string[] }) => {
-      setGroceries((prev) => groceryEdit(prev, id, patch));
-    },
-    [setGroceries],
-  );
-
-  const deleteGrocery = useCallback(
-    (id: string) => {
-      setGroceries((prev) => groceryDelete(prev, id));
-    },
-    [setGroceries],
-  );
-
-  const setActiveGroceryStore = useCallback(
-    (store: string | undefined) => {
-      setProfile((p) => ({ ...p, activeGroceryStore: store || undefined }));
-    },
-    [setProfile],
-  );
-
-  const setActiveGroceryDept = useCallback(
-    (deptId: string | undefined) => {
-      setProfile((p) => ({ ...p, activeGroceryDept: deptId || undefined }));
-    },
-    [setProfile],
-  );
-
-  const pinGroceryDept = useCallback(
-    (deptId: string) => {
-      setProfile((p) => {
-        const pinned = p.pinnedGroceryDepts ?? [];
-        const next = pinned.includes(deptId)
-          ? pinned.filter((d) => d !== deptId)
-          : [...pinned, deptId];
-        return { ...p, pinnedGroceryDepts: next };
-      });
-    },
-    [setProfile],
-  );
 
   return {
     todos,
