@@ -526,13 +526,15 @@ export default function CategorySheet({
                             return (
                               <View style={[styles.editRow, isActive && styles.editRowActive]}>
                                 <PriorityBars level={p.id} size={18} />
-                                <View style={styles.editRowLabelInner}>
-                                  <Text
-                                    style={[styles.editRowLabel, p.hidden && styles.editRowLabelHidden]}
-                                    numberOfLines={1}
-                                  >
-                                    {p.label}
-                                  </Text>
+                                <View style={styles.editRowLabelTap}>
+                                  <View style={styles.editRowLabelInner}>
+                                    <Text
+                                      style={[styles.editRowLabel, p.hidden && styles.editRowLabelHidden]}
+                                      numberOfLines={1}
+                                    >
+                                      {p.label}
+                                    </Text>
+                                  </View>
                                 </View>
                                 <TouchableOpacity
                                   onPress={() => onTogglePriorityHidden(p.id)}

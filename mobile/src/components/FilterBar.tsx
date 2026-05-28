@@ -42,6 +42,12 @@ interface Props {
   /** Total task counts per priority, used to badge priority pills.
    * Items with no priority don't count toward any bucket. */
   byPriority: Record<Priority, number>
+  /** Count of todos matching the AND/OR combined active filter set.
+   * Used to badge the composite pill when 2+ filters are selected
+   * (e.g., "Done + Work · 3"). Per-filter counts (`systemCounts`,
+   * `byCategory`, `byPriority`) are independent and don't reflect the
+   * intersection across type groups. */
+  combinedCount?: number
   /** Active (unchecked) grocery item count for the Groceries pill badge.
    * The Groceries pill is the leftmost pill in the row when the user has
    * the feature enabled (profile.groceriesEnabled !== false). */
@@ -84,6 +90,7 @@ export default function FilterBar({
   systemCounts,
   byCategory,
   byPriority,
+  combinedCount = 0,
   groceriesActiveCount = 0,
   groceriesEnabled = true,
   scrolledPebbleCount = 0,
@@ -203,27 +210,44 @@ export default function FilterBar({
   // onToggleFilter). Pinned filters that aren't currently selected
   // render after as "extra" pills (tap to add). Same long-press →
   // pin/unpin contract as before.
+  //
+  // When 2+ filters are selected we collapse them into a single
+  // composite pill ("Done + Work · 3") whose badge is the combined
+  // AND/OR result count, instead of stacking N independent pills
+  // each showing their solo count (which were misleading when the
+  // filters were AND'd together — e.g. Done=20, Work=4, combined=3).
+  const compositePill: ResolvedPill[] | null =
+    selectedFilters.length >= 2
+      ? (selectedFilters
+          .filter((f) => f !== 'all' && f !== 'groceries')
+          .map((f) => resolvePill(f))
+          .filter((p): p is ResolvedPill => p != null))
+      : null
   const visiblePills: { pill: ResolvedPill; pinned: boolean; selected: boolean }[] = []
   const allPill = resolvePill('all')!
   // Groceries pill removed in v1.3 — Groceries is its own bottom tab
   // now. The `groceries` filter value + resolver stay for back-compat
   // with any persisted state; they just don't render as a pill.
 
-  // Selected filters first — preserve the order the user picked them
-  // in (matches the order returned by the multi-select sheet, which
-  // tracks insertion order).
-  for (const f of selectedFilters) {
-    if (f === 'all' || f === 'groceries') continue
-    const p = resolvePill(f)
-    if (p) {
-      visiblePills.push({
-        pill: p,
-        pinned: pinnedFilters.includes(f),
-        selected: true,
-      })
+  // Selected filters first (single-select case only — multi-select
+  // renders the composite pill instead of these). Preserve insertion
+  // order from the multi-select sheet.
+  if (!compositePill) {
+    for (const f of selectedFilters) {
+      if (f === 'all' || f === 'groceries') continue
+      const p = resolvePill(f)
+      if (p) {
+        visiblePills.push({
+          pill: p,
+          pinned: pinnedFilters.includes(f),
+          selected: true,
+        })
+      }
     }
   }
   // Pinned-but-not-selected filters follow as quick-add shortcuts.
+  // (Even in the composite-pill case, pinned shortcuts still render
+  // so the user can extend the active selection in one tap.)
   for (const f of pinnedFilters) {
     if (f === 'all' || f === 'groceries' || selectedFilters.includes(f)) continue
     const p = resolvePill(f)
@@ -238,9 +262,15 @@ export default function FilterBar({
   void onOpenSheet
 
   // Hide the entire filter row when there's nothing meaningful to
-  // render: no selected filters AND no pinned pills to surface.
-  // Removes a useless strip from the empty-state view.
-  if (selectedFilters.length === 0 && visiblePills.length === 0) return null
+  // render: no selected filters AND no pinned pills to surface AND
+  // no composite pill. Removes a useless strip from the empty-state
+  // view.
+  if (
+    selectedFilters.length === 0 &&
+    visiblePills.length === 0 &&
+    !compositePill
+  )
+    return null
 
   return (
     <View style={styles.row}>
@@ -303,6 +333,34 @@ export default function FilterBar({
         contentContainerStyle={styles.pillsScroll}
         keyboardShouldPersistTaps="handled"
       >
+        {compositePill && (() => {
+          const label = compositePill.map((p) => p.label).join(' + ')
+          return (
+            <TouchableOpacity
+              key="__composite"
+              style={[styles.pill, styles.pillActive]}
+              onPress={onOpenSheet}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityState={{ selected: true }}
+              accessibilityLabel={`${label}, ${combinedCount} matching — tap to edit selection`}
+            >
+              <Text
+                style={[styles.pillLabel, styles.pillLabelActive]}
+                numberOfLines={1}
+                maxFontSizeMultiplier={1.3}
+              >
+                {label}
+              </Text>
+              <Text
+                style={[styles.pillCount, styles.pillCountActive]}
+                maxFontSizeMultiplier={1.3}
+              >
+                {combinedCount}
+              </Text>
+            </TouchableOpacity>
+          )
+        })()}
         {visiblePills.map(({ pill, pinned, selected }) => {
           // Selected (in the multi-select set): filled primary
           //   "current" look. Tap removes (toggle off).
