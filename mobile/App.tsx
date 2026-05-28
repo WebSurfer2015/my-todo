@@ -50,6 +50,7 @@ import { NotifyProvider } from "./src/notify";
 import { PebbleFlightProvider } from "./src/components/PebbleFlight";
 import { ErrorBoundary } from "./src/ErrorBoundary";
 import { useTodoStore } from "./src/useTodoStore";
+import { buildGroups } from "../core/src/groups";
 import { buildDoneGroups } from "../core/src/groups";
 import { fullDateLabel } from "./src/utils";
 import { todayLocal } from "../core/src/utils";
@@ -141,6 +142,62 @@ function TodosScreen() {
   const [splashShown, setSplashShown] = useState(true);
   const onboardingNeeded = store.loaded && store.profile.onboardingDone !== true;
 
+  // Linger set: when a filter is applied and the user toggles a row
+  // such that it no longer matches the filter (mark done while on
+  // Open, move to trash, change category away from the active cat),
+  // the row would normally disappear immediately. Instead we keep
+  // the row visible at the BOTTOM of its date-bucket group until
+  // the filter changes — so a check-off doesn't make the just-tapped
+  // row vanish out from under the user. Empty filter (All) skips
+  // this entirely.
+  const [lingerIds, setLingerIds] = useState<Set<string>>(new Set());
+  // Reset linger any time the active filter set changes — the user
+  // changing scope is the trigger to drop the lingering items.
+  const filtersKey = useMemo(
+    () => [...store.filters].sort().join("|"),
+    [store.filters],
+  );
+  useEffect(() => {
+    setLingerIds(new Set());
+  }, [filtersKey]);
+  // Diff store.filtered against the previous render to detect IDs
+  // that just dropped out of view, and add them to lingerIds. Also
+  // remove any lingering IDs that came BACK into the filter (e.g.,
+  // the user un-checked).
+  const prevFilteredIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (store.filters.length === 0) {
+      // No filter → no linger needed.
+      prevFilteredIdsRef.current = new Set();
+      return;
+    }
+    const currentIds = new Set(store.filtered.map((t) => t.id));
+    const dropped: string[] = [];
+    prevFilteredIdsRef.current.forEach((id) => {
+      if (!currentIds.has(id)) dropped.push(id);
+    });
+    setLingerIds((prev) => {
+      let touched = false;
+      const next = new Set(prev);
+      for (const id of dropped) {
+        if (!next.has(id)) {
+          next.add(id);
+          touched = true;
+        }
+      }
+      // Items that returned to filtered (e.g., user un-checked) drop
+      // out of linger so they render in their natural position.
+      next.forEach((id) => {
+        if (currentIds.has(id)) {
+          next.delete(id);
+          touched = true;
+        }
+      });
+      return touched ? next : prev;
+    });
+    prevFilteredIdsRef.current = currentIds;
+  }, [store.filtered, store.filters.length]);
+
   // Search narrows the already-filtered + grouped view. Case-insensitive
   // substring against todo text, subtask text, and notes. We compute
   // both flat (`displayFiltered`) and grouped (`displayGroups`)
@@ -158,9 +215,38 @@ function TodosScreen() {
       return false;
     });
   }, [store.filtered, searchNeedle]);
+  // Augment store.groups with lingering items at the bottom of their
+  // date bucket. Re-runs buildGroups against the union of filter-
+  // matching + lingering todos, then within each group pushes any
+  // lingering ids to the end so the filter-matching rows still rank
+  // by priority/dueDate at the top.
+  const groupsWithLinger = useMemo(() => {
+    if (lingerIds.size === 0) return store.groups;
+    const lingerTodos = store.todos.filter((t) => lingerIds.has(t.id));
+    if (lingerTodos.length === 0) return store.groups;
+    const seen = new Set<string>();
+    const combined: Todo[] = [];
+    for (const t of store.filtered) {
+      seen.add(t.id);
+      combined.push(t);
+    }
+    for (const t of lingerTodos) {
+      if (!seen.has(t.id)) combined.push(t);
+    }
+    const groups = buildGroups(combined);
+    return groups.map((g) => {
+      const matching: Todo[] = [];
+      const lingering: Todo[] = [];
+      for (const t of g.todos) {
+        if (lingerIds.has(t.id)) lingering.push(t);
+        else matching.push(t);
+      }
+      return { ...g, todos: [...matching, ...lingering] };
+    });
+  }, [store.groups, store.filtered, store.todos, lingerIds]);
   const displayGroups = useMemo(() => {
-    if (!searchNeedle) return store.groups;
-    return store.groups
+    if (!searchNeedle) return groupsWithLinger;
+    return groupsWithLinger
       .map((g) => ({
         ...g,
         todos: g.todos.filter((td) => {
@@ -176,7 +262,7 @@ function TodosScreen() {
         }),
       }))
       .filter((g) => g.todos.length > 0);
-  }, [store.groups, searchNeedle]);
+  }, [groupsWithLinger, searchNeedle]);
 
   // Guard against landing on a fully-collapsed Todos list: if every
   // group in the current view is collapsed (e.g., the default
