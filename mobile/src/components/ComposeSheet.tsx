@@ -3,6 +3,7 @@ import {
   Modal, View, Text, TextInput, TouchableOpacity, StyleSheet,
   Pressable, KeyboardAvoidingView, Platform, ScrollView, Alert,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as Haptics from 'expo-haptics'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import Svg, { Rect, Path } from 'react-native-svg'
@@ -176,6 +177,12 @@ export default function ComposeSheet({
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
   const inputRef = useRef<TextInput>(null)
+  // Bottom safe-area inset for the home indicator on notched / Dynamic-
+  // Island devices. The sheet's static paddingBottom (24) wasn't
+  // enough to keep the calendar's last row clear of the home
+  // indicator strip — final week clipped against the rounded bottom.
+  const insets = useSafeAreaInsets()
+  const sheetBottomPad = Math.max(24, insets.bottom + 8)
 
   const [subView, setSubView] = useState<SubView>('main')
   const [text, setText] = useState('')
@@ -360,7 +367,10 @@ export default function ComposeSheet({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <Pressable style={styles.backdrop} onPress={onClose}>
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+          <Pressable
+            style={[styles.sheet, { paddingBottom: sheetBottomPad }]}
+            onPress={(e) => e.stopPropagation()}
+          >
             <View style={styles.handle} />
 
             {subView === 'main' && (
