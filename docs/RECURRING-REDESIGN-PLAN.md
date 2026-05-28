@@ -20,26 +20,24 @@ changes.
 
 ## Model
 
-### 1. Horizon (storage) vs window (render)
+### 1. Window (materialize = render)
 
-Each series materializes `Todo` rows up to a **horizon** anchored at
-the first instance's `dueDate`. The list view renders a **window** that
-is *smaller than* the horizon so users don't drown in 30 future daily
-todos.
+Each series materializes exactly the rows it renders — no hidden
+storage beyond the window. The window slides forward over time as
+users complete instances or as the calendar moves past materialized
+dates.
 
-| Freq    | Horizon (materialize) | Window (render in date-bucket groups) |
-| ------- | --------------------- | ------------------------------------- |
-| daily   | 1 month               | 7 days                                |
-| weekly  | 3 months              | 1 month                               |
-| monthly | 12 months             | 3 months                              |
-| yearly  | 5 years               | 3 years                               |
+| Freq    | Window (materialize **and** render) |
+| ------- | ----------------------------------- |
+| daily   | 7 days                              |
+| weekly  | 1 month                             |
+| monthly | 3 months                            |
+| yearly  | 3 years                             |
 
-- Horizon = the latest `dueDate` that has a materialized `Todo` for this
-  series. Constants live in `core/src/types.ts` next to `RECURRENCE_FREQS`.
-- Window = a filter applied at render time only. Materialized rows
-  outside the window are kept in storage (for series-edit, reminder
-  scheduling, history) but hidden from default views.
-- Window cutoff is relative to **today**, sliding forward with the user.
+- Window cutoff is relative to **today**, sliding forward.
+- The latest materialized `dueDate` for a series is its current
+  horizon. `expandSeries` fills up to `today + window`. `topUpSeries`
+  appends one more on each completion and as needed on app open.
 - Done bin is *not* windowed — once an instance flips to done it shows
   in the normal Done view regardless of its original dueDate.
 
@@ -57,25 +55,27 @@ todos.
 
 Triggers that generate instances:
 
-- **On series creation** — `expandSeries(seed, horizonDate)` produces
-  N rows from `seed.dueDate` up to the horizon. Each gets its own
+- **On series creation** — `expandSeries(seed, todayISO)` produces N
+  rows from `seed.dueDate` up to `today + window`. Each gets its own
   UUID, the shared `seriesId`, a freshly cloned `subtasks` array, and
   a `recurrence` definition.
 - **On completion** — when a series instance flips `done: true` via
-  `todoToggle`, the slice computes the new horizon date (last
-  materialized + 1 period) and appends one fresh instance. This keeps
-  the horizon rolling forward at "1 completion = 1 new tail."
-- **On app open / hydrate (top-up)** — for each known seriesId, if
-  the latest materialized `dueDate` is more than one period in the
-  past relative to today (e.g. user came back after a week away from a
-  daily series), top up to the live horizon. This guarantees the
-  window always has something to render.
+  `todoToggle`, the slice appends one fresh instance one period past
+  the current tail. "1 completion = 1 new tail" keeps the window full
+  as the user works through it.
+- **On app open / hydrate (top-up)** — for each known seriesId,
+  compare the latest materialized `dueDate` to `today + window`. If
+  the tail is behind (user came back after several days), append
+  enough instances to reach the live window cutoff. If the tail is
+  ahead (window shrank because today moved forward but no completions
+  happened), no-op — instances stay until they're completed or
+  skipped.
 - **On frequency change** — see Edit semantics below.
 
-`endDate` on `Recurrence` still caps the horizon. If `endDate` is
-before the natural horizon, we materialize up to `endDate` and stop;
-on completion, top-up stops once we'd cross `endDate`. The last
-instance triggers an **end-of-series** celebration (Mochi happy-dance
+`endDate` on `Recurrence` caps materialization. If `endDate` is before
+`today + window`, we materialize up to `endDate` and stop; on
+completion, top-up stops once we'd cross `endDate`. The last instance
+triggers an **end-of-series** celebration (Mochi happy-dance
 mirroring the bucket-complete moment) — see "End of series" below.
 
 ### 4. Reminders
@@ -198,13 +198,13 @@ generated), trigger an end-of-series celebration:
 
 On first launch after the upgrade:
 
-- For every recurring todo without a `seriesId`, generate one and
-  expand the horizon **starting from the current `dueDate`** (i.e.
-  treat the rolling instance as the head of a new series). Reminder
+- For every recurring todo without a `seriesId`, generate one and run
+  `expandSeries` from the current `dueDate` up to `today + window`
+  (treat the rolling instance as the head of a new series). Reminder
   stays on the head.
 - For recurring todos that already use the `endDate`-expanded model
-  (pre-existing expanded instances), just back-fill `seriesId` if
-  missing and continue.
+  (pre-existing expanded instances), back-fill `seriesId` if missing.
+  If their tail is shorter than `today + window`, top up to match.
 - Migration runs once per device, gated on a `profile.recurringV2: true`
   flag that gets set after success.
 
@@ -219,16 +219,15 @@ can verify on the Amplify dev URL before promoting to `main`.
 
 - Add `STATUS_FILTERS` entry `'notDo'`; add optional `Todo.status` and
   `Todo.detachedFromSeries: boolean`.
-- Add horizon/window constants keyed by `RecurrenceFreq` to
-  `core/src/types.ts`.
+- Add `RECURRENCE_WINDOW_DAYS` constants keyed by `RecurrenceFreq` to
+  `core/src/types.ts` (daily=7, weekly=~30, monthly=~90, yearly=~1095).
 - Add pure helpers in `core/src/derive.ts`:
-  - `horizonDateFor(freq, anchorISO): string`
   - `windowCutoffFor(freq, todayISO): string`
-  - `expandSeries(seed: Todo, horizonISO: string): Todo[]`
+  - `expandSeries(seed: Todo, todayISO: string): Todo[]`
   - `topUpSeries(todos: Todo[], seriesId: string, todayISO: string): Todo[]`
   - `seriesFutureFrom(todos: Todo[], seriesId: string, anchorISO: string): Todo[]`
-- Unit tests covering each frequency's horizon, window cutoff, endDate
-  cap, leap-year edge, and DST boundary.
+- Unit tests covering each frequency's window, endDate cap, leap-year
+  edge, and DST boundary.
 
 Risk: pure functions only, no caller changes yet. Existing rolling
 behavior untouched.
@@ -262,17 +261,11 @@ once. Cloud-synced via the existing onSaved adapter.
 Risk: changes the core completion path. Heavy unit-test coverage; one
 end-to-end manual pass on sim.
 
-### PR R4 — Window filter in render
+### PR R4 — (folded into R1–R3)
 
-- In `core/src/groups.ts` (or wherever the date-bucket group reducer
-  lives), filter materialized recurring instances by
-  `windowCutoffFor(t.recurrence.freq, today)`.
-- Honor existing filter pills — window doesn't override an explicit
-  filter that exposes a recurring instance (e.g. opening the series
-  edit sheet shows the full series regardless of window).
-
-Risk: render-only. If we get the predicate wrong, instances "vanish"
-but don't get deleted — recoverable.
+With materialize == render, there's no separate render-time window
+filter. Series-edit sheets read the full materialized set, which is
+the window. Slot kept here to preserve R-numbering.
 
 ### PR R5 — Skip + Defer actions
 
