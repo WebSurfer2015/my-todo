@@ -257,7 +257,6 @@ function TodosScreen() {
               systemCounts={store.systemCounts}
               byCategory={store.byCategory}
               byPriority={store.byPriority}
-              combinedCount={store.filtered.length}
               categories={store.categories}
               orderedVisibleStatuses={store.orderedVisibleStatuses}
               groceriesActiveCount={

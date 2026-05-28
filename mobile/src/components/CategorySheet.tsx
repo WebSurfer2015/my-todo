@@ -267,11 +267,13 @@ export default function CategorySheet({
     ]);
   }
 
-  // Multi-select tap: toggle this filter in/out without closing the
-  // sheet. The user closes via the header "Done" button when finished
-  // (lets them pick multiple). Empty selection = "all" semantics.
+  // Single-select tap: replace the current filter with this one
+  // (or, if it was already the selected one, clear back to All) and
+  // close the sheet. The decision is decisive — there's no longer a
+  // multi-select accumulation flow that needs the sheet to stay open.
   function tapFilterRow(f: Filter) {
     onToggleFilter(f);
+    onClose();
   }
 
   // --- Row renderers ----------------------------------------------------
@@ -690,10 +692,13 @@ export default function CategorySheet({
                       <View style={[styles.listCard, styles.allCard]}>
                         <TouchableOpacity
                           style={[styles.viewRow, styles.viewRowFlush]}
-                          onPress={() => onClearFilters()}
+                          onPress={() => {
+                            onClearFilters();
+                            onClose();
+                          }}
                           activeOpacity={0.65}
                           accessibilityRole="button"
-                          accessibilityLabel={`${t.filters.all} — clear every selected filter`}
+                          accessibilityLabel={`${t.filters.all} — clear the current filter`}
                         >
                           <View style={styles.rowIcon} />
                           <Text style={styles.viewRowLabel}>{t.filters.all}</Text>

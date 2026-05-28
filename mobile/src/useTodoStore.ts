@@ -235,14 +235,17 @@ export function useTodoStore() {
     if (f === 'all') setFiltersState([]);
     else setFiltersState([f]);
   }, []);
+  // Single-select toggle: tapping the currently-selected pill clears
+  // the selection (back to "All"); tapping any other pill replaces
+  // the selection with just that filter. Multi-select was retired in
+  // favor of one-filter-at-a-time after user feedback found stacked
+  // pills + composite labels harder to read than radio behavior.
   const toggleFilter = useCallback((f: Filter) => {
     if (f === 'all') {
       setFiltersState([]);
       return;
     }
-    setFiltersState((prev) =>
-      prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f],
-    );
+    setFiltersState((prev) => (prev.length === 1 && prev[0] === f ? [] : [f]));
   }, []);
   const clearFilters = useCallback(() => setFiltersState([]), []);
   const setFilters = useCallback((f: Filter[]) => setFiltersState(f), []);
