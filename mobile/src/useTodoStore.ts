@@ -2,14 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  Category,
   Filter,
-  Priority,
-  Recurrence,
-  StatusFilter,
-  Subtask,
-  Todo,
-  TodoReference,
   ViewMode,
   isCategoryFilter,
   categoryIdFromFilter,
@@ -17,15 +10,8 @@ import {
 import {
   getOrderedStatuses,
   getOrderedVisibleStatuses,
-  statusRename,
-  statusToggleHidden,
-  statusReorder,
 } from "../../core/src/statuses";
-import {
-  getOrderedPriorities,
-  priorityToggleHidden,
-  priorityReorder,
-} from "../../core/src/priorities";
+import { getOrderedPriorities } from "../../core/src/priorities";
 import { useCategoriesSlice } from "./slices/useCategoriesSlice";
 import { useProfileSlice } from "./slices/useProfileSlice";
 import { useGroceriesSlice } from "./slices/useGroceriesSlice";
@@ -40,11 +26,6 @@ import { StorageAdapter } from "../../core/src/persistence";
 import { categoryDelete, deriveState } from "../../core/src/derive";
 import { todayLocal } from "../../core/src/utils";
 import { getTodayPebbles, collectedNounKeyFor } from "./profile";
-
-// Soft cap on pinned filters in the FilterBar quick-access row. Also
-// enforced by migratePinnedFilters in core, so the persisted profile
-// stays bounded even if the limit drifts between platforms.
-const PIN_LIMIT = 12;
 
 // Default trio when the user hasn't picked any Home stat tiles. Resolved
 // at render so the Home screen + Manage Filter sheet stay in sync, and
@@ -101,44 +82,21 @@ export function useTodoStore() {
     };
   }, [uid, adapter]);
 
-  const {
-    profile,
-    setProfile,
-    profileLoaded,
-    lastSavedAt,
-    onSaved,
-  } = useProfileSlice(adapter);
-
-  const {
-    categories,
-    setCategories,
-    categoriesLoaded,
-    addCategory,
-    editCategory,
-    reorderCategories,
-  } = useCategoriesSlice(adapter, onSaved);
-  // Multi-faceted filter selection. Empty array = "all" (no constraint).
-  // Filters within the same type group are OR'd (e.g., Home + Work =
-  // either); across type groups they're AND'd ((open OR done) AND
-  // (Home OR Work)). See core/derive.ts for the matching predicate.
+  // ---- Filter state (session — not persisted) ----
+  // Multi-faceted selection. Empty = "all". OR within type group, AND
+  // across type groups (open OR done) AND (Home OR Work). See
+  // core/derive.ts for the matching predicate.
   const [filters, setFiltersState] = useState<Filter[]>([]);
-  // Legacy single-filter API. setFilter replaces the multi-array with
-  // a single pick; reading `filter` returns the lone selection if
-  // exactly one is active, else 'all'. Keeps every existing
-  // `store.filter === '...'` comparison working in the simple case.
-  const filter: Filter = filters.length === 1 ? filters[0] : 'all';
+  // Legacy single-filter alias. `filter === 'all'` when 0 or 2+ are
+  // selected; the lone value when exactly one is. Keeps every
+  // existing `store.filter === '...'` comparison working.
+  const filter: Filter = filters.length === 1 ? filters[0] : "all";
   const setFilter = useCallback((f: Filter) => {
-    if (f === 'all') setFiltersState([]);
+    if (f === "all") setFiltersState([]);
     else setFiltersState([f]);
   }, []);
-  // Multi-select toggle: tapping a filter row in the Select Filter
-  // sheet adds it to the selection (or removes it if it was already
-  // there). The sheet stays open so the user can build up a multi-
-  // filter set in one pass; the FilterBar collapses 2+ active filters
-  // into a single composite pill ("Done + Work") so the strip itself
-  // still reads as one active pill at a time.
   const toggleFilter = useCallback((f: Filter) => {
-    if (f === 'all') {
+    if (f === "all") {
       setFiltersState([]);
       return;
     }
@@ -148,11 +106,42 @@ export function useTodoStore() {
   }, []);
   const clearFilters = useCallback(() => setFiltersState([]), []);
   const setFilters = useCallback((f: Filter[]) => setFiltersState(f), []);
+
+  // ---- Profile + categories slices ----
+  // Profile slice now also owns every profile-touching mutation
+  // (pinFilter, keepAndClearFilter, home tiles, status/priority
+  // overrides, changeView), so the composer only forwards setFilter +
+  // clearFilters for the two callbacks that cross into session state.
+  const {
+    profile,
+    setProfile,
+    profileLoaded,
+    lastSavedAt,
+    onSaved,
+    pinFilter,
+    keepAndClearFilter,
+    toggleHomeStatTile,
+    clearHomeStatTiles,
+    changeView,
+    renameStatus,
+    toggleStatusHidden,
+    reorderStatuses,
+    togglePriorityHidden,
+    reorderPriorities,
+  } = useProfileSlice(adapter, { setFilter, clearFilters, t, notify });
+  const {
+    categories,
+    setCategories,
+    categoriesLoaded,
+    addCategory,
+    editCategory,
+    reorderCategories,
+  } = useCategoriesSlice(adapter, onSaved);
+
   const view: ViewMode = profile.view ?? "status";
-  // Derived bool re-exposed in the store return so screens can hide
-  // motion-bound chrome (PebbleStrip etc.) when the user has opted
-  // out. Same expression the todos slice uses internally to decide
-  // whether to defer pebble flights.
+  // Derived bool re-exposed for screens that hide motion-bound chrome
+  // when the user has opted out. Same expression the todos slice
+  // uses internally to decide whether to defer pebble flights.
   const animationOn =
     profile.completionAnimation !== false && profile.reduceMotion !== true;
   // Mirror `filter` into a ref so TaskItem-bound callbacks (now in
@@ -173,100 +162,9 @@ export function useTodoStore() {
     profileRef.current = profile;
   }, [profile]);
 
-  // Toggle a filter's pin in the FilterBar quick-access row. Adding
-  // appends to the end so newest pins are last; removing splices it out.
-  // Capped at PIN_LIMIT (also enforced in migratePinnedFilters); when the
-  // cap is reached on an add, surface a snackbar so the user isn't left
-  // with a silent no-op.
-  // Set-aware pin: each pinned entry is a Filter[] (single-element
-  // for legacy single-filter pins, multi-element for composite pills).
-  // Toggling pins the set if absent, unpins if present. Order-
-  // insensitive equality so ['done','cat:work'] and ['cat:work','done']
-  // are the same pin.
-  const setKey = (set: Filter[]) => [...set].sort().join(' ');
-  const pinFilter = useCallback(
-    (set: Filter[]) => {
-      if (set.length === 0) return;
-      const key = setKey(set);
-      setProfile((prev) => {
-        const current = prev.pinnedFilters ?? [];
-        const idx = current.findIndex(
-          (existing) => setKey(existing as Filter[]) === key,
-        );
-        if (idx >= 0) {
-          const next = current.filter((_, i) => i !== idx);
-          return {
-            ...prev,
-            pinnedFilters: next.length > 0 ? next : undefined,
-          };
-        }
-        if (current.length >= PIN_LIMIT) {
-          notify.showSnackbar({ message: t.pinCapReached(PIN_LIMIT) });
-          return prev;
-        }
-        return { ...prev, pinnedFilters: [...current, set] };
-      });
-    },
-    [setProfile, notify, t],
-  );
-
-  // Atomic "stash the current selection as a pinned shortcut then
-  // clear it" used by FilterBar when the user taps an active pill.
-  // Calling pinFilter + clearFilters separately from the component
-  // depended on a closure check (`isSetPinned`) against possibly-
-  // stale props — this version reads the live profile in a functional
-  // setProfile and so always pins-if-missing exactly once.
-  const keepAndClearFilter = useCallback(
-    (set: Filter[]) => {
-      if (set.length > 0) {
-        const key = setKey(set);
-        setProfile((prev) => {
-          const current = prev.pinnedFilters ?? [];
-          const exists = current.some(
-            (existing) => setKey(existing as Filter[]) === key,
-          );
-          if (exists) return prev;
-          if (current.length >= PIN_LIMIT) {
-            notify.showSnackbar({ message: t.pinCapReached(PIN_LIMIT) });
-            return prev;
-          }
-          return { ...prev, pinnedFilters: [...current, set] };
-        });
-      }
-      setFiltersState([]);
-    },
-    [setProfile, notify, t],
-  );
-
-  // Explicit clear-all from the Manage Dashboard Tiles sheet header.
-  // Writes an empty array (NOT undefined) so the Dashboard hides the
-  // tile row entirely — undefined would re-trigger the defaults.
-  const clearHomeStatTiles = useCallback(() => {
-    setProfile((prev) => ({ ...prev, homeStatTiles: [] }));
-  }, [setProfile]);
-
-  // Pick a Filter as a Dashboard stat tile. Toggling a picked tile
-  // removes it; no max-count cap — the Dashboard row scrolls
-  // horizontally when picks exceed the visible width. First
-  // interaction (homeStatTiles === undefined) materializes the defaults
-  // so tapping "1" on a default actually removes it. Removing every
-  // tile leaves the array empty (Dashboard hides the row); we never
-  // auto-revert to defaults.
-  const toggleHomeStatTile = useCallback(
-    (f: Filter) => {
-      setProfile((prev) => {
-        const current: string[] =
-          prev.homeStatTiles === undefined
-            ? DEFAULT_HOME_STAT_TILES
-            : prev.homeStatTiles;
-        if (current.includes(f)) {
-          return { ...prev, homeStatTiles: current.filter((x) => x !== f) };
-        }
-        return { ...prev, homeStatTiles: [...current, f] };
-      });
-    },
-    [setProfile],
-  );
+  // pinFilter / keepAndClearFilter / clearHomeStatTiles /
+  // toggleHomeStatTile moved into useProfileSlice (PR 5). The
+  // composer destructures them from the slice return at the top.
 
   // `loaded` aggregate computed AFTER the grocery slice initializes
   // its own *Loaded flags — see further down. Defined here only
@@ -409,76 +307,6 @@ export function useTodoStore() {
     });
   }
 
-  function changeView(v: ViewMode) {
-    setProfile((prev) => ({ ...prev, view: v }));
-    setFilter(v === "category" ? "all" : "open");
-  }
-
-  function renameStatus(id: StatusFilter, label: string) {
-    setProfile((prev) => statusRename(prev, id, label));
-  }
-
-  function toggleStatusHidden(id: StatusFilter) {
-    setProfile((prev) => {
-      const next = statusToggleHidden(prev, id);
-      // If the status was just hidden and any pinned set referenced
-      // it, strip it from those sets so the FilterBar doesn't
-      // surface an invisible filter as part of a composite pill.
-      const overrides = next.statuses ?? [];
-      const isNowHidden = overrides.find((s) => s.id === id)?.hidden === true;
-      if (!isNowHidden || !next.pinnedFilters) return next;
-      let touched = false;
-      const cleaned: string[][] = [];
-      for (const set of next.pinnedFilters) {
-        if (set.includes(id)) {
-          touched = true;
-          const survivors = set.filter((f) => f !== id);
-          if (survivors.length > 0) cleaned.push(survivors);
-        } else {
-          cleaned.push(set);
-        }
-      }
-      if (!touched) return next;
-      return {
-        ...next,
-        pinnedFilters: cleaned.length > 0 ? cleaned : undefined,
-      };
-    });
-  }
-
-  function reorderStatuses(newOrder: StatusFilter[]) {
-    setProfile((prev) => statusReorder(prev, newOrder));
-  }
-
-  function togglePriorityHidden(id: Priority) {
-    setProfile((prev) => {
-      const next = priorityToggleHidden(prev, id);
-      const overrides = next.priorities ?? [];
-      const isNowHidden = overrides.find((p) => p.id === id)?.hidden === true;
-      const pinId = `pri:${id}`;
-      if (!isNowHidden || !next.pinnedFilters) return next;
-      let touched = false;
-      const cleaned: string[][] = [];
-      for (const set of next.pinnedFilters) {
-        if (set.includes(pinId)) {
-          touched = true;
-          const survivors = set.filter((f) => f !== pinId);
-          if (survivors.length > 0) cleaned.push(survivors);
-        } else {
-          cleaned.push(set);
-        }
-      }
-      if (!touched) return next;
-      return {
-        ...next,
-        pinnedFilters: cleaned.length > 0 ? cleaned : undefined,
-      };
-    });
-  }
-
-  function reorderPriorities(newOrder: Priority[]) {
-    setProfile((prev) => priorityReorder(prev, newOrder));
-  }
 
   // ---- Derived state (memoized via core.deriveState) ----
 
