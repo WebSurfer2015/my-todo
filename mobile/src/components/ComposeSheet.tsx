@@ -7,7 +7,6 @@ import * as Haptics from 'expo-haptics'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import Svg, { Rect, Path } from 'react-native-svg'
 import { Bell, Repeat, Sparkles } from 'lucide-react-native'
-import MochiThinking from './MochiThinking'
 import { Analytics } from '../analytics'
 import { Category, Priority, PRIORITY_VALUES, PRIORITY_COLORS, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, Subtask, Todo, TodoReference } from '../types'
 import { genUuid } from '../../../core/src/utils'
@@ -435,15 +434,11 @@ export default function ComposeSheet({
                       accessibilityLabel="Notes — anything that helps you externalize the thinking around this task"
                     />
                   </View>
-                  {/* Mochi-busy status — only renders while an AI
-                      call is in flight. The redundant "Done" button
-                      that used to live here was removed since the
-                      header already has a Save / Done action. */}
-                  {(ai.thinking || stepsAi.thinking) && (
-                    <View style={styles.inputAccessoryRow}>
-                      <MochiThinking />
-                    </View>
-                  )}
+                  {/* No global Mochi-busy row here — TodoFieldSuggestPills
+                      surfaces ai.thinking in its own row, and the
+                      SuggestStepsTrigger button shows stepsAi.thinking
+                      next to its label. A second one here was just a
+                      duplicate stacked indicator. */}
                   {appliedTextLower !== trimmedTextLower &&
                     referenceMatches.length > 0 && (
                     <View style={styles.dupeOverlay} pointerEvents="box-none">
