@@ -476,16 +476,39 @@ export function useGroceriesSlice(
     [setGroceries],
   );
 
+  // Auto-pin on activate: picking a store/dept also pins it (if it
+  // wasn't already), so it stays in the filter row as a quick-switch
+  // shortcut after the user backs out to All. Deactivating (passing
+  // undefined) doesn't unpin — that's a separate explicit action
+  // via long-press → Unpin.
   const setActiveGroceryStore = useCallback(
     (store: string | undefined) => {
-      setProfile((p) => ({ ...p, activeGroceryStore: store || undefined }));
+      setProfile((p) => {
+        const next = { ...p, activeGroceryStore: store || undefined };
+        if (store) {
+          const pinned = p.pinnedGroceryStores ?? [];
+          if (!pinned.includes(store)) {
+            next.pinnedGroceryStores = [...pinned, store];
+          }
+        }
+        return next;
+      });
     },
     [setProfile],
   );
 
   const setActiveGroceryDept = useCallback(
     (deptId: string | undefined) => {
-      setProfile((p) => ({ ...p, activeGroceryDept: deptId || undefined }));
+      setProfile((p) => {
+        const next = { ...p, activeGroceryDept: deptId || undefined };
+        if (deptId) {
+          const pinned = p.pinnedGroceryDepts ?? [];
+          if (!pinned.includes(deptId)) {
+            next.pinnedGroceryDepts = [...pinned, deptId];
+          }
+        }
+        return next;
+      });
     },
     [setProfile],
   );
