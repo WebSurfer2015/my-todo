@@ -254,6 +254,7 @@ function TodosScreen() {
               pinnedFilters={(store.profile.pinnedFilters ?? []) as Filter[][]}
               onFilter={store.setFilter}
               onPinFilter={store.pinFilter}
+              onKeepAndClearFilter={store.keepAndClearFilter}
               onOpenSheet={() => sheets.openSelectFilter()}
               systemCounts={store.systemCounts}
               byCategory={store.byCategory}

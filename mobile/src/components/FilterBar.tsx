@@ -42,6 +42,10 @@ interface Props {
   /** Set-aware pin toggle. Pass a single-element array for individual
    * filter pinning, a multi-element array for composite pinning. */
   onPinFilter: (set: Filter[]) => void
+  /** Tap-on-active-pill helper. Atomically pins `set` (if not already
+   * pinned) and clears the selection, so the pill stays in the row
+   * as a quick-switch shortcut even after deactivation. */
+  onKeepAndClearFilter: (set: Filter[]) => void
   onOpenSheet: () => void
   categories: CategoryDef[]
   orderedVisibleStatuses: { id: StatusFilter; label: string }[]
@@ -93,6 +97,7 @@ export default function FilterBar({
   pinnedFilters,
   onFilter,
   onPinFilter,
+  onKeepAndClearFilter,
   onOpenSheet,
   categories,
   orderedVisibleStatuses,
@@ -235,17 +240,12 @@ export default function FilterBar({
     }
   }
 
-  // Tap-on-active-pill: pin the current selection as a single
-  // composite entry (preserving the multi-filter group as one
-  // pinned pill the user can re-tap), then clear. All becomes
-  // active. Long-press → Remove is the explicit "take this pill
-  // off the row" action.
-  function keepAndClear(activeSet: Filter[]) {
-    if (activeSet.length > 0 && !isSetPinned(activeSet)) {
-      onPinFilter(activeSet)
-    }
-    onClearFilters()
-  }
+  // Tap-on-active-pill delegates to the store's atomic
+  // keepAndClearFilter — it pins-if-missing and clears in one
+  // setProfile / setFiltersState pair, reading the live profile
+  // inside the functional setter so we don't depend on whether
+  // `pinnedFilters` props have re-flowed yet.
+  const keepAndClear = (activeSet: Filter[]) => onKeepAndClearFilter(activeSet)
 
   // Build the scrollable pill order. The "All" pill is intentionally
   // rendered OUTSIDE this list (pinned to the left of the row, next to

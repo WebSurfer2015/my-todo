@@ -367,6 +367,34 @@ export function useTodoStore() {
     [setProfile, notify, t],
   );
 
+  // Atomic "stash the current selection as a pinned shortcut then
+  // clear it" used by FilterBar when the user taps an active pill.
+  // Calling pinFilter + clearFilters separately from the component
+  // depended on a closure check (`isSetPinned`) against possibly-
+  // stale props — this version reads the live profile in a functional
+  // setProfile and so always pins-if-missing exactly once.
+  const keepAndClearFilter = useCallback(
+    (set: Filter[]) => {
+      if (set.length > 0) {
+        const key = setKey(set);
+        setProfile((prev) => {
+          const current = prev.pinnedFilters ?? [];
+          const exists = current.some(
+            (existing) => setKey(existing as Filter[]) === key,
+          );
+          if (exists) return prev;
+          if (current.length >= PIN_LIMIT) {
+            notify.showSnackbar({ message: t.pinCapReached(PIN_LIMIT) });
+            return prev;
+          }
+          return { ...prev, pinnedFilters: [...current, set] };
+        });
+      }
+      setFiltersState([]);
+    },
+    [setProfile, notify, t],
+  );
+
   // Explicit clear-all from the Manage Dashboard Tiles sheet header.
   // Writes an empty array (NOT undefined) so the Dashboard hides the
   // tile row entirely — undefined would re-trigger the defaults.
@@ -1595,6 +1623,7 @@ export function useTodoStore() {
     toggleFilter,
     clearFilters,
     pinFilter,
+    keepAndClearFilter,
     toggleHomeStatTile,
     clearHomeStatTiles,
     // Effective tiles for both Home rendering and Manage Filter badge
