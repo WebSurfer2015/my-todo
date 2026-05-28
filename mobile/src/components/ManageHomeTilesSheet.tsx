@@ -97,10 +97,12 @@ export default function ManageHomeTilesSheet({
       onRequestClose={onClose}
     >
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable
-          style={[styles.sheet, { height: sheetHeight }]}
-          onPress={(e) => e.stopPropagation()}
-        >
+        {/* Plain View (not Pressable) for the sheet itself. The
+            opaque background absorbs taps so they don't reach the
+            backdrop, and a Pressable here would claim the touch
+            responder and starve the inner ScrollView's pan
+            recognizer — that was blocking scroll to CATEGORIES. */}
+        <View style={[styles.sheet, { height: sheetHeight }]}>
           <View style={styles.handle} />
           <View style={styles.headerRow}>
             <TouchableOpacity
@@ -209,7 +211,7 @@ export default function ManageHomeTilesSheet({
               })}
             </View>
           </ScrollView>
-        </Pressable>
+        </View>
       </Pressable>
     </Modal>
   );

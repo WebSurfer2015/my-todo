@@ -267,13 +267,13 @@ export default function CategorySheet({
     ]);
   }
 
-  // Single-select tap: replace the current filter with this one
-  // (or, if it was already the selected one, clear back to All) and
-  // close the sheet. The decision is decisive — there's no longer a
-  // multi-select accumulation flow that needs the sheet to stay open.
+  // Multi-select tap: toggle this filter in/out without closing the
+  // sheet so the user can build up a multi-filter set in one pass.
+  // The sheet's checkmarks reflect the live selection; close via
+  // Done/Cancel when satisfied. The FilterBar collapses 2+ selected
+  // filters into one composite pill ("A + B").
   function tapFilterRow(f: Filter) {
     onToggleFilter(f);
-    onClose();
   }
 
   // --- Row renderers ----------------------------------------------------
@@ -371,10 +371,12 @@ export default function CategorySheet({
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <Pressable style={styles.backdrop} onPress={onClose}>
-            <Pressable
-              style={[styles.sheet, { height: sheetHeight }]}
-              onPress={(e) => e.stopPropagation()}
-            >
+            {/* Plain View (not Pressable) for the sheet itself. The
+                opaque background already absorbs taps so they don't
+                reach the backdrop, and a Pressable here would claim
+                the touch responder and starve the inner ScrollView's
+                pan recognizer — that's what was blocking scroll. */}
+            <View style={[styles.sheet, { height: sheetHeight }]}>
               <View style={styles.handle} />
 
               {isList ? (
@@ -692,13 +694,10 @@ export default function CategorySheet({
                       <View style={[styles.listCard, styles.allCard]}>
                         <TouchableOpacity
                           style={[styles.viewRow, styles.viewRowFlush]}
-                          onPress={() => {
-                            onClearFilters();
-                            onClose();
-                          }}
+                          onPress={() => onClearFilters()}
                           activeOpacity={0.65}
                           accessibilityRole="button"
-                          accessibilityLabel={`${t.filters.all} — clear the current filter`}
+                          accessibilityLabel={`${t.filters.all} — clear every selected filter`}
                         >
                           <View style={styles.rowIcon} />
                           <Text style={styles.viewRowLabel}>{t.filters.all}</Text>
@@ -833,7 +832,7 @@ export default function CategorySheet({
                   </TouchableOpacity>
                 </>
               )}
-            </Pressable>
+            </View>
           </Pressable>
         </KeyboardAvoidingView>
       </GestureHandlerRootView>

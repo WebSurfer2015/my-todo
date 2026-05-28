@@ -235,17 +235,20 @@ export function useTodoStore() {
     if (f === 'all') setFiltersState([]);
     else setFiltersState([f]);
   }, []);
-  // Single-select toggle: tapping the currently-selected pill clears
-  // the selection (back to "All"); tapping any other pill replaces
-  // the selection with just that filter. Multi-select was retired in
-  // favor of one-filter-at-a-time after user feedback found stacked
-  // pills + composite labels harder to read than radio behavior.
+  // Multi-select toggle: tapping a filter row in the Select Filter
+  // sheet adds it to the selection (or removes it if it was already
+  // there). The sheet stays open so the user can build up a multi-
+  // filter set in one pass; the FilterBar collapses 2+ active filters
+  // into a single composite pill ("Done + Work") so the strip itself
+  // still reads as one active pill at a time.
   const toggleFilter = useCallback((f: Filter) => {
     if (f === 'all') {
       setFiltersState([]);
       return;
     }
-    setFiltersState((prev) => (prev.length === 1 && prev[0] === f ? [] : [f]));
+    setFiltersState((prev) =>
+      prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f],
+    );
   }, []);
   const clearFilters = useCallback(() => setFiltersState([]), []);
   const setFilters = useCallback((f: Filter[]) => setFiltersState(f), []);
