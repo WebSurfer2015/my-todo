@@ -329,6 +329,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         priorityCounts={store.byPriority}
         orderedStatuses={store.orderedStatuses}
         orderedVisibleStatuses={store.orderedVisibleStatuses}
+        orderedPriorities={store.orderedPriorities}
         onAdd={store.addCategory}
         onEdit={store.editCategory}
         onDelete={store.deleteCategory}
@@ -336,6 +337,8 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         onRenameStatus={store.renameStatus}
         onToggleStatusHidden={store.toggleStatusHidden}
         onReorderStatuses={store.reorderStatuses}
+        onTogglePriorityHidden={store.togglePriorityHidden}
+        onReorderPriorities={store.reorderPriorities}
         onClose={() => setCategorySheetOpen(false)}
       />
     </SheetContext.Provider>

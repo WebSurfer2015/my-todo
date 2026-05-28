@@ -12,13 +12,19 @@ export type Avatar =
 
 export type Density = 'comfortable' | 'compact'
 
-import type { ViewMode, StatusFilter } from './types'
+import type { ViewMode, StatusFilter, Priority } from './types'
 
 export interface StatusOverride {
   id: StatusFilter
   /** User-set label override; falls back to t.filters[id]. */
   label?: string
   /** When true, this status is hidden from the filter row. */
+  hidden?: boolean
+}
+
+export interface PriorityOverride {
+  id: Priority
+  /** When true, this priority is hidden from filter pickers. */
   hidden?: boolean
 }
 
@@ -40,6 +46,8 @@ export interface Profile {
   view?: ViewMode
   /** Per-status overrides (rename, hide, reorder). Array order determines display order. */
   statuses?: StatusOverride[]
+  /** Per-priority overrides (hide, reorder). Array order determines display order. */
+  priorities?: PriorityOverride[]
   /** Show a calm completion animation when a task is marked done. Defaults to true. */
   completionAnimation?: boolean
   /** Play a sound when a task is marked done. Defaults to true. (Sound playback NYI.) */
@@ -438,6 +446,7 @@ export function migrateProfile(raw: unknown): Profile {
     reduceMotion: typeof p.reduceMotion === 'boolean' ? p.reduceMotion : undefined,
     view: p.view === 'category' || p.view === 'status' ? p.view : undefined,
     statuses: migrateStatuses(p.statuses),
+    priorities: migratePriorities(p.priorities),
     completionAnimation:
       typeof p.completionAnimation === 'boolean' ? p.completionAnimation : undefined,
     themeFromAvatar:
@@ -577,6 +586,26 @@ function migratePinnedFilters(raw: unknown): string[] | undefined {
 
 const VALID_STATUS_IDS: StatusFilter[] = ['overdue', 'open', 'done', 'trash']
 const MAX_STATUS_LABEL_LEN = 40
+const VALID_PRIORITY_IDS: Priority[] = ['high', 'medium', 'low']
+
+function migratePriorities(raw: unknown): PriorityOverride[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const seen = new Set<Priority>()
+  const result: PriorityOverride[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const o = item as Record<string, unknown>
+    const id = o.id
+    if (typeof id !== 'string' || !VALID_PRIORITY_IDS.includes(id as Priority)) continue
+    if (seen.has(id as Priority)) continue
+    seen.add(id as Priority)
+    result.push({
+      id: id as Priority,
+      hidden: o.hidden === true ? true : undefined,
+    })
+  }
+  return result.length > 0 ? result : undefined
+}
 
 function migrateStatuses(raw: unknown): StatusOverride[] | undefined {
   if (!Array.isArray(raw)) return undefined

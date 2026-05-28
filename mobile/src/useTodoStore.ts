@@ -21,6 +21,11 @@ import {
   statusToggleHidden,
   statusReorder,
 } from "../../core/src/statuses";
+import {
+  getOrderedPriorities,
+  priorityToggleHidden,
+  priorityReorder,
+} from "../../core/src/priorities";
 import { useCategoriesSlice } from "./slices/useCategoriesSlice";
 import { unwrap, serializeAny } from "./storage/envelope";
 import { Profile, SEED_PROFILE, migrateProfile, getTodayPebbles, incrementPebble, decrementPebble, collectedNounKeyFor } from "./profile";
@@ -976,6 +981,31 @@ export function useTodoStore() {
     setProfile((prev) => statusReorder(prev, newOrder));
   }
 
+  function togglePriorityHidden(id: Priority) {
+    setProfile((prev) => {
+      const next = priorityToggleHidden(prev, id);
+      const overrides = next.priorities ?? [];
+      const isNowHidden = overrides.find((p) => p.id === id)?.hidden === true;
+      const pinId = `pri:${id}`;
+      if (
+        isNowHidden &&
+        next.pinnedFilters &&
+        next.pinnedFilters.includes(pinId)
+      ) {
+        const cleaned = next.pinnedFilters.filter((f) => f !== pinId);
+        return {
+          ...next,
+          pinnedFilters: cleaned.length > 0 ? cleaned : undefined,
+        };
+      }
+      return next;
+    });
+  }
+
+  function reorderPriorities(newOrder: Priority[]) {
+    setProfile((prev) => priorityReorder(prev, newOrder));
+  }
+
   // ---- Derived state (memoized via core.deriveState) ----
 
   const derived = useMemo(
@@ -1028,6 +1058,7 @@ export function useTodoStore() {
   // value, but App.tsx now reads identityLine + identityLineIsQuote.
   const quoteLine = trimmedQuote;
   const orderedStatuses = getOrderedStatuses(profile, t);
+  const orderedPriorities = getOrderedPriorities(profile, t);
   const orderedVisibleStatuses = getOrderedVisibleStatuses(profile, t);
   const todayPebbleCounts = getTodayPebbles(profile, todayDate);
   const todayTaskPebbles = todayPebbleCounts.task;
@@ -1513,6 +1544,7 @@ export function useTodoStore() {
      * PebbleStrip entirely when the user has opted out of motion. */
     animationOn,
     orderedStatuses,
+    orderedPriorities,
     orderedVisibleStatuses,
     setFilter,
     // Multi-select filter API. `filters` is the source of truth;
@@ -1538,6 +1570,8 @@ export function useTodoStore() {
     renameStatus,
     toggleStatusHidden,
     reorderStatuses,
+    togglePriorityHidden,
+    reorderPriorities,
     toggle,
     moveToTrash,
     moveSeriesFutureToTrash,

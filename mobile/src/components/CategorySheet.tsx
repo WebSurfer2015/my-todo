@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Dimensions,
 } from "react-native";
 import { Check, Pin, Pencil, Eye, EyeOff, Trash2 } from "lucide-react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -22,7 +23,6 @@ import { ICON_KEYS } from "../icons";
 import {
   Filter,
   Priority,
-  PRIORITY_VALUES,
   StatusFilter,
   categoryFilter,
   categoryIdFromFilter,
@@ -39,6 +39,12 @@ import { useTheme, ThemeColors } from "../theme";
 
 export interface StatusEntry {
   id: StatusFilter;
+  label: string;
+  hidden: boolean;
+}
+
+export interface PriorityEntry {
+  id: Priority;
   label: string;
   hidden: boolean;
 }
@@ -71,6 +77,8 @@ interface Props {
   orderedStatuses: StatusEntry[];
   /** Visible-only status list — used in View mode picker. */
   orderedVisibleStatuses: { id: StatusFilter; label: string }[];
+  /** Full priority list — used in Edit mode so hidden priorities can be unhidden. */
+  orderedPriorities: PriorityEntry[];
   onAdd: (data: { label: string; color: string; icon: string }) => void;
   onEdit: (
     id: string,
@@ -81,6 +89,8 @@ interface Props {
   onRenameStatus: (id: StatusFilter, label: string) => void;
   onToggleStatusHidden: (id: StatusFilter) => void;
   onReorderStatuses: (newOrder: StatusFilter[]) => void;
+  onTogglePriorityHidden: (id: Priority) => void;
+  onReorderPriorities: (newOrder: Priority[]) => void;
   /** Which mode to land in when the sheet opens. Funnel entry-point
    * uses "view" (filter picker); gear entry-point uses "edit"
    * (Manage Filter). Resets on every open so the same sheet can
@@ -121,6 +131,7 @@ export default function CategorySheet({
   priorityCounts,
   orderedStatuses,
   orderedVisibleStatuses,
+  orderedPriorities,
   onAdd,
   onEdit,
   onDelete,
@@ -128,6 +139,8 @@ export default function CategorySheet({
   onRenameStatus,
   onToggleStatusHidden,
   onReorderStatuses,
+  onTogglePriorityHidden,
+  onReorderPriorities,
   defaultMode = "view",
   onClose,
 }: Props) {
@@ -146,6 +159,31 @@ export default function CategorySheet({
   // Freeze the outer scroll while a row is being dragged so the sheet
   // doesn't appear to scroll along with the dragged row.
   const [dragActive, setDragActive] = useState(false);
+  // Explicit sheet height instead of maxHeight:'85%'. With percentage
+  // heights the inner ScrollView couldn't reliably bound itself, so the
+  // tail of the categories list (+Add Category row) fell below the
+  // visible area with no scroll recovery. Mirrors ManageHomeTilesSheet.
+  const screenH = Dimensions.get("window").height;
+  const sheetHeight = Math.round(screenH * 0.85);
+
+  // Case-insensitive duplicate guard for category labels. Returns true
+  // (and surfaces an Alert) when `label` collides with an existing
+  // category other than `ignoreId`.
+  function isDuplicateCategoryLabel(label: string, ignoreId: string | null): boolean {
+    const norm = label.trim().toLowerCase();
+    if (!norm) return false;
+    const clash = categories.some((c) => {
+      if (ignoreId && c.id === ignoreId) return false;
+      return categoryLabel(c, t).trim().toLowerCase() === norm;
+    });
+    if (clash) {
+      Alert.alert(
+        "Duplicate category",
+        `A category named "${label.trim()}" already exists.`,
+      );
+    }
+    return clash;
+  }
 
   function startInlineEdit(id: string, currentLabel: string) {
     setInlineId(id);
@@ -161,6 +199,10 @@ export default function CategorySheet({
   function commitInlineCategory(c: CategoryDef, original: string) {
     const trimmed = inlineText.trim().slice(0, 40);
     if (trimmed && trimmed !== original) {
+      if (isDuplicateCategoryLabel(trimmed, c.id)) {
+        setInlineId(null);
+        return;
+      }
       onEdit(c.id, { label: trimmed, color: c.color, icon: c.icon });
     }
     setInlineId(null);
@@ -190,6 +232,8 @@ export default function CategorySheet({
   function handleSave() {
     const trimmed = name.trim();
     if (!trimmed) return;
+    const currentId = mode.kind === "editCategory" ? mode.id : null;
+    if (isDuplicateCategoryLabel(trimmed, currentId)) return;
     if (mode.kind === "editCategory" && mode.id) {
       onEdit(mode.id, { label: trimmed, color, icon });
     } else {
@@ -325,7 +369,10 @@ export default function CategorySheet({
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <Pressable style={styles.backdrop} onPress={onClose}>
-            <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+            <Pressable
+              style={[styles.sheet, { height: sheetHeight }]}
+              onPress={(e) => e.stopPropagation()}
+            >
               <View style={styles.handle} />
 
               {isList ? (
@@ -452,44 +499,82 @@ export default function CategorySheet({
                         />
                       </View>
 
-                      {/* PRIORITIES — simpler row list (no rename / hide /
-                          drag) since the priorities are hardcoded. Only
-                          edit action is Pin / Unpin, surfacing the
-                          priority as a quick-access pill in the
-                          FilterBar. */}
+                      {/* PRIORITIES — mirrors STATUSES so the pin column
+                          aligns with the rest of the sheet. Eye toggle
+                          hides the priority from the view-mode picker;
+                          drag handle reorders. Rename is not supported
+                          (priority labels are i18n-owned). */}
                       <Text style={styles.sectionHeader}>PRIORITIES</Text>
                       <View style={styles.listCard}>
-                        {PRIORITY_VALUES.map((p) => {
-                          const f = priorityFilter(p);
-                          const isPinned = pinnedFilters.includes(f);
-                          return (
-                            <View
-                              key={`pri-${p}`}
-                              style={styles.editRow}
-                            >
-                              <PriorityBars level={p} size={18} />
-                              <View style={styles.editRowLabelInner}>
-                                <Text style={styles.editRowLabel} numberOfLines={1}>
-                                  {t.priority[p]}
-                                </Text>
+                        <DraggableFlatList
+                          data={orderedPriorities}
+                          keyExtractor={(p) => `pri-${p.id}`}
+                          scrollEnabled={false}
+                          activationDistance={8}
+                          onDragBegin={() => setDragActive(true)}
+                          onDragEnd={({ data }) => {
+                            setDragActive(false);
+                            onReorderPriorities(data.map((p) => p.id));
+                          }}
+                          renderItem={({
+                            item: p,
+                            drag,
+                            isActive,
+                          }: RenderItemParams<PriorityEntry>) => {
+                            const f = priorityFilter(p.id);
+                            const isPinned = pinnedFilters.includes(f);
+                            return (
+                              <View style={[styles.editRow, isActive && styles.editRowActive]}>
+                                <PriorityBars level={p.id} size={18} />
+                                <View style={styles.editRowLabelInner}>
+                                  <Text
+                                    style={[styles.editRowLabel, p.hidden && styles.editRowLabelHidden]}
+                                    numberOfLines={1}
+                                  >
+                                    {p.label}
+                                  </Text>
+                                </View>
+                                <TouchableOpacity
+                                  onPress={() => onTogglePriorityHidden(p.id)}
+                                  hitSlop={6}
+                                  style={styles.rowAction}
+                                  accessibilityRole="switch"
+                                  accessibilityState={{ checked: !p.hidden }}
+                                  accessibilityLabel={`${p.hidden ? t.unhide : t.hide} ${p.label}`}
+                                >
+                                  {p.hidden ? (
+                                    <EyeOff size={16} color={theme.label3} strokeWidth={2} />
+                                  ) : (
+                                    <Eye size={16} color={theme.label2} strokeWidth={2} />
+                                  )}
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  onPress={() => onPinFilter(f)}
+                                  hitSlop={6}
+                                  style={styles.rowAction}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`${isPinned ? t.unpin : t.pin} ${p.label}`}
+                                >
+                                  <Pin
+                                    size={13}
+                                    color={isPinned ? theme.primary : theme.label2}
+                                    strokeWidth={2.2}
+                                    fill={isPinned ? theme.primary : 'none'}
+                                  />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  onLongPress={drag}
+                                  delayLongPress={150}
+                                  disabled={isActive}
+                                  style={styles.dragHandle}
+                                  accessibilityLabel="Drag to reorder"
+                                >
+                                  <Text style={styles.dragHandleIcon}>≡</Text>
+                                </TouchableOpacity>
                               </View>
-                              <TouchableOpacity
-                                onPress={() => onPinFilter(f)}
-                                hitSlop={6}
-                                style={styles.rowAction}
-                                accessibilityRole="button"
-                                accessibilityLabel={`${isPinned ? t.unpin : t.pin} ${t.priority[p]}`}
-                              >
-                                <Pin
-                                  size={13}
-                                  color={isPinned ? theme.primary : theme.label2}
-                                  strokeWidth={2.2}
-                                  fill={isPinned ? theme.primary : 'none'}
-                                />
-                              </TouchableOpacity>
-                            </View>
-                          );
-                        })}
+                            );
+                          }}
+                        />
                       </View>
 
                       <Text style={styles.sectionHeader}>CATEGORIES</Text>
@@ -625,7 +710,9 @@ export default function CategorySheet({
                       </View>
                       <Text style={styles.sectionHeader}>PRIORITIES</Text>
                       <View style={styles.listCard}>
-                        {PRIORITY_VALUES.map(viewPriorityRow)}
+                        {orderedPriorities
+                          .filter((p) => !p.hidden)
+                          .map((p) => viewPriorityRow(p.id))}
                       </View>
                       <Text style={styles.sectionHeader}>CATEGORIES</Text>
                       <View style={styles.listCard}>
@@ -818,13 +905,16 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "flex-end",
     },
     sheet: {
+      // Height is set inline from Dimensions (~85% of screen) so the
+      // inner ScrollView gets a bounded container and reliably scrolls
+      // when category lists are long. Percentage maxHeight here left
+      // the +Add Category row stranded below the viewport.
       backgroundColor: c.modal,
       borderTopLeftRadius: 18,
       borderTopRightRadius: 18,
       paddingHorizontal: 16,
       paddingTop: 16,
       paddingBottom: 28,
-      maxHeight: "85%",
     },
     handle: {
       alignSelf: "center",
@@ -851,7 +941,7 @@ function makeStyles(c: ThemeColors) {
       marginBottom: 14,
       color: c.label,
     },
-    body: { flexShrink: 1 },
+    body: { flex: 1 },
     bodyContent: { paddingTop: 4, paddingBottom: 12 },
     sectionHeader: {
       // Comfort: was 11/14/8 — bumped to 12/20/12 so section breaks
