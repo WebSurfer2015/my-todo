@@ -277,6 +277,14 @@ export default function FilterBar({
 
   const selectedKey = setKey(selectedFilters)
   const hasActiveSelection = selectedFilters.length > 0
+  // While a multi-select composite is active, hide pinned single-
+  // filter pills whose filter is already a constituent of the
+  // composite — the composite already represents them, so showing
+  // "Done + Work" alongside individual "Done" and "Work" pills is
+  // redundant. Pinned sets that aren't a subset of the active
+  // selection still render as quick-switch shortcuts.
+  const inMultiSelect = selectedFilters.length >= 2
+  const activeSet = inMultiSelect ? new Set<string>(selectedFilters) : null
 
   const pinnedViews: PillView[] = []
   for (const set of pinnedFilters) {
@@ -285,6 +293,10 @@ export default function FilterBar({
       .map((f) => resolvePill(f))
       .filter((p): p is ResolvedPill => p != null)
     if (resolved.length === 0) continue
+    // Skip if every filter in this pinned set is already covered by
+    // the active composite. (Single-filter pinned pills land here
+    // when their lone filter is part of the composite.)
+    if (activeSet && set.every((f) => activeSet.has(f))) continue
     const active = setKey(set as Filter[]) === selectedKey && hasActiveSelection
     const label = resolved.map((p) => p.label).join(' + ')
     const count =
