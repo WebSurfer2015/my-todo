@@ -178,6 +178,27 @@ function TodosScreen() {
       .filter((g) => g.todos.length > 0);
   }, [store.groups, searchNeedle]);
 
+  // Guard against landing on a fully-collapsed Todos list: if every
+  // group in the current view is collapsed (e.g., the default
+  // ["overdue","upcoming"] start state on a day where Today + This
+  // Week happen to be empty), auto-expand the first visible group so
+  // the user lands on at least one open bucket rather than a wall
+  // of headers.
+  useEffect(() => {
+    if (displayGroups.length === 0) return;
+    const allCollapsed = displayGroups.every((g) =>
+      collapsedGroups.has(g.key),
+    );
+    if (!allCollapsed) return;
+    const firstKey = displayGroups[0].key;
+    setCollapsedGroups((prev) => {
+      if (!prev.has(firstKey)) return prev;
+      const next = new Set(prev);
+      next.delete(firstKey);
+      return next;
+    });
+  }, [displayGroups, collapsedGroups]);
+
   // Daily check-in scheduling was removed pending a full notifications
   // & reminders redesign. Cancel any orphaned schedules from previous
   // versions so users don't keep getting old reminders. The profile
