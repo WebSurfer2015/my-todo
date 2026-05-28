@@ -275,16 +275,64 @@ export function pebbleDelta(
  * no-op — the user must toggle subtasks individually. Locked in by
  * core.test.ts ("todoToggle is a no-op when subs exist").
  *
- * Recurring tasks always roll: the active row's dueDate advances to
- * the next occurrence and a Done-bin snapshot of the just-completed
- * date is emitted alongside. When recurrence.endDate is set and the
- * next occurrence would exceed it, only the snapshot is emitted — the
- * series is finished. Subs are reset to undone on the rolled row since
- * rolling forward is a new occurrence, not a completion of the parent.
+ * Series instances (R3 — `seriesId` + `recurrence`) take a different
+ * path: completing the row marks it done in place (no snapshot, no
+ * dueDate roll — the next instance is already materialized) and
+ * appends one fresh tail via `topUpSeries` so the user always has the
+ * next occurrence queued. Un-doing simply clears the flags and leaves
+ * the tail alone.
+ *
+ * Legacy rolling recurrences (no `seriesId` — should be unreachable
+ * after the R2 migration) still hit the original snapshot+roll path
+ * as a defensive fallback. When `recurrence.endDate` is set and the
+ * next occurrence would exceed it, only the snapshot is emitted.
+ *
+ * `todayISO` defaults to `todayLocal()` so existing callers stay the
+ * same; tests pass an explicit value for determinism.
  */
-export function todoToggle(prev: Todo[], id: string): Todo[] {
+export function todoToggle(prev: Todo[], id: string, todayISO?: string): Todo[] {
   const now = Date.now();
-  const today = todayLocal();
+  const today = todayISO ?? todayLocal();
+  const target = prev.find((td) => td.id === id);
+  if (!target) return prev;
+
+  // Series instance: mark done/un-do in place, no snapshot, no
+  // dueDate roll. On completion, append one tail so the user always
+  // sees the next occurrence queued. Parent-with-subs rule still
+  // applies (toggling the parent is a no-op when subs exist).
+  if (target.seriesId && target.recurrence) {
+    if (target.subtasks && target.subtasks.length > 0) return prev;
+    const nextDone = !target.done;
+    const updated = prev.map((td) => {
+      if (td.id !== id) return td;
+      const upd: Todo = {
+        ...td,
+        done: nextDone,
+        trashed: nextDone,
+        updatedAt: now,
+      };
+      if (nextDone) {
+        upd.trashedAt = now;
+        upd.completionDate = today;
+        // Done items don't need a future reminder. The scheduler
+        // diffs on this field and cancels every queued fire.
+        delete upd.reminder;
+      } else {
+        delete upd.trashedAt;
+        delete upd.completionDate;
+      }
+      return upd;
+    });
+    // Only on completion do we extend the tail — un-doing must not
+    // generate a brand-new instance the user didn't ask for. Use the
+    // append-one helper (distinct from the window-driven topUpSeries
+    // used by migration / app-open): "1 completion = 1 new tail"
+    // keeps the visible count stable as the user works through it.
+    return nextDone
+      ? appendNextSeriesInstance(updated, target.seriesId)
+      : updated;
+  }
+
   return prev.flatMap((td) => {
     if (td.id !== id) return [td];
     if (
@@ -831,6 +879,78 @@ export function topUpSeries(
   }
   if (additions.length === 0) return todos;
   return [...todos, ...additions];
+}
+
+/**
+ * Append exactly one new instance one period past the series' current
+ * tail. Called by `todoToggle` on every series completion so the user
+ * always sees a stable number of future instances queued ("1
+ * completion = 1 new tail"). Distinct from `topUpSeries`, which is
+ * window-driven and used by migration + app-open catch-up.
+ *
+ * No-op when:
+ *  - The series has no members.
+ *  - The next occurrence past the tail would exceed
+ *    `recurrence.endDate` — the series is finished.
+ *
+ * Inheritance: text/category/subtasks/notes come from the latest
+ * non-detached member; falls back to any member with a recurrence
+ * definition.
+ */
+export function appendNextSeriesInstance(
+  todos: Todo[],
+  seriesId: string,
+): Todo[] {
+  if (!seriesId) return todos;
+  const members = todos.filter((t) => t.seriesId === seriesId);
+  if (members.length === 0) return todos;
+  // Inherit from the latest non-detached member so per-instance
+  // tweaks don't propagate forward via "1 completion = 1 new tail".
+  let inheritFrom: Todo | undefined;
+  let inheritLatest = "";
+  for (const m of members) {
+    if (m.detachedFromSeries) continue;
+    if (!m.recurrence) continue;
+    const d = dueDateOnly(m.dueDate);
+    if (d && d > inheritLatest) {
+      inheritLatest = d;
+      inheritFrom = m;
+    }
+  }
+  if (!inheritFrom) inheritFrom = members.find((m) => m.recurrence);
+  if (!inheritFrom || !inheritFrom.recurrence) return todos;
+  const rec = inheritFrom.recurrence;
+  // Cursor advances strictly after the latest dueDate of ANY member
+  // (done/trashed/detached included) so we don't double-up on a
+  // recently-completed instance.
+  let latest = "";
+  for (const m of members) {
+    const d = dueDateOnly(m.dueDate);
+    if (d && d > latest) latest = d;
+  }
+  if (!latest) return todos;
+  const interval = rec.interval ?? 1;
+  const next = nextOccurrence(latest, rec.freq, interval, rec.byWeekday, rec.bySetPos);
+  if (rec.endDate && next > rec.endDate) return todos;
+  const tIdx = inheritFrom.dueDate.indexOf("T");
+  const timeSuffix = tIdx === -1 ? "" : inheritFrom.dueDate.slice(tIdx);
+  const now = Date.now();
+  const inst: Todo = {
+    id: genUuid(),
+    text: inheritFrom.text,
+    done: false,
+    priority: inheritFrom.priority,
+    dueDate: next + timeSuffix,
+    trashed: false,
+    updatedAt: now,
+    seriesId,
+    recurrence: rec,
+  };
+  if (inheritFrom.category) inst.category = inheritFrom.category;
+  const subs = cloneSubtasksFresh(inheritFrom.subtasks);
+  if (subs) inst.subtasks = subs;
+  if (inheritFrom.notes) inst.notes = inheritFrom.notes;
+  return [...todos, inst];
 }
 
 /**

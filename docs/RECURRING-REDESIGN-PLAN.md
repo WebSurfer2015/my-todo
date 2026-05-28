@@ -261,13 +261,22 @@ once. Cloud-synced via the existing onSaved adapter.
 
 - Replace the snapshot+roll branch of `todoToggle` for series
   instances (those with `seriesId`) with: mark this instance done +
-  call `topUpSeries`.
+  call `appendNextSeriesInstance` (a new helper that appends exactly
+  one instance one period past the current tail, honoring `endDate`).
+- `appendNextSeriesInstance` is distinct from R1's window-driven
+  `topUpSeries`. The completion path uses append-one-past-tail so the
+  visible count stays stable ("1 completion = 1 new tail"); migration
+  and app-open catch-up use the window helper.
 - Keep the rolling branch for any legacy todo that *somehow* still
   lacks a `seriesId` after migration — defensive fallback.
-- End-of-series celebration: if `topUpSeries` returns no new tail
-  because `endDate` would be exceeded AND there are no other
-  materialized future instances, fire the Mochi happy-dance via the
-  existing pebble-flight chokepoint.
+- **End-of-series celebration deferred** to a small follow-up. The
+  detection (no new tail because `endDate` would be exceeded and all
+  siblings done/trashed) is straightforward; the chokepoint —
+  triggering a Mochi happy-dance from inside the slice without
+  double-counting pebbles — needs more thought (passing a
+  decoration-only flag through `applyPebbleDeltaTimed` vs returning a
+  flag from `toggle` for the Row to fire its own animation). Shipping
+  the core rewire first; flourish to follow.
 
 Risk: changes the core completion path. Heavy unit-test coverage; one
 end-to-end manual pass on sim.
