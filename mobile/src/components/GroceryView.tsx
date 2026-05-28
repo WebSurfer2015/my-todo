@@ -1066,10 +1066,14 @@ function makeStyles(c: ThemeColors) {
     pillsScroll: {
       flexDirection: 'row',
       gap: 8,
-      // Right padding only — left padding + spacing-to-All are
-      // provided by the parent pillsRow's paddingHorizontal + gap.
+      // Explicit paddingLeft instead of leaning on pillsRow's `gap: 8`.
+      // RN's gap between a regular flex child (the All pill) and a
+      // ScrollView sibling has been unreliable — the leading pill
+      // inside the ScrollView ended up tucked behind the All pill on
+      // some renders. 8pt here matches the pillsScroll inter-pill gap
+      // for a consistent visual rhythm.
       paddingRight: 0,
-      paddingLeft: 0,
+      paddingLeft: 8,
     },
     storePill: {
       // Chrome mirrors the Todos FilterBar pill: round, slim padding,
@@ -1200,7 +1204,7 @@ function makeStyles(c: ThemeColors) {
     checkboxChecked: { backgroundColor: c.primary, borderColor: c.primary },
     checkboxFuture: { borderColor: c.label3, borderStyle: 'dashed' },
     checkboxCheck: { color: c.primaryOn, fontSize: 14, fontWeight: '700', lineHeight: 16 },
-    checkboxPlus: { color: c.label2, fontSize: 16, fontWeight: '700', lineHeight: 16 },
+    checkboxPlus: { color: '#fff', fontSize: 16, fontWeight: '700', lineHeight: 16 },
     rowText: {
       flex: 1,
       fontSize: 15,
