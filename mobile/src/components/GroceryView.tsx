@@ -11,8 +11,9 @@
  * - Permanent delete is manual-only via the edit sheet.
  */
 
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  Dimensions,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -21,6 +22,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
+import { useTriggerPebbleFlight } from './PebbleFlight'
 import { ChevronDown, ChevronRight, Pin } from 'lucide-react-native'
 import { ActionSheetIOS, Alert } from 'react-native'
 import { GroceryItem, GroceryGroup, frequentGroceries } from '../groceries'
@@ -73,7 +75,14 @@ interface Props {
    * matches the to-do FAB and signals that AI dept inference runs
    * silently on add. */
   agentEnabled?: boolean
-  onToggleChecked: (id: string) => void
+  /** Returns the bucket-completion delta — when > 0, GroceryView fires
+   * the Mochi pebble-flight from the tapped row's screen position. */
+  onToggleChecked: (id: string) => number
+  /** Animation + sound gates — passed through to the bucket-complete
+   * celebration. Mirrors HomeScreen's derivation from
+   * profile.completionAnimation / reduceMotion / completionSound. */
+  celebrate?: boolean
+  playSound?: boolean
   onEdit: (
     id: string,
     patch: { text?: string; groupId?: string; store?: string | null },
@@ -132,6 +141,8 @@ export default function GroceryView({
   onAdd,
   agentEnabled = false,
   onToggleChecked,
+  celebrate = true,
+  playSound = true,
   onEdit,
   onDelete,
   onSetActiveStore,
@@ -655,17 +666,23 @@ export default function GroceryView({
               </TouchableOpacity>
               {!collapsed && (
                 <View style={styles.groupCard}>
-                  {items.map((it, i) => (
-                    <View key={it.id}>
-                      {i > 0 && <View style={styles.divider} />}
-                      <Row
-                        item={it}
-                        onToggle={() => onToggleChecked(it.id)}
-                        onOpenEdit={() => setEditingId(it.id)}
-                        styles={styles}
-                      />
-                    </View>
-                  ))}
+                  {items.map((it, i) => {
+                    const dept = groceryGroups.find((g) => g.id === it.groupId)
+                    return (
+                      <View key={it.id}>
+                        {i > 0 && <View style={styles.divider} />}
+                        <Row
+                          item={it}
+                          onToggle={() => onToggleChecked(it.id)}
+                          onOpenEdit={() => setEditingId(it.id)}
+                          styles={styles}
+                          tint={dept?.color}
+                          celebrate={celebrate}
+                          playSound={playSound}
+                        />
+                      </View>
+                    )
+                  })}
                 </View>
               )}
             </View>
@@ -840,10 +857,19 @@ export default function GroceryView({
 
 interface RowProps {
   item: GroceryItem
-  onToggle: () => void
+  /** Returns the (store × dept) bucket-completion delta from
+   * useGroceriesSlice.toggleGroceryChecked. When > 0 the row fires
+   * the Mochi pebble-flight to celebrate. */
+  onToggle: () => number
   onOpenEdit: () => void
   styles: ReturnType<typeof makeStyles>
   futureMode?: boolean
+  /** Department color — feeds PebbleFlight as `tint` for the
+   * default-Mochi pebble glyph, mirroring how TaskItem uses a
+   * category color. */
+  tint?: string
+  celebrate?: boolean
+  playSound?: boolean
 }
 
 /**
@@ -934,11 +960,38 @@ function StorePill({
   )
 }
 
-function Row({ item, onToggle, onOpenEdit, styles, futureMode }: RowProps) {
+function Row({ item, onToggle, onOpenEdit, styles, futureMode, tint, celebrate = true, playSound = true }: RowProps) {
+  const triggerPebbleFlight = useTriggerPebbleFlight()
+  const measureRef = useRef<View>(null)
+  // Run the toggle, and if it returned a positive bucket delta
+  // (last item in this store × dept just got checked) fire the
+  // Mochi pebble-flight from this row's current screen position —
+  // same celebration TaskItem uses on a todo mark-done.
+  const handleToggle = useCallback(() => {
+    const delta = onToggle()
+    if (delta > 0 && (celebrate || playSound)) {
+      const fallback = {
+        x: Dimensions.get('window').width / 2,
+        y: Dimensions.get('window').height / 2,
+      }
+      const node = measureRef.current
+      if (node) {
+        node.measureInWindow((x, y, w, h) => {
+          const from =
+            typeof x === 'number' && typeof y === 'number' && w > 0 && h > 0
+              ? { x: x + w / 2, y: y + h / 2 }
+              : fallback
+          triggerPebbleFlight(from, { animate: celebrate, chime: playSound, tint })
+        })
+      } else {
+        triggerPebbleFlight(fallback, { animate: celebrate, chime: playSound, tint })
+      }
+    }
+  }, [onToggle, celebrate, playSound, tint, triggerPebbleFlight])
   return (
-    <View style={styles.row}>
+    <View ref={measureRef} style={styles.row}>
       <TouchableOpacity
-        onPress={onToggle}
+        onPress={handleToggle}
         hitSlop={8}
         accessibilityRole="checkbox"
         accessibilityState={{ checked: item.checked }}
@@ -965,7 +1018,7 @@ function Row({ item, onToggle, onOpenEdit, styles, futureMode }: RowProps) {
       <TouchableOpacity
         style={styles.rowBody}
         activeOpacity={0.6}
-        onPress={onToggle}
+        onPress={handleToggle}
         onLongPress={onOpenEdit}
         delayLongPress={350}
         accessibilityRole="button"

@@ -95,6 +95,11 @@ export default function GroceriesScreen() {
         onAdd={store.addGrocery}
         agentEnabled={store.profile.agentEnabled !== false}
         onToggleChecked={store.toggleGroceryChecked}
+        celebrate={
+          store.profile.completionAnimation !== false &&
+          store.profile.reduceMotion !== true
+        }
+        playSound={store.profile.completionSound !== false}
         onEdit={store.editGrocery}
         onDelete={store.deleteGrocery}
         onSetActiveStore={store.setActiveGroceryStore}

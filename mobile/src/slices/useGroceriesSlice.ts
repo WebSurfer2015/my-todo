@@ -81,7 +81,11 @@ export interface GroceriesSlice {
     groupId?: string;
     stores?: string[];
   }) => void;
-  toggleGroceryChecked: (id: string) => void;
+  /** Returns the bucket-completion delta — > 0 when this toggle
+   * finished a (store × department) bucket, < 0 when it un-finished
+   * one, 0 otherwise. The UI uses the sign to gate the Mochi
+   * pebble-flight celebration (only on positive completions). */
+  toggleGroceryChecked: (id: string) => number;
   editGrocery: (
     id: string,
     patch: { text?: string; groupId?: string; stores?: string[] },
@@ -427,15 +431,21 @@ export function useGroceriesSlice(
   );
 
   const toggleGroceryChecked = useCallback(
-    (id: string) => {
+    (id: string): number => {
+      // setGroceries calls the updater synchronously so we can capture
+      // the bucket delta in an outer let and return it — the caller
+      // (GroceryRow) uses sign > 0 to fire the Mochi pebble-flight
+      // celebration only when a (store × dept) bucket just completed.
+      let delta = 0;
       setGroceries((prev) => {
         const next = groceryToggleChecked(prev, id);
-        const bucketDelta = shoppingBucketPebbleDelta(prev, next, id);
-        if (bucketDelta !== 0) {
-          applyPebbleDeltaTimed({ task: 0 as const, subtask: bucketDelta });
+        delta = shoppingBucketPebbleDelta(prev, next, id);
+        if (delta !== 0) {
+          applyPebbleDeltaTimed({ task: 0 as const, subtask: delta });
         }
         return next;
       });
+      return delta;
     },
     [setGroceries, applyPebbleDeltaTimed],
   );
