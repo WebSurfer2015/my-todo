@@ -55,6 +55,8 @@ import {
   subtaskUpdateDueDate,
   subtaskRemove,
   subtaskClearAll,
+  migrateToRecurringV2,
+  topUpAllSeries,
 } from "../../../core/src/derive";
 import {
   toggleSelection,
@@ -281,6 +283,52 @@ export function useTodosSlice(
     profile.todayTaskPebbles,
     profile.todaySubtaskPebbles,
     setProfile,
+  ]);
+
+  // R2 recurring-redesign migration + horizon top-up. Runs once per
+  // uid swap, after both profile and todos have loaded. The ref
+  // guard prevents re-entry within a session even though the effect
+  // would otherwise re-fire when profile.recurringV2 flips true.
+  //
+  // Top-up always runs (even on second-launch where migration is a
+  // no-op) so a long-idle device extends its series tails to today's
+  // window before the user sees the list.
+  const recurringV2ForUidRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!profileLoaded || !todosLoaded) return;
+    const k = uid ?? "(local)";
+    if (recurringV2ForUidRef.current === k) return;
+    recurringV2ForUidRef.current = k;
+
+    const today = todayLocal();
+    let working = todosRef.current;
+    let mutated = false;
+
+    if (!profile.recurringV2) {
+      const mig = migrateToRecurringV2(working, today);
+      if (mig.changed) {
+        working = mig.todos;
+        mutated = true;
+      }
+      // Mark the migration done even when no recurring todos were
+      // found — there's nothing to re-do next launch either way.
+      setProfile((p) => ({ ...p, recurringV2: true }));
+    }
+
+    const tu = topUpAllSeries(working, today);
+    if (tu.changed) {
+      working = tu.todos;
+      mutated = true;
+    }
+
+    if (mutated) setTodos(working);
+  }, [
+    profileLoaded,
+    todosLoaded,
+    uid,
+    profile.recurringV2,
+    setProfile,
+    setTodos,
   ]);
 
   // Auto-clear trash selection when leaving trash view.

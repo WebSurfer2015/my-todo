@@ -834,6 +834,109 @@ export function topUpSeries(
 }
 
 /**
+ * R2 migration. Promotes legacy rolling recurring todos to the
+ * pre-expanded horizon model:
+ *
+ *  - Active (non-trashed, non-done) recurring todos without a
+ *    `seriesId` get one assigned and a tail materialized through
+ *    `windowCutoffFor(rec.freq, today)`.
+ *  - When the seed's `dueDate` is in the past, the head keeps its
+ *    original overdue date (so the user still sees the "carried
+ *    over" cue) and the tail starts at today's first valid
+ *    occurrence. No retroactive instances are generated between the
+ *    overdue date and today.
+ *  - Trashed / done recurring todos (rolling snapshots, history) are
+ *    left untouched — they're not part of any active series.
+ *  - Todos already carrying a `seriesId` are left alone here; the
+ *    `topUpAllSeries` pass that follows extends their tails to the
+ *    current horizon if needed.
+ *
+ * Idempotent at the "changed" level: a second call on the same input
+ * is a no-op because every active recurring todo will now have a
+ * `seriesId`.
+ */
+export function migrateToRecurringV2(
+  todos: Todo[],
+  todayISO: string,
+): { todos: Todo[]; changed: boolean } {
+  let changed = false;
+  const additions: Todo[] = [];
+  const next = todos.map((td) => {
+    if (!td.recurrence) return td;
+    if (td.trashed || td.done) return td;
+    if (td.seriesId) return td;
+    const seriesId = genUuid();
+    changed = true;
+    const seedDateOnly = dueDateOnly(td.dueDate);
+    if (seedDateOnly >= todayISO) {
+      // Future- or today-dated head: normal forward expansion.
+      const expanded = expandSeries({ ...td, seriesId }, todayISO);
+      const [head, ...rest] = expanded;
+      additions.push(...rest);
+      return head;
+    }
+    // Past-dated head: keep the overdue dueDate on the head; build a
+    // fresh tail starting at the first valid occurrence >= today.
+    const head: Todo = { ...td, seriesId };
+    const rec = td.recurrence;
+    const cutoff = windowCutoffFor(rec.freq, todayISO);
+    const hardEnd = rec.endDate && rec.endDate < cutoff ? rec.endDate : cutoff;
+    if (todayISO > hardEnd) return head;
+    const tIdx = td.dueDate.indexOf("T");
+    const timeSuffix = tIdx === -1 ? "" : td.dueDate.slice(tIdx);
+    const futureDates = expandRecurrence(todayISO, hardEnd, rec);
+    const now = Date.now();
+    for (const d of futureDates) {
+      const subs = cloneSubtasksFresh(td.subtasks);
+      const inst: Todo = {
+        id: genUuid(),
+        text: td.text,
+        done: false,
+        priority: td.priority,
+        dueDate: d + timeSuffix,
+        trashed: false,
+        updatedAt: now,
+        seriesId,
+        recurrence: rec,
+      };
+      if (td.category) inst.category = td.category;
+      if (subs) inst.subtasks = subs;
+      if (td.notes) inst.notes = td.notes;
+      additions.push(inst);
+    }
+    return head;
+  });
+  return { todos: changed ? [...next, ...additions] : todos, changed };
+}
+
+/**
+ * Walk every distinct `seriesId` in the list and apply `topUpSeries`
+ * to each. Idempotent. Called after migration on first launch and on
+ * every subsequent launch so a long-idle device catches up its series
+ * tails to the live horizon.
+ */
+export function topUpAllSeries(
+  todos: Todo[],
+  todayISO: string,
+): { todos: Todo[]; changed: boolean } {
+  const seriesIds = new Set<string>();
+  for (const t of todos) {
+    if (t.seriesId) seriesIds.add(t.seriesId);
+  }
+  if (seriesIds.size === 0) return { todos, changed: false };
+  let current = todos;
+  let changed = false;
+  for (const sid of seriesIds) {
+    const after = topUpSeries(current, sid, todayISO);
+    if (after !== current) {
+      current = after;
+      changed = true;
+    }
+  }
+  return { todos: current, changed };
+}
+
+/**
  * Non-trashed series members with `dueDate >= anchor`. Used by R6's
  * "Apply to all future events" path to find the rows a series-wide
  * edit should touch.

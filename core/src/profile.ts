@@ -210,6 +210,14 @@ export interface Profile {
    * Toggled via long-press on any visible dept pill.
    */
   pinnedGroceryDepts?: string[]
+  /**
+   * One-shot device flag set true after the R2 recurring-redesign
+   * migration runs. Gates `migrateToRecurringV2` so it only walks the
+   * todo list on the first launch after the v2 client. Persisted in
+   * the profile so it syncs across devices — once any device migrates,
+   * others see the result and skip re-running.
+   */
+  recurringV2?: boolean
 }
 
 export interface BackgroundChoice {
@@ -511,6 +519,7 @@ export function migrateProfile(raw: unknown): Profile {
         ? p.activeGroceryDept.slice(0, 64)
         : undefined,
     pinnedGroceryDepts: migrateGroceryStores(p.pinnedGroceryDepts),
+    recurringV2: p.recurringV2 === true ? true : undefined,
   }
 }
 
