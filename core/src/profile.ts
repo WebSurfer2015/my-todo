@@ -126,8 +126,15 @@ export interface Profile {
    * category pins follow the user even if the category list reorders.
    * Order is preserved — first-pinned-first-shown. Launch always opens
    * on `'all'`; pins are just shortcut pills.
+   *
+   * Each entry is a SET — single-filter pills are stored as
+   * single-element arrays (`['done']`), composite pills as multi-
+   * element arrays (`['done','cat:work']`). Tapping a pinned set
+   * activates that whole multi-filter selection. Legacy flat
+   * `string[]` values from older builds are migrated to one
+   * single-element set per entry on load.
    */
-  pinnedFilters?: string[]
+  pinnedFilters?: string[][]
   /**
    * Filters the user has picked as stat tiles on the Dashboard. Ordered
    * (index 0 = leftmost). Stored as raw `Filter` strings (same shape as
@@ -564,24 +571,49 @@ function migrateHomeStatTiles(raw: unknown): string[] | undefined {
   return items.length > 0 ? items : undefined
 }
 
-function migratePinnedFilters(raw: unknown): string[] | undefined {
+function migratePinnedFilters(raw: unknown): string[][] | undefined {
   const valid = (s: unknown): s is string => {
     if (typeof s !== 'string' || s.length === 0) return false
     if (s === 'all' || s === 'open' || s === 'overdue' || s === 'done' || s === 'trash') {
       return true
     }
-    return s.startsWith('cat:') && s.length > 4 && s.length <= 200
+    if (s.startsWith('cat:') && s.length > 4 && s.length <= 200) return true
+    if (s.startsWith('pri:') && (s === 'pri:high' || s === 'pri:medium' || s === 'pri:low')) return true
+    return false
   }
-  const items: string[] = []
+  // Set equality — order-insensitive dedupe across pinned entries so
+  // ['done','cat:work'] and ['cat:work','done'] don't end up as two
+  // separate pills.
+  const setKey = (set: string[]) => [...set].sort().join(' ')
+  const seen = new Set<string>()
+  const sets: string[][] = []
+  const pushSet = (set: string[]) => {
+    const cleaned: string[] = []
+    for (const s of set) {
+      if (valid(s) && !cleaned.includes(s)) cleaned.push(s)
+    }
+    if (cleaned.length === 0) return
+    const key = setKey(cleaned)
+    if (seen.has(key)) return
+    seen.add(key)
+    sets.push(cleaned)
+  }
   if (Array.isArray(raw)) {
     for (const item of raw) {
-      if (valid(item) && !items.includes(item)) items.push(item)
-      if (items.length >= 12) break
+      if (Array.isArray(item)) {
+        // New shape: array of arrays.
+        pushSet(item as unknown[] as string[])
+      } else if (valid(item)) {
+        // Legacy shape: flat array of filter strings. Wrap each as
+        // a single-element set.
+        pushSet([item])
+      }
+      if (sets.length >= 12) break
     }
   } else if (valid(raw)) {
-    items.push(raw)
+    pushSet([raw])
   }
-  return items.length > 0 ? items : undefined
+  return sets.length > 0 ? sets : undefined
 }
 
 const VALID_STATUS_IDS: StatusFilter[] = ['overdue', 'open', 'done', 'trash']

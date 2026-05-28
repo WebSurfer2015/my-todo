@@ -27,13 +27,21 @@ interface Props {
    * semantics; the All pill becomes the only active visual. */
   selectedFilters: Filter[]
   onToggleFilter: (f: Filter) => void
+  /** Replace the entire selection in one shot. Used when activating
+   * a pinned composite pill — we don't want N store updates from
+   * toggling each constituent filter individually. */
+  onSetFilters: (set: Filter[]) => void
   onClearFilters: () => void
-  /** Profile.pinnedFilters — ordered list of quick-access pills the user
-   * has pinned. Long-pressing any pill toggles its pin status. Each pinned
-   * pill renders with a small Pin icon next to its label. */
-  pinnedFilters: Filter[]
+  /** Profile.pinnedFilters — ordered list of pinned SETS. Each entry is
+   * a Filter[] (single-element for individual pins, multi-element for
+   * composite pills like "Done + Work"). Long-press toggles pin/unpin
+   * for the long-pressed pill's set. Each pinned pill renders with a
+   * small Pin icon next to its label. */
+  pinnedFilters: Filter[][]
   onFilter: (f: Filter) => void
-  onPinFilter: (f: Filter) => void
+  /** Set-aware pin toggle. Pass a single-element array for individual
+   * filter pinning, a multi-element array for composite pinning. */
+  onPinFilter: (set: Filter[]) => void
   onOpenSheet: () => void
   categories: CategoryDef[]
   orderedVisibleStatuses: { id: StatusFilter; label: string }[]
@@ -80,6 +88,7 @@ export default function FilterBar({
   filter,
   selectedFilters,
   onToggleFilter,
+  onSetFilters,
   onClearFilters,
   pinnedFilters,
   onFilter,
@@ -182,18 +191,27 @@ export default function FilterBar({
     }
   }
 
+  // Set helpers — order-insensitive equality so ['done','cat:work']
+  // and ['cat:work','done'] are treated as the same pinned entry.
+  const setKey = (set: Filter[]) => [...set].sort().join(' ')
+  const isSetPinned = (set: Filter[]) => {
+    const key = setKey(set)
+    return pinnedFilters.some((s) => setKey(s) === key)
+  }
+
   // Long-press any pill → action sheet with two options:
-  //   • Pin / Unpin (toggles the pinned state)
-  //   • Remove from filter strip (unpins AND clears the selection so
-  //     the pill disappears entirely — same action regardless of
-  //     whether the pill was pinned, selected, or both).
-  function promptPin(target: Filter, label: string) {
-    const isPinned = pinnedFilters.includes(target)
-    const pinLabel = isPinned ? t.unpin : t.pin
+  //   • Pin / Unpin (toggles the pinned state for THIS pill's set)
+  //   • Remove (unpins the set AND clears the selection if it
+  //     matches — pill goes away from the strip entirely)
+  function promptPin(targetSet: Filter[], label: string) {
+    const pinned = isSetPinned(targetSet)
+    const pinLabel = pinned ? t.unpin : t.pin
     const removeLabel = 'Remove'
+    const selKey = setKey(selectedFilters)
+    const tgtKey = setKey(targetSet)
     const onRemove = () => {
-      if (pinnedFilters.includes(target)) onPinFilter(target)
-      if (selectedFilters.includes(target)) onToggleFilter(target)
+      if (pinned) onPinFilter(targetSet)
+      if (selKey === tgtKey) onClearFilters()
     }
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
@@ -204,26 +222,27 @@ export default function FilterBar({
           destructiveButtonIndex: 1,
         },
         (i) => {
-          if (i === 0) onPinFilter(target)
+          if (i === 0) onPinFilter(targetSet)
           else if (i === 1) onRemove()
         },
       )
     } else {
       Alert.alert(label, undefined, [
-        { text: pinLabel, onPress: () => onPinFilter(target) },
+        { text: pinLabel, onPress: () => onPinFilter(targetSet) },
         { text: removeLabel, style: 'destructive', onPress: onRemove },
         { text: t.cancel, style: 'cancel' },
       ])
     }
   }
 
-  // Tap-on-active-pill: clear the selection (All becomes active) but
-  // keep the previously-selected filter(s) visible as pinned shortcuts
-  // so the user can re-tap to re-add them. Long-press → Remove is the
-  // explicit "take this pill off the row" action.
-  function keepAndClear(filtersToKeep: Filter[]) {
-    for (const f of filtersToKeep) {
-      if (!pinnedFilters.includes(f)) onPinFilter(f)
+  // Tap-on-active-pill: pin the current selection as a single
+  // composite entry (preserving the multi-filter group as one
+  // pinned pill the user can re-tap), then clear. All becomes
+  // active. Long-press → Remove is the explicit "take this pill
+  // off the row" action.
+  function keepAndClear(activeSet: Filter[]) {
+    if (activeSet.length > 0 && !isSetPinned(activeSet)) {
+      onPinFilter(activeSet)
     }
     onClearFilters()
   }
@@ -233,50 +252,74 @@ export default function FilterBar({
   // the funnel) so it's always visible no matter how far the user has
   // scrolled through their pinned filters.
   //
-  // Multi-select model with single-pill display:
-  //   • 0 selected → no active pill (only pinned shortcuts + All)
-  //   • 1 selected → single active pill labeled with that filter
-  //   • 2+ selected → ONE composite pill ("Done + Work") badged with
-  //     the AND/OR combined match count. Tap clears the whole set.
-  // Stacking N independent pills (each with its solo count) was
-  // misleading — e.g. Done=20, Work=4, combined=3 — because per-
-  // filter counts ignore the cross-group AND.
-  const compositePill: ResolvedPill[] | null =
-    selectedFilters.length >= 2
-      ? (selectedFilters
-          .filter((f) => f !== 'all' && f !== 'groceries')
-          .map((f) => resolvePill(f))
-          .filter((p): p is ResolvedPill => p != null))
-      : null
-  const visiblePills: { pill: ResolvedPill; pinned: boolean; selected: boolean }[] = []
+  // Each pill in the row represents a Filter[] set. Single-filter sets
+  // render like a normal single pill; multi-filter sets render as a
+  // composite ("Done + Work"). The active selection is highlighted —
+  // if it matches a pinned set, that pinned pill flips to active in
+  // place; if it doesn't match any pinned set, an additional transient
+  // pill is rendered at the front.
   const allPill = resolvePill('all')!
   // Groceries pill removed in v1.3 — Groceries is its own bottom tab
   // now. The `groceries` filter value + resolver stay for back-compat
   // with any persisted state; they just don't render as a pill.
 
-  // Selected filter first (single-select case only — multi-select
-  // renders the composite pill instead of these).
-  if (!compositePill) {
-    for (const f of selectedFilters) {
-      if (f === 'all' || f === 'groceries') continue
-      const p = resolvePill(f)
-      if (p) {
-        visiblePills.push({
-          pill: p,
-          pinned: pinnedFilters.includes(f),
-          selected: true,
-        })
-      }
-    }
+  interface PillView {
+    set: Filter[]
+    label: string
+    /** Solo count when the set has exactly one filter; combinedCount
+     * when the set is the active selection (single or composite);
+     * undefined for inactive multi-filter pinned pills (we don't pay
+     * for a deriveState per pinned set). */
+    count: number | undefined
+    pinned: boolean
+    active: boolean
   }
-  // Pinned-but-not-selected filters follow as quick-add shortcuts.
-  // (Even in composite-pill mode, pinned shortcuts still render so
-  // the user can extend the active selection in one tap.)
-  for (const f of pinnedFilters) {
-    if (f === 'all' || f === 'groceries' || selectedFilters.includes(f)) continue
-    const p = resolvePill(f)
-    if (p) visiblePills.push({ pill: p, pinned: true, selected: false })
+
+  const selectedKey = setKey(selectedFilters)
+  const hasActiveSelection = selectedFilters.length > 0
+
+  const pinnedViews: PillView[] = []
+  for (const set of pinnedFilters) {
+    const resolved = set
+      .filter((f) => f !== 'all' && f !== 'groceries')
+      .map((f) => resolvePill(f))
+      .filter((p): p is ResolvedPill => p != null)
+    if (resolved.length === 0) continue
+    const active = setKey(set as Filter[]) === selectedKey && hasActiveSelection
+    const label = resolved.map((p) => p.label).join(' + ')
+    const count =
+      active
+        ? combinedCount
+        : resolved.length === 1
+          ? resolved[0].count
+          : undefined
+    pinnedViews.push({
+      set: set as Filter[],
+      label,
+      count,
+      pinned: true,
+      active,
+    })
   }
+
+  const activeMatchesPinned = pinnedViews.some((v) => v.active)
+  const transientView: PillView | null =
+    hasActiveSelection && !activeMatchesPinned
+      ? (() => {
+          const resolved = selectedFilters
+            .filter((f) => f !== 'all' && f !== 'groceries')
+            .map((f) => resolvePill(f))
+            .filter((p): p is ResolvedPill => p != null)
+          if (resolved.length === 0) return null
+          return {
+            set: selectedFilters,
+            label: resolved.map((p) => p.label).join(' + '),
+            count: combinedCount,
+            pinned: false,
+            active: true,
+          }
+        })()
+      : null
 
   // onOpenSheet kept in the prop signature (parent still passes it)
   // but the funnel button moved out of FilterBar and into AppHeader
@@ -286,13 +329,8 @@ export default function FilterBar({
   void onOpenSheet
 
   // Hide the entire filter row when there's nothing meaningful to
-  // render: no composite pill, no selected filters, no pinned pills.
-  if (
-    !compositePill &&
-    selectedFilters.length === 0 &&
-    visiblePills.length === 0
-  )
-    return null
+  // render: no active selection and no pinned pills.
+  if (!hasActiveSelection && pinnedViews.length === 0) return null
 
   return (
     <View style={styles.row}>
@@ -348,102 +386,69 @@ export default function FilterBar({
         contentContainerStyle={styles.pillsScroll}
         keyboardShouldPersistTaps="handled"
       >
-        {compositePill && (() => {
-          const label = compositePill.map((p) => p.label).join(' + ')
-          return (
-            <TouchableOpacity
-              key="__composite"
-              style={[styles.pill, styles.pillActive]}
-              onPress={() => keepAndClear(selectedFilters)}
-              onLongPress={onOpenSheet}
-              delayLongPress={350}
-              activeOpacity={0.75}
-              accessibilityRole="button"
-              accessibilityState={{ selected: true }}
-              accessibilityLabel={`${label}, ${combinedCount} matching — tap to clear (keeps filters as pinned shortcuts)`}
-              accessibilityHint="Long-press to edit selection"
-            >
-              <Text
-                style={[styles.pillLabel, styles.pillLabelActive]}
-                numberOfLines={1}
-                maxFontSizeMultiplier={1.3}
+        {(transientView ? [transientView, ...pinnedViews] : pinnedViews).map(
+          (view) => {
+            const { set, label, count, pinned, active } = view
+            const key = pinned ? `pin-${setKey(set)}` : '__transient'
+            return (
+              <TouchableOpacity
+                key={key}
+                style={[
+                  styles.pill,
+                  active ? styles.pillActive : pinned ? styles.pillSticky : styles.pillExtra,
+                ]}
+                onLayout={(e) => {
+                  const x = e.nativeEvent.layout.x
+                  pillXRef.current[key] = x
+                  if (active) {
+                    scrollRef.current?.scrollTo({
+                      x: Math.max(0, x - 16),
+                      animated: true,
+                    })
+                  }
+                }}
+                onPress={() => {
+                  // Active pill (whether pinned-and-matched or transient):
+                  //   tap clears, and we pin first if it wasn't already
+                  //   pinned so the pill stays in the row.
+                  // Inactive pinned pill: tap activates that pinned set.
+                  if (active) keepAndClear(set)
+                  else onSetFilters(set)
+                }}
+                onLongPress={() => promptPin(set, label)}
+                delayLongPress={350}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`${label}${count != null ? `, ${count}` : ''}${active ? ', selected — tap to clear' : ', tap to apply'}${pinned ? ', pinned' : ''}`}
+                accessibilityHint="Long-press for Pin or Remove"
               >
-                {label}
-              </Text>
-              <Text
-                style={[styles.pillCount, styles.pillCountActive]}
-                maxFontSizeMultiplier={1.3}
-              >
-                {combinedCount}
-              </Text>
-            </TouchableOpacity>
-          )
-        })()}
-        {visiblePills.map(({ pill, pinned, selected }) => {
-          // Selected (in the multi-select set): filled primary
-          //   "current" look. Tap removes (toggle off).
-          // Pinned-but-not-selected: dim shortcut. Tap adds (toggle on).
-          // Same long-press → pin/unpin contract for both.
-          return (
-            <TouchableOpacity
-              key={pill.filter}
-              style={[
-                styles.pill,
-                selected ? styles.pillActive : pinned ? styles.pillSticky : styles.pillExtra,
-              ]}
-              onLayout={(e) => {
-                const x = e.nativeEvent.layout.x
-                pillXRef.current[pill.filter] = x
-                // Auto-scroll to the first selected pill so the user
-                // always sees their current scope without swiping.
-                if (selected && selectedFilters[0] === pill.filter) {
-                  scrollRef.current?.scrollTo({
-                    x: Math.max(0, x - 16),
-                    animated: true,
-                  })
-                }
-              }}
-              onPress={() => {
-                // Tap on a selected pill: deselect but keep visible
-                // (auto-pin if necessary). Tap on an unselected pill:
-                // add to selection.
-                if (selected) keepAndClear([pill.filter])
-                else onToggleFilter(pill.filter)
-              }}
-              onLongPress={() => promptPin(pill.filter, pill.label)}
-              delayLongPress={350}
-              activeOpacity={0.75}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              accessibilityLabel={`${pill.label}, ${pill.count}${selected ? ', selected — tap to clear (stays as shortcut)' : ', tap to add'}${pinned ? ', pinned' : ''}`}
-              accessibilityHint="Long-press for Pin or Remove"
-            >
-              {pinned && (
-                <Pin
-                  size={10}
-                  color={selected ? '#fff' : theme.label3}
-                  strokeWidth={2.5}
-                />
-              )}
-              {pill.icon}
-              <Text
-                style={[styles.pillLabel, selected && styles.pillLabelActive]}
-                numberOfLines={1}
-                maxFontSizeMultiplier={1.3}
-              >
-                {pill.label}
-              </Text>
-              {pill.count > 0 && (
+                {pinned && (
+                  <Pin
+                    size={10}
+                    color={active ? '#fff' : theme.label3}
+                    strokeWidth={2.5}
+                  />
+                )}
                 <Text
-                  style={[styles.pillCount, selected && styles.pillCountActive]}
+                  style={[styles.pillLabel, active && styles.pillLabelActive]}
+                  numberOfLines={1}
                   maxFontSizeMultiplier={1.3}
                 >
-                  {pill.count}
+                  {label}
                 </Text>
-              )}
-            </TouchableOpacity>
-          )
-        })}
+                {count != null && count > 0 && (
+                  <Text
+                    style={[styles.pillCount, active && styles.pillCountActive]}
+                    maxFontSizeMultiplier={1.3}
+                  >
+                    {count}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            )
+          },
+        )}
       </ScrollView>
 
       {/* The trailing CairnGlyph hint was removed — the pebble strip

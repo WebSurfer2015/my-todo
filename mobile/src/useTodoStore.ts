@@ -335,19 +335,33 @@ export function useTodoStore() {
   // Capped at PIN_LIMIT (also enforced in migratePinnedFilters); when the
   // cap is reached on an add, surface a snackbar so the user isn't left
   // with a silent no-op.
+  // Set-aware pin: each pinned entry is a Filter[] (single-element
+  // for legacy single-filter pins, multi-element for composite pills).
+  // Toggling pins the set if absent, unpins if present. Order-
+  // insensitive equality so ['done','cat:work'] and ['cat:work','done']
+  // are the same pin.
+  const setKey = (set: Filter[]) => [...set].sort().join(' ');
   const pinFilter = useCallback(
-    (f: Filter) => {
+    (set: Filter[]) => {
+      if (set.length === 0) return;
+      const key = setKey(set);
       setProfile((prev) => {
         const current = prev.pinnedFilters ?? [];
-        if (current.includes(f)) {
-          const next = current.filter((x) => x !== f);
-          return { ...prev, pinnedFilters: next.length > 0 ? next : undefined };
+        const idx = current.findIndex(
+          (existing) => setKey(existing as Filter[]) === key,
+        );
+        if (idx >= 0) {
+          const next = current.filter((_, i) => i !== idx);
+          return {
+            ...prev,
+            pinnedFilters: next.length > 0 ? next : undefined,
+          };
         }
         if (current.length >= PIN_LIMIT) {
           notify.showSnackbar({ message: t.pinCapReached(PIN_LIMIT) });
           return prev;
         }
-        return { ...prev, pinnedFilters: [...current, f] };
+        return { ...prev, pinnedFilters: [...current, set] };
       });
     },
     [setProfile, notify, t],
@@ -938,15 +952,26 @@ export function useTodoStore() {
     setCategories(next.categories);
     if (isCategoryFilter(filter) && categoryIdFromFilter(filter) === id)
       setFilter("all");
-    // Strip any pinned filter that pointed at this category so the persisted
-    // profile doesn't accumulate stale `cat:<deleted-id>` entries that would
-    // show up as ghost pills if the category is later re-created with the
-    // same id (or just clutter the profile doc).
+    // Strip any pinned set that contained this category so the
+    // persisted profile doesn't accumulate stale `cat:<deleted-id>`
+    // entries that would render as ghost pills (or come back as a
+    // wrongly-typed re-create with the same id).
     const ghostFilter = `cat:${id}`;
     setProfile((prev) => {
       const pinned = prev.pinnedFilters;
-      if (!pinned || !pinned.includes(ghostFilter)) return prev;
-      const cleaned = pinned.filter((f) => f !== ghostFilter);
+      if (!pinned) return prev;
+      let touched = false;
+      const cleaned: string[][] = [];
+      for (const set of pinned) {
+        if (set.includes(ghostFilter)) {
+          touched = true;
+          const survivors = set.filter((f) => f !== ghostFilter);
+          if (survivors.length > 0) cleaned.push(survivors);
+        } else {
+          cleaned.push(set);
+        }
+      }
+      if (!touched) return prev;
       return { ...prev, pinnedFilters: cleaned.length > 0 ? cleaned : undefined };
     });
   }
@@ -963,23 +988,28 @@ export function useTodoStore() {
   function toggleStatusHidden(id: StatusFilter) {
     setProfile((prev) => {
       const next = statusToggleHidden(prev, id);
-      // If the status was just hidden and is currently pinned, strip the
-      // pin so it doesn't sit invisibly in the profile (the FilterBar
-      // already filters hidden statuses out of its pinned-pill list).
+      // If the status was just hidden and any pinned set referenced
+      // it, strip it from those sets so the FilterBar doesn't
+      // surface an invisible filter as part of a composite pill.
       const overrides = next.statuses ?? [];
       const isNowHidden = overrides.find((s) => s.id === id)?.hidden === true;
-      if (
-        isNowHidden &&
-        next.pinnedFilters &&
-        next.pinnedFilters.includes(id)
-      ) {
-        const cleaned = next.pinnedFilters.filter((f) => f !== id);
-        return {
-          ...next,
-          pinnedFilters: cleaned.length > 0 ? cleaned : undefined,
-        };
+      if (!isNowHidden || !next.pinnedFilters) return next;
+      let touched = false;
+      const cleaned: string[][] = [];
+      for (const set of next.pinnedFilters) {
+        if (set.includes(id)) {
+          touched = true;
+          const survivors = set.filter((f) => f !== id);
+          if (survivors.length > 0) cleaned.push(survivors);
+        } else {
+          cleaned.push(set);
+        }
       }
-      return next;
+      if (!touched) return next;
+      return {
+        ...next,
+        pinnedFilters: cleaned.length > 0 ? cleaned : undefined,
+      };
     });
   }
 
@@ -993,18 +1023,23 @@ export function useTodoStore() {
       const overrides = next.priorities ?? [];
       const isNowHidden = overrides.find((p) => p.id === id)?.hidden === true;
       const pinId = `pri:${id}`;
-      if (
-        isNowHidden &&
-        next.pinnedFilters &&
-        next.pinnedFilters.includes(pinId)
-      ) {
-        const cleaned = next.pinnedFilters.filter((f) => f !== pinId);
-        return {
-          ...next,
-          pinnedFilters: cleaned.length > 0 ? cleaned : undefined,
-        };
+      if (!isNowHidden || !next.pinnedFilters) return next;
+      let touched = false;
+      const cleaned: string[][] = [];
+      for (const set of next.pinnedFilters) {
+        if (set.includes(pinId)) {
+          touched = true;
+          const survivors = set.filter((f) => f !== pinId);
+          if (survivors.length > 0) cleaned.push(survivors);
+        } else {
+          cleaned.push(set);
+        }
       }
-      return next;
+      if (!touched) return next;
+      return {
+        ...next,
+        pinnedFilters: cleaned.length > 0 ? cleaned : undefined,
+      };
     });
   }
 

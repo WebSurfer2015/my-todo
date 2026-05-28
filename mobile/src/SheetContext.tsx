@@ -320,7 +320,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         selectedFilters={store.filters}
         onToggleFilter={store.toggleFilter}
         onClearFilters={store.clearFilters}
-        pinnedFilters={(store.profile.pinnedFilters ?? []) as Filter[]}
+        pinnedFilters={(store.profile.pinnedFilters ?? []) as Filter[][]}
         onSelectFilter={store.setFilter}
         onPinFilter={store.pinFilter}
         categories={store.categories}

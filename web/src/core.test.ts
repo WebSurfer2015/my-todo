@@ -640,22 +640,22 @@ describe("migrateProfile", () => {
     });
   });
 
-  it("promotes legacy single `pinnedFilter` string to `pinnedFilters` array", () => {
+  it("promotes legacy single `pinnedFilter` string to a single-element pinned set", () => {
     const out = migrateProfile({
       name: "X",
       avatar: { kind: "preset", key: "smile" },
       pinnedFilter: "open",
     });
-    expect(out.pinnedFilters).toEqual(["open"]);
+    expect(out.pinnedFilters).toEqual([["open"]]);
   });
 
-  it("preserves `pinnedFilters` array and rejects garbage entries", () => {
+  it("promotes legacy flat `pinnedFilters` array to single-element sets and rejects garbage", () => {
     const out = migrateProfile({
       name: "X",
       avatar: { kind: "preset", key: "smile" },
       pinnedFilters: ["open", "cat:home", "not-a-filter", "", 42, "cat:work"],
     });
-    expect(out.pinnedFilters).toEqual(["open", "cat:home", "cat:work"]);
+    expect(out.pinnedFilters).toEqual([["open"], ["cat:home"], ["cat:work"]]);
   });
 
   it("caps `pinnedFilters` at 12 entries", () => {
@@ -666,6 +666,19 @@ describe("migrateProfile", () => {
       pinnedFilters: many,
     });
     expect(out.pinnedFilters).toHaveLength(12);
+  });
+
+  it("preserves new-shape `pinnedFilters` (array of arrays) for composite pins", () => {
+    const out = migrateProfile({
+      name: "X",
+      avatar: { kind: "preset", key: "smile" },
+      pinnedFilters: [["done", "cat:work"], ["open"], ["cat:home", "pri:high"]],
+    });
+    expect(out.pinnedFilters).toEqual([
+      ["done", "cat:work"],
+      ["open"],
+      ["cat:home", "pri:high"],
+    ]);
   });
 
   it("preserves a valid lastAddedGroceryStore string", () => {

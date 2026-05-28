@@ -61,11 +61,14 @@ interface Props {
   onToggleFilter: (f: Filter) => void;
   /** Clear every selected filter — same effect as picking "All". */
   onClearFilters: () => void;
-  /** Ordered list of pinned filters (from Profile.pinnedFilters). Inline Pin
-   * buttons in Configure mode check this list to render the pinned state. */
-  pinnedFilters: Filter[];
+  /** Ordered list of pinned filter SETS (from Profile.pinnedFilters).
+   * Each entry is a Filter[]; inline Pin buttons in Configure mode
+   * pin/unpin a single-element set ([f]). */
+  pinnedFilters: Filter[][];
   onSelectFilter: (f: Filter) => void;
-  onPinFilter: (f: Filter) => void;
+  /** Set-aware pin toggle. Inline row pins pass `[f]`; the FilterBar
+   * uses multi-element sets for composite pinning. */
+  onPinFilter: (set: Filter[]) => void;
   categories: CategoryDef[];
   /** Total task counts per category (used for delete confirm + row badges). */
   taskCounts: Record<string, number>;
@@ -165,6 +168,12 @@ export default function CategorySheet({
   // visible area with no scroll recovery. Mirrors ManageHomeTilesSheet.
   const screenH = Dimensions.get("window").height;
   const sheetHeight = Math.round(screenH * 0.85);
+
+  // Pinned filters are sets (Filter[][]). For inline row pin
+  // indicators we only care about the single-filter case — "is the
+  // set [f] currently pinned?"
+  const isFilterPinned = (f: Filter) =>
+    pinnedFilters.some((set) => set.length === 1 && set[0] === f);
 
   // Case-insensitive duplicate guard for category labels. Returns true
   // (and surfaces an Alert) when `label` collides with an existing
@@ -425,7 +434,7 @@ export default function CategorySheet({
                             isActive,
                           }: RenderItemParams<StatusEntry>) => {
                             const isInline = inlineId === s.id;
-                            const isPinned = pinnedFilters.includes(s.id);
+                            const isPinned = isFilterPinned(s.id);
                             return (
                               <View style={[styles.editRow, isActive && styles.editRowActive]}>
                                 <StatusIcon id={s.id} size={18} color={statusColor(s.id, theme)} />
@@ -475,7 +484,7 @@ export default function CategorySheet({
                                   )}
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                  onPress={() => onPinFilter(s.id)}
+                                  onPress={() => onPinFilter([s.id])}
                                   hitSlop={6}
                                   style={styles.rowAction}
                                   accessibilityRole="button"
@@ -526,7 +535,7 @@ export default function CategorySheet({
                             isActive,
                           }: RenderItemParams<PriorityEntry>) => {
                             const f = priorityFilter(p.id);
-                            const isPinned = pinnedFilters.includes(f);
+                            const isPinned = isFilterPinned(f);
                             return (
                               <View style={[styles.editRow, isActive && styles.editRowActive]}>
                                 <PriorityBars level={p.id} size={18} />
@@ -555,7 +564,7 @@ export default function CategorySheet({
                                   )}
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                  onPress={() => onPinFilter(f)}
+                                  onPress={() => onPinFilter([f])}
                                   hitSlop={6}
                                   style={styles.rowAction}
                                   accessibilityRole="button"
@@ -612,7 +621,7 @@ export default function CategorySheet({
                             const label = categoryLabel(c, t);
                             const isInline = inlineId === c.id;
                             const catFilter = `cat:${c.id}` as Filter;
-                            const isPinned = pinnedFilters.includes(catFilter);
+                            const isPinned = isFilterPinned(catFilter);
                             return (
                               <View style={[styles.editRow, isActive && styles.editRowActive]}>
                                 <CategoryIcon icon={c.icon} color={c.color} size={18} />
@@ -654,7 +663,7 @@ export default function CategorySheet({
                                   <Trash2 size={14} color={theme.red} strokeWidth={2} />
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                  onPress={() => onPinFilter(catFilter)}
+                                  onPress={() => onPinFilter([catFilter])}
                                   hitSlop={6}
                                   style={styles.rowAction}
                                   accessibilityRole="button"
