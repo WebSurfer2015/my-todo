@@ -954,6 +954,53 @@ export function appendNextSeriesInstance(
 }
 
 /**
+ * R5 — Skip ("Not Do") action. Marks a todo as deliberately not
+ * happening:
+ *   - status: 'notDo'
+ *   - trashed: true (so it sits in the Done bin alongside completed
+ *     and trashed rows; the bin's row renderer reads `status` to
+ *     show a "Not Do" tag instead of a "Done <date>" tag)
+ *   - done: false (key difference from completion — skipping is
+ *     not a pebble-earning event)
+ *   - reminder: cleared (no more notifications for this occurrence)
+ *
+ * For series instances (those with `seriesId`), Skip also appends
+ * one fresh tail via `appendNextSeriesInstance` so the user always
+ * has the next occurrence queued — the same horizon-stability
+ * promise R3 made for completion.
+ *
+ * Pebble-neutral: `pebbleDelta` only fires on `done` flipping (or
+ * recurring dueDate rolling for legacy rows), neither of which Skip
+ * causes.
+ */
+export function todoSkip(prev: Todo[], id: string, todayISO?: string): Todo[] {
+  const now = Date.now();
+  const today = todayISO ?? todayLocal();
+  const target = prev.find((td) => td.id === id);
+  if (!target) return prev;
+  // Subtask-gated parents — same rule as todoToggle: when subs
+  // exist, the parent's state is derived. Block the action so a
+  // skip can't silently desync the parent from its sub list.
+  if (target.subtasks && target.subtasks.length > 0) return prev;
+  const skipped = prev.map((td) => {
+    if (td.id !== id) return td;
+    const next: Todo = {
+      ...td,
+      status: "notDo",
+      trashed: true,
+      trashedAt: now,
+      completionDate: today,
+      updatedAt: now,
+    };
+    delete next.reminder;
+    return next;
+  });
+  return target.seriesId
+    ? appendNextSeriesInstance(skipped, target.seriesId)
+    : skipped;
+}
+
+/**
  * R2 migration. Promotes legacy rolling recurring todos to the
  * pre-expanded horizon model:
  *

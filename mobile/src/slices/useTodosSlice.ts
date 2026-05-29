@@ -57,6 +57,7 @@ import {
   subtaskClearAll,
   migrateToRecurringV2,
   topUpAllSeries,
+  todoSkip,
 } from "../../../core/src/derive";
 import {
   toggleSelection,
@@ -93,6 +94,7 @@ export interface TodosSliceDeps {
   t: {
     movedToTrash: string;
     movedToTrashMany: (n: number) => string;
+    skippedSnackbar: string;
     undo: string;
     undoAll: string;
     emptyTrash: string;
@@ -146,6 +148,10 @@ export interface TodosSlice {
   // TaskItem-stable callbacks
   toggle: (id: string) => void;
   moveToTrash: (id: string) => void;
+  /** R5 — Skip. Marks status='notDo' and routes to the Done bin
+   * without flipping done. Series instances also get a fresh tail
+   * appended. Pebble-neutral. */
+  skipTodo: (id: string) => void;
   restoreFromTrash: (id: string) => void;
   permanentlyDelete: (id: string) => void;
   updatePriority: (id: string, priority: Priority) => void;
@@ -433,6 +439,22 @@ export function useTodosSlice(
       });
     },
     [setTodos, applyPebbleDeltaTimed, notify, t, restoreFromTrash],
+  );
+
+  // R5 — Skip ("Not Do"). Pebble-neutral. Sends the row to the Done
+  // bin with status='notDo' so the bin renderer can distinguish it
+  // from completed/trashed rows. For series instances, the core
+  // helper also appends a fresh tail.
+  const skipTodo = useCallback(
+    (id: string) => {
+      setTodos((prev) => todoSkip(prev, id));
+      notify.showSnackbar({
+        message: t.skippedSnackbar,
+        actionLabel: t.undo,
+        onAction: () => restoreFromTrash(id),
+      });
+    },
+    [setTodos, notify, t, restoreFromTrash],
   );
 
   const applySeriesFutureEdits = useCallback(
@@ -838,6 +860,7 @@ export function useTodosSlice(
     applyPebbleDeltaTimed,
     toggle,
     moveToTrash,
+    skipTodo,
     restoreFromTrash,
     permanentlyDelete,
     updatePriority,

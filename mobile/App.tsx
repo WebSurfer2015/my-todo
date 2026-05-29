@@ -442,6 +442,7 @@ function TodosScreen() {
                         onToggleSelect={store.toggleTrashSelection}
                         onToggle={store.toggle}
                         onMoveToTrash={store.moveToTrash}
+                        onSkip={store.skipTodo}
                         onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
                         onApplySeriesFutureEdits={store.applySeriesFutureEdits}
                         onRestore={store.restoreFromTrash}
@@ -589,6 +590,7 @@ function TodosScreen() {
                               binFilterView
                               onToggle={store.toggle}
                               onMoveToTrash={store.moveToTrash}
+                              onSkip={store.skipTodo}
                               onRestore={store.restoreFromTrash}
                               onPermanentDelete={store.permanentlyDelete}
                               onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
@@ -665,6 +667,7 @@ function TodosScreen() {
                             playSound={store.profile.completionSound !== false}
                             onToggle={store.toggle}
                             onMoveToTrash={store.moveToTrash}
+                            onSkip={store.skipTodo}
                             onRestore={store.restoreFromTrash}
                             onPermanentDelete={store.permanentlyDelete}
                             onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
@@ -785,6 +788,7 @@ function TodosScreen() {
                         playSound={store.profile.completionSound !== false}
                               onToggle={store.toggle}
                               onMoveToTrash={store.moveToTrash}
+                              onSkip={store.skipTodo}
                         onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
                         onApplySeriesFutureEdits={store.applySeriesFutureEdits}
                               onPermanentDelete={store.permanentlyDelete}

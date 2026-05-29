@@ -439,6 +439,7 @@ export default function HomeScreen() {
                 playSound={playSound}
                 onToggle={store.toggle}
                 onMoveToTrash={store.moveToTrash}
+                onSkip={store.skipTodo}
                 onRestore={store.restoreFromTrash}
                 onPermanentDelete={store.permanentlyDelete}
                 onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
@@ -573,6 +574,7 @@ export default function HomeScreen() {
                     playSound={playSound}
                     onToggle={store.toggle}
                     onMoveToTrash={store.moveToTrash}
+                    onSkip={store.skipTodo}
                     onRestore={store.restoreFromTrash}
                     onPermanentDelete={store.permanentlyDelete}
                     onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
