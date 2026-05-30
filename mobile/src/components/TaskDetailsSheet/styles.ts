@@ -210,6 +210,49 @@ export function makeStyles(c: ThemeColors) {
       color: c.label2,
       textAlign: 'left',
     },
+    /* R6a — Edit-scope segmented control (series rows only) */
+    editModeWrap: {
+      paddingHorizontal: 4,
+      paddingBottom: 12,
+    },
+    editModeSegmented: {
+      flexDirection: 'row',
+      backgroundColor: c.surfaceAlt,
+      borderRadius: 9,
+      padding: 2,
+    },
+    editModeSegment: {
+      flex: 1,
+      paddingVertical: 7,
+      paddingHorizontal: 12,
+      borderRadius: 7,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    editModeSegmentActive: {
+      backgroundColor: c.card,
+      shadowColor: '#000',
+      shadowOpacity: 0.06,
+      shadowOffset: { width: 0, height: 1 },
+      shadowRadius: 2,
+      elevation: 1,
+    },
+    editModeSegmentText: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: c.label2,
+    },
+    editModeSegmentTextActive: {
+      color: c.label,
+      fontWeight: '600',
+    },
+    editModeHelper: {
+      marginTop: 8,
+      fontSize: 12,
+      color: c.label3,
+      lineHeight: 16,
+      textAlign: 'center',
+    },
     /* Edit-mode body */
     editBody: {
       paddingTop: 16,

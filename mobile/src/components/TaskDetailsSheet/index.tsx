@@ -30,6 +30,7 @@ import { formatDisplayDate, formatRecurrence, fullDateLabel, isoDate, todayLocal
 import { sortedSubs, snapDueDateToRecurrence } from '../../../../core/src/derive'
 import { useTheme, ThemeColors } from '../../theme'
 import { useLang } from '../../LangContext'
+import { useNotify } from '../../notify'
 import PriorityDot from '../PriorityDot'
 import CategoryIcon from '../CategoryIcon'
 import PickerModal from '../PickerModal'
@@ -239,12 +240,23 @@ interface Props {
   /** Optional — when provided, "Delete to-do" on a recurring instance with
    * a seriesId offers a "Delete this and all future" option. */
   onMoveSeriesFutureToTrash?: (id: string) => void
-  /** Optional — copies text/priority/category from this instance to every
-   * future non-trashed sibling in the same series. */
+  /** Optional — copies text/priority/category/notes from this instance to
+   * every future non-trashed sibling in the same series. Skips detached
+   * instances unless `options.overwriteDetached` is true. */
   onApplySeriesFutureEdits?: (
     id: string,
-    fields: { text?: string; priority?: Priority; category?: Category | undefined },
+    fields: {
+      text?: string;
+      priority?: Priority;
+      category?: Category | undefined;
+      notes?: string;
+    },
+    options?: { overwriteDetached?: boolean; silent?: boolean },
   ) => void
+  /** R6a — Mark this series instance as detached so later series-wide
+   * edits skip it by default. Fires when the user edits a
+   * series-eligible field in "Edit this only" mode on a series row. */
+  onDetachFromSeries?: (id: string) => void
   onAddSubtask: (id: string, text: string, priority?: Priority, dueDate?: string) => void
   onToggleSubtask: (id: string, subId: string) => void
   onUpdateSubtaskText: (id: string, subId: string, text: string) => void
@@ -262,15 +274,32 @@ interface Props {
 
 export default function TaskDetailsSheet({
   visible, todo, categories, initialSubtaskEditId, onClose, onUpdateText, onUpdateNotes,
-  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminder, onMoveToTrash, onPermanentDelete, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits,
+  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminder, onMoveToTrash, onPermanentDelete, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onDetachFromSeries,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
   agentEnabled,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
+  const notify = useNotify()
   const styles = useMemo(() => makeStyles(theme), [theme])
   const subs = todo.subtasks ?? []
+  // R6a — Edit-scope toggle for series instances. Hidden when the
+  // row has no seriesId. Default "this only" is the safer choice.
+  // Reset on every visible-true so reopening the sheet doesn't
+  // remember a previous session's pick.
+  const isSeriesRow = !!todo.seriesId
+  const [editMode, setEditMode] = useState<'this' | 'series'>('this')
+  // Toast bookkeeping: only show the detach toast the first time the
+  // user makes a series-eligible edit per sheet-open. Resets on each
+  // visible toggle.
+  const detachToastShownRef = useRef(false)
+  useEffect(() => {
+    if (visible) {
+      setEditMode('this')
+      detachToastShownRef.current = false
+    }
+  }, [visible])
   const doneCount = subs.filter((s) => s.done).length
   const ai = useSuggestSteps({ parentTitle: todo.text, parentNotes: todo.notes })
 
@@ -404,28 +433,54 @@ export default function TaskDetailsSheet({
 
   const editActiveCat = categories.find((c) => c.id === editCategory) ?? categories[0]
 
-  // Auto-save helpers: every picker change calls the prop immediately
-  // (no Save button needed). Text saves on blur — calling on every
-  // keystroke would cause one Firestore write per character.
+  // R6a — series-aware detach helper. Fires once per sheet-open on
+  // the first series-eligible edit in "Edit this only" mode. Idempotent
+  // at the core layer so re-firing is safe; the toast gate makes it
+  // user-visible only the first time.
+  function maybeDetachOnEdit() {
+    if (!isSeriesRow) return
+    if (todo.detachedFromSeries) return
+    if (editMode !== 'this') return
+    onDetachFromSeries?.(todo.id)
+    if (!detachToastShownRef.current) {
+      detachToastShownRef.current = true
+      notify.showSnackbar({ message: t.detachedToast })
+    }
+  }
+
+  // Auto-save helpers. In "this only" mode every picker change commits
+  // immediately to this row. In "Edit series" mode text / notes /
+  // priority / category buffer locally until the header Save button —
+  // that's the explicit commit point that also propagates the changes
+  // to every future sibling. dueDate / recurrence / reminder stay live
+  // in both modes (R6b/R7 scope).
   function applyText(next: string) {
     const trimmed = next.trim()
-    if (trimmed && trimmed !== todo.text) onUpdateText(todo.id, trimmed)
+    if (!trimmed || trimmed === todo.text) return
+    if (editMode === 'series' && isSeriesRow) return // buffered until Save
+    onUpdateText(todo.id, trimmed)
+    maybeDetachOnEdit()
   }
   function applyNotes(next: string) {
-    // Notes are intentionally not trimmed — leading whitespace might be
-    // meaningful (e.g., a list with indentation). Empty/unchanged is a
-    // no-op so we don't churn updatedAt for nothing.
     if (!onUpdateNotes) return
     if (next === (todo.notes ?? '')) return
+    if (editMode === 'series' && isSeriesRow) return // buffered until Save
     onUpdateNotes(todo.id, next)
+    maybeDetachOnEdit()
   }
   function applyPriority(p: Priority) {
     setEditPriority(p)
-    if (p !== todo.priority) onUpdatePriority(todo.id, p)
+    if (p === todo.priority) return
+    if (editMode === 'series' && isSeriesRow) return // buffered until Save
+    onUpdatePriority(todo.id, p)
+    maybeDetachOnEdit()
   }
   function applyCategory(cId: string) {
     setEditCategory(cId)
-    if (cId !== todo.category) onUpdateCategory(todo.id, cId)
+    if (cId === todo.category) return
+    if (editMode === 'series' && isSeriesRow) return // buffered until Save
+    onUpdateCategory(todo.id, cId)
+    maybeDetachOnEdit()
   }
   function applyDueDate(d: string) {
     setEditDueDate(d)
@@ -466,11 +521,44 @@ export default function TaskDetailsSheet({
     onUpdateReminder?.(todo.id, reminder)
   }
   function closeAndFlushText() {
-    // "Save" path — final flush in case the user closed without
-    // blurring an input. Other fields (priority, date, category,
-    // recurrence) auto-save on pick, so they need no flush here.
-    applyText(editText)
-    applyNotes(editNotes)
+    // "Save" path. In "this only" mode this is a final flush for
+    // text + notes (other fields auto-save on pick). In "Edit
+    // series" mode every series-eligible field has been buffered
+    // locally — Save is the commit point: write changed fields to
+    // this row, then propagate to all future siblings via
+    // applySeriesFutureEdits. Cancel / scrim-tap routes through
+    // closeWithoutFlush which drops the buffer.
+    const seriesCommit = editMode === 'series' && isSeriesRow
+    const trimmedText = editText.trim()
+    const textChanged = trimmedText && trimmedText !== todo.text
+    const notesChanged = onUpdateNotes !== undefined && editNotes !== (todo.notes ?? '')
+    const priorityChanged = editPriority !== todo.priority
+    const categoryChanged = editCategory !== todo.category
+
+    if (seriesCommit) {
+      // Write to THIS row first so the snackbar count reflects the
+      // siblings only ("Applied to N events").
+      if (textChanged) onUpdateText(todo.id, trimmedText)
+      if (notesChanged) onUpdateNotes!(todo.id, editNotes)
+      if (priorityChanged) onUpdatePriority(todo.id, editPriority)
+      if (categoryChanged && editCategory !== undefined) onUpdateCategory(todo.id, editCategory)
+      const fields: {
+        text?: string
+        priority?: Priority
+        category?: Category | undefined
+        notes?: string
+      } = {}
+      if (textChanged) fields.text = trimmedText
+      if (notesChanged) fields.notes = editNotes
+      if (priorityChanged) fields.priority = editPriority
+      if (categoryChanged) fields.category = editCategory  // undefined = "no category"
+      if (Object.keys(fields).length > 0) {
+        onApplySeriesFutureEdits?.(todo.id, fields)
+      }
+    } else {
+      applyText(editText)
+      applyNotes(editNotes)
+    }
     onClose()
   }
   function closeWithoutFlush() {
@@ -966,9 +1054,65 @@ export default function TaskDetailsSheet({
             </TouchableOpacity>
             <Text style={styles.editHeaderTitle}>{t.edit.toDo}</Text>
             <TouchableOpacity onPress={closeAndFlushText} hitSlop={10} style={styles.headerSideBtn}>
-              <Text style={styles.saveHeaderText}>{t.save}</Text>
+              <Text style={styles.saveHeaderText}>
+                {editMode === 'series' && isSeriesRow ? t.editSeries : t.save}
+              </Text>
             </TouchableOpacity>
           </View>
+
+          {/* R6a — Edit-scope toggle. Only renders for series rows.
+              "This only" auto-saves field changes immediately and
+              detaches the row from the series on first edit.
+              "Edit series" buffers text/notes/priority/category
+              locally until Save, which then propagates to every
+              future sibling. */}
+          {isSeriesRow && (
+            <View style={styles.editModeWrap}>
+              <View style={styles.editModeSegmented}>
+                <TouchableOpacity
+                  style={[
+                    styles.editModeSegment,
+                    editMode === 'this' && styles.editModeSegmentActive,
+                  ]}
+                  onPress={() => setEditMode('this')}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: editMode === 'this' }}
+                  accessibilityLabel={t.editThisOnly}
+                >
+                  <Text
+                    style={[
+                      styles.editModeSegmentText,
+                      editMode === 'this' && styles.editModeSegmentTextActive,
+                    ]}
+                  >
+                    {t.editThisOnly}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.editModeSegment,
+                    editMode === 'series' && styles.editModeSegmentActive,
+                  ]}
+                  onPress={() => setEditMode('series')}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: editMode === 'series' }}
+                  accessibilityLabel={t.editSeries}
+                >
+                  <Text
+                    style={[
+                      styles.editModeSegmentText,
+                      editMode === 'series' && styles.editModeSegmentTextActive,
+                    ]}
+                  >
+                    {t.editSeries}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {editMode === 'series' && (
+                <Text style={styles.editModeHelper}>{t.editSeriesHelper}</Text>
+              )}
+            </View>
+          )}
 
           <ScrollView
               style={styles.list}

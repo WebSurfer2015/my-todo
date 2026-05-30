@@ -652,15 +652,24 @@ export function todoMoveToTrash(prev: Todo[], id: string): Todo[] {
 }
 
 /**
- * Apply text / priority / category from a target instance to all future
- * non-trashed siblings in the same series (dueDate >= target's). Past
- * siblings are not touched — they're history. No-op when the target
- * has no seriesId.
+ * Apply text / priority / category / notes from a target instance to all
+ * future non-trashed siblings in the same series (dueDate >= target's).
+ * Past siblings are not touched — they're history. By default skips
+ * any future siblings with `detachedFromSeries: true` (per-instance
+ * customizations the user explicitly carved out); pass
+ * `{ overwriteDetached: true }` from the R6b/R6c "Recreate all" branch
+ * to opt back in. No-op when the target has no seriesId.
  */
 export function todoApplySeriesFutureEdits(
   prev: Todo[],
   id: string,
-  fields: { text?: string; priority?: Priority; category?: Category | undefined },
+  fields: {
+    text?: string;
+    priority?: Priority;
+    category?: Category | undefined;
+    notes?: string;
+  },
+  options: { overwriteDetached?: boolean } = {},
 ): { next: Todo[]; affected: number } {
   const target = prev.find((t) => t.id === id);
   if (!target || !target.seriesId) return { next: prev, affected: 0 };
@@ -672,14 +681,36 @@ export function todoApplySeriesFutureEdits(
     if (td.seriesId !== target.seriesId) return td;
     if (td.trashed) return td;
     if (cutoff && td.dueDate && td.dueDate < cutoff) return td;
+    if (td.detachedFromSeries && !options.overwriteDetached) return td;
     affected += 1;
     const merged: Todo = { ...td, updatedAt: now };
     if (fields.text !== undefined) merged.text = fields.text.slice(0, MAX_TODO_TEXT_LEN);
     if (fields.priority !== undefined) merged.priority = fields.priority;
     if (fields.category !== undefined) merged.category = fields.category;
+    if (fields.notes !== undefined) {
+      if (fields.notes.length === 0) delete merged.notes;
+      else merged.notes = fields.notes.slice(0, MAX_TODO_NOTES_LEN);
+    }
     return merged;
   });
   return { next, affected };
+}
+
+/**
+ * R6a — Mark a series instance as `detachedFromSeries: true`. Fires
+ * the first time the user makes a series-eligible edit in the
+ * "Edit this only" mode. Idempotent — already-detached rows
+ * short-circuit so the caller can call this on every save without
+ * worrying about the noise. No-op when the target has no
+ * `seriesId` (it's a one-off).
+ */
+export function todoDetachFromSeries(prev: Todo[], id: string): Todo[] {
+  const target = prev.find((t) => t.id === id);
+  if (!target || !target.seriesId) return prev;
+  if (target.detachedFromSeries) return prev;
+  return prev.map((td) =>
+    td.id === id ? { ...td, detachedFromSeries: true, updatedAt: Date.now() } : td,
+  );
 }
 
 /**

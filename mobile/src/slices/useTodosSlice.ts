@@ -58,6 +58,7 @@ import {
   migrateToRecurringV2,
   topUpAllSeries,
   todoSkip,
+  todoDetachFromSeries,
 } from "../../../core/src/derive";
 import {
   toggleSelection,
@@ -169,8 +170,14 @@ export interface TodosSlice {
       text?: string;
       priority?: Priority;
       category?: Category | undefined;
+      notes?: string;
     },
+    options?: { overwriteDetached?: boolean; silent?: boolean },
   ) => void;
+  /** R6a — Mark this series instance as detached so later series-wide
+   * edits skip it by default. No-op when already detached or when
+   * the row has no seriesId. Pebble-neutral. */
+  detachFromSeries: (id: string) => void;
   moveSeriesFutureToTrash: (id: string) => void;
   // Subtasks
   addSubtask: (
@@ -460,14 +467,23 @@ export function useTodosSlice(
   const applySeriesFutureEdits = useCallback(
     (
       id: string,
-      fields: { text?: string; priority?: Priority; category?: Category | undefined },
+      fields: {
+        text?: string;
+        priority?: Priority;
+        category?: Category | undefined;
+        notes?: string;
+      },
+      options?: { overwriteDetached?: boolean; silent?: boolean },
     ) => {
       let affected = 0;
       setTodos((prev) => {
-        const result = todoApplySeriesFutureEdits(prev, id, fields);
+        const result = todoApplySeriesFutureEdits(prev, id, fields, {
+          overwriteDetached: options?.overwriteDetached,
+        });
         affected = result.affected;
         return result.next;
       });
+      if (options?.silent) return;
       notify.showSnackbar({
         message:
           affected > 0
@@ -476,6 +492,18 @@ export function useTodosSlice(
       });
     },
     [setTodos, notify, t],
+  );
+
+  // R6a — flip detachedFromSeries on the row. Called by
+  // TaskDetailsSheet when the user makes a series-eligible edit in
+  // "Edit this only" mode. The core helper short-circuits if the
+  // row is already detached, so wrappers can call this on every
+  // save without checking state.
+  const detachFromSeries = useCallback(
+    (id: string) => {
+      setTodos((prev) => todoDetachFromSeries(prev, id));
+    },
+    [setTodos],
   );
 
   const moveSeriesFutureToTrash = useCallback(
@@ -872,6 +900,7 @@ export function useTodosSlice(
     updateRecurrence,
     toggleTrashSelection,
     applySeriesFutureEdits,
+    detachFromSeries,
     moveSeriesFutureToTrash,
     addSubtask,
     toggleSubtask,

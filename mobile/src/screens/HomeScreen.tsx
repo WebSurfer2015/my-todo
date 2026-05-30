@@ -444,6 +444,7 @@ export default function HomeScreen() {
                 onPermanentDelete={store.permanentlyDelete}
                 onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
                 onApplySeriesFutureEdits={store.applySeriesFutureEdits}
+                onDetachFromSeries={store.detachFromSeries}
                 onUpdatePriority={store.updatePriority}
                 onUpdateDueDate={store.updateDueDate}
                 onSnooze={store.snooze}
@@ -579,6 +580,7 @@ export default function HomeScreen() {
                     onPermanentDelete={store.permanentlyDelete}
                     onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
                     onApplySeriesFutureEdits={store.applySeriesFutureEdits}
+                onDetachFromSeries={store.detachFromSeries}
                     onUpdatePriority={store.updatePriority}
                     onUpdateDueDate={store.updateDueDate}
                     onSnooze={store.snooze}

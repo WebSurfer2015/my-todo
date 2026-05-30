@@ -119,8 +119,18 @@ interface Props {
   onMoveSeriesFutureToTrash?: (id: string) => void
   onApplySeriesFutureEdits?: (
     id: string,
-    fields: { text?: string; priority?: Priority; category?: Category | undefined },
+    fields: {
+      text?: string
+      priority?: Priority
+      category?: Category | undefined
+      notes?: string
+    },
+    options?: { overwriteDetached?: boolean; silent?: boolean },
   ) => void
+  /** R6a — Mark this series instance as detached. Wired through to
+   * TaskDetailsSheet which fires it when the user makes a
+   * series-eligible edit in "Edit this only" mode. */
+  onDetachFromSeries?: (id: string) => void
   onRestore?: (id: string) => void
   onPermanentDelete?: (id: string) => void
   onUpdatePriority: (id: string, priority: Priority) => void
@@ -168,7 +178,7 @@ function TaskItem({
   todo, inTrash = false, binFilterView = false, selected = false, onToggleSelect,
   categories, density = 'comfortable', celebrate = true, playSound = true,
   subtaskVisibility = 'all',
-  onToggle, onMoveToTrash, onSkip, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onRestore, onPermanentDelete,
+  onToggle, onMoveToTrash, onSkip, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onDetachFromSeries, onRestore, onPermanentDelete,
   onUpdatePriority, onUpdateDueDate, onSnooze, onLongPressDefer, onUpdateCategory, onUpdateText, onUpdateNotes, onUpdateRecurrence, onUpdateReminder,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
@@ -1170,6 +1180,7 @@ function TaskItem({
             onPermanentDelete={onPermanentDelete}
             onMoveSeriesFutureToTrash={onMoveSeriesFutureToTrash}
             onApplySeriesFutureEdits={onApplySeriesFutureEdits}
+            onDetachFromSeries={onDetachFromSeries}
             onAddSubtask={onAddSubtask!}
             onToggleSubtask={onToggleSubtask!}
             onUpdateSubtaskText={onUpdateSubtaskText!}

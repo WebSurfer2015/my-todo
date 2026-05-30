@@ -445,6 +445,7 @@ function TodosScreen() {
                         onSkip={store.skipTodo}
                         onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
                         onApplySeriesFutureEdits={store.applySeriesFutureEdits}
+                        onDetachFromSeries={store.detachFromSeries}
                         onRestore={store.restoreFromTrash}
                         onPermanentDelete={store.permanentlyDelete}
                         onUpdatePriority={store.updatePriority}
@@ -595,6 +596,7 @@ function TodosScreen() {
                               onPermanentDelete={store.permanentlyDelete}
                               onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
                               onApplySeriesFutureEdits={store.applySeriesFutureEdits}
+                              onDetachFromSeries={store.detachFromSeries}
                               onUpdatePriority={store.updatePriority}
                               onUpdateDueDate={store.updateDueDate}
                               onSnooze={store.snooze}
@@ -672,6 +674,7 @@ function TodosScreen() {
                             onPermanentDelete={store.permanentlyDelete}
                             onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
                             onApplySeriesFutureEdits={store.applySeriesFutureEdits}
+                            onDetachFromSeries={store.detachFromSeries}
                             onUpdatePriority={store.updatePriority}
                             onUpdateDueDate={store.updateDueDate}
                             onSnooze={store.snooze}
@@ -791,6 +794,7 @@ function TodosScreen() {
                               onSkip={store.skipTodo}
                         onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
                         onApplySeriesFutureEdits={store.applySeriesFutureEdits}
+                        onDetachFromSeries={store.detachFromSeries}
                               onPermanentDelete={store.permanentlyDelete}
                               onUpdatePriority={store.updatePriority}
                               onUpdateDueDate={store.updateDueDate}
