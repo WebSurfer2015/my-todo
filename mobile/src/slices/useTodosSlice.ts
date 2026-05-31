@@ -60,6 +60,7 @@ import {
   todoSkip,
   todoDetachFromSeries,
   todoApplyRecurrenceChange,
+  todoApplySeriesSubtasks,
 } from "../../../core/src/derive";
 import {
   toggleSelection,
@@ -113,6 +114,7 @@ export interface TodosSliceDeps {
       editsNothing: string;
       trashedMany: (n: number) => string;
       recurrenceRecreated: (n: number) => string;
+      subtasksApplied: (n: number) => string;
     };
     snooze: {
       toTomorrow: string;
@@ -187,6 +189,13 @@ export interface TodosSlice {
   applyRecurrenceChange: (
     id: string,
     newRecurrence: Recurrence | undefined,
+    options: { keepDetached: boolean },
+  ) => void;
+  /** R6c — Propagate the target's current subtasks shape to every
+   * future non-trashed sibling. `keepDetached` lets per-instance
+   * customizations survive ("Keep modified, overwrite the rest"). */
+  applySeriesSubtasks: (
+    id: string,
     options: { keepDetached: boolean },
   ) => void;
   moveSeriesFutureToTrash: (id: string) => void;
@@ -515,6 +524,25 @@ export function useTodosSlice(
       setTodos((prev) => todoDetachFromSeries(prev, id));
     },
     [setTodos],
+  );
+
+  // R6c — propagate the target's current subtasks shape (live edits
+  // have already landed on this row) to every future non-trashed
+  // sibling, modulo keepDetached. Cloned fresh per-instance so each
+  // copy is independently togglable.
+  const applySeriesSubtasks = useCallback(
+    (id: string, options: { keepDetached: boolean }) => {
+      let affected = 0;
+      setTodos((prev) => {
+        const result = todoApplySeriesSubtasks(prev, id, options);
+        affected = result.affected;
+        return result.next;
+      });
+      notify.showSnackbar({
+        message: t.series.subtasksApplied(affected),
+      });
+    },
+    [setTodos, notify, t],
   );
 
   // R6b — frequency-change apply for a series. Writes the new
@@ -939,6 +967,7 @@ export function useTodosSlice(
     applySeriesFutureEdits,
     detachFromSeries,
     applyRecurrenceChange,
+    applySeriesSubtasks,
     moveSeriesFutureToTrash,
     addSubtask,
     toggleSubtask,

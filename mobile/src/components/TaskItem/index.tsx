@@ -139,6 +139,13 @@ interface Props {
     newRecurrence: Recurrence | undefined,
     options: { keepDetached: boolean },
   ) => void
+  /** R6c — Series subtask propagation. Wired through to
+   * TaskDetailsSheet for the "Overwrite all / Keep modified" dialog
+   * fired at Save in series mode when the user edited subtask shape. */
+  onApplySeriesSubtasks?: (
+    id: string,
+    options: { keepDetached: boolean },
+  ) => void
   onRestore?: (id: string) => void
   onPermanentDelete?: (id: string) => void
   onUpdatePriority: (id: string, priority: Priority) => void
@@ -186,7 +193,7 @@ function TaskItem({
   todo, inTrash = false, binFilterView = false, selected = false, onToggleSelect,
   categories, density = 'comfortable', celebrate = true, playSound = true,
   subtaskVisibility = 'all',
-  onToggle, onMoveToTrash, onSkip, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange, onRestore, onPermanentDelete,
+  onToggle, onMoveToTrash, onSkip, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange, onApplySeriesSubtasks, onRestore, onPermanentDelete,
   onUpdatePriority, onUpdateDueDate, onSnooze, onLongPressDefer, onUpdateCategory, onUpdateText, onUpdateNotes, onUpdateRecurrence, onUpdateReminder,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
@@ -1190,6 +1197,7 @@ function TaskItem({
             onApplySeriesFutureEdits={onApplySeriesFutureEdits}
             onDetachFromSeries={onDetachFromSeries}
             onApplyRecurrenceChange={onApplyRecurrenceChange}
+            onApplySeriesSubtasks={onApplySeriesSubtasks}
             onAddSubtask={onAddSubtask!}
             onToggleSubtask={onToggleSubtask!}
             onUpdateSubtaskText={onUpdateSubtaskText!}

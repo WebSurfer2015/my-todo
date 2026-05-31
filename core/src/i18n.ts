@@ -298,11 +298,17 @@ export const strings = {
       applyToFutureA11y: "Apply this to-do's text, priority, and category to every future to-do in this series",
       recurrenceRecreated: (n: number): string =>
         n === 0 ? 'Schedule updated.' : `Schedule updated. ${n} future event${n !== 1 ? 's' : ''} replaced.`,
+      subtasksApplied: (n: number): string =>
+        n === 0 ? 'Nothing to apply.' : `Steps applied to ${n} future event${n !== 1 ? 's' : ''}.`,
     },
     seriesFreqChangeTitle: 'Update series schedule?',
     seriesFreqChangeBody: "Changing the schedule will replace upcoming events. What do you want to do with events you've already modified?",
     seriesFreqRecreateAll: 'Recreate all',
     seriesFreqKeepModified: 'Keep modified, recreate the rest',
+    seriesSubtasksChangeTitle: 'Apply subtask changes to series?',
+    seriesSubtasksChangeBody: "These step changes can be copied to every future event in this series. Skip events you've already customized?",
+    seriesSubtasksOverwriteAll: 'Overwrite all',
+    seriesSubtasksKeepModified: 'Keep modified, overwrite the rest',
   },
   zh: {
     title: 'Sagely',
@@ -577,11 +583,17 @@ export const strings = {
     seriesFreqChangeBody: '更改重复设置会替换未来的事件。你希望如何处理已修改的事件？',
     seriesFreqRecreateAll: '全部重建',
     seriesFreqKeepModified: '保留已修改的，重建其余',
+    seriesSubtasksChangeTitle: '将步骤改动应用到整个系列？',
+    seriesSubtasksChangeBody: '这些步骤改动可以同步到此系列的每一个未来事件。是否跳过你已自定义的事件？',
+    seriesSubtasksOverwriteAll: '全部覆盖',
+    seriesSubtasksKeepModified: '保留已修改的，覆盖其余',
     series: {
       trashedMany: (n: number): string => `已将此系列中的 ${n} 项任务收起。`,
       editsApplied: (n: number): string => `已应用到此系列中未来的 ${n} 项任务。`,
       recurrenceRecreated: (n: number): string =>
         n === 0 ? '已更新重复设置。' : `已更新重复设置。已替换 ${n} 项未来事件。`,
+      subtasksApplied: (n: number): string =>
+        n === 0 ? '没有可应用的内容。' : `已将步骤应用到 ${n} 项未来事件。`,
       editsNothing: '没有要应用的。',
       applyToFutureA11y: '将此任务的文本、优先级和类别应用到此系列中所有未来的任务',
     },
@@ -859,11 +871,17 @@ export const strings = {
     seriesFreqChangeBody: 'Cambiar la programación reemplazará los próximos eventos. ¿Qué quieres hacer con los eventos que ya has modificado?',
     seriesFreqRecreateAll: 'Recrear todos',
     seriesFreqKeepModified: 'Conservar los modificados, recrear el resto',
+    seriesSubtasksChangeTitle: '¿Aplicar cambios de pasos a la serie?',
+    seriesSubtasksChangeBody: 'Estos cambios pueden copiarse a cada evento futuro de esta serie. ¿Omitir los eventos que ya has personalizado?',
+    seriesSubtasksOverwriteAll: 'Sobrescribir todos',
+    seriesSubtasksKeepModified: 'Conservar los modificados, sobrescribir el resto',
     series: {
       trashedMany: (n: number): string => `${n} tareas de esta serie guardadas.`,
       editsApplied: (n: number): string => `Aplicado a ${n} ${n === 1 ? 'tarea futura' : 'tareas futuras'} de esta serie.`,
       recurrenceRecreated: (n: number): string =>
         n === 0 ? 'Programación actualizada.' : `Programación actualizada. ${n} ${n === 1 ? 'evento futuro reemplazado' : 'eventos futuros reemplazados'}.`,
+      subtasksApplied: (n: number): string =>
+        n === 0 ? 'Nada que aplicar.' : `Pasos aplicados a ${n} ${n === 1 ? 'evento futuro' : 'eventos futuros'}.`,
       editsNothing: 'Nada que aplicar.',
       applyToFutureA11y: 'Aplicar el texto, prioridad y categoría a todas las tareas futuras de esta serie',
     },
@@ -1141,11 +1159,17 @@ export const strings = {
     seriesFreqChangeBody: 'Changer la planification remplacera les prochains événements. Que veux-tu faire des événements déjà modifiés ?',
     seriesFreqRecreateAll: 'Tout recréer',
     seriesFreqKeepModified: 'Garder les modifiés, recréer le reste',
+    seriesSubtasksChangeTitle: 'Appliquer les changements d\'étapes à la série ?',
+    seriesSubtasksChangeBody: 'Ces changements peuvent être copiés sur chaque événement futur de cette série. Ignorer les événements déjà personnalisés ?',
+    seriesSubtasksOverwriteAll: 'Tout écraser',
+    seriesSubtasksKeepModified: 'Garder les modifiés, écraser le reste',
     series: {
       trashedMany: (n: number): string => `${n} tâches de cette série mises de côté.`,
       editsApplied: (n: number): string => `Appliqué à ${n} ${n === 1 ? 'tâche future' : 'tâches futures'} de cette série.`,
       recurrenceRecreated: (n: number): string =>
         n === 0 ? 'Planification mise à jour.' : `Planification mise à jour. ${n} ${n === 1 ? 'événement futur remplacé' : 'événements futurs remplacés'}.`,
+      subtasksApplied: (n: number): string =>
+        n === 0 ? 'Rien à appliquer.' : `Étapes appliquées à ${n} ${n === 1 ? 'événement futur' : 'événements futurs'}.`,
       editsNothing: 'Rien à appliquer.',
       applyToFutureA11y: 'Appliquer le texte, la priorité et la catégorie à toutes les tâches futures de cette série',
     },
@@ -1423,11 +1447,17 @@ export const strings = {
     seriesFreqChangeBody: 'スケジュールを変更すると、今後のイベントが置き換えられます。すでに編集したイベントはどうしますか？',
     seriesFreqRecreateAll: 'すべて再作成',
     seriesFreqKeepModified: '編集済みは残し、残りを再作成',
+    seriesSubtasksChangeTitle: 'ステップの変更をシリーズに反映しますか？',
+    seriesSubtasksChangeBody: 'これらのステップ変更は、このシリーズの今後すべてのイベントにコピーできます。すでにカスタマイズしたイベントはスキップしますか？',
+    seriesSubtasksOverwriteAll: 'すべて上書き',
+    seriesSubtasksKeepModified: '編集済みは残し、残りを上書き',
     series: {
       trashedMany: (n: number): string => `${n}件のシリーズタスクをしまいました。`,
       editsApplied: (n: number): string => `このシリーズの今後${n}件のタスクに適用しました。`,
       recurrenceRecreated: (n: number): string =>
         n === 0 ? 'スケジュールを更新しました。' : `スケジュールを更新しました。${n}件の今後のイベントを置き換えました。`,
+      subtasksApplied: (n: number): string =>
+        n === 0 ? '反映する内容はありません。' : `今後${n}件のイベントにステップを反映しました。`,
       editsNothing: '適用するものはありません。',
       applyToFutureA11y: 'このタスクのテキスト、優先度、カテゴリーをこのシリーズの今後すべてのタスクに適用',
     },
@@ -1705,11 +1735,17 @@ export const strings = {
     seriesFreqChangeBody: 'Den Zeitplan zu ändern ersetzt zukünftige Ereignisse. Was möchtest du mit bereits geänderten Ereignissen tun?',
     seriesFreqRecreateAll: 'Alle neu erstellen',
     seriesFreqKeepModified: 'Geänderte behalten, Rest neu erstellen',
+    seriesSubtasksChangeTitle: 'Schritt-Änderungen auf die Serie anwenden?',
+    seriesSubtasksChangeBody: 'Diese Schritt-Änderungen können auf jedes zukünftige Ereignis dieser Serie kopiert werden. Bereits angepasste Ereignisse überspringen?',
+    seriesSubtasksOverwriteAll: 'Alle überschreiben',
+    seriesSubtasksKeepModified: 'Geänderte behalten, Rest überschreiben',
     series: {
       trashedMany: (n: number): string => `${n} Aufgaben dieser Serie weggeräumt.`,
       editsApplied: (n: number): string => `Auf ${n} ${n === 1 ? 'zukünftige Aufgabe' : 'zukünftige Aufgaben'} dieser Serie angewendet.`,
       recurrenceRecreated: (n: number): string =>
         n === 0 ? 'Zeitplan aktualisiert.' : `Zeitplan aktualisiert. ${n} ${n === 1 ? 'zukünftiges Ereignis ersetzt' : 'zukünftige Ereignisse ersetzt'}.`,
+      subtasksApplied: (n: number): string =>
+        n === 0 ? 'Nichts anzuwenden.' : `Schritte auf ${n} ${n === 1 ? 'zukünftiges Ereignis' : 'zukünftige Ereignisse'} angewendet.`,
       editsNothing: 'Nichts anzuwenden.',
       applyToFutureA11y: 'Text, Priorität und Kategorie auf alle zukünftigen Aufgaben dieser Serie anwenden',
     },

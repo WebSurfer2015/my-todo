@@ -447,6 +447,7 @@ function TodosScreen() {
                         onApplySeriesFutureEdits={store.applySeriesFutureEdits}
                         onDetachFromSeries={store.detachFromSeries}
                         onApplyRecurrenceChange={store.applyRecurrenceChange}
+                        onApplySeriesSubtasks={store.applySeriesSubtasks}
                         onRestore={store.restoreFromTrash}
                         onPermanentDelete={store.permanentlyDelete}
                         onUpdatePriority={store.updatePriority}
@@ -599,6 +600,7 @@ function TodosScreen() {
                               onApplySeriesFutureEdits={store.applySeriesFutureEdits}
                               onDetachFromSeries={store.detachFromSeries}
                               onApplyRecurrenceChange={store.applyRecurrenceChange}
+                              onApplySeriesSubtasks={store.applySeriesSubtasks}
                               onUpdatePriority={store.updatePriority}
                               onUpdateDueDate={store.updateDueDate}
                               onSnooze={store.snooze}
@@ -678,6 +680,7 @@ function TodosScreen() {
                             onApplySeriesFutureEdits={store.applySeriesFutureEdits}
                             onDetachFromSeries={store.detachFromSeries}
                             onApplyRecurrenceChange={store.applyRecurrenceChange}
+                            onApplySeriesSubtasks={store.applySeriesSubtasks}
                             onUpdatePriority={store.updatePriority}
                             onUpdateDueDate={store.updateDueDate}
                             onSnooze={store.snooze}
@@ -799,6 +802,7 @@ function TodosScreen() {
                         onApplySeriesFutureEdits={store.applySeriesFutureEdits}
                         onDetachFromSeries={store.detachFromSeries}
                         onApplyRecurrenceChange={store.applyRecurrenceChange}
+                        onApplySeriesSubtasks={store.applySeriesSubtasks}
                               onPermanentDelete={store.permanentlyDelete}
                               onUpdatePriority={store.updatePriority}
                               onUpdateDueDate={store.updateDueDate}

@@ -446,6 +446,7 @@ export default function HomeScreen() {
                 onApplySeriesFutureEdits={store.applySeriesFutureEdits}
                 onDetachFromSeries={store.detachFromSeries}
                 onApplyRecurrenceChange={store.applyRecurrenceChange}
+                onApplySeriesSubtasks={store.applySeriesSubtasks}
                 onUpdatePriority={store.updatePriority}
                 onUpdateDueDate={store.updateDueDate}
                 onSnooze={store.snooze}
@@ -583,6 +584,7 @@ export default function HomeScreen() {
                     onApplySeriesFutureEdits={store.applySeriesFutureEdits}
                 onDetachFromSeries={store.detachFromSeries}
                 onApplyRecurrenceChange={store.applyRecurrenceChange}
+                onApplySeriesSubtasks={store.applySeriesSubtasks}
                     onUpdatePriority={store.updatePriority}
                     onUpdateDueDate={store.updateDueDate}
                     onSnooze={store.snooze}

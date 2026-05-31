@@ -266,6 +266,14 @@ interface Props {
     newRecurrence: Recurrence | undefined,
     options: { keepDetached: boolean },
   ) => void
+  /** R6c — Propagate the target's current subtasks shape to every
+   * future non-trashed sibling. Called by the "Overwrite all /
+   * Keep modified" dialog fired at Save in series mode when the
+   * user changed the subtask shape during the session. */
+  onApplySeriesSubtasks?: (
+    id: string,
+    options: { keepDetached: boolean },
+  ) => void
   onAddSubtask: (id: string, text: string, priority?: Priority, dueDate?: string) => void
   onToggleSubtask: (id: string, subId: string) => void
   onUpdateSubtaskText: (id: string, subId: string, text: string) => void
@@ -283,7 +291,7 @@ interface Props {
 
 export default function TaskDetailsSheet({
   visible, todo, categories, initialSubtaskEditId, onClose, onUpdateText, onUpdateNotes,
-  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminder, onMoveToTrash, onPermanentDelete, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange,
+  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminder, onMoveToTrash, onPermanentDelete, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange, onApplySeriesSubtasks,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
   agentEnabled,
@@ -303,11 +311,21 @@ export default function TaskDetailsSheet({
   // user makes a series-eligible edit per sheet-open. Resets on each
   // visible toggle.
   const detachToastShownRef = useRef(false)
+  // R6c — snapshot of the subtask shape (text/priority/dueDate/order)
+  // taken when the sheet opens. Diffed at Save in series mode to
+  // decide whether to fire the "Overwrite all / Keep modified"
+  // dialog. Sub.done changes intentionally don't count — those are
+  // per-instance progress markers, not series edits.
+  const initialSubtasksRef = useRef<Subtask[] | undefined>(undefined)
   useEffect(() => {
     if (visible) {
       setEditMode('this')
       detachToastShownRef.current = false
+      initialSubtasksRef.current = todo.subtasks
+        ? todo.subtasks.map((s) => ({ ...s }))
+        : undefined
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible])
   const doneCount = subs.filter((s) => s.done).length
   const ai = useSuggestSteps({ parentTitle: todo.text, parentNotes: todo.notes })
@@ -441,6 +459,28 @@ export default function TaskDetailsSheet({
   }, [visible, todo, initialSubtaskEditId])
 
   const editActiveCat = categories.find((c) => c.id === editCategory) ?? categories[0]
+
+  // R6c — ordered shape diff for the subtask list. Returns true when
+  // the user added, removed, reordered, or edited text/priority/
+  // dueDate of any sub during this sheet-open. Toggling done is
+  // intentionally ignored (those are per-instance progress markers).
+  function subtasksShapeDiffers(
+    before: Subtask[] | undefined,
+    after: Subtask[] | undefined,
+  ): boolean {
+    const a = before ?? []
+    const b = after ?? []
+    if (a.length !== b.length) return true
+    for (let i = 0; i < a.length; i++) {
+      const x = a[i]
+      const y = b[i]
+      if (x.id !== y.id) return true
+      if (x.text !== y.text) return true
+      if ((x.priority ?? 'medium') !== (y.priority ?? 'medium')) return true
+      if ((x.dueDate ?? '') !== (y.dueDate ?? '')) return true
+    }
+    return false
+  }
 
   // R6a — series-aware detach helper. Fires once per sheet-open on
   // the first series-eligible edit in "Edit this only" mode. Idempotent
@@ -578,11 +618,15 @@ export default function TaskDetailsSheet({
       }
     }
 
+    const subtasksChanged =
+      seriesCommit &&
+      subtasksShapeDiffers(initialSubtasksRef.current, todo.subtasks)
+
     // R6b — series + recurrence change: fire the three-option dialog
-    // before any persistence happens. Cancel just bails (leaves the
-    // sheet open so the user can revisit). Either commit branch
-    // applies the buffered field diff AND the recurrence recreation
-    // in one go.
+    // before any persistence happens. When the recurrence is replaced
+    // the new tail is freshly expanded from the target row, which
+    // already carries the user's just-edited subtasks; so the R6c
+    // propagation is redundant in this branch and skipped.
     if (seriesCommit && recurrenceChanged && onApplyRecurrenceChange) {
       Alert.alert(
         t.seriesFreqChangeTitle,
@@ -603,6 +647,37 @@ export default function TaskDetailsSheet({
             onPress: () => {
               commitBufferedSeriesFields()
               onApplyRecurrenceChange(todo.id, editRecurrence, { keepDetached: false })
+              onClose()
+            },
+          },
+        ],
+        { cancelable: true },
+      )
+      return // wait for dialog choice
+    }
+
+    // R6c — series + subtask shape change (and no recurrence change):
+    // ask whether to overwrite all or keep modified.
+    if (subtasksChanged && onApplySeriesSubtasks) {
+      Alert.alert(
+        t.seriesSubtasksChangeTitle,
+        t.seriesSubtasksChangeBody,
+        [
+          { text: t.cancel, style: 'cancel' },
+          {
+            text: t.seriesSubtasksKeepModified,
+            onPress: () => {
+              commitBufferedSeriesFields()
+              onApplySeriesSubtasks(todo.id, { keepDetached: true })
+              onClose()
+            },
+          },
+          {
+            text: t.seriesSubtasksOverwriteAll,
+            style: 'destructive',
+            onPress: () => {
+              commitBufferedSeriesFields()
+              onApplySeriesSubtasks(todo.id, { keepDetached: false })
               onClose()
             },
           },

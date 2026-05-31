@@ -697,6 +697,48 @@ export function todoApplySeriesFutureEdits(
 }
 
 /**
+ * R6c — Propagate a series instance's current subtasks list to every
+ * future non-trashed sibling. Cloned fresh per `cloneSubtasksFresh`
+ * (new ids, done:false) so each instance gets its own toggleable
+ * copy. Respects `keepDetached` so per-instance subtask
+ * customizations the user carved out survive the "Keep modified"
+ * branch.
+ *
+ * Pure read of the target's subtasks — callers that want to
+ * propagate a different shape than what's currently on the target
+ * should mutate the target first via the normal subtask helpers,
+ * then call this. TaskDetailsSheet uses exactly that pattern:
+ * subtask edits fire live on the row, then this runs at Save.
+ */
+export function todoApplySeriesSubtasks(
+  prev: Todo[],
+  id: string,
+  options: { keepDetached: boolean },
+): { next: Todo[]; affected: number } {
+  const target = prev.find((t) => t.id === id);
+  if (!target || !target.seriesId) return { next: prev, affected: 0 };
+  const sid = target.seriesId;
+  const cutoff = target.dueDate;
+  const subs = target.subtasks ?? [];
+  const now = Date.now();
+  let affected = 0;
+  const next = prev.map((td) => {
+    if (td.id === id) return td;
+    if (td.seriesId !== sid) return td;
+    if (td.trashed) return td;
+    if (cutoff && td.dueDate && td.dueDate < cutoff) return td;
+    if (options.keepDetached && td.detachedFromSeries) return td;
+    affected += 1;
+    const fresh = cloneSubtasksFresh(subs);
+    const merged: Todo = { ...td, updatedAt: now };
+    if (fresh) merged.subtasks = fresh;
+    else delete merged.subtasks;
+    return merged;
+  });
+  return { next, affected };
+}
+
+/**
  * R6b — Frequency-change apply for a series. Writes the new
  * recurrence to the target row, snaps its `dueDate` to the first
  * matching occurrence if needed, trashes every future non-trashed
