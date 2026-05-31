@@ -303,7 +303,11 @@ export function todoToggle(prev: Todo[], id: string, todayISO?: string): Todo[] 
   if (target.seriesId && target.recurrence) {
     if (target.subtasks && target.subtasks.length > 0) return prev;
     const nextDone = !target.done;
-    const updated = prev.map((td) => {
+    // R7 — capture the about-to-be-cleared reminder so it can be
+    // rolled onto the next-upcoming sibling after the tail extends.
+    const oldReminder = target.reminder;
+    const oldDueDate = target.dueDate;
+    let result = prev.map((td) => {
       if (td.id !== id) return td;
       const upd: Todo = {
         ...td,
@@ -328,9 +332,16 @@ export function todoToggle(prev: Todo[], id: string, todayISO?: string): Todo[] 
     // append-one helper (distinct from the window-driven topUpSeries
     // used by migration / app-open): "1 completion = 1 new tail"
     // keeps the visible count stable as the user works through it.
-    return nextDone
-      ? appendNextSeriesInstance(updated, target.seriesId)
-      : updated;
+    if (nextDone) {
+      result = appendNextSeriesInstance(result, target.seriesId);
+      // R7 — transfer the just-cleared reminder forward.
+      if (oldReminder?.at) {
+        result = transferSeriesReminder(
+          result, id, oldReminder, oldDueDate, target.seriesId, today,
+        );
+      }
+    }
+    return result;
   }
 
   return prev.flatMap((td) => {
@@ -1090,6 +1101,83 @@ export function appendNextSeriesInstance(
 }
 
 /**
+ * R7 — Returns the next-upcoming open instance of a series. "Open"
+ * means not trashed, not done, not status==='notDo'. "Next-upcoming"
+ * means the earliest `dueDate >= todayISO`; if every open instance
+ * is already overdue, the earliest open instance overall is
+ * returned so the user still has a row to attach the reminder to.
+ * `excludeId` lets callers (R7 reminder transfer in todoToggle /
+ * todoSkip) skip the just-completed row.
+ */
+export function nextUpcomingSeriesInstance(
+  todos: Todo[],
+  seriesId: string,
+  todayISO: string,
+  excludeId?: string,
+): Todo | undefined {
+  if (!seriesId) return undefined;
+  const today = dueDateOnly(todayISO);
+  const candidates = todos
+    .filter((t) => {
+      if (t.seriesId !== seriesId) return false;
+      if (excludeId && t.id === excludeId) return false;
+      if (t.trashed || t.done) return false;
+      if (t.status === "notDo") return false;
+      if (!t.dueDate) return false;
+      return true;
+    })
+    .sort((a, b) => dueDateOnly(a.dueDate).localeCompare(dueDateOnly(b.dueDate)));
+  if (candidates.length === 0) return undefined;
+  const future = candidates.find((c) => dueDateOnly(c.dueDate) >= today);
+  return future ?? candidates[0];
+}
+
+/**
+ * R7 — Rolls a reminder forward by the same day-delta between two
+ * dueDates. Returns undefined when the reminder is missing or
+ * either date fails to parse (defensive — caller treats undefined
+ * as "leave the reminder where it was").
+ */
+function rolledReminder(
+  reminder: Todo["reminder"],
+  fromDueDate: string,
+  toDueDate: string,
+): Todo["reminder"] | undefined {
+  if (!reminder?.at) return undefined;
+  const at = rollDateTime(reminder.at, fromDueDate, toDueDate);
+  const out: NonNullable<Todo["reminder"]> = { at };
+  if (reminder.intervalMinutes) out.intervalMinutes = reminder.intervalMinutes;
+  if (reminder.until) out.until = rollDateTime(reminder.until, fromDueDate, toDueDate);
+  return out;
+}
+
+/**
+ * R7 — Transfer the about-to-be-cleared reminder of a completing /
+ * skipping series instance onto the next-upcoming open sibling.
+ * Called by todoToggle (series completion) and todoSkip. No-op when
+ * the source had no reminder or when the series has nowhere left to
+ * attach (every other instance is done/trashed/notDo).
+ */
+function transferSeriesReminder(
+  todos: Todo[],
+  fromId: string,
+  oldReminder: Todo["reminder"],
+  oldDueDate: string,
+  seriesId: string,
+  todayISO: string,
+): Todo[] {
+  if (!oldReminder?.at) return todos;
+  const candidate = nextUpcomingSeriesInstance(todos, seriesId, todayISO, fromId);
+  if (!candidate || !candidate.dueDate) return todos;
+  const next = rolledReminder(oldReminder, oldDueDate, candidate.dueDate);
+  if (!next) return todos;
+  const now = Date.now();
+  return todos.map((t) =>
+    t.id === candidate.id ? { ...t, reminder: next, updatedAt: now } : t,
+  );
+}
+
+/**
  * R5 — Skip ("Not Do") action. Marks a todo as deliberately not
  * happening:
  *   - status: 'notDo'
@@ -1118,7 +1206,11 @@ export function todoSkip(prev: Todo[], id: string, todayISO?: string): Todo[] {
   // exist, the parent's state is derived. Block the action so a
   // skip can't silently desync the parent from its sub list.
   if (target.subtasks && target.subtasks.length > 0) return prev;
-  const skipped = prev.map((td) => {
+  // R7 — capture the reminder so it can be transferred forward to
+  // the next-upcoming open sibling after the tail extends.
+  const oldReminder = target.reminder;
+  const oldDueDate = target.dueDate;
+  let result = prev.map((td) => {
     if (td.id !== id) return td;
     const next: Todo = {
       ...td,
@@ -1131,9 +1223,15 @@ export function todoSkip(prev: Todo[], id: string, todayISO?: string): Todo[] {
     delete next.reminder;
     return next;
   });
-  return target.seriesId
-    ? appendNextSeriesInstance(skipped, target.seriesId)
-    : skipped;
+  if (target.seriesId) {
+    result = appendNextSeriesInstance(result, target.seriesId);
+    if (oldReminder?.at) {
+      result = transferSeriesReminder(
+        result, id, oldReminder, oldDueDate, target.seriesId, today,
+      );
+    }
+  }
+  return result;
 }
 
 /**

@@ -311,13 +311,21 @@ QA + a11y) per the existing memory rule before submission.
 
 ### PR R7 — Reminder rescheduling on series
 
-- Update reminder scheduling to: cancel current series reminder on
-  toggle-done, schedule on the new tail.
-- Series-edit of reminder propagates only to the *next upcoming*
-  instance, not every materialized row.
+- Pure-core fix landed: on series completion (`todoToggle`) and skip
+  (`todoSkip`), the about-to-be-cleared reminder is transferred to
+  the next-upcoming open sibling via `transferSeriesReminder`
+  (private helper). Time-of-day + `intervalMinutes` + `until` are
+  preserved; `until` rolls by the same day-delta as `at`.
+- New helper `nextUpcomingSeriesInstance(todos, seriesId, todayISO,
+  excludeId?)` exposed for callers (e.g. UI showing where the live
+  reminder will land). Earliest open `dueDate >= today`; falls back
+  to earliest open overall when every open sibling is overdue.
+- The OS-side scheduler (`syncTodoReminders`) needs zero changes —
+  it walks the todo list and reconciles scheduled notifications
+  against whatever has `reminder.at`. Once the data carries the
+  reminder on the correct row, the scheduler picks it up.
 
-Risk: native module surface (notifications). Test on physical
-device, not just sim.
+Verify on physical device only — sim doesn't fire real notifications.
 
 ---
 
