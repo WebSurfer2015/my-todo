@@ -59,6 +59,7 @@ import {
   topUpAllSeries,
   todoSkip,
   todoDetachFromSeries,
+  todoApplyRecurrenceChange,
 } from "../../../core/src/derive";
 import {
   toggleSelection,
@@ -111,6 +112,7 @@ export interface TodosSliceDeps {
       editsApplied: (n: number) => string;
       editsNothing: string;
       trashedMany: (n: number) => string;
+      recurrenceRecreated: (n: number) => string;
     };
     snooze: {
       toTomorrow: string;
@@ -178,6 +180,15 @@ export interface TodosSlice {
    * edits skip it by default. No-op when already detached or when
    * the row has no seriesId. Pebble-neutral. */
   detachFromSeries: (id: string) => void;
+  /** R6b — Apply a new recurrence to a series and recreate the tail.
+   * Trashes future siblings (modulo `keepDetached`) and expands a
+   * fresh tail from the edited row using `newRecurrence`. Pass
+   * `undefined` to end the series at the edited row. */
+  applyRecurrenceChange: (
+    id: string,
+    newRecurrence: Recurrence | undefined,
+    options: { keepDetached: boolean },
+  ) => void;
   moveSeriesFutureToTrash: (id: string) => void;
   // Subtasks
   addSubtask: (
@@ -504,6 +515,32 @@ export function useTodosSlice(
       setTodos((prev) => todoDetachFromSeries(prev, id));
     },
     [setTodos],
+  );
+
+  // R6b — frequency-change apply for a series. Writes the new
+  // recurrence, trashes future siblings (honoring keepDetached),
+  // and re-expands a fresh tail. Composes the diff inside one
+  // setTodos so cross-device sync sees a single mutation event.
+  const applyRecurrenceChange = useCallback(
+    (
+      id: string,
+      newRecurrence: Recurrence | undefined,
+      options: { keepDetached: boolean },
+    ) => {
+      const today = todayLocal();
+      let trashedCount = 0;
+      setTodos((prev) => {
+        const result = todoApplyRecurrenceChange(prev, id, newRecurrence, today, {
+          keepDetached: options.keepDetached,
+        });
+        trashedCount = result.trashedCount;
+        return result.next;
+      });
+      notify.showSnackbar({
+        message: t.series.recurrenceRecreated(trashedCount),
+      });
+    },
+    [setTodos, notify, t],
   );
 
   const moveSeriesFutureToTrash = useCallback(
@@ -901,6 +938,7 @@ export function useTodosSlice(
     toggleTrashSelection,
     applySeriesFutureEdits,
     detachFromSeries,
+    applyRecurrenceChange,
     moveSeriesFutureToTrash,
     addSubtask,
     toggleSubtask,

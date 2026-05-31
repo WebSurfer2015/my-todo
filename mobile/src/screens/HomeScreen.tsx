@@ -445,6 +445,7 @@ export default function HomeScreen() {
                 onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
                 onApplySeriesFutureEdits={store.applySeriesFutureEdits}
                 onDetachFromSeries={store.detachFromSeries}
+                onApplyRecurrenceChange={store.applyRecurrenceChange}
                 onUpdatePriority={store.updatePriority}
                 onUpdateDueDate={store.updateDueDate}
                 onSnooze={store.snooze}
@@ -581,6 +582,7 @@ export default function HomeScreen() {
                     onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
                     onApplySeriesFutureEdits={store.applySeriesFutureEdits}
                 onDetachFromSeries={store.detachFromSeries}
+                onApplyRecurrenceChange={store.applyRecurrenceChange}
                     onUpdatePriority={store.updatePriority}
                     onUpdateDueDate={store.updateDueDate}
                     onSnooze={store.snooze}

@@ -697,6 +697,69 @@ export function todoApplySeriesFutureEdits(
 }
 
 /**
+ * R6b — Frequency-change apply for a series. Writes the new
+ * recurrence to the target row, snaps its `dueDate` to the first
+ * matching occurrence if needed, trashes every future non-trashed
+ * sibling (modulo `keepDetached`), then re-expands a fresh tail
+ * from the target via `expandSeries`.
+ *
+ * Pass `newRecurrence === undefined` to stop the series here: the
+ * target keeps its `seriesId` for "delete this and all future"
+ * symmetry, but no new tail is generated.
+ *
+ * `keepDetached: true` preserves siblings the user explicitly
+ * carved out via R6a's detach — they sit as one-off rows on the
+ * old pattern; `false` trashes them too ("Recreate all").
+ */
+export function todoApplyRecurrenceChange(
+  prev: Todo[],
+  id: string,
+  newRecurrence: Recurrence | undefined,
+  todayISO: string,
+  options: { keepDetached?: boolean } = {},
+): { next: Todo[]; trashedCount: number } {
+  const target = prev.find((t) => t.id === id);
+  if (!target || !target.seriesId) return { next: prev, trashedCount: 0 };
+  const sid = target.seriesId;
+  const cutoff = target.dueDate;
+  const now = Date.now();
+  // 1) Update target's recurrence (+ snap dueDate if a weekday
+  //    filter dictates a different anchor day).
+  const snappedDueDate = newRecurrence
+    ? snapDueDateToRecurrence(target.dueDate, newRecurrence)
+    : target.dueDate;
+  let updated = prev.map((td) => {
+    if (td.id !== id) return td;
+    const next: Todo = {
+      ...td,
+      dueDate: snappedDueDate,
+      updatedAt: now,
+    };
+    if (newRecurrence) next.recurrence = newRecurrence;
+    else delete next.recurrence;
+    return next;
+  });
+  // 2) Trash future siblings of the same series. Respect keepDetached.
+  let trashedCount = 0;
+  updated = updated.map((td) => {
+    if (td.id === id) return td;
+    if (td.seriesId !== sid) return td;
+    if (td.trashed) return td;
+    if (cutoff && td.dueDate && td.dueDate < cutoff) return td;
+    if (options.keepDetached && td.detachedFromSeries) return td;
+    trashedCount += 1;
+    return { ...td, trashed: true, trashedAt: now, updatedAt: now };
+  });
+  // 3) If recurrence is set, re-expand from the (newly-snapped) target.
+  if (!newRecurrence) return { next: updated, trashedCount };
+  const updatedTarget = updated.find((t) => t.id === id);
+  if (!updatedTarget) return { next: updated, trashedCount };
+  const expanded = expandSeries(updatedTarget, todayISO);
+  // expanded[0] is the target itself — already in `updated`.
+  return { next: [...updated, ...expanded.slice(1)], trashedCount };
+}
+
+/**
  * R6a — Mark a series instance as `detachedFromSeries: true`. Fires
  * the first time the user makes a series-eligible edit in the
  * "Edit this only" mode. Idempotent — already-detached rows

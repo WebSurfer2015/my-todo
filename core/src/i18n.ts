@@ -296,7 +296,13 @@ export const strings = {
       editsApplied: (n: number): string => `Applied to ${n} future to-do${n !== 1 ? 's' : ''} in this series.`,
       editsNothing: 'Nothing to apply.',
       applyToFutureA11y: "Apply this to-do's text, priority, and category to every future to-do in this series",
+      recurrenceRecreated: (n: number): string =>
+        n === 0 ? 'Schedule updated.' : `Schedule updated. ${n} future event${n !== 1 ? 's' : ''} replaced.`,
     },
+    seriesFreqChangeTitle: 'Update series schedule?',
+    seriesFreqChangeBody: "Changing the schedule will replace upcoming events. What do you want to do with events you've already modified?",
+    seriesFreqRecreateAll: 'Recreate all',
+    seriesFreqKeepModified: 'Keep modified, recreate the rest',
   },
   zh: {
     title: 'Sagely',
@@ -567,9 +573,15 @@ export const strings = {
       noneYet: '还没有步骤',
       noneHint: '准备好时，将此任务分成更小的步骤。',
     },
+    seriesFreqChangeTitle: '更新系列的重复设置？',
+    seriesFreqChangeBody: '更改重复设置会替换未来的事件。你希望如何处理已修改的事件？',
+    seriesFreqRecreateAll: '全部重建',
+    seriesFreqKeepModified: '保留已修改的，重建其余',
     series: {
       trashedMany: (n: number): string => `已将此系列中的 ${n} 项任务收起。`,
       editsApplied: (n: number): string => `已应用到此系列中未来的 ${n} 项任务。`,
+      recurrenceRecreated: (n: number): string =>
+        n === 0 ? '已更新重复设置。' : `已更新重复设置。已替换 ${n} 项未来事件。`,
       editsNothing: '没有要应用的。',
       applyToFutureA11y: '将此任务的文本、优先级和类别应用到此系列中所有未来的任务',
     },
@@ -843,9 +855,15 @@ export const strings = {
       noneYet: 'Aún no hay pasos',
       noneHint: 'Divide esta tarea en pasos más pequeños cuando estés listo.',
     },
+    seriesFreqChangeTitle: '¿Actualizar la programación de la serie?',
+    seriesFreqChangeBody: 'Cambiar la programación reemplazará los próximos eventos. ¿Qué quieres hacer con los eventos que ya has modificado?',
+    seriesFreqRecreateAll: 'Recrear todos',
+    seriesFreqKeepModified: 'Conservar los modificados, recrear el resto',
     series: {
       trashedMany: (n: number): string => `${n} tareas de esta serie guardadas.`,
       editsApplied: (n: number): string => `Aplicado a ${n} ${n === 1 ? 'tarea futura' : 'tareas futuras'} de esta serie.`,
+      recurrenceRecreated: (n: number): string =>
+        n === 0 ? 'Programación actualizada.' : `Programación actualizada. ${n} ${n === 1 ? 'evento futuro reemplazado' : 'eventos futuros reemplazados'}.`,
       editsNothing: 'Nada que aplicar.',
       applyToFutureA11y: 'Aplicar el texto, prioridad y categoría a todas las tareas futuras de esta serie',
     },
@@ -1119,9 +1137,15 @@ export const strings = {
       noneYet: "Pas encore d'étapes",
       noneHint: 'Décompose cette tâche en étapes plus petites quand tu es prêt.',
     },
+    seriesFreqChangeTitle: 'Mettre à jour la planification de la série ?',
+    seriesFreqChangeBody: 'Changer la planification remplacera les prochains événements. Que veux-tu faire des événements déjà modifiés ?',
+    seriesFreqRecreateAll: 'Tout recréer',
+    seriesFreqKeepModified: 'Garder les modifiés, recréer le reste',
     series: {
       trashedMany: (n: number): string => `${n} tâches de cette série mises de côté.`,
       editsApplied: (n: number): string => `Appliqué à ${n} ${n === 1 ? 'tâche future' : 'tâches futures'} de cette série.`,
+      recurrenceRecreated: (n: number): string =>
+        n === 0 ? 'Planification mise à jour.' : `Planification mise à jour. ${n} ${n === 1 ? 'événement futur remplacé' : 'événements futurs remplacés'}.`,
       editsNothing: 'Rien à appliquer.',
       applyToFutureA11y: 'Appliquer le texte, la priorité et la catégorie à toutes les tâches futures de cette série',
     },
@@ -1395,9 +1419,15 @@ export const strings = {
       noneYet: 'ステップはまだありません',
       noneHint: '準備ができたら、このタスクを小さなステップに分けましょう。',
     },
+    seriesFreqChangeTitle: 'シリーズのスケジュールを更新しますか？',
+    seriesFreqChangeBody: 'スケジュールを変更すると、今後のイベントが置き換えられます。すでに編集したイベントはどうしますか？',
+    seriesFreqRecreateAll: 'すべて再作成',
+    seriesFreqKeepModified: '編集済みは残し、残りを再作成',
     series: {
       trashedMany: (n: number): string => `${n}件のシリーズタスクをしまいました。`,
       editsApplied: (n: number): string => `このシリーズの今後${n}件のタスクに適用しました。`,
+      recurrenceRecreated: (n: number): string =>
+        n === 0 ? 'スケジュールを更新しました。' : `スケジュールを更新しました。${n}件の今後のイベントを置き換えました。`,
       editsNothing: '適用するものはありません。',
       applyToFutureA11y: 'このタスクのテキスト、優先度、カテゴリーをこのシリーズの今後すべてのタスクに適用',
     },
@@ -1671,9 +1701,15 @@ export const strings = {
       noneYet: 'Noch keine Schritte',
       noneHint: 'Teile diese Aufgabe in kleinere Schritte auf, wenn du soweit bist.',
     },
+    seriesFreqChangeTitle: 'Zeitplan der Serie aktualisieren?',
+    seriesFreqChangeBody: 'Den Zeitplan zu ändern ersetzt zukünftige Ereignisse. Was möchtest du mit bereits geänderten Ereignissen tun?',
+    seriesFreqRecreateAll: 'Alle neu erstellen',
+    seriesFreqKeepModified: 'Geänderte behalten, Rest neu erstellen',
     series: {
       trashedMany: (n: number): string => `${n} Aufgaben dieser Serie weggeräumt.`,
       editsApplied: (n: number): string => `Auf ${n} ${n === 1 ? 'zukünftige Aufgabe' : 'zukünftige Aufgaben'} dieser Serie angewendet.`,
+      recurrenceRecreated: (n: number): string =>
+        n === 0 ? 'Zeitplan aktualisiert.' : `Zeitplan aktualisiert. ${n} ${n === 1 ? 'zukünftiges Ereignis ersetzt' : 'zukünftige Ereignisse ersetzt'}.`,
       editsNothing: 'Nichts anzuwenden.',
       applyToFutureA11y: 'Text, Priorität und Kategorie auf alle zukünftigen Aufgaben dieser Serie anwenden',
     },

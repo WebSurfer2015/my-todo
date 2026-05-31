@@ -257,6 +257,15 @@ interface Props {
    * edits skip it by default. Fires when the user edits a
    * series-eligible field in "Edit this only" mode on a series row. */
   onDetachFromSeries?: (id: string) => void
+  /** R6b — Apply a new recurrence to the whole series and recreate
+   * the tail. Called by the "Recreate all / Keep modified" dialog
+   * fired at Save in series mode when the user changes the
+   * recurrence shape. */
+  onApplyRecurrenceChange?: (
+    id: string,
+    newRecurrence: Recurrence | undefined,
+    options: { keepDetached: boolean },
+  ) => void
   onAddSubtask: (id: string, text: string, priority?: Priority, dueDate?: string) => void
   onToggleSubtask: (id: string, subId: string) => void
   onUpdateSubtaskText: (id: string, subId: string, text: string) => void
@@ -274,7 +283,7 @@ interface Props {
 
 export default function TaskDetailsSheet({
   visible, todo, categories, initialSubtaskEditId, onClose, onUpdateText, onUpdateNotes,
-  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminder, onMoveToTrash, onPermanentDelete, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onDetachFromSeries,
+  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminder, onMoveToTrash, onPermanentDelete, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
   agentEnabled,
@@ -488,17 +497,25 @@ export default function TaskDetailsSheet({
   }
   function applyRecurrence(r: Recurrence | undefined) {
     setEditRecurrence(r)
-    if (JSON.stringify(r ?? null) !== JSON.stringify(todo.recurrence ?? null)) {
+    // R6b — in series mode the change is buffered until Save so the
+    // commit path can fire the "Recreate all / Keep modified" dialog
+    // before mutating cloud state. In "this only" mode the change
+    // commits live (existing R6a behavior).
+    const seriesBuffer = editMode === 'series' && isSeriesRow
+    if (!seriesBuffer && JSON.stringify(r ?? null) !== JSON.stringify(todo.recurrence ?? null)) {
       onUpdateRecurrence(todo.id, r)
     }
     // Snap dueDate to the first matching occurrence when the
     // recurrence has a weekday filter and the current dueDate
     // doesn't fall on it. Keeps edit-flow parity with compose.
+    // In series mode the snap stays local; the eventual
+    // applyRecurrenceChange in the slice re-snaps as part of the
+    // recreate so the persisted dueDate stays consistent.
     if (r) {
       const snapped = snapDueDateToRecurrence(editDueDate, r)
       if (snapped !== editDueDate) {
         setEditDueDate(snapped)
-        onUpdateDueDate(todo.id, snapped)
+        if (!seriesBuffer) onUpdateDueDate(todo.id, snapped)
       }
     }
   }
@@ -530,14 +547,18 @@ export default function TaskDetailsSheet({
     // closeWithoutFlush which drops the buffer.
     const seriesCommit = editMode === 'series' && isSeriesRow
     const trimmedText = editText.trim()
-    const textChanged = trimmedText && trimmedText !== todo.text
+    const textChanged = !!trimmedText && trimmedText !== todo.text
     const notesChanged = onUpdateNotes !== undefined && editNotes !== (todo.notes ?? '')
     const priorityChanged = editPriority !== todo.priority
     const categoryChanged = editCategory !== todo.category
+    const recurrenceChanged =
+      JSON.stringify(editRecurrence ?? null) !== JSON.stringify(todo.recurrence ?? null)
 
-    if (seriesCommit) {
-      // Write to THIS row first so the snackbar count reflects the
-      // siblings only ("Applied to N events").
+    // Commits the buffered text/notes/priority/category to this row +
+    // propagates to future series siblings. Called from both the
+    // straight-Save and the post-dialog paths so the same diff lands
+    // either way.
+    function commitBufferedSeriesFields() {
       if (textChanged) onUpdateText(todo.id, trimmedText)
       if (notesChanged) onUpdateNotes!(todo.id, editNotes)
       if (priorityChanged) onUpdatePriority(todo.id, editPriority)
@@ -551,10 +572,48 @@ export default function TaskDetailsSheet({
       if (textChanged) fields.text = trimmedText
       if (notesChanged) fields.notes = editNotes
       if (priorityChanged) fields.priority = editPriority
-      if (categoryChanged) fields.category = editCategory  // undefined = "no category"
+      if (categoryChanged) fields.category = editCategory
       if (Object.keys(fields).length > 0) {
         onApplySeriesFutureEdits?.(todo.id, fields)
       }
+    }
+
+    // R6b — series + recurrence change: fire the three-option dialog
+    // before any persistence happens. Cancel just bails (leaves the
+    // sheet open so the user can revisit). Either commit branch
+    // applies the buffered field diff AND the recurrence recreation
+    // in one go.
+    if (seriesCommit && recurrenceChanged && onApplyRecurrenceChange) {
+      Alert.alert(
+        t.seriesFreqChangeTitle,
+        t.seriesFreqChangeBody,
+        [
+          { text: t.cancel, style: 'cancel' },
+          {
+            text: t.seriesFreqKeepModified,
+            onPress: () => {
+              commitBufferedSeriesFields()
+              onApplyRecurrenceChange(todo.id, editRecurrence, { keepDetached: true })
+              onClose()
+            },
+          },
+          {
+            text: t.seriesFreqRecreateAll,
+            style: 'destructive',
+            onPress: () => {
+              commitBufferedSeriesFields()
+              onApplyRecurrenceChange(todo.id, editRecurrence, { keepDetached: false })
+              onClose()
+            },
+          },
+        ],
+        { cancelable: true },
+      )
+      return // wait for dialog choice
+    }
+
+    if (seriesCommit) {
+      commitBufferedSeriesFields()
     } else {
       applyText(editText)
       applyNotes(editNotes)
