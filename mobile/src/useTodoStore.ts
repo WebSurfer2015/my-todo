@@ -22,11 +22,10 @@ import { useNotify } from "./notify";
 import { storage as localAdapter } from "./persistence";
 import { db } from "./firebase";
 import { makeFirestoreAdapter } from "./firestoreAdapter";
-import { StorageAdapter, clearKnownUserData } from "../../core/src/persistence";
+import { StorageAdapter, USER_STATE_KEYS } from "../../core/src/persistence";
 import { categoryDelete, deriveState } from "../../core/src/derive";
 import { todayLocal } from "../../core/src/utils";
-import { getTodayPebbles, collectedNounKeyFor, SEED_PROFILE } from "./profile";
-import { SEED_CATEGORIES } from "./categories";
+import { getTodayPebbles, collectedNounKeyFor } from "./profile";
 
 // Default trio when the user hasn't picked any Home stat tiles. Resolved
 // at render so the Home screen + Manage Filter sheet stay in sync, and
@@ -282,38 +281,50 @@ export function useTodoStore() {
     groceryGroupsLoaded;
 
   // "Delete data only" — clears every per-user state doc the app
-  // knows about. The auth user stays intact.
+  // knows about. The auth user stays intact. SheetContext follows
+  // the await with a signOut() so the user re-hydrates from a
+  // guaranteed-empty cloud on next sign-in.
   //
-  // Three-step: (1) reset every slice's local state synchronously
-  // so any in-flight write debounce flushes the new (empty / seed)
-  // value to cloud, not the stale one; (2) delete the cloud docs
-  // via the current Firestore adapter; (3) wipe AsyncStorage too.
-  // Step (3) is non-obvious but critical — without it, the
-  // migrateLocalToCloud effect that fires on next sign-in or app
-  // launch would push the still-present local copy right back to
-  // the just-cleared Firestore. SheetContext follows the await
-  // with a signOut so the user gets a fully fresh hydrate on
-  // re-login instead of relying on a fragile in-place subscriber
-  // reset that loses to the Firestore adapter's hasPendingWrites
-  // skip + the useSyncedState write-debounce race.
+  // Cloud strategy: setItem the empty wrapper (NOT removeItem). The
+  // prior delete-then-let-the-debounce-recreate approach lost to
+  // races: writes could fire BEFORE the deletes commit (stale state
+  // re-uploaded), the Firestore adapter's hasPendingWrites skip
+  // swallowed the post-delete snapshot, and signOut tearing down
+  // listeners mid-flight left some keys partially cleared. Writing
+  // an empty wrapper directly is one round-trip per key and lands
+  // in cloud as `{version:1, data:[]}` — every slice's parser
+  // returns its initial value for that input (empty array, or
+  // SEED_CATEGORIES / SEED_PROFILE for the seeded slices), so the
+  // next hydrate is clean.
+  //
+  // Local strategy: AsyncStorage.removeItem every known key in
+  // parallel. Without this, migrateLocalToCloud on next sign-in
+  // would push the still-present local copy back to the freshly-
+  // cleared cloud (the inverse race that brought back the data the
+  // user just deleted). signOut() ITSELF only multiRemove's the
+  // legacy ['todos','categories','profile'] subset; we own
+  // todoReferences / groceries / groceryGroups too.
+  //
+  // No setX calls: those triggered useSyncedState write-debounces
+  // that raced everything else. Letting signOut re-hydrate is the
+  // calmer guarantee.
   const clearAllData = useCallback(async () => {
-    setTodos([]);
-    setTodoReferences([]);
-    setCategories(SEED_CATEGORIES);
-    setProfile(SEED_PROFILE);
-    setGroceries([]);
-    setGroceryGroups([]);
-    await clearKnownUserData(adapter);
-    await clearKnownUserData(localAdapter);
-  }, [
-    adapter,
-    setTodos,
-    setTodoReferences,
-    setCategories,
-    setProfile,
-    setGroceries,
-    setGroceryGroups,
-  ]);
+    const empty = JSON.stringify({ version: 1, data: [] });
+    await Promise.all(
+      USER_STATE_KEYS.map((key) =>
+        adapter.setItem(key, empty).catch((err) => {
+          console.warn(`clearAllData: cloud overwrite failed for ${key}`, err);
+        }),
+      ),
+    );
+    await Promise.all(
+      USER_STATE_KEYS.map((key) =>
+        AsyncStorage.removeItem(key).catch(() => {
+          // best-effort — already absent or storage hiccup
+        }),
+      ),
+    );
+  }, [adapter]);
 
 
   function deleteCategory(id: string) {
