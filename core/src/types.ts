@@ -129,23 +129,47 @@ export interface Todo {
    */
   completionDate?: string
   /**
-   * Local notification reminder spec.
-   *
-   * - One-shot: only `at` is set. Fires once at the given local time.
-   * - Recurring: `at` is the first fire, `intervalMinutes` is the
-   *   period, `until` is the inclusive cutoff (defaults to dueDate
-   *   when omitted client-side).
-   *
-   * `at`/`until` are ISO 8601 local datetimes (`yyyy-mm-ddTHH:mm`).
-   * Cleared when the todo is done, trashed, or deleted. For recurring
-   * todos, advance-on-complete rolls both `at` and `until` forward by
-   * the same delta as `dueDate`.
+   * Legacy single-reminder field (pre-multi-reminder schema). Still
+   * honored on READ via `getReminders(td)` — old docs / cross-device
+   * data may carry this. New writes use `reminders` exclusively.
+   * Keep the field in the type for migration symmetry; remove once
+   * every persisted doc has been written through a multi-reminder
+   * client.
    */
   reminder?: {
     at: string
     intervalMinutes?: number
     until?: string
   }
+  /**
+   * Multi-reminder list. Each entry fires independently; the
+   * scheduler (`syncTodoReminders`) walks all of them and dedupes
+   * via the per-entry `id`.
+   *
+   * Entry shape:
+   *  - One-shot: only `at` is set. Fires once at the given local time.
+   *  - Recurring: `at` is the first fire, `intervalMinutes` is the
+   *    period, `until` is the inclusive cutoff. When `until` is
+   *    omitted, the scheduler caps at MAX_FIRES_PER_TODO so an
+   *    "until complete" reminder can't run forever.
+   *
+   * `at`/`until` are ISO 8601 local datetimes (`yyyy-mm-ddTHH:mm`).
+   * Cleared when the todo is done, trashed, or skipped. For series
+   * instances, R7's transferSeriesReminder rolls every entry to
+   * the next-upcoming sibling on completion / skip.
+   */
+  reminders?: Reminder[]
+}
+
+/** Individual reminder entry in `Todo.reminders[]`. */
+export interface Reminder {
+  /** Stable UUID so the scheduler's per-fire identifier
+   * (`todo:<todoId>:<reminderId>:<fireIndex>`) stays distinct
+   * across edits and across same-todo entries. */
+  id: string
+  at: string
+  intervalMinutes?: number
+  until?: string
 }
 
 /**

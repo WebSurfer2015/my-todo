@@ -15,6 +15,7 @@ import {
   todoToggle,
   todoSkip,
   nextUpcomingSeriesInstance,
+  getReminders,
 } from '../../core/src/derive'
 import type { Todo } from '../../core/src/types'
 
@@ -93,9 +94,9 @@ describe('todoToggle — series reminder transfer (R7)', () => {
     const expanded = expandSeries(seedWithReminder(), '2026-05-28')
     const headId = expanded[0].id
     const out = todoToggle(expanded, headId, '2026-05-28')
-    // Head no longer has the reminder.
+    // Head no longer has reminders (both legacy + array cleared).
     const head = out.find((t) => t.id === headId)!
-    expect(head.reminder).toBeUndefined()
+    expect(getReminders(head)).toEqual([])
     // Next-upcoming (5/29) now carries the rolled reminder at 09:00.
     const next = out.find(
       (t) =>
@@ -104,7 +105,7 @@ describe('todoToggle — series reminder transfer (R7)', () => {
         !t.done &&
         t.dueDate.startsWith('2026-05-29'),
     )!
-    expect(next.reminder?.at).toBe('2026-05-29T09:00')
+    expect(getReminders(next)[0]?.at).toBe('2026-05-29T09:00')
   })
 
   it('preserves time-of-day across the roll', () => {
@@ -121,7 +122,7 @@ describe('todoToggle — series reminder transfer (R7)', () => {
         !t.done &&
         t.dueDate.startsWith('2026-05-29'),
     )!
-    expect(next.reminder?.at).toBe('2026-05-29T15:42')
+    expect(getReminders(next)[0]?.at).toBe('2026-05-29T15:42')
   })
 
   it('preserves intervalMinutes and rolls until', () => {
@@ -141,8 +142,9 @@ describe('todoToggle — series reminder transfer (R7)', () => {
         !t.done &&
         t.dueDate.startsWith('2026-05-29'),
     )!
-    expect(next.reminder?.intervalMinutes).toBe(60)
-    expect(next.reminder?.until).toBe('2026-05-29T17:00')
+    const rolled = getReminders(next)[0]
+    expect(rolled?.intervalMinutes).toBe(60)
+    expect(rolled?.until).toBe('2026-05-29T17:00')
   })
 
   it('no transfer when the completing instance had no reminder', () => {
@@ -158,23 +160,22 @@ describe('todoToggle — series reminder transfer (R7)', () => {
     }
     const expanded = expandSeries(seed, '2026-05-28')
     const out = todoToggle(expanded, expanded[0].id, '2026-05-28')
-    for (const t of out) expect(t.reminder).toBeUndefined()
+    for (const t of out) expect(getReminders(t)).toEqual([])
   })
 
   it('un-doing a completion does not move reminders', () => {
     const expanded = expandSeries(seedWithReminder(), '2026-05-28')
     const done = todoToggle(expanded, expanded[0].id, '2026-05-28')
     const reopened = todoToggle(done, expanded[0].id, '2026-05-28')
-    // The head's reminder doesn't come back (we don't store it
-    // anywhere) — but importantly, the next-upcoming sibling
-    // STILL has the transferred reminder, so the user keeps
-    // their nudge.
+    // The head's reminders don't come back (they're discarded on
+    // completion) — but the next-upcoming sibling STILL has the
+    // transferred reminder, so the user keeps their nudge.
     const next = reopened.find(
       (t) =>
         t.seriesId === expanded[0].seriesId &&
         t.dueDate.startsWith('2026-05-29'),
     )!
-    expect(next.reminder?.at).toBe('2026-05-29T09:00')
+    expect(getReminders(next)[0]?.at).toBe('2026-05-29T09:00')
   })
 })
 
@@ -183,7 +184,7 @@ describe('todoSkip — series reminder transfer (R7)', () => {
     const expanded = expandSeries(seedWithReminder(), '2026-05-28')
     const out = todoSkip(expanded, expanded[0].id, '2026-05-28')
     const head = out.find((t) => t.id === expanded[0].id)!
-    expect(head.reminder).toBeUndefined()
+    expect(getReminders(head)).toEqual([])
     expect(head.status).toBe('notDo')
     const next = out.find(
       (t) =>
@@ -191,7 +192,7 @@ describe('todoSkip — series reminder transfer (R7)', () => {
         !t.trashed &&
         t.dueDate.startsWith('2026-05-29'),
     )!
-    expect(next.reminder?.at).toBe('2026-05-29T09:00')
+    expect(getReminders(next)[0]?.at).toBe('2026-05-29T09:00')
   })
 
   it('no transfer when the skipped row had no reminder (non-recurring)', () => {

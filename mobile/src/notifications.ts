@@ -172,16 +172,21 @@ export async function unregisterDevice(uid: string): Promise<void> {
 
 // ── Per-todo local reminders ───────────────────────────────────────────────
 //
-// Each todo's `reminder` spec expands to one OR MANY scheduled OS
-// notifications. One-shot reminders schedule a single fire.
-// Recurring reminders schedule fires from `at`, stepping by
+// Each todo carries `reminders[]` — an array of independent
+// reminder entries (multi-reminder schema). Legacy single-reminder
+// docs that still have the old `reminder` field are normalized via
+// `getReminders` in core. Each entry expands to one OR MANY
+// scheduled OS notifications. One-shot reminders schedule a single
+// fire. Recurring reminders schedule fires from `at`, stepping by
 // `intervalMinutes`, up to `until` (inclusive), capped at
-// MAX_FIRES_PER_TODO so a single todo can't exhaust iOS's
-// ~64-notification global budget.
+// MAX_FIRES_PER_TODO PER ENTRY so a single todo can't exhaust
+// iOS's ~64-notification global budget.
 //
-// Identifier scheme: `todo:<todoId>:<fireIndex>`. Each fire
-// cancels independently, so reshape/edit needs only to cancel the
-// indices that no longer match and schedule any new ones.
+// Identifier scheme: `todo:<todoId>:<reminderId>:<fireIndex>`. Each
+// fire cancels independently, so reshape/edit needs only to cancel
+// the indices that no longer match and schedule any new ones. The
+// per-entry `reminderId` keeps two reminders on the same todo from
+// colliding under the same fire index.
 //
 // `syncTodoReminders` is the entry point. Safe to call as often as
 // the todo list changes — only deltas hit the native bridge.
@@ -194,18 +199,25 @@ interface ScheduledFire {
   at: Date
 }
 
-function reminderIdFor(todoId: string, fireIndex: number): string {
-  return `${REMINDER_ID_PREFIX}${todoId}:${fireIndex}`
+function reminderIdFor(
+  todoId: string,
+  reminderId: string,
+  fireIndex: number,
+): string {
+  return `${REMINDER_ID_PREFIX}${todoId}:${reminderId}:${fireIndex}`
 }
 
 function todoIdFromReminderId(id: string): string | null {
   if (!id.startsWith(REMINDER_ID_PREFIX)) return null
-  // Strip the prefix and the trailing `:N`; anything between is the
-  // todo id (which is a UUID — `:` won't appear inside it).
+  // Strip the prefix; the identifier is now
+  // `<todoId>:<reminderId>:<fireIndex>`. The todoId is a UUID
+  // (no colons), but reminderId can contain colons via the
+  // legacy synthesized `legacy:<at>` form — so we split off the
+  // todoId as the first segment.
   const rest = id.slice(REMINDER_ID_PREFIX.length)
-  const lastColon = rest.lastIndexOf(':')
-  if (lastColon === -1) return null
-  return rest.slice(0, lastColon)
+  const firstColon = rest.indexOf(':')
+  if (firstColon === -1) return null
+  return rest.slice(0, firstColon)
 }
 
 function fireIndexFromReminderId(id: string): number | null {
@@ -253,26 +265,65 @@ interface TodoForReminder {
   id: string
   text: string
   reminder?: { at: string; intervalMinutes?: number; until?: string }
+  reminders?: Array<{
+    id: string
+    at: string
+    intervalMinutes?: number
+    until?: string
+  }>
   done: boolean
   trashed: boolean
+}
+
+/** Read-time normalization mirrored from core's getReminders so
+ * notifications.ts doesn't need to import all of derive. Returns
+ * the multi-reminder array, falling back to wrapping a legacy
+ * single `reminder` field as a synthesized singleton with a
+ * stable `legacy:<at>` id. */
+function readReminders(td: TodoForReminder): Array<{
+  id: string
+  at: string
+  intervalMinutes?: number
+  until?: string
+}> {
+  if (td.reminders && td.reminders.length > 0) return td.reminders
+  if (td.reminder?.at) {
+    return [
+      {
+        id: `legacy:${td.reminder.at}`,
+        at: td.reminder.at,
+        ...(td.reminder.intervalMinutes
+          ? { intervalMinutes: td.reminder.intervalMinutes }
+          : {}),
+        ...(td.reminder.until ? { until: td.reminder.until } : {}),
+      },
+    ]
+  }
+  return []
 }
 
 export async function syncTodoReminders(todos: TodoForReminder[]): Promise<void> {
   const settings = await Notifications.getPermissionsAsync().catch(() => null)
   if (!settings || settings.status !== 'granted') return
 
-  // Desired schedule, keyed by (todoId, fireIndex) so the diff can
-  // be done in one pass.
+  // Desired schedule, keyed by (todoId, reminderId, fireIndex) so the diff can
+  // be done in one pass. Walks the multi-reminder array;
+  // readReminders folds the legacy single-reminder field in
+  // transparently so old docs still schedule.
   const desired = new Map<string, { todoId: string; title: string; at: Date }>()
   for (const td of todos) {
-    if (td.trashed || td.done || !td.reminder?.at) continue
-    const fires = computeFires(td.reminder)
-    for (const fire of fires) {
-      desired.set(reminderIdFor(td.id, fire.index), {
-        todoId: td.id,
-        title: td.text,
-        at: fire.at,
-      })
+    if (td.trashed || td.done) continue
+    const reminders = readReminders(td)
+    for (const r of reminders) {
+      if (!r.at) continue
+      const fires = computeFires(r)
+      for (const fire of fires) {
+        desired.set(reminderIdFor(td.id, r.id, fire.index), {
+          todoId: td.id,
+          title: td.text,
+          at: fire.at,
+        })
+      }
     }
   }
 

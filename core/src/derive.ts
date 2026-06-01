@@ -4,6 +4,7 @@ import {
   Priority,
   Recurrence,
   RecurrenceFreq,
+  Reminder,
   Subtask,
   Todo,
   TodoReference,
@@ -303,9 +304,11 @@ export function todoToggle(prev: Todo[], id: string, todayISO?: string): Todo[] 
   if (target.seriesId && target.recurrence) {
     if (target.subtasks && target.subtasks.length > 0) return prev;
     const nextDone = !target.done;
-    // R7 — capture the about-to-be-cleared reminder so it can be
-    // rolled onto the next-upcoming sibling after the tail extends.
-    const oldReminder = target.reminder;
+    // R7 — capture the about-to-be-cleared reminders so they can
+    // be rolled onto the next-upcoming sibling after the tail
+    // extends. Multi-reminder schema: walk the array via
+    // getReminders so legacy single-reminder docs still transfer.
+    const oldReminders = getReminders(target);
     const oldDueDate = target.dueDate;
     let result = prev.map((td) => {
       if (td.id !== id) return td;
@@ -318,9 +321,10 @@ export function todoToggle(prev: Todo[], id: string, todayISO?: string): Todo[] 
       if (nextDone) {
         upd.trashedAt = now;
         upd.completionDate = today;
-        // Done items don't need a future reminder. The scheduler
-        // diffs on this field and cancels every queued fire.
+        // Done items don't need future reminders. The scheduler
+        // diffs on these fields and cancels every queued fire.
         delete upd.reminder;
+        delete upd.reminders;
       } else {
         delete upd.trashedAt;
         delete upd.completionDate;
@@ -334,10 +338,10 @@ export function todoToggle(prev: Todo[], id: string, todayISO?: string): Todo[] 
     // keeps the visible count stable as the user works through it.
     if (nextDone) {
       result = appendNextSeriesInstance(result, target.seriesId);
-      // R7 — transfer the just-cleared reminder forward.
-      if (oldReminder?.at) {
-        result = transferSeriesReminder(
-          result, id, oldReminder, oldDueDate, target.seriesId, today,
+      // R7 — transfer the just-cleared reminders forward.
+      if (oldReminders.length > 0) {
+        result = transferSeriesReminders(
+          result, id, oldReminders, oldDueDate, target.seriesId, today,
         );
       }
     }
@@ -1133,48 +1137,99 @@ export function nextUpcomingSeriesInstance(
 }
 
 /**
+ * Read-time normalization of a todo's reminders. Prefers the new
+ * `reminders[]` array; falls back to wrapping the legacy `reminder`
+ * field as a singleton with a synthesized id. Returns an empty
+ * array when neither is set. Callers should NEVER index `.reminder`
+ * or `.reminders` directly — always go through this so legacy docs
+ * keep working until they're rewritten via a multi-reminder write.
+ */
+export function getReminders(td: Todo): Reminder[] {
+  if (td.reminders && td.reminders.length > 0) return td.reminders;
+  if (td.reminder?.at) {
+    // Synthesize a stable-ish id from the at-string so the same
+    // legacy doc produces the same id across reads — avoids the
+    // scheduler churning on every render with a fresh UUID.
+    return [
+      {
+        id: `legacy:${td.reminder.at}`,
+        at: td.reminder.at,
+        ...(td.reminder.intervalMinutes
+          ? { intervalMinutes: td.reminder.intervalMinutes }
+          : {}),
+        ...(td.reminder.until ? { until: td.reminder.until } : {}),
+      },
+    ];
+  }
+  return [];
+}
+
+/**
  * R7 — Rolls a reminder forward by the same day-delta between two
- * dueDates. Returns undefined when the reminder is missing or
- * either date fails to parse (defensive — caller treats undefined
- * as "leave the reminder where it was").
+ * dueDates. Returns undefined when either date fails to parse
+ * (defensive — caller treats undefined as "leave the reminder
+ * where it was").
  */
 function rolledReminder(
-  reminder: Todo["reminder"],
+  reminder: Reminder,
   fromDueDate: string,
   toDueDate: string,
-): Todo["reminder"] | undefined {
-  if (!reminder?.at) return undefined;
+): Reminder | undefined {
+  if (!reminder.at) return undefined;
   const at = rollDateTime(reminder.at, fromDueDate, toDueDate);
-  const out: NonNullable<Todo["reminder"]> = { at };
+  const out: Reminder = { id: reminder.id, at };
   if (reminder.intervalMinutes) out.intervalMinutes = reminder.intervalMinutes;
   if (reminder.until) out.until = rollDateTime(reminder.until, fromDueDate, toDueDate);
   return out;
 }
 
 /**
- * R7 — Transfer the about-to-be-cleared reminder of a completing /
+ * R7 — Transfer the about-to-be-cleared reminders of a completing /
  * skipping series instance onto the next-upcoming open sibling.
- * Called by todoToggle (series completion) and todoSkip. No-op when
- * the source had no reminder or when the series has nowhere left to
- * attach (every other instance is done/trashed/notDo).
+ * Walks the array (multi-reminder schema) and rolls each entry by
+ * the same dueDate delta. Called by todoToggle (series completion)
+ * and todoSkip. No-op when the source had no reminders or when the
+ * series has nowhere left to attach.
  */
-function transferSeriesReminder(
+function transferSeriesReminders(
   todos: Todo[],
   fromId: string,
-  oldReminder: Todo["reminder"],
+  oldReminders: Reminder[],
   oldDueDate: string,
   seriesId: string,
   todayISO: string,
 ): Todo[] {
-  if (!oldReminder?.at) return todos;
+  if (oldReminders.length === 0) return todos;
   const candidate = nextUpcomingSeriesInstance(todos, seriesId, todayISO, fromId);
   if (!candidate || !candidate.dueDate) return todos;
-  const next = rolledReminder(oldReminder, oldDueDate, candidate.dueDate);
-  if (!next) return todos;
+  const rolled: Reminder[] = [];
+  for (const r of oldReminders) {
+    const next = rolledReminder(r, oldDueDate, candidate.dueDate);
+    if (next) rolled.push(next);
+  }
+  if (rolled.length === 0) return todos;
   const now = Date.now();
-  return todos.map((t) =>
-    t.id === candidate.id ? { ...t, reminder: next, updatedAt: now } : t,
-  );
+  return todos.map((t) => {
+    if (t.id !== candidate.id) return t;
+    // Merge into any reminders the candidate already has — the
+    // candidate's own reminders take precedence on id clashes (so
+    // a user-set reminder isn't clobbered by a transfer from a
+    // sibling). In practice the legacy invariant was "only the
+    // head carries reminders" so collisions are rare.
+    const existing = t.reminders ?? (t.reminder?.at ? getReminders(t) : []);
+    const byId = new Map<string, Reminder>();
+    for (const r of rolled) byId.set(r.id, r);
+    for (const r of existing) byId.set(r.id, r); // existing wins on conflict
+    const next: Todo = {
+      ...t,
+      reminders: Array.from(byId.values()),
+      updatedAt: now,
+    };
+    // Drop the legacy field on write so we converge on the new
+    // schema.
+    delete next.reminder;
+    return next;
+  });
 }
 
 /**
@@ -1206,9 +1261,11 @@ export function todoSkip(prev: Todo[], id: string, todayISO?: string): Todo[] {
   // exist, the parent's state is derived. Block the action so a
   // skip can't silently desync the parent from its sub list.
   if (target.subtasks && target.subtasks.length > 0) return prev;
-  // R7 — capture the reminder so it can be transferred forward to
-  // the next-upcoming open sibling after the tail extends.
-  const oldReminder = target.reminder;
+  // R7 — capture the reminders so they can be transferred forward
+  // to the next-upcoming open sibling after the tail extends.
+  // getReminders normalizes legacy single-reminder docs into the
+  // new array shape.
+  const oldReminders = getReminders(target);
   const oldDueDate = target.dueDate;
   let result = prev.map((td) => {
     if (td.id !== id) return td;
@@ -1221,13 +1278,14 @@ export function todoSkip(prev: Todo[], id: string, todayISO?: string): Todo[] {
       updatedAt: now,
     };
     delete next.reminder;
+    delete next.reminders;
     return next;
   });
   if (target.seriesId) {
     result = appendNextSeriesInstance(result, target.seriesId);
-    if (oldReminder?.at) {
-      result = transferSeriesReminder(
-        result, id, oldReminder, oldDueDate, target.seriesId, today,
+    if (oldReminders.length > 0) {
+      result = transferSeriesReminders(
+        result, id, oldReminders, oldDueDate, target.seriesId, today,
       );
     }
   }
