@@ -284,13 +284,18 @@ export function useTodoStore() {
   // "Delete data only" — clears every per-user state doc the app
   // knows about. The auth user stays intact.
   //
-  // Two-step: (1) reset every slice's local state synchronously so
-  // the UI updates immediately and the debounced write effect picks
-  // up the new (empty / seed) state; (2) explicitly delete the
-  // cloud docs as belt-and-suspenders against any in-flight write
-  // racing the reset. Relying on the Firestore subscribe to push
-  // null wasn't enough — the adapter's `hasPendingWrites` skip + a
-  // write-debounce race could leave stale data visible.
+  // Three-step: (1) reset every slice's local state synchronously
+  // so any in-flight write debounce flushes the new (empty / seed)
+  // value to cloud, not the stale one; (2) delete the cloud docs
+  // via the current Firestore adapter; (3) wipe AsyncStorage too.
+  // Step (3) is non-obvious but critical — without it, the
+  // migrateLocalToCloud effect that fires on next sign-in or app
+  // launch would push the still-present local copy right back to
+  // the just-cleared Firestore. SheetContext follows the await
+  // with a signOut so the user gets a fully fresh hydrate on
+  // re-login instead of relying on a fragile in-place subscriber
+  // reset that loses to the Firestore adapter's hasPendingWrites
+  // skip + the useSyncedState write-debounce race.
   const clearAllData = useCallback(async () => {
     setTodos([]);
     setTodoReferences([]);
@@ -299,6 +304,7 @@ export function useTodoStore() {
     setGroceries([]);
     setGroceryGroups([]);
     await clearKnownUserData(adapter);
+    await clearKnownUserData(localAdapter);
   }, [
     adapter,
     setTodos,

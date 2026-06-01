@@ -23,7 +23,6 @@ import { createNavigationContainerRef } from '@react-navigation/native'
 import { useStore } from './StoreContext'
 import { useAuth } from './AuthContext'
 import { useLang } from './LangContext'
-import { useNotify } from './notify'
 import {
   buildExportPayload,
   serializeExport,
@@ -94,9 +93,8 @@ export const sheetNavigationRef = createNavigationContainerRef<{
 
 export function SheetProvider({ children }: { children: ReactNode }) {
   const store = useStore()
-  const { deleteAccount } = useAuth()
+  const { deleteAccount, signOut } = useAuth()
   const { t } = useLang()
-  const notify = useNotify()
   const [profileOpen, setProfileOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [bgPickerOpen, setBgPickerOpen] = useState(false)
@@ -181,12 +179,17 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     try {
       await store.clearAllData()
       setSettingsOpen(false)
-      notify.showSnackbar({ message: t.dataCleared })
+      // Force a sign-out → sign-in cycle so the user gets a fresh
+      // hydrate. The in-place setter reset can lose to a Firestore
+      // subscribe race + the useSyncedState write debounce, and the
+      // user explicitly asked for "log out to refresh the view" as
+      // the calmer fallback. They sign back in to a clean slate.
+      await signOut()
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       Alert.alert(t.deleteDataOnly, message)
     }
-  }, [store, t, notify])
+  }, [store, signOut, t])
 
   const handleDeleteAccount = useCallback(async () => {
     try {
