@@ -61,6 +61,7 @@ import {
   todoDetachFromSeries,
   todoApplyRecurrenceChange,
   todoApplySeriesSubtasks,
+  expandSeries,
 } from "../../../core/src/derive";
 import {
   toggleSelection,
@@ -834,19 +835,26 @@ export function useTodosSlice(
       );
       setTodos((prev) => {
         if (prev.length === 0) void Analytics.firstTodoCreated();
-        return [
-          newTodo({
-            text,
-            priority,
-            dueDate,
-            category,
-            recurrence,
-            subtasks,
-            notes,
-            reminder,
-          }),
-          ...prev,
-        ];
+        const seed = newTodo({
+          text,
+          priority,
+          dueDate,
+          category,
+          recurrence,
+          subtasks,
+          notes,
+          reminder,
+        });
+        // R1 — pre-expand the recurring series so the user
+        // immediately sees their daily/weekly/monthly/yearly window
+        // populated (head + tail). For one-offs, fall through to the
+        // single-instance prepend. expandSeries returns [seed] when
+        // recurrence is missing, so the branch is defensive.
+        if (recurrence) {
+          const expanded = expandSeries(seed, todayLocal());
+          return [...expanded, ...prev];
+        }
+        return [seed, ...prev];
       });
     },
     [setTodos, setTodoReferences],
