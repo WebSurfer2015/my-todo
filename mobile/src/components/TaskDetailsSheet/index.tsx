@@ -160,26 +160,21 @@ function defaultRemindDate(dueDate: string): Date {
   return new Date(Date.now() + 60 * 60 * 1000)
 }
 
-/** Offset choices for "Remind once in …" — fires a single reminder
- * N minutes from now. Computed at the Done tap so a brief sheet
- * dwell doesn't shift the fire moment. */
-const REMIND_ONCE_CHOICES: Array<{ minutes: number; label: string }> = [
-  { minutes: 5,   label: '5m' },
-  { minutes: 15,  label: '15m' },
-  { minutes: 30,  label: '30m' },
-  { minutes: 60,  label: '1h' },
-  { minutes: 120, label: '2h' },
-  { minutes: 240, label: '4h' },
-]
-
-/** Days-before-due choices. Only surfaced when the todo has a
- * dueDate. Fires once at 9:00 AM N days before the due date (or at
- * the dueDate's time-of-day if it has one). */
-const REMIND_DAYS_BEFORE_CHOICES: Array<{ days: number; label: string }> = [
-  { days: 1, label: '1d' },
-  { days: 2, label: '2d' },
-  { days: 3, label: '3d' },
-  { days: 7, label: '1w' },
+/** "Remind once before due" choices — single row covering minutes,
+ * hours, and days before the dueDate. Only rendered when the todo
+ * has a dueDate (the row's "before" anchor). Computed at Done tap
+ * so a brief sheet dwell doesn't shift the fire moment. */
+const REMIND_BEFORE_DUE_CHOICES: Array<{ minutes: number; label: string }> = [
+  { minutes: 5,     label: '5m' },
+  { minutes: 15,    label: '15m' },
+  { minutes: 30,    label: '30m' },
+  { minutes: 60,    label: '1h' },
+  { minutes: 120,   label: '2h' },
+  { minutes: 240,   label: '4h' },
+  { minutes: 1440,  label: '1d' },
+  { minutes: 2880,  label: '2d' },
+  { minutes: 4320,  label: '3d' },
+  { minutes: 10080, label: '1w' },
 ]
 
 /** Interval choices for "Remind every … until complete". `until` is
@@ -196,10 +191,12 @@ const REMIND_EVERY_CHOICES: Array<{ minutes: number; label: string }> = [
   { minutes: 720, label: '12h' },
 ]
 
-/** Compute the ISO `yyyy-mm-ddTHH:MM` for "N days before dueDate."
+/** Compute the ISO `yyyy-mm-ddTHH:MM` for "N minutes before dueDate."
  * Uses the dueDate's time-of-day if present, else defaults to 9:00.
- * Returns empty when dueDate is empty. */
-function isoDaysBeforeDue(dueDate: string, days: number): string {
+ * Returns empty when dueDate is empty. Generalizes the previous
+ * isoDaysBeforeDue — callers pass days * 1440 to get the same
+ * shape. */
+function isoMinutesBeforeDue(dueDate: string, minutes: number): string {
   if (!dueDate) return ''
   const tIdx = dueDate.indexOf('T')
   const datePart = tIdx === -1 ? dueDate : dueDate.slice(0, tIdx)
@@ -208,7 +205,7 @@ function isoDaysBeforeDue(dueDate: string, days: number): string {
   const [hh, mm] = timePart.split(':').map(Number)
   if (!y || !m || !d) return ''
   const base = new Date(y, m - 1, d, hh ?? 9, mm ?? 0)
-  base.setDate(base.getDate() - days)
+  base.setMinutes(base.getMinutes() - minutes)
   return isoLocalDateTime(base)
 }
 
@@ -1828,21 +1825,21 @@ export interface ReminderSubViewProps {
   onSave: (next: Todo['reminder'] | undefined) => void
 }
 
-type ReminderMode = 'none' | 'once' | 'before' | 'every'
+type ReminderMode = 'none' | 'beforeDue' | 'every'
 
 /**
  * Shared sub-view rendering for the Reminder editor — used by both
  * TaskDetailsSheet and ComposeSheet so the picker UX stays
- * consistent. Three chip rows:
- *   - "Remind once in" → fires once N minutes from now.
- *   - "Days before due" → fires once N days before the dueDate
- *     (only rendered when dueDate is set).
+ * consistent. Two chip rows:
+ *   - "Remind once before due" → fires once N min/hours/days
+ *     before the dueDate. Only rendered when the todo has a
+ *     dueDate (the "before" anchor).
  *   - "Or remind every … (until complete)" → fires every N minutes
  *     until the todo is completed/skipped/trashed; capped at
  *     MAX_FIRES_PER_TODO (30) by the scheduler so it can't run
  *     forever.
- * Single selection across all three rows. Done builds the
- * reminder fresh (at = now + offset) and calls onSave.
+ * Single selection across both rows. Done builds the reminder
+ * fresh and calls onSave.
  *
  * Multiple-reminder support (e.g., "1 day before AND 1 hour
  * before") is a follow-up — schema currently stores a single
@@ -1859,24 +1856,18 @@ export function ReminderSubView({
   onSave,
 }: ReminderSubViewProps) {
   // Derive initial mode + selected value from the incoming reminder
-  // so re-opening the sheet shows the user's last choice.
+  // so re-opening the sheet shows the user's last choice. For the
+  // "beforeDue" recovery, match `at` against the expected
+  // isoMinutesBeforeDue(dueDate, choice.minutes).
   const [mode, setMode] = useState<ReminderMode>(() => {
     if (!initial?.at) return 'none'
     if (initial.intervalMinutes) return 'every'
-    return 'once' // covers both "once in N" and "N days before"
+    return 'beforeDue'
   })
-  const [offsetMinutes, setOffsetMinutes] = useState<number | null>(() => {
-    if (!initial?.at || initial.intervalMinutes) return null
-    const offsetMs = new Date(initial.at).getTime() - Date.now()
-    const minutes = Math.round(offsetMs / 60_000)
-    return REMIND_ONCE_CHOICES.some((c) => c.minutes === minutes) ? minutes : null
-  })
-  const [daysBefore, setDaysBefore] = useState<number | null>(() => {
+  const [beforeDueMinutes, setBeforeDueMinutes] = useState<number | null>(() => {
     if (!initial?.at || initial.intervalMinutes || !dueDate) return null
-    // Try to recover a "N days before" choice by comparing the at
-    // to the expected isoDaysBeforeDue value.
-    for (const c of REMIND_DAYS_BEFORE_CHOICES) {
-      if (isoDaysBeforeDue(dueDate, c.days) === initial.at) return c.days
+    for (const c of REMIND_BEFORE_DUE_CHOICES) {
+      if (isoMinutesBeforeDue(dueDate, c.minutes) === initial.at) return c.minutes
     }
     return null
   })
@@ -1885,29 +1876,22 @@ export function ReminderSubView({
   )
 
   const preview =
-    mode === 'once' && offsetMinutes
-      ? t.remindPreviewOnceIn(offsetMinutes)
-      : mode === 'before' && daysBefore && dueDate
-        ? t.remindPreviewDaysBefore(daysBefore)
-        : mode === 'every' && intervalMinutes
-          ? t.remindPreviewEveryUntilComplete(intervalMinutes)
-          : t.remindNone
+    mode === 'beforeDue' && beforeDueMinutes && dueDate
+      ? t.remindPreviewBeforeDue(beforeDueMinutes)
+      : mode === 'every' && intervalMinutes
+        ? t.remindPreviewEveryUntilComplete(intervalMinutes)
+        : t.remindNone
 
   function clear() {
     setMode('none')
-    setOffsetMinutes(null)
-    setDaysBefore(null)
+    setBeforeDueMinutes(null)
     setIntervalMinutes(null)
   }
 
   function handleDone() {
     if (mode === 'none') return onSave(undefined)
-    if (mode === 'once' && offsetMinutes) {
-      const at = isoLocalDateTime(new Date(Date.now() + offsetMinutes * 60_000))
-      return onSave({ at })
-    }
-    if (mode === 'before' && daysBefore && dueDate) {
-      const at = isoDaysBeforeDue(dueDate, daysBefore)
+    if (mode === 'beforeDue' && beforeDueMinutes && dueDate) {
+      const at = isoMinutesBeforeDue(dueDate, beforeDueMinutes)
       if (at) return onSave({ at })
       return onSave(undefined)
     }
@@ -1949,56 +1933,16 @@ export function ReminderSubView({
           </Text>
         </View>
 
-        <View style={styles.remindChipRow}>
-          <Text style={styles.remindChipRowLabel}>{t.remindOnceLabel}</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.remindChipScroll}
-          >
-            {REMIND_ONCE_CHOICES.map((c) => {
-              const active = mode === 'once' && offsetMinutes === c.minutes
-              return (
-                <TouchableOpacity
-                  key={`once-${c.label}`}
-                  onPress={() => {
-                    if (active) {
-                      clear()
-                      return
-                    }
-                    setMode('once')
-                    setOffsetMinutes(c.minutes)
-                    setDaysBefore(null)
-                    setIntervalMinutes(null)
-                  }}
-                  style={[styles.remindChip, active && styles.remindChipActive]}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                >
-                  <Text
-                    style={[
-                      styles.remindChipText,
-                      active && styles.remindChipTextActive,
-                    ]}
-                  >
-                    {c.label}
-                  </Text>
-                </TouchableOpacity>
-              )
-            })}
-          </ScrollView>
-        </View>
-
         {dueDate ? (
           <View style={styles.remindChipRow}>
-            <Text style={styles.remindChipRowLabel}>{t.remindDaysBeforeLabel}</Text>
+            <Text style={styles.remindChipRowLabel}>{t.remindBeforeDueLabel}</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.remindChipScroll}
             >
-              {REMIND_DAYS_BEFORE_CHOICES.map((c) => {
-                const active = mode === 'before' && daysBefore === c.days
+              {REMIND_BEFORE_DUE_CHOICES.map((c) => {
+                const active = mode === 'beforeDue' && beforeDueMinutes === c.minutes
                 return (
                   <TouchableOpacity
                     key={`before-${c.label}`}
@@ -2007,9 +1951,8 @@ export function ReminderSubView({
                         clear()
                         return
                       }
-                      setMode('before')
-                      setDaysBefore(c.days)
-                      setOffsetMinutes(null)
+                      setMode('beforeDue')
+                      setBeforeDueMinutes(c.minutes)
                       setIntervalMinutes(null)
                     }}
                     style={[styles.remindChip, active && styles.remindChipActive]}
@@ -2029,7 +1972,15 @@ export function ReminderSubView({
               })}
             </ScrollView>
           </View>
-        ) : null}
+        ) : (
+          // Helper line when no dueDate is set — "before due" needs
+          // an anchor, so we tell the user to add one first.
+          <View style={styles.remindPreviewWrap}>
+            <Text style={[styles.remindPreviewText, styles.remindPreviewTextMuted]}>
+              {t.remindBeforeDueNeedsDueDate}
+            </Text>
+          </View>
+        )}
 
         <View style={styles.remindChipRow}>
           <Text style={styles.remindChipRowLabel}>{t.remindEveryLabel}</Text>
@@ -2050,8 +2001,7 @@ export function ReminderSubView({
                     }
                     setMode('every')
                     setIntervalMinutes(c.minutes)
-                    setOffsetMinutes(null)
-                    setDaysBefore(null)
+                    setBeforeDueMinutes(null)
                   }}
                   style={[styles.remindChip, active && styles.remindChipActive]}
                   accessibilityRole="button"
@@ -2082,8 +2032,8 @@ export function ReminderSubView({
           <Text style={styles.dateDoneBtnText}>{t.done}</Text>
         </TouchableOpacity>
       </View>
-      {/* `theme` is referenced to keep prop API stable for ComposeSheet,
-          which currently passes it for the now-removed Until picker. */}
+      {/* `theme` is referenced to keep the prop API stable for
+          ComposeSheet, which still passes it. */}
       {void theme}
     </>
   )
