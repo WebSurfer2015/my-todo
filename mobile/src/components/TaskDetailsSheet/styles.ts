@@ -378,6 +378,22 @@ export function makeStyles(c: ThemeColors) {
     remindChipTextActive: {
       color: c.primaryOn,
     },
+    remindPreviewWrap: {
+      paddingHorizontal: 14,
+      paddingTop: 8,
+      paddingBottom: 12,
+      alignItems: 'center',
+    },
+    remindPreviewText: {
+      fontSize: 15,
+      color: c.label,
+      fontWeight: '600',
+      textAlign: 'center',
+    },
+    remindPreviewTextMuted: {
+      color: c.label3,
+      fontWeight: '500',
+    },
     editFieldLabel: {
       flex: 1,
       fontSize: 15,

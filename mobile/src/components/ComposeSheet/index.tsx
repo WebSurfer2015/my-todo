@@ -203,14 +203,10 @@ export default function ComposeSheet({
   // Reminder spec (object or undefined). Stored on the todo at
   // add-time; the post-add syncTodoReminders effect picks it up.
   const [reminder, setReminder] = useState<Todo["reminder"] | undefined>(undefined)
-  const [remindPickerDate, setRemindPickerDate] = useState<Date>(new Date())
-  // Pending while the Remind sub-view is open. Mirrors the
-  // pendingRecurEndDate pattern — committed to `reminder` on Save,
-  // discarded on Back.
-  const [pendingRemindAt, setPendingRemindAt] = useState<string>('')
-  const [pendingRemindInterval, setPendingRemindInterval] = useState<number | undefined>(undefined)
-  const [pendingRemindUntil, setPendingRemindUntil] = useState<string>('')
-  const [remindSubView, setRemindSubView] = useState<'main' | 'until'>('main')
+  // (Reminder pending state removed — the redesigned ReminderSubView
+  // owns its own chip-selection state and returns the built reminder
+  // via onSave. ComposeSheet only holds the committed value via
+  // `reminder` above.)
   // Pending freq while the user is in the 'repeatEndDate' picker — committed
   // to `recurrence` once they pick an end date.
   const [pendingFreq, setPendingFreq] = useState<RecurrenceFreq | null>(null)
@@ -315,10 +311,6 @@ export default function ComposeSheet({
       setDueDate(todayLocal())
       setRecurrence(undefined)
       setReminder(undefined)
-      setPendingRemindAt('')
-      setPendingRemindInterval(undefined)
-      setPendingRemindUntil('')
-      setRemindSubView('main')
       setNotes('')
       setPendingSubtasks([])
       // Clear the suggestion-overlay suppression so it re-engages on
@@ -738,16 +730,7 @@ export default function ComposeSheet({
 
                     <TouchableOpacity
                       style={styles.fieldRow}
-                      onPress={() => {
-                        setRemindPickerDate(
-                          reminder?.at ? new Date(reminder.at) : defaultRemindDate(dueDate),
-                        )
-                        setPendingRemindAt(reminder?.at ?? '')
-                        setPendingRemindInterval(reminder?.intervalMinutes)
-                        setPendingRemindUntil(reminder?.until ?? '')
-                        setRemindSubView('main')
-                        setSubView('remindAt')
-                      }}
+                      onPress={() => setSubView('remindAt')}
                       activeOpacity={0.6}
                       accessibilityRole="button"
                       accessibilityLabel={`Remind me, ${reminder ? formatReminder(reminder) : t.remindNone}. Tap to change.`}
@@ -1003,34 +986,16 @@ export default function ComposeSheet({
                 styles={styles as unknown as ReminderSubViewStyles}
                 theme={theme}
                 t={t}
-                remindSubView={remindSubView}
-                setRemindSubView={setRemindSubView}
-                pendingRemindAt={pendingRemindAt}
-                setPendingRemindAt={setPendingRemindAt}
-                pendingRemindInterval={pendingRemindInterval}
-                setPendingRemindInterval={setPendingRemindInterval}
-                pendingRemindUntil={pendingRemindUntil}
-                setPendingRemindUntil={setPendingRemindUntil}
-                remindPickerDate={remindPickerDate}
-                setRemindPickerDate={setRemindPickerDate}
+                initial={reminder}
                 dueDate={dueDate}
                 onCancel={() => setSubView('main')}
-                onSave={async () => {
-                  if (pendingRemindAt && !(await ensurePermission())) {
+                onSave={async (next) => {
+                  if (next?.at && !(await ensurePermission())) {
                     Alert.alert(
                       t.remindPermissionDeniedTitle,
                       t.remindPermissionDeniedBody,
                     )
                     return
-                  }
-                  let next: Todo["reminder"] | undefined
-                  if (pendingRemindAt) {
-                    next = { at: pendingRemindAt }
-                    if (pendingRemindInterval) {
-                      next.intervalMinutes = pendingRemindInterval
-                      const fallbackUntil = pendingRemindUntil || dueDateAsUntil(dueDate)
-                      if (fallbackUntil) next.until = fallbackUntil
-                    }
                   }
                   setReminder(next)
                   setSubView('main')

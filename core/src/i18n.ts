@@ -252,6 +252,21 @@ export const strings = {
     remindEvery: 'Repeat every',
     remindUntil: 'Until',
     remindUntilUnset: 'No end',
+    remindOnceLabel: 'Remind once in',
+    remindDaysBeforeLabel: 'Days before due',
+    remindEveryLabel: 'Or remind every',
+    remindPreviewOnceIn: (n: number): string => {
+      if (n < 60) return `Reminder in ${n} min`
+      const h = Math.round(n / 60)
+      return `Reminder in ${h} hour${h !== 1 ? 's' : ''}`
+    },
+    remindPreviewDaysBefore: (n: number): string =>
+      `Reminder ${n} day${n !== 1 ? 's' : ''} before due`,
+    remindPreviewEveryUntilComplete: (n: number): string => {
+      if (n < 60) return `Every ${n} min until complete`
+      const h = Math.round(n / 60)
+      return `Every ${h} hour${h !== 1 ? 's' : ''} until complete`
+    },
     statusNotStarted: 'Yet to start',
     statusInProgress: 'Underway',
     statusDone: 'Complete',
@@ -538,6 +553,16 @@ export const strings = {
     remindPermissionDeniedTitle: '通知已关闭',
     remindPermissionDeniedBody: '提醒功能依赖本地通知。请前往 设置 → Sagely → 通知 中开启，然后重试。',
     remindEvery: '每隔',
+    remindOnceLabel: '稍后提醒',
+    remindDaysBeforeLabel: '截止前几天',
+    remindEveryLabel: '或每隔',
+    remindPreviewOnceIn: (n: number): string =>
+      n < 60 ? `${n} 分钟后提醒` : `${Math.round(n / 60)} 小时后提醒`,
+    remindPreviewDaysBefore: (n: number): string => `截止前 ${n} 天提醒`,
+    remindPreviewEveryUntilComplete: (n: number): string =>
+      n < 60
+        ? `每 ${n} 分钟提醒，直到完成`
+        : `每 ${Math.round(n / 60)} 小时提醒，直到完成`,
     remindUntil: '直到',
     remindUntilUnset: '无截止',
     statusNotStarted: '未开始',
@@ -826,6 +851,17 @@ export const strings = {
     remindPermissionDeniedTitle: 'Las notificaciones están desactivadas',
     remindPermissionDeniedBody: 'Los recordatorios usan notificaciones locales. Actívalas en Ajustes → Sagely → Notificaciones e inténtalo de nuevo.',
     remindEvery: 'Cada',
+    remindOnceLabel: 'Recordar dentro de',
+    remindDaysBeforeLabel: 'Días antes del vencimiento',
+    remindEveryLabel: 'O cada',
+    remindPreviewOnceIn: (n: number): string =>
+      n < 60 ? `Recordar en ${n} min` : `Recordar en ${Math.round(n / 60)} h`,
+    remindPreviewDaysBefore: (n: number): string =>
+      `Recordar ${n} día${n !== 1 ? 's' : ''} antes`,
+    remindPreviewEveryUntilComplete: (n: number): string =>
+      n < 60
+        ? `Cada ${n} min hasta completar`
+        : `Cada ${Math.round(n / 60)} h hasta completar`,
     remindUntil: 'Hasta',
     remindUntilUnset: 'Sin fin',
     statusNotStarted: 'No iniciada',
@@ -1114,6 +1150,17 @@ export const strings = {
     remindPermissionDeniedTitle: 'Notifications désactivées',
     remindPermissionDeniedBody: "Les rappels utilisent les notifications locales. Activez-les dans Réglages → Sagely → Notifications, puis réessayez.",
     remindEvery: 'Toutes les',
+    remindOnceLabel: 'Rappeler dans',
+    remindDaysBeforeLabel: 'Jours avant échéance',
+    remindEveryLabel: 'Ou toutes les',
+    remindPreviewOnceIn: (n: number): string =>
+      n < 60 ? `Rappel dans ${n} min` : `Rappel dans ${Math.round(n / 60)} h`,
+    remindPreviewDaysBefore: (n: number): string =>
+      `Rappel ${n} jour${n !== 1 ? 's' : ''} avant`,
+    remindPreviewEveryUntilComplete: (n: number): string =>
+      n < 60
+        ? `Toutes les ${n} min jusqu'à la fin`
+        : `Toutes les ${Math.round(n / 60)} h jusqu'à la fin`,
     remindUntil: "Jusqu'à",
     remindUntilUnset: 'Sans fin',
     statusNotStarted: 'Pas commencée',
@@ -1402,6 +1449,16 @@ export const strings = {
     remindPermissionDeniedTitle: '通知がオフです',
     remindPermissionDeniedBody: 'リマインダーはローカル通知を使用します。設定 → Sagely → 通知 でオンにして、もう一度お試しください。',
     remindEvery: '繰り返し',
+    remindOnceLabel: '何分後に通知',
+    remindDaysBeforeLabel: '何日前に通知',
+    remindEveryLabel: 'または繰り返し',
+    remindPreviewOnceIn: (n: number): string =>
+      n < 60 ? `${n}分後に通知` : `${Math.round(n / 60)}時間後に通知`,
+    remindPreviewDaysBefore: (n: number): string => `期限の${n}日前に通知`,
+    remindPreviewEveryUntilComplete: (n: number): string =>
+      n < 60
+        ? `完了まで${n}分ごとに通知`
+        : `完了まで${Math.round(n / 60)}時間ごとに通知`,
     remindUntil: 'まで',
     remindUntilUnset: '終了なし',
     statusNotStarted: '未着手',
@@ -1690,6 +1747,17 @@ export const strings = {
     remindPermissionDeniedTitle: 'Benachrichtigungen sind aus',
     remindPermissionDeniedBody: 'Erinnerungen verwenden lokale Benachrichtigungen. Aktiviere sie in Einstellungen → Sagely → Mitteilungen und versuche es erneut.',
     remindEvery: 'Alle',
+    remindOnceLabel: 'Erinnern in',
+    remindDaysBeforeLabel: 'Tage vor Fälligkeit',
+    remindEveryLabel: 'Oder alle',
+    remindPreviewOnceIn: (n: number): string =>
+      n < 60 ? `Erinnerung in ${n} Min.` : `Erinnerung in ${Math.round(n / 60)} Std.`,
+    remindPreviewDaysBefore: (n: number): string =>
+      `Erinnerung ${n} Tag${n !== 1 ? 'e' : ''} vor Fälligkeit`,
+    remindPreviewEveryUntilComplete: (n: number): string =>
+      n < 60
+        ? `Alle ${n} Min. bis erledigt`
+        : `Alle ${Math.round(n / 60)} Std. bis erledigt`,
     remindUntil: 'Bis',
     remindUntilUnset: 'Kein Ende',
     statusNotStarted: 'Nicht begonnen',
