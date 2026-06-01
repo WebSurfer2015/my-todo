@@ -459,6 +459,7 @@ function TodosScreen() {
                               onUpdateNotes={store.updateNotes}
                         onUpdateRecurrence={store.updateRecurrence}
                         onUpdateReminder={store.updateReminder}
+                        onUpdateReminders={store.updateReminders}
                       />
                     </View>
                   ))}
@@ -610,6 +611,7 @@ function TodosScreen() {
                               onUpdateNotes={store.updateNotes}
                               onUpdateRecurrence={store.updateRecurrence}
                         onUpdateReminder={store.updateReminder}
+                        onUpdateReminders={store.updateReminders}
                               onAddSubtask={store.addSubtask}
                               onToggleSubtask={store.toggleSubtask}
                               onUpdateSubtaskText={store.updateSubtaskText}
@@ -690,6 +692,7 @@ function TodosScreen() {
                             onUpdateNotes={store.updateNotes}
                             onUpdateRecurrence={store.updateRecurrence}
                         onUpdateReminder={store.updateReminder}
+                        onUpdateReminders={store.updateReminders}
                             onAddSubtask={store.addSubtask}
                             onToggleSubtask={store.toggleSubtask}
                             onUpdateSubtaskText={store.updateSubtaskText}
@@ -813,6 +816,7 @@ function TodosScreen() {
                               onUpdateNotes={store.updateNotes}
                         onUpdateRecurrence={store.updateRecurrence}
                         onUpdateReminder={store.updateReminder}
+                        onUpdateReminders={store.updateReminders}
                               onAddSubtask={store.addSubtask}
                               onToggleSubtask={store.toggleSubtask}
                               onUpdateSubtaskText={store.updateSubtaskText}

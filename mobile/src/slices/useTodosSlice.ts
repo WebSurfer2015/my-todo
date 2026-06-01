@@ -27,6 +27,7 @@ import {
   Filter,
   Priority,
   Recurrence,
+  Reminder,
   Subtask,
   Todo,
   TodoReference,
@@ -163,6 +164,10 @@ export interface TodosSlice {
   updatePriority: (id: string, priority: Priority) => void;
   updateDueDate: (id: string, dueDate: string) => void;
   updateReminder: (id: string, reminder: Todo["reminder"] | undefined) => void;
+  /** Multi-reminder write — replaces the entire `reminders[]` on a
+   * todo. Pass `[]` to clear. Also drops the legacy `reminder` field
+   * so the row converges on the new schema. */
+  updateReminders: (id: string, reminders: Reminder[]) => void;
   updateTaskCategory: (id: string, category: Category) => void;
   updateText: (id: string, text: string) => void;
   updateNotes: (id: string, notes: string) => void;
@@ -227,7 +232,8 @@ export interface TodosSlice {
     extras?: {
       notes?: string;
       subtasks?: Subtask[];
-      reminder?: Todo["reminder"];
+      reminder?: Todo["reminder"]; // legacy
+      reminders?: Reminder[]; // multi-reminder (preferred)
     },
   ) => void;
   emptyTrash: () => void;
@@ -616,6 +622,28 @@ export function useTodosSlice(
     [setTodos],
   );
 
+  // Multi-reminder write. Writes the array on the row, drops the
+  // legacy `reminder` field. Empty input clears both. The scheduler
+  // diffs and reconciles via the existing syncTodoReminders effect.
+  const updateReminders = useCallback(
+    (id: string, reminders: Reminder[]) => {
+      setTodos((prev) =>
+        prev.map((td) => {
+          if (td.id !== id) return td;
+          const next: Todo = {
+            ...td,
+            reminders: reminders.length > 0 ? reminders : undefined,
+            updatedAt: Date.now(),
+          };
+          delete next.reminder;
+          if (!next.reminders) delete next.reminders;
+          return next;
+        }),
+      );
+    },
+    [setTodos],
+  );
+
   const deferOverdue = useCallback(
     (daysFromToday: number) => {
       const today = todayLocal();
@@ -824,12 +852,14 @@ export function useTodosSlice(
       extras?: {
         notes?: string;
         subtasks?: Subtask[];
-        reminder?: Todo["reminder"];
+        reminder?: Todo["reminder"]; // legacy single-reminder support
+        reminders?: Reminder[]; // multi-reminder (preferred)
       },
     ) => {
       const notes = extras?.notes;
       const subtasks = extras?.subtasks;
       const reminder = extras?.reminder;
+      const reminders = extras?.reminders;
       setTodoReferences((prev) =>
         recordTodoReference(prev, { text, priority, category, recurrence }),
       );
@@ -843,13 +873,24 @@ export function useTodosSlice(
           recurrence,
           subtasks,
           notes,
+          // Prefer the new multi-reminder array when supplied; the
+          // legacy `reminder` input stays for any caller that hasn't
+          // migrated yet.
           reminder,
         });
+        // Attach reminders[] post-newTodo (newTodo's input shape
+        // doesn't have the array yet — keep it narrow).
+        if (reminders && reminders.length > 0) {
+          seed.reminders = reminders;
+          // If both inputs were given, the array wins; drop the
+          // legacy field so the persisted doc converges on the new
+          // schema.
+          delete seed.reminder;
+        }
         // R1 — pre-expand the recurring series so the user
         // immediately sees their daily/weekly/monthly/yearly window
         // populated (head + tail). For one-offs, fall through to the
-        // single-instance prepend. expandSeries returns [seed] when
-        // recurrence is missing, so the branch is defensive.
+        // single-instance prepend.
         if (recurrence) {
           const expanded = expandSeries(seed, todayLocal());
           return [...expanded, ...prev];
@@ -967,6 +1008,7 @@ export function useTodosSlice(
     updatePriority,
     updateDueDate,
     updateReminder,
+    updateReminders,
     updateTaskCategory,
     updateText,
     updateNotes,

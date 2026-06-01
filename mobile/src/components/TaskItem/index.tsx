@@ -161,6 +161,11 @@ interface Props {
   onUpdateNotes?: (id: string, notes: string) => void
   onUpdateRecurrence?: (id: string, recurrence: Recurrence | undefined) => void
   onUpdateReminder?: (id: string, reminder: Todo["reminder"] | undefined) => void
+  /** Multi-reminder write — wired through to the new ReminderSheet
+   * in TaskDetailsSheet. The single-reminder onUpdateReminder is
+   * kept for AI-suggest panels that still produce a single
+   * Todo["reminder"]. */
+  onUpdateReminders?: (id: string, reminders: import('../../types').Reminder[]) => void
   onAddSubtask?: (id: string, text: string, priority?: Priority, dueDate?: string) => void
   onToggleSubtask?: (id: string, subId: string) => void
   onUpdateSubtaskText?: (id: string, subId: string, text: string) => void
@@ -194,7 +199,7 @@ function TaskItem({
   categories, density = 'comfortable', celebrate = true, playSound = true,
   subtaskVisibility = 'all',
   onToggle, onMoveToTrash, onSkip, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange, onApplySeriesSubtasks, onRestore, onPermanentDelete,
-  onUpdatePriority, onUpdateDueDate, onSnooze, onLongPressDefer, onUpdateCategory, onUpdateText, onUpdateNotes, onUpdateRecurrence, onUpdateReminder,
+  onUpdatePriority, onUpdateDueDate, onSnooze, onLongPressDefer, onUpdateCategory, onUpdateText, onUpdateNotes, onUpdateRecurrence, onUpdateReminder, onUpdateReminders,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
   dateChipFormat = 'default', tapBehavior = 'toggle', subtaskDateFilter,
@@ -1191,6 +1196,7 @@ function TaskItem({
             onUpdateCategory={onUpdateCategory}
             onUpdateRecurrence={onUpdateRecurrence ?? (() => {})}
             onUpdateReminder={onUpdateReminder}
+            onUpdateReminders={onUpdateReminders}
             onMoveToTrash={onMoveToTrash}
             onPermanentDelete={onPermanentDelete}
             onMoveSeriesFutureToTrash={onMoveSeriesFutureToTrash}

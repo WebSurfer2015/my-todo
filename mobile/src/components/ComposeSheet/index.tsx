@@ -24,9 +24,9 @@ import CustomRecurrenceForm from '../CustomRecurrenceForm'
 import AddSubtaskSheet from '../AddSubtaskSheet'
 import { useTodoFieldSuggestions, TodoFieldSuggestPills } from '../TodoFieldSuggestPills'
 import { ensurePermission } from '../../notifications'
-import { ReminderSubView, dueDateAsUntil, type ReminderSubViewProps } from '../TaskDetailsSheet'
-
-type ReminderSubViewStyles = ReminderSubViewProps['styles']
+import ReminderSheet from '../ReminderSheet'
+import type { Reminder } from '../../types'
+import { getReminders } from '../../../../core/src/derive'
 import {
   useSuggestSteps,
   SuggestStepsTrigger,
@@ -68,7 +68,7 @@ interface Props {
     dueDate: string,
     category?: Category,
     recurrence?: Recurrence,
-    extras?: { notes?: string; subtasks?: Subtask[]; reminder?: Todo["reminder"] },
+    extras?: { notes?: string; subtasks?: Subtask[]; reminder?: Todo["reminder"]; reminders?: Reminder[] },
   ) => void
   onClose: () => void
 }
@@ -150,7 +150,7 @@ function formatDateTime(at: string): string {
 
 /** Reminder label used in the manual Remind me row. One-shot shows
  * the datetime; recurring shows "every Xh until ...". */
-function formatReminder(reminder: NonNullable<Todo["reminder"]>): string {
+function formatReminder(reminder: NonNullable<Todo["reminder"]> | Reminder): string {
   if (!reminder.intervalMinutes) return formatDateTime(reminder.at)
   const cadence = reminder.intervalMinutes < 60
     ? `${reminder.intervalMinutes}m`
@@ -160,15 +160,17 @@ function formatReminder(reminder: NonNullable<Todo["reminder"]>): string {
     : `every ${cadence}`
 }
 
-/** Seed picker date when opening the Remind sub-view with no current
- * reminder: morning of dueDate (9am) when dueDate is set and in the
- * future, otherwise 1 hour from now. */
-function defaultRemindDate(dueDate: string): Date {
-  if (dueDate && /^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
-    const d = new Date(`${dueDate}T09:00:00`)
-    if (d.valueOf() > Date.now()) return d
-  }
-  return new Date(Date.now() + 60 * 60 * 1000)
+/** Compose-side Bell row summary. 0 → t.remindNone. 1 →
+ * formatReminder. N → "Your reminders (N)". Mirrors
+ * TaskDetailsSheet's reminderSummary so the two sheets feel the
+ * same on the row. */
+function reminderSummary(
+  reminders: Reminder[],
+  t: ReturnType<typeof useLang>['t'],
+): string {
+  if (reminders.length === 0) return t.remindNone
+  if (reminders.length === 1) return formatReminder(reminders[0])
+  return t.remindYourRemindersWithCount(reminders.length)
 }
 
 export default function ComposeSheet({
@@ -202,11 +204,9 @@ export default function ComposeSheet({
   const [recurrence, setRecurrence] = useState<Recurrence | undefined>(undefined)
   // Reminder spec (object or undefined). Stored on the todo at
   // add-time; the post-add syncTodoReminders effect picks it up.
-  const [reminder, setReminder] = useState<Todo["reminder"] | undefined>(undefined)
-  // (Reminder pending state removed — the redesigned ReminderSubView
-  // owns its own chip-selection state and returns the built reminder
-  // via onSave. ComposeSheet only holds the committed value via
-  // `reminder` above.)
+  // Multi-reminder state — the redesigned ReminderSheet writes the
+  // array back via onSave. addTask receives the array via extras.reminders.
+  const [reminders, setReminders] = useState<Reminder[]>([])
   // Pending freq while the user is in the 'repeatEndDate' picker — committed
   // to `recurrence` once they pick an end date.
   const [pendingFreq, setPendingFreq] = useState<RecurrenceFreq | null>(null)
@@ -310,7 +310,7 @@ export default function ComposeSheet({
       // want a no-date task.
       setDueDate(todayLocal())
       setRecurrence(undefined)
-      setReminder(undefined)
+      setReminders([])
       setNotes('')
       setPendingSubtasks([])
       // Clear the suggestion-overlay suppression so it re-engages on
@@ -334,7 +334,7 @@ export default function ComposeSheet({
     onAdd(trimmed, priority, dueDate, activeCat.id, recurrence, {
       notes: trimmedNotes || undefined,
       subtasks: pendingSubtasks.length > 0 ? pendingSubtasks : undefined,
-      reminder,
+      reminders: reminders.length > 0 ? reminders : undefined,
     })
     // Reset compose state so the next open starts clean.
     setText('')
@@ -541,7 +541,7 @@ export default function ComposeSheet({
                     currentRecurrenceFreq={recurrence?.freq}
                     currentRecurrenceEndDate={recurrence?.endDate}
                     currentRecurrenceByWeekday={recurrence?.byWeekday}
-                    currentReminder={reminder}
+                    currentReminder={reminders[0]}
                     onApplyCategory={(id) => {
                       void Analytics.aiSuggestionApplied('suggest-todo-fields')
                       setCategory(id)
@@ -601,7 +601,11 @@ export default function ComposeSheet({
                           ai.dismissField('reminder')
                           return
                         }
-                        setReminder(rem)
+                        // AI panel currently produces a single
+                        // suggestion. Wrap as a singleton in the
+                        // multi-reminder array — the user can add
+                        // more via the ReminderSheet.
+                        setReminders([{ ...rem, id: genUuid() }])
                         Haptics.selectionAsync().catch(() => {})
                       })()
                     }}
@@ -733,18 +737,22 @@ export default function ComposeSheet({
                       onPress={() => setSubView('remindAt')}
                       activeOpacity={0.6}
                       accessibilityRole="button"
-                      accessibilityLabel={`Remind me, ${reminder ? formatReminder(reminder) : t.remindNone}. Tap to change.`}
+                      accessibilityLabel={`${t.remindMe}, ${reminderSummary(reminders, t)}. Tap to change.`}
                     >
-                      <Bell size={18} color={reminder ? theme.blue : theme.gray3} strokeWidth={2} />
+                      <Bell
+                        size={18}
+                        color={reminders.length > 0 ? theme.blue : theme.gray3}
+                        strokeWidth={2}
+                      />
                       <Text style={styles.fieldLabel}>{t.remindMe}</Text>
                       <Text
                         style={[
                           styles.fieldValue,
-                          !reminder && styles.fieldValueMuted,
+                          reminders.length === 0 && styles.fieldValueMuted,
                         ]}
                         numberOfLines={1}
                       >
-                        {reminder ? formatReminder(reminder) : t.remindNone}
+                        {reminderSummary(reminders, t)}
                       </Text>
                       <Text style={styles.chevron}>›</Text>
                     </TouchableOpacity>
@@ -982,22 +990,19 @@ export default function ComposeSheet({
             )}
 
             {subView === 'remindAt' && (
-              <ReminderSubView
-                styles={styles as unknown as ReminderSubViewStyles}
-                theme={theme}
-                t={t}
-                initial={reminder}
+              <ReminderSheet
+                initial={reminders}
                 dueDate={dueDate}
                 onCancel={() => setSubView('main')}
                 onSave={async (next) => {
-                  if (next?.at && !(await ensurePermission())) {
+                  if (next.length > 0 && !(await ensurePermission())) {
                     Alert.alert(
                       t.remindPermissionDeniedTitle,
                       t.remindPermissionDeniedBody,
                     )
                     return
                   }
-                  setReminder(next)
+                  setReminders(next)
                   setSubView('main')
                 }}
               />

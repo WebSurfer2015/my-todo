@@ -15,7 +15,9 @@ import Svg, { Path, Line, Polyline, Rect } from 'react-native-svg'
 import { Bell, Repeat } from 'lucide-react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import * as Haptics from 'expo-haptics'
-import { Category, Priority, Subtask, Todo, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, PRIORITY_VALUES, PRIORITY_COLORS } from '../../types'
+import { Category, Priority, Reminder, Subtask, Todo, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, PRIORITY_VALUES, PRIORITY_COLORS } from '../../types'
+import { getReminders } from '../../../../core/src/derive'
+import ReminderSheet from '../ReminderSheet'
 
 const RECURRENCE_LABELS: Record<'none' | RecurrenceFreq, string> = {
   none: 'Never',
@@ -148,75 +150,21 @@ function formatReminder(reminder: Todo["reminder"] | undefined): string {
     : `every ${cadence}`
 }
 
-/** Reasonable initial picker date when the user opens the sub-view
- * with no current reminder set: morning of the dueDate (9am), or
- * 1h from now if the todo has no dueDate. */
-function defaultRemindDate(dueDate: string): Date {
-  const dateOnly = dueDate.includes('T') ? dueDate.slice(0, dueDate.indexOf('T')) : dueDate
-  if (dateOnly && /^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) {
-    const d = new Date(`${dateOnly}T09:00:00`)
-    if (d.valueOf() > Date.now()) return d
-  }
-  return new Date(Date.now() + 60 * 60 * 1000)
+/** Summary string for the Bell row field-value when a todo carries
+ * the multi-reminder array. 0 → t.remindNone. 1 → formatReminder.
+ * N → t.remindYourRemindersWithCount(N) ("Your reminders (N)"). */
+function reminderSummary(
+  reminders: Reminder[],
+  t: ReturnType<typeof useLang>['t'],
+): string {
+  if (reminders.length === 0) return t.remindNone
+  if (reminders.length === 1) return formatReminder(reminders[0])
+  return t.remindYourRemindersWithCount(reminders.length)
 }
 
-/** "Remind once before due" choices — single row covering minutes,
- * hours, and days before the dueDate. Only rendered when the todo
- * has a dueDate (the row's "before" anchor). Computed at Done tap
- * so a brief sheet dwell doesn't shift the fire moment. */
-const REMIND_BEFORE_DUE_CHOICES: Array<{ minutes: number; label: string }> = [
-  { minutes: 5,     label: '5m' },
-  { minutes: 15,    label: '15m' },
-  { minutes: 30,    label: '30m' },
-  { minutes: 60,    label: '1h' },
-  { minutes: 120,   label: '2h' },
-  { minutes: 240,   label: '4h' },
-  { minutes: 1440,  label: '1d' },
-  { minutes: 2880,  label: '2d' },
-  { minutes: 4320,  label: '3d' },
-  { minutes: 10080, label: '1w' },
-]
-
-/** Interval choices for "Remind every … until complete". `until` is
- * intentionally left undefined when committed — the scheduler caps
- * fires per todo via MAX_FIRES_PER_TODO (30) so reminders stop on
- * their own if the user never completes / skips. */
-const REMIND_EVERY_CHOICES: Array<{ minutes: number; label: string }> = [
-  { minutes: 15,  label: '15m' },
-  { minutes: 30,  label: '30m' },
-  { minutes: 60,  label: '1h' },
-  { minutes: 120, label: '2h' },
-  { minutes: 240, label: '4h' },
-  { minutes: 360, label: '6h' },
-  { minutes: 720, label: '12h' },
-]
-
-/** Compute the ISO `yyyy-mm-ddTHH:MM` for "N minutes before dueDate."
- * Uses the dueDate's time-of-day if present, else defaults to 9:00.
- * Returns empty when dueDate is empty. Generalizes the previous
- * isoDaysBeforeDue — callers pass days * 1440 to get the same
- * shape. */
-function isoMinutesBeforeDue(dueDate: string, minutes: number): string {
-  if (!dueDate) return ''
-  const tIdx = dueDate.indexOf('T')
-  const datePart = tIdx === -1 ? dueDate : dueDate.slice(0, tIdx)
-  const timePart = tIdx === -1 ? '09:00' : dueDate.slice(tIdx + 1, tIdx + 6)
-  const [y, m, d] = datePart.split('-').map(Number)
-  const [hh, mm] = timePart.split(':').map(Number)
-  if (!y || !m || !d) return ''
-  const base = new Date(y, m - 1, d, hh ?? 9, mm ?? 0)
-  base.setMinutes(base.getMinutes() - minutes)
-  return isoLocalDateTime(base)
-}
-
-function XIcon({ size = 18, color = '#999' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M18 6L6 18" />
-      <Path d="M6 6l12 12" />
-    </Svg>
-  )
-}
+// Reminder-picker chip constants + helpers moved to
+// ../ReminderSheet/index.tsx. defaultRemindDate / XIcon / dueDateAsUntil
+// retired with the inline ReminderSubView.
 
 function PlusIcon({ size = 18, color = '#fff' }: { size?: number; color?: string }) {
   return (
@@ -269,6 +217,10 @@ interface Props {
    * intervalMinutes, until}`). The OS-level schedule is reconciled
    * separately by App.tsx's syncTodoReminders effect. */
   onUpdateReminder?: (id: string, reminder: Todo["reminder"] | undefined) => void
+  /** Multi-reminder write — replaces the entire `reminders[]` on a
+   * todo. Used by the new ReminderSheet (multi-select chips, "Your
+   * reminders" pill list, Clear all). */
+  onUpdateReminders?: (id: string, reminders: Reminder[]) => void
   onMoveToTrash: (id: string) => void
   /** Optional — used by the "Delete to-do" action to permanently delete a
    * done item (skipping the trash step). Open items still go to trash. */
@@ -327,7 +279,7 @@ interface Props {
 
 export default function TaskDetailsSheet({
   visible, todo, categories, initialSubtaskEditId, onClose, onUpdateText, onUpdateNotes,
-  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminder, onMoveToTrash, onPermanentDelete, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange, onApplySeriesSubtasks,
+  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminder, onUpdateReminders, onMoveToTrash, onPermanentDelete, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange, onApplySeriesSubtasks,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
   agentEnabled,
@@ -418,6 +370,12 @@ export default function TaskDetailsSheet({
   // cleared); on Save we commit + sync. Mirrors the existing
   // pending-date pattern.
   const [editReminder, setEditReminder] = useState<Todo["reminder"] | undefined>(todo.reminder)
+  // Multi-reminder shadow state — what the ReminderSheet writes back.
+  // Initialized from `getReminders(todo)` so legacy single-reminder
+  // docs read in cleanly.
+  const [editReminders, setEditReminders] = useState<Reminder[]>(() =>
+    getReminders(todo),
+  )
   // (Pending pickerDate / pendingRemindAt / Interval / Until and
   // remindSubView removed — the redesigned ReminderSubView owns
   // its own chip-selection state and returns the built reminder
@@ -464,6 +422,7 @@ export default function TaskDetailsSheet({
       setEditDueDate(todo.dueDate ?? '')
       setEditRecurrence(todo.recurrence)
       setEditReminder(todo.reminder)
+      setEditReminders(getReminders(todo))
       setParentEditView('main')
       // Honor an opener-provided "open into subtask edit" intent. If the
       // caller passed a subtask id, jump straight into its edit form.
@@ -606,6 +565,20 @@ export default function TaskDetailsSheet({
       return
     }
     onUpdateReminder?.(todo.id, reminder)
+  }
+  // Multi-reminder commit — called from the redesigned ReminderSheet.
+  // Same permission-denied revert pattern as applyReminder.
+  async function applyReminders(next: Reminder[]) {
+    setEditReminders(next)
+    const sameAsStored =
+      JSON.stringify(next) === JSON.stringify(getReminders(todo))
+    if (sameAsStored) return
+    if (next.length > 0 && !(await ensurePermission())) {
+      Alert.alert(t.remindPermissionDeniedTitle, t.remindPermissionDeniedBody)
+      setEditReminders(getReminders(todo))
+      return
+    }
+    onUpdateReminders?.(todo.id, next)
   }
   function closeAndFlushText() {
     // "Save" path. In "this only" mode this is a final flush for
@@ -1123,15 +1096,12 @@ export default function TaskDetailsSheet({
               </View>
             </>
           ) : parentEditView === 'remindAt' ? (
-            <ReminderSubView
-              styles={styles}
-              theme={theme}
-              t={t}
-              initial={editReminder}
+            <ReminderSheet
+              initial={editReminders}
               dueDate={editDueDate}
               onCancel={() => setParentEditView('main')}
               onSave={(next) => {
-                void applyReminder(next).then(() => setParentEditView('main'))
+                void applyReminders(next).then(() => setParentEditView('main'))
               }}
             />
           ) : parentEditView === 'recurEndDate' && editRecurrence ? (
@@ -1413,7 +1383,7 @@ export default function TaskDetailsSheet({
                   </Text>
                   <Text style={styles.editChevron}>›</Text>
                 </TouchableOpacity>
-                {onUpdateReminder && (
+                {(onUpdateReminders || onUpdateReminder) && (
                   <>
                     <View style={styles.editGroupDivider} />
                     <TouchableOpacity
@@ -1421,18 +1391,18 @@ export default function TaskDetailsSheet({
                       onPress={() => setParentEditView('remindAt')}
                       activeOpacity={0.6}
                       accessibilityRole="button"
-                      accessibilityLabel={`Remind me, ${editReminder ? formatReminder(editReminder) : t.remindNone}. Tap to change.`}
+                      accessibilityLabel={`${t.remindMe}, ${reminderSummary(editReminders, t)}. Tap to change.`}
                     >
-                      <Bell size={18} color={editReminder ? theme.blue : theme.gray3} strokeWidth={2} />
+                      <Bell size={18} color={editReminders.length > 0 ? theme.blue : theme.gray3} strokeWidth={2} />
                       <Text style={styles.editFieldLabel}>{t.remindMe}</Text>
                       <Text
                         style={[
                           styles.editFieldValue,
-                          !editReminder && styles.editFieldValueMuted,
+                          editReminders.length === 0 && styles.editFieldValueMuted,
                         ]}
                         numberOfLines={1}
                       >
-                        {editReminder ? formatReminder(editReminder) : t.remindNone}
+                        {reminderSummary(editReminders, t)}
                       </Text>
                       <Text style={styles.editChevron}>›</Text>
                     </TouchableOpacity>
@@ -1795,249 +1765,8 @@ export default function TaskDetailsSheet({
   )
 }
 
-/**
- * Compose an `until` datetime from a possibly date-only dueDate. A
- * dueDate already carrying a time → use as-is. A date-only dueDate →
- * 23:59 that day. Empty dueDate → empty string (caller handles).
- * Lets "every 2h" without an explicit cutoff still bound itself.
- */
-export function dueDateAsUntil(dueDate: string): string {
-  if (!dueDate) return ''
-  if (dueDate.includes('T')) return dueDate
-  return `${dueDate}T23:59`
-}
-
-export interface ReminderSubViewProps {
-  styles: ReturnType<typeof makeStyles>
-  theme: ThemeColors
-  // t comes from useLang().t — kept generic to avoid pulling the
-  // full Strings type into this file's signature.
-  t: ReturnType<typeof useLang>['t']
-  /** Existing reminder on the todo, if any. Sub-view re-derives chip
-   * selection from this. */
-  initial: Todo['reminder'] | undefined
-  /** Used by the "Days before due" row — only renders when dueDate
-   * is set (otherwise "N days before" has no anchor). */
-  dueDate: string
-  onCancel: () => void
-  /** Called with the new reminder (or undefined to clear). Parent
-   * runs permission check + applies. */
-  onSave: (next: Todo['reminder'] | undefined) => void
-}
-
-type ReminderMode = 'none' | 'beforeDue' | 'every'
-
-/**
- * Shared sub-view rendering for the Reminder editor — used by both
- * TaskDetailsSheet and ComposeSheet so the picker UX stays
- * consistent. Two chip rows:
- *   - "Remind once before due" → fires once N min/hours/days
- *     before the dueDate. Only rendered when the todo has a
- *     dueDate (the "before" anchor).
- *   - "Or remind every … (until complete)" → fires every N minutes
- *     until the todo is completed/skipped/trashed; capped at
- *     MAX_FIRES_PER_TODO (30) by the scheduler so it can't run
- *     forever.
- * Single selection across both rows. Done builds the reminder
- * fresh and calls onSave.
- *
- * Multiple-reminder support (e.g., "1 day before AND 1 hour
- * before") is a follow-up — schema currently stores a single
- * reminder. The chip UI here will extend naturally once the data
- * model carries an array.
- */
-export function ReminderSubView({
-  styles,
-  theme,
-  t,
-  initial,
-  dueDate,
-  onCancel,
-  onSave,
-}: ReminderSubViewProps) {
-  // Derive initial mode + selected value from the incoming reminder
-  // so re-opening the sheet shows the user's last choice. For the
-  // "beforeDue" recovery, match `at` against the expected
-  // isoMinutesBeforeDue(dueDate, choice.minutes).
-  const [mode, setMode] = useState<ReminderMode>(() => {
-    if (!initial?.at) return 'none'
-    if (initial.intervalMinutes) return 'every'
-    return 'beforeDue'
-  })
-  const [beforeDueMinutes, setBeforeDueMinutes] = useState<number | null>(() => {
-    if (!initial?.at || initial.intervalMinutes || !dueDate) return null
-    for (const c of REMIND_BEFORE_DUE_CHOICES) {
-      if (isoMinutesBeforeDue(dueDate, c.minutes) === initial.at) return c.minutes
-    }
-    return null
-  })
-  const [intervalMinutes, setIntervalMinutes] = useState<number | null>(
-    () => initial?.intervalMinutes ?? null,
-  )
-
-  const preview =
-    mode === 'beforeDue' && beforeDueMinutes && dueDate
-      ? t.remindPreviewBeforeDue(beforeDueMinutes)
-      : mode === 'every' && intervalMinutes
-        ? t.remindPreviewEveryUntilComplete(intervalMinutes)
-        : t.remindNone
-
-  function clear() {
-    setMode('none')
-    setBeforeDueMinutes(null)
-    setIntervalMinutes(null)
-  }
-
-  function handleDone() {
-    if (mode === 'none') return onSave(undefined)
-    if (mode === 'beforeDue' && beforeDueMinutes && dueDate) {
-      const at = isoMinutesBeforeDue(dueDate, beforeDueMinutes)
-      if (at) return onSave({ at })
-      return onSave(undefined)
-    }
-    if (mode === 'every' && intervalMinutes) {
-      // First fire one interval from now. `until` left undefined so
-      // the scheduler keeps firing until completion — MAX_FIRES_PER_TODO
-      // (30) is the safety cap.
-      const at = isoLocalDateTime(new Date(Date.now() + intervalMinutes * 60_000))
-      return onSave({ at, intervalMinutes })
-    }
-    // Mode set but no chip picked yet — close without committing.
-    onSave(undefined)
-  }
-
-  return (
-    <>
-      <View style={styles.editHeader}>
-        <TouchableOpacity onPress={onCancel} hitSlop={10} style={styles.headerSideBtn}>
-          <Text style={styles.cancelText}>‹ Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.editHeaderTitle}>{t.remindMe}</Text>
-        <TouchableOpacity onPress={clear} hitSlop={10} style={styles.headerSideBtn}>
-          <Text style={styles.dateClearBtnText}>{t.clear}</Text>
-        </TouchableOpacity>
-      </View>
-      <ScrollView
-        style={styles.list}
-        contentContainerStyle={styles.editBody}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.remindPreviewWrap}>
-          <Text
-            style={[
-              styles.remindPreviewText,
-              mode === 'none' && styles.remindPreviewTextMuted,
-            ]}
-          >
-            {preview}
-          </Text>
-        </View>
-
-        {dueDate ? (
-          <View style={styles.remindChipRow}>
-            <Text style={styles.remindChipRowLabel}>{t.remindBeforeDueLabel}</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.remindChipScroll}
-            >
-              {REMIND_BEFORE_DUE_CHOICES.map((c) => {
-                const active = mode === 'beforeDue' && beforeDueMinutes === c.minutes
-                return (
-                  <TouchableOpacity
-                    key={`before-${c.label}`}
-                    onPress={() => {
-                      if (active) {
-                        clear()
-                        return
-                      }
-                      setMode('beforeDue')
-                      setBeforeDueMinutes(c.minutes)
-                      setIntervalMinutes(null)
-                    }}
-                    style={[styles.remindChip, active && styles.remindChipActive]}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: active }}
-                  >
-                    <Text
-                      style={[
-                        styles.remindChipText,
-                        active && styles.remindChipTextActive,
-                      ]}
-                    >
-                      {c.label}
-                    </Text>
-                  </TouchableOpacity>
-                )
-              })}
-            </ScrollView>
-          </View>
-        ) : (
-          // Helper line when no dueDate is set — "before due" needs
-          // an anchor, so we tell the user to add one first.
-          <View style={styles.remindPreviewWrap}>
-            <Text style={[styles.remindPreviewText, styles.remindPreviewTextMuted]}>
-              {t.remindBeforeDueNeedsDueDate}
-            </Text>
-          </View>
-        )}
-
-        <View style={styles.remindChipRow}>
-          <Text style={styles.remindChipRowLabel}>{t.remindEveryLabel}</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.remindChipScroll}
-          >
-            {REMIND_EVERY_CHOICES.map((c) => {
-              const active = mode === 'every' && intervalMinutes === c.minutes
-              return (
-                <TouchableOpacity
-                  key={`every-${c.label}`}
-                  onPress={() => {
-                    if (active) {
-                      clear()
-                      return
-                    }
-                    setMode('every')
-                    setIntervalMinutes(c.minutes)
-                    setBeforeDueMinutes(null)
-                  }}
-                  style={[styles.remindChip, active && styles.remindChipActive]}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                >
-                  <Text
-                    style={[
-                      styles.remindChipText,
-                      active && styles.remindChipTextActive,
-                    ]}
-                  >
-                    {c.label}
-                  </Text>
-                </TouchableOpacity>
-              )
-            })}
-          </ScrollView>
-        </View>
-      </ScrollView>
-      <View style={styles.dateActions}>
-        <TouchableOpacity
-          style={styles.dateDoneBtnSolo}
-          onPress={handleDone}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel={t.done}
-        >
-          <Text style={styles.dateDoneBtnText}>{t.done}</Text>
-        </TouchableOpacity>
-      </View>
-      {/* `theme` is referenced to keep the prop API stable for
-          ComposeSheet, which still passes it. */}
-      {void theme}
-    </>
-  )
-}
+// (dueDateAsUntil + ReminderSubView retired — the multi-reminder
+// picker now lives in ../ReminderSheet/index.tsx.)
 
 function SubtaskCard({
   parentId, subtask, styles, theme,

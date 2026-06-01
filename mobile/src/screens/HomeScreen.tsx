@@ -456,6 +456,7 @@ export default function HomeScreen() {
                 onUpdateNotes={store.updateNotes}
                 onUpdateRecurrence={store.updateRecurrence}
                 onUpdateReminder={store.updateReminder}
+                onUpdateReminders={store.updateReminders}
                 onAddSubtask={store.addSubtask}
                 onToggleSubtask={store.toggleSubtask}
                 onUpdateSubtaskText={store.updateSubtaskText}
@@ -594,6 +595,7 @@ export default function HomeScreen() {
                     onUpdateNotes={store.updateNotes}
                     onUpdateRecurrence={store.updateRecurrence}
                     onUpdateReminder={store.updateReminder}
+                onUpdateReminders={store.updateReminders}
                     onAddSubtask={store.addSubtask}
                     onToggleSubtask={store.toggleSubtask}
                     onUpdateSubtaskText={store.updateSubtaskText}
