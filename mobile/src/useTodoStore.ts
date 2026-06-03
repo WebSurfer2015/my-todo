@@ -130,7 +130,13 @@ export function useTodoStore() {
     reorderStatuses,
     togglePriorityHidden,
     reorderPriorities,
-  } = useProfileSlice(adapter, { setFilter, clearFilters, t, notify });
+  } = useProfileSlice(adapter, {
+    setFilter,
+    clearFilters,
+    t,
+    notify,
+    actions: store.actions,
+  });
   const {
     categories,
     setCategories,

@@ -16,23 +16,8 @@ import { useCallback, useState } from "react";
 import { useSyncedState } from "../useSyncedState";
 import { Profile, SEED_PROFILE, migrateProfile } from "../profile";
 import { Filter, Priority, StatusFilter, ViewMode } from "../types";
-import {
-  statusRename,
-  statusToggleHidden,
-  statusReorder,
-} from "../../../core/src/statuses";
-import {
-  priorityToggleHidden,
-  priorityReorder,
-} from "../../../core/src/priorities";
-import {
-  PIN_LIMIT,
-  togglePinnedFilter,
-  addPinnedFilter,
-  stripFilterFromPinned,
-  toggleStatTile,
-  defaultFilterForView,
-} from "../../../core/src/filters";
+import { PIN_LIMIT } from "../../../core/src/filters";
+import { TodoStoreActions } from "../../../core/src/store";
 import { StorageAdapter } from "../../../core/src/persistence";
 import { unwrap, serializeAny } from "../storage/envelope";
 
@@ -51,6 +36,8 @@ export interface ProfileSliceDeps {
   /** Snackbar copy for the pin-limit warning. */
   t: { pinCapReached: (n: number) => string };
   notify: { showSnackbar: (opts: { message: string }) => void };
+  /** The createTodoStore pure-transform surface. */
+  actions: TodoStoreActions;
 }
 
 export interface ProfileSlice {
@@ -81,7 +68,22 @@ export function useProfileSlice(
   adapter: StorageAdapter,
   deps: ProfileSliceDeps,
 ): ProfileSlice {
-  const { setFilter, clearFilters, t, notify } = deps;
+  const { setFilter, clearFilters, t, notify, actions } = deps;
+  // Pure transforms via the createTodoStore surface. Stable across
+  // ordinary renders (store memoized on t), so the existing useCallback
+  // deps stay correct and callback identities hold.
+  const {
+    statusRename,
+    statusToggleHidden,
+    statusReorder,
+    priorityToggleHidden,
+    priorityReorder,
+    togglePinnedFilter,
+    addPinnedFilter,
+    stripFilterFromPinned,
+    toggleStatTile,
+    defaultFilterForView,
+  } = actions;
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const onSaved = useCallback((ts: number) => setLastSavedAt(ts), []);
 
