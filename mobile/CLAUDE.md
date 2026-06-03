@@ -78,7 +78,16 @@ Two social providers (Apple, Google) + email/password, all funnel through `signI
 
 ### Domain store (`src/useTodoStore.ts`)
 
-Mostly mirrors web's store (see web/CLAUDE.md), with mobile-specific shape:
+> **Mobile is a superset of web's store, not a mirror** — it adds groceries, pebbles, multi-filter, view modes, status/priority customization, recurrence-v2 series edits, mascot/identity lines, and home stat tiles. Web parity is a separate, deferred task.
+
+**Functional core / imperative shell (`createTodoStore`).** All pure logic lives in `core/` and is reached through one orchestration surface, `core/src/store` → `createTodoStore({ now, genId, t })`:
+
+- `store.actions` — a flat table of **pure** transforms (`(state, …args) => state`) + cross-slice **coordinators** (`deleteCategoryCascade`, `toggleOutcome`, `reconcileTodayPebbles`), assembled by spreading the core transform modules so it auto-syncs as helpers land.
+- `store.derive(input)` — platform-agnostic derived state (`deriveState`). **Localized** presentation derived (greeting/mascot/identity lines) stays in this shell, *not* in core, to keep i18n out of `core`.
+
+The composer builds the store once (`useMemo` on `t`) and threads `store.actions` into each slice via deps. The slices (`src/slices/*`) + composer are the **imperative shell**: they own persisted state (`useSyncedState`), reference-stable `useCallback`s, refs, snackbars/`Alert`, and animation timing — none of which can move to `core`. Because `actions` are pure (not state-bound closures) and stable across ordinary renders, the slices destructure them and keep their existing `useCallback` deps, preserving the TaskItem/`React.memo` contract. **Don't import core transforms directly into a slice — pull them from `store.actions`** (exceptions: module-scope migrators used in parsers, plain data/consts, and date utils, which stay direct imports).
+
+Mobile-specific shape:
 
 - Adds a `view: ViewMode` (`category` vs status). `changeView` resets filter (`'all'` for category, `'open'` for status views).
 - Returns `headerLine` (greeting from local hour + profile name, or profile.quote override) and `appTitle` (`t.ownerTitle(firstName)` falling back to `profile.name`, then `t.title`).
