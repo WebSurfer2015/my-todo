@@ -16,10 +16,43 @@ my-todo/
 ├── mobile/    Expo SDK 54 + React Native 0.81 + TypeScript
 ├── docs/      ARCHITECTURE.md (Mermaid + FigJam mirrors)
 ├── scripts/   asc_upload_screenshots.py (App Store Connect uploader)
-└── amplify.yml  AWS Amplify monorepo build spec (appRoot: web)
+├── amplify.yml  AWS Amplify monorepo build spec (appRoot: web)
+├── package.json            root — holds ONLY the cross-package arch check (no workspaces)
+└── .dependency-cruiser.cjs Clean Architecture rules (+ .dependency-cruiser-known-violations.json baseline)
 ```
 
-`web/` and `mobile/` import `core/` via relative paths (e.g. `'../../core/src/types'`). No path aliases, no monorepo tooling.
+`web/` and `mobile/` import `core/` via relative paths (e.g. `'../../core/src/types'`). No path aliases, no monorepo tooling — the root `package.json` exists solely so `dependency-cruiser` can see all three packages at once.
+
+## Clean Architecture — the dependency rule (enforced)
+
+Source dependencies point **inward**, never outward:
+
+```
+frameworks/drivers  →  interface adapters     →  use cases / domain
+(web/, mobile/:         (firestoreAdapter,         (core/src: types, derive,
+ React, RN, Expo,        useTodoStore,              groups, persistence PORT,
+ Firebase, AsyncStorage) i18n bindings)             categories, profile, …)
+```
+
+Hard rules, enforced by `npm run lint:arch` (dependency-cruiser) at the repo root:
+
+1. **`core/` imports nothing external** — no npm package (React, Firebase, Expo) and no node builtin (`fs`, `path`). It is platform-pure so both web and React Native can run it. New shared logic goes in `core/` behind a port (e.g. `StorageAdapter`), never a platform dep added to core.
+2. **`core/` never reaches "up"** into `web/` or `mobile/`.
+3. **`web/` and `mobile/` never import each other** — anything both need lives in `core/`.
+4. **No circular dependencies** anywhere.
+
+How to run / extend:
+
+- `npm run lint:arch` — the authoritative gate. **Wire this into CI alongside `tsc`.** Add it to any pre-merge check.
+- `.dependency-cruiser.cjs` holds the rules; edit there to tighten/add rules.
+- Each app's `eslint.config.js` also has a `no-restricted-imports` **warn** (editor-time squiggle when you type a cross-platform import). The hard, baseline-aware gate is `lint:arch`, not eslint.
+
+**Known-violations baseline** (`.dependency-cruiser-known-violations.json`): pre-existing violations are snapshotted so the gate fails only on *new* ones. Burn these down over time, then `npm run lint:arch:baseline` to re-snapshot. Current debt to retire:
+
+- `mobile/src/components/PebbleFlight.tsx` ↔ `slices/useTodosSlice.ts` — a render-cycle through `StoreContext`/`useTodoStore`. Break by moving the shared value out of the cycle.
+- 4× `web/src/*.test.ts` import `mobile/src/*` (`authErrors`, `useSyncedState`, `useSuggestSteps`, `useTodoFieldSuggestions`) — logic both platforms need is tested cross-boundary. Fix by promoting that logic into `core/` and testing it there.
+
+When you fix one, delete its entry and re-run `lint:arch:baseline`. Do **not** add new entries to grow the baseline.
 
 ## Deploy workflow — dev first, then main
 

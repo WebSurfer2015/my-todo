@@ -32,6 +32,23 @@ export default tseslint.config(
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
       "@typescript-eslint/no-explicit-any": "warn",
+      // Clean Architecture: web/ is an outer ring. It must never import the
+      // mobile/ sibling platform — shared logic belongs in core/ behind a port.
+      // Editor-time nudge only ("warn", matching this config's all-warnings
+      // convention); the authoritative, baseline-aware gate is the repo-root
+      // `npm run lint:arch` (../.dependency-cruiser.cjs).
+      "no-restricted-imports": [
+        "warn",
+        {
+          patterns: [
+            {
+              group: ["**/mobile/**"],
+              message:
+                "web/ must not import from mobile/. Share cross-platform logic via core/ behind a port.",
+            },
+          ],
+        },
+      ],
     },
   },
 );

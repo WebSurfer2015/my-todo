@@ -392,3 +392,18 @@ export function fullDateLabel(iso: string, locale: string | undefined = undefine
     minute: '2-digit',
   })}`;
 }
+
+/**
+ * Strip the optional time suffix from a dueDate. Used everywhere the
+ * date is bucketed/compared/grouped, since time-bearing todos must
+ * sort into the same bucket as their date-only siblings on the same
+ * day. Empty input returns empty.
+ *
+ * Lives in utils (not derive) so groups.ts can use it without creating
+ * a derive↔groups import cycle. Enforced by .dependency-cruiser.cjs.
+ */
+export function dueDateOnly(dueDate: string | undefined): string {
+  if (!dueDate) return "";
+  const t = dueDate.indexOf("T");
+  return t === -1 ? dueDate : dueDate.slice(0, t);
+}

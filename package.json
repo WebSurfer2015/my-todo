@@ -1,0 +1,13 @@
+{
+  "name": "my-todo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Root holds only the cross-package Clean Architecture check. The apps live in web/ and mobile/; shared domain logic in core/. No workspaces, no monorepo tooling — this exists solely so dependency-cruiser can see all three packages at once.",
+  "scripts": {
+    "lint:arch": "depcruise \"core/src/**/*.{ts,tsx}\" \"web/src/**/*.{ts,tsx}\" \"mobile/src/**/*.{ts,tsx}\" --config .dependency-cruiser.cjs --ignore-known .dependency-cruiser-known-violations.json",
+    "lint:arch:baseline": "depcruise \"core/src/**/*.{ts,tsx}\" \"web/src/**/*.{ts,tsx}\" \"mobile/src/**/*.{ts,tsx}\" --config .dependency-cruiser.cjs --output-type baseline > .dependency-cruiser-known-violations.json"
+  },
+  "devDependencies": {
+    "dependency-cruiser": "^16.10.0"
+  }
+}

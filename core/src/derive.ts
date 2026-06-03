@@ -16,7 +16,7 @@ import {
 } from "./types";
 import { CategoryDef, categoryLabel } from "./categories";
 import { buildGroups, TodoGroup } from "./groups";
-import { genUuid, todayLocal, nextOccurrence, expandRecurrence, MAX_RECURRENCE_INSTANCES } from "./utils";
+import { genUuid, todayLocal, dueDateOnly, nextOccurrence, expandRecurrence, MAX_RECURRENCE_INSTANCES } from "./utils";
 import type { Strings } from "./i18n";
 
 export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
@@ -73,18 +73,6 @@ export function newTodo(input: {
     ...(notes ? { notes } : {}),
     ...(input.reminder?.at ? { reminder: input.reminder } : {}),
   };
-}
-
-/**
- * Strip the optional time suffix from a dueDate. Used everywhere the
- * date is bucketed/compared/grouped, since time-bearing todos must
- * sort into the same bucket as their date-only siblings on the same
- * day. Empty input returns empty.
- */
-export function dueDateOnly(dueDate: string | undefined): string {
-  if (!dueDate) return "";
-  const t = dueDate.indexOf("T");
-  return t === -1 ? dueDate : dueDate.slice(0, t);
 }
 
 /**

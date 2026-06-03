@@ -1,6 +1,5 @@
 import { Priority, Todo } from './types'
-import { todayLocal, endOfWeekLocal } from './utils'
-import { dueDateOnly } from './derive'
+import { todayLocal, endOfWeekLocal, dueDateOnly } from './utils'
 
 const PRIORITY_RANK: Record<Priority, number> = { high: 0, medium: 1, low: 2 }
 

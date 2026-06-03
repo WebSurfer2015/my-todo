@@ -11,6 +11,11 @@
 # Vite ephemeral cache (sometimes lands at repo root)
 .vite/
 
+# Root-level deps: the root package.json holds only the cross-package
+# dependency-cruiser arch check. Its node_modules is not committed; the
+# lockfile (package-lock.json) is, for reproducible CI installs.
+/node_modules/
+
 # Claude Code (user-local state)
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
