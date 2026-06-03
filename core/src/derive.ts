@@ -1461,6 +1461,64 @@ export function todoSet<K extends keyof Todo>(
   });
 }
 
+/** Replace a todo's `reminders` array, dropping the legacy single
+ * `reminder` field. An empty array clears reminders entirely (the field
+ * is removed rather than persisted as []). */
+export function todoSetReminders(
+  prev: Todo[],
+  id: string,
+  reminders: Reminder[],
+): Todo[] {
+  const now = Date.now();
+  return prev.map((td) => {
+    if (td.id !== id) return td;
+    const next: Todo = { ...td, updatedAt: now };
+    delete next.reminder;
+    if (reminders.length > 0) next.reminders = reminders;
+    else delete next.reminders;
+    return next;
+  });
+}
+
+/** Set or clear a todo's `recurrence`. Passing undefined removes the
+ * field entirely rather than leaving it set to undefined. */
+export function todoSetRecurrence(
+  prev: Todo[],
+  id: string,
+  recurrence: Recurrence | undefined,
+): Todo[] {
+  const now = Date.now();
+  return prev.map((td) => {
+    if (td.id !== id) return td;
+    if (recurrence) return { ...td, recurrence, updatedAt: now };
+    const next: Todo = { ...td, updatedAt: now };
+    delete next.recurrence;
+    return next;
+  });
+}
+
+/** Active (not trashed, not done) todos whose dueDate is strictly before
+ * `today` (an ISO yyyy-mm-dd). Pure selector for the defer-overdue flow. */
+export function selectOverdue(todos: Todo[], today: string): Todo[] {
+  return todos.filter(
+    (td) => !td.trashed && !td.done && !!td.dueDate && td.dueDate < today,
+  );
+}
+
+/** Set each todo's dueDate to the value mapped to its id. The empty
+ * string clears the date (Todo.dueDate's "no date" sentinel). Ids absent
+ * from the map are untouched. Stamps updatedAt on every changed row.
+ * Powers both the reschedule (ids → new date) and its undo (ids →
+ * original dates). */
+export function setDueDates(prev: Todo[], dates: Map<string, string>): Todo[] {
+  if (dates.size === 0) return prev;
+  const now = Date.now();
+  return prev.map((td) => {
+    const next = dates.get(td.id);
+    return next !== undefined ? { ...td, dueDate: next, updatedAt: now } : td;
+  });
+}
+
 export function categoryAdd(
   prev: CategoryDef[],
   newId: string,

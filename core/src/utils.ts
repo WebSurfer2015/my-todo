@@ -32,6 +32,17 @@ export function isoDate(d: Date): string {
 }
 
 /**
+ * ISO yyyy-mm-dd `days` days from `from` (defaults to now), in local
+ * time. Used by snooze / defer to turn "N days from today" into a date
+ * string. `days` may be negative.
+ */
+export function addDaysISO(days: number, from: Date = new Date()): string {
+  const d = new Date(from)
+  d.setDate(d.getDate() + days)
+  return isoDate(d)
+}
+
+/**
  * Spread `count` subtask due dates across the window from today to
  * `parentDueDate`. The last subtask always lands on the parent's
  * date so the sequence ends at the parent. Earlier subtasks pace

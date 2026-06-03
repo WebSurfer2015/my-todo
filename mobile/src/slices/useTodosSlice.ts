@@ -63,13 +63,17 @@ import {
   todoApplyRecurrenceChange,
   todoApplySeriesSubtasks,
   expandSeries,
+  todoSetReminders,
+  todoSetRecurrence,
+  selectOverdue,
+  setDueDates,
 } from "../../../core/src/derive";
 import {
   toggleSelection,
   applyBulkRestore,
   applyBulkDelete,
 } from "../../../core/src/selection";
-import { todayLocal, isoDate } from "../../../core/src/utils";
+import { todayLocal, addDaysISO } from "../../../core/src/utils";
 import { useSyncedState } from "../useSyncedState";
 import { StorageAdapter } from "../../../core/src/persistence";
 import { PEBBLE_DEFERRAL_MS } from "../components/PebbleFlight";
@@ -627,56 +631,23 @@ export function useTodosSlice(
   // diffs and reconciles via the existing syncTodoReminders effect.
   const updateReminders = useCallback(
     (id: string, reminders: Reminder[]) => {
-      setTodos((prev) =>
-        prev.map((td) => {
-          if (td.id !== id) return td;
-          const next: Todo = {
-            ...td,
-            reminders: reminders.length > 0 ? reminders : undefined,
-            updatedAt: Date.now(),
-          };
-          delete next.reminder;
-          if (!next.reminders) delete next.reminders;
-          return next;
-        }),
-      );
+      setTodos((prev) => todoSetReminders(prev, id, reminders));
     },
     [setTodos],
   );
 
   const deferOverdue = useCallback(
     (daysFromToday: number) => {
-      const today = todayLocal();
-      const d = new Date();
-      d.setDate(d.getDate() + daysFromToday);
-      const newDate = isoDate(d);
-      const overdue = todosRef.current.filter(
-        (td) => !td.trashed && !td.done && td.dueDate && td.dueDate < today,
-      );
+      const newDate = addDaysISO(daysFromToday);
+      const overdue = selectOverdue(todosRef.current, todayLocal());
       if (overdue.length === 0) return;
       const originals = new Map(overdue.map((td) => [td.id, td.dueDate]));
-      const now = Date.now();
-      setTodos((prev) =>
-        prev.map((td) =>
-          originals.has(td.id)
-            ? { ...td, dueDate: newDate, updatedAt: now }
-            : td,
-        ),
-      );
+      const reschedule = new Map(overdue.map((td) => [td.id, newDate]));
+      setTodos((prev) => setDueDates(prev, reschedule));
       notify.showSnackbar({
         message: t.defer.done(overdue.length),
         actionLabel: t.undoAll,
-        onAction: () => {
-          const undoNow = Date.now();
-          setTodos((prev) =>
-            prev.map((td) => {
-              const orig = originals.get(td.id);
-              return orig !== undefined
-                ? { ...td, dueDate: orig, updatedAt: undoNow }
-                : td;
-            }),
-          );
-        },
+        onAction: () => setTodos((prev) => setDueDates(prev, originals)),
       });
     },
     [setTodos, notify, t],
@@ -691,31 +662,15 @@ export function useTodosSlice(
       );
       if (candidates.length === 0) return;
       const originals = new Map(candidates.map((td) => [td.id, td.dueDate]));
-      const now = Date.now();
-      setTodos((prev) =>
-        prev.map((td) =>
-          originals.has(td.id)
-            ? { ...td, dueDate: targetISO, updatedAt: now }
-            : td,
-        ),
-      );
+      const reschedule = new Map(candidates.map((td) => [td.id, targetISO]));
+      setTodos((prev) => setDueDates(prev, reschedule));
       notify.showSnackbar({
         message:
           candidates.length === 1
             ? "1 to-do deferred."
             : `${candidates.length} to-dos deferred.`,
         actionLabel: t.undoAll,
-        onAction: () => {
-          const undoNow = Date.now();
-          setTodos((prev) =>
-            prev.map((td) => {
-              const orig = originals.get(td.id);
-              return orig !== undefined
-                ? { ...td, dueDate: orig, updatedAt: undoNow }
-                : td;
-            }),
-          );
-        },
+        onAction: () => setTodos((prev) => setDueDates(prev, originals)),
       });
     },
     [setTodos, notify, t],
@@ -726,9 +681,7 @@ export function useTodosSlice(
       const beforeTodo = todosRef.current.find((td) => td.id === id);
       if (!beforeTodo) return;
       const originalDate = beforeTodo.dueDate;
-      const d = new Date();
-      d.setDate(d.getDate() + daysFromToday);
-      const newDate = isoDate(d);
+      const newDate = addDaysISO(daysFromToday);
       setTodos((prev) => todoSet(prev, id, "dueDate", newDate));
       const label =
         daysFromToday === 1
@@ -903,18 +856,7 @@ export function useTodosSlice(
 
   const updateRecurrence = useCallback(
     (id: string, recurrence: Recurrence | undefined) => {
-      setTodos((prev) =>
-        prev.map((td) =>
-          td.id === id
-            ? recurrence
-              ? { ...td, recurrence, updatedAt: Date.now() }
-              : (() => {
-                  const { recurrence: _, ...rest } = td;
-                  return { ...rest, updatedAt: Date.now() };
-                })()
-            : td,
-        ),
-      );
+      setTodos((prev) => todoSetRecurrence(prev, id, recurrence));
     },
     [setTodos],
   );
