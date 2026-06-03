@@ -279,6 +279,7 @@ export function useTodoStore() {
     notify,
     t,
     applyPebbleDeltaTimed,
+    actions: store.actions,
   });
 
   const loaded =

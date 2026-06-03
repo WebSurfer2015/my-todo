@@ -13,28 +13,15 @@ import {
   SEED_GROCERY_STORES,
   migrateGroceries,
   migrateGroceryGroups,
-  newGroceryItem,
-  groceryToggleChecked,
-  shoppingBucketPebbleDelta,
-  groceryEdit,
-  groceryDelete,
   MAX_GROCERY_ITEMS,
   MAX_GROCERY_GROUPS,
   OTHERS_GROUP_ID,
-  inferGroceryGroupLocal,
-  newGroceryGroup,
-  groceryGroupAdd,
-  insertGroupBeforeOthers,
-  addStoreToList,
-  renameStoreInList,
-  renameStoreInItems,
-  removeStoreFromItems,
-  linkStoreToItems,
 } from "../groceries";
 import { Profile } from "../profile";
 import { classifyGroceryDept } from "../aiInfer";
 import { StorageAdapter } from "../../../core/src/persistence";
 import { PebbleDelta } from "../../../core/src/derive";
+import { TodoStoreActions } from "../../../core/src/store";
 import { unwrap, serializeAny } from "../storage/envelope";
 
 const parseGroceries = (raw: string | null): GroceryItem[] =>
@@ -70,6 +57,8 @@ export interface GroceriesSliceDeps {
   /** Same pebble chokepoint as todo completions — fires when a
    * store×dept bucket completes/uncompletes. */
   applyPebbleDeltaTimed: (delta: PebbleDelta) => void;
+  /** The createTodoStore pure-transform surface. */
+  actions: TodoStoreActions;
 }
 
 export interface GroceriesSlice {
@@ -115,7 +104,26 @@ export function useGroceriesSlice(
   adapter: StorageAdapter,
   deps: GroceriesSliceDeps,
 ): GroceriesSlice {
-  const { onSaved, setProfile, profileRef, notify, t, applyPebbleDeltaTimed } = deps;
+  const { onSaved, setProfile, profileRef, notify, t, applyPebbleDeltaTimed, actions } = deps;
+  // Pure grocery transforms via the createTodoStore surface (stable
+  // across ordinary renders). Migrators + consts stay direct imports —
+  // they're used at module scope / are data, not behavior.
+  const {
+    newGroceryItem,
+    groceryToggleChecked,
+    shoppingBucketPebbleDelta,
+    groceryEdit,
+    groceryDelete,
+    inferGroceryGroupLocal,
+    newGroceryGroup,
+    groceryGroupAdd,
+    insertGroupBeforeOthers,
+    addStoreToList,
+    renameStoreInList,
+    renameStoreInItems,
+    removeStoreFromItems,
+    linkStoreToItems,
+  } = actions;
 
   const [groceries, setGroceries, groceriesLoaded] = useSyncedState<GroceryItem[]>(
     adapter,
