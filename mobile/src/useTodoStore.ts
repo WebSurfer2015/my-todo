@@ -195,6 +195,7 @@ export function useTodoStore() {
     uid,
     t,
     notify,
+    actions: store.actions,
   });
   const {
     todos,

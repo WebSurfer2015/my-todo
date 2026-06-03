@@ -33,50 +33,15 @@ import {
   TodoReference,
 } from "../types";
 import { Profile, incrementPebble, decrementPebble } from "../profile";
+// Module-scope migrators (used by the parsers below) + the PebbleDelta
+// type stay direct imports; every in-hook transform now comes from the
+// createTodoStore actions surface (destructured inside the hook).
 import {
-  newTodo,
-  todoToggle,
-  pebbleDelta,
-  PebbleDelta,
-  todoMoveToTrash,
-  todoMoveToTrashFutureSeries,
-  todoApplySeriesFutureEdits,
-  todoRestoreFromTrash,
-  todoPermanentlyDelete,
-  todoEmptyTrash,
-  todoClearDone,
-  todoSet,
   migrateTodos,
   migrateTodoReferences,
-  recordTodoReference,
-  subtaskAdd,
-  subtaskToggle,
-  subtaskUpdateText,
-  subtaskUpdatePriority,
-  subtaskUpdateDueDate,
-  subtaskRemove,
-  subtaskClearAll,
-  migrateToRecurringV2,
-  topUpAllSeries,
-  todoSkip,
-  todoDetachFromSeries,
-  todoApplyRecurrenceChange,
-  todoApplySeriesSubtasks,
-  expandSeries,
-  todoSetReminders,
-  todoSetRecurrence,
-  selectOverdue,
-  setDueDates,
+  PebbleDelta,
 } from "../../../core/src/derive";
-import {
-  toggleSelection,
-  applyBulkRestore,
-  applyBulkDelete,
-} from "../../../core/src/selection";
-import {
-  toggleOutcome,
-  reconcileTodayPebbles,
-} from "../../../core/src/store";
+import { TodoStoreActions } from "../../../core/src/store";
 import { todayLocal, addDaysISO } from "../../../core/src/utils";
 import { useSyncedState } from "../useSyncedState";
 import { StorageAdapter } from "../../../core/src/persistence";
@@ -143,6 +108,8 @@ export interface TodosSliceDeps {
       mergedActionLabel?: string;
     }) => void;
   };
+  /** The createTodoStore pure-transform surface. */
+  actions: TodoStoreActions;
 }
 
 export interface TodosSlice {
@@ -266,7 +233,49 @@ export function useTodosSlice(
     uid,
     t,
     notify,
+    actions,
   } = deps;
+  // Pure transforms via the createTodoStore surface. Stable across
+  // ordinary renders (store memoized on t), so the existing TaskItem
+  // callback deps stay correct and identities hold — preserving the
+  // React.memo stability contract. Migrators + date utils stay direct.
+  const {
+    newTodo,
+    todoToggle,
+    pebbleDelta,
+    todoMoveToTrash,
+    todoMoveToTrashFutureSeries,
+    todoApplySeriesFutureEdits,
+    todoRestoreFromTrash,
+    todoPermanentlyDelete,
+    todoEmptyTrash,
+    todoClearDone,
+    todoSet,
+    recordTodoReference,
+    subtaskAdd,
+    subtaskToggle,
+    subtaskUpdateText,
+    subtaskUpdatePriority,
+    subtaskUpdateDueDate,
+    subtaskRemove,
+    subtaskClearAll,
+    migrateToRecurringV2,
+    topUpAllSeries,
+    todoSkip,
+    todoDetachFromSeries,
+    todoApplyRecurrenceChange,
+    todoApplySeriesSubtasks,
+    expandSeries,
+    todoSetReminders,
+    todoSetRecurrence,
+    selectOverdue,
+    setDueDates,
+    toggleSelection,
+    applyBulkRestore,
+    applyBulkDelete,
+    toggleOutcome,
+    reconcileTodayPebbles,
+  } = actions;
 
   const [todos, setTodos, todosLoaded] = useSyncedState<Todo[]>(
     adapter,
