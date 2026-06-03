@@ -18,10 +18,9 @@ import { storage as localAdapter } from "./persistence";
 import { db } from "./firebase";
 import { makeFirestoreAdapter } from "./firestoreAdapter";
 import { StorageAdapter, USER_STATE_KEYS } from "../../core/src/persistence";
-import { deriveState } from "../../core/src/derive";
-import { deleteCategoryCascade } from "../../core/src/store";
+import { createTodoStore } from "../../core/src/store";
 import { DEFAULT_HOME_STAT_TILES } from "../../core/src/filters";
-import { todayLocal } from "../../core/src/utils";
+import { todayLocal, genUuid } from "../../core/src/utils";
 import { getTodayPebbles, collectedNounKeyFor } from "./profile";
 
 /**
@@ -52,6 +51,17 @@ export function useTodoStore() {
   const { lang, t } = useLang();
   const { user } = useAuth();
   const notify = useNotify();
+
+  // The framework-free orchestration surface (core). The shell below
+  // owns persisted state (useSyncedState) + stable callbacks; it drives
+  // store.actions (pure transforms) through setState and feeds live
+  // state to store.derive. Memoized on `t` (the only deps member that
+  // varies); actions are pure so this keeps useCallback identities
+  // stable across ordinary renders.
+  const store = useMemo(
+    () => createTodoStore({ now: Date.now, genId: genUuid, t }),
+    [t],
+  );
 
   // Memoize on uid (not the User object) so token refresh — which replaces
   // the User reference ~hourly — doesn't recreate the adapter, tear down
@@ -320,7 +330,7 @@ export function useTodoStore() {
 
 
   function deleteCategory(id: string) {
-    const res = deleteCategoryCascade({
+    const res = store.actions.deleteCategoryCascade({
       todos,
       categories,
       id,
@@ -343,13 +353,13 @@ export function useTodoStore() {
 
   const derived = useMemo(
     () =>
-      deriveState({
+      store.derive({
         todos,
         filters,
         categories,
         t,
       }),
-    [todos, filters, categories, t],
+    [store, todos, filters, categories, t],
   );
 
   const hour = new Date().getHours();
