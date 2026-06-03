@@ -18,11 +18,20 @@ import {
   groceryDelete,
   inferGroceryGroupLocal,
   frequentGroceries,
+  groceryGroupAdd,
+  insertGroupBeforeOthers,
+  addStoreToList,
+  renameStoreInList,
+  renameStoreInItems,
+  removeStoreFromItems,
+  linkStoreToItems,
   SEED_GROCERY_GROUPS,
   OTHERS_GROUP_ID,
   MAX_GROCERY_TEXT_LEN,
   MAX_GROCERY_STORE_LEN,
+  MAX_GROCERY_GROUPS,
   type GroceryItem,
+  type GroceryGroup,
 } from '../../core/src/groceries'
 
 describe('newGroceryItem', () => {
@@ -395,5 +404,126 @@ describe('frequentGroceries', () => {
     const out = frequentGroceries(items, { now: NOW })
     // Both have same count (5); newer's latest timestamp is more recent.
     expect(out[0].id).toBe('newer')
+  })
+})
+
+// ── Group-list + store helpers (lifted from useGroceriesSlice, task #1) ──
+
+const others: GroceryGroup = { id: OTHERS_GROUP_ID, label: 'Miscellaneous' }
+const groups = (...labels: string[]): GroceryGroup[] => [
+  ...labels.map((label, i) => ({ id: `g${i}`, label })),
+  others,
+]
+const storeItem = (
+  id: string,
+  stores: string[],
+  groupId = 'produce',
+): GroceryItem => ({
+  id,
+  text: id,
+  groupId,
+  stores,
+  checked: false,
+  addedAt: 1,
+})
+
+describe('insertGroupBeforeOthers', () => {
+  it('keeps the Others catch-all last', () => {
+    const out = insertGroupBeforeOthers(groups('Produce'), { id: 'new', label: 'Snacks' })
+    expect(out.map((g) => g.id)).toEqual(['g0', 'new', OTHERS_GROUP_ID])
+  })
+  it('appends even when no Others group is present', () => {
+    const out = insertGroupBeforeOthers([{ id: 'g0', label: 'Produce' }], { id: 'new', label: 'Snacks' })
+    expect(out.map((g) => g.id)).toEqual(['g0', 'new'])
+  })
+})
+
+describe('groceryGroupAdd', () => {
+  it('returns null for an empty/whitespace label', () => {
+    expect(groceryGroupAdd(groups('Produce'), '   ')).toBeNull()
+  })
+  it('inserts a new group before Others and returns its id', () => {
+    const before = groups('Produce')
+    const res = groceryGroupAdd(before, 'Snacks')
+    expect(res).not.toBeNull()
+    expect(res!.groups).not.toBe(before) // changed → caller persists
+    expect(res!.groups.map((g) => g.label)).toEqual(['Produce', 'Snacks', 'Miscellaneous'])
+    const inserted = res!.groups.find((g) => g.label === 'Snacks')!
+    expect(res!.id).toBe(inserted.id)
+  })
+  it('dedupes case-insensitively and leaves the list unchanged (same ref)', () => {
+    const before = groups('Produce', 'Snacks')
+    const res = groceryGroupAdd(before, 'snacks')
+    expect(res).not.toBeNull()
+    expect(res!.groups).toBe(before) // same ref → caller skips the write
+    expect(res!.id).toBe('g1')
+  })
+  it('never dedupes against the reserved Others group', () => {
+    const before = groups('Produce')
+    const res = groceryGroupAdd(before, 'Miscellaneous')
+    expect(res!.id).not.toBe(OTHERS_GROUP_ID)
+    expect(res!.groups).not.toBe(before)
+  })
+  it('returns null once the group cap is reached', () => {
+    const labels = Array.from({ length: MAX_GROCERY_GROUPS }, (_, i) => `G${i}`)
+    const full = groups(...labels) // length is MAX + 1 (incl. Others)
+    expect(full.length).toBeGreaterThanOrEqual(MAX_GROCERY_GROUPS)
+    expect(groceryGroupAdd(full, 'OneMore')).toBeNull()
+  })
+})
+
+describe('addStoreToList', () => {
+  it('appends a new store', () => {
+    expect(addStoreToList(['Costco'], 'CVS')).toEqual(['Costco', 'CVS'])
+  })
+  it('is a no-op (same ref) for an exact duplicate', () => {
+    const list = ['Costco']
+    expect(addStoreToList(list, 'Costco')).toBe(list)
+  })
+})
+
+describe('renameStoreInList', () => {
+  it('renames while preserving order', () => {
+    expect(renameStoreInList(['A', 'B', 'C'], 'B', 'Z')).toEqual(['A', 'Z', 'C'])
+  })
+  it('dedupes when the rename collides with an existing entry', () => {
+    expect(renameStoreInList(['A', 'B', 'C'], 'C', 'A')).toEqual(['A', 'B'])
+  })
+})
+
+describe('renameStoreInItems', () => {
+  it('renames the store in every referencing item and dedupes', () => {
+    const items = [
+      storeItem('1', ['Costco', 'CVS']),
+      storeItem('2', ['CVS']),
+      storeItem('3', ['Costco', 'Stop & Shop']),
+    ]
+    const out = renameStoreInItems(items, 'Costco', 'CVS')
+    expect(out[0].stores).toEqual(['CVS']) // collapsed dupe
+    expect(out[1]).toBe(items[1]) // untouched → same ref
+    expect(out[2].stores).toEqual(['CVS', 'Stop & Shop'])
+  })
+})
+
+describe('removeStoreFromItems', () => {
+  it('strips the store and leaves non-referencing items untouched', () => {
+    const items = [storeItem('1', ['Costco', 'CVS']), storeItem('2', ['Stop & Shop'])]
+    const out = removeStoreFromItems(items, 'Costco')
+    expect(out[0].stores).toEqual(['CVS'])
+    expect(out[1]).toBe(items[1])
+  })
+})
+
+describe('linkStoreToItems', () => {
+  it('is a no-op (same ref) for an empty id list', () => {
+    const items = [storeItem('1', [])]
+    expect(linkStoreToItems(items, 'Costco', [])).toBe(items)
+  })
+  it('adds the store only to targeted items lacking it', () => {
+    const items = [storeItem('1', []), storeItem('2', ['Costco']), storeItem('3', [])]
+    const out = linkStoreToItems(items, 'Costco', ['1', '2'])
+    expect(out[0].stores).toEqual(['Costco'])
+    expect(out[1]).toBe(items[1]) // already had it → same ref
+    expect(out[2]).toBe(items[2]) // not targeted → same ref
   })
 })

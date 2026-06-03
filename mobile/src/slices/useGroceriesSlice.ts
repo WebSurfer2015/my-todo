@@ -23,6 +23,13 @@ import {
   OTHERS_GROUP_ID,
   inferGroceryGroupLocal,
   newGroceryGroup,
+  groceryGroupAdd,
+  insertGroupBeforeOthers,
+  addStoreToList,
+  renameStoreInList,
+  renameStoreInItems,
+  removeStoreFromItems,
+  linkStoreToItems,
 } from "../groceries";
 import { Profile } from "../profile";
 import { classifyGroceryDept } from "../aiInfer";
@@ -289,13 +296,7 @@ export function useGroceriesSlice(
                 } else {
                   const newGroup = newGroceryGroup(proposed);
                   targetGroupId = newGroup.id;
-                  setGroceryGroups((prev) => {
-                    const withoutOthers = prev.filter((g) => g.id !== OTHERS_GROUP_ID);
-                    const others = prev.find((g) => g.id === OTHERS_GROUP_ID);
-                    const next = [...withoutOthers, newGroup];
-                    if (others) next.push(others);
-                    return next;
-                  });
+                  setGroceryGroups((prev) => insertGroupBeforeOthers(prev, newGroup));
                 }
                 setGroceries((prev) =>
                   prev.map((it) =>
@@ -317,23 +318,15 @@ export function useGroceriesSlice(
       if (!next || next === oldName) return;
       setProfile((p) => {
         const list = p.groceryStores ?? SEED_GROCERY_STORES;
-        const updated: string[] = [];
-        for (const s of list) {
-          const replaced = s === oldName ? next : s;
-          if (!updated.includes(replaced)) updated.push(replaced);
-        }
         const activeUpdated =
           p.activeGroceryStore === oldName ? next : p.activeGroceryStore;
-        return { ...p, groceryStores: updated, activeGroceryStore: activeUpdated };
+        return {
+          ...p,
+          groceryStores: renameStoreInList(list, oldName, next),
+          activeGroceryStore: activeUpdated,
+        };
       });
-      setGroceries((prev) =>
-        prev.map((it) => {
-          if (!it.stores.includes(oldName)) return it;
-          const replaced = it.stores.map((s) => (s === oldName ? next : s));
-          const deduped = Array.from(new Set(replaced));
-          return { ...it, stores: deduped };
-        }),
-      );
+      setGroceries((prev) => renameStoreInItems(prev, oldName, next));
     },
     [setProfile, setGroceries],
   );
@@ -346,28 +339,14 @@ export function useGroceriesSlice(
           p.activeGroceryStore === name ? undefined : p.activeGroceryStore;
         return { ...p, groceryStores: list, activeGroceryStore: active };
       });
-      setGroceries((prev) =>
-        prev.map((it) =>
-          it.stores.includes(name)
-            ? { ...it, stores: it.stores.filter((s) => s !== name) }
-            : it,
-        ),
-      );
+      setGroceries((prev) => removeStoreFromItems(prev, name));
     },
     [setProfile, setGroceries],
   );
 
   const linkItemsToStore = useCallback(
     (storeName: string, itemIds: string[]) => {
-      if (itemIds.length === 0) return;
-      const idSet = new Set(itemIds);
-      setGroceries((prev) =>
-        prev.map((it) => {
-          if (!idSet.has(it.id)) return it;
-          if (it.stores.includes(storeName)) return it;
-          return { ...it, stores: [...it.stores, storeName] };
-        }),
-      );
+      setGroceries((prev) => linkStoreToItems(prev, storeName, itemIds));
     },
     [setGroceries],
   );
@@ -385,8 +364,7 @@ export function useGroceriesSlice(
       if (!trimmed) return;
       setProfile((p) => {
         const list = p.groceryStores ?? SEED_GROCERY_STORES;
-        if (list.includes(trimmed)) return p;
-        return { ...p, groceryStores: [...list, trimmed] };
+        return { ...p, groceryStores: addStoreToList(list, trimmed) };
       });
     },
     [setProfile],
@@ -394,23 +372,11 @@ export function useGroceriesSlice(
 
   const addGroceryGroup = useCallback(
     (label: string): string | undefined => {
-      const trimmed = label.trim();
-      if (!trimmed) return undefined;
-      const live = groceryGroupsRef.current;
-      const dupe = live.find(
-        (g) => g.id !== OTHERS_GROUP_ID && g.label.toLowerCase() === trimmed.toLowerCase(),
-      );
-      if (dupe) return dupe.id;
-      if (live.length >= MAX_GROCERY_GROUPS) return undefined;
-      const next = newGroceryGroup(trimmed);
-      setGroceryGroups((prev) => {
-        const withoutOthers = prev.filter((g) => g.id !== OTHERS_GROUP_ID);
-        const others = prev.find((g) => g.id === OTHERS_GROUP_ID);
-        const out = [...withoutOthers, next];
-        if (others) out.push(others);
-        return out;
-      });
-      return next.id;
+      const res = groceryGroupAdd(groceryGroupsRef.current, label);
+      if (!res) return undefined;
+      // res.groups === current ref on a dedup hit → nothing to persist.
+      if (res.groups !== groceryGroupsRef.current) setGroceryGroups(res.groups);
+      return res.id;
     },
     [setGroceryGroups],
   );

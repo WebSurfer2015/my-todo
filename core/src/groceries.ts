@@ -395,6 +395,112 @@ export function groceryDelete(items: GroceryItem[], id: string): GroceryItem[] {
   return items.filter((it) => it.id !== id)
 }
 
+// ── Group-list mutation (pure) ──────────────────────────────────────
+
+/** Insert a group just before the reserved Others catch-all so Others
+ * stays last. Pure list transform. */
+export function insertGroupBeforeOthers(
+  groups: GroceryGroup[],
+  group: GroceryGroup,
+): GroceryGroup[] {
+  const withoutOthers = groups.filter((g) => g.id !== OTHERS_GROUP_ID)
+  const others = groups.find((g) => g.id === OTHERS_GROUP_ID)
+  const out = [...withoutOthers, group]
+  if (others) out.push(others)
+  return out
+}
+
+/** Add a custom group from a label, enforcing dedup + the group cap.
+ *
+ * - Empty/whitespace label → `null` (no-op).
+ * - Case-insensitive duplicate of an existing non-Others group →
+ *   `{ groups: <unchanged>, id: <existing id> }` (caller skips the write).
+ * - At MAX_GROCERY_GROUPS → `null` (limit reached).
+ * - Otherwise creates + inserts before Others → `{ groups, id }`.
+ *
+ * Returning the same `groups` reference on a duplicate lets callers
+ * detect "no change" with `res.groups === prev`. */
+export function groceryGroupAdd(
+  groups: GroceryGroup[],
+  label: string,
+): { groups: GroceryGroup[]; id: string } | null {
+  const trimmed = label.trim()
+  if (!trimmed) return null
+  const lower = trimmed.toLowerCase()
+  const dupe = groups.find(
+    (g) => g.id !== OTHERS_GROUP_ID && g.label.toLowerCase() === lower,
+  )
+  if (dupe) return { groups, id: dupe.id }
+  if (groups.length >= MAX_GROCERY_GROUPS) return null
+  const group = newGroceryGroup(trimmed)
+  return { groups: insertGroupBeforeOthers(groups, group), id: group.id }
+}
+
+// ── Store ↔ item / store-list helpers (pure) ────────────────────────
+
+/** Append a store name to a list if not already present (exact match),
+ * preserving order. */
+export function addStoreToList(list: string[], name: string): string[] {
+  return list.includes(name) ? list : [...list, name]
+}
+
+/** Rename a store within a name list, preserving order and deduping any
+ * collision the rename creates. */
+export function renameStoreInList(
+  list: string[],
+  oldName: string,
+  newName: string,
+): string[] {
+  const out: string[] = []
+  for (const s of list) {
+    const replaced = s === oldName ? newName : s
+    if (!out.includes(replaced)) out.push(replaced)
+  }
+  return out
+}
+
+/** Rename a store everywhere it appears in items' `stores` arrays,
+ * deduping the result. Items not referencing oldName are untouched. */
+export function renameStoreInItems(
+  items: GroceryItem[],
+  oldName: string,
+  newName: string,
+): GroceryItem[] {
+  return items.map((it) => {
+    if (!it.stores.includes(oldName)) return it
+    const replaced = it.stores.map((s) => (s === oldName ? newName : s))
+    return { ...it, stores: Array.from(new Set(replaced)) }
+  })
+}
+
+/** Remove a store from every item's `stores` array. */
+export function removeStoreFromItems(
+  items: GroceryItem[],
+  name: string,
+): GroceryItem[] {
+  return items.map((it) =>
+    it.stores.includes(name)
+      ? { ...it, stores: it.stores.filter((s) => s !== name) }
+      : it,
+  )
+}
+
+/** Append a store to the given items' `stores` arrays (no-op when an
+ * item already lists it or isn't in `itemIds`). */
+export function linkStoreToItems(
+  items: GroceryItem[],
+  storeName: string,
+  itemIds: string[],
+): GroceryItem[] {
+  if (itemIds.length === 0) return items
+  const idSet = new Set(itemIds)
+  return items.map((it) => {
+    if (!idSet.has(it.id)) return it
+    if (it.stores.includes(storeName)) return it
+    return { ...it, stores: [...it.stores, storeName] }
+  })
+}
+
 // ── Department inference (local heuristic) ──────────────────────────
 //
 // Catches the most common grocery names without an AI call. The AI
