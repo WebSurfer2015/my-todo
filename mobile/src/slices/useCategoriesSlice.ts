@@ -13,11 +13,7 @@ import {
   migrateCategory,
   newCategoryId,
 } from "../categories";
-import {
-  categoryAdd,
-  categoryEdit,
-  categoryReorder,
-} from "../../../core/src/derive";
+import { TodoStoreActions } from "../../../core/src/store";
 import { StorageAdapter } from "../../../core/src/persistence";
 import { unwrap, serializeAny } from "../storage/envelope";
 
@@ -49,6 +45,7 @@ export interface CategoriesSlice {
 
 export function useCategoriesSlice(
   adapter: StorageAdapter,
+  actions: TodoStoreActions,
   onSaved?: (ts: number) => void,
 ): CategoriesSlice {
   const [categories, setCategories, categoriesLoaded] = useSyncedState<
@@ -65,10 +62,10 @@ export function useCategoriesSlice(
   const addCategory = useCallback(
     (data: { label: string; color: string; icon: string }): string => {
       const id = newCategoryId();
-      setCategories((prev) => categoryAdd(prev, id, data));
+      setCategories((prev) => actions.categoryAdd(prev, id, data));
       return id;
     },
-    [setCategories],
+    [setCategories, actions],
   );
 
   const editCategory = useCallback(
@@ -76,16 +73,16 @@ export function useCategoriesSlice(
       id: string,
       data: { label: string; color: string; icon: string },
     ): void => {
-      setCategories((prev) => categoryEdit(prev, id, data));
+      setCategories((prev) => actions.categoryEdit(prev, id, data));
     },
-    [setCategories],
+    [setCategories, actions],
   );
 
   const reorderCategories = useCallback(
     (fromIdx: number, toIdx: number): void => {
-      setCategories((prev) => categoryReorder(prev, fromIdx, toIdx));
+      setCategories((prev) => actions.categoryReorder(prev, fromIdx, toIdx));
     },
-    [setCategories],
+    [setCategories, actions],
   );
 
   return {

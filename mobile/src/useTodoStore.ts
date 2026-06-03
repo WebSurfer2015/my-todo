@@ -138,7 +138,7 @@ export function useTodoStore() {
     addCategory,
     editCategory,
     reorderCategories,
-  } = useCategoriesSlice(adapter, onSaved);
+  } = useCategoriesSlice(adapter, store.actions, onSaved);
 
   const view: ViewMode = profile.view ?? "status";
   // Derived bool re-exposed for screens that hide motion-bound chrome
