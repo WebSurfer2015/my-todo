@@ -1,12 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import {
-  Filter,
-  ViewMode,
-  isCategoryFilter,
-  categoryIdFromFilter,
-} from "./types";
+import { Filter, ViewMode } from "./types";
 import {
   getOrderedStatuses,
   getOrderedVisibleStatuses,
@@ -23,15 +18,11 @@ import { storage as localAdapter } from "./persistence";
 import { db } from "./firebase";
 import { makeFirestoreAdapter } from "./firestoreAdapter";
 import { StorageAdapter, USER_STATE_KEYS } from "../../core/src/persistence";
-import { categoryDelete, deriveState } from "../../core/src/derive";
+import { deriveState } from "../../core/src/derive";
+import { deleteCategoryCascade } from "../../core/src/store";
+import { DEFAULT_HOME_STAT_TILES } from "../../core/src/filters";
 import { todayLocal } from "../../core/src/utils";
 import { getTodayPebbles, collectedNounKeyFor } from "./profile";
-
-// Default trio when the user hasn't picked any Home stat tiles. Resolved
-// at render so the Home screen + Manage Filter sheet stay in sync, and
-// so a user renaming or deleting a category falls through to whatever
-// is still valid here without us writing dead pins to disk.
-const DEFAULT_HOME_STAT_TILES: string[] = ["cat:home", "cat:work", "done"];
 
 /**
  * Push local AsyncStorage data to cloud, per-key, only when that cloud key is
@@ -329,35 +320,22 @@ export function useTodoStore() {
 
 
   function deleteCategory(id: string) {
-    if (categories.length <= 1) return;
-    const next = categoryDelete(todos, categories, id);
-    if (!next.deleted) return;
-    setTodos(next.todos);
-    setCategories(next.categories);
-    if (isCategoryFilter(filter) && categoryIdFromFilter(filter) === id)
-      setFilter("all");
-    // Strip any pinned set that contained this category so the
-    // persisted profile doesn't accumulate stale `cat:<deleted-id>`
-    // entries that would render as ghost pills (or come back as a
-    // wrongly-typed re-create with the same id).
-    const ghostFilter = `cat:${id}`;
-    setProfile((prev) => {
-      const pinned = prev.pinnedFilters;
-      if (!pinned) return prev;
-      let touched = false;
-      const cleaned: string[][] = [];
-      for (const set of pinned) {
-        if (set.includes(ghostFilter)) {
-          touched = true;
-          const survivors = set.filter((f) => f !== ghostFilter);
-          if (survivors.length > 0) cleaned.push(survivors);
-        } else {
-          cleaned.push(set);
-        }
-      }
-      if (!touched) return prev;
-      return { ...prev, pinnedFilters: cleaned.length > 0 ? cleaned : undefined };
+    const res = deleteCategoryCascade({
+      todos,
+      categories,
+      id,
+      filter,
+      pinnedFilters: profile.pinnedFilters,
     });
+    if (!res.changed) return;
+    setTodos(res.todos);
+    setCategories(res.categories);
+    if (res.filter !== null) setFilter(res.filter);
+    // Strip any pinned set that contained this category so the persisted
+    // profile doesn't accumulate stale `cat:<deleted-id>` ghost pills.
+    if (res.pinnedFilters !== profile.pinnedFilters) {
+      setProfile((prev) => ({ ...prev, pinnedFilters: res.pinnedFilters }));
+    }
   }
 
 
