@@ -73,6 +73,10 @@ import {
   applyBulkRestore,
   applyBulkDelete,
 } from "../../../core/src/selection";
+import {
+  toggleOutcome,
+  reconcileTodayPebbles,
+} from "../../../core/src/store";
 import { todayLocal, addDaysISO } from "../../../core/src/utils";
 import { useSyncedState } from "../useSyncedState";
 import { StorageAdapter } from "../../../core/src/persistence";
@@ -303,21 +307,8 @@ export function useTodosSlice(
     const k = uid ?? "(local)";
     if (reconciledForUidRef.current === k) return;
     reconciledForUidRef.current = k;
-    const today = todayLocal();
-    const derivedTask = todos.filter(
-      (td) => !td.trashed && td.done && td.completionDate === today,
-    ).length;
-    const isToday = profile.pebblesDate === today;
-    const storedTask = isToday ? profile.todayTaskPebbles ?? 0 : 0;
-    const storedSub = isToday ? profile.todaySubtaskPebbles ?? 0 : 0;
-    if (!isToday || derivedTask > storedTask) {
-      setProfile((p) => ({
-        ...p,
-        pebblesDate: today,
-        todayTaskPebbles: Math.max(storedTask, derivedTask),
-        todaySubtaskPebbles: storedSub,
-      }));
-    }
+    const patch = reconcileTodayPebbles(profile, todos, todayLocal());
+    if (patch) setProfile((p) => ({ ...p, ...patch }));
   }, [
     profileLoaded,
     todosLoaded,
@@ -326,6 +317,7 @@ export function useTodosSlice(
     profile.pebblesDate,
     profile.todayTaskPebbles,
     profile.todaySubtaskPebbles,
+    profile,
     setProfile,
   ]);
 
@@ -425,18 +417,14 @@ export function useTodosSlice(
       const beforeTodo = todosRef.current.find((td) => td.id === id);
       setTodos((prev) => todoToggle(prev, id));
       if (!beforeTodo) return;
-      const out = todoToggle([beforeTodo], id);
-      const afterTodo = out[0];
-      const snapshot = out.length > 1 ? out[1] : null;
-      applyPebbleDeltaTimed(pebbleDelta(beforeTodo, afterTodo));
-      const completionRow = snapshot && snapshot.done ? snapshot : afterTodo;
-      if (completionRow && completionRow.done && !beforeTodo.done) {
-        setTodoReferences((prev) => recordTodoReference(prev, completionRow));
+      const { after, delta, referenceRow } = toggleOutcome(beforeTodo);
+      applyPebbleDeltaTimed(delta);
+      if (referenceRow) {
+        setTodoReferences((prev) => recordTodoReference(prev, referenceRow));
       }
       if (
         beforeTodo.done &&
-        afterTodo &&
-        !afterTodo.done &&
+        !after.done &&
         (filterRef.current === "done" || filterRef.current === "trash")
       ) {
         notify.showSnackbar({ message: "Moved back to your open list." });
