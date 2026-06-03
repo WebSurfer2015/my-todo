@@ -54,6 +54,26 @@ How to run / extend:
 
 When you fix one, delete its entry and re-run `lint:arch:baseline`. Do **not** add new entries to grow the baseline.
 
+## Naming conventions
+
+Match the surrounding code; when adding new files/symbols, follow these:
+
+| Kind | Convention | Example |
+|---|---|---|
+| Pure modules / utils | `camelCase.ts` | `derive.ts`, `groups.ts` |
+| React components | `PascalCase.tsx`, one component per file | `TaskItem.tsx` |
+| Hooks | `useXxx.ts` | `useTodoStore.ts`, `useSyncedState.ts` |
+| Port (interface) | noun + role, `PascalCase` | `StorageAdapter` |
+| Adapter (port impl) factory | `make<Thing>Adapter` | `makeFirestoreAdapter` |
+| Pure derive/mutation helper | `verbNoun` | `todoToggle`, `categoryAdd`, `groceryEdit` |
+| Boolean | `is` / `has` / `should` prefix | `isCategoryFilter` |
+| Type vs value | type `PascalCase`, const `UPPER_SNAKE` | `Todo`, `SEED_CATEGORIES` |
+
+Two that carry weight beyond style:
+
+- **`make*Adapter`** for *anything* implementing a `core/` port — keeps the adapter ring greppable and the dependency-inversion boundary obvious.
+- **`verbNoun` pure helpers** live in `core/` and never touch React/platform — they are the unit-testable use-case layer. A mutation that can't be named `verbNoun` without reaching for `useState`/`adapter` belongs in the React glue, not core.
+
 ## Deploy workflow — dev first, then main
 
 **Every change in this repo lands on the `dev` branch first. `main` is only updated after the user verifies on the Amplify dev environment. Do not `git push origin main` directly.**
