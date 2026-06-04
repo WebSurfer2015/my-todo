@@ -95,22 +95,21 @@ at the running sim and it'll show element selectors live.
 | P0.3 tab navigation | `13` | ✅ new |
 | P0.4 relaunch hydration | `14` | ✅ new (needs seed) |
 | P1.5 add task + toggle | `02`, `03` | ✅ |
-| P1.6 subtasks / task-details | `15` | long-press → TaskDetailsSheet (confirmed in source); render-only (Modal a11y caps commit) |
-| P1.7 trash + undo | `04` | ✅ undo covered |
-| P1.7 trash bulk-select | `18` | ⚠ **blocked until #15** — Trash view is only reachable via the CategorySheet `<Modal>` |
+| P1.6 subtasks / task-details | `15` | ✅ long-press → TaskDetailsSheet renders ("Steps") |
+| P1.7 trash + undo | `04` | swipe-action reveal needs gesture tuning (#16) |
+| P1.7 trash bulk-select | `18` | reachable via Filter sheet → "Trash" (sheets are addressable; #16) |
 | P1.8 clear completed | `17` | ✅ new |
-| P1.9 reminders | — | manual: ReminderSheet is a `<Modal>`, commit not scriptable (→ #15) |
-| P1.10 defer (single + all) | `05`, `07` | ✅ "Defer" = the swipe action → DeferModal (the store action is internally named `snooze`) |
-| P1.10 recurrence / series-edit | `08` | rolling covered; series-edit dialogs are `<Modal>`, commit manual (→ #15) |
-| P1.11 pebbles | `06` | ✅ |
+| P1.9 reminders | — | reachable (ReminderSheet is addressable) — flow not yet written |
+| P1.10 defer (single + all) | `05`, `07` | swipe-action reveal needs gesture tuning (#16) |
+| P1.10 recurrence / series-edit | `08` | recurring row rolls into collapsed UPCOMING (#16) |
+| P1.11 pebbles | `06` | ⚠ tested the REMOVED PebbleStrip — needs rework (#16) |
+
+**Passing on device (seeded sim):** 01, 02, 13, 14, 15. Others are in
+progress (#16) or precondition-gated (seed / zero-store for 10).
 
 **⚠ Flow 10 is skipped by default** — requires a sim with zero stores
 configured. Run explicitly after deleting all stores via Manage Store,
 or against a fresh install.
-
-**⚠ Flow 18 is blocked until task #15** (RN `<Modal>` a11y fix) — the
-Trash view is only reachable through the CategorySheet `<Modal>`, so the
-"Trash" tap can't land. Authored + ready; skip it until #15 ships.
 
 **⚠ Flows 03–08, 14, 15, 17, 18 require seed data** — they tap specific
 rows produced by `scripts/seed_sample_data.py`: "Pick up dry cleaning",
@@ -129,20 +128,30 @@ the completed row it acts on (reseed afterward).
 **Runs cleanly on any empty signed-in sim:** 01, 02, 09, 11, 12, 13.
 The others are precondition-gated (seed) or destructive.
 
-### Known a11y limitation in v1.5 sheets
+### Two separate selector gotchas (verified on-device 2026-06)
 
-Flows 09 and 11 are scoped to "compose/sheet renders" rather than
-fully exercising commit. `GroceryComposeSheet` and `StorePicker`
-have a wrapping `<View accessible={true}>` that concatenates all
-child accessibility labels into one parent string. Maestro's
-`tapOn: text: ".*X.*"` then matches the parent and taps its
-geometric center — not the specific button or chip — so commit
-flows (selecting a store chip, tapping "Add another", tapping
-header Done) don't reach the intended target.
+**1. Main-screen rows/items need `.*regex.*`, not bare text.** Many
+components set an `accessibilityLabel` that **concatenates** title +
+metadata — a todo row reads `"<title>, <category>, <due>, not done"`, the
+FAB reads `"Add a to-do, e.g. …"`. Maestro **anchors** a bare `text:`
+match, so `tapOn: "Refill prescription"` fails while `tapOn: { text:
+".*Refill prescription.*" }` matches. **Rule: select rows/items/FAB by
+`.*substring.*` regex.** Section headers are uppercase (`"CARRIED OVER"`).
+The Todos/Dashboard/Shopping lists ARE individually addressable this way.
 
-The fix is in the components: set `accessible={false}` on the
-outer wrapper and let per-element `accessibilityLabel`s be
-independently discoverable. Tracked as future component a11y work.
+**2. FORM sheets DO flatten into one a11y leaf — list sheets don't.**
+`CategorySheet` (the Filter sheet) is a list and exposes each row
+individually (`All / Carried over / Open / Done / …`) — so flows that go
+through it (Open filter, Trash) work. But the **form sheets**
+(`GroceryComposeSheet`, `StorePicker`, `ComposeSheet`, `TaskDetailsSheet`,
+`ReminderSheet`) wrap their body in `<Pressable style={styles.sheet}>`,
+which iOS collapses into ONE concatenated a11y node
+(`"Cancel Add Item STORES Add Costco … Add this item"`). `tapOn` then
+hits the parent's center, not the target — so commit flows inside these
+sheets can only assert "sheet renders," not pick a chip / tap Done.
+Confirmed NOT fixable by wrapper tweaks (`accessible={false}` or
+View+responder both leave the leaf collapsed); the real fix is to drop
+`<Modal>` for a portal/overlay `<View>` — tracked but invasive.
 
 ### TODO flows (write when relevant)
 
