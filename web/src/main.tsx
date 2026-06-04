@@ -2,11 +2,11 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import * as Sentry from "@sentry/react";
 import "./index.css";
-import App from "./App";
-import { LangProvider } from "./LangContext";
-import { NotifyProvider } from "./notify";
-import { ErrorBoundary } from "./ErrorBoundary";
-import { AuthProvider } from "./AuthContext";
+import App from "./app/App";
+import { LangProvider } from "./app/LangContext";
+import { NotifyProvider } from "./app/notify";
+import { ErrorBoundary } from "./app/ErrorBoundary";
+import { AuthProvider } from "./app/AuthContext";
 
 // Initialize Sentry only when DSN is set (set VITE_SENTRY_DSN in .env or
 // hosting env). No-op until then so dev builds don't accidentally report.

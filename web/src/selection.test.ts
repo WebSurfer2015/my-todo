@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { applyBulkDelete, applyBulkRestore, toggleSelection } from './selection'
-import type { Todo } from './types'
+import { applyBulkDelete, applyBulkRestore, toggleSelection } from './core-bindings/selection'
+import type { Todo } from './core-bindings/types'
 
 const order = ['1', '2', '3', '4', '5']
 
