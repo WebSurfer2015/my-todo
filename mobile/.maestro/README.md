@@ -77,8 +77,9 @@ at the running sim and it'll show element selectors live.
 | `flows/15-open-task-details-sheet.yaml` | Long-press row → TaskDetailsSheet "Steps" renders (render-only) | P1.6 |
 | `flows/16-sign-out.yaml` | Avatar → ProfileSheet → Sign out → SignIn screen ⚠ destructive | P0.2 |
 | `flows/17-clear-completed.yaml` | Complete row → Done filter → "Delete all permanently" → confirm ⚠ destructive | P1.8 |
+| `flows/18-bulk-trash-restore.yaml` | Trash view → select rows → bulk Restore ⚠ **blocked until #15** | P1.7 |
 
-> **Flows 13–17 were added for the architecture-refactor session and have
+> **Flows 13–18 were added for the architecture-refactor session and have
 > NOT yet been run on a sim** — they're authored from the component source
 > + the conventions above (real i18n strings, proven tab/row selectors).
 > Expect to tune a selector or two on first `npm run e2e`; the failing
@@ -94,18 +95,24 @@ at the running sim and it'll show element selectors live.
 | P0.3 tab navigation | `13` | ✅ new |
 | P0.4 relaunch hydration | `14` | ✅ new (needs seed) |
 | P1.5 add task + toggle | `02`, `03` | ✅ |
-| P1.6 subtasks | `15` | render-only (Modal a11y caps commit) |
-| P1.7 trash + undo / bulk | `04` | bulk-select still manual |
+| P1.6 subtasks / task-details | `15` | long-press → TaskDetailsSheet (confirmed in source); render-only (Modal a11y caps commit) |
+| P1.7 trash + undo | `04` | ✅ undo covered |
+| P1.7 trash bulk-select | `18` | ⚠ **blocked until #15** — Trash view is only reachable via the CategorySheet `<Modal>` |
 | P1.8 clear completed | `17` | ✅ new |
-| P1.9 reminders | — | manual: ReminderSheet is a `<Modal>`, commit not scriptable |
-| P1.10 recurrence / defer / snooze | `05`, `07`, `08` | snooze + series-edit still manual |
+| P1.9 reminders | — | manual: ReminderSheet is a `<Modal>`, commit not scriptable (→ #15) |
+| P1.10 defer (single + all) | `05`, `07` | ✅ "Defer" = the swipe action → DeferModal (the store action is internally named `snooze`) |
+| P1.10 recurrence / series-edit | `08` | rolling covered; series-edit dialogs are `<Modal>`, commit manual (→ #15) |
 | P1.11 pebbles | `06` | ✅ |
 
 **⚠ Flow 10 is skipped by default** — requires a sim with zero stores
 configured. Run explicitly after deleting all stores via Manage Store,
 or against a fresh install.
 
-**⚠ Flows 03–08, 14, 15, 17 require seed data** — they tap specific
+**⚠ Flow 18 is blocked until task #15** (RN `<Modal>` a11y fix) — the
+Trash view is only reachable through the CategorySheet `<Modal>`, so the
+"Trash" tap can't land. Authored + ready; skip it until #15 ships.
+
+**⚠ Flows 03–08, 14, 15, 17, 18 require seed data** — they tap specific
 seeded rows ("Pick up dry-cleaning", "Walk the dog", "Pay credit card
 bill"). On a fresh / empty sim they fail at the row-tap step. Run
 `scripts/seed_sample_data.py` (or sign in as `sagely.todo@gmail.com`

@@ -1,0 +1,41 @@
+# Flow 18 — Trash view: multi-select rows → bulk Restore.
+# Session manual-plan P1.7 (bulk trash).
+#
+# ⚠ BLOCKED until task #15 (RN <Modal> a11y fix). The ONLY way into the
+# Trash view is the manage-filters CategorySheet, which is a <Modal> with
+# an `accessible={true}` wrapper — so `tapOn: "Trash"` inside it matches
+# the concatenated parent label and taps its geometric center, not the
+# Trash row. Once #15 lands (per-element labels discoverable), this flow
+# runs end-to-end. Until then it fails at the "Trash" tap. Kept here,
+# authored + ready, like flow 10 (also skipped-by-default).
+#
+# Precondition: at least one TRASHED todo in the seed (or trash one via a
+# row's swipe → trash action first). Selectors: AppHeader "Filter" control,
+# filters.trash 'Trash', selectedCount '<n> selected', bulkRestore
+# 'Restore', bulkDeletePermanently 'Delete permanently'.
+appId: com.websurfer.mytodo
+---
+- launchApp
+- tapOn:
+    text: "Todos, tab.*"
+# Open the manage-filters sheet (AppHeader filter icon).
+- tapOn: "Filter"
+- waitForAnimationToEnd:
+    timeout: 1500
+# ⚠ #15-BLOCKED STEP: select the Trash system filter inside the Modal.
+- tapOn:
+    text: "Trash"
+- waitForAnimationToEnd:
+    timeout: 1500
+# Trash view: tapping a trashed row toggles its selection (onToggleSelect).
+# TODO(after #15): replace with a known trashed seed-row title.
+- tapOn:
+    text: ".*"
+    index: 0
+# Bulk bar appears with the selected count + actions.
+- assertVisible:
+    text: ".*1 selected.*"
+- tapOn: "Restore"
+# Selection clears (bulk bar gone) after the bulk restore.
+- assertNotVisible:
+    text: ".*selected.*"
