@@ -1,0 +1,27 @@
+# Flow 16 — Sign out returns to the SignIn screen.
+# Session manual-plan P0.2 (sign-OUT half). Sign-IN stays manual: native
+# Apple/Google OAuth sheets aren't scriptable (README), and email/password
+# needs a real test credential.
+#
+# ⚠ DESTRUCTIVE / STANDALONE: this signs the sim out. Run it LAST (or
+# on its own), then sign back in manually before re-running the other
+# flows, which all assume a signed-in seeded session.
+#
+# Guards #8: the avatar→ProfileSheet path and AuthContext moved (avatar
+# now in app/AppHeader, ProfileSheet in features/profile, AuthContext in
+# app/). Not yet run on a sim.
+appId: com.websurfer.mytodo
+---
+- launchApp
+# Avatar (top-left) opens ProfileSheet — accessibilityLabel = 'Edit profile'.
+- tapOn: "Edit profile"
+- waitForAnimationToEnd:
+    timeout: 1500
+# Sign out row — independently labeled (accessibilityLabel={t.signOut}).
+- tapOn: "Sign out"
+- waitForAnimationToEnd:
+    timeout: 2000
+# Back on the SignIn screen — the create-account toggle is a stable sentinel
+# (i18n createAccountToggle: "Don't have an account? Create one").
+- assertVisible:
+    text: ".*Create one.*"

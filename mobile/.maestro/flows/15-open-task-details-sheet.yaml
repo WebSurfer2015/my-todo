@@ -1,0 +1,23 @@
+# Flow 15 — Long-press a todo opens TaskDetailsSheet (Steps section renders).
+# Session manual-plan P1.6 (subtasks) — RENDER-ONLY.
+#
+# Scope: long-press opens the edit/details sheet; we assert the "Steps"
+# (subtasks) section is present. Committing a subtask is NOT scripted —
+# TaskDetailsSheet is a <Modal> whose outer wrapper concatenates child
+# a11y labels (see README "Known a11y limitation"), so tapping the inner
+# "Add a step…" affordance lands on the parent center, not the field.
+# assertVisible still works via substring against the concatenated label.
+#
+# Precondition: seeded row "Pick up dry-cleaning". Not yet run on a sim.
+appId: com.websurfer.mytodo
+---
+- launchApp
+- tapOn:
+    text: "Todos, tab.*"
+# Body-tap toggles done; long-press opens the details/edit sheet.
+- longPressOn: "Pick up dry-cleaning"
+- waitForAnimationToEnd:
+    timeout: 1500
+# "Steps" is the subtasks section header (i18n subtasks: 'Steps').
+- assertVisible:
+    text: ".*Steps.*"

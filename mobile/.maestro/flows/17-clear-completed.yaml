@@ -1,0 +1,36 @@
+# Flow 17 — Clear all completed (Done filter → "Delete all permanently"
+# → confirm Alert → list clears).
+# Session manual-plan P1.8.
+#
+# Reaches store.clearDone via the Done-filter header button (the Footer
+# path is disabled, showClear={false}). Completes a seeded row first so
+# there's something in the Done bin, switches to the Done filter, taps
+# "Delete all permanently", and confirms the native Alert.
+#
+# ⚠ DESTRUCTIVE: permanently deletes the completed row ("Walk the dog").
+# Reseed before re-running flows that expect it. Precondition: seeded
+# dataset. Not yet run on a sim.
+appId: com.websurfer.mytodo
+---
+- launchApp
+- tapOn:
+    text: "Todos, tab.*"
+# Complete a row (body-tap toggles done) so the Done bin is non-empty.
+- tapOn: "Walk the dog"
+- waitForAnimationToEnd:
+    timeout: 2500
+# Switch to the Done filter where the clear-completed control lives.
+- tapOn:
+    text: "Done"
+# Header button — i18n clearAllCompleted: 'Delete all permanently'.
+- assertVisible:
+    text: ".*Delete all permanently.*"
+- tapOn:
+    text: ".*Delete all permanently.*"
+# Native confirm Alert — destructive button is t.deletePermanently.
+- tapOn:
+    text: "Delete permanently"
+- waitForAnimationToEnd:
+    timeout: 1500
+# The completed row is gone from the Done view.
+- assertNotVisible: "Walk the dog"

@@ -72,19 +72,51 @@ at the running sim and it'll show element selectors live.
 | `flows/10-shopping-no-store-empty-state.yaml` | Zero-store empty state → Add Store CTA → Manage Store inline-add row | (v1.5) ⚠ |
 | `flows/11-shopping-add-store.yaml` | Gear → Manage Store renders → "Add a store" CTA visible | (v1.5) |
 | `flows/12-todos-empty-state.yaml` | Empty Todos → EmptyStateCard → Add a to-do → compose opens | (v1.5) |
+| `flows/13-tab-navigation.yaml` | Dashboard → Todos → Shopping → Dashboard all mount/switch | P0.3 |
+| `flows/14-relaunch-persists-data.yaml` | Seeded row survives a cold stopApp/launchApp (hydration) | P0.4 |
+| `flows/15-open-task-details-sheet.yaml` | Long-press row → TaskDetailsSheet "Steps" renders (render-only) | P1.6 |
+| `flows/16-sign-out.yaml` | Avatar → ProfileSheet → Sign out → SignIn screen ⚠ destructive | P0.2 |
+| `flows/17-clear-completed.yaml` | Complete row → Done filter → "Delete all permanently" → confirm ⚠ destructive | P1.8 |
+
+> **Flows 13–17 were added for the architecture-refactor session and have
+> NOT yet been run on a sim** — they're authored from the component source
+> + the conventions above (real i18n strings, proven tab/row selectors).
+> Expect to tune a selector or two on first `npm run e2e`; the failing
+> line names the element. They exist to smoke-test the #4 store rewire +
+> #7/#8 folder reorg, none of which is covered by `tsc`/Vitest.
+
+### Session P0/P1 manual-plan → flow coverage
+
+| Case | Covered by | Notes |
+| --- | --- | --- |
+| P0.1 app launches | `01` | ✅ |
+| P0.2 sign in / out | `16` (sign-out only) | sign-IN stays manual (OAuth not scriptable; email needs a test cred) |
+| P0.3 tab navigation | `13` | ✅ new |
+| P0.4 relaunch hydration | `14` | ✅ new (needs seed) |
+| P1.5 add task + toggle | `02`, `03` | ✅ |
+| P1.6 subtasks | `15` | render-only (Modal a11y caps commit) |
+| P1.7 trash + undo / bulk | `04` | bulk-select still manual |
+| P1.8 clear completed | `17` | ✅ new |
+| P1.9 reminders | — | manual: ReminderSheet is a `<Modal>`, commit not scriptable |
+| P1.10 recurrence / defer / snooze | `05`, `07`, `08` | snooze + series-edit still manual |
+| P1.11 pebbles | `06` | ✅ |
 
 **⚠ Flow 10 is skipped by default** — requires a sim with zero stores
 configured. Run explicitly after deleting all stores via Manage Store,
 or against a fresh install.
 
-**⚠ Flows 03–08 require seed data** — they tap specific seeded rows
-("Pick up dry-cleaning", "Walk the dog", "Pay credit card bill"). On
-a fresh / empty sim they fail at the row-tap step. Run
+**⚠ Flows 03–08, 14, 15, 17 require seed data** — they tap specific
+seeded rows ("Pick up dry-cleaning", "Walk the dog", "Pay credit card
+bill"). On a fresh / empty sim they fail at the row-tap step. Run
 `scripts/seed_sample_data.py` (or sign in as `sagely.todo@gmail.com`
 if the seed lives in cloud state) before invoking these flows.
 
-**Currently runs cleanly on any empty signed-in sim:** 01, 02, 09,
-11, 12. The other 7 flows are valid but precondition-gated.
+**⚠ Flows 16 + 17 are destructive** — `16` signs the sim out (run it
+last/standalone, then sign back in manually); `17` permanently deletes
+the completed row it acts on (reseed afterward).
+
+**Runs cleanly on any empty signed-in sim:** 01, 02, 09, 11, 12, 13.
+The others are precondition-gated (seed) or destructive.
 
 ### Known a11y limitation in v1.5 sheets
 

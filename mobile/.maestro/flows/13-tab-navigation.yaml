@@ -1,0 +1,31 @@
+# Flow 13 — Bottom-tab navigation: Dashboard → Todos → Shopping → Dashboard.
+# Session manual-plan P0.3 (+ smoke for the #8 feature-folder reorg).
+#
+# Why this matters now: task #8 physically moved every screen/component
+# into features/* | app/ | ui/. tsc proves imports resolve; this proves
+# all three tab screens still MOUNT and switch at runtime. Tab selectors
+# are the proven axId form from flow 01 ("<Label>, tab, N of 3").
+#
+# NOTE: authored to convention but NOT yet run on a sim this session —
+# if a label changed, the failing line shows the new text (see README
+# "Tips when flows fail"). Runs on any signed-in sim (no seed needed).
+appId: com.websurfer.mytodo
+---
+- launchApp
+- assertVisible: "Dashboard, tab, 1 of 3"
+- assertVisible:
+    text: "What's Next.*"        # Dashboard-unique sentinel
+- tapOn:
+    text: "Todos, tab.*"
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    text: "Shopping, tab.*"
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    text: "Dashboard, tab.*"
+- waitForAnimationToEnd:
+    timeout: 1500
+- assertVisible:
+    text: "What's Next.*"        # round-tripped back to Dashboard

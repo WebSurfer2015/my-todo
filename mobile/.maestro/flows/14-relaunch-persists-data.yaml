@@ -1,0 +1,23 @@
+# Flow 14 — Data persists across a cold relaunch.
+# Session manual-plan P0.4 (hydration after the store rewire #4 + the
+# adapters/ move in #8).
+#
+# A seeded todo is visible, the app is fully stopped and relaunched, and
+# the same row is still there — proving useSyncedState hydrates from the
+# Firestore/AsyncStorage adapter (now under src/adapters/) after the
+# rewrite to consume store.actions.
+#
+# Precondition: seeded dataset (sign in as sagely.todo@gmail.com or run
+# scripts/seed_sample_data.py). Authored to convention; not yet run on a
+# sim this session.
+appId: com.websurfer.mytodo
+---
+- launchApp
+- tapOn:
+    text: "Todos, tab.*"
+- assertVisible: "Pick up dry-cleaning"
+- stopApp
+- launchApp
+- tapOn:
+    text: "Todos, tab.*"
+- assertVisible: "Pick up dry-cleaning"   # survived the relaunch
