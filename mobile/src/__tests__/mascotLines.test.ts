@@ -3,7 +3,7 @@ import {
   MASCOT_LINES,
   dateSeed,
   pickMascotLine,
-} from '../mascotLines'
+} from '../features/mochi/mascotLines'
 import { LANG_ORDER } from '../../../core/src/data/i18n'
 
 // Exclamation marks of every flavor break the anxiety-friendly tone:

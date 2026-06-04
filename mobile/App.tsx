@@ -22,46 +22,46 @@ import {
   ThemeColors,
   ThemeOverrideProvider,
   deriveThemeFromAvatarBg,
-} from "./src/theme";
-import { findPreset, type Avatar as AvatarT } from "./src/profile";
+} from "./src/app/theme";
+import { findPreset, type Avatar as AvatarT } from "./src/core-bindings/profile";
 import {
   pairFromAvatarBg,
   lookupPattern,
-} from "./src/backgrounds";
+} from "./src/ui/backgrounds";
 // Side-effect import: registers the foreground notification handler at
 // boot so a push arriving while the app is open isn't silently dropped.
 import "./src/notifications";
-import FilterBar from "./src/components/FilterBar";
-import Fab from "./src/components/Fab";
-import TaskItem from "./src/components/TaskItem";
-import Footer from "./src/components/Footer";
-import Avatar from "./src/components/Avatar";
-import GroceryView from "./src/components/GroceryView";
-import AppBackground from "./src/components/AppBackground";
-import ChatSheet from "./src/components/ChatSheet";
-import SearchTopSheet from "./src/components/SearchTopSheet";
-import SearchPill from "./src/components/SearchPill";
-import DeferModal from "./src/components/DeferModal";
-import { SEED_GROCERY_STORES } from "./src/groceries";
-import type { Filter } from "./src/types";
-import { LangProvider, useLang } from "./src/LangContext";
-import { AuthProvider, useAuth } from "./src/AuthContext";
-import { NotifyProvider } from "./src/notify";
-import { PebbleFlightProvider } from "./src/components/PebbleFlight";
-import { ErrorBoundary } from "./src/ErrorBoundary";
-import { useTodoStore } from "./src/useTodoStore";
+import FilterBar from "./src/features/filters/FilterBar";
+import Fab from "./src/app/Fab";
+import TaskItem from "./src/features/task/TaskItem";
+import Footer from "./src/app/Footer";
+import Avatar from "./src/ui/Avatar";
+import GroceryView from "./src/features/groceries/GroceryView";
+import AppBackground from "./src/app/AppBackground";
+import ChatSheet from "./src/features/mochi/ChatSheet";
+import SearchTopSheet from "./src/features/filters/SearchTopSheet";
+import SearchPill from "./src/features/filters/SearchPill";
+import DeferModal from "./src/features/task/DeferModal";
+import { SEED_GROCERY_STORES } from "./src/core-bindings/groceries";
+import type { Filter } from "./src/core-bindings/types";
+import { LangProvider, useLang } from "./src/app/LangContext";
+import { AuthProvider, useAuth } from "./src/app/AuthContext";
+import { NotifyProvider } from "./src/app/notify";
+import { PebbleFlightProvider } from "./src/features/mochi/PebbleFlight";
+import { ErrorBoundary } from "./src/app/ErrorBoundary";
+import { useTodoStore } from "./src/store/useTodoStore";
 import { buildGroups } from "../core/src/logic/groups";
 import { buildDoneGroups } from "../core/src/logic/groups";
-import { fullDateLabel } from "./src/utils";
+import { fullDateLabel } from "./src/core-bindings/utils";
 import { todayLocal } from "../core/src/logic/utils";
-import type { Todo } from "./src/types";
-import SignIn from "./src/components/SignIn";
-import EmptyStateCard from "./src/components/EmptyStateCard";
-import { Analytics } from "./src/analytics";
-import Onboarding from "./src/components/Onboarding";
-import SplashOverlay from "./src/components/SplashOverlay";
-import { cancelDailyCheckin, syncTodoReminders } from "./src/notifications";
-import { installCrashReporters } from "./src/crashReporting";
+import type { Todo } from "./src/core-bindings/types";
+import SignIn from "./src/features/auth/SignIn";
+import EmptyStateCard from "./src/ui/EmptyStateCard";
+import { Analytics } from "./src/adapters/analytics";
+import Onboarding from "./src/features/onboarding/Onboarding";
+import SplashOverlay from "./src/app/SplashOverlay";
+import { cancelDailyCheckin, syncTodoReminders } from "./src/adapters/notifications";
+import { installCrashReporters } from "./src/adapters/crashReporting";
 
 // Install crash reporters before any React code runs so even very early
 // failures get forwarded to Crashlytics. Idempotent — safe to call once
@@ -71,11 +71,11 @@ import { NavigationContainer, useIsFocused } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { House, ListTodo, ShoppingBag } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
-import { StoreProvider, useStore } from "./src/StoreContext";
-import { SheetProvider, useSheets, sheetNavigationRef } from "./src/SheetContext";
-import HomeScreen from "./src/screens/HomeScreen";
-import GroceriesScreen from "./src/screens/GroceriesScreen";
-import AppHeader from "./src/components/AppHeader";
+import { StoreProvider, useStore } from "./src/app/StoreContext";
+import { SheetProvider, useSheets, sheetNavigationRef } from "./src/app/SheetContext";
+import HomeScreen from "./src/features/home/HomeScreen";
+import GroceriesScreen from "./src/features/groceries/GroceriesScreen";
+import AppHeader from "./src/app/AppHeader";
 
 /**
  * Master kill-switch for the Mochi agent / "Ask Mochi" chat surface.

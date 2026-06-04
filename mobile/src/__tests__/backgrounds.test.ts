@@ -15,7 +15,7 @@ import {
   lightenHex,
   PAIRS,
   PATTERNS,
-} from '../backgrounds'
+} from '../ui/backgrounds'
 
 describe('darkenHex', () => {
   it('darkens white toward black proportionally', () => {

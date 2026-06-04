@@ -4,6 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is the **mobile** workspace of `my-todo` — Expo SDK 54 + React Native 0.81 + TypeScript. The web sibling lives at `../web/` and shares pure logic via `../core/` (see `../web/CLAUDE.md` for the cross-platform `core/` architecture; this file covers mobile-only concerns).
 
+## Source layout (`src/`)
+
+Feature-folder layout (web/`src/` mirrors this shape):
+
+- `app/` — bootstrap & shell: contexts/providers (`AuthContext`, `LangContext`, `notify`, `StoreContext`, `SheetContext`), `ErrorBoundary`, `theme`, and top-level chrome (`AppHeader`, `AppBackground`, `Fab`, `Footer`, `SplashOverlay`). `App.tsx` is at the workspace root.
+- `adapters/` — IO / platform edges: `firebase`, `firestoreAdapter`, `persistence`, `analytics`, `crashReporting`, `notifications`, `aiInfer`, `authErrors`.
+- `store/` — domain store: `useTodoStore`, `useSyncedState`, `slices/`.
+- `core-bindings/` — thin re-export shims over `../../core/src/*` (`types`, `groups`, `categories`, `i18n`, `profile`, `utils`, `groceries`). Import core through these (or core directly), not by reaching across.
+- `ui/` — shared, feature-agnostic presentational components (`Avatar`, `CategoryIcon`, `EmptyState`, `InlinePicker`, …).
+- `features/<domain>/` — co-located feature UI + hooks: `task/`, `category/`, `groceries/`, `profile/`, `filters/`, `mochi/` (chat + pebbles), `onboarding/`, `auth/`, `home/`. Multi-file components keep their own dir (`features/task/TaskItem/{index,styles}`).
+
+When adding a file, place it by feature; keep shared presentational bits in `ui/` and IO in `adapters/`.
+
 ## Commands
 
 - `npm run ios` / `npm run android` — `expo run:ios` / `expo run:android`. Builds the dev client and launches on a sim/device. **Use the dev client, not Expo Go** — the project depends on native modules (Firebase, Google Sign-In, Apple Auth) that Expo Go does not bundle. `expo-dev-client` is in deps so EAS won't print the "uses Expo Go" warning.
