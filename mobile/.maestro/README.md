@@ -113,10 +113,14 @@ Trash view is only reachable through the CategorySheet `<Modal>`, so the
 "Trash" tap can't land. Authored + ready; skip it until #15 ships.
 
 **⚠ Flows 03–08, 14, 15, 17, 18 require seed data** — they tap specific
-seeded rows ("Pick up dry-cleaning", "Walk the dog", "Pay credit card
-bill"). On a fresh / empty sim they fail at the row-tap step. Run
-`scripts/seed_sample_data.py` (or sign in as `sagely.todo@gmail.com`
-if the seed lives in cloud state) before invoking these flows.
+rows produced by `scripts/seed_sample_data.py`: "Pick up dry cleaning",
+"Take a 10-minute walk", "Email therapist about Friday", "Pay credit
+card bill", "Yoga class". (Row selectors are aligned to the seed script's
+actual output — it writes "Pick up dry cleaning" with no hyphen and has
+no "Walk the dog" row.) On a fresh / empty sim they fail at the row-tap
+step. Run the seed (writes to the demo account's cloud state — needs
+`SAGELY_FIREBASE_WEB_API_KEY` + `SAGELY_DEMO_EMAIL` + `SAGELY_DEMO_PASSWORD`),
+then sign in as `sagely.todo@gmail.com` on the sim so the data hydrates.
 
 **⚠ Flows 16 + 17 are destructive** — `16` signs the sim out (run it
 last/standalone, then sign back in manually); `17` permanently deletes

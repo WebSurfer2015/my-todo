@@ -7,7 +7,7 @@
 # there's something in the Done bin, switches to the Done filter, taps
 # "Delete all permanently", and confirms the native Alert.
 #
-# ⚠ DESTRUCTIVE: permanently deletes the completed row ("Walk the dog").
+# ⚠ DESTRUCTIVE: permanently deletes the completed row ("Email therapist about Friday").
 # Reseed before re-running flows that expect it. Precondition: seeded
 # dataset. Not yet run on a sim.
 appId: com.websurfer.mytodo
@@ -16,7 +16,7 @@ appId: com.websurfer.mytodo
 - tapOn:
     text: "Todos, tab.*"
 # Complete a row (body-tap toggles done) so the Done bin is non-empty.
-- tapOn: "Walk the dog"
+- tapOn: "Email therapist about Friday"
 - waitForAnimationToEnd:
     timeout: 2500
 # Switch to the Done filter where the clear-completed control lives.
@@ -33,4 +33,4 @@ appId: com.websurfer.mytodo
 - waitForAnimationToEnd:
     timeout: 1500
 # The completed row is gone from the Done view.
-- assertNotVisible: "Walk the dog"
+- assertNotVisible: "Email therapist about Friday"

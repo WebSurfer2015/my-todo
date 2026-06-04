@@ -15,9 +15,9 @@ appId: com.websurfer.mytodo
     text: "Open"
     optional: true
 # Tap the row body — this is the toggle gesture.
-- tapOn: "Pick up dry-cleaning"
+- tapOn: "Pick up dry cleaning"
 # Row should drop out of the Open filter view. Allow a brief settle
 # for the Mochi flight animation (~1.8s) before checking.
 - waitForAnimationToEnd:
     timeout: 2500
-- assertNotVisible: "Pick up dry-cleaning"
+- assertNotVisible: "Pick up dry cleaning"

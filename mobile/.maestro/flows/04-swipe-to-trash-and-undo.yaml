@@ -10,7 +10,7 @@ appId: com.websurfer.mytodo
 # swipe actions: [Defer | Not Do | Delete] on open rows.
 - swipe:
     from:
-      text: "Pick up dry-cleaning"
+      text: "Pick up dry cleaning"
     direction: RIGHT
 # "Not Do" was previously labeled "Move to trash" — i18n key
 # moveToTrash now resolves to "Not Do" in en. The button text below
@@ -23,4 +23,4 @@ appId: com.websurfer.mytodo
 - tapOn:
     text: "Undo"
 # Row is back in the active list.
-- assertVisible: "Pick up dry-cleaning"
+- assertVisible: "Pick up dry cleaning"

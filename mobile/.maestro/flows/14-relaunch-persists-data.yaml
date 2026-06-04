@@ -15,9 +15,9 @@ appId: com.websurfer.mytodo
 - launchApp
 - tapOn:
     text: "Todos, tab.*"
-- assertVisible: "Pick up dry-cleaning"
+- assertVisible: "Pick up dry cleaning"
 - stopApp
 - launchApp
 - tapOn:
     text: "Todos, tab.*"
-- assertVisible: "Pick up dry-cleaning"   # survived the relaunch
+- assertVisible: "Pick up dry cleaning"   # survived the relaunch

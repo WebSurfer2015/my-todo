@@ -11,8 +11,8 @@ appId: com.websurfer.mytodo
 # Stay on Dashboard — that's where the strip lives in the spec.
 - assertVisible: "Dashboard, tab, 1 of 3"
 # Tap a today-bucket open item to mark it done. The seed includes two
-# today-due rows; "Walk the dog" is a stable label across the dataset.
-- tapOn: "Walk the dog"
+# today-due rows; "Take a 10-minute walk" is a stable label across the dataset.
+- tapOn: "Take a 10-minute walk"
 # Allow time for the Mochi flight (~1.8s) + the deferred pebble drop.
 - waitForAnimationToEnd:
     timeout: 2500

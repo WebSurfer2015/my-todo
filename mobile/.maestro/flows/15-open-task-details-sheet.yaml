@@ -8,14 +8,14 @@
 # "Add a step…" affordance lands on the parent center, not the field.
 # assertVisible still works via substring against the concatenated label.
 #
-# Precondition: seeded row "Pick up dry-cleaning". Not yet run on a sim.
+# Precondition: seeded row "Pick up dry cleaning". Not yet run on a sim.
 appId: com.websurfer.mytodo
 ---
 - launchApp
 - tapOn:
     text: "Todos, tab.*"
 # Body-tap toggles done; long-press opens the details/edit sheet.
-- longPressOn: "Pick up dry-cleaning"
+- longPressOn: "Pick up dry cleaning"
 - waitForAnimationToEnd:
     timeout: 1500
 # "Steps" is the subtasks section header (i18n subtasks: 'Steps').
