@@ -6,19 +6,19 @@ appId: com.websurfer.mytodo
 - launchApp
 - tapOn:
     text: "Todos, tab.*"
-# Swipe RIGHT direction reveals LEFT actions: [Defer | Not Do | Delete].
+# Swipe LEFT reveals the right-side actions (verified on-device): [Defer | Not Do | Delete].
 # "Pay credit card bill" is a stable seeded row (monthly recurring).
 - swipe:
     from:
       text: ".*Pay credit card bill.*"
-    direction: RIGHT
+    direction: LEFT
 - tapOn:
-    text: "Defer"
+    text: ".*Defer.*"
 # Single-row modal title is "Defer to" (the group action uses "Defer
 # all to"). Cover both forms in case the swipe deferred multiple
 # selected rows by accident.
 - assertVisible:
-    text: "Defer to|Defer all to"
+    text: ".*Defer to.*"
 - tapOn:
     text: "Tomorrow|Next day"
 # Modal closes. The row should still exist (defer != complete).
