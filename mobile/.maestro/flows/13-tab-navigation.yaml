@@ -11,10 +11,11 @@
 # "Tips when flows fail"). Runs on any signed-in sim (no seed needed).
 appId: com.websurfer.mytodo
 ---
+- stopApp
 - launchApp
 - assertVisible: "Dashboard, tab, 1 of 3"
 - assertVisible:
-    text: "What's Next.*"        # Dashboard-unique sentinel
+    text: "Open Todos showing.*"        # Dashboard sentinel (TODAY section aria)
 - tapOn:
     text: "Todos, tab.*"
 - waitForAnimationToEnd:
@@ -28,4 +29,4 @@ appId: com.websurfer.mytodo
 - waitForAnimationToEnd:
     timeout: 1500
 - assertVisible:
-    text: "What's Next.*"        # round-tripped back to Dashboard
+    text: "Open Todos showing.*"        # round-tripped back to Dashboard (TODAY section)

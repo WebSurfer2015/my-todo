@@ -8,6 +8,7 @@
 # 7-day Upcoming bucket — easier to assert than a +1 month jump.
 appId: com.websurfer.mytodo
 ---
+- stopApp
 - launchApp
 - tapOn:
     text: "Todos, tab.*"
@@ -17,14 +18,14 @@ appId: com.websurfer.mytodo
 # Body-tap a recurring open row to roll it forward. The act of
 # tapping marks the just-completed instance done (snapshot) and
 # advances the active row's dueDate by one freq interval.
-- tapOn: "Yoga class"
+- tapOn: ".*Yoga class.*"
 - waitForAnimationToEnd:
     timeout: 2500
 # The active row is still labeled "Yoga class" — only its due chip
 # advances. Assert the row remains visible in the Open list (it
 # reappears at the rolled-forward date).
-- assertVisible: "Yoga class"
+- assertVisible: ".*Yoga class.*"
 # Switch to Done filter and confirm the snapshot landed there.
 - tapOn:
     text: "Done"
-- assertVisible: "Yoga class"
+- assertVisible: ".*Yoga class.*"

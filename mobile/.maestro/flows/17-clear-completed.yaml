@@ -12,11 +12,12 @@
 # dataset. Not yet run on a sim.
 appId: com.websurfer.mytodo
 ---
+- stopApp
 - launchApp
 - tapOn:
     text: "Todos, tab.*"
 # Complete a row (body-tap toggles done) so the Done bin is non-empty.
-- tapOn: "Email therapist about Friday"
+- tapOn: ".*Email therapist about Friday.*"
 - waitForAnimationToEnd:
     timeout: 2500
 # Switch to the Done filter where the clear-completed control lives.
@@ -33,4 +34,4 @@ appId: com.websurfer.mytodo
 - waitForAnimationToEnd:
     timeout: 1500
 # The completed row is gone from the Done view.
-- assertNotVisible: "Email therapist about Friday"
+- assertNotVisible: ".*Email therapist about Friday.*"

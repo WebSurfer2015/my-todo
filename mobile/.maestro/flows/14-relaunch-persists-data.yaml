@@ -12,12 +12,15 @@
 # sim this session.
 appId: com.websurfer.mytodo
 ---
-- launchApp
-- tapOn:
-    text: "Todos, tab.*"
-- assertVisible: "Pick up dry cleaning"
 - stopApp
 - launchApp
 - tapOn:
     text: "Todos, tab.*"
-- assertVisible: "Pick up dry cleaning"   # survived the relaunch
+- assertVisible:
+    text: ".*Submit project status update.*"
+- stopApp
+- launchApp
+- tapOn:
+    text: "Todos, tab.*"
+- assertVisible:
+    text: ".*Submit project status update.*"   # survived the relaunch

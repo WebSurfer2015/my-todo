@@ -15,6 +15,7 @@
 # 'Restore', bulkDeletePermanently 'Delete permanently'.
 appId: com.websurfer.mytodo
 ---
+- stopApp
 - launchApp
 - tapOn:
     text: "Todos, tab.*"

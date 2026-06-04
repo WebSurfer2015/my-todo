@@ -12,6 +12,7 @@
 #   maestro test mobile/.maestro/flows/10-shopping-no-store-empty-state.yaml
 appId: com.websurfer.mytodo
 ---
+- stopApp
 - launchApp
 - tapOn:
     text: "Shopping, tab.*"

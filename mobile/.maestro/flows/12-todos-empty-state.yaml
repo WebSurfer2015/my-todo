@@ -4,6 +4,7 @@
 # Precondition: user has zero non-trashed todos.
 appId: com.websurfer.mytodo
 ---
+- stopApp
 - launchApp
 - tapOn:
     text: "Todos, tab.*"

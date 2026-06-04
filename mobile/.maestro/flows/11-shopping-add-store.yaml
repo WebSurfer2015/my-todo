@@ -9,6 +9,7 @@
 # component's accessibility tree. Tracked as future a11y work.
 appId: com.websurfer.mytodo
 ---
+- stopApp
 - launchApp
 - tapOn:
     text: "Shopping, tab.*"

@@ -13,6 +13,7 @@
 # component a11y work, not in this flow.
 appId: com.websurfer.mytodo
 ---
+- stopApp
 - launchApp
 - tapOn:
     text: "Shopping, tab.*"

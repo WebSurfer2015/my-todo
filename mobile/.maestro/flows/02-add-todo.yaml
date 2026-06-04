@@ -10,13 +10,15 @@
 # taps or component-side a11y fixes.
 appId: com.websurfer.mytodo
 ---
+- stopApp
 - launchApp
 - tapOn:
     text: "Todos, tab.*"
 # Adaptive entry: when the list is empty, the EmptyStateCard CTA is
 # the only way in (no FAB visible). On a populated list, the FAB at
 # bottom-right opens the same sheet.
-- tapOn: "Add a to-do"
+- tapOn:
+    text: ".*Add a to-do.*"   # FAB on seeded list (label: "Add a to-do, e.g. …"); empty-state CTA only exists when list is empty
 # ComposeSheet header reads "Cancel  Add to-do  Done" as one
 # concatenated accessibility label, so substring-match.
 - assertVisible:

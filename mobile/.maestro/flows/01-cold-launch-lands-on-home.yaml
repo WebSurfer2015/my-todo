@@ -21,8 +21,7 @@ appId: com.websurfer.mytodo
 # `text:` form for regex/substring.
 - assertVisible:
     text: "Open Todos showing.*"
-# Dashboard-unique element: the What's Next teaser. The lifetime cairn
-# footer that used to anchor Home moved to Profile in v1.5 (task #8),
-# so we no longer use "pebbles placed" as a Dashboard sentinel.
-- assertVisible:
-    text: "What's Next.*"
+# NOTE: removed the stale "What's Next.*" sentinel — it's no longer
+# rendered on the Dashboard (verified on-device: the screen shows the
+# TODAY list + stat tiles, no teaser). The two assertions above
+# (Dashboard tab active + TODAY section present) are the smoke signal.

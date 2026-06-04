@@ -2,6 +2,7 @@
 # verifies all items in the group advanced. Manual-plan tests 7.5–7.7.
 appId: com.websurfer.mytodo
 ---
+- stopApp
 - launchApp
 - tapOn:
     text: "Todos, tab.*"

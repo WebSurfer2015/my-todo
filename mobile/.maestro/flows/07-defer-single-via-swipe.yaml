@@ -2,6 +2,7 @@
 # Tomorrow preset → row's due date advances. Manual-plan tests 7.1–7.3.
 appId: com.websurfer.mytodo
 ---
+- stopApp
 - launchApp
 - tapOn:
     text: "Todos, tab.*"
@@ -9,7 +10,7 @@ appId: com.websurfer.mytodo
 # "Pay credit card bill" is a stable seeded row (monthly recurring).
 - swipe:
     from:
-      text: "Pay credit card bill"
+      text: ".*Pay credit card bill.*"
     direction: RIGHT
 - tapOn:
     text: "Defer"
@@ -21,4 +22,4 @@ appId: com.websurfer.mytodo
 - tapOn:
     text: "Tomorrow|Next day"
 # Modal closes. The row should still exist (defer != complete).
-- assertVisible: "Pay credit card bill"
+- assertVisible: ".*Pay credit card bill.*"

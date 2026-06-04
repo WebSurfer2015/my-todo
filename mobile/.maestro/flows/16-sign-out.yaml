@@ -12,6 +12,7 @@
 # app/). Not yet run on a sim.
 appId: com.websurfer.mytodo
 ---
+- stopApp
 - launchApp
 # Avatar (top-left) opens ProfileSheet — accessibilityLabel = 'Edit profile'.
 - tapOn: "Edit profile"
