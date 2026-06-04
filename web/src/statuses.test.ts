@@ -10,9 +10,9 @@ import {
   statusRename,
   statusToggleHidden,
   statusReorder,
-} from '../../core/src/statuses'
-import { SEED_PROFILE, type Profile } from '../../core/src/profile'
-import { strings } from '../../core/src/i18n'
+} from '../../core/src/domain/statuses'
+import { SEED_PROFILE, type Profile } from '../../core/src/data/profile'
+import { strings } from '../../core/src/data/i18n'
 
 const t = strings.en
 

@@ -16,9 +16,9 @@ import { useCallback, useState } from "react";
 import { useSyncedState } from "../useSyncedState";
 import { Profile, SEED_PROFILE, migrateProfile } from "../profile";
 import { Filter, Priority, StatusFilter, ViewMode } from "../types";
-import { PIN_LIMIT } from "../../../core/src/filters";
+import { PIN_LIMIT } from "../../../core/src/logic/filters";
 import { TodoStoreActions } from "../../../core/src/store";
-import { StorageAdapter } from "../../../core/src/persistence";
+import { StorageAdapter } from "../../../core/src/ports/persistence";
 import { unwrap, serializeAny } from "../storage/envelope";
 
 const parseProfile = (raw: string | null): Profile => {

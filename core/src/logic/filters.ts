@@ -14,7 +14,7 @@
  * These helpers operate on the raw `string[]` shapes the Profile stores
  * (Filter is a string subtype, so callers can pass `Filter[]` directly).
  */
-import type { Filter, ViewMode } from './types'
+import type { Filter, ViewMode } from '../domain/types'
 
 /** Soft cap on pinned filter pills in the FilterBar quick-access row. */
 export const PIN_LIMIT = 12

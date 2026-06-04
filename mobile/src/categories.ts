@@ -1,1 +1,1 @@
-export * from '../../core/src/categories'
+export * from '../../core/src/data/categories'

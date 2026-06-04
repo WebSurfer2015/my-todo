@@ -9,11 +9,11 @@ import {
   toggleOutcome,
   reconcileTodayPebbles,
 } from "../../core/src/store";
-import { newTodo } from "../../core/src/derive";
-import { SEED_PROFILE } from "../../core/src/profile";
-import type { CategoryDef } from "../../core/src/categories";
-import type { Profile } from "../../core/src/profile";
-import type { Todo } from "../../core/src/types";
+import { newTodo } from "../../core/src/logic/derive";
+import { SEED_PROFILE } from "../../core/src/data/profile";
+import type { CategoryDef } from "../../core/src/data/categories";
+import type { Profile } from "../../core/src/data/profile";
+import type { Todo } from "../../core/src/domain/types";
 
 const cat = (id: string): CategoryDef => ({
   id,

@@ -27,7 +27,7 @@ import { ScrollView, Text, TouchableOpacity, View } from 'react-native'
 import { useLang } from '../../LangContext'
 import { useTheme } from '../../theme'
 import type { Reminder } from '../../types'
-import { genUuid } from '../../../../core/src/utils'
+import { genUuid } from '../../../../core/src/logic/utils'
 import { makeStyles } from './styles'
 
 const REMIND_BEFORE_DUE_CHOICES: Array<{ minutes: number; label: string }> = [

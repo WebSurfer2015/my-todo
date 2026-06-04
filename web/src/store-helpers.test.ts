@@ -11,9 +11,9 @@ import {
   todoSetRecurrence,
   selectOverdue,
   setDueDates,
-} from "../../core/src/derive";
-import { addDaysISO } from "../../core/src/utils";
-import type { Reminder, Recurrence, Todo } from "../../core/src/types";
+} from "../../core/src/logic/derive";
+import { addDaysISO } from "../../core/src/logic/utils";
+import type { Reminder, Recurrence, Todo } from "../../core/src/domain/types";
 
 const mk = (over: Partial<Todo> = {}): Todo => ({
   ...newTodo({ text: over.text ?? "t", priority: "medium", dueDate: over.dueDate ?? "" }),

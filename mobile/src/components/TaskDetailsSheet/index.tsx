@@ -16,7 +16,7 @@ import { Bell, Repeat } from 'lucide-react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import * as Haptics from 'expo-haptics'
 import { Category, Priority, Reminder, Subtask, Todo, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, PRIORITY_VALUES, PRIORITY_COLORS } from '../../types'
-import { getReminders } from '../../../../core/src/derive'
+import { getReminders } from '../../../../core/src/logic/derive'
 import ReminderSheet from '../ReminderSheet'
 
 const RECURRENCE_LABELS: Record<'none' | RecurrenceFreq, string> = {
@@ -29,7 +29,7 @@ const RECURRENCE_LABELS: Record<'none' | RecurrenceFreq, string> = {
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { CategoryDef, categoryLabel } from '../../categories'
 import { formatDisplayDate, formatRecurrence, fullDateLabel, isoDate, todayLocal } from '../../utils'
-import { sortedSubs, snapDueDateToRecurrence } from '../../../../core/src/derive'
+import { sortedSubs, snapDueDateToRecurrence } from '../../../../core/src/logic/derive'
 import { useTheme, ThemeColors } from '../../theme'
 import { useLang } from '../../LangContext'
 import { useNotify } from '../../notify'

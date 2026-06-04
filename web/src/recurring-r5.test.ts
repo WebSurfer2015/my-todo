@@ -4,8 +4,8 @@
  * series instances also get a fresh tail appended.
  */
 import { describe, expect, it } from 'vitest'
-import { todoSkip, expandSeries, pebbleDelta } from '../../core/src/derive'
-import type { Todo } from '../../core/src/types'
+import { todoSkip, expandSeries, pebbleDelta } from '../../core/src/logic/derive'
+import type { Todo } from '../../core/src/domain/types'
 
 function todo(over: Partial<Todo> = {}): Todo {
   return {

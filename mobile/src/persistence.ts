@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import {
   StorageAdapter, SCHEMA_VERSION,
   readVersioned as coreRead, writeVersioned as coreWrite, clearAllPersisted as coreClear,
-} from '../../core/src/persistence'
+} from '../../core/src/ports/persistence'
 
 export { SCHEMA_VERSION }
 export type { StorageAdapter }

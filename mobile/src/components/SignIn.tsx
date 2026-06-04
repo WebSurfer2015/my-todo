@@ -18,7 +18,7 @@ import crashlytics from "@react-native-firebase/crashlytics";
 import { useAuth } from "../AuthContext";
 import { useLang } from "../LangContext";
 import { useTheme, ThemeColors } from "../theme";
-import { Lang, LANG_NAMES, LANG_ORDER } from "../../../core/src/i18n";
+import { Lang, LANG_NAMES, LANG_ORDER } from "../../../core/src/data/i18n";
 import { mapAuthError, AuthFlow } from "../authErrors";
 
 type Mode = "social" | "signin" | "signup" | "reset";

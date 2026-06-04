@@ -19,7 +19,7 @@ import { storage as localAdapter } from "./persistence";
 import { db } from "./firebase";
 import { makeFirestoreAdapter } from "./firestoreAdapter";
 import { useSyncedState } from "./useSyncedState";
-import { StorageAdapter } from "../../core/src/persistence";
+import { StorageAdapter } from "../../core/src/ports/persistence";
 import {
   newTodo,
   todoToggle,
@@ -42,9 +42,9 @@ import {
   categoryDelete,
   categoryReorder,
   deriveState,
-} from "../../core/src/derive";
-import { newCategoryId } from "../../core/src/categories";
-import { vibrate } from "../../core/src/utils";
+} from "../../core/src/logic/derive";
+import { newCategoryId } from "../../core/src/data/categories";
+import { vibrate } from "../../core/src/logic/utils";
 
 const SCHEMA_VERSION = 1;
 

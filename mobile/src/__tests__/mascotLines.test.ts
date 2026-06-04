@@ -4,7 +4,7 @@ import {
   dateSeed,
   pickMascotLine,
 } from '../mascotLines'
-import { LANG_ORDER } from '../../../core/src/i18n'
+import { LANG_ORDER } from '../../../core/src/data/i18n'
 
 // Exclamation marks of every flavor break the anxiety-friendly tone:
 // ASCII !, fullwidth ！ (Japanese), inverted ¡ (Spanish opening).

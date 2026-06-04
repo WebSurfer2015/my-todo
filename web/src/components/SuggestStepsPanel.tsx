@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { suggestSubtasks } from '../aiInfer'
-import { distributeSubtaskDueDates } from '../../../core/src/utils'
+import { distributeSubtaskDueDates } from '../../../core/src/logic/utils'
 import { useLang } from '../LangContext'
 
 /**

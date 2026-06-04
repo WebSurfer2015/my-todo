@@ -1,1 +1,1 @@
-export * from '../../core/src/types'
+export * from '../../core/src/domain/types'

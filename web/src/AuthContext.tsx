@@ -25,8 +25,8 @@ import {
 } from "firebase/auth";
 import { deleteDoc, doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
-import { stateDocPath } from "../../core/src/persistence";
-import { Profile, SEED_PROFILE, MAX_PROFILE_NAME_LEN } from "../../core/src/profile";
+import { stateDocPath } from "../../core/src/ports/persistence";
+import { Profile, SEED_PROFILE, MAX_PROFILE_NAME_LEN } from "../../core/src/data/profile";
 
 export class RecentLoginRequiredError extends Error {
   constructor() {

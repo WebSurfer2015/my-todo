@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { Sparkles } from 'lucide-react-native'
-import { distributeSubtaskDueDates } from '../../../core/src/utils'
+import { distributeSubtaskDueDates } from '../../../core/src/logic/utils'
 import { useLang } from '../LangContext'
 import { useTheme, ThemeColors } from '../theme'
 import MochiThinking from './MochiThinking'

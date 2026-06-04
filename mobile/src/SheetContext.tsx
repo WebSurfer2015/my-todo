@@ -27,7 +27,7 @@ import {
   buildExportPayload,
   serializeExport,
   isExportEmpty,
-} from '../../core/src/exporter'
+} from '../../core/src/data/exporter'
 import ProfileSheet from './components/ProfileSheet'
 import SettingsSheet from './components/SettingsSheet'
 import BackgroundPicker from './components/BackgroundPicker'
@@ -41,7 +41,7 @@ import CategorySheet from './components/CategorySheet'
 import { COLOR_PALETTE } from './categories'
 import type { Filter } from './types'
 import type { Guide } from './guides'
-import { todayLocal } from '../../core/src/utils'
+import { todayLocal } from '../../core/src/logic/utils'
 
 /** Signal that a screen should open its tab-local manage sheet. The
  * `seq` bumps so a repeat-trigger fires even when target stays the

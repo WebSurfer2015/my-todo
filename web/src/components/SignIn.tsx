@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "../AuthContext";
 import { useLang } from "../LangContext";
-import { Lang, LANG_NAMES, LANG_ORDER } from "../../../core/src/i18n";
+import { Lang, LANG_NAMES, LANG_ORDER } from "../../../core/src/data/i18n";
 
 type Mode = "social" | "signin" | "signup" | "reset";
 

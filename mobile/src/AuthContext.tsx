@@ -26,9 +26,9 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
 import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
 import { auth, db } from "./firebase";
-import { stateDocPath } from "../../core/src/persistence";
+import { stateDocPath } from "../../core/src/ports/persistence";
 import { Analytics } from "./analytics";
-import { Profile, SEED_PROFILE, MAX_PROFILE_NAME_LEN } from "../../core/src/profile";
+import { Profile, SEED_PROFILE, MAX_PROFILE_NAME_LEN } from "../../core/src/data/profile";
 
 type User = FirebaseAuthTypes.User;
 

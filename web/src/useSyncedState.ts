@@ -1,5 +1,5 @@
 import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react";
-import { StorageAdapter } from "../../core/src/persistence";
+import { StorageAdapter } from "../../core/src/ports/persistence";
 
 /**
  * Async state hook backed by a StorageAdapter. On mount (and whenever the

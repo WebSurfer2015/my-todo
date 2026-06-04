@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { strings } from '../../core/src/i18n'
+import { strings } from '../../core/src/data/i18n'
 
 /**
  * Recursively collect every key path under an object. Functions are leaf nodes

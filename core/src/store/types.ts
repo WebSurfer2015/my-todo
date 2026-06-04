@@ -9,7 +9,7 @@
  * here may import React, the storage adapter, or read the clock directly
  * — time/id come through StoreDeps so coordinators stay deterministic.
  */
-import type { Strings } from '../i18n'
+import type { Strings } from '../data/i18n'
 
 /**
  * The injectable port the orchestration layer depends on instead of

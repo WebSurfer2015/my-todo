@@ -1,7 +1,7 @@
-import { Profile, SEED_PROFILE, migrateProfile, AVATAR_ICON_LIBRARY } from '../../core/src/profile'
+import { Profile, SEED_PROFILE, migrateProfile, AVATAR_ICON_LIBRARY } from '../../core/src/data/profile'
 import { readVersioned } from './persistence'
 
-export * from '../../core/src/profile'
+export * from '../../core/src/data/profile'
 
 /** Web's user-facing avatar library is the lucide-icon set. Mobile stays on emoji presets. */
 export const AVATAR_LIBRARY = AVATAR_ICON_LIBRARY

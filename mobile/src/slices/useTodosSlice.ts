@@ -40,11 +40,11 @@ import {
   migrateTodos,
   migrateTodoReferences,
   PebbleDelta,
-} from "../../../core/src/derive";
+} from "../../../core/src/logic/derive";
 import { TodoStoreActions } from "../../../core/src/store";
-import { todayLocal, addDaysISO } from "../../../core/src/utils";
+import { todayLocal, addDaysISO } from "../../../core/src/logic/utils";
 import { useSyncedState } from "../useSyncedState";
-import { StorageAdapter } from "../../../core/src/persistence";
+import { StorageAdapter } from "../../../core/src/ports/persistence";
 import { PEBBLE_DEFERRAL_MS } from "../components/pebbleTiming";
 import { Analytics } from "../analytics";
 import { unwrap, serializeAny } from "../storage/envelope";

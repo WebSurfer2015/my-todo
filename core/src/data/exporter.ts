@@ -12,7 +12,7 @@
  * the export-format version + an `exportedAt` timestamp.
  */
 
-import type { Todo, TodoReference } from './types'
+import type { Todo, TodoReference } from '../domain/types'
 import type { Profile } from './profile'
 import type { CategoryDef } from './categories'
 import type { GroceryItem, GroceryGroup } from './groceries'

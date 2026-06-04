@@ -13,11 +13,11 @@ import {
   isPriorityFilter,
   priorityFromFilter,
   PRIORITY_VALUES,
-} from "./types";
-import { CategoryDef, categoryLabel } from "./categories";
+} from "../domain/types";
+import { CategoryDef, categoryLabel } from "../data/categories";
 import { buildGroups, TodoGroup } from "./groups";
 import { genUuid, todayLocal, dueDateOnly, nextOccurrence, expandRecurrence, MAX_RECURRENCE_INSTANCES } from "./utils";
-import type { Strings } from "./i18n";
+import type { Strings } from "../data/i18n";
 
 export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 

@@ -1,1 +1,1 @@
-export * from '../../core/src/groups'
+export * from '../../core/src/logic/groups'

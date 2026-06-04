@@ -15,7 +15,7 @@
  * mascot voice in its store.
  */
 
-import type { Lang } from "../../core/src/i18n";
+import type { Lang } from "../../core/src/data/i18n";
 
 export type TimeOfDay = "morning" | "afternoon" | "evening";
 

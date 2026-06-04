@@ -21,7 +21,7 @@
  *     agentChat learns to fetch user data inside the tool loop.
  */
 
-import type { Priority } from './types'
+import type { Priority } from '../domain/types'
 
 /** JSON-schema-ish input shape for one tool. Loose `unknown` for the
  * Anthropic SDK boundary; the server validates shapes before forwarding

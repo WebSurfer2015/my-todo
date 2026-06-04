@@ -1,6 +1,6 @@
 import { Priority, PRIORITY_VALUES } from './types'
-import { Profile, PriorityOverride } from './profile'
-import type { Strings } from './i18n'
+import { Profile, PriorityOverride } from '../data/profile'
+import type { Strings } from '../data/i18n'
 
 export interface PriorityEntry {
   id: Priority

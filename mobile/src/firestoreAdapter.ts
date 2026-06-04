@@ -8,7 +8,7 @@ import {
 import type { FirebaseFirestoreTypes } from "@react-native-firebase/firestore";
 
 type Firestore = FirebaseFirestoreTypes.Module;
-import { StorageAdapter, stateDocPath } from "../../core/src/persistence";
+import { StorageAdapter, stateDocPath } from "../../core/src/ports/persistence";
 
 /**
  * Firestore-backed StorageAdapter for React Native. Stores each persisted

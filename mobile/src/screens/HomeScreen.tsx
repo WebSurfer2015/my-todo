@@ -25,7 +25,7 @@ import { useStore } from '../StoreContext'
 import { useLang } from '../LangContext'
 import { useSheets } from '../SheetContext'
 import { useTheme, ThemeColors } from '../theme'
-import { todayLocal } from '../../../core/src/utils'
+import { todayLocal } from '../../../core/src/logic/utils'
 import {
   type Todo,
   type Filter,
@@ -33,9 +33,9 @@ import {
   categoryIdFromFilter,
   isPriorityFilter,
   priorityFromFilter,
-} from '../../../core/src/types'
-import { categoryLabel } from '../../../core/src/categories'
-import { buildGroups, type GroupKey } from '../../../core/src/groups'
+} from '../../../core/src/domain/types'
+import { categoryLabel } from '../../../core/src/data/categories'
+import { buildGroups, type GroupKey } from '../../../core/src/logic/groups'
 import EmptyStateCard from '../components/EmptyStateCard'
 import StatusIcon, { statusColor } from '../components/StatusIcon'
 import CategoryIcon from '../components/CategoryIcon'

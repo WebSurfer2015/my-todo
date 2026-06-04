@@ -20,7 +20,7 @@ import {
   formatDisplayDate,
   fullDateLabel,
   MAX_RECURRENCE_INSTANCES,
-} from '../../core/src/utils'
+} from '../../core/src/logic/utils'
 
 describe('genUuid', () => {
   it('returns a non-empty string', () => {

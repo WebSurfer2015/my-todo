@@ -1,1 +1,1 @@
-export * from '../../core/src/i18n'
+export * from '../../core/src/data/i18n'

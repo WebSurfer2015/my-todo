@@ -1,6 +1,6 @@
 import { StatusFilter, STATUS_FILTERS } from './types'
-import { Profile, StatusOverride } from './profile'
-import type { Strings } from './i18n'
+import { Profile, StatusOverride } from '../data/profile'
+import type { Strings } from '../data/i18n'
 
 export interface StatusEntry {
   id: StatusFilter

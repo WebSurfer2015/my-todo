@@ -6,8 +6,8 @@
  */
 import { describe, expect, it } from "vitest";
 import { createTodoStore } from "../../core/src/store";
-import { strings } from "../../core/src/i18n";
-import { newTodo } from "../../core/src/derive";
+import { strings } from "../../core/src/data/i18n";
+import { newTodo } from "../../core/src/logic/derive";
 import type { StoreDeps } from "../../core/src/store";
 
 const deps: StoreDeps = { now: () => 0, genId: () => "fixed-id", t: strings.en };

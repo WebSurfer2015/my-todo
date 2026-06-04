@@ -5,8 +5,8 @@ import { Filter, ViewMode } from "./types";
 import {
   getOrderedStatuses,
   getOrderedVisibleStatuses,
-} from "../../core/src/statuses";
-import { getOrderedPriorities } from "../../core/src/priorities";
+} from "../../core/src/domain/statuses";
+import { getOrderedPriorities } from "../../core/src/domain/priorities";
 import { useCategoriesSlice } from "./slices/useCategoriesSlice";
 import { useProfileSlice } from "./slices/useProfileSlice";
 import { useGroceriesSlice } from "./slices/useGroceriesSlice";
@@ -17,10 +17,10 @@ import { useNotify } from "./notify";
 import { storage as localAdapter } from "./persistence";
 import { db } from "./firebase";
 import { makeFirestoreAdapter } from "./firestoreAdapter";
-import { StorageAdapter, USER_STATE_KEYS } from "../../core/src/persistence";
+import { StorageAdapter, USER_STATE_KEYS } from "../../core/src/ports/persistence";
 import { createTodoStore } from "../../core/src/store";
-import { DEFAULT_HOME_STAT_TILES } from "../../core/src/filters";
-import { todayLocal, genUuid } from "../../core/src/utils";
+import { DEFAULT_HOME_STAT_TILES } from "../../core/src/logic/filters";
+import { todayLocal, genUuid } from "../../core/src/logic/utils";
 import { getTodayPebbles, collectedNounKeyFor } from "./profile";
 
 /**

@@ -11,7 +11,11 @@ This is the repo-level guide. The two app workspaces have their own deeper guide
 
 ```
 my-todo/
-├── core/      Pure TypeScript: types, derive, persistence, profile, categories, i18n, selection
+├── core/      Pure TypeScript, organized into Clean Architecture rings:
+│              domain/ (types, priorities, statuses), logic/ (derive, groups,
+│              selection, utils, filters), ports/ (persistence, agentTools),
+│              data/ (categories, profile, i18n, exporter, groceries),
+│              store/ (createTodoStore, coordinators); index.ts is the barrel
 ├── web/       Vite + React 18 + TypeScript
 ├── mobile/    Expo SDK 54 + React Native 0.81 + TypeScript
 ├── docs/      ARCHITECTURE.md (Mermaid + FigJam mirrors)
@@ -21,7 +25,7 @@ my-todo/
 └── .dependency-cruiser.cjs Clean Architecture rules (+ .dependency-cruiser-known-violations.json baseline)
 ```
 
-`web/` and `mobile/` import `core/` via relative paths (e.g. `'../../core/src/types'`). No path aliases, no monorepo tooling — the root `package.json` exists solely so `dependency-cruiser` can see all three packages at once.
+`web/` and `mobile/` import `core/` via relative paths to the ring (e.g. `'../../core/src/domain/types'`, `'../../core/src/logic/derive'`), or from the `'../../core/src'` barrel. No path aliases, no monorepo tooling — the root `package.json` exists solely so `dependency-cruiser` can see all three packages at once.
 
 ## Clean Architecture — the dependency rule (enforced)
 

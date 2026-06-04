@@ -12,7 +12,7 @@ export type Avatar =
 
 export type Density = 'comfortable' | 'compact'
 
-import type { ViewMode, StatusFilter, Priority } from './types'
+import type { ViewMode, StatusFilter, Priority } from '../domain/types'
 
 export interface StatusOverride {
   id: StatusFilter

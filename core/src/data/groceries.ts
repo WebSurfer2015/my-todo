@@ -17,7 +17,7 @@
  *
  * The "Future" bucket is derived (checked items), not a stored group.
  */
-import { genUuid } from './utils'
+import { genUuid } from '../logic/utils'
 
 export interface GroceryItem {
   /** Stable UUID, like Todo.id. */

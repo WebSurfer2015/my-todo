@@ -1,1 +1,1 @@
-export * from '../../core/src/utils'
+export * from '../../core/src/logic/utils'

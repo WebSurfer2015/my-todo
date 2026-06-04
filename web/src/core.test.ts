@@ -33,20 +33,20 @@ import {
   MAX_TODO_TEXT_LEN,
   MAX_TODOS_PER_USER,
   MAX_SUBTASKS_PER_TODO,
-} from "../../core/src/derive";
-import { buildGroups } from "../../core/src/groups";
+} from "../../core/src/logic/derive";
+import { buildGroups } from "../../core/src/logic/groups";
 import {
   migrateCategories,
   migrateCategory,
   MAX_CATEGORY_LABEL_LEN,
   MAX_CATEGORIES_PER_USER,
-} from "../../core/src/categories";
+} from "../../core/src/data/categories";
 import {
   migrateProfile,
   SEED_PROFILE,
   MAX_PROFILE_NAME_LEN,
   MAX_AVATAR_URI_LEN,
-} from "../../core/src/profile";
+} from "../../core/src/data/profile";
 import {
   newGroceryItem,
   groceryToggleChecked,
@@ -58,14 +58,14 @@ import {
   MAX_GROCERY_PURCHASES,
   FREQUENT_GROCERY_MIN_COUNT,
   FREQUENT_GROCERY_WINDOW_MS,
-} from "../../core/src/groceries";
+} from "../../core/src/data/groceries";
 import {
   nextOccurrence,
   expandRecurrence,
   MAX_RECURRENCE_INSTANCES,
-} from "../../core/src/utils";
-import { strings } from "../../core/src/i18n";
-import type { Todo, Filter } from "../../core/src/types";
+} from "../../core/src/logic/utils";
+import { strings } from "../../core/src/data/i18n";
+import type { Todo, Filter } from "../../core/src/domain/types";
 
 // ---- migrateTodos --------------------------------------------------------
 

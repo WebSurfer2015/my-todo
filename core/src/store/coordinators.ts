@@ -9,12 +9,12 @@
  * that used to live inline in the platform composer, deciding how a
  * single user action ripples across slices.
  */
-import type { CategoryDef } from '../categories'
-import type { Filter, Todo } from '../types'
-import type { Profile } from '../profile'
-import { isCategoryFilter, categoryIdFromFilter } from '../types'
-import { categoryDelete, todoToggle, pebbleDelta, PebbleDelta } from '../derive'
-import { stripFilterFromPinned } from '../filters'
+import type { CategoryDef } from '../data/categories'
+import type { Filter, Todo } from '../domain/types'
+import type { Profile } from '../data/profile'
+import { isCategoryFilter, categoryIdFromFilter } from '../domain/types'
+import { categoryDelete, todoToggle, pebbleDelta, PebbleDelta } from '../logic/derive'
+import { stripFilterFromPinned } from '../logic/filters'
 
 export interface DeleteCategoryInput {
   todos: Todo[]

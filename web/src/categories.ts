@@ -1,7 +1,7 @@
-import { CategoryDef, SEED_CATEGORIES, migrateCategory } from '../../core/src/categories'
+import { CategoryDef, SEED_CATEGORIES, migrateCategory } from '../../core/src/data/categories'
 import { readVersioned } from './persistence'
 
-export * from '../../core/src/categories'
+export * from '../../core/src/data/categories'
 
 /** Sync localStorage loader used by the web store's `useState(loader)` initializer. */
 export function loadCategories(): CategoryDef[] {

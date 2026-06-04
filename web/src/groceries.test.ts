@@ -32,7 +32,7 @@ import {
   MAX_GROCERY_GROUPS,
   type GroceryItem,
   type GroceryGroup,
-} from '../../core/src/groceries'
+} from '../../core/src/data/groceries'
 
 describe('newGroceryItem', () => {
   it('creates an item with text + default OTHERS group + no stores', () => {

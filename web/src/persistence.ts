@@ -1,4 +1,4 @@
-import { StorageAdapter, SCHEMA_VERSION } from '../../core/src/persistence'
+import { StorageAdapter, SCHEMA_VERSION } from '../../core/src/ports/persistence'
 
 export { SCHEMA_VERSION }
 

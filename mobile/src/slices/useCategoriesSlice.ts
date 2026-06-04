@@ -14,7 +14,7 @@ import {
   newCategoryId,
 } from "../categories";
 import { TodoStoreActions } from "../../../core/src/store";
-import { StorageAdapter } from "../../../core/src/persistence";
+import { StorageAdapter } from "../../../core/src/ports/persistence";
 import { unwrap, serializeAny } from "../storage/envelope";
 
 const parseCategories = (raw: string | null): CategoryDef[] => {

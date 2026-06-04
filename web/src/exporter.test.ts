@@ -8,9 +8,9 @@ import {
   serializeExport,
   isExportEmpty,
   EXPORT_VERSION,
-} from '../../core/src/exporter'
-import type { Todo } from '../../core/src/types'
-import type { Profile } from '../../core/src/profile'
+} from '../../core/src/data/exporter'
+import type { Todo } from '../../core/src/domain/types'
+import type { Profile } from '../../core/src/data/profile'
 
 const sampleTodo: Todo = {
   id: 't1',

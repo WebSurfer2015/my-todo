@@ -12,8 +12,8 @@ import {
   migrateToRecurringV2,
   topUpAllSeries,
   expandSeries,
-} from "../../core/src/derive";
-import type { Todo } from "../../core/src/types";
+} from "../../core/src/logic/derive";
+import type { Todo } from "../../core/src/domain/types";
 
 function rolling(over: Partial<Todo> = {}): Todo {
   return {

@@ -6,7 +6,7 @@ import {
   onSnapshot,
   Firestore,
 } from "firebase/firestore";
-import { StorageAdapter, stateDocPath } from "../../core/src/persistence";
+import { StorageAdapter, stateDocPath } from "../../core/src/ports/persistence";
 
 /**
  * Firestore-backed StorageAdapter. Each persisted entity (todos, categories,

@@ -1,4 +1,4 @@
-import type { Todo } from './types'
+import type { Todo } from '../domain/types'
 
 export interface ToggleArgs {
   prev: Set<string>

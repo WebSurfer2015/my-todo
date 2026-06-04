@@ -10,7 +10,7 @@ import {
   AGENT_TOOLS,
   validateOperation,
   type ProposedOperation,
-} from '../../core/src/agentTools'
+} from '../../core/src/ports/agentTools'
 
 const knownCats = new Set(['home', 'work', 'school'])
 

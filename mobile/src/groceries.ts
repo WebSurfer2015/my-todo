@@ -1,1 +1,1 @@
-export * from '../../core/src/groceries'
+export * from '../../core/src/data/groceries'

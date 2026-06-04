@@ -29,14 +29,14 @@
  * operates on whatever state the shell passes into `derive` / the action
  * transforms.
  */
-import * as derive from '../derive'
-import * as groceries from '../groceries'
-import * as filters from '../filters'
-import * as statuses from '../statuses'
-import * as priorities from '../priorities'
-import * as selection from '../selection'
+import * as derive from '../logic/derive'
+import * as groceries from '../data/groceries'
+import * as filters from '../logic/filters'
+import * as statuses from '../domain/statuses'
+import * as priorities from '../domain/priorities'
+import * as selection from '../logic/selection'
 import * as coordinators from './coordinators'
-import { deriveState, type DeriveInput, type DerivedState } from '../derive'
+import { deriveState, type DeriveInput, type DerivedState } from '../logic/derive'
 import type { StoreDeps } from './types'
 
 /** The full pure-transform surface: every core mutation helper plus the

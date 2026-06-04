@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Priority, Subtask, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../types'
 import { CategoryDef, categoryLabel } from '../categories'
 import { formatDisplayDate, todayLocal } from '../utils'
-import { sortedSubs } from '../../../core/src/derive'
+import { sortedSubs } from '../../../core/src/logic/derive'
 import PriorityBarsIcon from './PriorityBarsIcon'
 import CategoryIcon from './CategoryIcon'
 import {

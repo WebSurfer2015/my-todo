@@ -14,7 +14,7 @@ import {
   stripFilterFromPinned,
   toggleStatTile,
   defaultFilterForView,
-} from "../../core/src/filters";
+} from "../../core/src/logic/filters";
 
 describe("filterSetKey", () => {
   it("is order-insensitive", () => {

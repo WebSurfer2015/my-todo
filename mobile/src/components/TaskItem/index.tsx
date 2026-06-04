@@ -80,7 +80,7 @@ import { Category, Priority, Recurrence, Todo, PRIORITY_VALUES, PRIORITY_COLORS 
 import { CategoryDef, categoryLabel } from '../../categories'
 import type { Density } from '../../profile'
 import { formatDisplayDate, fullDateLabel, todayLocal, isoDate } from '../../utils'
-import { sortedSubs } from '../../../../core/src/derive'
+import { sortedSubs } from '../../../../core/src/logic/derive'
 import { useTriggerPebbleFlight } from '../PebbleFlight'
 import { useTheme, ThemeColors } from '../../theme'
 import PriorityDot from '../PriorityDot'

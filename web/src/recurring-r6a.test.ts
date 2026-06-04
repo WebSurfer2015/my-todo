@@ -11,8 +11,8 @@ import {
   todoDetachFromSeries,
   todoApplySeriesFutureEdits,
   expandSeries,
-} from '../../core/src/derive'
-import type { Todo } from '../../core/src/types'
+} from '../../core/src/logic/derive'
+import type { Todo } from '../../core/src/domain/types'
 
 function seriesSeed(): Todo {
   return {

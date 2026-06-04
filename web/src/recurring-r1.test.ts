@@ -12,8 +12,8 @@ import {
   expandSeries,
   topUpSeries,
   seriesFutureFrom,
-} from "../../core/src/derive";
-import type { Todo, Recurrence } from "../../core/src/types";
+} from "../../core/src/logic/derive";
+import type { Todo, Recurrence } from "../../core/src/domain/types";
 
 function makeSeed(over: Partial<Todo> = {}): Todo {
   return {

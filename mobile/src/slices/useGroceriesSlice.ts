@@ -19,8 +19,8 @@ import {
 } from "../groceries";
 import { Profile } from "../profile";
 import { classifyGroceryDept } from "../aiInfer";
-import { StorageAdapter } from "../../../core/src/persistence";
-import { PebbleDelta } from "../../../core/src/derive";
+import { StorageAdapter } from "../../../core/src/ports/persistence";
+import { PebbleDelta } from "../../../core/src/logic/derive";
 import { TodoStoreActions } from "../../../core/src/store";
 import { unwrap, serializeAny } from "../storage/envelope";
 

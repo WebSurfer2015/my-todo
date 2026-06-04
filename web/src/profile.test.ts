@@ -16,7 +16,7 @@ import {
   SEED_PROFILE,
   AVATAR_PRESET_LIBRARY,
   type Profile,
-} from '../../core/src/profile'
+} from '../../core/src/data/profile'
 
 describe('getTodayPebbles', () => {
   it('returns zeros when pebblesDate is unset', () => {

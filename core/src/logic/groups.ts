@@ -1,4 +1,4 @@
-import { Priority, Todo } from './types'
+import { Priority, Todo } from '../domain/types'
 import { todayLocal, endOfWeekLocal, dueDateOnly } from './utils'
 
 const PRIORITY_RANK: Record<Priority, number> = { high: 0, medium: 1, low: 2 }

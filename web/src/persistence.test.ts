@@ -13,7 +13,7 @@ import {
   writeVersioned,
   clearAllPersisted,
   type StorageAdapter,
-} from '../../core/src/persistence'
+} from '../../core/src/ports/persistence'
 
 function makeFakeAdapter(): StorageAdapter & { store: Map<string, string>; failGet?: boolean; failSet?: boolean; failClear?: boolean } {
   const m = new Map<string, string>()

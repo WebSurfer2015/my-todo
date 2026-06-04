@@ -3,4 +3,4 @@ export {
   applyBulkRestore,
   applyBulkDelete,
   type ToggleArgs,
-} from '../../core/src/selection'
+} from '../../core/src/logic/selection'
