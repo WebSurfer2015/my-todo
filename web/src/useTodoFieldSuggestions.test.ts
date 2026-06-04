@@ -18,7 +18,7 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 const { suggestTodoFieldsMock } = vi.hoisted(() => ({
   suggestTodoFieldsMock: vi.fn(),
 }))
-vi.mock('../../mobile/src/aiInfer', () => ({
+vi.mock('../../mobile/src/adapters/aiInfer', () => ({
   suggestTodoFields: suggestTodoFieldsMock,
 }))
 
@@ -27,7 +27,7 @@ import {
   hasExtractableSignal,
   MIN_CHARS,
   DEBOUNCE_MS,
-} from '../../mobile/src/components/useTodoFieldSuggestions'
+} from '../../mobile/src/features/task/useTodoFieldSuggestions'
 
 const NULL_RES = {
   category: null,

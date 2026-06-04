@@ -13,7 +13,7 @@
  */
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import { useSyncedState } from '../../mobile/src/useSyncedState'
+import { useSyncedState } from '../../mobile/src/store/useSyncedState'
 import type { StorageAdapter } from '../../core/src/ports/persistence'
 
 function makeAdapter(opts: {

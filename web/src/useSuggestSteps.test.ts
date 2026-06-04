@@ -17,10 +17,10 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 const { suggestSubtasksMock } = vi.hoisted(() => ({
   suggestSubtasksMock: vi.fn(),
 }))
-vi.mock('../../mobile/src/aiInfer', () => ({
+vi.mock('../../mobile/src/adapters/aiInfer', () => ({
   suggestSubtasks: suggestSubtasksMock,
 }))
-vi.mock('../../mobile/src/LangContext', () => ({
+vi.mock('../../mobile/src/app/LangContext', () => ({
   useLang: () => ({
     t: { suggestStepsError: 'Could not suggest steps.' },
     lang: 'en',
@@ -28,7 +28,7 @@ vi.mock('../../mobile/src/LangContext', () => ({
   }),
 }))
 
-import { useSuggestSteps } from '../../mobile/src/components/useSuggestSteps'
+import { useSuggestSteps } from '../../mobile/src/features/task/useSuggestSteps'
 
 describe('useSuggestSteps', () => {
   beforeEach(() => {

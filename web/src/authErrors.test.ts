@@ -7,7 +7,7 @@
  * Pure function, no native deps — hosts cleanly under web vitest.
  */
 import { describe, expect, it } from 'vitest'
-import { mapAuthError } from '../../mobile/src/authErrors'
+import { mapAuthError } from '../../mobile/src/adapters/authErrors'
 
 describe('mapAuthError — Firebase auth/* codes', () => {
   it('maps invalid-api-key to a config-stale message + appends code', () => {
