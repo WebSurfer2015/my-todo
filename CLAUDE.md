@@ -38,7 +38,7 @@ Hard rules, enforced by `npm run lint:arch` (dependency-cruiser) at the repo roo
 
 1. **`core/` imports nothing external** — no npm package (React, Firebase, Expo) and no node builtin (`fs`, `path`). It is platform-pure so both web and React Native can run it. New shared logic goes in `core/` behind a port (e.g. `StorageAdapter`), never a platform dep added to core.
 2. **`core/` never reaches "up"** into `web/` or `mobile/`.
-3. **`web/` and `mobile/` never import each other** — anything both need lives in `core/`.
+3. **`web/` and `mobile/` never import each other** — anything both need lives in `core/`. *Scoped to shipped code:* `*.test.*` files are exempt (they don't ship), because a few web tests exercise mobile React hooks via web's `happy-dom`/`renderHook` — mobile's node-only vitest can't render them.
 4. **No circular dependencies** anywhere.
 
 How to run / extend:
@@ -47,12 +47,7 @@ How to run / extend:
 - `.dependency-cruiser.cjs` holds the rules; edit there to tighten/add rules.
 - Each app's `eslint.config.js` also has a `no-restricted-imports` **warn** (editor-time squiggle when you type a cross-platform import). The hard, baseline-aware gate is `lint:arch`, not eslint.
 
-**Known-violations baseline** (`.dependency-cruiser-known-violations.json`): pre-existing violations are snapshotted so the gate fails only on *new* ones. Burn these down over time, then `npm run lint:arch:baseline` to re-snapshot. Current debt to retire:
-
-- `mobile/src/components/PebbleFlight.tsx` ↔ `slices/useTodosSlice.ts` — a render-cycle through `StoreContext`/`useTodoStore`. Break by moving the shared value out of the cycle.
-- 4× `web/src/*.test.ts` import `mobile/src/*` (`authErrors`, `useSyncedState`, `useSuggestSteps`, `useTodoFieldSuggestions`) — logic both platforms need is tested cross-boundary. Fix by promoting that logic into `core/` and testing it there.
-
-When you fix one, delete its entry and re-run `lint:arch:baseline`. Do **not** add new entries to grow the baseline.
+**Known-violations baseline** (`.dependency-cruiser-known-violations.json`): a snapshot mechanism so the gate fails only on *new* debt. **It is currently empty (`[]`) — the codebase is fully clean** (the original 5 violations were burned down: the `PebbleFlight ↔ useTodosSlice` cycle was broken by extracting `components/pebbleTiming.ts`, and the 4 cross-platform *test* imports are now covered by the production-scoping in rule 3). If you ever need to introduce debt deliberately, `npm run lint:arch:baseline` re-snapshots — but prefer fixing. Do **not** grow the baseline.
 
 ## Naming conventions
 

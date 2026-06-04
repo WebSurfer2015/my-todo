@@ -52,17 +52,17 @@ module.exports = {
     {
       name: "no-cross-platform-web-to-mobile",
       comment:
-        "web/ and mobile/ are independent outer rings. Anything they both need is shared through core/, never imported across platforms.",
+        "web/ and mobile/ are independent outer rings. SHIPPED code shares through core/, never across platforms. Test files (*.test.*) are exempt: they don't ship, and some web tests exercise mobile React hooks via web's happy-dom/renderHook because mobile's node-only vitest can't render them.",
       severity: "error",
-      from: { path: "^web/" },
+      from: { path: "^web/", pathNot: "\\.test\\.(ts|tsx)$" },
       to: { path: "^mobile/" },
     },
     {
       name: "no-cross-platform-mobile-to-web",
       comment:
-        "web/ and mobile/ are independent outer rings. Anything they both need is shared through core/, never imported across platforms.",
+        "web/ and mobile/ are independent outer rings. SHIPPED code shares through core/, never across platforms. Test files (*.test.*) are exempt — they don't ship.",
       severity: "error",
-      from: { path: "^mobile/" },
+      from: { path: "^mobile/", pathNot: "\\.test\\.(ts|tsx)$" },
       to: { path: "^web/" },
     },
   ],

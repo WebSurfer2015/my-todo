@@ -45,7 +45,7 @@ import { TodoStoreActions } from "../../../core/src/store";
 import { todayLocal, addDaysISO } from "../../../core/src/utils";
 import { useSyncedState } from "../useSyncedState";
 import { StorageAdapter } from "../../../core/src/persistence";
-import { PEBBLE_DEFERRAL_MS } from "../components/PebbleFlight";
+import { PEBBLE_DEFERRAL_MS } from "../components/pebbleTiming";
 import { Analytics } from "../analytics";
 import { unwrap, serializeAny } from "../storage/envelope";
 

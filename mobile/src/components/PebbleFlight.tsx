@@ -12,6 +12,7 @@ import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from 'expo-audio'
 import { useStore } from '../StoreContext'
 import { collectedGlyphFor, findPreset, type Avatar } from '../profile'
 import { darkenHex } from '../backgrounds'
+import { FLIGHT_MS, ARRIVAL_AT, DROP_MS } from './pebbleTiming'
 
 /**
  * Cross-component overlay: when a task transitions to done, a Mochi sprite
@@ -221,24 +222,15 @@ const MOCHI_SIZE = 52
 // gives the glide room to breathe at this longer duration without
 // reading as busy. Beats: ~360ms spring-in, ~990ms glide,
 // ~450ms arrival shrink.
-const FLIGHT_MS = 1800
+// Timing lives in ./pebbleTiming (neutral, dependency-free) so the store
+// can import PEBBLE_DEFERRAL_MS without importing this component — which
+// would form a useTodosSlice -> PebbleFlight -> ... -> useTodosSlice cycle.
 // Beat boundaries within FLIGHT_MS (as fractions of progress 0→1):
 //   SPRING_END   spring-in done
 //   ARRIVAL_AT   Mochi at the avatar (chime fires here)
 //   FADE_END     fully invisible
 const SPRING_END = 0.20
-const ARRIVAL_AT = 0.75
 const FADE_END = 1.0
-const DROP_MS = FLIGHT_MS * ARRIVAL_AT
-
-/**
- * Time (ms) between a completion gesture and Mochi reaching the cairn
- * to drop the pebble. The store imports this and uses it to defer
- * `applyPebbleDelta` so the real pebble materializes on the strip at
- * the exact moment Mochi lands. Keep this exported so a single source
- * controls both the animation timing and the data update timing.
- */
-export const PEBBLE_DEFERRAL_MS = DROP_MS
 
 function FlyingMochi({ flight, onDone }: { flight: Flight; onDone: () => void }) {
   // The celebration echoes the user's current avatar when one is
