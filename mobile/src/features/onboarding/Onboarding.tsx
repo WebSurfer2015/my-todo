@@ -142,7 +142,7 @@ export default function Onboarding({ visible, onComplete, onSkip }: Props) {
                 {s.visual === 'mochi' && (
                   <View style={styles.mochiCircleLarge}>
                     <Image
-                      source={require('../../assets/icon.png')}
+                      source={require('../../../assets/icon.png')}
                       style={styles.mochiImageLarge}
                       resizeMode="cover"
                     />
@@ -154,7 +154,7 @@ export default function Onboarding({ visible, onComplete, onSkip }: Props) {
                 {s.visual === 'mochi-small' && (
                   <View style={styles.mochiCircleMed}>
                     <Image
-                      source={require('../../assets/icon.png')}
+                      source={require('../../../assets/icon.png')}
                       style={styles.mochiImageMed}
                       resizeMode="cover"
                     />

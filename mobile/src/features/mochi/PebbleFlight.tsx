@@ -108,7 +108,7 @@ function ensureSound() {
   }
   if (!sharedPlayer) {
     try {
-      sharedPlayer = createAudioPlayer(require('../../assets/sounds/complete.wav'))
+      sharedPlayer = createAudioPlayer(require('../../../assets/sounds/complete.wav'))
       sharedPlayer.volume = 1.0
     } catch {
       sharedPlayer = null
@@ -450,7 +450,7 @@ function SparkleBurst({
  * the same illustration users see on the avatar tile.
  */
 const FLIGHT_PRESET_IMAGES: Record<string, ReturnType<typeof require>> = {
-  mochi: require('../../assets/mochi-mascot.png'),
+  mochi: require('../../../assets/mochi-mascot.png'),
   // cat:       require('../../assets/preset-avatars/cat.png'),
   // dog:       require('../../assets/preset-avatars/dog.png'),
   // bird:      require('../../assets/preset-avatars/bird.png'),
@@ -554,7 +554,7 @@ function renderAvatarGlyph(avatar: Avatar | undefined): React.ReactNode {
   }
   return (
     <Image
-      source={require('../../assets/mochi-mascot.png')}
+      source={require('../../../assets/mochi-mascot.png')}
       style={styles.mochiImage}
       resizeMode="contain"
     />

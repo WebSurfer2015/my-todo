@@ -30,7 +30,7 @@ import {
 } from "./src/ui/backgrounds";
 // Side-effect import: registers the foreground notification handler at
 // boot so a push arriving while the app is open isn't silently dropped.
-import "./src/notifications";
+import "./src/adapters/notifications";
 import FilterBar from "./src/features/filters/FilterBar";
 import Fab from "./src/app/Fab";
 import TaskItem from "./src/features/task/TaskItem";

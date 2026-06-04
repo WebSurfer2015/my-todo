@@ -120,7 +120,7 @@ export default function SignIn() {
             <LangPicker theme={theme} />
 
             <Image
-              source={require("../../assets/icon.png")}
+              source={require("../../../assets/icon.png")}
               style={styles.icon}
               accessibilityLabel="Sagely"
             />
