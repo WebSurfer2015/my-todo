@@ -1166,9 +1166,7 @@ export default function TaskDetailsSheet({
             </TouchableOpacity>
             <Text style={styles.editHeaderTitle}>{t.edit.toDo}</Text>
             <TouchableOpacity onPress={closeAndFlushText} hitSlop={10} style={styles.headerSideBtn}>
-              <Text style={styles.saveHeaderText}>
-                {editMode === 'series' && isSeriesRow ? t.editSeries : t.save}
-              </Text>
+              <Text style={styles.saveHeaderText}>{t.save}</Text>
             </TouchableOpacity>
           </View>
 
@@ -1358,6 +1356,12 @@ export default function TaskDetailsSheet({
                   </Text>
                   <Text style={styles.editChevron}>›</Text>
                 </TouchableOpacity>
+                {/* Recurrence is a SERIES-level property — editing a single
+                    instance ("Edit this only") can't change the repeat rule,
+                    so Repeat + Repeat-ends are hidden in that mode. They show
+                    for one-off rows and in "Edit series" mode. */}
+                {!(isSeriesRow && editMode === 'this') && (
+                  <>
                 <View style={styles.editGroupDivider} />
                 <TouchableOpacity
                   style={styles.editFieldRowInGroup}
@@ -1383,6 +1387,8 @@ export default function TaskDetailsSheet({
                   </Text>
                   <Text style={styles.editChevron}>›</Text>
                 </TouchableOpacity>
+                  </>
+                )}
                 {(onUpdateReminders || onUpdateReminder) && (
                   <>
                     <View style={styles.editGroupDivider} />
@@ -1408,7 +1414,7 @@ export default function TaskDetailsSheet({
                     </TouchableOpacity>
                   </>
                 )}
-                {editRecurrence && (
+                {editRecurrence && !(isSeriesRow && editMode === 'this') && (
                   <>
                     <View style={styles.editGroupDivider} />
                     <TouchableOpacity

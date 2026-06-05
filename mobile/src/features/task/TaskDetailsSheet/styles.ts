@@ -218,14 +218,14 @@ export function makeStyles(c: ThemeColors) {
     editModeSegmented: {
       flexDirection: 'row',
       backgroundColor: c.surfaceAlt,
-      borderRadius: 9,
-      padding: 2,
+      borderRadius: 999,
+      padding: 3,
     },
     editModeSegment: {
       flex: 1,
       paddingVertical: 7,
       paddingHorizontal: 12,
-      borderRadius: 7,
+      borderRadius: 999,
       alignItems: 'center',
       justifyContent: 'center',
     },
