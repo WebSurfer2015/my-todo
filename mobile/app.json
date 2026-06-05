@@ -71,7 +71,14 @@
           "color": "#4F8A75"
         }
       ],
-      "expo-audio"
+      "expo-audio",
+      [
+        "@react-native-voice/voice",
+        {
+          "microphonePermission": "Allow $(PRODUCT_NAME) to use the microphone for voice input in Ask Mochi.",
+          "speechRecognitionPermission": "Allow $(PRODUCT_NAME) to recognize your speech to dictate to-dos."
+        }
+      ]
     ],
     "extra": {
       "eas": {

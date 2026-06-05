@@ -11,10 +11,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import { Sparkles } from 'lucide-react-native'
+import { Sparkles, Mic } from 'lucide-react-native'
 import { useLang } from '../../app/LangContext'
 import { useTheme, ThemeColors } from '../../app/theme'
 import { useMochiAgent, type ProposedOperation } from './useMochiAgent'
+import { useVoiceInput } from './useVoiceInput'
 import { todayLocal } from '../../core-bindings/utils'
 import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 import { Analytics } from '../../adapters/analytics'
@@ -52,6 +53,8 @@ export default function ChatSheet({
   const { send, reset, isThinking, proposal, error } = useMochiAgent()
   const [input, setInput] = useState('')
   const inputRef = useRef<TextInput>(null)
+  // Voice dictation — live transcript streams straight into the box.
+  const { listening, toggle: toggleVoice } = useVoiceInput(setInput)
 
   // Fire once per open. visible flips true → false → true counts as
   // two separate "opened" events, which matches the analytics intent.
@@ -175,6 +178,19 @@ export default function ChatSheet({
             </ScrollView>
 
             <View style={styles.inputRow}>
+              <TouchableOpacity
+                style={[styles.micBtn, listening && styles.micBtnActive]}
+                onPress={toggleVoice}
+                disabled={isThinking}
+                accessibilityRole="button"
+                accessibilityLabel={listening ? 'Stop voice input' : 'Start voice input'}
+              >
+                <Mic
+                  size={20}
+                  color={listening ? '#fff' : theme.label2}
+                  strokeWidth={2}
+                />
+              </TouchableOpacity>
               <TextInput
                 ref={inputRef}
                 style={styles.input}
@@ -426,5 +442,14 @@ function makeStyles(c: ThemeColors) {
     },
     sendBtnDisabled: { opacity: 0.4 },
     sendBtnText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+    micBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: c.bg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    micBtnActive: { backgroundColor: c.red },
   })
 }
