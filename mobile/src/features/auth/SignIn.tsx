@@ -4,6 +4,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
@@ -312,12 +313,15 @@ function LangPicker({ theme }: { theme: ThemeColors }) {
         <Text style={styles.btnText}>{LANG_NAMES[lang]} ▾</Text>
       </TouchableOpacity>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <TouchableOpacity
-          style={styles.backdrop}
-          onPress={() => setOpen(false)}
-          activeOpacity={1}
-        >
-          <View style={styles.sheet} onStartShouldSetResponder={() => true}>
+        {/* Sibling backdrop tap-layer (not a wrapper) — a wrapping touchable
+            collapses the language list into one iOS a11y leaf (#15). */}
+        <View style={styles.backdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setOpen(false)}
+            accessible={false}
+          />
+          <View style={styles.sheet}>
             {LANG_ORDER.map((l) => (
               <TouchableOpacity
                 key={l}
@@ -333,7 +337,7 @@ function LangPicker({ theme }: { theme: ThemeColors }) {
               </TouchableOpacity>
             ))}
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
     </View>
   );
