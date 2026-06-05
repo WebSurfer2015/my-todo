@@ -26,7 +26,7 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
 import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
 import { auth, db } from "../adapters/firebase";
-import { stateDocPath } from "../../../core/src/ports/persistence";
+import { stateDocPath, USER_STATE_KEYS, SCHEMA_VERSION } from "../../../core/src/ports/persistence";
 import { runDeleteAccount } from "../../../core/src/store";
 import { Analytics } from "../adapters/analytics";
 import { Profile, SEED_PROFILE, MAX_PROFILE_NAME_LEN } from "../../../core/src/data/profile";
@@ -133,7 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         lastName,
       };
       await setDoc(profileRef, {
-        value: JSON.stringify({ version: 1, data: profile }),
+        value: JSON.stringify({ version: SCHEMA_VERSION, data: profile }),
         updatedAt: Date.now(),
       });
       return true;
@@ -163,7 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         lastName,
       };
       await setDoc(doc(db, stateDocPath(cred.user.uid, "profile")), {
-        value: JSON.stringify({ version: 1, data: profile }),
+        value: JSON.stringify({ version: SCHEMA_VERSION, data: profile }),
         updatedAt: Date.now(),
       });
       void Analytics.signupCompleted("email");
@@ -250,7 +250,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         lastName,
       };
       await setDoc(profileRef, {
-        value: JSON.stringify({ version: 1, data: profile }),
+        value: JSON.stringify({ version: SCHEMA_VERSION, data: profile }),
         updatedAt: Date.now(),
       });
       void Analytics.signupCompleted("apple");
@@ -321,9 +321,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // the security rules and is enforced + unit-tested in core's
     // runDeleteAccount. Cloud wipe is best-effort per key.
     await runDeleteAccount({
+      // Wipe EVERY per-user state doc, not just the original three —
+      // groceries / groceryGroups / todoReferences would otherwise be
+      // orphaned in Firestore after the auth user is gone (unreachable but
+      // never deleted: an erasure/cost gap). USER_STATE_KEYS is the
+      // canonical list the export + "delete data" features also use.
       wipeCloudData: () =>
         Promise.all(
-          ["todos", "categories", "profile"].map((key) =>
+          USER_STATE_KEYS.map((key) =>
             deleteDoc(doc(db, stateDocPath(uid, key))).catch(() => {}),
           ),
         ).then(() => {}),

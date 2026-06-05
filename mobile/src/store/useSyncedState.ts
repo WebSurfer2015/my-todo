@@ -52,8 +52,18 @@ export function useSyncedState<T>(
     if (!adapter.subscribe) return;
     return adapter.subscribe(key, (raw) => {
       if (raw === lastSerializedRef.current) return;
+      // Two-step equality (ported from web): a raw byte match short-
+      // circuits; otherwise parse-then-reserialize and compare. When
+      // Firestore holds an older "thin" doc (e.g. fields stored before a
+      // migrator added defaults), migrate*() fills the defaults on parse,
+      // so the reserialized form equals our last-written "fat" form.
+      // Skipping that overwrite is what stops a stale cloud doc from
+      // clobbering a freshly-picked date/value mid-edit.
+      const parsed = parseRef.current(raw);
+      const normalized = serializeRef.current(parsed);
+      if (normalized === lastSerializedRef.current) return;
       lastSerializedRef.current = raw;
-      setState(parseRef.current(raw));
+      setState(parsed);
     });
   }, [adapter, key]);
 

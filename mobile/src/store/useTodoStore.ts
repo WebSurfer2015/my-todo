@@ -23,6 +23,7 @@ import {
   StorageAdapter,
   CollectionAdapter,
   USER_STATE_KEYS,
+  SCHEMA_VERSION,
 } from "../../../core/src/ports/persistence";
 import { createTodoStore, migrateLocalToCloud } from "../../../core/src/store";
 import { useCollectionDualWrite } from "./useCollectionDualWrite";
@@ -342,7 +343,7 @@ export function useTodoStore() {
   // that raced everything else. Letting signOut re-hydrate is the
   // calmer guarantee.
   const clearAllData = useCallback(async () => {
-    const empty = JSON.stringify({ version: 1, data: [] });
+    const empty = JSON.stringify({ version: SCHEMA_VERSION, data: [] });
     await Promise.all(
       USER_STATE_KEYS.map((key) =>
         adapter.setItem(key, empty).catch((err) => {

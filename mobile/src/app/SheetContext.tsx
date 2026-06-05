@@ -154,7 +154,11 @@ export function SheetProvider({ children }: { children: ReactNode }) {
       } else if (op.kind === 'addSteps') {
         for (const s of op.args.steps) store.addSubtask(op.args.todoId, s.text)
       } else if (op.kind === 'markDone') {
-        store.toggle(op.args.todoId)
+        // Idempotent: `toggle` flips state unconditionally, so guard
+        // against re-opening a todo that's already done (markDone means
+        // "make it done", never "un-done it").
+        const td = store.todos.find((t) => t.id === op.args.todoId)
+        if (td && !td.done) store.toggle(op.args.todoId)
       }
     },
     [store],
