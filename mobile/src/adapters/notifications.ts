@@ -327,7 +327,7 @@ export async function syncTodoReminders(todos: TodoForReminder[]): Promise<void>
     }
   }
 
-  let scheduled: Notifications.NotificationRequest[] = []
+  let scheduled: Notifications.NotificationRequest[]
   try {
     scheduled = await Notifications.getAllScheduledNotificationsAsync()
   } catch {
@@ -398,7 +398,7 @@ export async function syncTodoReminders(todos: TodoForReminder[]): Promise<void>
  * immediate feedback without waiting for the next syncTodoReminders
  * diff. Reads the OS schedule and cancels each `todo:<id>:N`. */
 export async function cancelTodoReminder(todoId: string): Promise<void> {
-  let scheduled: Notifications.NotificationRequest[] = []
+  let scheduled: Notifications.NotificationRequest[]
   try {
     scheduled = await Notifications.getAllScheduledNotificationsAsync()
   } catch {

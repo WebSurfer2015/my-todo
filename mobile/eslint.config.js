@@ -17,8 +17,13 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      // React Compiler advisory rules — kept as warnings (the compiler's
+      // optimization hints, not runtime-correctness rules). rules-of-hooks
+      // and exhaustive-deps stay at error. Consistent with the two below.
       "react-hooks/set-state-in-effect": "warn",
       "react-hooks/refs": "warn",
+      "react-hooks/preserve-manual-memoization": "warn",
+      "react-hooks/immutability": "warn",
       "@typescript-eslint/no-unused-vars": [
         "warn",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },

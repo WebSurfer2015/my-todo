@@ -7,7 +7,8 @@
  * Or run via the convenience npm script (handles starting + stopping):
  *   npm run test:rules
  *
- * The emulator needs Java 11+ on PATH. macOS: `brew install openjdk`.
+ * The emulator needs Java 21+ on PATH (firebase-tools >=15 dropped <21).
+ * macOS: `brew install openjdk@21`.
  */
 import { describe, it, beforeAll, afterAll, beforeEach, expect } from 'vitest'
 import {
@@ -108,8 +109,12 @@ describe('users/{uid}/state/{key} access control', () => {
 
   it('default-deny applies to other collections', async () => {
     const alice = env.authenticatedContext('alice').firestore()
+    // Even-segment doc path (collection/doc) so the client builds a valid
+    // DocumentReference and the request actually reaches the rules engine
+    // — an odd-segment path throws a client-side "invalid reference" error
+    // before any rule is evaluated, which wouldn't test default-deny.
     await assertFails(
-      setDoc(doc(alice, 'random/collection/abc'), { foo: 'bar' }),
+      setDoc(doc(alice, 'random/abc'), { foo: 'bar' }),
     )
   })
 

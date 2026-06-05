@@ -45,6 +45,14 @@ export default defineConfig({
         'src/profile.ts',
         'src/selection.ts',
       ],
+      // NOTE: a GATED coverage threshold can't live here. The 27 test
+      // files exercise core/ (imported across the workspace boundary),
+      // but v8 only instruments files under this project's root (web/),
+      // so core/ reads as 0/0 from here and web/src is the untested UI
+      // shell. A meaningful, gateable core-coverage number requires a
+      // repo-root vitest workspace (root-level vitest + plugins as
+      // devDeps, projects: ['web', ...], coverage.include core/src).
+      // Tracked as P1-coverage; until then this report is artifact-only.
     },
   },
 })

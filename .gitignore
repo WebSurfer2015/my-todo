@@ -24,3 +24,4 @@
 # a clean tree so untracked design variants would block builds.
 icons/backup/
 icons/turtle-icon-5.jpg
+coverage/
