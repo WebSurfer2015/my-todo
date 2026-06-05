@@ -35,6 +35,24 @@ jobs:
         working-directory: core
         run: ../node_modules/.bin/tsc --noEmit
 
+  coverage:
+    name: core coverage gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # web deps provide react/RTL that the test files resolve upward;
+      # root deps provide the repo-root vitest + v8 coverage runner.
+      - name: Install web deps
+        working-directory: web
+        run: npm ci --legacy-peer-deps
+      - name: Install root deps
+        run: npm ci
+      - name: Core coverage gate (thresholds in vitest.config.ts)
+        run: npm run test:coverage
+
   web:
     name: web build + test
     runs-on: ubuntu-latest

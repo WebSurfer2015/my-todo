@@ -2,12 +2,17 @@
   "name": "my-todo",
   "version": "1.0.0",
   "private": true,
-  "description": "Root holds only the cross-package Clean Architecture check. The apps live in web/ and mobile/; shared domain logic in core/. No workspaces, no monorepo tooling — this exists solely so dependency-cruiser can see all three packages at once.",
+  "description": "Root holds the cross-package gates: the Clean Architecture check (dependency-cruiser) and the gated CORE coverage run (vitest from the repo root, so v8 can attribute core/ exercised by web's tests). The apps live in web/ and mobile/; shared domain logic in core/. No workspaces/monorepo tooling beyond these gates.",
   "scripts": {
     "lint:arch": "depcruise \"core/src/**/*.{ts,tsx}\" \"web/src/**/*.{ts,tsx}\" \"mobile/src/**/*.{ts,tsx}\" --config .dependency-cruiser.cjs --ignore-known .dependency-cruiser-known-violations.json",
-    "lint:arch:baseline": "depcruise \"core/src/**/*.{ts,tsx}\" \"web/src/**/*.{ts,tsx}\" \"mobile/src/**/*.{ts,tsx}\" --config .dependency-cruiser.cjs --output-type baseline > .dependency-cruiser-known-violations.json"
+    "lint:arch:baseline": "depcruise \"core/src/**/*.{ts,tsx}\" \"web/src/**/*.{ts,tsx}\" \"mobile/src/**/*.{ts,tsx}\" --config .dependency-cruiser.cjs --output-type baseline > .dependency-cruiser-known-violations.json",
+    "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "dependency-cruiser": "^16.10.0"
+    "@vitejs/plugin-react": "^4.7.0",
+    "@vitest/coverage-v8": "^4.1.8",
+    "dependency-cruiser": "^16.10.0",
+    "happy-dom": "^20.10.1",
+    "vitest": "^4.1.8"
   }
 }
