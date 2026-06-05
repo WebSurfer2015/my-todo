@@ -1,4 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from 'react'
+import * as Sentry from '@sentry/react'
 
 interface State {
   error: Error | null
@@ -13,6 +14,12 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('ErrorBoundary caught:', error, info)
+    // Forward to Sentry so web prod crashes are visible (review gap: the
+    // boundary previously only console.error'd). No-op when Sentry has no
+    // DSN configured, so dev stays quiet.
+    Sentry.captureException(error, {
+      contexts: { react: { componentStack: info.componentStack } },
+    })
   }
 
   reset = () => {

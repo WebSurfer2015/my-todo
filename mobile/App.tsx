@@ -31,6 +31,8 @@ import {
 // Side-effect import: registers the foreground notification handler at
 // boot so a push arriving while the app is open isn't silently dropped.
 import "./src/adapters/notifications";
+// Side-effect: install the global uncaught-JS-error → Crashlytics handler.
+import "./src/adapters/globalErrorHandler";
 import FilterBar from "./src/features/filters/FilterBar";
 import Fab from "./src/app/Fab";
 import TaskItem from "./src/features/task/TaskItem";

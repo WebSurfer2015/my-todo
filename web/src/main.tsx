@@ -21,6 +21,18 @@ if (dsn) {
   });
 }
 
+// Global handlers so errors OUTSIDE React's render tree are captured too —
+// unhandled promise rejections (sync writes, AI calls, hydration) and
+// non-React runtime errors were previously silent in prod. captureException
+// is a no-op when Sentry has no DSN, so dev stays quiet.
+window.addEventListener("unhandledrejection", (e) => {
+  console.error("Unhandled rejection:", e.reason);
+  Sentry.captureException(e.reason);
+});
+window.addEventListener("error", (e) => {
+  Sentry.captureException(e.error ?? e.message);
+});
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ErrorBoundary>
