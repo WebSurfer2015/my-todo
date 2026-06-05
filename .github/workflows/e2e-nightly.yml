@@ -57,13 +57,31 @@ jobs:
           xcrun simctl boot "$SIM_DEVICE" || true
           xcrun simctl bootstatus "$SIM_DEVICE" -b
 
-      - name: Build + install the app on the sim
+      - name: Prebuild + pods (generate ios/, no signing yet)
         working-directory: mobile
-        # Simulator target → no code signing needed. (Run 1's
-        # "No code signing certificates" was a cascade of the pod-install
-        # failure under the old Xcode; with Xcode 16 the sim build proceeds
-        # without signing.)
-        run: npx expo run:ios --configuration Release --device "$SIM_DEVICE"
+        run: |
+          npx expo prebuild --platform ios --no-install
+          cd ios && pod install
+
+      - name: Build for the simulator (signing disabled) + install
+        working-directory: mobile
+        # `expo run:ios` insists on a signing identity even for a simulator
+        # target (run 2 failed: "No code signing certificates"). Simulator
+        # builds genuinely don't need signing, so drive xcodebuild directly
+        # with CODE_SIGNING_ALLOWED=NO, then install the .app on the sim.
+        run: |
+          xcodebuild \
+            -workspace ios/SagelyCalmToDos.xcworkspace \
+            -scheme SagelyCalmToDos \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination "platform=iOS Simulator,name=$SIM_DEVICE" \
+            -derivedDataPath ios/build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+          APP_PATH="$(find ios/build/Build/Products -name '*.app' -maxdepth 2 -type d | head -1)"
+          echo "Installing $APP_PATH"
+          xcrun simctl install "$SIM_DEVICE" "$APP_PATH"
 
       - name: Seed the demo account
         working-directory: mobile
