@@ -27,6 +27,7 @@ import * as Crypto from "expo-crypto";
 import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
 import { auth, db } from "../adapters/firebase";
 import { stateDocPath } from "../../../core/src/ports/persistence";
+import { runDeleteAccount } from "../../../core/src/store";
 import { Analytics } from "../adapters/analytics";
 import { Profile, SEED_PROFILE, MAX_PROFILE_NAME_LEN } from "../../../core/src/data/profile";
 
@@ -308,24 +309,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const current = auth.currentUser;
     if (!current) throw new Error("Not signed in");
     const uid = current.uid;
-    // Delete Firestore-side data first — once auth is gone, security rules
-    // would reject these writes.
-    await Promise.all(
-      ["todos", "categories", "profile"].map((key) =>
-        deleteDoc(doc(db, stateDocPath(uid, key))).catch(() => {
-          // Best-effort: missing doc is fine, transient failures shouldn't
-          // block the auth delete.
-        }),
-      ),
-    );
-    try {
-      await deleteUser(current);
-    } catch (err) {
-      if ((err as { code?: string } | null)?.code === "auth/requires-recent-login") {
-        throw new RecentLoginRequiredError();
-      }
-      throw err;
-    }
+    // Order (wipe cloud data → THEN delete the auth user) is required by
+    // the security rules and is enforced + unit-tested in core's
+    // runDeleteAccount. Cloud wipe is best-effort per key.
+    await runDeleteAccount({
+      wipeCloudData: () =>
+        Promise.all(
+          ["todos", "categories", "profile"].map((key) =>
+            deleteDoc(doc(db, stateDocPath(uid, key))).catch(() => {}),
+          ),
+        ).then(() => {}),
+      deleteAuthUser: () => deleteUser(current),
+      onAuthError: (err) => {
+        if ((err as { code?: string } | null)?.code === "auth/requires-recent-login") {
+          throw new RecentLoginRequiredError();
+        }
+      },
+    });
   }, []);
 
   const value = useMemo<AuthApi>(

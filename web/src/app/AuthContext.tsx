@@ -206,7 +206,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!current) throw new Error("Not signed in");
     const uid = current.uid;
     // Delete Firestore-side data first — once auth is gone, security rules
-    // would reject these writes.
+    // would reject these writes. This wipe-then-delete-user ORDER is the
+    // load-bearing invariant; it's specified + unit-tested in core's
+    // runDeleteAccount (core/src/store/deleteAccount.ts). Mobile delegates
+    // to that helper; web keeps this inline copy (parity is task #5).
     await Promise.all(
       ["todos", "categories", "profile"].map((key) =>
         deleteDoc(doc(db, stateDocPath(uid, key))).catch(() => {
