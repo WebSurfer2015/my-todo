@@ -114,8 +114,18 @@ export default function DeferModal({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+      {/* Backdrop is a SIBLING tap-layer (not a wrapper). A Pressable that
+          WRAPS the sheet collapses the whole subtree into one iOS a11y leaf
+          (breaks VoiceOver + Maestro). As a sibling behind the opaque sheet,
+          taps on the dim area still close; taps on the sheet are absorbed by
+          the sheet View, and the sheet's children stay individually exposed. */}
+      <View style={styles.backdrop}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          accessible={false}
+        />
+        <View style={styles.sheet}>
           <View style={styles.handle} />
 
           {subView === 'main' && (
@@ -225,8 +235,8 @@ export default function DeferModal({
               <View style={{ height: 16 }} />
             </>
           )}
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   )
 }
