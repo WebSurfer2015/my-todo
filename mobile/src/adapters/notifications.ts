@@ -4,6 +4,13 @@ import { Platform } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { doc, setDoc, deleteDoc } from '@react-native-firebase/firestore'
 import { db } from './firebase'
+import {
+  REMINDER_ID_PREFIX,
+  MAX_FIRES_PER_TODO,
+  reminderIdFor,
+  todoIdFromReminderId,
+  fireIndexFromReminderId,
+} from './reminderId'
 
 /**
  * Daily check-in notifications — single repeating local notification at the
@@ -191,41 +198,9 @@ export async function unregisterDevice(uid: string): Promise<void> {
 // `syncTodoReminders` is the entry point. Safe to call as often as
 // the todo list changes — only deltas hit the native bridge.
 
-const REMINDER_ID_PREFIX = 'todo:'
-const MAX_FIRES_PER_TODO = 30
-
 interface ScheduledFire {
   index: number
   at: Date
-}
-
-function reminderIdFor(
-  todoId: string,
-  reminderId: string,
-  fireIndex: number,
-): string {
-  return `${REMINDER_ID_PREFIX}${todoId}:${reminderId}:${fireIndex}`
-}
-
-function todoIdFromReminderId(id: string): string | null {
-  if (!id.startsWith(REMINDER_ID_PREFIX)) return null
-  // Strip the prefix; the identifier is now
-  // `<todoId>:<reminderId>:<fireIndex>`. The todoId is a UUID
-  // (no colons), but reminderId can contain colons via the
-  // legacy synthesized `legacy:<at>` form — so we split off the
-  // todoId as the first segment.
-  const rest = id.slice(REMINDER_ID_PREFIX.length)
-  const firstColon = rest.indexOf(':')
-  if (firstColon === -1) return null
-  return rest.slice(0, firstColon)
-}
-
-function fireIndexFromReminderId(id: string): number | null {
-  const rest = id.slice(REMINDER_ID_PREFIX.length)
-  const lastColon = rest.lastIndexOf(':')
-  if (lastColon === -1) return null
-  const n = Number(rest.slice(lastColon + 1))
-  return Number.isFinite(n) ? n : null
 }
 
 /** Parse an ISO datetime to a Date. Returns null if unparseable or

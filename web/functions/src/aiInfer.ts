@@ -77,7 +77,7 @@ const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY')
 if (admin.apps.length === 0) admin.initializeApp()
 const adminDb = admin.firestore()
 
-type Mode = 'breakdown-subtasks' | 'classify-grocery-dept' | 'suggest-todo-fields' | 'link-store-to-items'
+export type Mode = 'breakdown-subtasks' | 'classify-grocery-dept' | 'suggest-todo-fields' | 'link-store-to-items'
 
 /**
  * Per-mode handler. Each call sequence is: validateInput → buildUserBlock
@@ -95,7 +95,7 @@ interface ModeConfig {
 
 // --- Mode registry --------------------------------------------------------
 
-const MODES: Record<Mode, ModeConfig> = {
+export const MODES: Record<Mode, ModeConfig> = {
   'breakdown-subtasks': {
     model: 'claude-sonnet-4-6',
     maxTokens: 256,

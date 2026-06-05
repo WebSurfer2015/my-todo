@@ -370,3 +370,50 @@ describe('postProcessLinkStore', () => {
     expect(out.linkedItemIds).toEqual([])
   })
 })
+
+// ─── cost-guard config ─────────────────────────────────────────────────
+// Locks in AI cost discipline (memory: "design every AI feature for
+// lowest token usage"). If someone bumps a hot-path mode to a pricier
+// model or loosens a token cap, these fail and force a deliberate review.
+import { MODES, type Mode } from './aiInfer'
+
+describe('AI mode cost guards', () => {
+  const HOT_PATH: Mode[] = [
+    'suggest-todo-fields', // fires on every typing pause — cheapest must-win
+    'classify-grocery-dept',
+    'link-store-to-items',
+  ]
+
+  it('defines a config for every mode', () => {
+    const modes = Object.keys(MODES) as Mode[]
+    expect(modes.sort()).toEqual(
+      [
+        'breakdown-subtasks',
+        'classify-grocery-dept',
+        'link-store-to-items',
+        'suggest-todo-fields',
+      ].sort(),
+    )
+  })
+
+  it('keeps hot-path modes on the cheap Haiku model', () => {
+    for (const m of HOT_PATH) {
+      expect(MODES[m].model, `${m} must stay on Haiku`).toMatch(/haiku/)
+    }
+  })
+
+  it('never uses an Opus-tier model anywhere (cost ceiling)', () => {
+    for (const m of Object.keys(MODES) as Mode[]) {
+      expect(MODES[m].model, `${m} must not use Opus`).not.toMatch(/opus/)
+    }
+  })
+
+  it('caps max_tokens tightly per mode', () => {
+    for (const m of Object.keys(MODES) as Mode[]) {
+      expect(MODES[m].maxTokens, `${m} maxTokens`).toBeGreaterThan(0)
+      expect(MODES[m].maxTokens, `${m} maxTokens too loose`).toBeLessThanOrEqual(512)
+    }
+    // The hottest path (fires every keypause) stays the tightest.
+    expect(MODES['suggest-todo-fields'].maxTokens).toBeLessThanOrEqual(100)
+  })
+})
