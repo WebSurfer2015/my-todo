@@ -1,16 +1,22 @@
 /**
- * Tests for core/src/agentTools.ts — the Mochi agent's tool registry +
- * the server-side validateOperation guard. The validator is the
- * security boundary between Anthropic's tool_use response and the
- * client's apply path; bad input there means corrupt todos for the
- * user.
+ * Tests for web/functions/src/agentTools.ts — the Mochi agent's tool
+ * registry + the server-side validateOperation guard, THE EXACT FILE the
+ * agentChat Cloud Function executes (index.ts imports it). The validator
+ * is the security boundary between Anthropic's tool_use response and the
+ * client's apply path; bad input there means corrupt todos.
+ *
+ * Imports the functions copy directly (not a core duplicate) so green here
+ * means the deployed validator is green. The functions package can't import
+ * core (its tsconfig rootDir is `src` + it deploys standalone), so this
+ * file is the single source of truth; vitest can still load it because
+ * it's pure TS with no runtime imports.
  */
 import { describe, expect, it } from 'vitest'
 import {
   AGENT_TOOLS,
   validateOperation,
   type ProposedOperation,
-} from '../../core/src/ports/agentTools'
+} from '../functions/src/agentTools'
 
 const knownCats = new Set(['home', 'work', 'school'])
 
