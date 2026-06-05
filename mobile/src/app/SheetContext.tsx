@@ -137,11 +137,14 @@ export function SheetProvider({ children }: { children: ReactNode }) {
       // Agent reminders carry no id (the model can't mint stable UUIDs);
       // stamp one per entry on apply so the scheduler's per-fire key stays
       // distinct. Returns undefined for an empty/absent list.
-      const toReminders = (rs?: { at: string; intervalMinutes?: number }[]) =>
+      const toReminders = (
+        rs?: { at: string; offsetMinutes?: number; intervalMinutes?: number }[],
+      ) =>
         rs && rs.length > 0
           ? rs.map((r) => ({
               id: genUuid(),
               at: r.at,
+              ...(r.offsetMinutes ? { offsetMinutes: r.offsetMinutes } : {}),
               ...(r.intervalMinutes ? { intervalMinutes: r.intervalMinutes } : {}),
             }))
           : undefined

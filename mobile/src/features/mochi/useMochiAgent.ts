@@ -35,6 +35,7 @@ export interface AgentRecurrence {
  * client mints the stable `id` on apply. */
 export interface AgentReminder {
   at: string
+  offsetMinutes?: number
   intervalMinutes?: number
 }
 

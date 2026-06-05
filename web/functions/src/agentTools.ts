@@ -63,6 +63,9 @@ export interface AgentRecurrence {
  * model can't produce reliable UUIDs. */
 export interface AgentReminder {
   at: string
+  /** "Before due" mode: minutes before the due datetime. The client keeps
+   * `at` in sync + rebases per recurrence occurrence. */
+  offsetMinutes?: number
   /** Repeat every N minutes after `at` (optional). */
   intervalMinutes?: number
 }
@@ -159,8 +162,17 @@ const REMINDERS_SCHEMA = {
     properties: {
       at: {
         type: 'string',
-        description: 'Local ISO datetime yyyy-mm-ddThh:mm (e.g. 2026-06-07T09:00).',
+        description:
+          'Local ISO datetime yyyy-mm-ddThh:mm (e.g. 2026-06-07T09:00). For a ' +
+          '"before due" reminder, compute it as the due moment minus the offset.',
         pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}',
+      },
+      offsetMinutes: {
+        type: 'integer',
+        minimum: 1,
+        description:
+          'Optional "before due" offset: minutes before the due datetime ' +
+          '(e.g. 60 for "an hour before"). Set both this and the computed `at`.',
       },
       intervalMinutes: {
         type: 'integer',
@@ -193,7 +205,7 @@ export const AGENT_TOOLS: AgentTool[] = [
           type: 'string',
           description:
             "ISO yyyy-mm-dd local date, or empty string when no date was mentioned.",
-          pattern: '^(\\d{4}-\\d{2}-\\d{2})?$',
+          pattern: '^(\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2})?)?$',
         },
         priority: {
           type: 'string',
@@ -242,7 +254,7 @@ export const AGENT_TOOLS: AgentTool[] = [
           description:
             "ISO yyyy-mm-dd local date. Resolve relative phrases against `today`. " +
             "Empty string CLEARS the existing due date.",
-          pattern: '^(\\d{4}-\\d{2}-\\d{2})?$',
+          pattern: '^(\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2})?)?$',
         },
         priority: {
           type: 'string',
@@ -350,6 +362,10 @@ function validateReminders(raw: unknown): AgentReminder[] | undefined {
     const at = (item as { at?: unknown }).at
     if (typeof at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(at)) continue
     const rem: AgentReminder = { at }
+    const off = (item as { offsetMinutes?: unknown }).offsetMinutes
+    if (typeof off === 'number' && Number.isFinite(off) && off >= 1) {
+      rem.offsetMinutes = Math.floor(off)
+    }
     const iv = (item as { intervalMinutes?: unknown }).intervalMinutes
     if (typeof iv === 'number' && Number.isFinite(iv) && iv >= 1) {
       rem.intervalMinutes = Math.floor(iv)
@@ -385,7 +401,7 @@ export function validateOperation(
       kind: 'createTodo',
       args: { text: a.text.trim().slice(0, MAX_TEXT_LEN) },
     }
-    if (typeof a.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(a.dueDate)) {
+    if (typeof a.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(a.dueDate)) {
       op.args.dueDate = a.dueDate
     }
     if (a.priority === 'high' || a.priority === 'medium' || a.priority === 'low') {
@@ -422,7 +438,7 @@ export function validateOperation(
       op.args.text = a.text.trim().slice(0, MAX_TEXT_LEN)
       hasField = true
     }
-    if (typeof a.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(a.dueDate)) {
+    if (typeof a.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(a.dueDate)) {
       op.args.dueDate = a.dueDate
       hasField = true
     } else if (a.dueDate === '') {
