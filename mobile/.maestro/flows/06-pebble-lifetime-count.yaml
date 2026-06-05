@@ -1,0 +1,17 @@
+# Flow 06 — Pebbles. The old Dashboard PebbleStrip (add/remove pebbles on
+# the cairn) was REMOVED. Pebbles are still counted; the surviving surface
+# is the ProfileSheet "YOUR JOURNEY" card, which shows the lifetime count
+# ("N … pebbles placed"). This asserts that surface renders. P1.11.
+#
+# (Replaces the old 06-pebble-rises-on-completion flow, which drove the
+# removed strip and could never pass again.)
+appId: com.websurfer.mytodo
+---
+- stopApp
+- launchApp
+# The header avatar (accessibilityLabel "Edit profile") opens ProfileSheet.
+# Only the avatar carries that label before the sheet is open.
+- tapOn:
+    text: "Edit profile"
+- assertVisible: ".*pebbles placed.*"
+- assertVisible: ".*Every task you.*finished.*"

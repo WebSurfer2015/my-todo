@@ -1,24 +1,37 @@
-# Flow 03 — Tap an open row → it toggles to done (strike-through).
-# Manual-plan tests 4.7, 3.2.
+# Flow 03 — Body-tap an open row toggles it done; it then shows under the
+# Done filter. Manual-plan tests 4.7, 3.2.
 #
-# Current behavior: body-tap toggles done; long-press opens edit. We
-# tap a seeded open row and assert it disappears from the Open filter
-# (strict Open filter unmounts done items immediately).
+# Note on the assertion: the just-completed row does NOT unmount from the
+# Open view in place (the Mochi flight keeps it mounted; it stays struck
+# through until the next re-render). So instead of asserting it vanishes
+# from Open, we switch to the Done filter and confirm it landed there —
+# a direct, timing-robust proof the toggle fired.
+#
+# Filtering: funnel ("Filter") → status row (regex, carries a count) →
+# title-bar "Done" (bare text — doesn't collide with the "Done, N" row).
 appId: com.websurfer.mytodo
 ---
 - stopApp
 - launchApp
 - tapOn:
     text: "Todos, tab.*"
-# Make sure we're on the Open filter so the strict-Open unmount rule
-# applies — tapping a row will remove it from view.
 - tapOn:
-    text: "Open"
-    optional: true
-# Tap the row body — this is the toggle gesture.
+    text: "Filter"
+- tapOn:
+    text: ".*Open.*"
+- tapOn:
+    text: "Done"
+- waitForAnimationToEnd
+# Body-tap toggles done (TaskItem default tapBehavior: 'toggle').
 - tapOn: ".*Refill prescription.*"
-# Row should drop out of the Open filter view. Allow a brief settle
-# for the Mochi flight animation (~1.8s) before checking.
 - waitForAnimationToEnd:
-    timeout: 2500
-- assertNotVisible: ".*Refill prescription.*"
+    timeout: 3000
+# Switch to the Done filter; the toggled row is now there.
+- tapOn:
+    text: "Filter"
+- tapOn:
+    text: "Done.*[0-9].*"
+- tapOn:
+    text: "Done"
+- waitForAnimationToEnd
+- assertVisible: ".*Refill prescription.*"

@@ -1,11 +1,16 @@
-# Flow 08 — Tap a recurring task → snapshot moves to the Done bin and
-# the rolling instance advances to its next occurrence. Manual-plan
-# tests 9.1–9.3 (recurrence).
+# Flow 08 — Body-tap a recurring task → a done snapshot lands in the Done
+# bin and the rolling instance advances to its next occurrence.
+# Manual-plan tests 9.1–9.3 (recurrence).
 #
-# The seed includes two recurring tasks: "Pay credit card bill"
-# (monthly) and "Yoga class" (weekly). We exercise the weekly one
-# because the next-occurrence date is reliably visible inside the
-# 7-day Upcoming bucket — easier to assert than a +1 month jump.
+# Seed recurring tasks: "Pay credit card bill" (monthly, THIS WEEK) and
+# "Yoga class" (weekly, next week → the collapsed UPCOMING section). We
+# exercise the weekly one. UPCOMING is collapsed by default AND long, so
+# we expand it (tap the header) then scrollUntilVisible to reach Yoga —
+# a plain tapOn doesn't auto-scroll far enough.
+#
+# Filtering: funnel ("Filter") → status row (regex, carries a count) →
+# title-bar "Done". The Done STATUS row matches "Done.*[0-9]" (it has a
+# count); the bare-text title-bar "Done" applies the filter.
 appId: com.websurfer.mytodo
 ---
 - stopApp
@@ -13,19 +18,32 @@ appId: com.websurfer.mytodo
 - tapOn:
     text: "Todos, tab.*"
 - tapOn:
-    text: "Open"
-    optional: true
-# Body-tap a recurring open row to roll it forward. The act of
-# tapping marks the just-completed instance done (snapshot) and
-# advances the active row's dueDate by one freq interval.
-- tapOn: ".*Yoga class.*"
-- waitForAnimationToEnd:
-    timeout: 2500
-# The active row is still labeled "Yoga class" — only its due chip
-# advances. Assert the row remains visible in the Open list (it
-# reappears at the rolled-forward date).
-- assertVisible: ".*Yoga class.*"
-# Switch to Done filter and confirm the snapshot landed there.
+    text: "Filter"
+- tapOn:
+    text: ".*Open.*"
 - tapOn:
     text: "Done"
-- assertVisible: ".*Yoga class.*"
+- waitForAnimationToEnd
+# Expand the collapsed UPCOMING section, then scroll the weekly row in.
+- tapOn:
+    text: ".*UPCOMING.*"
+- waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      text: ".*Yoga class.*"
+    direction: DOWN
+- tapOn: ".*Yoga class.*"
+- waitForAnimationToEnd:
+    timeout: 3000
+# Switch to the Done filter and confirm the rolled snapshot landed there.
+- tapOn:
+    text: "Filter"
+- tapOn:
+    text: "Done.*[0-9].*"
+- tapOn:
+    text: "Done"
+- waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      text: ".*Yoga class.*"
+    direction: DOWN

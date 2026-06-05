@@ -1,0 +1,36 @@
+# Flow 18 — The merged Done bin: open it, confirm a trashed row renders,
+# tap it to reopen. P1.7 (trash).
+#
+# This app uses a MERGED DONE BIN (done + trashed live together under the
+# Done filter), reached via the list's "N tucked away · tap to peek →"
+# footer — NOT a multi-select Trash view. So there is no "N selected"
+# bulk-restore bar; the model is tap-a-row-to-reopen plus a "Delete all
+# permanently" bulk action. (Renamed from the old bulk-trash-restore flow,
+# whose multi-select premise never matched this UI.)
+#
+# Unblocked by #15: the bin rows are individually addressable now.
+# Precondition: the seed includes trashed rows ("Unread newsletter
+# cleanup"). Reseed before running.
+appId: com.websurfer.mytodo
+---
+- stopApp
+- launchApp
+- tapOn:
+    text: "Todos, tab.*"
+# Bin footer a11y label: "N to-dos tucked away in the bin."
+- scrollUntilVisible:
+    element:
+      text: ".*tucked away.*"
+    direction: DOWN
+- tapOn:
+    text: ".*tucked away.*"
+- waitForAnimationToEnd
+# Bin chrome renders (retention notice + bulk delete).
+- assertVisible: ".*Delete all permanently.*"
+# A trashed seed row is present and tappable; tapping reopens it.
+- scrollUntilVisible:
+    element:
+      text: ".*Unread newsletter cleanup.*"
+    direction: DOWN
+- tapOn: ".*Unread newsletter cleanup.*"
+- waitForAnimationToEnd

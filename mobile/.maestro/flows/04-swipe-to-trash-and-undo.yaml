@@ -1,21 +1,23 @@
-# Flow 04 — Swipe-right reveals [Defer | Not Do | Delete]; tap "Not Do"
-# moves the row into the merged Done bin; Undo snackbar restores it.
-# Manual-plan test 4.10.
+# Flow 04 — Swipe a row LEFT to reveal [Defer | Not Do | Delete]; tap
+# "Not Do" → row routes to the Done bin with a "Marked as Not Do."
+# snackbar; Undo restores it. Manual-plan test 4.10.
+#
+# Target a TODAY row ("Take a 10-minute walk") rather than a bottom-of-
+# list row: the revealed action panel needs vertical room, and a row
+# crammed against the FAB/tab bar leaves the middle "Not Do" button hard
+# for the driver to land on. The "Not Do" button pairs a "✕" glyph Text
+# with the label Text, which iOS merges into one node ("✕ Not Do"), so it
+# needs a `.*Not Do.*` regex rather than a bare-text match.
 appId: com.websurfer.mytodo
 ---
 - stopApp
 - launchApp
 - tapOn:
     text: "Todos, tab.*"
-# Swipe RIGHT direction (finger moves rightward) reveals the LEFT
-# swipe actions: [Defer | Not Do | Delete] on open rows.
 - swipe:
     from:
-      text: ".*Review reading group chapter.*"
+      text: ".*Take a 10-minute walk.*"
     direction: LEFT
-# "Not Do" was previously labeled "Move to trash" — i18n key
-# moveToTrash now resolves to "Not Do" in en. The button text below
-# tracks the rendered label, not the legacy name.
 - tapOn:
     text: ".*Not Do.*"
 # Snackbar surfaces with Undo.
@@ -24,4 +26,4 @@ appId: com.websurfer.mytodo
 - tapOn:
     text: "Undo"
 # Row is back in the active list.
-- assertVisible: ".*Review reading group chapter.*"
+- assertVisible: ".*Take a 10-minute walk.*"

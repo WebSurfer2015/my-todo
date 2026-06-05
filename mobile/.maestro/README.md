@@ -62,10 +62,10 @@ at the running sim and it'll show element selectors live.
 | --- | --- | --- |
 | `flows/01-cold-launch-lands-on-home.yaml` | App launches to Dashboard tab; TODAY section renders | 1.1, 3.1 |
 | `flows/02-add-todo.yaml` | FAB → Compose → Done → row appears in list | 4.1–4.3 |
-| `flows/03-toggle-done-and-strike.yaml` | Tap open row → toggles done → drops from Open filter | 4.7, 3.2 |
+| `flows/03-toggle-done-and-strike.yaml` | Filter Open → tap row toggles done → appears under Done filter | 4.7, 3.2 |
 | `flows/04-swipe-to-trash-and-undo.yaml` | Swipe-right → Not Do → snackbar Undo restores row | 4.10 |
 | `flows/05-defer-all-group.yaml` | Group header "Defer all →" → modal title check → Tomorrow | 7.5–7.7 |
-| `flows/06-pebble-rises-on-completion.yaml` | Complete a today task → pebble appears on Home strip | 3.2, 3.3 |
+| `flows/06-pebble-lifetime-count.yaml` | ProfileSheet "YOUR JOURNEY" shows lifetime pebble count (replaces removed PebbleStrip flow) | P1.11 |
 | `flows/07-defer-single-via-swipe.yaml` | Swipe-right → Defer → modal "Defer to" → Tomorrow | 7.1–7.3 |
 | `flows/08-recurring-rolling.yaml` | Tap recurring → snapshot in Done bin + rolled-forward instance | 9.1–9.3 |
 | `flows/09-shopping-add-item.yaml` | Empty Shopping → Add CTA → GroceryComposeSheet renders (STORES section visible) | (v1.5) |
@@ -79,12 +79,10 @@ at the running sim and it'll show element selectors live.
 | `flows/17-clear-completed.yaml` | Complete row → Done filter → "Delete all permanently" → confirm ⚠ destructive | P1.8 |
 | `flows/18-bulk-trash-restore.yaml` | Trash view → select rows → bulk Restore ⚠ **blocked until #15** | P1.7 |
 
-> **Flows 13–18 were added for the architecture-refactor session and have
-> NOT yet been run on a sim** — they're authored from the component source
-> + the conventions above (real i18n strings, proven tab/row selectors).
-> Expect to tune a selector or two on first `npm run e2e`; the failing
-> line names the element. They exist to smoke-test the #4 store rewire +
-> #7/#8 folder reorg, none of which is covered by `tsc`/Vitest.
+> **Flows 13–15 are verified green; 16/17/18 are destructive/precondition
+> flows** (see below). Flows 03–08 were rewritten in the #16 pass to use
+> the funnel→filter-sheet navigation, section expansion, and
+> `scrollUntilVisible` — verified green on a seeded sim after #15.
 
 ### Session P0/P1 manual-plan → flow coverage
 
@@ -96,16 +94,23 @@ at the running sim and it'll show element selectors live.
 | P0.4 relaunch hydration | `14` | ✅ new (needs seed) |
 | P1.5 add task + toggle | `02`, `03` | ✅ |
 | P1.6 subtasks / task-details | `15` | ✅ long-press → TaskDetailsSheet renders ("Steps") |
-| P1.7 trash + undo | `04` | swipe-action reveal needs gesture tuning (#16) |
-| P1.7 trash bulk-select | `18` | reachable via Filter sheet → "Trash" (sheets are addressable; #16) |
+| P1.7 trash + undo | `04` | ✅ swipe LEFT → Not Do → snackbar Undo (TODAY row) |
+| P1.7 trash bulk-select | `18` | bin via "tap to peek" footer → select → bulk Restore |
 | P1.8 clear completed | `17` | ✅ new |
 | P1.9 reminders | — | reachable (ReminderSheet is addressable) — flow not yet written |
-| P1.10 defer (single + all) | `05`, `07` | swipe-action reveal needs gesture tuning (#16) |
-| P1.10 recurrence / series-edit | `08` | recurring row rolls into collapsed UPCOMING (#16) |
-| P1.11 pebbles | `06` | ⚠ tested the REMOVED PebbleStrip — needs rework (#16) |
+| P1.10 defer (single + all) | `05`, `07` | ✅ swipe Defer (07) + group Defer-all (05) |
+| P1.10 recurrence / series-edit | `08` | ✅ expand UPCOMING → roll weekly → snapshot in Done |
+| P1.11 pebbles | `06` | ✅ reworked → ProfileSheet lifetime count (PebbleStrip removed) |
 
-**Passing on device (seeded sim):** 01, 02, 13, 14, 15. Others are in
-progress (#16) or precondition-gated (seed / zero-store for 10).
+**Passing on device (seeded sim):** 01, 02, 03, 04, 05, 06, 07, 08, 13,
+14, 15, 16, 18 (verified 2026-06 after #15 + the filter-sheet selector
+rewrite). 16 (sign-out) is destructive — it leaves the sim on the SignIn
+screen; sign back in with email afterward. Reseed before each MUTATING
+flow (03/04/05/07/08/18) — they persist to the demo account's cloud, so
+back-to-back runs contaminate each other (the Open count drifts, rows
+toggle). Precondition-gated (not run here): 09/11 (shopping),
+10/12 (empty states need a fresh/empty account), 17 (destructive —
+deletes the completed row).
 
 **⚠ Flow 10 is skipped by default** — requires a sim with zero stores
 configured. Run explicitly after deleting all stores via Manage Store,
@@ -139,19 +144,36 @@ match, so `tapOn: "Refill prescription"` fails while `tapOn: { text:
 `.*substring.*` regex.** Section headers are uppercase (`"CARRIED OVER"`).
 The Todos/Dashboard/Shopping lists ARE individually addressable this way.
 
-**2. FORM sheets DO flatten into one a11y leaf — list sheets don't.**
-`CategorySheet` (the Filter sheet) is a list and exposes each row
-individually (`All / Carried over / Open / Done / …`) — so flows that go
-through it (Open filter, Trash) work. But the **form sheets**
-(`GroceryComposeSheet`, `StorePicker`, `ComposeSheet`, `TaskDetailsSheet`,
-`ReminderSheet`) wrap their body in `<Pressable style={styles.sheet}>`,
-which iOS collapses into ONE concatenated a11y node
-(`"Cancel Add Item STORES Add Costco … Add this item"`). `tapOn` then
-hits the parent's center, not the target — so commit flows inside these
-sheets can only assert "sheet renders," not pick a chip / tap Done.
-Confirmed NOT fixable by wrapper tweaks (`accessible={false}` or
-View+responder both leave the leaf collapsed); the real fix is to drop
-`<Modal>` for a portal/overlay `<View>` — tracked but invasive.
+**2. Modal sheets used to flatten into one a11y leaf — FIXED by #15.**
+Previously every `<Modal>` sheet that WRAPPED its body in a backdrop
+`<Pressable onPress={onClose}>` (the tap-outside-to-dismiss pattern)
+collapsed its whole subtree into ONE concatenated iOS a11y node, so
+`tapOn` hit the parent's center instead of the target. **#15 fixed this**
+across all 13 sheets by replacing the wrapping backdrop Pressable with a
+plain `<View>` + a SIBLING `<Pressable style={StyleSheet.absoluteFill}
+accessible={false} />` behind the opaque sheet (see commit
+`fix(a11y #15)`). The sheet's children are now individually exposed:
+`CategorySheet`, `ProfileSheet`, `DeferModal`, `ComposeSheet`,
+`StorePicker`, `GroceryComposeSheet`, etc. are all navigable
+element-by-element. (`accessible={false}` on the *wrapper* didn't help —
+the sibling-vs-wrapper distinction is what matters.)
+
+**3. The Todos filter is a sheet, not inline chips.** There are no inline
+filter chips until a filter is already active. To filter: tap the funnel
+(`accessibilityLabel "Filter"`) → the "Select Filter" sheet → tap a
+**status row** → the title-bar **"Done"** applies + closes. Status rows
+carry a concatenated count (`"Open, 21"`), so they need a `.*regex.*`;
+the bare-text title-bar `"Done"` button does NOT collide with the
+`"Done, N"` status row (exact-match only hits the button). The sheet
+offers STATUSES (Carried over / Open / Done), PRIORITIES, CATEGORIES —
+**no "Trash"**; the bin is reached via the list's "N tucked away · tap
+to peek →" footer instead.
+
+**4. Section headers' "Defer all →" has an a11y-label override.** The
+touchable sets `accessibilityLabel="Defer N … to-dos"`, which hides the
+visible "Defer all →" text from Maestro — match `.*Defer.*to-dos.*`, not
+`.*Defer all.*`. Collapsed sections (CARRIED OVER / UPCOMING) can't be
+scrolled into; tap the header to expand first, then `scrollUntilVisible`.
 
 ### TODO flows (write when relevant)
 
