@@ -12,7 +12,6 @@ import {
   categoryIdFromFilter,
   isPriorityFilter,
   priorityFromFilter,
-  PRIORITY_VALUES,
 } from "../domain/types";
 import { CategoryDef, categoryLabel } from "../data/categories";
 import { buildGroups, TodoGroup } from "./groups";
@@ -1585,21 +1584,48 @@ export function categoryReorder(
  * - Type-narrowing: non-string ids/text/dueDate, non-Priority priorities all rejected.
  * - Duplicate ids deduped (last write wins by updatedAt).
  */
-export function migrateTodos(
-  raw: unknown,
-  categories: CategoryDef[] = [],
-): Todo[] {
-  if (!Array.isArray(raw)) return [];
-  const validate = categories.length > 0;
-  const validCatIds = new Set(categories.map((c) => c.id));
-  const validPriorities = new Set<Priority>(["high", "medium", "low"]);
-  const now = Date.now();
-  const cutoff = now - TRASH_RETENTION_MS;
+/**
+ * Per-item sanitization context — built once per batch (or once for a
+ * collection read) so the trash cutoff + category allow-list are stable
+ * across every item. `validate` is false when no categories are supplied
+ * (category ids pass through unchecked).
+ */
+export interface MigrateTodoCtx {
+  validate: boolean;
+  validCatIds: ReadonlySet<string>;
+  now: number;
+  cutoff: number;
+}
 
-  const seen = new Map<string, Todo>();
-  for (const td of raw.slice(0, MAX_TODOS_PER_USER)) {
-    if (typeof td !== "object" || td === null || Array.isArray(td)) continue;
-    const item = td as Partial<Todo> & { id?: unknown };
+/** Build a MigrateTodoCtx from the category list. */
+export function makeMigrateTodoCtx(categories: CategoryDef[] = []): MigrateTodoCtx {
+  const now = Date.now();
+  return {
+    validate: categories.length > 0,
+    validCatIds: new Set(categories.map((c) => c.id)),
+    now,
+    cutoff: now - TRASH_RETENTION_MS,
+  };
+}
+
+/**
+ * Sanitize ONE raw todo into a clean Todo — the single source of truth
+ * for todo shape validation. Returns null when the input isn't a usable
+ * object, or when it's a trashed item past the 30-day retention cutoff.
+ *
+ * `migrateTodos` runs this per array element (single-doc model); the
+ * per-item persistence read-cutover (docs/SPIKE-persistence-scale.md)
+ * runs it per Firestore doc — so BOTH paths enforce identical id /
+ * text / priority / category / subtask / recurrence / reminder / trash
+ * rules. Dedup-by-updatedAt stays in the array caller (a per-item read
+ * has no duplicates to merge).
+ */
+export function migrateTodo(raw: unknown, ctx: MigrateTodoCtx): Todo | null {
+  const { validate, validCatIds, now, cutoff } = ctx;
+  const validPriorities = new Set<Priority>(["high", "medium", "low"]);
+  {
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
+    const item = raw as Partial<Todo> & { id?: unknown };
 
     let id: string;
     if (typeof item.id === "string" && item.id.length > 0) {
@@ -1634,7 +1660,7 @@ export function migrateTodos(
     const updatedAt =
       typeof item.updatedAt === "number" ? item.updatedAt : undefined;
 
-    if (trashed && (trashedAt ?? 0) < cutoff) continue;
+    if (trashed && (trashedAt ?? 0) < cutoff) return null;
 
     // Subtasks: sanitize/cap each entry. Drop garbage so a malicious cloud
     // push can't smuggle bad shapes through.
@@ -1750,13 +1776,28 @@ export function migrateTodos(
       }
     }
 
-    // Dedupe by id — last write (or higher updatedAt) wins.
-    const existing = seen.get(id);
-    if (
-      !existing ||
-      (merged.updatedAt ?? 0) >= (existing.updatedAt ?? 0)
-    ) {
-      seen.set(id, merged);
+    return merged;
+  }
+}
+
+/**
+ * Migrate the whole todos array (single-doc model). Caps at
+ * MAX_TODOS_PER_USER, sanitizes each element via migrateTodo, and dedups
+ * by id — last write (or higher updatedAt) wins.
+ */
+export function migrateTodos(
+  raw: unknown,
+  categories: CategoryDef[] = [],
+): Todo[] {
+  if (!Array.isArray(raw)) return [];
+  const ctx = makeMigrateTodoCtx(categories);
+  const seen = new Map<string, Todo>();
+  for (const td of raw.slice(0, MAX_TODOS_PER_USER)) {
+    const merged = migrateTodo(td, ctx);
+    if (!merged) continue;
+    const existing = seen.get(merged.id);
+    if (!existing || (merged.updatedAt ?? 0) >= (existing.updatedAt ?? 0)) {
+      seen.set(merged.id, merged);
     }
   }
   return Array.from(seen.values());
@@ -2022,40 +2063,57 @@ export function deriveState(input: DeriveInput): DerivedState {
     ? filtered.length
     : filtered.filter((td) => !td.done).length;
 
+  // Single bucketed pass over `todos` for every per-category / per-
+  // priority / system count. This replaces what used to be one
+  // `active.filter(cat)` scan PER category + one PER priority + several
+  // standalone `todos.filter(...)` scans — O(N·(C+P)) → O(N). Semantics
+  // are byte-identical: *Open counts non-trashed & !done; *Total counts
+  // every todo (open + done + trashed); category buckets only count ids
+  // present in `categories` (a Set avoids prototype-key false positives).
+  const catIds = new Set(categories.map((c) => c.id));
   const byCategoryOpen: Record<string, number> = {};
   const byCategoryTotal: Record<string, number> = {};
   for (const c of categories) {
-    const inCat = active.filter((td) => td.category === c.id);
-    byCategoryOpen[c.id] = inCat.filter((td) => !td.done).length;
-    // Total reflects every to-do ever placed in this category — open +
-    // done + trashed. Matches the All pill's inclusive scope so the
-    // counts in the picker sheet read consistently.
-    byCategoryTotal[c.id] = todos.filter((td) => td.category === c.id).length;
+    byCategoryOpen[c.id] = 0;
+    byCategoryTotal[c.id] = 0;
   }
-
   // Priority counts — exact match against td.priority. Items with no
   // priority (undefined) don't count toward any priority bucket; they
-  // only surface via "All", category filters, or status filters. Same
-  // open-vs-total split as categories.
+  // only surface via "All", category filters, or status filters.
   const byPriorityOpen: Record<Priority, number> = { high: 0, medium: 0, low: 0 };
   const byPriorityTotal: Record<Priority, number> = { high: 0, medium: 0, low: 0 };
-  for (const p of PRIORITY_VALUES) {
-    const inP = active.filter((td) => td.priority === p);
-    byPriorityOpen[p] = inP.filter((td) => !td.done).length;
-    byPriorityTotal[p] = todos.filter((td) => td.priority === p).length;
+  let overdueScan = 0;
+  let notDoScan = 0;
+  for (const td of todos) {
+    const isOpen = !td.trashed && !td.done;
+    // Carried-over count includes done past-due items too (history).
+    if (isOverdue(td)) overdueScan++;
+    // Skipped recurring instances (R1 plumbing — populated when R5
+    // lights up the Skip action). Counted across active + non-trashed.
+    if (!td.trashed && td.status === "notDo") notDoScan++;
+    const cat = td.category;
+    // Total reflects every to-do ever placed in this category — open +
+    // done + trashed. Matches the All pill's inclusive scope.
+    if (cat !== undefined && catIds.has(cat)) {
+      byCategoryTotal[cat]++;
+      if (isOpen) byCategoryOpen[cat]++;
+    }
+    const pri = td.priority;
+    if (pri === "high" || pri === "medium" || pri === "low") {
+      byPriorityTotal[pri]++;
+      if (isOpen) byPriorityOpen[pri]++;
+    }
   }
 
   const systemCounts = {
     // "All" = open + everything in the merged Done bin.
     all: totalOpen + completedCount,
-    // Carried-over count includes done past-due items too (history).
-    overdue: todos.filter(isOverdue).length,
-    open: active.filter((td) => !td.done).length,
+    overdue: overdueScan,
+    // active && !done — identical to totalOpen.
+    open: totalOpen,
     done: completedCount,
     trash: trashCount,
-    // Skipped recurring instances (R1 plumbing — populated when R5
-    // lights up the Skip action). Counted across active + non-trashed.
-    notDo: todos.filter((td) => !td.trashed && td.status === "notDo").length,
+    notDo: notDoScan,
   };
 
   let sectionLabel: string | null = null;
