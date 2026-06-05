@@ -32,7 +32,9 @@ appId: com.websurfer.mytodo
       - tapOn:
           id: "signin-password-input"
       - inputText: ${PASSWORD}
-      - hideKeyboard
+      # No hideKeyboard — it's flaky on the iOS sim ("Couldn't hide the
+      # keyboard"). The SignIn form is in a KeyboardAvoidingView, so the
+      # submit button stays visible above the keyboard and is tappable.
       - tapOn:
           id: "signin-submit"
 # Auth + first Firestore hydrate can take a few seconds — wait it out.
