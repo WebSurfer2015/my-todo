@@ -17,7 +17,7 @@ import {
   assertSucceeds,
   assertFails,
 } from '@firebase/rules-unit-testing'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -116,6 +116,33 @@ describe('users/{uid}/state/{key} access control', () => {
     await assertFails(
       setDoc(doc(alice, 'random/abc'), { foo: 'bar' }),
     )
+  })
+
+  // --- Delete is intentionally denied on state docs (allow delete: if false). ---
+  // The app clears state via setItem(empty envelope), never deleteDoc. These
+  // lock the contract so a future write-rule refactor can't expose delete —
+  // most importantly on the function-only agentUsage quota counter.
+
+  it('denies deleting a client-owned state doc (clear = setItem-empty)', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/alice/state/todos'), {
+        value: '{"version":1,"data":[]}',
+        updatedAt: Date.now(),
+      })
+    })
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(deleteDoc(doc(alice, 'users/alice/state/todos')))
+  })
+
+  it('denies deleting the function-only agentUsage counter (no quota reset)', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/alice/state/agentUsage'), {
+        count: 30,
+        date: '2026-06-05',
+      })
+    })
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(deleteDoc(doc(alice, 'users/alice/state/agentUsage')))
   })
 
   // --- Shape + key-whitelist hardening (added with the rate-limit work). ---

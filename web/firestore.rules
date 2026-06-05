@@ -42,7 +42,15 @@ service cloud.firestore {
       // its length at 512 KiB stays well under Firestore's hard 1 MiB
       // per-doc limit while bounding what a compromised client can
       // upload in a single write.
-      allow write:
+      // create/update only — the shape check needs request.resource, which
+      // is null on delete. Deletes are INTENTIONALLY never allowed on state
+      // docs: the app clears state by writing an empty {version,data:[]}
+      // envelope (see useTodoStore "Cloud strategy: setItem the empty
+      // wrapper, NOT removeItem"), so a delete path is only a footgun. Made
+      // explicit (allow delete: if false) so a future refactor of the write
+      // rule can't accidentally expose delete — e.g. letting a client wipe
+      // the function-only agentUsage counter to reset its AI quota.
+      allow create, update:
         if request.auth != null
         && request.auth.uid == uid
         && key in ['todos', 'categories', 'profile', 'groceries', 'groceryGroups', 'todoReferences']
@@ -50,6 +58,7 @@ service cloud.firestore {
         && request.resource.data.value is string
         && request.resource.data.value.size() <= 524288
         && request.resource.data.updatedAt is int;
+      allow delete: if false;
     }
 
     // Push notification device registry. Each device the user signs in

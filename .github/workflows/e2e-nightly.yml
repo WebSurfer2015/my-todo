@@ -28,7 +28,9 @@ jobs:
     # macos-15 ships Xcode 16 — required: the Podfile (withFmtCxx17 + Expo
     # SDK 54 / RN 0.81) rejects older Xcode ("Please upgrade XCode").
     runs-on: macos-15
-    timeout-minutes: 60
+    # Debug build keeps this well under an hour, but a cold gRPC/Folly/abseil
+    # compile is slow on CI; 90 gives headroom (cache the pods to speed up).
+    timeout-minutes: 90
     env:
       SIM_DEVICE: iPhone 16 Pro
     steps:
@@ -70,14 +72,19 @@ jobs:
         # builds genuinely don't need signing, so drive xcodebuild directly
         # with CODE_SIGNING_ALLOWED=NO, then install the .app on the sim.
         run: |
+          # Debug, not Release: E2E doesn't need optimization, and a Release
+          # compile of gRPC/Folly/abseil from source blew past 60 min. Debug
+          # (-O0) builds these far faster. COMPILER_INDEX_STORE_ENABLE=NO
+          # skips index work the CI build doesn't need.
           xcodebuild \
             -workspace ios/SagelyCalmToDos.xcworkspace \
             -scheme SagelyCalmToDos \
-            -configuration Release \
+            -configuration Debug \
             -sdk iphonesimulator \
             -destination "platform=iOS Simulator,name=$SIM_DEVICE" \
             -derivedDataPath ios/build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
             build
           APP_PATH="$(find ios/build/Build/Products -name '*.app' -maxdepth 2 -type d | head -1)"
           echo "Installing $APP_PATH"
