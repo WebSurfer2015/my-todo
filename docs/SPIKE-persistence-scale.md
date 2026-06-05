@@ -1,7 +1,23 @@
 # Spike: persistence at scale — single-doc → per-doc
 
-**Status:** design spike (no code). Decision-ready. Implement on trigger (§6).
+**Status:** INFRASTRUCTURE BUILT + tested (2026-06). Live-store cutover is
+the remaining phase (flagged dual-write, device-QA'd — see §7 / below).
 **Author:** architecture review, 2026-06.
+
+### Implementation progress
+- ✅ `CollectionAdapter` port + `CollectionEntry` + `itemCollectionPath` (core).
+- ✅ Cloud adapters: `makeFirestoreCollectionAdapter` for web (firebase/firestore)
+  and mobile (@react-native-firebase) — `{value,updatedAt}` envelope reused.
+- ✅ Sync brain: `syncCollection` (whole-array → minimal per-item upserts/
+  removes) + `backfillCollection` (idempotent, forward-only) — unit-tested.
+- ✅ Rules: `match /users/{uid}/todos/{todoId}` (owner-only, shape cap,
+  per-item delete allowed) + emulator integration tests.
+- ⏳ **Cutover (remaining):** a `useSyncedCollection` hook + wiring
+  `useTodoStore` (mobile first — the data-heavy platform) to dual-write
+  per-item behind a default-off flag, then flag-flip after on-device QA,
+  then backfill + drop the single doc. NOT rushed: flipping the live sync
+  engine without device QA risks data loss. Local (signed-out) collection
+  adapters land with the cutover.
 
 ## 1. Problem
 
