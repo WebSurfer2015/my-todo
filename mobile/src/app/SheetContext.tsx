@@ -38,7 +38,6 @@ import ComposeSheet from '../features/task/ComposeSheet'
 import ChatSheet from '../features/mochi/ChatSheet'
 import type { ProposedOperation } from '../features/mochi/useMochiAgent'
 import { MOCHI_AGENT_ENABLED } from './featureFlags'
-import ManageHomeTilesSheet from '../features/profile/ManageHomeTilesSheet'
 import ManageAnimationSoundSheet from '../features/profile/ManageAnimationSoundSheet'
 import CategorySheet from '../features/category/CategorySheet'
 import { COLOR_PALETTE } from '../core-bindings/categories'
@@ -67,8 +66,6 @@ interface Sheets {
   /** Open the Mochi capture assistant (natural-language add/edit). Entry
    * point lives in the compose sheet. */
   openMochi: () => void
-  /** Open the Home Tiles picker (Dashboard gear icon). */
-  openHomeTiles: () => void
   /** Open the Manage Filter sheet (Todos gear icon, Settings entry). */
   openManageFilter: () => void
   /** Open the Select Filter sheet (Todos funnel). */
@@ -107,7 +104,6 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   const [guideMenuOpen, setGuideMenuOpen] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
   const [mochiOpen, setMochiOpen] = useState(false)
-  const [homeTilesOpen, setHomeTilesOpen] = useState(false)
   const [animationSoundOpen, setAnimationSoundOpen] = useState(false)
   const [categorySheetOpen, setCategorySheetOpen] = useState(false)
   const [categorySheetMode, setCategorySheetMode] = useState<'view' | 'edit'>('view')
@@ -127,7 +123,6 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   const openGuides = useCallback(() => setGuideMenuOpen(true), [])
   const openCompose = useCallback(() => setComposeOpen(true), [])
   const openMochi = useCallback(() => setMochiOpen(true), [])
-  const openHomeTiles = useCallback(() => setHomeTilesOpen(true), [])
 
   // Apply one confirmed Mochi operation through the SAME store mutations a
   // manual tap uses — so the agent has no privileged write path. Each kind
@@ -300,7 +295,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <SheetContext.Provider value={{ openProfile, openSettings, openBackgrounds, openGuides, openCompose, openMochi, openHomeTiles, openManageFilter, openSelectFilter, openManageGroceries, manageRequest }}>
+    <SheetContext.Provider value={{ openProfile, openSettings, openBackgrounds, openGuides, openCompose, openMochi, openManageFilter, openSelectFilter, openManageGroceries, manageRequest }}>
       {children}
       <ProfileSheet
         visible={profileOpen}
@@ -355,11 +350,6 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           store.saveProfile({ ...store.profile, onboardingDone: false })
         }
         onOpenGuides={openGuides}
-        onOpenDashboardTiles={() => {
-          // Settings row already closed Settings before invoking this;
-          // just promote the tiles sheet.
-          setHomeTilesOpen(true)
-        }}
         onOpenManageTodos={openManageFilter}
         onOpenManageGroceries={openManageGroceries}
         onOpenAnimationSound={() => setAnimationSoundOpen(true)}
@@ -469,15 +459,6 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           onClose={() => setMochiOpen(false)}
         />
       )}
-      <ManageHomeTilesSheet
-        visible={homeTilesOpen}
-        homeStatTiles={store.effectiveHomeStatTiles}
-        categories={store.categories}
-        orderedVisibleStatuses={store.orderedVisibleStatuses}
-        onToggleHomeStatTile={store.toggleHomeStatTile}
-        onClearAll={store.clearHomeStatTiles}
-        onClose={() => setHomeTilesOpen(false)}
-      />
       <ManageAnimationSoundSheet
         visible={animationSoundOpen}
         profile={store.profile}

@@ -51,9 +51,6 @@ interface Props {
   onShowIntro: () => void;
   /** Opens the Tips & guides menu (parent owns the modal). */
   onOpenGuides: () => void;
-  /** Opens the Manage Dashboard Tiles picker. Parent handles the
-   * Settings → Dashboard-Tiles modal handoff (iOS can't stack). */
-  onOpenDashboardTiles: () => void;
   /** Opens Manage Filter (CategorySheet in edit mode). Settings hands
    * off to SheetContext.openManageFilter via the parent. */
   onOpenManageTodos: () => void;
@@ -85,7 +82,6 @@ export default function SettingsSheet({
   onOpenBackgrounds,
   onShowIntro,
   onOpenGuides,
-  onOpenDashboardTiles,
   onOpenManageTodos,
   onOpenManageGroceries,
   onOpenAnimationSound,
@@ -196,22 +192,10 @@ export default function SettingsSheet({
               {/* CONFIGURATION — entry-points to the per-surface manage
                   sheets. Each row closes Settings and (after the 280ms
                   iOS modal-handoff delay) opens its target sheet. */}
+              {/* Dashboard tiles are now the pinned-card row on Home —
+                  reordered by drag there, no separate manage sheet. */}
               <Text style={styles.sectionLabel}>CONFIGURATION</Text>
               <View style={styles.card}>
-                <TouchableOpacity
-                  style={styles.row}
-                  onPress={() => {
-                    onClose();
-                    setTimeout(() => onOpenDashboardTiles(), 280);
-                  }}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Manage Dashboard Tiles"
-                >
-                  <Text style={styles.rowLabel}>Manage Dashboard Tiles</Text>
-                  <Text style={styles.rowChevron}>›</Text>
-                </TouchableOpacity>
-                <View style={styles.divider} />
                 <TouchableOpacity
                   style={styles.row}
                   onPress={() => {
