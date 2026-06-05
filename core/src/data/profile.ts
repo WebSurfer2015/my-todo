@@ -28,6 +28,16 @@ export interface PriorityOverride {
   hidden?: boolean
 }
 
+/**
+ * One card in the unified Dashboard pinned-card row. Spans both Todos
+ * pinned filter SETS and Shopping pinned stores/depts so they share a
+ * single drag-reorderable order. Stored raw on the Profile.
+ */
+export type DashboardTile =
+  | { kind: 'todoFilter'; set: string[] }
+  | { kind: 'groceryStore'; store: string }
+  | { kind: 'groceryDept'; dept: string }
+
 export interface Profile {
   name: string
   firstName?: string
@@ -218,6 +228,14 @@ export interface Profile {
    * others see the result and skip re-running.
    */
   recurringV2?: boolean
+  /**
+   * Ordered, unified list of Dashboard cards spanning BOTH Todos pinned
+   * filter sets and Shopping pinned stores/depts — the single source of
+   * truth for the Dashboard pinned-card row and its drag order. Built once
+   * by migrateProfile from pinnedFilters + pinnedGroceryStores/Depts when
+   * absent; thereafter the user reorders it directly.
+   */
+  dashboardTiles?: DashboardTile[]
 }
 
 export interface BackgroundChoice {

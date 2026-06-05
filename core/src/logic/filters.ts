@@ -15,6 +15,7 @@
  * (Filter is a string subtype, so callers can pass `Filter[]` directly).
  */
 import type { Filter, ViewMode, Todo } from '../domain/types'
+import type { DashboardTile } from '../data/profile'
 import {
   isCategoryFilter,
   isPriorityFilter,
@@ -125,6 +126,54 @@ export function toggleStatTile(
  * "all", status view on "open". */
 export function defaultFilterForView(v: ViewMode): Filter {
   return v === 'category' ? 'all' : 'open'
+}
+
+/** Stable key for a dashboard tile (order-insensitive for filter sets). */
+export function dashboardTileKey(t: DashboardTile): string {
+  if (t.kind === 'todoFilter') return `f:${filterSetKey(t.set)}`
+  if (t.kind === 'groceryStore') return `s:${t.store}`
+  return `d:${t.dept}`
+}
+
+/**
+ * The Dashboard pinned-card row, unifying Todos pinned filter sets +
+ * Shopping pinned stores/depts. `profile.dashboardTiles` stores the user's
+ * drag ORDER; this reconciles it against the CURRENT pins each read — keeps
+ * the stored order, drops tiles whose pin was removed, and appends pins not
+ * yet ordered. When no order is stored yet, returns the pins in their
+ * natural order (Todos, then stores, then depts).
+ */
+export function effectiveDashboardTiles(p: {
+  dashboardTiles?: DashboardTile[]
+  pinnedFilters?: string[][]
+  pinnedGroceryStores?: string[]
+  pinnedGroceryDepts?: string[]
+}): DashboardTile[] {
+  const current: DashboardTile[] = [
+    ...(p.pinnedFilters ?? []).map((set) => ({ kind: 'todoFilter', set }) as DashboardTile),
+    ...(p.pinnedGroceryStores ?? []).map((store) => ({ kind: 'groceryStore', store }) as DashboardTile),
+    ...(p.pinnedGroceryDepts ?? []).map((dept) => ({ kind: 'groceryDept', dept }) as DashboardTile),
+  ]
+  if (!p.dashboardTiles || p.dashboardTiles.length === 0) return current
+  const byKey = new Map(current.map((t) => [dashboardTileKey(t), t]))
+  const ordered: DashboardTile[] = []
+  const seen = new Set<string>()
+  for (const t of p.dashboardTiles) {
+    const k = dashboardTileKey(t)
+    const live = byKey.get(k)
+    if (live && !seen.has(k)) {
+      ordered.push(live)
+      seen.add(k)
+    }
+  }
+  for (const t of current) {
+    const k = dashboardTileKey(t)
+    if (!seen.has(k)) {
+      ordered.push(t)
+      seen.add(k)
+    }
+  }
+  return ordered
 }
 
 const STATUS_FILTER_KEYS = new Set(['overdue', 'open', 'done', 'trash', 'groceries'])
