@@ -300,6 +300,10 @@ export default function ComposeSheet({
     // per-instance scheduling choice. The user picks the date fresh
     // for the new entry.
     setAppliedTextLower(ref.textLower)
+    // The reuse already filled category/priority/recurrence, so suppress
+    // the ambient AI field suggestion for this exact text — no point
+    // spending a "Mochi thinking" round on settings the user just chose.
+    ai.markApplied(ref.text)
     Haptics.selectionAsync().catch(() => {})
   }
 

@@ -199,5 +199,20 @@ export function useTodoFieldSuggestions({
     lastQueriedRef.current = ''
   }
 
-  return { suggestions, thinking, dismissField, clear }
+  /**
+   * Mark `text` as already satisfied — call when the fields were filled
+   * another way (e.g. the user tapped a "you've added this before" match
+   * to reuse a saved entry). Records the text as the last-queried value
+   * so the effect's no-change guard skips the network call (no "Mochi
+   * thinking"), and clears any current suggestions + in-flight request.
+   * The AI re-engages normally once the user edits the text further.
+   */
+  function markApplied(text: string) {
+    seqRef.current += 1
+    lastQueriedRef.current = text.trim()
+    setSuggestions(null)
+    setThinking(false)
+  }
+
+  return { suggestions, thinking, dismissField, clear, markApplied }
 }
