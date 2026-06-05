@@ -4,18 +4,20 @@
  * (to describe tools to Claude) and validateOperation (to guard the
  * tool_use response before returning it). The functions package can't
  * import core/ (its tsconfig rootDir is `src` and it deploys standalone),
- * so this lives here, NOT in core. The mobile client keeps its own minimal
- * ProposedOperation type (createTodo-only, "Phase 0" — see useMochiAgent).
- * Tested directly by web/src/agentTools.test.ts (imports THIS file), so the
- * deployed validator is what's covered. (Previously duplicated in
- * core/src/ports/agentTools.ts, which the test pointed at — that orphan was
- * deleted to remove the test-vs-deployed drift risk.)
+ * so this lives here, NOT in core. The mobile client mirrors this union in
+ * its own ProposedOperation type (see useMochiAgent); a parity test
+ * (mobile/src/__tests__/proposedOperation-parity.test.ts) guards the two
+ * copies against drift. Tested directly by web/src/agentTools.test.ts
+ * (imports THIS file), so the deployed validator is what's covered.
+ * (Previously duplicated in core/src/ports/agentTools.ts, which the test
+ * pointed at — that orphan was deleted to remove the test-vs-deployed
+ * drift risk.)
  *
  * Tool set today (proposal-style — the server validates + returns the
- * args; the client applies after user confirms). NOTE: agentChat currently
- * offers ONLY createTodo (the client can't apply the rest yet); the other
- * three remain defined + validated here for when Phase 1 wires them.
- *   - createTodo  — add a new task   (the only one offered today)
+ * args; the client applies after user confirms). All four ops are LIVE:
+ * agentChat offers the full set and the mobile client applies each via the
+ * same store mutations a manual edit uses.
+ *   - createTodo  — add a new task
  *   - editTodo    — patch fields on an existing task
  *   - addSteps    — append subtasks to a task
  *   - markDone    — flip a task to done

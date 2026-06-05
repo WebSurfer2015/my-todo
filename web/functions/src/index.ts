@@ -21,6 +21,7 @@ import {
   type ProposedOperation,
 } from './agentTools'
 import { reserveDailyCall } from './quota'
+import { isAgentEnabled } from './aiInfer'
 
 export { aiInfer } from './aiInfer'
 
@@ -105,6 +106,17 @@ export const agentChat = onCall(
     }
     if (turn.length > 2000) {
       throw new HttpsError('invalid-argument', 'Turn too long (max 2000 chars).')
+    }
+
+    // Profile gate — same opt-out check aiInfer enforces. Cheap (one
+    // Firestore read) and BEFORE the quota reserve so a user who turned
+    // AI off in their profile can't spend Sonnet tokens (or a quota slot)
+    // via Mochi. Server-side so a tampered client can't bypass it.
+    if (!(await isAgentEnabled(request.auth.uid))) {
+      throw new HttpsError(
+        'failed-precondition',
+        'AI assistance is off in your profile.',
+      )
     }
 
     // Reserve a daily-quota slot before doing any expensive work. Order
@@ -192,7 +204,17 @@ export const agentChat = onCall(
         // user's open todos are in context (above), so the agent can target
         // editTodo/addSteps/markDone at real ids. validateOperation drops
         // any op whose todoId isn't in knownTodoIds (anti-hallucination).
-        tools: AGENT_TOOLS as Anthropic.Tool[],
+        //
+        // Cache the tools block too: a cache_control breakpoint on the LAST
+        // tool marks the ~4KB of invariant tool schemas as a cacheable
+        // prefix (cache order is tools → system → messages), so multi-turn
+        // chats don't re-bill the schemas every turn. Cast: the pinned SDK
+        // types don't expose cache_control on Tool, same as the system block.
+        tools: AGENT_TOOLS.map((tool, i) =>
+          i === AGENT_TOOLS.length - 1
+            ? { ...tool, cache_control: { type: 'ephemeral' as const } }
+            : tool,
+        ) as unknown as Anthropic.Tool[],
         messages: [
           {
             role: 'user',

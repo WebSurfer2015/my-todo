@@ -167,7 +167,7 @@ const cacheableSystemModes: ReadonlySet<Mode> = new Set([
  * On any read failure we default to ON — matching the client default
  * so the gate doesn't silently block users when Firestore is jittery.
  */
-async function isAgentEnabled(uid: string): Promise<boolean> {
+export async function isAgentEnabled(uid: string): Promise<boolean> {
   try {
     const snap = await adminDb.doc(`users/${uid}/state/profile`).get()
     if (!snap.exists) return true

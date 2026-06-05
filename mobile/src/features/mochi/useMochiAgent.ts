@@ -10,8 +10,12 @@ import auth from '@react-native-firebase/auth'
  * existing store mutations stay the single source of truth for writes,
  * and the agent has the same write surface as a manual tap.
  *
- * Phase 0 scope: single-turn (no conversation history), `createTodo`
- * only, direct HTTPS POST (no firebase-functions native module yet).
+ * Scope: single-turn (no conversation history), direct HTTPS POST (no
+ * firebase-functions native module yet). All four ops (createTodo /
+ * editTodo / addSteps / markDone) are live; the server validates + returns
+ * them and SheetContext applies each via the same store mutations a manual
+ * edit uses. The ProposedOperation union below mirrors the server's
+ * (agentTools.ts) — a parity test guards them against drift.
  */
 
 const AGENT_CHAT_URL =
