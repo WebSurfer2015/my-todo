@@ -19,16 +19,35 @@ const AGENT_CHAT_URL =
 
 export type AgentPriority = 'high' | 'medium' | 'low'
 
-export type ProposedOperation = {
-  kind: 'createTodo'
-  args: {
-    text: string
-    dueDate?: string
-    priority?: AgentPriority
-    category?: string
-    notes?: string
-  }
-}
+/**
+ * Mirrors the server's ProposedOperation union (web/functions/src/
+ * agentTools.ts). Keep in lockstep — the server validates + returns these,
+ * the client applies them after the user confirms.
+ */
+export type ProposedOperation =
+  | {
+      kind: 'createTodo'
+      args: { text: string; dueDate?: string; priority?: AgentPriority; category?: string; notes?: string }
+    }
+  | {
+      kind: 'editTodo'
+      args: {
+        todoId: string
+        text?: string
+        dueDate?: string
+        priority?: AgentPriority
+        category?: string
+        notes?: string
+      }
+    }
+  | {
+      kind: 'addSteps'
+      args: { todoId: string; steps: Array<{ text: string }> }
+    }
+  | {
+      kind: 'markDone'
+      args: { todoId: string }
+    }
 
 export interface AgentResponse {
   reply: string
@@ -40,6 +59,9 @@ export interface AgentResponse {
 interface AgentContext {
   today: string
   categories: Array<{ id: string; label: string }>
+  /** Open todos (id + text) so the agent can target edit/markDone/addSteps
+   * at real ids; the server validates proposed ids against this set. */
+  todos: Array<{ id: string; text: string }>
 }
 
 interface SendResult {

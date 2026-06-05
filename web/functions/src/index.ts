@@ -40,6 +40,12 @@ interface ChatContext {
    * agent uses these to map natural-language categories ("home") to
    * the user's actual category id. */
   categories?: Array<{ id: string; label: string }>
+  /** Compact list of the user's CURRENT open todos (id + text only) so the
+   * agent can target editTodo/addSteps/markDone at REAL ids — and so the
+   * server can validate proposed ids against this set (knownTodoIds).
+   * Capped + text-truncated below; the client sends only open, non-trashed
+   * items to bound prompt size. */
+  todos?: Array<{ id: string; text: string }>
 }
 
 interface ChatRequest {
@@ -133,12 +139,36 @@ export const agentChat = onCall(
       : []
     const knownCategoryIds = new Set(categories.map((c) => c.id))
 
+    // Current open todos — id + text only, capped at 100 items / 120 chars
+    // so a large library can't blow the prompt budget. These let the agent
+    // address editTodo/addSteps/markDone at real ids; knownTodoIds is the
+    // server-side allow-list validateOperation checks against (a proposed
+    // op for an id not here is dropped — anti-hallucination).
+    const MAX_CONTEXT_TODOS = 100
+    const MAX_TODO_TEXT_CHARS = 120
+    const MAX_TODO_ID_CHARS = 64
+    const todos = Array.isArray(ctx.todos)
+      ? ctx.todos
+          .filter((td) => td && typeof td.id === 'string' && typeof td.text === 'string')
+          .slice(0, MAX_CONTEXT_TODOS)
+          .map((td) => ({
+            id: td.id.slice(0, MAX_TODO_ID_CHARS),
+            text: td.text.slice(0, MAX_TODO_TEXT_CHARS),
+          }))
+      : []
+    const knownTodoIds = new Set(todos.map((td) => td.id))
+
     const contextBlock =
       [
         today ? `today is ${today}` : null,
         categories.length > 0
           ? `categories (id — label):\n${categories
               .map((c) => `  ${c.id} — ${c.label}`)
+              .join('\n')}`
+          : null,
+        todos.length > 0
+          ? `current open to-dos (id — text) — use these ids for editTodo / addSteps / markDone:\n${todos
+              .map((td) => `  ${td.id} — ${td.text}`)
               .join('\n')}`
           : null,
       ]
@@ -158,13 +188,11 @@ export const agentChat = onCall(
         system: [
           { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
         ] as unknown as Anthropic.Messages.MessageCreateParams['system'],
-        // Phase 0: the client (useMochiAgent) only APPLIES createTodo, and
-        // editTodo/addSteps/markDone need known todo ids the agent isn't
-        // given (so validateOperation drops them). Offer only createTodo so
-        // Claude doesn't spend tokens proposing ops the client can't apply.
-        // Re-add when the client gains an apply path + todos reach context,
-        // and pass knownTodoIds to validateOperation below.
-        tools: (AGENT_TOOLS as Anthropic.Tool[]).filter((t) => t.name === 'createTodo'),
+        // Full tool set — the client now applies all four ops and the
+        // user's open todos are in context (above), so the agent can target
+        // editTodo/addSteps/markDone at real ids. validateOperation drops
+        // any op whose todoId isn't in knownTodoIds (anti-hallucination).
+        tools: AGENT_TOOLS as Anthropic.Tool[],
         messages: [
           {
             role: 'user',
@@ -192,7 +220,7 @@ export const agentChat = onCall(
       if (block.type === 'text') {
         reply += block.text
       } else if (block.type === 'tool_use') {
-        const op = validateOperation(block.name, block.input, knownCategoryIds)
+        const op = validateOperation(block.name, block.input, knownCategoryIds, knownTodoIds)
         if (op) operations.push(op)
       }
     }

@@ -22,25 +22,28 @@ interface Props {
   visible: boolean
   onClose: () => void
   categories: CategoryDef[]
-  /** Apply a single createTodo proposal. Wired by the parent to the
-   * existing store's addTask so the agent has the same write surface
-   * as a manual tap. */
-  onApplyCreateTodo: (op: ProposedOperation) => void
+  /** Open todos (id + text) sent as agent context so Mochi can target
+   * editTodo / markDone / addSteps at real ids. */
+  todos: Array<{ id: string; text: string }>
+  /** Apply one validated proposed operation (any of the four kinds). The
+   * parent maps each kind to the existing store mutation (addTask /
+   * update* / addSubtask / toggle) so the agent shares the manual write
+   * surface — confirm-before-apply keeps the user in control. */
+  onApplyOperation: (op: ProposedOperation) => void
 }
 
 /**
- * Phase 0 Mochi agent UI: a tiny chat surface with one user turn, a
- * single Claude reply, and a list of proposed operations awaiting the
- * user's confirm. No conversation history, no streaming, no tools
- * beyond `createTodo`. The constrained scope is intentional — we want
- * to prove the round-trip first before investing in the conversational
- * layer.
+ * Mochi agent UI: a calm capture-and-edit surface with one user turn, a
+ * single Claude reply, and the proposed operations awaiting confirm.
+ * Supports all four ops (create / edit / add steps / mark done); the user
+ * always confirms before anything is applied.
  */
 export default function ChatSheet({
   visible,
   onClose,
   categories,
-  onApplyCreateTodo,
+  todos,
+  onApplyOperation,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
@@ -66,14 +69,13 @@ export default function ChatSheet({
         id: c.id,
         label: categoryLabel(c, t),
       })),
+      todos,
     })
   }
 
   function handleApply() {
     if (!proposal) return
-    for (const op of proposal.operations) {
-      if (op.kind === 'createTodo') onApplyCreateTodo(op)
-    }
+    for (const op of proposal.operations) onApplyOperation(op)
     reset()
     onClose()
   }
@@ -128,20 +130,18 @@ export default function ChatSheet({
                   <Text style={styles.mochiLine}>{proposal.reply}</Text>
                   {proposal.operations.map((op, i) => (
                     <View key={i} style={styles.proposalCard}>
-                      {op.kind === 'createTodo' && (
-                        <CreateTodoPreview
-                          op={op}
-                          categoryLabelLookup={(id) =>
-                            categories.find((c) => c.id === id)
-                              ? categoryLabel(
-                                  categories.find((c) => c.id === id)!,
-                                  t,
-                                )
-                              : id
-                          }
-                          styles={styles}
-                        />
-                      )}
+                      <OperationPreview
+                        op={op}
+                        categoryLabelLookup={(id) =>
+                          categories.find((c) => c.id === id)
+                            ? categoryLabel(categories.find((c) => c.id === id)!, t)
+                            : id
+                        }
+                        todoTextLookup={(id) =>
+                          todos.find((td) => td.id === id)?.text ?? 'that to-do'
+                        }
+                        styles={styles}
+                      />
                     </View>
                   ))}
                   <View style={styles.actionsRow}>
@@ -196,33 +196,72 @@ export default function ChatSheet({
   )
 }
 
-function CreateTodoPreview({
+/** Renders a confirm-preview for any of the four proposed operations, so
+ * the user sees exactly what Mochi will do before tapping "Use this". */
+function OperationPreview({
   op,
   categoryLabelLookup,
+  todoTextLookup,
   styles,
 }: {
-  op: Extract<ProposedOperation, { kind: 'createTodo' }>
+  op: ProposedOperation
   categoryLabelLookup: (id: string) => string
+  todoTextLookup: (id: string) => string
   styles: ReturnType<typeof makeStyles>
 }) {
-  const a = op.args
+  if (op.kind === 'createTodo') {
+    const a = op.args
+    return (
+      <View>
+        <Text style={styles.proposalKind}>New to-do</Text>
+        <Text style={styles.proposalTitle}>{a.text}</Text>
+        <View style={styles.proposalMeta}>
+          {a.category && <Text style={styles.proposalChip}>{categoryLabelLookup(a.category)}</Text>}
+          {a.dueDate && <Text style={styles.proposalChip}>Completed by {a.dueDate}</Text>}
+          {a.priority && a.priority !== 'medium' && (
+            <Text style={styles.proposalChip}>Priority: {a.priority}</Text>
+          )}
+        </View>
+        {a.notes && <Text style={styles.proposalNotes}>{a.notes}</Text>}
+      </View>
+    )
+  }
+
+  if (op.kind === 'editTodo') {
+    const a = op.args
+    return (
+      <View>
+        <Text style={styles.proposalKind}>Edit</Text>
+        <Text style={styles.proposalTitle}>{todoTextLookup(a.todoId)}</Text>
+        <View style={styles.proposalMeta}>
+          {a.text && <Text style={styles.proposalChip}>Rename: {a.text}</Text>}
+          {a.category && <Text style={styles.proposalChip}>{categoryLabelLookup(a.category)}</Text>}
+          {a.dueDate && <Text style={styles.proposalChip}>Due {a.dueDate}</Text>}
+          {a.priority && <Text style={styles.proposalChip}>Priority: {a.priority}</Text>}
+        </View>
+        {a.notes && <Text style={styles.proposalNotes}>{a.notes}</Text>}
+      </View>
+    )
+  }
+
+  if (op.kind === 'addSteps') {
+    const a = op.args
+    return (
+      <View>
+        <Text style={styles.proposalKind}>Add steps to</Text>
+        <Text style={styles.proposalTitle}>{todoTextLookup(a.todoId)}</Text>
+        {a.steps.map((s, i) => (
+          <Text key={i} style={styles.proposalNotes}>• {s.text}</Text>
+        ))}
+      </View>
+    )
+  }
+
+  // markDone
   return (
     <View>
-      <Text style={styles.proposalTitle}>{a.text}</Text>
-      <View style={styles.proposalMeta}>
-        {a.category && (
-          <Text style={styles.proposalChip}>
-            {categoryLabelLookup(a.category)}
-          </Text>
-        )}
-        {a.dueDate && (
-          <Text style={styles.proposalChip}>Completed by {a.dueDate}</Text>
-        )}
-        {a.priority && a.priority !== 'medium' && (
-          <Text style={styles.proposalChip}>Priority: {a.priority}</Text>
-        )}
-      </View>
-      {a.notes && <Text style={styles.proposalNotes}>{a.notes}</Text>}
+      <Text style={styles.proposalKind}>Mark done</Text>
+      <Text style={styles.proposalTitle}>{todoTextLookup(op.args.todoId)}</Text>
     </View>
   )
 }
@@ -273,6 +312,14 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.border,
       padding: 12,
       gap: 6,
+    },
+    proposalKind: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: c.label3,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginBottom: 2,
     },
     proposalTitle: { fontSize: 15, fontWeight: '600', color: c.label },
     proposalMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },

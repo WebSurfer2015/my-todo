@@ -71,6 +71,10 @@ interface Props {
     extras?: { notes?: string; subtasks?: Subtask[]; reminder?: Todo["reminder"]; reminders?: Reminder[] },
   ) => void
   onClose: () => void
+  /** Opens the Mochi capture assistant — for when the user would rather
+   * describe what they want in words ("every Tuesday remind me to call
+   * mom") than fill the form. Optional; the affordance hides when unset. */
+  onAskMochi?: () => void
 }
 
 type SubView = 'main' | 'category' | 'priority' | 'date' | 'repeat' | 'repeatEndDate' | 'customRepeat' | 'remindAt'
@@ -174,7 +178,7 @@ function reminderSummary(
 }
 
 export default function ComposeSheet({
-  visible, categories, defaultCategory, references, agentEnabled = false, onCreateCategory, onAdd, onClose,
+  visible, categories, defaultCategory, references, agentEnabled = false, onCreateCategory, onAdd, onClose, onAskMochi,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
@@ -393,6 +397,19 @@ export default function ComposeSheet({
                     </Text>
                   </TouchableOpacity>
                 </View>
+
+                {onAskMochi && agentEnabled && (
+                  <TouchableOpacity
+                    style={styles.askMochiRow}
+                    onPress={onAskMochi}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Ask Mochi to add or change to-dos in your own words"
+                  >
+                    <Sparkles size={13} color={theme.primary} strokeWidth={2.2} />
+                    <Text style={styles.askMochiText}>Ask Mochi instead</Text>
+                  </TouchableOpacity>
+                )}
 
                 {/* Title card lives OUTSIDE the scroll so the
                     suggestion-overlay can pin to its bottom edge and

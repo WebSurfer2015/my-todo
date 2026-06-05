@@ -10,7 +10,6 @@ import {
   StatusBar,
   Platform,
   KeyboardAvoidingView,
-  Image,
   Alert,
   useColorScheme,
 } from "react-native";
@@ -40,7 +39,6 @@ import Footer from "./src/app/Footer";
 import Avatar from "./src/ui/Avatar";
 import GroceryView from "./src/features/groceries/GroceryView";
 import AppBackground from "./src/app/AppBackground";
-import ChatSheet from "./src/features/mochi/ChatSheet";
 import SearchTopSheet from "./src/features/filters/SearchTopSheet";
 import SearchPill from "./src/features/filters/SearchPill";
 import DeferModal from "./src/features/task/DeferModal";
@@ -79,14 +77,6 @@ import HomeScreen from "./src/features/home/HomeScreen";
 import GroceriesScreen from "./src/features/groceries/GroceriesScreen";
 import AppHeader from "./src/app/AppHeader";
 
-/**
- * Master kill-switch for the Mochi agent / "Ask Mochi" chat surface.
- * Set to `false` while the feature is paused; flipping it back on
- * re-enables the in-app FAB + chat sheet without further edits.
- * Mirrors the "Ask Mochi (coming soon)" disabled toggle in Settings.
- */
-const MOCHI_AGENT_ENABLED = false;
-
 function TodosScreen() {
   const { t } = useLang();
   const { user, loading: authLoading } = useAuth();
@@ -103,10 +93,10 @@ function TodosScreen() {
 
   // Profile / Settings / Background picker / Compose now live in
   // SheetContext at the app shell so they're reachable from any tab.
-  // ChatSheet still per-tab. CategorySheet moved to SheetContext so
-  // Settings → Manage Todos can open it from any tab.
+  // Mochi ("Ask Mochi") now lives in SheetContext, entered from the
+  // compose sheet. CategorySheet moved to SheetContext so Settings →
+  // Manage Todos can open it from any tab.
   const sheets = useSheets();
-  const [chatOpen, setChatOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   // Defer modal: which group is being deferred (label for the
@@ -890,31 +880,6 @@ function TodosScreen() {
             agentEnabled={store.profile.agentEnabled !== false}
           />
         )}
-      {/* Mochi agent paused — see Settings "Ask Mochi (coming soon)".
-          The MOCHI_AGENT_ENABLED constant lives at the top of this
-          file so flipping the feature on is a one-line change. */}
-      {MOCHI_AGENT_ENABLED &&
-        store.profile.agentEnabled &&
-        !store.inTrashView &&
-        store.filter !== "groceries" &&
-        !searchOpen && (
-        <TouchableOpacity
-          style={[
-            styles.mochiFab,
-            { bottom: 4 + safeArea.bottom + 72 /* sits above the + FAB */ },
-          ]}
-          onPress={() => setChatOpen(true)}
-          accessibilityLabel="Ask Mochi"
-          accessibilityRole="button"
-        >
-          <Image
-            source={require("./assets/mochi-mascot.png")}
-            style={styles.mochiFabImage}
-            resizeMode="contain"
-          />
-        </TouchableOpacity>
-      )}
-
       <DeferModal
         visible={deferTarget !== null}
         filterLabel={deferTarget?.label}
@@ -925,25 +890,6 @@ function TodosScreen() {
         }}
         onClose={() => setDeferTarget(null)}
       />
-      {/* Mochi agent paused — see Settings "Ask Mochi (coming soon)".
-          The MOCHI_AGENT_ENABLED constant lives at the top of this
-          file so flipping the feature on is a one-line change. */}
-      {MOCHI_AGENT_ENABLED &&
-        store.profile.agentEnabled && (
-        <ChatSheet
-          visible={chatOpen}
-          onClose={() => setChatOpen(false)}
-          categories={store.categories}
-          onApplyCreateTodo={(op) =>
-            store.addTask(
-              op.args.text,
-              op.args.priority ?? "medium",
-              op.args.dueDate ?? "",
-              op.args.category,
-            )
-          }
-        />
-      )}
       <Onboarding
         visible={onboardingNeeded}
         onComplete={(intent) => {
@@ -1183,27 +1129,6 @@ function LoadingScreen({ avatar }: { avatar?: AvatarT }) {
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    // Floating Mochi button — sits above the + FAB when the agent flag is
-    // on. Smaller than the + FAB and uses the transparent-turtle PNG so it
-    // reads as a mascot affordance rather than a generic action.
-    mochiFab: {
-      position: "absolute",
-      right: 22,
-      width: 52,
-      height: 52,
-      borderRadius: 26,
-      backgroundColor: c.card,
-      alignItems: "center",
-      justifyContent: "center",
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.18,
-      shadowRadius: 8,
-      elevation: 5,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: c.border,
-    },
-    mochiFabImage: { width: 42, height: 42 },
     safe: {
       flex: 1,
       // AppBackground is mounted once at the AppGate level and shines

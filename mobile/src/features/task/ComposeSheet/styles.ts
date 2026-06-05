@@ -38,6 +38,19 @@ export function makeStyles(c: ThemeColors) {
       justifyContent: 'space-between',
       paddingBottom: 8,
     },
+    askMochiRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 6,
+      marginBottom: 4,
+    },
+    askMochiText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: c.primary,
+    },
     cancelText: {
       fontSize: 15,
       fontWeight: '500',

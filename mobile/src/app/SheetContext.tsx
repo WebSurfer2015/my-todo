@@ -35,6 +35,9 @@ import GuideMenuSheet from '../features/onboarding/GuideMenuSheet'
 import GuideSheet from '../features/onboarding/GuideSheet'
 import GuidesPrompt from '../features/onboarding/GuidesPrompt'
 import ComposeSheet from '../features/task/ComposeSheet'
+import ChatSheet from '../features/mochi/ChatSheet'
+import type { ProposedOperation } from '../features/mochi/useMochiAgent'
+import { MOCHI_AGENT_ENABLED } from './featureFlags'
 import ManageHomeTilesSheet from '../features/profile/ManageHomeTilesSheet'
 import ManageAnimationSoundSheet from '../features/profile/ManageAnimationSoundSheet'
 import CategorySheet from '../features/category/CategorySheet'
@@ -61,6 +64,9 @@ interface Sheets {
   openGuides: () => void
   /** Open the add-todo compose sheet from any tab. */
   openCompose: () => void
+  /** Open the Mochi capture assistant (natural-language add/edit). Entry
+   * point lives in the compose sheet. */
+  openMochi: () => void
   /** Open the Home Tiles picker (Dashboard gear icon). */
   openHomeTiles: () => void
   /** Open the Manage Filter sheet (Todos gear icon, Settings entry). */
@@ -100,6 +106,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   const [bgPickerOpen, setBgPickerOpen] = useState(false)
   const [guideMenuOpen, setGuideMenuOpen] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
+  const [mochiOpen, setMochiOpen] = useState(false)
   const [homeTilesOpen, setHomeTilesOpen] = useState(false)
   const [animationSoundOpen, setAnimationSoundOpen] = useState(false)
   const [categorySheetOpen, setCategorySheetOpen] = useState(false)
@@ -119,7 +126,39 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   const openBackgrounds = useCallback(() => setBgPickerOpen(true), [])
   const openGuides = useCallback(() => setGuideMenuOpen(true), [])
   const openCompose = useCallback(() => setComposeOpen(true), [])
+  const openMochi = useCallback(() => setMochiOpen(true), [])
   const openHomeTiles = useCallback(() => setHomeTilesOpen(true), [])
+
+  // Apply one confirmed Mochi operation through the SAME store mutations a
+  // manual tap uses — so the agent has no privileged write path. Each kind
+  // maps to existing actions; the user already confirmed in ChatSheet.
+  const applyMochiOp = useCallback(
+    (op: ProposedOperation) => {
+      if (op.kind === 'createTodo') {
+        const a = op.args
+        store.addTask(
+          a.text,
+          a.priority ?? 'medium',
+          a.dueDate ?? '',
+          a.category,
+          undefined,
+          a.notes ? { notes: a.notes } : undefined,
+        )
+      } else if (op.kind === 'editTodo') {
+        const a = op.args
+        if (a.text !== undefined) store.updateText(a.todoId, a.text)
+        if (a.priority !== undefined) store.updatePriority(a.todoId, a.priority)
+        if (a.dueDate !== undefined) store.updateDueDate(a.todoId, a.dueDate)
+        if (a.category !== undefined) store.updateTaskCategory(a.todoId, a.category)
+        if (a.notes !== undefined) store.updateNotes(a.todoId, a.notes)
+      } else if (op.kind === 'addSteps') {
+        for (const s of op.args.steps) store.addSubtask(op.args.todoId, s.text)
+      } else if (op.kind === 'markDone') {
+        store.toggle(op.args.todoId)
+      }
+    },
+    [store],
+  )
   const openManageFilter = useCallback(() => {
     setCategorySheetMode('edit')
     setCategorySheetOpen(true)
@@ -235,7 +274,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <SheetContext.Provider value={{ openProfile, openSettings, openBackgrounds, openGuides, openCompose, openHomeTiles, openManageFilter, openSelectFilter, openManageGroceries, manageRequest }}>
+    <SheetContext.Provider value={{ openProfile, openSettings, openBackgrounds, openGuides, openCompose, openMochi, openHomeTiles, openManageFilter, openSelectFilter, openManageGroceries, manageRequest }}>
       {children}
       <ProfileSheet
         visible={profileOpen}
@@ -377,7 +416,33 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         }}
         onAdd={store.addTask}
         onClose={() => setComposeOpen(false)}
+        // Kill-switch: when Mochi is off, omit the callback so the
+        // compose sheet hides the "Ask Mochi instead" affordance.
+        onAskMochi={
+          MOCHI_AGENT_ENABLED
+            ? () => {
+                setComposeOpen(false)
+                setMochiOpen(true)
+              }
+            : undefined
+        }
       />
+      {/* Mochi capture assistant — opened from the compose sheet's "Ask
+          Mochi" affordance. Applies via the same store mutations as a
+          manual tap, after the user confirms each proposal. Gated by the
+          MOCHI_AGENT_ENABLED kill-switch so the sheet never mounts when
+          the feature is paused. */}
+      {MOCHI_AGENT_ENABLED && (
+        <ChatSheet
+          visible={mochiOpen}
+          categories={store.categories}
+          todos={store.todos
+            .filter((td) => !td.done && !td.trashed)
+            .map((td) => ({ id: td.id, text: td.text }))}
+          onApplyOperation={applyMochiOp}
+          onClose={() => setMochiOpen(false)}
+        />
+      )}
       <ManageHomeTilesSheet
         visible={homeTilesOpen}
         homeStatTiles={store.effectiveHomeStatTiles}
