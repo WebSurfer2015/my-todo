@@ -25,15 +25,8 @@ who want a calmer way to stay on top of it all. The ones who've found that
 scoreboard-style productivity apps add pressure instead of lifting it, and who'd
 rather make gentle, steady progress than chase streaks or a perfect score.
 "Real life" is the wide door: it welcomes anyone carrying a full load, without
-asking them to self-identify first. (Market sizing and the deeper audience
-profile live in `POSITIONING-BRIEF.md`.)
-
-Two personas (full detail in `POSITIONING-BRIEF.md`):
-
-- **The overwhelmed working professional** (primary) — competent and busy,
-  quietly burned out by apps that grade them.
-- **The young professional** (secondary) — same load, earlier in career,
-  mobile-first, reachable through community not ads.
+asking them to self-identify first. (Personas, market sizing, and the deeper
+audience profile live in `POSITIONING-BRIEF.md`.)
 
 ### Need
 

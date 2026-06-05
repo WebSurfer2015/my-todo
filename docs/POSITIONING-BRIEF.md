@@ -55,17 +55,12 @@ which is now mainstream among knowledge workers, not a clinical edge case.
 
 ## Competitive frame
 
-| Vs. | They | Sagely |
-| --- | --- | --- |
-| Habitica / Streaks | gamify and punish missed beats | don't keep score |
-| Todoist / TickTick | maximize throughput | minimize harm |
-| Notion / Things | cold, dense, complex | warm, quiet, focused |
-| Apple Reminders | utilitarian, no emotional layer | emotional layer that doesn't grade |
-| **Sunsama / Motion** | calm/intentional, but **desktop, work-only, cold, $20/mo** | calm **for all of real life**, mobile-first, warm, affordable |
-
+Full competitor table → [`POSITIONING.md`](./POSITIONING.md#competitive-frame).
+The matchup that matters for *this* brief is **Sunsama / Motion**:
+calm/intentional, but desktop, work-only, cold, $20/mo. Sagely owns the
+**mobile, warmer, life-not-just-work, affordable** end of that seam — and
 Sunsama (300k+ users at $20/mo) is the proof point that "calm productivity"
-monetizes with professionals. Sagely owns the **mobile, warmer,
-life-not-just-work, affordable** end of that category.
+monetizes with professionals.
 
 ---
 
