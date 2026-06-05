@@ -418,3 +418,40 @@ export function dueDateOnly(dueDate: string | undefined): string {
   const t = dueDate.indexOf("T");
   return t === -1 ? dueDate : dueDate.slice(0, t);
 }
+
+/**
+ * Resolve a dueDate string to a concrete LOCAL deadline moment (epoch ms),
+ * or null when unset / unparseable. The "full datetime" model:
+ *   - date-only `yyyy-mm-dd`        → END of that day (23:59:59.999 local),
+ *     i.e. the "due by midnight" deadline semantics. No stored migration
+ *     needed — a bare date keeps meaning "due that day".
+ *   - timed `yyyy-mm-ddTHH:mm`      → that exact local minute.
+ * Used by reminders (before-due offset reference) + any deadline math.
+ * Grouping + the overdue BUCKET keep using the date part (dueDateOnly),
+ * so a timed task still sits in its day's group.
+ */
+export function dueDateTimeMs(dueDate: string | undefined): number | null {
+  if (!dueDate) return null;
+  const tIdx = dueDate.indexOf("T");
+  if (tIdx === -1) {
+    const [y, m, d] = dueDate.split("-").map(Number);
+    if (!y || !m || !d) return null;
+    return new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
+  }
+  const [y, m, d] = dueDate.slice(0, tIdx).split("-").map(Number);
+  const [hh, mm] = dueDate.slice(tIdx + 1).split(":").map(Number);
+  if (!y || !m || !d || Number.isNaN(hh) || Number.isNaN(mm)) return null;
+  return new Date(y, m - 1, d, hh, mm, 0, 0).getTime();
+}
+
+/** Last day of the current month as yyyy-mm-dd (local). Day 0 of next
+ * month = last day of this one. The "this month" due-date preset. */
+export function endOfMonthLocal(from: Date = new Date()): string {
+  return isoDate(new Date(from.getFullYear(), from.getMonth() + 1, 0));
+}
+
+/** Dec 31 of the current year as yyyy-mm-dd (local). The "this year"
+ * due-date preset. */
+export function endOfYearLocal(from: Date = new Date()): string {
+  return isoDate(new Date(from.getFullYear(), 11, 31));
+}
