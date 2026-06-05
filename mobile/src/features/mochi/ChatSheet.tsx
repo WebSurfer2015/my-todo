@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   KeyboardAvoidingView,
   Modal,
@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
+import { Sparkles } from 'lucide-react-native'
 import { useLang } from '../../app/LangContext'
 import { useTheme, ThemeColors } from '../../app/theme'
 import { useMochiAgent, type ProposedOperation } from './useMochiAgent'
@@ -50,6 +51,7 @@ export default function ChatSheet({
   const styles = useMemo(() => makeStyles(theme), [theme])
   const { send, reset, isThinking, proposal, error } = useMochiAgent()
   const [input, setInput] = useState('')
+  const inputRef = useRef<TextInput>(null)
 
   // Fire once per open. visible flips true → false → true counts as
   // two separate "opened" events, which matches the analytics intent.
@@ -95,6 +97,7 @@ export default function ChatSheet({
       visible={visible}
       transparent
       animationType="slide"
+      onShow={() => inputRef.current?.focus()}
       onRequestClose={close}
     >
       <KeyboardAvoidingView
@@ -108,7 +111,10 @@ export default function ChatSheet({
           <View style={styles.sheet}>
             <View style={styles.handle} />
             <View style={styles.headerRow}>
-              <Text style={styles.title}>Ask Mochi</Text>
+              <View style={styles.titleRow}>
+                <Sparkles size={16} color={theme.primary} strokeWidth={2.2} />
+                <Text style={styles.title}>Ask Mochi</Text>
+              </View>
               <TouchableOpacity onPress={close} hitSlop={10}>
                 <Text style={styles.closeText}>{t.cancel}</Text>
               </TouchableOpacity>
@@ -170,6 +176,7 @@ export default function ChatSheet({
 
             <View style={styles.inputRow}>
               <TextInput
+                ref={inputRef}
                 style={styles.input}
                 placeholder="Say what you'd like to add or change…"
                 placeholderTextColor={theme.gray3}
@@ -221,6 +228,12 @@ function OperationPreview({
           {a.priority && a.priority !== 'medium' && (
             <Text style={styles.proposalChip}>Priority: {a.priority}</Text>
           )}
+          {recurrenceLabel(a.recurrence) && (
+            <Text style={styles.proposalChip}>{recurrenceLabel(a.recurrence)}</Text>
+          )}
+          {a.reminders?.map((r, i) => (
+            <Text key={i} style={styles.proposalChip}>⏰ {r.at.replace('T', ' ')}</Text>
+          ))}
         </View>
         {a.notes && <Text style={styles.proposalNotes}>{a.notes}</Text>}
       </View>
@@ -238,6 +251,12 @@ function OperationPreview({
           {a.category && <Text style={styles.proposalChip}>{categoryLabelLookup(a.category)}</Text>}
           {a.dueDate && <Text style={styles.proposalChip}>Due {a.dueDate}</Text>}
           {a.priority && <Text style={styles.proposalChip}>Priority: {a.priority}</Text>}
+          {recurrenceLabel(a.recurrence) && (
+            <Text style={styles.proposalChip}>{recurrenceLabel(a.recurrence)}</Text>
+          )}
+          {a.reminders?.map((r, i) => (
+            <Text key={i} style={styles.proposalChip}>⏰ {r.at.replace('T', ' ')}</Text>
+          ))}
         </View>
         {a.notes && <Text style={styles.proposalNotes}>{a.notes}</Text>}
       </View>
@@ -264,6 +283,30 @@ function OperationPreview({
       <Text style={styles.proposalTitle}>{todoTextLookup(op.args.todoId)}</Text>
     </View>
   )
+}
+
+const WEEKDAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+/** Human-readable label for a proposed recurrence, e.g. "Repeats weekly ·
+ * Mon, Wed" or "Every 2 weeks". */
+function recurrenceLabel(
+  r?: { freq: string; interval?: number; byWeekday?: number[] },
+): string | null {
+  if (!r) return null
+  const units: Record<string, string> = {
+    daily: 'days',
+    weekly: 'weeks',
+    monthly: 'months',
+    yearly: 'years',
+  }
+  const base =
+    r.interval && r.interval > 1
+      ? `Every ${r.interval} ${units[r.freq] ?? r.freq}`
+      : `Repeats ${r.freq}`
+  const days =
+    r.byWeekday && r.byWeekday.length > 0
+      ? ` · ${r.byWeekday.map((d) => WEEKDAY_ABBR[d] ?? d).join(', ')}`
+      : ''
+  return `${base}${days}`
 }
 
 function makeStyles(c: ThemeColors) {
@@ -298,6 +341,7 @@ function makeStyles(c: ThemeColors) {
       justifyContent: 'space-between',
       marginBottom: 12,
     },
+    titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     title: { fontSize: 17, fontWeight: '700', color: c.label },
     closeText: { fontSize: 15, color: c.label2, fontWeight: '500' },
     body: { flexGrow: 0, flexShrink: 1 },

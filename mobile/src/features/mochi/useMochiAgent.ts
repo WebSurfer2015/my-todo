@@ -23,6 +23,21 @@ const AGENT_CHAT_URL =
 
 export type AgentPriority = 'high' | 'medium' | 'low'
 
+/** Mirrors the server's AgentRecurrence (agentTools.ts) — the safe subset
+ * the agent can propose. The client maps this onto the real Recurrence. */
+export interface AgentRecurrence {
+  freq: 'daily' | 'weekly' | 'monthly' | 'yearly'
+  interval?: number
+  byWeekday?: number[]
+}
+
+/** Mirrors the server's AgentReminder. `at` is a local ISO datetime; the
+ * client mints the stable `id` on apply. */
+export interface AgentReminder {
+  at: string
+  intervalMinutes?: number
+}
+
 /**
  * Mirrors the server's ProposedOperation union (web/functions/src/
  * agentTools.ts). Keep in lockstep — the server validates + returns these,
@@ -31,7 +46,15 @@ export type AgentPriority = 'high' | 'medium' | 'low'
 export type ProposedOperation =
   | {
       kind: 'createTodo'
-      args: { text: string; dueDate?: string; priority?: AgentPriority; category?: string; notes?: string }
+      args: {
+        text: string
+        dueDate?: string
+        priority?: AgentPriority
+        category?: string
+        notes?: string
+        recurrence?: AgentRecurrence
+        reminders?: AgentReminder[]
+      }
     }
   | {
       kind: 'editTodo'
@@ -42,6 +65,8 @@ export type ProposedOperation =
         priority?: AgentPriority
         category?: string
         notes?: string
+        recurrence?: AgentRecurrence
+        reminders?: AgentReminder[]
       }
     }
   | {

@@ -47,6 +47,26 @@ export interface AgentTool {
   }
 }
 
+/** Recurrence the agent can propose — a safe subset of the app's full
+ * Recurrence type (no bySetPos/endDate; those are too ambiguous from
+ * natural language). The client maps this onto the real Recurrence. */
+export interface AgentRecurrence {
+  freq: 'daily' | 'weekly' | 'monthly' | 'yearly'
+  /** Every N periods (default 1). */
+  interval?: number
+  /** 0=Sunday..6=Saturday — for weekly ("every Mon/Wed"). */
+  byWeekday?: number[]
+}
+
+/** Reminder the agent can propose. `at` is a local ISO datetime
+ * (yyyy-mm-ddThh:mm). The CLIENT mints the stable `id` on apply — the
+ * model can't produce reliable UUIDs. */
+export interface AgentReminder {
+  at: string
+  /** Repeat every N minutes after `at` (optional). */
+  intervalMinutes?: number
+}
+
 /** What the client receives from the server: a validated operation
  * ready to apply via the existing store mutations. Each variant maps
  * 1:1 to a tool name. */
@@ -59,6 +79,8 @@ export type ProposedOperation =
         priority?: Priority
         category?: string
         notes?: string
+        recurrence?: AgentRecurrence
+        reminders?: AgentReminder[]
       }
     }
   | {
@@ -73,6 +95,8 @@ export type ProposedOperation =
         priority?: Priority
         category?: string
         notes?: string
+        recurrence?: AgentRecurrence
+        reminders?: AgentReminder[]
       }
     }
   | {
@@ -98,6 +122,55 @@ const MAX_NOTES_LEN = 8000
 const MAX_STEP_LEN = 80
 const MAX_STEPS = 8
 const MAX_TODO_ID_LEN = 64
+const MAX_REMINDERS = 5
+
+// Shared JSON-schema fragments for recurrence + reminders (used by both
+// createTodo and editTodo) so the model gets one consistent description.
+const RECURRENCE_SCHEMA = {
+  type: 'object',
+  description:
+    "Set when the user wants the task to REPEAT (e.g. 'every day', 'every " +
+    "Monday and Wednesday', 'weekly'). Omit for one-off tasks.",
+  properties: {
+    freq: { type: 'string', enum: ['daily', 'weekly', 'monthly', 'yearly'] },
+    interval: {
+      type: 'integer',
+      minimum: 1,
+      description: "Every N periods (e.g. interval 2 + freq weekly = every other week). Default 1.",
+    },
+    byWeekday: {
+      type: 'array',
+      description: 'Weekdays for weekly recurrence: 0=Sunday .. 6=Saturday.',
+      items: { type: 'integer', minimum: 0, maximum: 6 },
+    },
+  },
+  required: ['freq'],
+} as const
+
+const REMINDERS_SCHEMA = {
+  type: 'array',
+  description:
+    "Set when the user wants to be REMINDED (e.g. 'remind me at 9am', 'ping " +
+    "me an hour before'). Resolve times against `today` and return a local " +
+    "ISO datetime. Omit when no reminder was requested.",
+  maxItems: MAX_REMINDERS,
+  items: {
+    type: 'object',
+    properties: {
+      at: {
+        type: 'string',
+        description: 'Local ISO datetime yyyy-mm-ddThh:mm (e.g. 2026-06-07T09:00).',
+        pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}',
+      },
+      intervalMinutes: {
+        type: 'integer',
+        minimum: 1,
+        description: 'Optional: repeat every N minutes after `at`.',
+      },
+    },
+    required: ['at'],
+  },
+} as const
 
 export const AGENT_TOOLS: AgentTool[] = [
   {
@@ -138,6 +211,8 @@ export const AGENT_TOOLS: AgentTool[] = [
             'Optional free-form context the user mentioned (e.g. "smallest first step: open the doc"). Keep under 8000 chars.',
           maxLength: MAX_NOTES_LEN,
         },
+        recurrence: RECURRENCE_SCHEMA,
+        reminders: REMINDERS_SCHEMA,
       },
       required: ['text'],
     },
@@ -183,6 +258,8 @@ export const AGENT_TOOLS: AgentTool[] = [
           description: 'New notes text. Empty string CLEARS the existing notes.',
           maxLength: MAX_NOTES_LEN,
         },
+        recurrence: RECURRENCE_SCHEMA,
+        reminders: REMINDERS_SCHEMA,
       },
       required: ['todoId'],
     },
@@ -241,6 +318,47 @@ export const AGENT_TOOLS: AgentTool[] = [
   },
 ]
 
+/** Sanitize a proposed recurrence into the safe agent subset, or
+ * undefined if malformed. */
+function validateRecurrence(raw: unknown): AgentRecurrence | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const r = raw as Record<string, unknown>
+  if (r.freq !== 'daily' && r.freq !== 'weekly' && r.freq !== 'monthly' && r.freq !== 'yearly') {
+    return undefined
+  }
+  const out: AgentRecurrence = { freq: r.freq }
+  if (typeof r.interval === 'number' && Number.isFinite(r.interval) && r.interval >= 1) {
+    out.interval = Math.floor(r.interval)
+  }
+  if (Array.isArray(r.byWeekday)) {
+    const days = r.byWeekday
+      .filter((n): n is number => typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 6)
+      .map((n) => Math.floor(n))
+    const unique = Array.from(new Set(days)).sort((x, y) => x - y)
+    if (unique.length > 0) out.byWeekday = unique
+  }
+  return out
+}
+
+/** Sanitize a proposed reminders array (drops malformed entries; caps
+ * count). Undefined when none are valid. */
+function validateReminders(raw: unknown): AgentReminder[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const out: AgentReminder[] = []
+  for (const item of raw.slice(0, MAX_REMINDERS)) {
+    if (!item || typeof item !== 'object') continue
+    const at = (item as { at?: unknown }).at
+    if (typeof at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(at)) continue
+    const rem: AgentReminder = { at }
+    const iv = (item as { intervalMinutes?: unknown }).intervalMinutes
+    if (typeof iv === 'number' && Number.isFinite(iv) && iv >= 1) {
+      rem.intervalMinutes = Math.floor(iv)
+    }
+    out.push(rem)
+  }
+  return out.length > 0 ? out : undefined
+}
+
 /** Server-side validator. Returns the cleaned-up op or null on garbage
  * input. Defensive — Anthropic occasionally returns extra keys or
  * mistyped fields even with tool_use; we don't want to forward those
@@ -279,6 +397,10 @@ export function validateOperation(
     if (typeof a.notes === 'string' && a.notes.length > 0) {
       op.args.notes = a.notes.slice(0, MAX_NOTES_LEN)
     }
+    const rec = validateRecurrence(a.recurrence)
+    if (rec) op.args.recurrence = rec
+    const rems = validateReminders(a.reminders)
+    if (rems) op.args.reminders = rems
     return op
   }
 
@@ -320,6 +442,16 @@ export function validateOperation(
     if (typeof a.notes === 'string') {
       // Including empty string here so user can clear notes.
       op.args.notes = a.notes.slice(0, MAX_NOTES_LEN)
+      hasField = true
+    }
+    const editRec = validateRecurrence(a.recurrence)
+    if (editRec) {
+      op.args.recurrence = editRec
+      hasField = true
+    }
+    const editRems = validateReminders(a.reminders)
+    if (editRems) {
+      op.args.reminders = editRems
       hasField = true
     }
     // Reject when no actual change was proposed.

@@ -44,7 +44,7 @@ import CategorySheet from '../features/category/CategorySheet'
 import { COLOR_PALETTE } from '../core-bindings/categories'
 import type { Filter } from '../core-bindings/types'
 import type { Guide } from '../features/onboarding/guides'
-import { todayLocal } from '../../../core/src/logic/utils'
+import { todayLocal, genUuid } from '../../../core/src/logic/utils'
 
 /** Signal that a screen should open its tab-local manage sheet. The
  * `seq` bumps so a repeat-trigger fires even when target stays the
@@ -134,15 +134,31 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   // maps to existing actions; the user already confirmed in ChatSheet.
   const applyMochiOp = useCallback(
     (op: ProposedOperation) => {
+      // Agent reminders carry no id (the model can't mint stable UUIDs);
+      // stamp one per entry on apply so the scheduler's per-fire key stays
+      // distinct. Returns undefined for an empty/absent list.
+      const toReminders = (rs?: { at: string; intervalMinutes?: number }[]) =>
+        rs && rs.length > 0
+          ? rs.map((r) => ({
+              id: genUuid(),
+              at: r.at,
+              ...(r.intervalMinutes ? { intervalMinutes: r.intervalMinutes } : {}),
+            }))
+          : undefined
+
       if (op.kind === 'createTodo') {
         const a = op.args
+        const reminders = toReminders(a.reminders)
         store.addTask(
           a.text,
           a.priority ?? 'medium',
           a.dueDate ?? '',
           a.category,
-          undefined,
-          a.notes ? { notes: a.notes } : undefined,
+          a.recurrence,
+          {
+            ...(a.notes ? { notes: a.notes } : {}),
+            ...(reminders ? { reminders } : {}),
+          },
         )
       } else if (op.kind === 'editTodo') {
         const a = op.args
@@ -151,6 +167,9 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         if (a.dueDate !== undefined) store.updateDueDate(a.todoId, a.dueDate)
         if (a.category !== undefined) store.updateTaskCategory(a.todoId, a.category)
         if (a.notes !== undefined) store.updateNotes(a.todoId, a.notes)
+        if (a.recurrence !== undefined) store.updateRecurrence(a.todoId, a.recurrence)
+        const editReminders = toReminders(a.reminders)
+        if (editReminders) store.updateReminders(a.todoId, editReminders)
       } else if (op.kind === 'addSteps') {
         for (const s of op.args.steps) store.addSubtask(op.args.todoId, s.text)
       } else if (op.kind === 'markDone') {
