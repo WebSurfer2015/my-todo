@@ -95,6 +95,7 @@ Trust model — load-bearing:
 export const agentChat = onCall(
   { secrets: [ANTHROPIC_API_KEY], region: 'us-central1' },
   async (request): Promise<ChatResponse> => {
+    const startedAt = Date.now()
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Sign in to use Mochi.')
     }
@@ -259,6 +260,11 @@ export const agentChat = onCall(
     // Structured telemetry for Cloud Logging — cost/usage per call so ops
     // can track spend, anomalies, and tool-proposal rates without a side
     // channel. (Was a review gap: usage was returned but never logged.)
+    // The pinned SDK Usage type omits the cache_* fields the API returns.
+    const usageExt = response.usage as {
+      cache_read_input_tokens?: number | null
+      cache_creation_input_tokens?: number | null
+    }
     console.log(
       JSON.stringify({
         event: 'agentChat',
@@ -266,7 +272,13 @@ export const agentChat = onCall(
         model: MODEL,
         input_tokens: response.usage.input_tokens,
         output_tokens: response.usage.output_tokens,
+        // Cache effectiveness — read = prompt-cache HIT (tools+system
+        // reused), creation = the turn that seeded it. Lets ops see the
+        // hit ratio the caching above is buying.
+        cache_read_tokens: usageExt.cache_read_input_tokens ?? 0,
+        cache_creation_tokens: usageExt.cache_creation_input_tokens ?? 0,
         ops: operations.length,
+        duration_ms: Date.now() - startedAt,
       }),
     )
 

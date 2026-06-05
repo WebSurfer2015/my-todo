@@ -199,6 +199,7 @@ interface InferResponse {
 export const aiInfer = onCall(
   { secrets: [ANTHROPIC_API_KEY], region: 'us-central1' },
   async (request): Promise<InferResponse> => {
+    const startedAt = Date.now()
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Sign in to use AI assistance.')
     }
@@ -286,6 +287,11 @@ export const aiInfer = onCall(
 
     // Structured telemetry for Cloud Logging — per-mode cost/usage so ops
     // can track spend + anomalies. (Review gap: usage returned, never logged.)
+    // The pinned SDK Usage type omits the cache_* fields the API returns.
+    const usageExt = response.usage as {
+      cache_read_input_tokens?: number | null
+      cache_creation_input_tokens?: number | null
+    }
     console.log(
       JSON.stringify({
         event: 'aiInfer',
@@ -294,6 +300,11 @@ export const aiInfer = onCall(
         model: config.model,
         input_tokens: response.usage.input_tokens,
         output_tokens: response.usage.output_tokens,
+        // Prompt-cache effectiveness (suggest-todo-fields caches its
+        // system block); 0 for the uncached modes.
+        cache_read_tokens: usageExt.cache_read_input_tokens ?? 0,
+        cache_creation_tokens: usageExt.cache_creation_input_tokens ?? 0,
+        duration_ms: Date.now() - startedAt,
       }),
     )
 
