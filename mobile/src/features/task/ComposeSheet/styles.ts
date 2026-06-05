@@ -392,6 +392,28 @@ export function makeStyles(c: ThemeColors) {
       fontWeight: '600',
       letterSpacing: -0.16,
     },
+    datePresetRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'center',
+      gap: 8,
+      paddingTop: 12,
+      paddingHorizontal: 8,
+    },
+    datePresetChip: {
+      paddingVertical: 7,
+      paddingHorizontal: 14,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.bg,
+    },
+    datePresetChipActive: {
+      borderColor: c.primary,
+      backgroundColor: c.primarySoft,
+    },
+    datePresetChipText: { fontSize: 13, fontWeight: '600', color: c.label2 },
+    datePresetChipTextActive: { color: c.primary },
     dateWrap: {
       paddingTop: 8,
       alignItems: 'center',

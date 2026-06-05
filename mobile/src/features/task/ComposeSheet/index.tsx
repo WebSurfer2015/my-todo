@@ -16,7 +16,13 @@ import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
 import { useLang } from '../../../app/LangContext'
 import { useTheme, ThemeColors } from '../../../app/theme'
 import { formatDisplayDate, formatRecurrence, fullDateLabel, isoDate } from '../../../core-bindings/utils'
-import { todayLocal } from '../../../../../core/src/logic/utils'
+import {
+  todayLocal,
+  endOfWeekLocal,
+  endOfMonthLocal,
+  endOfYearLocal,
+  dueDateOnly,
+} from '../../../../../core/src/logic/utils'
 import PriorityDot from '../../../ui/PriorityDot'
 import CategoryIcon from '../../../ui/CategoryIcon'
 import InlinePicker from '../../../ui/InlinePicker'
@@ -1032,6 +1038,35 @@ export default function ComposeSheet({
                   >
                     <Text style={styles.dateClearBtnText}>{t.clear}</Text>
                   </TouchableOpacity>
+                </View>
+                {/* Quick due-date presets — each resolves to an end-of-period
+                    date (= "due by midnight" deadline); the picker below
+                    still allows a specific date+time, and Clear = unspecified. */}
+                <View style={styles.datePresetRow}>
+                  {[
+                    { label: 'Today', value: todayLocal() },
+                    { label: 'This week', value: endOfWeekLocal() },
+                    { label: 'This month', value: endOfMonthLocal() },
+                    { label: 'This year', value: endOfYearLocal() },
+                  ].map((p) => {
+                    const active = dueDateOnly(pendingDueDate) === p.value
+                    return (
+                      <TouchableOpacity
+                        key={p.label}
+                        style={[styles.datePresetChip, active && styles.datePresetChipActive]}
+                        onPress={() => {
+                          setPendingDueDate(p.value)
+                          setPickerDate(new Date(`${p.value}T00:00:00`))
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Due ${p.label}`}
+                      >
+                        <Text style={[styles.datePresetChipText, active && styles.datePresetChipTextActive]}>
+                          {p.label}
+                        </Text>
+                      </TouchableOpacity>
+                    )
+                  })}
                 </View>
                 <View style={styles.dateWrap}>
                   {pendingDueDate ? (

@@ -29,6 +29,12 @@ const RECURRENCE_LABELS: Record<'none' | RecurrenceFreq, string> = {
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
 import { formatDisplayDate, formatRecurrence, fullDateLabel, isoDate, todayLocal } from '../../../core-bindings/utils'
+import {
+  endOfWeekLocal,
+  endOfMonthLocal,
+  endOfYearLocal,
+  dueDateOnly,
+} from '../../../../../core/src/logic/utils'
 import { sortedSubs, snapDueDateToRecurrence } from '../../../../../core/src/logic/derive'
 import { useTheme, ThemeColors } from '../../../app/theme'
 import { useLang } from '../../../app/LangContext'
@@ -1065,6 +1071,33 @@ export default function TaskDetailsSheet({
                 >
                   <Text style={styles.dateClearBtnText}>{t.clear}</Text>
                 </TouchableOpacity>
+              </View>
+              {/* End-of-period due-date presets (Clear = unspecified). */}
+              <View style={styles.datePresetRow}>
+                {[
+                  { label: 'Today', value: todayLocal() },
+                  { label: 'This week', value: endOfWeekLocal() },
+                  { label: 'This month', value: endOfMonthLocal() },
+                  { label: 'This year', value: endOfYearLocal() },
+                ].map((p) => {
+                  const active = dueDateOnly(pendingEditDueDate) === p.value
+                  return (
+                    <TouchableOpacity
+                      key={p.label}
+                      style={[styles.datePresetChip, active && styles.datePresetChipActive]}
+                      onPress={() => {
+                        setPendingEditDueDate(p.value)
+                        setEditPickerDate(new Date(`${p.value}T00:00:00`))
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Due ${p.label}`}
+                    >
+                      <Text style={[styles.datePresetChipText, active && styles.datePresetChipTextActive]}>
+                        {p.label}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                })}
               </View>
               <View style={styles.dateWrap}>
                 {pendingEditDueDate ? (
