@@ -17,8 +17,17 @@ import { useNotify } from "../app/notify";
 import { storage as localAdapter } from "../adapters/persistence";
 import { db } from "../adapters/firebase";
 import { makeFirestoreAdapter } from "../adapters/firestoreAdapter";
-import { StorageAdapter, USER_STATE_KEYS } from "../../../core/src/ports/persistence";
+import { makeFirestoreCollectionAdapter } from "../adapters/firestoreCollectionAdapter";
+import { makeLocalCollectionAdapter } from "../adapters/localCollectionAdapter";
+import {
+  StorageAdapter,
+  CollectionAdapter,
+  USER_STATE_KEYS,
+} from "../../../core/src/ports/persistence";
 import { createTodoStore, migrateLocalToCloud } from "../../../core/src/store";
+import { useCollectionDualWrite } from "./useCollectionDualWrite";
+import { TODOS_PER_DOC_DUAL_WRITE } from "../app/featureFlags";
+import { serializeAny } from "../storage/envelope";
 import { DEFAULT_HOME_STAT_TILES } from "../../../core/src/logic/filters";
 import { todayLocal, genUuid } from "../../../core/src/logic/utils";
 import { getTodayPebbles, collectedNounKeyFor } from "../core-bindings/profile";
@@ -48,6 +57,19 @@ export function useTodoStore() {
   const uid = user?.uid ?? null;
   const adapter = useMemo<StorageAdapter>(
     () => (uid ? makeFirestoreAdapter(db, uid) : localAdapter),
+    [uid],
+  );
+
+  // Per-item collection adapter for the persistence-scale dual-write
+  // (docs/SPIKE-persistence-scale.md). Same uid-keyed swap as the single-doc
+  // adapter: cloud per-doc when signed in, AsyncStorage per-key when signed
+  // out. Consumed only by useCollectionDualWrite below, which is a no-op
+  // until TODOS_PER_DOC_DUAL_WRITE is flipped on after device QA.
+  const todosCollectionAdapter = useMemo<CollectionAdapter>(
+    () =>
+      uid
+        ? makeFirestoreCollectionAdapter(db, uid, "todos")
+        : makeLocalCollectionAdapter("todos"),
     [uid],
   );
 
@@ -235,6 +257,19 @@ export function useTodoStore() {
   // slice handles every call site internally. Composer re-exposes it
   // in the return for back-compat with any caller that reaches in.
   void applyPebbleDelta;
+
+  // Persistence-scale dual-write (default-OFF). Shadow-populates the
+  // per-item todos collection alongside the single-doc write so a future
+  // read-cutover has live data. No-op until TODOS_PER_DOC_DUAL_WRITE is
+  // flipped on after device QA — see docs/SPIKE-persistence-scale.md.
+  useCollectionDualWrite(
+    todosCollectionAdapter,
+    todos,
+    todosLoaded,
+    TODOS_PER_DOC_DUAL_WRITE,
+    (td) => td.id,
+    (td) => serializeAny(td),
+  );
 
   // Grocery slice — placed after the todos slice so its
   // toggleGroceryChecked can route bucket-completion deltas through

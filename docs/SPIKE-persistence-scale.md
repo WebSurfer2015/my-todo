@@ -1,23 +1,52 @@
 # Spike: persistence at scale — single-doc → per-doc
 
-**Status:** INFRASTRUCTURE BUILT + tested (2026-06). Live-store cutover is
-the remaining phase (flagged dual-write, device-QA'd — see §7 / below).
-**Author:** architecture review, 2026-06.
+**Status:** INFRASTRUCTURE + DEFAULT-OFF DUAL-WRITE SCAFFOLDING BUILT + tested
+(2026-06). The live read-cutover + single-doc drop remain, gated on on-device
+QA (see "Cutover checklist" below). **Author:** architecture review, 2026-06.
 
 ### Implementation progress
 - ✅ `CollectionAdapter` port + `CollectionEntry` + `itemCollectionPath` (core).
 - ✅ Cloud adapters: `makeFirestoreCollectionAdapter` for web (firebase/firestore)
   and mobile (@react-native-firebase) — `{value,updatedAt}` envelope reused.
+- ✅ Local (signed-out) adapters: `makeLocalCollectionAdapter` for mobile
+  (AsyncStorage, keyed `todos/{id}`) and web (localStorage) — unit-tested
+  (`web/src/adapters/localCollectionAdapter.test.ts`). Prefix scan can't
+  collide with the bare single-doc keys.
 - ✅ Sync brain: `syncCollection` (whole-array → minimal per-item upserts/
   removes) + `backfillCollection` (idempotent, forward-only) — unit-tested.
 - ✅ Rules: `match /users/{uid}/todos/{todoId}` (owner-only, shape cap,
   per-item delete allowed) + emulator integration tests.
-- ⏳ **Cutover (remaining):** a `useSyncedCollection` hook + wiring
-  `useTodoStore` (mobile first — the data-heavy platform) to dual-write
-  per-item behind a default-off flag, then flag-flip after on-device QA,
-  then backfill + drop the single doc. NOT rushed: flipping the live sync
-  engine without device QA risks data loss. Local (signed-out) collection
-  adapters land with the cutover.
+- ✅ **Dual-write scaffolding (default-OFF):** `useCollectionDualWrite`
+  (debounced per-item diff via `syncCollection`) wired into mobile
+  `useTodoStore` for `todos`, gated by `TODOS_PER_DOC_DUAL_WRITE` in
+  `mobile/src/app/featureFlags.ts` (**`= false`**). When off it never touches
+  the collection — zero behavior change. When on, it shadow-populates the
+  per-item collection alongside the existing single-doc write; reads stay on
+  the single doc, so it's non-destructive and reversible.
+- ⏳ **Read-cutover + drop (remaining, QA-gated):** flip the flag on after
+  on-device QA, backfill stragglers, switch reads to the collection behind a
+  staged-rollout profile flag, then stop writing + drop the single doc. NOT
+  rushed: flipping the live read path without device QA risks data loss.
+
+### Cutover checklist (do these IN ORDER, mobile first)
+1. **Flip `TODOS_PER_DOC_DUAL_WRITE = true`** in a dev build; verify on a real
+   device that edits land in `users/{uid}/todos/{id}` (Firestore console) AND
+   the single doc still updates. No UI change expected.
+2. **Backfill** existing users once via `backfillCollection` (idempotent) so
+   pre-flag todos populate the collection.
+3. **Multi-device QA:** edit different todos on two devices within the debounce
+   window — confirm per-item docs don't clobber each other (the conflict win).
+   **Offline QA:** edit offline, reconnect, confirm the queue drains per-item.
+4. **Cleanup wiring (before drop):** `signOut` / `clearKnownUserData` /
+   `clearAllData` currently only clear the bare single-doc keys — extend them
+   to delete the per-item collection too, or signed-out devices leak
+   `todos/{id}` across accounts. (Harmless while dual-write is off.)
+5. **Read-cutover** behind a `profile.todosPerDoc` staged-rollout flag (build a
+   per-doc `migrateTodo(one)` + a collection-hydration hook); single doc stays
+   the fallback for one release.
+6. **Drop:** stop writing the single doc, leave it readable one release, remove.
+- Repeat the whole sequence for `groceries` (the other unbounded hot
+  collection) — the wiring is identical; only `todos` is scaffolded today.
 
 ## 1. Problem
 
