@@ -38,6 +38,39 @@ export function stateDocPath(uid: string, key: string): string {
   return `users/${uid}/state/${key}`;
 }
 
+/**
+ * One stored entry in a per-item collection. `value` is the SAME versioned
+ * `{version,data}` envelope as the single-doc model — just one item per doc
+ * instead of the whole array — so the existing migrators + Firestore rules
+ * shape ({value:string, updatedAt:int}) are reused unchanged.
+ */
+export interface CollectionEntry {
+  id: string;
+  value: string;
+}
+
+/**
+ * Per-ITEM persistence (one document per todo/grocery), the scale path in
+ * docs/SPIKE-persistence-scale.md (option B). Edits write one small doc;
+ * conflict resolution is per-item, not whole-list. Parallel to
+ * StorageAdapter — the store picks one per entity behind this port, so the
+ * single-doc ↔ per-doc migration stays a swap behind the seam.
+ *
+ * `subscribe` (realtime backends) delivers the whole current set on each
+ * change — the store re-derives from it exactly like the single-doc path.
+ */
+export interface CollectionAdapter {
+  getAll(): Promise<CollectionEntry[]>;
+  upsert(id: string, value: string): Promise<void>;
+  remove(id: string): Promise<void>;
+  subscribe?(callback: (entries: CollectionEntry[]) => void): () => void;
+}
+
+/** Per-user item-collection path (e.g. users/{uid}/todos, users/{uid}/groceryItems). */
+export function itemCollectionPath(uid: string, collection: string): string {
+  return `users/${uid}/${collection}`;
+}
+
 export async function readVersioned<T>(
   storage: StorageAdapter,
   key: string,

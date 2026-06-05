@@ -61,6 +61,28 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Per-ITEM collections (scale path — docs/SPIKE-persistence-scale.md
+    // option B): one doc per todo/grocery instead of the whole array in a
+    // single state doc. Same { value, updatedAt } envelope + owner-only
+    // access as state, but delete IS allowed here — per-item delete (e.g.
+    // the 30-day trash purge) is the natural model for a collection, unlike
+    // the single state doc which clears via setItem-empty. Listed
+    // explicitly (not a {coll} wildcard) so it can't overlap the state /
+    // devices matches above.
+    match /users/{uid}/todos/{todoId} {
+      allow read:
+        if request.auth != null && request.auth.uid == uid;
+      allow create, update:
+        if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['value', 'updatedAt'])
+        && request.resource.data.value is string
+        && request.resource.data.value.size() <= 524288
+        && request.resource.data.updatedAt is int;
+      allow delete:
+        if request.auth != null && request.auth.uid == uid;
+    }
+
     // Push notification device registry. Each device the user signs in
     // on writes one doc with its Expo push token; Cloud Functions read
     // these to address pushes per uid. Only the owning user can read or
