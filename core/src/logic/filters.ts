@@ -14,7 +14,14 @@
  * These helpers operate on the raw `string[]` shapes the Profile stores
  * (Filter is a string subtype, so callers can pass `Filter[]` directly).
  */
-import type { Filter, ViewMode } from '../domain/types'
+import type { Filter, ViewMode, Todo } from '../domain/types'
+import {
+  isCategoryFilter,
+  isPriorityFilter,
+  categoryIdFromFilter,
+  priorityFromFilter,
+} from '../domain/types'
+import { todayLocal, dueDateOnly } from './utils'
 
 /** Soft cap on pinned filter pills in the FilterBar quick-access row. */
 export const PIN_LIMIT = 12
@@ -118,4 +125,50 @@ export function toggleStatTile(
  * "all", status view on "open". */
 export function defaultFilterForView(v: ViewMode): Filter {
   return v === 'category' ? 'all' : 'open'
+}
+
+const STATUS_FILTER_KEYS = new Set(['overdue', 'open', 'done', 'trash', 'groceries'])
+
+/**
+ * Count todos matching a pinned filter SET, using the SAME predicate as
+ * deriveState — OR within each type group (status / category / priority),
+ * AND across groups, with the trashed/completed-today grace rule. Powers
+ * the Dashboard pinned-filter cards' stat counts (each pinned set has no
+ * precomputed count, unlike single-filter tiles). Pure + testable.
+ */
+export function countTodosForFilterSet(
+  todos: readonly Todo[],
+  set: readonly string[],
+  today: string = todayLocal(),
+): number {
+  const statuses = set.filter((f) => STATUS_FILTER_KEYS.has(f))
+  const catIds = set
+    .filter((f) => isCategoryFilter(f as Filter))
+    .map((f) => categoryIdFromFilter(f as `cat:${string}`))
+  const pris = set
+    .filter((f) => isPriorityFilter(f as Filter))
+    .map((f) => priorityFromFilter(f as `pri:${'high' | 'medium' | 'low'}`))
+
+  const completedToday = (td: Todo) => !!td.done && td.completionDate === today
+  const isOverdue = (td: Todo) => !!td.dueDate && dueDateOnly(td.dueDate) < today
+  const matchesStatus = (td: Todo, s: string): boolean => {
+    if (s === 'done' || s === 'trash') return !!td.done || !!td.trashed
+    if (td.trashed && !completedToday(td)) return false
+    if (s === 'overdue') return isOverdue(td)
+    if (s === 'open') return !td.done && !td.trashed
+    return false // 'groceries' is not a todo predicate
+  }
+
+  let n = 0
+  for (const td of todos) {
+    if (statuses.length > 0) {
+      if (!statuses.some((s) => matchesStatus(td, s))) continue
+    } else if (td.trashed && !completedToday(td)) {
+      continue
+    }
+    if (catIds.length > 0 && !catIds.some((id) => td.category === id)) continue
+    if (pris.length > 0 && !pris.some((p) => td.priority === p)) continue
+    n++
+  }
+  return n
 }
