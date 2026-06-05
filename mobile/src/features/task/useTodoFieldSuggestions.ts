@@ -130,6 +130,14 @@ export function useTodoFieldSuggestions({
       return
     }
 
+    // The text changed to something we'll re-query: clear the stale
+    // suggestions NOW (they reflect the old text) and invalidate any
+    // in-flight response, so the pills never show fields that don't
+    // match what's currently typed. New suggestions arrive after the
+    // debounce + query below.
+    seqRef.current += 1
+    setSuggestions(null)
+
     timerRef.current = setTimeout(() => {
       const querySeq = ++seqRef.current
       const queryText = trimmed
