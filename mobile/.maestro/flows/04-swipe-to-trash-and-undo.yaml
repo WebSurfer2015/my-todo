@@ -20,7 +20,7 @@ appId: com.websurfer.mytodo
     text: ".*Not Do.*"
 # Snackbar surfaces with Undo.
 - assertVisible:
-    text: ".*(Tucked into Done|Undo).*"
+    text: ".*Marked as Not Do.*"
 - tapOn:
     text: "Undo"
 # Row is back in the active list.

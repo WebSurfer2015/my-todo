@@ -13,7 +13,7 @@ appId: com.websurfer.mytodo
       text: ".*Pay credit card bill.*"
     direction: LEFT
 - tapOn:
-    text: ".*Defer.*"
+    text: "Defer"
 # Single-row modal title is "Defer to" (the group action uses "Defer
 # all to"). Cover both forms in case the swipe deferred multiple
 # selected rows by accident.
