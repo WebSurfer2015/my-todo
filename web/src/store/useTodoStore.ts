@@ -88,19 +88,17 @@ const parseProfile = (raw: string | null): Profile => {
 
 const serializeAny = (v: unknown): string => wrap(v);
 
+import { migrateLocalToCloud as coreMigrateLocalToCloud } from "../../../core/src/store";
+
 /**
- * Push local data to cloud, per-key, only when that cloud key is empty.
- * Gating per-key (vs only checking `profile`) prevents wiping cloud todos or
- * categories on a device whose local copy is stale and whose cloud profile
- * happens to have been deleted or never written.
+ * Local→cloud migration on first sign-in. Delegates to the shared,
+ * unit-tested core helper (core/src/store/migration.ts) so web + mobile
+ * share ONE implementation of the per-key data-bleed guard. `localAdapter`
+ * is web's localStorage-backed StorageAdapter; the helper only reads it.
+ * Web migrates the shared three keys (the helper's default set).
  */
-async function migrateLocalToCloud(adapter: StorageAdapter): Promise<void> {
-  for (const key of ["todos", "categories", "profile"] as const) {
-    const cloudVal = await adapter.getItem(key);
-    if (cloudVal != null) continue;
-    const raw = localStorage.getItem(key);
-    if (raw != null) await adapter.setItem(key, raw);
-  }
+function migrateLocalToCloud(adapter: StorageAdapter): Promise<string[]> {
+  return coreMigrateLocalToCloud(adapter, localAdapter);
 }
 
 export function useTodoStore() {

@@ -18,31 +18,10 @@ import { storage as localAdapter } from "../adapters/persistence";
 import { db } from "../adapters/firebase";
 import { makeFirestoreAdapter } from "../adapters/firestoreAdapter";
 import { StorageAdapter, USER_STATE_KEYS } from "../../../core/src/ports/persistence";
-import { createTodoStore } from "../../../core/src/store";
+import { createTodoStore, migrateLocalToCloud } from "../../../core/src/store";
 import { DEFAULT_HOME_STAT_TILES } from "../../../core/src/logic/filters";
 import { todayLocal, genUuid } from "../../../core/src/logic/utils";
 import { getTodayPebbles, collectedNounKeyFor } from "../core-bindings/profile";
-
-/**
- * Push local AsyncStorage data to cloud, per-key, only when that cloud key is
- * empty. Per-key gating (vs only checking `profile`) prevents stomping cloud
- * todos or categories on a device whose local copy is stale and whose cloud
- * profile happens to have been deleted or never written.
- */
-async function migrateLocalToCloud(adapter: StorageAdapter): Promise<void> {
-  for (const key of [
-    "todos",
-    "categories",
-    "profile",
-    "groceries",
-    "groceryGroups",
-  ] as const) {
-    const cloudVal = await adapter.getItem(key);
-    if (cloudVal != null) continue;
-    const raw = await AsyncStorage.getItem(key);
-    if (raw != null) await adapter.setItem(key, raw);
-  }
-}
 
 import { pickMascotLine, dateSeed } from "../features/mochi/mascotLines";
 import { Analytics } from "../adapters/analytics";
@@ -75,7 +54,16 @@ export function useTodoStore() {
   useEffect(() => {
     if (!uid) return;
     let cancelled = false;
-    migrateLocalToCloud(adapter).catch((err) => {
+    // Mobile migrates its grocery superset too (web ships the shared
+    // three). localAdapter reads this device's AsyncStorage; the core
+    // helper's per-key gating prevents stomping any populated cloud key.
+    migrateLocalToCloud(adapter, localAdapter, [
+      "todos",
+      "categories",
+      "profile",
+      "groceries",
+      "groceryGroups",
+    ]).catch((err) => {
       if (!cancelled) console.warn("Local→cloud migration failed:", err);
     });
     return () => {
