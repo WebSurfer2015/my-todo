@@ -774,55 +774,6 @@ export default function HomeScreen() {
   )
 }
 
-interface StatProps {
-  label: string
-  value: number
-  styles: ReturnType<typeof makeStyles>
-}
-
-function StatTile({ label, value, styles }: StatProps) {
-  const theme = useTheme()
-  return (
-    <View style={styles.statTile}>
-      <Text style={styles.statValue}>{value}</Text>
-      <View style={styles.statLabelRow}>
-        <CheckCircle2 size={11} color={theme.primary} strokeWidth={2.4} />
-        <Text style={styles.statLabel} numberOfLines={1}>
-          {label}
-        </Text>
-      </View>
-    </View>
-  )
-}
-
-interface FilterTileProps {
-  icon: React.ReactNode
-  label: string
-  value: number
-  onPress: () => void
-  styles: ReturnType<typeof makeStyles>
-}
-
-function FilterTile({ icon, label, value, onPress, styles }: FilterTileProps) {
-  return (
-    <TouchableOpacity
-      style={styles.statTile}
-      onPress={onPress}
-      activeOpacity={0.7}
-      accessibilityRole="button"
-      accessibilityLabel={`${label}, ${value}. Tap to open in Todos.`}
-    >
-      <Text style={styles.statValue}>{value}</Text>
-      <View style={styles.statLabelRow}>
-        {icon}
-        <Text style={styles.statLabel} numberOfLines={1}>
-          {label}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  )
-}
-
 /** Resolve a Filter to its render parts for the sticky Home stats row. */
 function resolveTile(
   f: Filter,
