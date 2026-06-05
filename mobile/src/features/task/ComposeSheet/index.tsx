@@ -379,9 +379,6 @@ export default function ComposeSheet({
                     <Text style={styles.cancelText}>{t.cancel}</Text>
                   </TouchableOpacity>
                   <View style={styles.titleRow}>
-                    {agentEnabled && (
-                      <Sparkles size={14} color={theme.primary} strokeWidth={2.2} />
-                    )}
                     <Text style={styles.title}>Add to-do</Text>
                   </View>
                   <TouchableOpacity
@@ -442,18 +439,6 @@ export default function ComposeSheet({
                       multiline
                       maxLength={4096}
                       textAlignVertical="top"
-                    />
-                    <View style={styles.titleCardDivider} />
-                    <TextInput
-                      style={styles.notesInputInline}
-                      value={notes}
-                      onChangeText={setNotes}
-                      placeholder={t.notes.placeholder}
-                      placeholderTextColor={theme.gray3}
-                      multiline
-                      maxLength={8192}
-                      textAlignVertical="top"
-                      accessibilityLabel="Notes — anything that helps you externalize the thinking around this task"
                     />
                   </View>
                   {/* No global Mochi-busy row here — TodoFieldSuggestPills
