@@ -4,6 +4,9 @@ This is the source of truth for Sagely's positioning. The behavioral rules in
 **Principles** below should anchor every UX, copy, and feature decision. The
 **App Store metadata** section is the current text shipped to ASC.
 
+The strategic *why* and market sizing behind the current direction live in
+[`POSITIONING-BRIEF.md`](./POSITIONING-BRIEF.md). Read both together.
+
 To re-load this into Claude's memory in a future conversation, ask Claude to
 read this file and update `memory/project_marketing_positioning.md`.
 
@@ -13,18 +16,33 @@ read this file and update `memory/project_marketing_positioning.md`.
 
 ### One-liner
 
-A calm to-do app for days you can't be a productivity person.
+**Sagely — Calm to-dos for real life.**
+
+*(Prior framing, still true to the DNA: "A calm to-do app for days you can't
+be a productivity person." The shift to "real life" broadens the audience
+without changing the value prop — see `POSITIONING-BRIEF.md`.)*
 
 ### Audience
 
-Adults whose nervous systems are already loud — anxiety, OCD patterns, chronic
-procrastination, low stress tolerance, negative self-talk — and who find
-scoreboard-style productivity apps actively make things worse.
+People juggling real life — work, family, event planning, social, self-care —
+who find scoreboard-style productivity apps add pressure instead of removing
+it. The heart of this audience are adults whose nervous systems are already
+loud (anxiety, chronic procrastination, low stress tolerance, the
+burnout-adjacent and adult-ADHD population) — now a mainstream slice of busy
+professionals, not a clinical edge case. "Real life" removes the
+self-identification gate without diluting the calm DNA.
+
+Two personas (full detail in `POSITIONING-BRIEF.md`):
+
+- **The overwhelmed working professional** (primary) — competent and busy,
+  quietly burned out by apps that grade them.
+- **The young professional** (secondary) — same load, earlier in career,
+  mobile-first, reachable through community not ads.
 
 ### Need
 
-Track and finish tasks without the daily punishment loop ("you missed your
-streak / you're behind / you failed").
+Track and finish what real life throws at you — without the daily punishment
+loop ("you missed your streak / you're behind / you failed").
 
 ### Promise
 
@@ -57,6 +75,7 @@ Mochi's line so neither one disappears.
 | Todoist / TickTick | maximize throughput | minimize harm |
 | Notion / Things | cold, dense, complex | warm, quiet, focused |
 | Apple Reminders | utilitarian, no emotional layer | emotional layer that doesn't grade |
+| Sunsama / Motion | calm/intentional, but desktop, work-only, cold, $20/mo | calm for all of real life, mobile-first, warm, affordable |
 
 ### Mission-aligned features
 
@@ -91,6 +110,13 @@ When in doubt, run the dual-lens review (PM lens + UX lens) per
 ---
 
 ## App Store metadata (current — version 1.3.0)
+
+> **Pending revision.** The copy below is what's *currently shipped* to ASC
+> (v1.3.0) and still uses the prior "hard days" framing. Revising it to the
+> "Calm to-dos for real life" direction (subtitle, promo text, description,
+> keywords, and all 6 locales) is a follow-up tied to the next store
+> submission — not yet done here. The **Principles** above are the updated
+> source of truth in the meantime.
 
 ### Subtitle (30-char limit)
 
