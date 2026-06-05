@@ -1,0 +1,93 @@
+# Nightly Maestro E2E on the iOS simulator.
+#
+# Authored as part of the QA-automation program (P5). Runs the
+# non-destructive seeded flow subset against a freshly built dev client.
+#
+# ⚠ REQUIRES SETUP before it will go green (it's wired but unverified —
+# there's no macOS runner in local dev):
+#   1. Repo → Settings → Secrets → Actions, add:
+#        SAGELY_FIREBASE_WEB_API_KEY   (Firebase Web API key)
+#        SAGELY_DEMO_EMAIL             (demo account email)
+#        SAGELY_DEMO_PASSWORD          (demo account password)
+#      The demo account should point at a TEST Firebase project, not prod.
+#   2. Confirm the iOS Simulator device name below matches an image
+#      available on the macOS runner (`xcrun simctl list devices`).
+#
+# Cost note: macOS minutes + a full native build (~15-25 min) — hence
+# nightly + manual dispatch only, never on every push.
+name: E2E (nightly)
+
+on:
+  schedule:
+    - cron: '0 8 * * *' # 08:00 UTC daily
+  workflow_dispatch: {} # manual trigger from the Actions tab
+
+jobs:
+  maestro-ios:
+    name: Maestro flows (iOS simulator)
+    runs-on: macos-14
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install mobile deps
+        working-directory: mobile
+        run: npm ci --legacy-peer-deps
+
+      - name: Install Maestro CLI
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Boot a simulator
+        run: |
+          xcrun simctl boot "iPhone 15 Pro" || true
+          xcrun simctl bootstatus "iPhone 15 Pro" -b
+
+      - name: Build + install the dev client on the sim
+        working-directory: mobile
+        # Builds the native app and installs it on the booted simulator.
+        run: npx expo run:ios --configuration Release --device "iPhone 15 Pro"
+
+      - name: Seed the demo account
+        working-directory: mobile
+        env:
+          SAGELY_FIREBASE_WEB_API_KEY: ${{ secrets.SAGELY_FIREBASE_WEB_API_KEY }}
+          SAGELY_DEMO_EMAIL: ${{ secrets.SAGELY_DEMO_EMAIL }}
+          SAGELY_DEMO_PASSWORD: ${{ secrets.SAGELY_DEMO_PASSWORD }}
+        run: python3 scripts/seed_sample_data.py
+
+      - name: Run the non-destructive flow subset
+        working-directory: mobile
+        # Excludes the destructive/standalone flows (16 sign-out,
+        # 17 clear-completed) and the empty-account flows (10, 12) which
+        # need clear_sample_data.py first. Everything else is seed-safe.
+        run: |
+          maestro test \
+            .maestro/flows/01-cold-launch-lands-on-home.yaml \
+            .maestro/flows/02-add-todo.yaml \
+            .maestro/flows/03-toggle-done-and-strike.yaml \
+            .maestro/flows/04-swipe-to-trash-and-undo.yaml \
+            .maestro/flows/05-defer-all-group.yaml \
+            .maestro/flows/06-pebble-lifetime-count.yaml \
+            .maestro/flows/07-defer-single-via-swipe.yaml \
+            .maestro/flows/08-recurring-rolling.yaml \
+            .maestro/flows/09-shopping-add-item.yaml \
+            .maestro/flows/11-shopping-add-store.yaml \
+            .maestro/flows/13-tab-navigation.yaml \
+            .maestro/flows/14-relaunch-persists-data.yaml \
+            .maestro/flows/15-open-task-details-sheet.yaml \
+            .maestro/flows/18-bin-reopen.yaml
+
+      - name: Upload Maestro debug artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-debug
+          path: ~/.maestro/tests
+          retention-days: 7
