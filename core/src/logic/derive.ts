@@ -154,6 +154,27 @@ function rollDateTime(at: string, fromDate: string, toDate: string): string {
 }
 
 /**
+ * Copy reminders onto a new series occurrence, rebasing each `at` from the
+ * source occurrence's due to the target's — rollDateTime preserves the
+ * delta-from-due, i.e. the time-of-day / before-due offset, so every
+ * occurrence reminds at the same clock time relative to its own due. Fresh
+ * ids keep the scheduler's per-fire keys distinct across instances.
+ */
+function rebaseReminders(
+  reminders: Reminder[],
+  fromDue: string,
+  toDue: string,
+): Reminder[] {
+  return reminders.map((r) => {
+    const reb: Reminder = { id: genUuid(), at: rollDateTime(r.at, fromDue, toDue) };
+    if (r.offsetMinutes != null) reb.offsetMinutes = r.offsetMinutes;
+    if (r.intervalMinutes != null) reb.intervalMinutes = r.intervalMinutes;
+    if (r.until) reb.until = rollDateTime(r.until, fromDue, toDue);
+    return reb;
+  });
+}
+
+/**
  * Build the initial Todo for a recurring series. Always one rolling
  * instance, regardless of whether the recurrence has an endDate —
  * todoToggle advances dueDate to the next occurrence on each completion
@@ -916,16 +937,22 @@ export function expandSeries(seed: Todo, todayISO: string): Todo[] {
   const dates = expandRecurrence(seedDateOnly, hardEnd, rec);
   if (dates.length <= 1) return [head];
   const now = Date.now();
+  // Seed reminders (normalized) rebased onto each instance below, so every
+  // occurrence reminds at the same time-of-day / before-due offset — the
+  // "9:30 on each occurrence" behavior. Without this, only the seed kept
+  // its reminders and future instances had none.
+  const seedReminders = getReminders(seed);
   const out: Todo[] = [head];
   // Skip the first generated date (it's the seed). Generate fresh
   // instances for the rest.
   for (let i = 1; i < dates.length; i++) {
+    const instDue = dates[i] + timeSuffix;
     const inst: Todo = {
       id: genUuid(),
       text: seed.text,
       done: false,
       priority: seed.priority,
-      dueDate: dates[i] + timeSuffix,
+      dueDate: instDue,
       trashed: false,
       updatedAt: now,
       seriesId,
@@ -935,6 +962,9 @@ export function expandSeries(seed: Todo, todayISO: string): Todo[] {
     const subs = cloneSubtasksFresh(seed.subtasks);
     if (subs) inst.subtasks = subs;
     if (seed.notes) inst.notes = seed.notes;
+    if (seedReminders.length > 0) {
+      inst.reminders = rebaseReminders(seedReminders, seed.dueDate as string, instDue);
+    }
     out.push(inst);
   }
   return out;
@@ -992,16 +1022,18 @@ export function topUpSeries(
   const timeSuffix = tIdx === -1 ? "" : inheritDD.slice(tIdx);
   const interval = rec.interval ?? 1;
   const now = Date.now();
+  const inheritReminders = getReminders(inheritFrom);
   const additions: Todo[] = [];
   let cursor = nextOccurrence(latest, rec.freq, interval, rec.byWeekday, rec.bySetPos);
   let guard = 0;
   while (cursor <= hardEnd && guard < MAX_RECURRENCE_INSTANCES) {
+    const instDue = cursor + timeSuffix;
     const inst: Todo = {
       id: genUuid(),
       text: inheritFrom.text,
       done: false,
       priority: inheritFrom.priority,
-      dueDate: cursor + timeSuffix,
+      dueDate: instDue,
       trashed: false,
       updatedAt: now,
       seriesId,
@@ -1011,6 +1043,9 @@ export function topUpSeries(
     const subs = cloneSubtasksFresh(inheritFrom.subtasks);
     if (subs) inst.subtasks = subs;
     if (inheritFrom.notes) inst.notes = inheritFrom.notes;
+    if (inheritReminders.length > 0) {
+      inst.reminders = rebaseReminders(inheritReminders, inheritDD, instDue);
+    }
     additions.push(inst);
     cursor = nextOccurrence(cursor, rec.freq, interval, rec.byWeekday, rec.bySetPos);
     guard += 1;
@@ -1073,12 +1108,13 @@ export function appendNextSeriesInstance(
   const tIdx = inheritFrom.dueDate.indexOf("T");
   const timeSuffix = tIdx === -1 ? "" : inheritFrom.dueDate.slice(tIdx);
   const now = Date.now();
+  const instDue = next + timeSuffix;
   const inst: Todo = {
     id: genUuid(),
     text: inheritFrom.text,
     done: false,
     priority: inheritFrom.priority,
-    dueDate: next + timeSuffix,
+    dueDate: instDue,
     trashed: false,
     updatedAt: now,
     seriesId,
@@ -1088,6 +1124,10 @@ export function appendNextSeriesInstance(
   const subs = cloneSubtasksFresh(inheritFrom.subtasks);
   if (subs) inst.subtasks = subs;
   if (inheritFrom.notes) inst.notes = inheritFrom.notes;
+  const appendReminders = getReminders(inheritFrom);
+  if (appendReminders.length > 0) {
+    inst.reminders = rebaseReminders(appendReminders, inheritFrom.dueDate, instDue);
+  }
   return [...todos, inst];
 }
 

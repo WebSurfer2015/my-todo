@@ -167,7 +167,19 @@ export interface Reminder {
    * (`todo:<todoId>:<reminderId>:<fireIndex>`) stays distinct
    * across edits and across same-todo entries. */
   id: string
+  /** Absolute local ISO datetime of the (first) fire — always set, so the
+   * scheduler works off this directly. For "before due" reminders it's
+   * computed as the due moment minus `offsetMinutes` and rebased whenever
+   * the due date changes / per recurrence occurrence. */
   at: string
+  /**
+   * "Before due" mode: minutes before the todo's due datetime that this
+   * reminder fires. When set, `at` is derived from the due (and kept in
+   * sync on edits / per occurrence). Absent = a fixed absolute reminder.
+   */
+  offsetMinutes?: number
+  /** "Repeating" mode: re-fire every N minutes after `at` (the UI offers
+   * minutes / hours / days, stored as minutes). */
   intervalMinutes?: number
   until?: string
 }
