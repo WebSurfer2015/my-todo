@@ -107,6 +107,20 @@ export function makeStyles(c: ThemeColors) {
     section: {
       gap: 12,
     },
+    fixedRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+      flexWrap: 'wrap',
+    },
+    fixedAddBtn: {
+      paddingVertical: 9,
+      paddingHorizontal: 18,
+      borderRadius: 999,
+      backgroundColor: c.primary,
+    },
+    fixedAddBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
     sectionHeader: {
       fontSize: 11,
       fontWeight: '700',

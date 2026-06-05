@@ -23,7 +23,10 @@
  * as a sub-view inside ComposeSheet / TaskDetailsSheet's Modal.
  */
 import React, { useMemo, useState } from 'react'
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import DateTimePicker, {
+  type DateTimePickerEvent,
+} from '@react-native-community/datetimepicker'
 import { useLang } from '../../../app/LangContext'
 import { useTheme } from '../../../app/theme'
 import type { Reminder } from '../../../core-bindings/types'
@@ -82,12 +85,30 @@ function isoMinutesBeforeDue(dueDate: string, minutes: number): string {
 /** ISO of now + N minutes. */
 function isoMinutesFromNow(minutes: number): string {
   const d = new Date(Date.now() + minutes * 60_000)
+  return isoLocalDateTime(d)
+}
+
+/** Format a Date as local `yyyy-mm-ddTHH:mm` (no timezone) — the shape
+ * reminders store in `at`. */
+function isoLocalDateTime(d: Date): string {
   const yy = d.getFullYear()
   const mo = String(d.getMonth() + 1).padStart(2, '0')
   const da = String(d.getDate()).padStart(2, '0')
   const hh = String(d.getHours()).padStart(2, '0')
   const mm = String(d.getMinutes()).padStart(2, '0')
   return `${yy}-${mo}-${da}T${hh}:${mm}`
+}
+
+/** Short human label for a fixed absolute reminder, e.g. "Jun 7, 9:00 AM". */
+function fixedPillLabel(at: string): string {
+  const d = new Date(at)
+  if (Number.isNaN(d.valueOf())) return at
+  return d.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 /** Render text for a "before due" pill. */
@@ -178,6 +199,24 @@ export default function ReminderSheet({
     })
   }
 
+  // Fixed (absolute date/time) reminder. Default an hour out so the
+  // picker opens on a sensible near-future moment.
+  const [fixedDate, setFixedDate] = useState<Date>(
+    () => new Date(Date.now() + 60 * 60 * 1000),
+  )
+  function onFixedChange(_e: DateTimePickerEvent, selected?: Date) {
+    if (selected) setFixedDate(selected)
+  }
+  function addFixed() {
+    const at = isoLocalDateTime(fixedDate)
+    setPending((prev) => {
+      if (prev.length >= MAX_REMINDERS_PER_TODO) return prev
+      // Dedupe against an identical one-shot already pending.
+      if (prev.some((r) => !r.intervalMinutes && r.at === at)) return prev
+      return [...prev, { id: genUuid(), at }]
+    })
+  }
+
   function removeOne(id: string) {
     setPending((prev) => prev.filter((r) => r.id !== id))
   }
@@ -208,7 +247,9 @@ export default function ReminderSheet({
       )
       out.push({
         id: r.id,
-        label: m ? beforeDuePillLabel(m.minutes, t) : t.remindPillCustom,
+        // A before-due chip match → "15 min before"; otherwise it's a
+        // fixed absolute reminder → show its actual date/time.
+        label: m ? beforeDuePillLabel(m.minutes, t) : fixedPillLabel(r.at),
       })
     }
     for (const r of repeating) {
@@ -357,6 +398,31 @@ export default function ReminderSheet({
                 </TouchableOpacity>
               )
             })}
+          </View>
+        </View>
+
+        {/* Fixed (specific date & time) section — an absolute one-shot
+            reminder, independent of the due date. Works for todos with no
+            due date too. On recurring todos the saved `at` is rebased per
+            occurrence (core expandSeries), preserving the chosen offset. */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>SPECIFIC TIME</Text>
+          <View style={styles.fixedRow}>
+            <DateTimePicker
+              value={fixedDate}
+              mode="datetime"
+              display={Platform.OS === 'ios' ? 'compact' : 'default'}
+              themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
+              onChange={onFixedChange}
+            />
+            <TouchableOpacity
+              style={styles.fixedAddBtn}
+              onPress={addFixed}
+              accessibilityRole="button"
+              accessibilityLabel="Add a reminder at this date and time"
+            >
+              <Text style={styles.fixedAddBtnText}>Add</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
