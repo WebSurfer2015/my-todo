@@ -50,8 +50,11 @@ export default function ManageAnimationSoundSheet({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+      {/* Sibling backdrop tap-layer (not a wrapper) — a wrapping Pressable
+          collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
+      <View style={styles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
+        <View style={styles.sheet}>
           <View style={styles.handle} />
           <View style={styles.headerRow}>
             <View style={styles.headerSide} />
@@ -93,8 +96,8 @@ export default function ManageAnimationSoundSheet({
               />
             </View>
           </ScrollView>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   )
 }

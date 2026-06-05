@@ -427,8 +427,11 @@ export default function GroceryComposeSheet({
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <Pressable style={styles.backdrop} onPress={onClose}>
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+        {/* Sibling backdrop tap-layer (not a wrapper) — a wrapping Pressable
+            collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
+        <View style={styles.backdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
+          <View style={styles.sheet}>
             <View style={styles.handle} />
 
             {subView === 'main' && (
@@ -568,8 +571,8 @@ export default function GroceryComposeSheet({
             {/* Department + Store sub-view pickers were removed in
                 Phase 1 — Add Item is now name-only. Inferred dept +
                 inherited active-store filter handle the rest. */}
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   )

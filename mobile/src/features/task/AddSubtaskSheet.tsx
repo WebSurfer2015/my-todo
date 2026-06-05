@@ -89,8 +89,11 @@ export default function AddSubtaskSheet({ visible, onAdd, onClose, defaultDueDat
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <Pressable style={styles.backdrop} onPress={onClose}>
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+        {/* Sibling backdrop tap-layer (not a wrapper) — a wrapping Pressable
+            collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
+        <View style={styles.backdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
+          <View style={styles.sheet}>
             <View style={styles.handle} />
 
             {subView === 'main' && (
@@ -218,8 +221,8 @@ export default function AddSubtaskSheet({ visible, onAdd, onClose, defaultDueDat
                 ) : null}
               </View>
             )}
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   )

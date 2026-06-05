@@ -24,6 +24,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -352,17 +353,18 @@ export default function StorePicker({
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <Pressable
-          style={styles.backdrop}
-          onPress={() => {
-            if (editing) setEditing(false);
-            onClose();
-          }}
-        >
+        {/* Sibling backdrop tap-layer (not a wrapper) — a wrapping Pressable
+            collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
+        <View style={styles.backdrop}>
           <Pressable
-            style={[styles.sheet, { minHeight: screenH * 0.3 }]}
-            onPress={(e) => e.stopPropagation()}
-          >
+            style={StyleSheet.absoluteFill}
+            accessible={false}
+            onPress={() => {
+              if (editing) setEditing(false);
+              onClose();
+            }}
+          />
+          <View style={[styles.sheet, { minHeight: screenH * 0.3 }]}>
             <View style={styles.handle} />
             {deptFormMode ? (
               <DeptForm
@@ -659,8 +661,8 @@ export default function StorePicker({
                 </ScrollView>
               </>
             )}
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );

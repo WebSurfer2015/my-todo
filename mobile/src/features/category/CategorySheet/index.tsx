@@ -380,7 +380,10 @@ export default function CategorySheet({
           style={styles.flex}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <Pressable style={styles.backdrop} onPress={onClose}>
+          {/* Sibling backdrop tap-layer (not a wrapper) — a wrapping Pressable
+              collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
+          <View style={styles.backdrop}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
             {/* Plain View (not Pressable) for the sheet itself. The
                 opaque background already absorbs taps so they don't
                 reach the backdrop, and a Pressable here would claim
@@ -843,7 +846,7 @@ export default function CategorySheet({
                 </>
               )}
             </View>
-          </Pressable>
+          </View>
         </KeyboardAvoidingView>
       </GestureHandlerRootView>
     </Modal>

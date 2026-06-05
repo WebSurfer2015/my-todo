@@ -99,8 +99,11 @@ export default function ChatSheet({
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <Pressable style={styles.backdrop} onPress={close}>
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+        {/* Sibling backdrop tap-layer (not a wrapper) — a wrapping Pressable
+            collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
+        <View style={styles.backdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={close} accessible={false} />
+          <View style={styles.sheet}>
             <View style={styles.handle} />
             <View style={styles.headerRow}>
               <Text style={styles.title}>Ask Mochi</Text>
@@ -186,8 +189,8 @@ export default function ChatSheet({
                 <Text style={styles.sendBtnText}>↑</Text>
               </TouchableOpacity>
             </View>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   )

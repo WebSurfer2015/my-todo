@@ -290,8 +290,11 @@ export default function ProfileSheet({
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <Pressable style={styles.backdrop} onPress={onClose}>
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+        {/* Sibling backdrop tap-layer (not a wrapper) — a wrapping Pressable
+            collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
+        <View style={styles.backdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
+          <View style={styles.sheet}>
             <View style={styles.handle} />
             <View style={styles.titleRow}>
               <TouchableOpacity
@@ -521,8 +524,8 @@ export default function ProfileSheet({
 
             <View style={{ height: 24 }} />
             </ScrollView>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );
