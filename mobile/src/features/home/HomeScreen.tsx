@@ -45,6 +45,17 @@ import Fab from '../../app/Fab'
 import TaskItem from '../task/TaskItem'
 import DeferModal from '../task/DeferModal'
 import { Analytics } from '../../adapters/analytics'
+import { Store as StoreIcon, Tag } from 'lucide-react-native'
+import DraggableFlatList, {
+  ScaleDecorator,
+  type RenderItemParams,
+} from 'react-native-draggable-flatlist'
+import {
+  effectiveDashboardTiles,
+  dashboardTileKey,
+  countTodosForFilterSet,
+} from '../../../../core/src/logic/filters'
+import type { DashboardTile } from '../../../../core/src/data/profile'
 
 function isoDate(d: Date): string {
   const y = d.getFullYear()
@@ -278,7 +289,22 @@ export default function HomeScreen() {
   // Effective tiles come from the store (defaults to Home/Work/Done when
   // the user hasn't customized). Computed there so the Manage Filter
   // badges stay in sync with what the Home tiles actually render.
-  const effectiveHomeStatTiles = store.effectiveHomeStatTiles
+  // Unified Dashboard pinned-card row (Todos filter sets + Shopping
+  // store/dept pins), reconciled to the live pins each render. The user's
+  // drag order persists to profile.dashboardTiles.
+  const dashboardTiles = useMemo(
+    () => effectiveDashboardTiles(store.profile),
+    [store.profile],
+  )
+  const navigateTab = useCallback(
+    (tab: 'Todos' | 'Groceries') => navigation.navigate(tab),
+    [navigation],
+  )
+  const onReorderTiles = useCallback(
+    (data: DashboardTile[]) =>
+      store.saveProfile({ ...store.profile, dashboardTiles: data }),
+    [store],
+  )
 
   // Pass-through render of TaskItem for each row, so Home inherits the
   // unified tap/long-press/swipe model and the embedded TaskDetailsSheet
@@ -676,43 +702,49 @@ export default function HomeScreen() {
           Also hidden when ALL picked tiles have zero count — no point
           rendering a sticky strip of "0 / 0 / 0", and the per-tile
           filter below already drops the zero entries. */}
-      {effectiveHomeStatTiles.some(
-        (f) => resolveTile(f, store, t, theme).count > 0,
-      ) && (
+      {/* Unified pinned-card row — Todos filter sets + Shopping pins,
+          horizontally scrollable, each with its live stat count. Long-press
+          a card to drag-reorder (order persists to profile.dashboardTiles);
+          tap to open it in the right tab. Replaces the old Manage-Tiles
+          stat row. */}
+      {dashboardTiles.length > 0 && (
         <View
           style={styles.statsRowSticky}
           onLayout={(e) => setStatsRowHeight(e.nativeEvent.layout.height)}
         >
-          <ScrollView
+          <DraggableFlatList
             horizontal
+            data={dashboardTiles}
+            keyExtractor={(item) => dashboardTileKey(item)}
+            onDragEnd={({ data }) => onReorderTiles(data)}
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={[
-              styles.statsRowScroll,
-              // Center the tiles when 3 or fewer fit comfortably on
-              // screen. Beyond 3 the user scrolls, so left-align so
-              // the scroll feels natural and the first tile lines up
-              // with the rest of the screen padding.
-              effectiveHomeStatTiles.length <= 3 && styles.statsRowScrollCenter,
-            ]}
-          >
-            {effectiveHomeStatTiles
-              .map((f, i) => ({ f, i, tile: resolveTile(f, store, t, theme) }))
-              // Hide zero-value tiles — "0 / Home" reads as "I'm
-              // failing" to less-techy users and adds visual noise
-              // without information. Tiles return as soon as the
-              // user puts an item in that category/priority.
-              .filter(({ tile }) => tile.count > 0)
-              .map(({ f, i, tile }) => (
-                <FilterTile
-                  key={`${f}-${i}`}
-                  icon={tile.icon}
-                  label={tile.label}
-                  value={tile.count}
-                  onPress={() => openTodos(f)}
-                  styles={styles}
-                />
-              ))}
-          </ScrollView>
+            contentContainerStyle={styles.statsRowScroll}
+            renderItem={({ item, drag, isActive }: RenderItemParams<DashboardTile>) => {
+              const r = resolveDashboardTile(item, store, t, theme, navigateTab)
+              return (
+                <ScaleDecorator>
+                  <TouchableOpacity
+                    style={[styles.statTile, isActive && styles.statTileDragging]}
+                    onPress={r.onPress}
+                    onLongPress={drag}
+                    disabled={isActive}
+                    delayLongPress={200}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${r.label}, ${r.count}. Tap to open; long-press to reorder.`}
+                  >
+                    <Text style={styles.statValue}>{r.count}</Text>
+                    <View style={styles.statLabelRow}>
+                      {r.icon}
+                      <Text style={styles.statLabel} numberOfLines={1}>
+                        {r.label}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                </ScaleDecorator>
+              )
+            }}
+          />
         </View>
       )}
       <DeferModal
@@ -736,9 +768,7 @@ export default function HomeScreen() {
         }}
         accessibilityLabel={t.addPlaceholder}
         agentEnabled={store.profile.agentEnabled !== false}
-        extraBottom={
-          effectiveHomeStatTiles.length > 0 ? statsRowHeight + 4 : 0
-        }
+        extraBottom={dashboardTiles.length > 0 ? statsRowHeight + 4 : 0}
       />
     </View>
   )
@@ -846,6 +876,57 @@ function resolveTile(
     icon: <CheckCircle2 size={11} color={theme.label3} strokeWidth={2.4} />,
     label: '—',
     count: 0,
+  }
+}
+
+/** Resolve a unified Dashboard tile (Todos filter set OR a Shopping
+ * store/dept pin) to its label, stat count, icon, and tap action. */
+function resolveDashboardTile(
+  tile: DashboardTile,
+  store: ReturnType<typeof useStore>,
+  t: ReturnType<typeof useLang>['t'],
+  theme: ThemeColors,
+  navigate: (tab: 'Todos' | 'Groceries') => void,
+): { label: string; count: number; icon: React.ReactNode; onPress: () => void } {
+  if (tile.kind === 'todoFilter') {
+    const parts = tile.set.map((f) => resolveTile(f as Filter, store, t, theme))
+    return {
+      label: parts.map((p) => p.label).join(' + ') || (t.filters.all ?? 'All'),
+      count: countTodosForFilterSet(store.todos, tile.set),
+      icon:
+        parts[0]?.icon ?? (
+          <CheckCircle2 size={11} color={theme.primary} strokeWidth={2.4} />
+        ),
+      onPress: () => {
+        store.setFilters(tile.set as Filter[])
+        navigate('Todos')
+      },
+    }
+  }
+  if (tile.kind === 'groceryStore') {
+    return {
+      label: tile.store,
+      count: store.groceries.filter(
+        (g) => !g.checked && g.stores.includes(tile.store),
+      ).length,
+      icon: <StoreIcon size={11} color={theme.primary} strokeWidth={2.4} />,
+      onPress: () => {
+        store.setActiveGroceryStore(tile.store)
+        navigate('Groceries')
+      },
+    }
+  }
+  // groceryDept
+  const grp = store.groceryGroups.find((g) => g.id === tile.dept)
+  return {
+    label: grp?.label ?? tile.dept,
+    count: store.groceries.filter((g) => !g.checked && g.groupId === tile.dept)
+      .length,
+    icon: <Tag size={11} color={theme.primary} strokeWidth={2.4} />,
+    onPress: () => {
+      store.setActiveGroceryDept(tile.dept)
+      navigate('Groceries')
+    },
   }
 }
 
@@ -1058,6 +1139,12 @@ function makeStyles(c: ThemeColors) {
       paddingVertical: 18,
       paddingHorizontal: 12,
       alignItems: 'center',
+      marginRight: 10,
+    },
+    statTileDragging: {
+      opacity: 0.9,
+      borderWidth: 1,
+      borderColor: c.primary,
     },
     statValue: {
       fontSize: 28,
