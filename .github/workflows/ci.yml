@@ -56,7 +56,7 @@ jobs:
         run: npm test
       - name: Coverage report (uploaded as artifact)
         working-directory: web
-        run: npx vitest run --coverage --exclude tests/firestore-rules.test.ts
+        run: npx vitest run --coverage --exclude 'tests/**'
       - uses: actions/upload-artifact@v4
         with:
           name: web-coverage
@@ -110,7 +110,7 @@ jobs:
         run: npm test
 
   rules:
-    name: firestore security rules (emulator)
+    name: firestore emulator tests (rules + adapter)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -7,9 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "vitest run --exclude tests/firestore-rules.test.ts",
-    "test:watch": "vitest --exclude tests/firestore-rules.test.ts",
-    "test:rules": "firebase emulators:exec --only firestore 'vitest run tests/firestore-rules.test.ts'",
+    "test": "vitest run --exclude 'tests/**'",
+    "test:watch": "vitest --exclude 'tests/**'",
+    "test:rules": "firebase emulators:exec --only firestore 'vitest run tests/'",
     "lint": "eslint .",
     "deploy": "npm run build && firebase deploy --only hosting",
     "deploy:rules": "firebase deploy --only firestore:rules"
