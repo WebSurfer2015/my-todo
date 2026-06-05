@@ -32,9 +32,15 @@ jobs:
     # dev-client that needs a Metro server at runtime — in CI there's none,
     # so the app boots the dev launcher and the JS never loads (every flow
     # then fails on "tab not visible"). Release embeds the JS bundle and
-    # runs standalone. A cold Release compile of gRPC/Folly/abseil is slow,
-    # so 120 min for the first (cache-seeding) run; cached runs are fast.
-    timeout-minutes: 120
+    # runs standalone.
+    #
+    # SEEDING RUN: a COLD Release compile of gRPC/Folly/abseil exceeds 2h on
+    # the standard runner, so it could never finish or seed its cache. 360
+    # min lets ONE cold run complete + the explicit cache-save step below
+    # persists the DerivedData. Once that cache exists, drop this back to
+    # 120 — cached runs finish in ~20-30 min. (TODO: revert to 120 after the
+    # first green seeding run.)
+    timeout-minutes: 360
     env:
       SIM_DEVICE: iPhone 16 Pro
     steps:
@@ -58,15 +64,17 @@ jobs:
           curl -Ls "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
 
-      # Cache the CocoaPods install + the xcodebuild DerivedData so the heavy
-      # gRPC/Folly/abseil compile is reused across runs (a cold compile is
-      # what blew the 60-min budget). Keyed on package-lock (native-dep proxy
-      # — Podfile.lock is generated mid-run by prebuild, so we can't key on
-      # it pre-restore); restore-keys lets a stale cache seed an incremental
-      # build. NOTE: the cache only SAVES after a run completes within the
-      # timeout — the first cold run seeds it, subsequent runs are fast.
-      - name: Cache Pods + DerivedData
-        uses: actions/cache@v4
+      # Restore the CocoaPods install + xcodebuild DerivedData so the heavy
+      # gRPC/Folly/abseil compile is reused across runs. RESTORE-only here,
+      # paired with an explicit SAVE right after the build (below) — the
+      # combined cache action only saves in a post-step, which a timeout-kill
+      # skips, so a cold Release build could never seed the cache. Keyed on
+      # package-lock (native-dep proxy — Podfile.lock is generated mid-run by
+      # prebuild, so we can't key on it pre-restore); restore-keys lets a
+      # stale cache seed an incremental build.
+      - name: Restore Pods + DerivedData cache
+        id: ios-cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             mobile/ios/Pods
@@ -115,6 +123,21 @@ jobs:
           APP_PATH="$(find ios/build/Build/Products -name '*.app' -maxdepth 2 -type d | head -1)"
           echo "Installing $APP_PATH"
           xcrun simctl install "$SIM_DEVICE" "$APP_PATH"
+
+      # Persist the freshly-built Pods/DerivedData the MOMENT the build
+      # finishes — before flows run — so the expensive cold compile is
+      # cached even if a later flow step fails or hangs. Only on a cold run
+      # (no restore hit); on cached runs the key already exists and saving
+      # again would error.
+      - name: Save Pods + DerivedData cache
+        if: steps.ios-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            mobile/ios/Pods
+            mobile/ios/build
+            ~/Library/Caches/CocoaPods
+          key: ios-build-${{ runner.os }}-xc16-${{ hashFiles('mobile/package-lock.json') }}
 
       - name: Seed the demo account
         working-directory: mobile
