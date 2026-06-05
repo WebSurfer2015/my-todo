@@ -102,15 +102,24 @@ at the running sim and it'll show element selectors live.
 | P1.10 recurrence / series-edit | `08` | ✅ expand UPCOMING → roll weekly → snapshot in Done |
 | P1.11 pebbles | `06` | ✅ reworked → ProfileSheet lifetime count (PebbleStrip removed) |
 
-**Passing on device (seeded sim):** 01, 02, 03, 04, 05, 06, 07, 08, 13,
-14, 15, 16, 18 (verified 2026-06 after #15 + the filter-sheet selector
-rewrite). 16 (sign-out) is destructive — it leaves the sim on the SignIn
-screen; sign back in with email afterward. Reseed before each MUTATING
-flow (03/04/05/07/08/18) — they persist to the demo account's cloud, so
-back-to-back runs contaminate each other (the Open count drifts, rows
-toggle). Precondition-gated (not run here): 09/11 (shopping),
-10/12 (empty states need a fresh/empty account), 17 (destructive —
-deletes the completed row).
+**Passing on device (seeded sim):** 01–09, 11, 13–18 (16 flows; verified
+2026-06 after #15 + the filter-sheet selector rewrite). Notes:
+- **16 (sign-out)** is destructive — leaves the sim on SignIn; sign back
+  in with email afterward.
+- **17 (clear completed)** is destructive — reseed afterward.
+- Reseed before each MUTATING flow (03/04/05/07/08/17/18) — they persist
+  to the demo account's cloud, so back-to-back runs contaminate each other
+  (the Open count drifts, rows toggle).
+- **09/11 (shopping)** drive the populated list (FAB → GroceryComposeSheet;
+  gear → Settings → Manage Store). The DraggableFlatList footers
+  ("+ Add store", store-chip commit) are still swallowed into the list's
+  a11y node, so these assert the sheet renders + rows/chips are exposed,
+  not the commit.
+
+**Precondition-gated (NOT runnable on the seeded account, by design):**
+10 (zero-store empty state) and 12 (empty-todos empty state) need a fresh
+/ emptied account — their CTAs ("Add your first item", zero-store prompt)
+don't render while seed data exists. Run against a fresh install.
 
 **⚠ Flow 10 is skipped by default** — requires a sim with zero stores
 configured. Run explicitly after deleting all stores via Manage Store,

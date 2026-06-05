@@ -1,15 +1,14 @@
 # Flow 17 — Clear all completed (Done filter → "Delete all permanently"
-# → confirm Alert → list clears).
-# Session manual-plan P1.8.
+# → confirm Alert → list clears). Manual-plan P1.8.
 #
-# Reaches store.clearDone via the Done-filter header button (the Footer
-# path is disabled, showClear={false}). Completes a seeded row first so
-# there's something in the Done bin, switches to the Done filter, taps
-# "Delete all permanently", and confirms the native Alert.
+# Completes a seeded row (body-tap), switches to the Done filter via the
+# funnel sheet (Filter → Done status row → title-bar Done), taps the
+# header "Delete all permanently", and confirms the native Alert (whose
+# destructive button is the bare "Delete permanently" — distinct from the
+# header's "Delete all permanently").
 #
-# ⚠ DESTRUCTIVE: permanently deletes the completed row ("Email therapist about Friday").
-# Reseed before re-running flows that expect it. Precondition: seeded
-# dataset. Not yet run on a sim.
+# ⚠ DESTRUCTIVE: permanently deletes the completed rows. Reseed before
+# re-running flows that expect the seed.
 appId: com.websurfer.mytodo
 ---
 - stopApp
@@ -20,18 +19,22 @@ appId: com.websurfer.mytodo
 - tapOn: ".*Email therapist about Friday.*"
 - waitForAnimationToEnd:
     timeout: 2500
-# Switch to the Done filter where the clear-completed control lives.
+# Switch to the Done filter (funnel → status row → title-bar Done).
+- tapOn:
+    text: "Filter"
+- tapOn:
+    text: "Done.*[0-9].*"
 - tapOn:
     text: "Done"
-# Header button — i18n clearAllCompleted: 'Delete all permanently'.
+- waitForAnimationToEnd
+# Header bulk action — i18n clearAllCompleted: 'Delete all permanently'.
 - assertVisible:
     text: ".*Delete all permanently.*"
 - tapOn:
     text: ".*Delete all permanently.*"
-# Native confirm Alert — destructive button is t.deletePermanently.
+# Native confirm Alert — destructive button is the bare "Delete permanently".
 - tapOn:
     text: "Delete permanently"
 - waitForAnimationToEnd:
     timeout: 1500
-# The completed row is gone from the Done view.
 - assertNotVisible: ".*Email therapist about Friday.*"

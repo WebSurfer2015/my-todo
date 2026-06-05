@@ -1,29 +1,23 @@
-# Flow 09 — Tap into the GroceryComposeSheet from the Shopping empty
-# state and verify the sheet renders with the expected v1.5 surfaces
-# (Add Item title + STORES picker section).
+# Flow 09 — Open the GroceryComposeSheet from the Shopping FAB and verify
+# it renders with the expected surfaces (Add Item title + STORES picker
+# with individually-addressable store chips). P1 shopping.
 #
-# Limited scope: deeper interactions (selecting a store chip, tapping
-# "Add another" to commit) hit a known Maestro <> React Native
-# accessibility issue — GroceryComposeSheet's outer View has
-# `accessible={true}` so child elements are concatenated into the
-# parent's label. `tapOn: text: ".*Add Stop & Shop.*"` matches the
-# parent and taps its geometric center, not the chip. The fix is in
-# the component (set `accessible={false}` on the wrapping View,
-# rely on per-child `accessibilityLabel`s); tracked under future
-# component a11y work, not in this flow.
+# Drives the FAB on a POPULATED shopping list (the seeded demo account has
+# items, so the "Add your first item" empty-state CTA isn't present — that
+# path is covered by flow 12's empty-state precondition). Post-#15 the
+# sheet's children (title, STORES label, store chips) are individually
+# exposed rather than collapsed into one a11y leaf.
 appId: com.websurfer.mytodo
 ---
 - stopApp
 - launchApp
 - tapOn:
     text: "Shopping, tab.*"
-# Empty-state CTA — the EmptyStateCard's "Add your first item"
-# button opens GroceryComposeSheet. When items exist instead, the
-# FAB at bottom-right does the same; covered indirectly by flow 02.
-- tapOn: "Add your first item"
-# Header reads "Cancel  Add Item  ..." — confirm the sheet rendered.
-- assertVisible:
-    text: ".*Add Item.*"
-# STORES section is the v1.5 multi-store affordance.
-- assertVisible:
-    text: ".*STORES.*"
+# Add-item FAB, bottom-right (no stable testID; tap the FAB region).
+- tapOn:
+    point: 88%, 87%
+- waitForAnimationToEnd
+- assertVisible: ".*Add Item.*"
+- assertVisible: ".*STORES.*"
+# A store chip is individually exposed (was swallowed pre-#15).
+- assertVisible: ".*Costco.*"
