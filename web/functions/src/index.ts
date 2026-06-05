@@ -152,8 +152,19 @@ export const agentChat = onCall(
       response = await client.messages.create({
         model: MODEL,
         max_tokens: 1024,
-        system: SYSTEM_PROMPT,
-        tools: AGENT_TOOLS as Anthropic.Tool[],
+        // Cache the large, invariant system prompt so multi-turn chats
+        // don't re-bill it every turn (~5min ephemeral window). Cast: the
+        // pinned SDK types don't expose cache_control on TextBlockParam.
+        system: [
+          { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+        ] as unknown as Anthropic.Messages.MessageCreateParams['system'],
+        // Phase 0: the client (useMochiAgent) only APPLIES createTodo, and
+        // editTodo/addSteps/markDone need known todo ids the agent isn't
+        // given (so validateOperation drops them). Offer only createTodo so
+        // Claude doesn't spend tokens proposing ops the client can't apply.
+        // Re-add when the client gains an apply path + todos reach context,
+        // and pass knownTodoIds to validateOperation below.
+        tools: (AGENT_TOOLS as Anthropic.Tool[]).filter((t) => t.name === 'createTodo'),
         messages: [
           {
             role: 'user',
@@ -194,6 +205,20 @@ export const agentChat = onCall(
       // so the client always has something to render above the proposal.
       reply = "I drafted this — use it?"
     }
+
+    // Structured telemetry for Cloud Logging — cost/usage per call so ops
+    // can track spend, anomalies, and tool-proposal rates without a side
+    // channel. (Was a review gap: usage was returned but never logged.)
+    console.log(
+      JSON.stringify({
+        event: 'agentChat',
+        uid: request.auth.uid,
+        model: MODEL,
+        input_tokens: response.usage.input_tokens,
+        output_tokens: response.usage.output_tokens,
+        ops: operations.length,
+      }),
+    )
 
     return {
       reply,

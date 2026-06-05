@@ -284,6 +284,19 @@ export const aiInfer = onCall(
     const parsed = config.parseOutput(text)
     const result = postProcess ? postProcess(parsed) : parsed
 
+    // Structured telemetry for Cloud Logging — per-mode cost/usage so ops
+    // can track spend + anomalies. (Review gap: usage returned, never logged.)
+    console.log(
+      JSON.stringify({
+        event: 'aiInfer',
+        mode,
+        uid: request.auth?.uid ?? null,
+        model: config.model,
+        input_tokens: response.usage.input_tokens,
+        output_tokens: response.usage.output_tokens,
+      }),
+    )
+
     return {
       result,
       usage: {
