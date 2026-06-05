@@ -566,6 +566,12 @@ def main() -> int:
     profile["todayTaskPebbles"] = task_pebbles_today
     profile["todaySubtaskPebbles"] = subtask_pebbles_today
     profile["pebblesDate"] = today_iso
+    # E2E: guarantee no first-run overlay blocks the seeded flows after
+    # sign-in. Onboarding gates on onboardingDone; the Tips & guides
+    # prompt gates on guidesPromptShown. Force both so the app lands
+    # straight on the tab UI the Maestro flows assert against.
+    profile["onboardingDone"] = True
+    profile["guidesPromptShown"] = True
     # Grocery-related profile defaults — explicit so the demo account
     # always has the four seed stores in the filter sheet plus Costco
     # pre-pinned to the pill row. Keeps the screenshots / first-run

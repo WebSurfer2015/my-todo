@@ -121,8 +121,19 @@ jobs:
         # Excludes the destructive/standalone flows (16 sign-out,
         # 17 clear-completed) and the empty-account flows (10, 12) which
         # need clear_sample_data.py first. Everything else is seed-safe.
+        #
+        # 00-sign-in runs FIRST: the fresh install is signed out, so it
+        # authenticates once (Firebase persists to disk → subsequent
+        # flows' relaunch stays signed in). Creds passed via `-e` from
+        # the same demo secrets the seed step uses.
+        env:
+          SAGELY_DEMO_EMAIL: ${{ secrets.SAGELY_DEMO_EMAIL }}
+          SAGELY_DEMO_PASSWORD: ${{ secrets.SAGELY_DEMO_PASSWORD }}
         run: |
           maestro test \
+            -e EMAIL="$SAGELY_DEMO_EMAIL" \
+            -e PASSWORD="$SAGELY_DEMO_PASSWORD" \
+            .maestro/flows/00-sign-in.yaml \
             .maestro/flows/01-cold-launch-lands-on-home.yaml \
             .maestro/flows/02-add-todo.yaml \
             .maestro/flows/03-toggle-done-and-strike.yaml \

@@ -89,7 +89,7 @@ at the running sim and it'll show element selectors live.
 | Case | Covered by | Notes |
 | --- | --- | --- |
 | P0.1 app launches | `01` | ✅ |
-| P0.2 sign in / out | `16` (sign-out only) | sign-IN stays manual (OAuth not scriptable; email needs a test cred) |
+| P0.2 sign in / out | `00` (email sign-IN), `16` (sign-out) | ✅ email sign-in automated via testIDs + `-e EMAIL/PASSWORD` (00 prelude); OAuth (Apple/Google) still manual |
 | P0.3 tab navigation | `13` | ✅ new |
 | P0.4 relaunch hydration | `14` | ✅ new (needs seed) |
 | P1.5 add task + toggle | `02`, `03` | ✅ |

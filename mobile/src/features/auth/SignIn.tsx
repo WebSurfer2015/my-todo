@@ -161,6 +161,7 @@ export default function SignIn() {
                   style={styles.toggle}
                   onPress={() => switchMode("signin")}
                   disabled={busy}
+                  testID="signin-with-email"
                 >
                   <Text style={styles.toggleEmphasis}>{t.signInWithEmail}</Text>
                 </TouchableOpacity>
@@ -220,6 +221,7 @@ export default function SignIn() {
                     autoComplete="email"
                     keyboardType="email-address"
                     editable={!busy}
+                    testID="signin-email-input"
                   />
                 </View>
 
@@ -233,6 +235,7 @@ export default function SignIn() {
                       secureTextEntry
                       autoComplete={mode === "signin" ? "current-password" : "new-password"}
                       editable={!busy}
+                      testID="signin-password-input"
                     />
                   </View>
                 )}
@@ -247,6 +250,7 @@ export default function SignIn() {
                   onPress={submit}
                   disabled={busy}
                   activeOpacity={0.8}
+                  testID="signin-submit"
                 >
                   {busy ? (
                     <ActivityIndicator color="#fff" />

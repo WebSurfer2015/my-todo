@@ -1,0 +1,41 @@
+# Flow 00 — Email sign-in PRELUDE (CI). Runs FIRST in the nightly.
+#
+# Why: a freshly-installed simulator app is signed OUT. Firebase auth
+# persists to disk, so signing in ONCE here keeps every subsequent
+# flow's `stopApp`/`launchApp` authenticated — the seeded data hydrates
+# and the tab bar renders. Without this, all flows die on the SignIn
+# screen (the historical "sign-IN stays manual" gap, see README).
+#
+# Idempotent: if a prior run already left us signed in, the SignIn
+# controls aren't present, the conditional block is skipped, and we
+# just assert the dashboard. Safe to re-run locally too.
+#
+# Creds: ${EMAIL} / ${PASSWORD} come from Maestro env (`-e`), wired in
+# the workflow from the SAGELY_DEMO_* secrets — never hardcoded here.
+#
+# Selectors: testIDs on SignIn.tsx (signin-with-email / -email-input /
+# -password-input / -submit); the inputs carry no searchable label.
+appId: com.websurfer.mytodo
+---
+- stopApp
+- launchApp
+- runFlow:
+    when:
+      visible:
+        id: "signin-with-email"
+    commands:
+      - tapOn:
+          id: "signin-with-email"
+      - tapOn:
+          id: "signin-email-input"
+      - inputText: ${EMAIL}
+      - tapOn:
+          id: "signin-password-input"
+      - inputText: ${PASSWORD}
+      - hideKeyboard
+      - tapOn:
+          id: "signin-submit"
+# Auth + first Firestore hydrate can take a few seconds — wait it out.
+- extendedWaitUntil:
+    visible: "Dashboard, tab, 1 of 3"
+    timeout: 30000
