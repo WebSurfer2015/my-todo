@@ -18,19 +18,15 @@ read this file and update `memory/project_marketing_positioning.md`.
 
 **Sagely — Calm to-dos for real life.**
 
-*(Prior framing, still true to the DNA: "A calm to-do app for days you can't
-be a productivity person." The shift to "real life" broadens the audience
-without changing the value prop — see `POSITIONING-BRIEF.md`.)*
-
 ### Audience
 
 People juggling real life — work, family, event planning, social, self-care —
-who find scoreboard-style productivity apps add pressure instead of removing
-it. The heart of this audience are adults whose nervous systems are already
-loud (anxiety, chronic procrastination, low stress tolerance, the
-burnout-adjacent and adult-ADHD population) — now a mainstream slice of busy
-professionals, not a clinical edge case. "Real life" removes the
-self-identification gate without diluting the calm DNA.
+who want a calmer way to stay on top of it all. The ones who've found that
+scoreboard-style productivity apps add pressure instead of lifting it, and who'd
+rather make gentle, steady progress than chase streaks or a perfect score.
+"Real life" is the wide door: it welcomes anyone carrying a full load, without
+asking them to self-identify first. (Market sizing and the deeper audience
+profile live in `POSITIONING-BRIEF.md`.)
 
 Two personas (full detail in `POSITIONING-BRIEF.md`):
 
@@ -41,12 +37,12 @@ Two personas (full detail in `POSITIONING-BRIEF.md`):
 
 ### Need
 
-Track and finish what real life throws at you — without the daily punishment
-loop ("you missed your streak / you're behind / you failed").
+Track and finish what real life throws at you — at your own pace, with
+encouragement instead of pressure.
 
 ### Promise
 
-Move things forward without making the day feel like a scoreboard.
+Make gentle progress on what matters, in a space that stays calm and kind.
 
 ### Anti-positioning (the load-bearing stance)
 
