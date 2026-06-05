@@ -68,3 +68,35 @@ from here):
 
 Mobile unit is A− by design (no RNTL — see non-goals); E2E/non-functional
 A items above are the last mile.
+
+## Review-findings remediation (2026-06)
+
+The principal review (AI / mobile-sync / data-security) was triaged into
+waves. Status:
+
+- **W1 AI (done):** Mochi now offers createTodo-only (edit/markDone were
+  silently dropped); agentChat system prompt cached; both functions log
+  usage telemetry. (`breakdown` intentionally still throws vs the ambient
+  modes' silent degrade — it's user-triggered.)
+- **W2 security (done):** explicit `allow delete: if false` on state docs
+  + emulator tests (incl. agentUsage); mobile signOut now clears
+  grocery/groceryGroups/todoReferences (was a cross-account bleed).
+- **W3 observability (done):** web ErrorBoundary + global
+  unhandledrejection/error → Sentry; mobile ErrorUtils → Crashlytics; web
+  AI cold-start retry. *Deferred:* sync-health UI indicator (its own UX
+  design).
+- **W4 migrations (done):** [MIGRATIONS.md](./MIGRATIONS.md) versioning
+  protocol + hazards. Recurrence edge cases already covered (r1–r7 +
+  multi-reminder). Web-parity "orphan" risk reassessed as UX-only = #5.
+- **W5 (deferred with rationale — not reckless box-checking):**
+  - *FlatList virtualization* — review-conditional ("profile 300+ items
+    first"); no measured perf problem, so not worth a risky list-render swap.
+  - *TaskDetailsSheet decompose* — 1,866-line pure refactor, no behavior
+    change, low value/high risk now.
+  - *Emulator-backed E2E* — multi-part (app env flag + auth emulator + seed
+    retargeting + CI emulator services). The nightly's demo account is
+    sacrificial, so prod isolation is a nice-to-have; do it in a focused
+    session, not half-wired.
+  - *Visual-regression baselines* — committed pixel baselines are
+    high-maintenance/flaky (break on each Xcode/sim bump); manual visual
+    spot-check (QA-CHECKLIST §6) is the interim until a stable harness.
