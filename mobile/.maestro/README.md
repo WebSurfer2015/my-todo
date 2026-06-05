@@ -69,7 +69,7 @@ at the running sim and it'll show element selectors live.
 | `flows/07-defer-single-via-swipe.yaml` | Swipe-right → Defer → modal "Defer to" → Tomorrow | 7.1–7.3 |
 | `flows/08-recurring-rolling.yaml` | Tap recurring → snapshot in Done bin + rolled-forward instance | 9.1–9.3 |
 | `flows/09-shopping-add-item.yaml` | Empty Shopping → Add CTA → GroceryComposeSheet renders (STORES section visible) | (v1.5) |
-| `flows/10-shopping-no-store-empty-state.yaml` | Zero-store empty state → Add Store CTA → Manage Store inline-add row | (v1.5) ⚠ |
+| `flows/10-shopping-empty-state.yaml` | Empty Shopping → "Start shopping." → "Add your first item" → GroceryComposeSheet | (v1.5) ⚠ needs empty acct |
 | `flows/11-shopping-add-store.yaml` | Gear → Manage Store renders → "Add a store" CTA visible | (v1.5) |
 | `flows/12-todos-empty-state.yaml` | Empty Todos → EmptyStateCard → Add a to-do → compose opens | (v1.5) |
 | `flows/13-tab-navigation.yaml` | Dashboard → Todos → Shopping → Dashboard all mount/switch | P0.3 |
@@ -102,8 +102,9 @@ at the running sim and it'll show element selectors live.
 | P1.10 recurrence / series-edit | `08` | ✅ expand UPCOMING → roll weekly → snapshot in Done |
 | P1.11 pebbles | `06` | ✅ reworked → ProfileSheet lifetime count (PebbleStrip removed) |
 
-**Passing on device (seeded sim):** 01–09, 11, 13–18 (16 flows; verified
-2026-06 after #15 + the filter-sheet selector rewrite). Notes:
+**Passing on device:** all 18 flows (verified 2026-06 after #15 + the
+filter-sheet selector rewrite). 01–09, 11, 13–18 run on the seeded sim;
+10 & 12 run on an emptied account (see below). Notes:
 - **16 (sign-out)** is destructive — leaves the sim on SignIn; sign back
   in with email afterward.
 - **17 (clear completed)** is destructive — reseed afterward.
@@ -116,10 +117,26 @@ at the running sim and it'll show element selectors live.
   a11y node, so these assert the sheet renders + rows/chips are exposed,
   not the commit.
 
-**Precondition-gated (NOT runnable on the seeded account, by design):**
-10 (zero-store empty state) and 12 (empty-todos empty state) need a fresh
-/ emptied account — their CTAs ("Add your first item", zero-store prompt)
-don't render while seed data exists. Run against a fresh install.
+**Empty-state flows (10, 12) — run against an EMPTIED account.** Clear the
+demo account first, run them, then restore the seed:
+
+```sh
+# from mobile/ (same env vars as the seed script)
+python3 scripts/clear_sample_data.py     # empties todos + groceries
+npm run e2e:flow flows/12-todos-empty-state.yaml
+npm run e2e:flow flows/10-shopping-empty-state.yaml
+python3 scripts/seed_sample_data.py      # restore the demo dataset
+```
+
+Both pass this way (verified 2026-06) — so **all 18 flows pass** given the
+right precondition. Two caveats baked into these flows:
+- **12** asserts "You're all caught up." (Todos) — needs zero todos.
+- **10** asserts the reachable empty-Shopping state ("Start shopping." /
+  "Add your first item"), NOT "No stores yet.". The zero-store state is
+  structurally un-cold-launch-testable: `migrateGroceryStores`
+  (core/src/data/profile.ts) collapses an empty `groceryStores` array back
+  to `undefined` → `SEED_GROCERY_STORES` on every read, so deleting all
+  stores only shows "No stores yet." in-session. Covered by manual QA.
 
 **⚠ Flow 10 is skipped by default** — requires a sim with zero stores
 configured. Run explicitly after deleting all stores via Manage Store,

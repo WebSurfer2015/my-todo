@@ -1,0 +1,26 @@
+# Flow 10 — Empty Shopping shows the unified EmptyStateCard
+# ("Start shopping." / "Add your first item"); tapping the CTA opens the
+# GroceryComposeSheet. P1 shopping empty state.
+#
+# Precondition: EMPTY account — run scripts/clear_sample_data.py first
+# (zero groceries). Reseed with seed_sample_data.py afterward.
+#
+# NOTE on the OTHER empty state ("No stores yet."): it only renders when
+# configuredStores is empty, but the profile migrator collapses an empty
+# groceryStores array back to undefined → SEED_GROCERY_STORES on every
+# read (core/src/data/profile.ts migrateGroceryStores). So a zero-store
+# state can't survive a cold launch — it's only reachable by deleting all
+# stores in-session via Manage Store. Not cold-launch-testable; covered by
+# manual QA. This flow exercises the reachable empty state instead.
+appId: com.websurfer.mytodo
+---
+- stopApp
+- launchApp
+- tapOn:
+    text: "Shopping, tab.*"
+- assertVisible: "Start shopping."
+- assertVisible: ".*Add an item to get started.*"
+- tapOn: "Add your first item"
+- waitForAnimationToEnd
+# GroceryComposeSheet header ("Cancel  Add Item  Done").
+- assertVisible: ".*Add Item.*"
