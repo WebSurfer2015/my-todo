@@ -13,9 +13,9 @@ appId: com.websurfer.mytodo
 - launchApp
 - tapOn:
     text: "Shopping, tab.*"
-# Gear icon — top-right of the header — opens the Settings sheet.
+# Gear icon (stable testID) opens the Settings sheet.
 - tapOn:
-    point: 92%, 12%
+    id: "settings-button"
 - tapOn:
     text: ".*Manage Store.*"
 - waitForAnimationToEnd

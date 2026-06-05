@@ -66,6 +66,9 @@ export default function Fab({ onPress, accessibilityLabel, agentEnabled = false,
       activeOpacity={0.8}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      // Stable E2E hook — RN's testID maps to the iOS accessibilityIdentifier
+      // Maestro matches via `id:`, replacing brittle point-taps (.maestro).
+      testID="fab"
     >
       <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.5} strokeLinecap="round">
         <Line x1="12" y1="5" x2="12" y2="19" />

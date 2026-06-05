@@ -13,9 +13,9 @@ appId: com.websurfer.mytodo
 - launchApp
 - tapOn:
     text: "Shopping, tab.*"
-# Add-item FAB, bottom-right (no stable testID; tap the FAB region).
+# Add-item FAB — stable testID (id) instead of a screen-percentage tap.
 - tapOn:
-    point: 88%, 87%
+    id: "fab"
 - waitForAnimationToEnd
 - assertVisible: ".*Add Item.*"
 - assertVisible: ".*STORES.*"

@@ -132,6 +132,7 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
         activeOpacity={0.7}
         accessibilityLabel={t.editProfile}
         accessibilityRole="button"
+        testID="avatar-button"
       >
         <Animated.View
           ref={avatarRef}
@@ -171,6 +172,7 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
           hitSlop={12}
           accessibilityRole="button"
           accessibilityLabel="Filter"
+          testID="filter-button"
         >
           <FilterIcon size={22} color={theme.label3} strokeWidth={1.8} />
         </TouchableOpacity>
@@ -193,6 +195,7 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
           hitSlop={12}
           accessibilityRole="button"
           accessibilityLabel="Manage"
+          testID="settings-button"
         >
           <SettingsIcon size={22} color={theme.label3} strokeWidth={1.8} />
         </TouchableOpacity>
