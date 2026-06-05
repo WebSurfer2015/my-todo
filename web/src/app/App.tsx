@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import AddTask, { AddTaskHandle } from "../features/task/AddTask";
 import Sidebar from "./Sidebar";
 import MobileTopBar from "./MobileTopBar";
+import FeatureBanner from "./FeatureBanner";
 import TaskItem from "../features/task/TaskItem";
 import Footer from "./Footer";
 import SignIn from "../features/auth/SignIn";
@@ -71,6 +72,10 @@ export default function App() {
           title={store.sectionLabel ?? store.appTitle}
           subtitle={store.subtitle}
         />
+        {/* Guard for the intentionally-minimal web surface (#5): sets
+            expectations that reminders / recurring tasks / shopping lists
+            are mobile-only. Dismissible. */}
+        <FeatureBanner />
         {store.inTrashView && store.trashCount > 0 && (
           <div className="trash-actions">
             {store.selectedTrashIds.size > 0 ? (
