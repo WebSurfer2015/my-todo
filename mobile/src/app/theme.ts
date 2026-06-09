@@ -70,22 +70,24 @@ export const LIGHT: ThemeColors = {
   statusBar: 'dark-content',
 }
 
-// Dark mode — lifted pastel mint on a warm dark surface, matching the
-// Sagely / Mochi palette but tuned for legibility against deep cream-dark.
+// Dark mode — "soft sage dim": a lifted sage-slate base (not near-black)
+// with clearly raised cards, so it reads dimmed-and-warm rather than
+// lights-off-and-flat. Keeps the Mochi mint accent. Tuned to stay calm
+// (low contrast steps) while giving cards real elevation off the bg.
 export const DARK: ThemeColors = {
-  bg: '#1A1814',        // warm dark, slightly more cream-tinted
-  card: '#24211B',
-  surface: 'rgba(36, 33, 27, 0.65)',
-  surfaceAlt: 'rgba(36, 33, 27, 0.78)',
-  modal: '#24211B',
+  bg: '#21251F',        // lifted sage-slate (was near-black #1A1814)
+  card: '#2C312A',      // clear lift off bg so cards read as raised
+  surface: 'rgba(44, 49, 42, 0.65)',
+  surfaceAlt: 'rgba(44, 49, 42, 0.78)',
+  modal: '#2C312A',
   label: '#ECEEE6',     // off-white with mint tint
   label2: '#B8C4BA',
   label3: '#8FA095',
-  separator: '#3D3F37',
-  border: '#3D3F37',
+  separator: '#3C443A', // cooler, more visible against the lifted bg
+  border: '#3C443A',
   primary: '#86C5A8',         // lifted mint for dark-mode contrast
   primaryHover: '#9AD3B8',
-  primarySoft: '#2E4639',
+  primarySoft: '#335041',     // lifted to sit above the new card tone
   primaryOn: '#1A1814',
   blue: '#86C5A8',      // alias of primary
   red: '#E08A8A',
@@ -107,7 +109,7 @@ export const DARK: ThemeColors = {
  * Other token groups (labels, separators, status colors) stay
  * untouched — the avatar only retints the accent surfaces.
  */
-type PrimaryOverride = Pick<ThemeColors, 'primary' | 'primaryHover' | 'primarySoft' | 'primaryOn' | 'blue' | 'teal'> | null
+type PrimaryOverride = Partial<Pick<ThemeColors, 'primary' | 'primaryHover' | 'primarySoft' | 'primaryOn' | 'blue' | 'teal'>> | null
 
 const ThemeOverrideContext = createContext<PrimaryOverride>(null)
 
@@ -178,48 +180,42 @@ function hslToHex(h: number, s: number, l: number): string {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`
 }
 
+/** Linear RGB blend of two #rrggbb colors; t=0 → a, t=1 → b. */
+function mixHex(a: string, b: string, t: number): string {
+  const pa = a.match(/^#?([0-9a-f]{6})$/i)
+  const pb = b.match(/^#?([0-9a-f]{6})$/i)
+  if (!pa || !pb) return a
+  const na = parseInt(pa[1], 16)
+  const nb = parseInt(pb[1], 16)
+  const mix = (sh: number) => {
+    const ca = (na >> sh) & 0xff
+    const cb = (nb >> sh) & 0xff
+    return Math.round(ca + (cb - ca) * t)
+  }
+  const toHex = (v: number) => v.toString(16).padStart(2, '0')
+  return `#${toHex(mix(16))}${toHex(mix(8))}${toHex(mix(0))}`
+}
+
 /**
- * Derive a primary-token override from a soft pastel background
- * color (typically preset.bg from AVATAR_PRESET_LIBRARY). Returns
- * null when the input doesn't parse.
- *
- * Strategy: preset bg is already a calm pastel. We use it directly
- * as `primarySoft`, then saturate + darken it to make a usable
- * `primary` for the FAB / pill accents. `primaryOn` picks white
- * vs near-black based on the derived primary's lightness.
+ * Avatar-personalization, "lead with sage" model. The brand keeps ONE
+ * calm identity: every strong accent (FAB, active pills, counts, tabs —
+ * which read `primary`/`blue`) stays brand sage regardless of avatar, so
+ * the app never takes on a muddy avatar hue. The avatar only SUBTLY
+ * tints the soft surfaces (header band + pill backgrounds, which read
+ * `primarySoft`), blended mostly toward the brand soft so it's a hint of
+ * personality rather than a full recolor. Returns null when bg doesn't
+ * parse. (Pre-2026-06 this overrode the whole primary group from the
+ * avatar, which made the UI go brown/etc. for warm-toned avatars.)
  */
 export function deriveThemeFromAvatarBg(bg: string, scheme: 'light' | 'dark'): PrimaryOverride {
   const hsl = hexToHSL(bg)
   if (!hsl) return null
-  // Calm-app target: saturation around 30-40 (presets are typically
-  // 10-25). Lightness around 40 in light mode, 65 in dark.
-  const targetSat = Math.min(45, hsl.s + 18)
-  const targetLightLight = 40
-  const targetLightDark = 65
-  const primary = hslToHex(
-    hsl.h,
-    targetSat,
-    scheme === 'dark' ? targetLightDark : targetLightLight,
-  )
-  const primaryHover = hslToHex(
-    hsl.h,
-    targetSat,
-    scheme === 'dark' ? targetLightDark + 8 : targetLightLight - 8,
-  )
-  const primarySoft =
+  const brandSoft = (scheme === 'dark' ? DARK : LIGHT).primarySoft
+  // A calm tint at the avatar's hue: pale in light, darkened in dark.
+  const avatarSoft =
     scheme === 'dark'
-      // In dark mode the preset bg is too light; use a darkened sibling.
-      ? hslToHex(hsl.h, Math.min(35, hsl.s + 5), 25)
-      : bg
-  // Contrast for foreground text on primary — primary is mid-tone so
-  // white always wins in light mode; in dark we go off-black.
-  const primaryOn = scheme === 'dark' ? '#1A1814' : '#FFFFFF'
-  return {
-    primary,
-    primaryHover,
-    primarySoft,
-    primaryOn,
-    blue: primary, // legacy alias
-    teal: primary,
-  }
+      ? hslToHex(hsl.h, Math.min(30, hsl.s + 5), 27)
+      : hslToHex(hsl.h, Math.min(28, hsl.s), 90)
+  // Mostly brand (70%) with a 30% personal hue shift — subtle, not loud.
+  return { primarySoft: mixHex(brandSoft, avatarSoft, 0.3) }
 }
