@@ -86,6 +86,10 @@ export interface SuggestFieldsResult {
     intervalMinutes?: number
     until?: string
   } | null
+  /** Title with date/time/recurrence/reminder phrases removed, so the
+   * title isn't redundant once those become structured fields. Null when
+   * nothing temporal was found. */
+  cleanedText: string | null
 }
 
 async function callAiInfer<R>(mode: string, input: unknown): Promise<R> {
@@ -163,10 +167,28 @@ export async function classifyGroceryDept(input: ClassifyDeptInput): Promise<Cla
  */
 export async function suggestTodoFields(input: SuggestFieldsInput): Promise<SuggestFieldsResult> {
   try {
-    return await callAiInfer<SuggestFieldsResult>('suggest-todo-fields', input)
+    return normalizeSuggestReminder(
+      await callAiInfer<SuggestFieldsResult>('suggest-todo-fields', input),
+    )
   } catch {
-    return { category: null, newCategoryLabel: null, priority: null, dueDate: null, recurrence: null, reminder: null }
+    return { category: null, newCategoryLabel: null, priority: null, dueDate: null, recurrence: null, reminder: null, cleanedText: null }
   }
+}
+
+/** Guard against the model mapping a recurrence cadence into the reminder
+ * as a long repeating interval — e.g. "remind at 9am" on a Mon/Wed/Fri
+ * todo coming back as {intervalMinutes: 10080} ("every 168 hours"). When a
+ * recurrence is present and the reminder repeats on a daily-or-longer
+ * cadence, drop the interval and keep just the fixed `at` time: the
+ * recurrence already repeats the todo, and the app rebases the reminder
+ * per occurrence (so it fires at that time on each one). Sub-daily nudges
+ * (< 1 day) are left alone — those are legitimate within an occurrence. */
+function normalizeSuggestReminder(res: SuggestFieldsResult): SuggestFieldsResult {
+  const rem = res.reminder
+  if (res.recurrence && rem?.intervalMinutes && rem.intervalMinutes >= 1440) {
+    return { ...res, reminder: { at: rem.at } }
+  }
+  return res
 }
 
 interface LinkStoreInput {

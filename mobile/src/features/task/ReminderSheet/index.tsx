@@ -31,6 +31,7 @@ import { useLang } from '../../../app/LangContext'
 import { useTheme } from '../../../app/theme'
 import type { Reminder } from '../../../core-bindings/types'
 import { genUuid } from '../../../../../core/src/logic/utils'
+import { dedupeReminders } from '../../../../../core/src/logic/derive'
 import { makeStyles } from './styles'
 
 const REMIND_BEFORE_DUE_CHOICES: Array<{ minutes: number; label: string }> = [
@@ -47,13 +48,16 @@ const REMIND_BEFORE_DUE_CHOICES: Array<{ minutes: number; label: string }> = [
 ]
 
 const REMIND_EVERY_CHOICES: Array<{ minutes: number; label: string }> = [
-  { minutes: 15,  label: '15m' },
-  { minutes: 30,  label: '30m' },
-  { minutes: 60,  label: '1h' },
-  { minutes: 120, label: '2h' },
-  { minutes: 240, label: '4h' },
-  { minutes: 360, label: '6h' },
-  { minutes: 720, label: '12h' },
+  { minutes: 15,    label: '15m' },
+  { minutes: 30,    label: '30m' },
+  { minutes: 60,    label: '1h' },
+  { minutes: 120,   label: '2h' },
+  { minutes: 240,   label: '4h' },
+  { minutes: 360,   label: '6h' },
+  { minutes: 720,   label: '12h' },
+  { minutes: 1440,  label: '1d' },
+  { minutes: 4320,  label: '3d' },
+  { minutes: 10080, label: '1w' },
 ]
 
 /** Soft cap on stored reminders per todo. Beyond this, taps on chips
@@ -128,7 +132,24 @@ function repeatingPillLabel(
   t: ReturnType<typeof useLang>['t'],
 ): string {
   if (minutes < 60) return t.remindPillEveryMin(minutes)
-  return t.remindPillEveryHour(Math.round(minutes / 60))
+  if (minutes < 1440) return t.remindPillEveryHour(Math.round(minutes / 60))
+  // Day/week cadences (1d/3d/1w chips). Hardcoded English pending the
+  // #10 i18n pass — t.* has no every-day/week formatter yet.
+  if (minutes < 10080) {
+    const d = Math.round(minutes / 1440)
+    return `Every ${d} day${d > 1 ? 's' : ''}`
+  }
+  const w = Math.round(minutes / 10080)
+  return `Every ${w} week${w > 1 ? 's' : ''}`
+}
+
+/** "9:00 AM" — time-of-day only. Used for a fixed reminder that lands on
+ * the due date's day (esp. recurring todos, where the saved `at` rebases
+ * per occurrence so the date is noise — only the time matters). */
+function timeOfDayLabel(at: string): string {
+  const d = new Date(at)
+  if (Number.isNaN(d.valueOf())) return at
+  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
 }
 
 export interface ReminderSheetProps {
@@ -138,6 +159,10 @@ export interface ReminderSheetProps {
   /** Anchor for the "before due" row. When empty, the row is replaced
    * with a notice and the chips are inactive. */
   dueDate: string
+  /** Whether the owning todo recurs. When true, a fixed reminder that
+   * lands on the due date's day is shown as a time-of-day ("9:00 AM on
+   * the day") rather than a specific date — it rebases per occurrence. */
+  recurs?: boolean
   onCancel: () => void
   onSave: (next: Reminder[]) => void
 }
@@ -145,6 +170,7 @@ export interface ReminderSheetProps {
 export default function ReminderSheet({
   initial,
   dueDate,
+  recurs = false,
   onCancel,
   onSave,
 }: ReminderSheetProps) {
@@ -156,7 +182,7 @@ export default function ReminderSheet({
   // an id; the user can remove via pill ✕ or via tapping an active
   // chip a second time.
   const [pending, setPending] = useState<Reminder[]>(() =>
-    initial.map((r) => ({ ...r })),
+    dedupeReminders(initial.map((r) => ({ ...r }))),
   )
 
   // Selection lookups
@@ -199,11 +225,23 @@ export default function ReminderSheet({
     })
   }
 
-  // Fixed (absolute date/time) reminder. Default an hour out so the
-  // picker opens on a sensible near-future moment.
-  const [fixedDate, setFixedDate] = useState<Date>(
-    () => new Date(Date.now() + 60 * 60 * 1000),
-  )
+  // Fixed (absolute date/time) reminder. Seed the picker from an
+  // existing fixed reminder's time so it reflects what's already set
+  // (e.g. a parsed "remind at 9am" shows 9:00, not the current clock).
+  // Fall back to the due date's time-of-day, then a near-future default.
+  const [fixedDate, setFixedDate] = useState<Date>(() => {
+    const fixed = initial.find((r) => !r.intervalMinutes && r.at)
+    if (fixed) {
+      const d = new Date(fixed.at)
+      if (!Number.isNaN(d.valueOf())) return d
+    }
+    if (dueDate) {
+      const withTime = dueDate.includes('T') ? dueDate : `${dueDate}T09:00`
+      const d = new Date(withTime)
+      if (!Number.isNaN(d.valueOf())) return d
+    }
+    return new Date(Date.now() + 60 * 60 * 1000)
+  })
   function onFixedChange(_e: DateTimePickerEvent, selected?: Date) {
     if (selected) setFixedDate(selected)
   }
@@ -226,7 +264,7 @@ export default function ReminderSheet({
   }
 
   function handleDone() {
-    onSave(pending)
+    onSave(dedupeReminders(pending))
   }
 
   /** Build the pill list for "Your reminders" — sorts by at ascending,
@@ -247,9 +285,15 @@ export default function ReminderSheet({
       )
       out.push({
         id: r.id,
-        // A before-due chip match → "15 min before"; otherwise it's a
-        // fixed absolute reminder → show its actual date/time.
-        label: m ? beforeDuePillLabel(m.minutes, t) : fixedPillLabel(r.at),
+        // A before-due chip match → "15 min before". Otherwise it's a
+        // fixed absolute reminder: on a recurring todo show the
+        // time-of-day ("9:00 AM on the day", since it rebases per
+        // occurrence); on a one-off show its actual date + time.
+        label: m
+          ? beforeDuePillLabel(m.minutes, t)
+          : recurs
+            ? `${timeOfDayLabel(r.at)} on the day`
+            : fixedPillLabel(r.at),
       })
     }
     for (const r of repeating) {
@@ -259,7 +303,7 @@ export default function ReminderSheet({
       })
     }
     return out
-  }, [pending, dueDate, t])
+  }, [pending, dueDate, recurs, t])
 
   const canClearAll = pending.length > 0
 

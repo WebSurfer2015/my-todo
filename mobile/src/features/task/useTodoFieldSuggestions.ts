@@ -215,5 +215,20 @@ export function useTodoFieldSuggestions({
     setThinking(false)
   }
 
-  return { suggestions, thinking, dismissField, clear, markApplied }
+  /**
+   * Mark `text` as already-queried WITHOUT clearing the current
+   * suggestions. Used when applying one field rewrites the title to the
+   * AI's cleaned version: we must NOT re-query the cleaned title (it has
+   * no temporal info, so a re-query would blank the remaining pills), but
+   * the other pills (reminder, recurrence, …) must stay tappable. Their
+   * show-conditions compare suggestion-vs-applied-field, not vs the text,
+   * so keeping `suggestions` intact preserves them. Invalidate any
+   * in-flight response so a stale one can't land.
+   */
+  function pinQueriedText(text: string) {
+    seqRef.current += 1
+    lastQueriedRef.current = text.trim()
+  }
+
+  return { suggestions, thinking, dismissField, clear, markApplied, pinQueriedText }
 }

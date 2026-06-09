@@ -297,6 +297,19 @@ export default function ComposeSheet({
     }
   }
 
+  // When the user adopts an AI-extracted temporal field (date / recurrence
+  // / reminder), rewrite the title to the AI's cleaned version so the
+  // date/reminder phrasing isn't left duplicated in the title. pinQueriedText
+  // keeps the other suggestion pills tappable without re-querying the now
+  // temporal-free title.
+  function stripTitleToCleaned() {
+    const ct = ai.suggestions?.cleanedText
+    if (ct) {
+      setText(ct)
+      ai.pinQueriedText(ct)
+    }
+  }
+
   function applyReference(ref: TodoReference) {
     setText(ref.text)
     if (ref.category) setCategory(ref.category)
@@ -589,6 +602,7 @@ export default function ComposeSheet({
                     }}
                     onApplyDueDate={(iso) => {
                       setDueDate(iso)
+                      stripTitleToCleaned()
                       Haptics.selectionAsync().catch(() => {})
                     }}
                     onApplyRecurrence={(rec) => {
@@ -596,6 +610,7 @@ export default function ComposeSheet({
                       // refine weekday/bySetPos detail via the
                       // Repeat sub-view if needed.
                       applyRecurrenceWithSnap(rec)
+                      stripTitleToCleaned()
                       Haptics.selectionAsync().catch(() => {})
                     }}
                     onApplyReminder={(rem) => {
@@ -618,6 +633,7 @@ export default function ComposeSheet({
                         // multi-reminder array — the user can add
                         // more via the ReminderSheet.
                         setReminders([{ ...rem, id: genUuid() }])
+                        stripTitleToCleaned()
                         Haptics.selectionAsync().catch(() => {})
                       })()
                     }}
@@ -1005,6 +1021,7 @@ export default function ComposeSheet({
               <ReminderSheet
                 initial={reminders}
                 dueDate={dueDate}
+                recurs={!!recurrence}
                 onCancel={() => setSubView('main')}
                 onSave={async (next) => {
                   if (next.length > 0 && !(await ensurePermission())) {
