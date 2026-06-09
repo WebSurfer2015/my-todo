@@ -43,16 +43,16 @@ export interface ThemeColors {
 // as the primary action. Lower saturation than the original sage palette
 // per the anxiety-conscious design guideline.
 export const LIGHT: ThemeColors = {
-  bg: '#F5F0E2',        // icon cream — warmer, slightly more yellow
-  card: '#FCFAF3',      // near-white with warm cast
-  surface: 'rgba(252, 250, 243, 0.65)',
-  surfaceAlt: 'rgba(252, 250, 243, 0.78)',
-  modal: '#FCFAF3',
+  bg: '#F1E9D5',        // warm cream — deepened a touch so cards lift
+  card: '#FFFDF8',      // brighter warm near-white → clear elevation off bg
+  surface: 'rgba(255, 253, 248, 0.65)',
+  surfaceAlt: 'rgba(255, 253, 248, 0.78)',
+  modal: '#FFFDF8',
   label: '#2A3530',     // deep teal-tinted near-black
   label2: '#5A6B62',    // sage-tinted gray
   label3: '#8A998F',    // muted sage
-  separator: '#E5EAE0', // soft mint separator
-  border: '#E5EAE0',
+  separator: '#DAE1CE', // soft mint separator — a bit more visible
+  border: '#DAE1CE',
   primary: '#4F8A75',         // Mochi outline teal — primary action
   primaryHover: '#3F7460',    // darker on press
   primarySoft: '#E8F0E5',     // pale mint surface (matches icon body)
