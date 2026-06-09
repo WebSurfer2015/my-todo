@@ -134,8 +134,10 @@ export interface TodosSlice {
    * without flipping done. Series instances also get a fresh tail
    * appended. Pebble-neutral. */
   skipTodo: (id: string) => void;
+  skipSeriesFuture: (id: string) => void;
   restoreFromTrash: (id: string) => void;
   permanentlyDelete: (id: string) => void;
+  permanentlyDeleteSeriesFuture: (id: string) => void;
   updatePriority: (id: string, priority: Priority) => void;
   updateDueDate: (id: string, dueDate: string) => void;
   updateReminder: (id: string, reminder: Todo["reminder"] | undefined) => void;
@@ -248,6 +250,7 @@ export function useTodosSlice(
     todoApplySeriesFutureEdits,
     todoRestoreFromTrash,
     todoPermanentlyDelete,
+    todoPermanentlyDeleteSeriesFuture,
     todoEmptyTrash,
     todoClearDone,
     todoSet,
@@ -262,6 +265,7 @@ export function useTodosSlice(
     migrateToRecurringV2,
     topUpAllSeries,
     todoSkip,
+    todoSkipSeriesFuture,
     todoDetachFromSeries,
     todoApplyRecurrenceChange,
     todoApplySeriesSubtasks,
@@ -492,6 +496,16 @@ export function useTodosSlice(
     [setTodos, notify, t, restoreFromTrash],
   );
 
+  // "Skip all" — skip this occurrence + every future sibling in the
+  // series. Ends the series (no fresh tail). Undo restores via the
+  // series-restore path is out of scope here; a plain snackbar nudge.
+  const skipSeriesFuture = useCallback(
+    (id: string) => {
+      setTodos((prev) => todoSkipSeriesFuture(prev, id).next);
+    },
+    [setTodos],
+  );
+
   const applySeriesFutureEdits = useCallback(
     (
       id: string,
@@ -598,6 +612,14 @@ export function useTodosSlice(
   const permanentlyDelete = useCallback(
     (id: string) => {
       setTodos((prev) => todoPermanentlyDelete(prev, id));
+    },
+    [setTodos],
+  );
+
+  // "Delete series" — hard-remove this + all future siblings.
+  const permanentlyDeleteSeriesFuture = useCallback(
+    (id: string) => {
+      setTodos((prev) => todoPermanentlyDeleteSeriesFuture(prev, id));
     },
     [setTodos],
   );
@@ -942,8 +964,10 @@ export function useTodosSlice(
     toggle,
     moveToTrash,
     skipTodo,
+    skipSeriesFuture,
     restoreFromTrash,
     permanentlyDelete,
+    permanentlyDeleteSeriesFuture,
     updatePriority,
     updateDueDate,
     updateReminder,

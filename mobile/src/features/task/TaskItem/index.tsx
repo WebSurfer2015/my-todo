@@ -67,6 +67,7 @@ import { Swipeable } from 'react-native-gesture-handler'
 import * as Haptics from 'expo-haptics'
 import {
   Repeat as LucideRepeat,
+  Bell as LucideBell,
   ChevronRight,
   ChevronDown,
   Trash2,
@@ -75,6 +76,7 @@ import {
   Check,
   Calendar,
 } from 'lucide-react-native'
+import { getReminders } from '../../../../../core/src/logic/derive'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Category, Priority, Recurrence, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../../../core-bindings/types'
 import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
@@ -116,6 +118,8 @@ interface Props {
   /** R5 — Skip ("Not Do"). Marks status='notDo' and tucks the row
    * into the Done bin without flipping done. Pebble-neutral. */
   onSkip?: (id: string) => void
+  onSkipSeries?: (id: string) => void
+  onPermanentDeleteSeries?: (id: string) => void
   onMoveSeriesFutureToTrash?: (id: string) => void
   onApplySeriesFutureEdits?: (
     id: string,
@@ -198,7 +202,7 @@ function TaskItem({
   todo, inTrash = false, binFilterView = false, selected = false, onToggleSelect,
   categories, density = 'comfortable', celebrate = true, playSound = true,
   subtaskVisibility = 'all',
-  onToggle, onMoveToTrash, onSkip, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange, onApplySeriesSubtasks, onRestore, onPermanentDelete,
+  onToggle, onMoveToTrash, onSkip, onSkipSeries, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange, onApplySeriesSubtasks, onRestore, onPermanentDelete, onPermanentDeleteSeries,
   onUpdatePriority, onUpdateDueDate, onSnooze, onLongPressDefer, onUpdateCategory, onUpdateText, onUpdateNotes, onUpdateRecurrence, onUpdateReminder, onUpdateReminders,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
@@ -919,14 +923,22 @@ function TaskItem({
                     : t.noDate}
                 </Text>
               )}
-              {todo.recurrence && (
-                <LucideRepeat
-                  size={11}
-                  color={theme.label3}
-                  strokeWidth={2}
-                />
-              )}
             </View>
+            )}
+
+            {/* Recurrence / reminder indicators — OUTSIDE the date-chip
+                block so they still render on Home's today rows, where the
+                date chip itself is suppressed. */}
+            {todo.recurrence && (
+              <LucideRepeat size={11} color={theme.label3} strokeWidth={2} />
+            )}
+            {getReminders(todo).length > 0 && (
+              <LucideBell
+                size={11}
+                color={theme.label3}
+                strokeWidth={2}
+                accessibilityLabel="Has a reminder"
+              />
             )}
 
             <View style={{ flex: 1 }} />
@@ -1200,6 +1212,9 @@ function TaskItem({
             onMoveToTrash={onMoveToTrash}
             onPermanentDelete={onPermanentDelete}
             onMoveSeriesFutureToTrash={onMoveSeriesFutureToTrash}
+            onSkip={onSkip}
+            onSkipSeries={onSkipSeries}
+            onPermanentDeleteSeries={onPermanentDeleteSeries}
             onApplySeriesFutureEdits={onApplySeriesFutureEdits}
             onDetachFromSeries={onDetachFromSeries}
             onApplyRecurrenceChange={onApplyRecurrenceChange}

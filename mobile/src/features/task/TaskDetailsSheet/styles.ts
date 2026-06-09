@@ -228,14 +228,19 @@ export function makeStyles(c: ThemeColors) {
       borderRadius: 999,
       alignItems: 'center',
       justifyContent: 'center',
+      // Transparent border on both segments so the active one can gain a
+      // colored border without shifting layout by 1px.
+      borderWidth: 1,
+      borderColor: 'transparent',
     },
     editModeSegmentActive: {
-      backgroundColor: c.card,
+      backgroundColor: c.primary,
+      borderColor: c.primary,
       shadowColor: '#000',
-      shadowOpacity: 0.06,
+      shadowOpacity: 0.12,
       shadowOffset: { width: 0, height: 1 },
-      shadowRadius: 2,
-      elevation: 1,
+      shadowRadius: 3,
+      elevation: 2,
     },
     editModeSegmentText: {
       fontSize: 13,
@@ -243,8 +248,8 @@ export function makeStyles(c: ThemeColors) {
       color: c.label2,
     },
     editModeSegmentTextActive: {
-      color: c.label,
-      fontWeight: '600',
+      color: c.primaryOn,
+      fontWeight: '700',
     },
     editModeHelper: {
       marginTop: 8,
@@ -597,16 +602,53 @@ export function makeStyles(c: ThemeColors) {
       fontWeight: '600',
       letterSpacing: -0.2,
     },
+    // Sticky footer — pinned below the scrollable content; holds Save +
+    // the Delete/Skip/Mark-done row. Solid sheet background so scrolled
+    // content doesn't bleed through, hairline divider on top.
+    stickyFooter: {
+      backgroundColor: c.modal,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.separator,
+      paddingHorizontal: 12,
+      paddingTop: 4,
+      paddingBottom: 16,
+    },
+    // Primary commit button — Save moved here from the header.
+    primarySaveBtn: {
+      backgroundColor: c.primary,
+      borderRadius: 14,
+      paddingVertical: 15,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 16,
+      marginHorizontal: 4,
+    },
+    primarySaveBtnText: {
+      color: c.primaryOn,
+      fontSize: 16,
+      fontWeight: '700',
+      letterSpacing: -0.2,
+    },
+    // Disabled field row (e.g. Repeat in "Edit this only").
+    editFieldRowDisabled: {
+      opacity: 0.4,
+    },
     bottomActionRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      marginTop: 12,
+      marginTop: 8,
       paddingHorizontal: 4,
     },
     bottomActionButton: {
       paddingVertical: 14,
       paddingHorizontal: 4,
+    },
+    skipActionText: {
+      color: c.label2,
+      fontSize: 15,
+      fontWeight: '600',
+      letterSpacing: -0.16,
     },
     deleteActionText: {
       color: c.red,

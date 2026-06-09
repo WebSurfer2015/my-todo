@@ -234,6 +234,12 @@ interface Props {
   /** Optional — when provided, "Delete to-do" on a recurring instance with
    * a seriesId offers a "Delete this and all future" option. */
   onMoveSeriesFutureToTrash?: (id: string) => void
+  /** Skip this occurrence (recurring/series). */
+  onSkip?: (id: string) => void
+  /** Skip this + all future occurrences in the series. */
+  onSkipSeries?: (id: string) => void
+  /** Permanently delete this + all future occurrences in the series. */
+  onPermanentDeleteSeries?: (id: string) => void
   /** Optional — copies text/priority/category/notes from this instance to
    * every future non-trashed sibling in the same series. Skips detached
    * instances unless `options.overwriteDetached` is true. */
@@ -285,7 +291,7 @@ interface Props {
 
 export default function TaskDetailsSheet({
   visible, todo, categories, initialSubtaskEditId, onClose, onUpdateText, onUpdateNotes,
-  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminder, onUpdateReminders, onMoveToTrash, onPermanentDelete, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange, onApplySeriesSubtasks,
+  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminder, onUpdateReminders, onMoveToTrash, onPermanentDelete, onMoveSeriesFutureToTrash, onSkip, onSkipSeries, onPermanentDeleteSeries, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange, onApplySeriesSubtasks,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
   agentEnabled,
@@ -301,6 +307,13 @@ export default function TaskDetailsSheet({
   // remember a previous session's pick.
   const isSeriesRow = !!todo.seriesId
   const [editMode, setEditMode] = useState<'this' | 'series'>('this')
+  // Recurrence is locked (visible but non-editable) when editing a single
+  // occurrence of a series — changing the cadence only makes sense series-wide.
+  const repeatLocked = isSeriesRow && editMode === 'this'
+  // When editing the whole series, the bottom actions apply to this + all
+  // future occurrences ("Delete series" / "Skip all" / "Mark all done");
+  // otherwise they act on this single todo/occurrence.
+  const seriesScope = isSeriesRow && editMode === 'series'
   // Toast bookkeeping: only show the detach toast the first time the
   // user makes a series-eligible edit per sheet-open. Resets on each
   // visible toggle.
@@ -955,7 +968,7 @@ export default function TaskDetailsSheet({
                     <Text style={styles.deleteHeaderText}>{t.deleteTask}</Text>
                   </TouchableOpacity>
                 </View>
-                <ScrollView style={styles.list} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editStepBody}>
+                <ScrollView style={styles.list} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editStepBody} showsVerticalScrollIndicator={false}>
                   <View style={styles.editGroupCard}>
                     <TextInput
                       style={styles.editTextInputInCard}
@@ -1132,6 +1145,7 @@ export default function TaskDetailsSheet({
             <ReminderSheet
               initial={editReminders}
               dueDate={editDueDate}
+              recurs={!!editRecurrence}
               onCancel={() => setParentEditView('main')}
               onSave={(next) => {
                 void applyReminders(next).then(() => setParentEditView('main'))
@@ -1198,9 +1212,9 @@ export default function TaskDetailsSheet({
               <Text style={styles.cancelHeaderText}>{t.cancel}</Text>
             </TouchableOpacity>
             <Text style={styles.editHeaderTitle}>{t.edit.toDo}</Text>
-            <TouchableOpacity onPress={closeAndFlushText} hitSlop={10} style={styles.headerSideBtn}>
-              <Text style={styles.saveHeaderText}>{t.save}</Text>
-            </TouchableOpacity>
+            {/* All commit/destructive actions live at the bottom now; this
+                spacer keeps the title centered against the Cancel button. */}
+            <View style={styles.headerSideBtn} />
           </View>
 
           {/* R6a — Edit-scope toggle. Only renders for series rows.
@@ -1251,9 +1265,6 @@ export default function TaskDetailsSheet({
                   </Text>
                 </TouchableOpacity>
               </View>
-              {editMode === 'series' && (
-                <Text style={styles.editModeHelper}>{t.editSeriesHelper}</Text>
-              )}
             </View>
           )}
 
@@ -1261,6 +1272,7 @@ export default function TaskDetailsSheet({
               style={styles.list}
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={styles.editBody}
+              showsVerticalScrollIndicator={false}
             >
               <View style={styles.editGroupCard}>
                 <TextInput
@@ -1393,14 +1405,20 @@ export default function TaskDetailsSheet({
                     instance ("Edit this only") can't change the repeat rule,
                     so Repeat + Repeat-ends are hidden in that mode. They show
                     for one-off rows and in "Edit series" mode. */}
-                {!(isSeriesRow && editMode === 'this') && (
-                  <>
+                {/* Repeat — shown for all rows; disabled (not hidden) in
+                    "Edit this only" so the recurrence is visible but can't
+                    be changed for a single occurrence. */}
                 <View style={styles.editGroupDivider} />
                 <TouchableOpacity
-                  style={styles.editFieldRowInGroup}
+                  style={[
+                    styles.editFieldRowInGroup,
+                    repeatLocked && styles.editFieldRowDisabled,
+                  ]}
                   onPress={() => setParentEditView('repeat')}
+                  disabled={repeatLocked}
                   activeOpacity={0.6}
                   accessibilityRole="button"
+                  accessibilityState={{ disabled: repeatLocked }}
                   accessibilityLabel={`Repeat, ${recurrenceLabel(editRecurrence)}. Tap to change.`}
                 >
                   <Repeat size={18} color={editRecurrence ? theme.blue : theme.gray3} strokeWidth={2} />
@@ -1420,8 +1438,6 @@ export default function TaskDetailsSheet({
                   </Text>
                   <Text style={styles.editChevron}>›</Text>
                 </TouchableOpacity>
-                  </>
-                )}
                 {(onUpdateReminders || onUpdateReminder) && (
                   <>
                     <View style={styles.editGroupDivider} />
@@ -1447,11 +1463,14 @@ export default function TaskDetailsSheet({
                     </TouchableOpacity>
                   </>
                 )}
-                {editRecurrence && !(isSeriesRow && editMode === 'this') && (
+                {editRecurrence && (
                   <>
                     <View style={styles.editGroupDivider} />
                     <TouchableOpacity
-                      style={styles.editFieldRowInGroup}
+                      style={[
+                        styles.editFieldRowInGroup,
+                        repeatLocked && styles.editFieldRowDisabled,
+                      ]}
                       onPress={() => {
                         setEndDatePickerDate(
                           editRecurrence.endDate
@@ -1461,8 +1480,10 @@ export default function TaskDetailsSheet({
                         setPendingRecurEndDate(editRecurrence.endDate ?? '')
                         setParentEditView('recurEndDate')
                       }}
+                      disabled={repeatLocked}
                       activeOpacity={0.6}
                       accessibilityRole="button"
+                      accessibilityState={{ disabled: repeatLocked }}
                       accessibilityLabel={`Repeat ends, ${editRecurrence.endDate ? absoluteDateLabel(editRecurrence.endDate) : 'never'}. Tap to change.`}
                     >
                       <CalendarIcon size={18} color={editRecurrence.endDate ? theme.blue : theme.gray3} />
@@ -1572,52 +1593,43 @@ export default function TaskDetailsSheet({
                   <Text style={styles.addSubtaskLinkText}>{t.addSubtask}</Text>
                 </TouchableOpacity>
               </View>
+            </ScrollView>
 
-              {todo.seriesId && onApplySeriesFutureEdits && (
-                <TouchableOpacity
-                  style={styles.seriesAction}
-                  onPress={() => {
-                    Alert.alert(
-                      'Apply to all future?',
-                      'Copy this to-do\'s text, priority, and category to every future to-do in this recurring series. Past instances are not changed.',
-                      [
-                        { text: t.cancel, style: 'cancel' },
-                        {
-                          text: 'Apply to all future',
-                          onPress: () => {
-                            onApplySeriesFutureEdits!(todo.id, {
-                              text: editText.trim() || todo.text,
-                              priority: editPriority,
-                              category: editCategory,
-                            })
-                          },
-                        },
-                      ],
-                    )
-                  }}
-                  activeOpacity={0.6}
-                  accessibilityRole="button"
-                  accessibilityLabel={t.series.applyToFutureA11y}
-                >
-                  <Text style={styles.seriesActionText}>Apply changes to all future in series</Text>
-                </TouchableOpacity>
-              )}
+            {/* Sticky footer — actions pinned to the bottom; the fields +
+                STEPS above scroll independently. */}
+            <View style={styles.stickyFooter}>
+              {/* Primary action — Save. */}
+              <TouchableOpacity
+                style={styles.primarySaveBtn}
+                onPress={closeAndFlushText}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={t.save}
+              >
+                <Text style={styles.primarySaveBtnText}>{t.save}</Text>
+              </TouchableOpacity>
 
+              {/* Action row — Delete · Skip · Mark done. In "Edit series"
+                  mode these apply to this + all future occurrences
+                  ("Delete series" / "Skip all" / "Mark all done"). */}
               <View style={styles.bottomActionRow}>
-                {onPermanentDelete ? (
+                {(seriesScope ? !!onPermanentDeleteSeries : !!onPermanentDelete) ? (
                   <TouchableOpacity
                     style={styles.bottomActionButton}
                     onPress={() => {
                       Alert.alert(
-                        t.deletePermanently,
-                        t.deletePermanentlyConfirm(todo.text),
+                        seriesScope ? 'Delete series?' : t.deletePermanently,
+                        seriesScope
+                          ? 'Permanently delete this and all future to-dos in this series. Past instances are kept.'
+                          : t.deletePermanentlyConfirm(todo.text),
                         [
                           { text: t.cancel, style: 'cancel' },
                           {
-                            text: t.deletePermanently,
+                            text: seriesScope ? 'Delete series' : t.deletePermanently,
                             style: 'destructive',
                             onPress: () => {
-                              onPermanentDelete(todo.id)
+                              if (seriesScope) onPermanentDeleteSeries!(todo.id)
+                              else onPermanentDelete!(todo.id)
                               onClose()
                             },
                           },
@@ -1626,53 +1638,56 @@ export default function TaskDetailsSheet({
                     }}
                     activeOpacity={0.6}
                     accessibilityRole="button"
-                    accessibilityLabel={t.deletePermanently}
+                    accessibilityLabel={seriesScope ? 'Delete series' : t.deletePermanently}
                   >
-                    <Text style={styles.deleteActionText}>{t.deleteTask}</Text>
+                    <Text style={styles.deleteActionText}>
+                      {seriesScope ? 'Delete series' : t.deleteTask}
+                    </Text>
                   </TouchableOpacity>
                 ) : (
                   <View />
                 )}
+
+                {onSkip ? (
+                  <TouchableOpacity
+                    style={styles.bottomActionButton}
+                    onPress={() => {
+                      if (seriesScope && onSkipSeries) onSkipSeries(todo.id)
+                      else onSkip(todo.id)
+                      onClose()
+                    }}
+                    activeOpacity={0.6}
+                    accessibilityRole="button"
+                    accessibilityLabel={seriesScope ? 'Skip all' : 'Skip'}
+                  >
+                    <Text style={styles.skipActionText}>
+                      {seriesScope ? 'Skip all' : 'Skip'}
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View />
+                )}
+
                 <TouchableOpacity
                   style={styles.bottomActionButton}
                   onPress={() => {
-                    const isInSeries = !!todo.seriesId && !!onMoveSeriesFutureToTrash
-                    if (isInSeries) {
-                      Alert.alert(
-                        t.markDone,
-                        'This is part of a recurring series.',
-                        [
-                          { text: t.cancel, style: 'cancel' },
-                          {
-                            text: 'Just this one',
-                            onPress: () => {
-                              onMoveToTrash(todo.id)
-                              onClose()
-                            },
-                          },
-                          {
-                            text: 'This and all future',
-                            style: 'destructive',
-                            onPress: () => {
-                              onMoveSeriesFutureToTrash!(todo.id)
-                              onClose()
-                            },
-                          },
-                        ],
-                      )
+                    if (seriesScope && onMoveSeriesFutureToTrash) {
+                      onMoveSeriesFutureToTrash(todo.id)
                     } else {
                       onMoveToTrash(todo.id)
-                      onClose()
                     }
+                    onClose()
                   }}
                   activeOpacity={0.6}
                   accessibilityRole="button"
-                  accessibilityLabel={t.markDone}
+                  accessibilityLabel={seriesScope ? 'Mark all done' : t.markDone}
                 >
-                  <Text style={styles.markDoneActionText}>{t.markDone}</Text>
+                  <Text style={styles.markDoneActionText}>
+                    {seriesScope ? 'Mark all done' : t.markDone}
+                  </Text>
                 </TouchableOpacity>
               </View>
-            </ScrollView>
+            </View>
           </>
           )}
 
