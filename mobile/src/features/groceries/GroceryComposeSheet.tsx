@@ -395,6 +395,51 @@ export default function GroceryComposeSheet({
     [groups],
   )
 
+  // Partial-label match list. As the user types, surface grocery items
+  // (current + past) whose LABEL contains the typed text so a known
+  // item can be re-added with one tap — no AI roundtrip, the saved
+  // dept + stores ride along. Mirrors the todo reference-pick flow.
+  //   • onList = true  → an unchecked item is already on the active
+  //                      list; tapping does nothing (per spec).
+  //   • onList = false → only checked/past entries exist; tapping
+  //                      re-adds it.
+  // Matching is label-only; the store(s) are shown for context.
+  const MATCH_MIN_CHARS = 2
+  const matches = useMemo(() => {
+    const q = text.trim().toLowerCase()
+    if (q.length < MATCH_MIN_CHARS) return []
+    const byLabel = new Map<
+      string,
+      { label: string; stores: Set<string>; groupId: string; onList: boolean }
+    >()
+    for (const it of existingItems) {
+      const label = it.text.trim()
+      if (!label) continue
+      if (!label.toLowerCase().includes(q)) continue
+      const key = label.toLowerCase()
+      let entry = byLabel.get(key)
+      if (!entry) {
+        entry = { label, stores: new Set(), groupId: it.groupId, onList: false }
+        byLabel.set(key, entry)
+      }
+      for (const s of it.stores) entry.stores.add(s)
+      if (!it.checked) entry.onList = true
+      // Prefer a real dept over Uncategorized when entries disagree.
+      if (entry.groupId === OTHERS_GROUP_ID && it.groupId !== OTHERS_GROUP_ID) {
+        entry.groupId = it.groupId
+      }
+    }
+    const rows = Array.from(byLabel.values())
+    // Prefix matches first (more relevant), then alphabetical; cap to 6.
+    rows.sort((a, b) => {
+      const ap = a.label.toLowerCase().startsWith(q) ? 0 : 1
+      const bp = b.label.toLowerCase().startsWith(q) ? 0 : 1
+      if (ap !== bp) return ap - bp
+      return a.label.localeCompare(b.label)
+    })
+    return rows.slice(0, 6)
+  }, [text, existingItems])
+
   function commit(): boolean {
     const trimmed = text.trim()
     if (!trimmed) return false
@@ -414,6 +459,35 @@ export default function GroceryComposeSheet({
       // user can keep typing without re-tapping.
       requestAnimationFrame(() => inputRef.current?.focus())
     }
+  }
+
+  // Tap a match row: re-add a known item (skipping AI) or, if it's
+  // already on the active list, do nothing.
+  function pickMatch(m: (typeof matches)[number]) {
+    // Cancel any pending AI classify — the user picked a known item, so
+    // we skip the AI roundtrip entirely (mirrors the todo reference pick).
+    if (aiTimerRef.current !== null) {
+      clearTimeout(aiTimerRef.current)
+      aiTimerRef.current = null
+    }
+    aiSeqRef.current += 1
+    setAiBusy(false)
+    if (m.onList) {
+      // Already on the active list → do nothing (per spec). A light tap
+      // confirms the gesture registered without adding a duplicate.
+      Haptics.selectionAsync().catch(() => {})
+      return
+    }
+    // Re-add a past item with its saved dept + stores (filtered to ones
+    // that still exist). Falls back to whatever stores are already
+    // picked if none of the saved stores survive.
+    const validStores = stores.filter((s) => m.stores.has(s))
+    const finalStores = validStores.length > 0 ? validStores : selectedStores
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
+    onAdd({ text: m.label, groupId: m.groupId, stores: finalStores })
+    // Keep the sheet open (serial-add) and reset for the next item.
+    setText('')
+    requestAnimationFrame(() => inputRef.current?.focus())
   }
 
   // Require at least one store pick. When the user has no configured
@@ -471,6 +545,53 @@ export default function GroceryComposeSheet({
                     returnKeyType="done"
                     onSubmitEditing={handleAddAnother}
                   />
+
+                  {/* Match list — known items (current + past) whose
+                      label contains the typed text. Tap to re-add with
+                      saved dept/stores (no AI); on-list items show a
+                      badge and don't re-add. */}
+                  {matches.length > 0 && (
+                    <View style={styles.matchList}>
+                      {matches.map((m) => {
+                        const saved = Array.from(m.stores)
+                        const valid = saved.filter((s) => stores.includes(s))
+                        const storesText = (valid.length > 0 ? valid : saved).join(', ')
+                        return (
+                          <TouchableOpacity
+                            key={m.label.toLowerCase()}
+                            style={styles.matchRow}
+                            onPress={() => pickMatch(m)}
+                            activeOpacity={m.onList ? 1 : 0.6}
+                            accessibilityRole="button"
+                            accessibilityLabel={
+                              m.onList
+                                ? `${m.label}, already on your list`
+                                : `Add ${m.label}${storesText ? `, at ${storesText}` : ''}`
+                            }
+                          >
+                            <View style={styles.matchTextCol}>
+                              <Text style={styles.matchLabel} numberOfLines={1}>
+                                {m.label}
+                              </Text>
+                              {storesText ? (
+                                <View style={styles.matchStoreRow}>
+                                  <StoreIcon size={11} color={theme.label3} />
+                                  <Text style={styles.matchStore} numberOfLines={1}>
+                                    {storesText}
+                                  </Text>
+                                </View>
+                              ) : null}
+                            </View>
+                            {m.onList ? (
+                              <Text style={styles.matchOnList}>On list</Text>
+                            ) : (
+                              <Plus size={16} color={theme.primary} />
+                            )}
+                          </TouchableOpacity>
+                        )
+                      })}
+                    </View>
+                  )}
 
                   {/* Mochi-thinking status — only while an AI call is
                       in flight. Done button promoted to the header
@@ -761,6 +882,37 @@ function makeStyles(c: ThemeColors) {
       color: c.label,
     },
     storeChipTextOn: { color: '#fff' },
+    matchList: {
+      marginTop: 6,
+      backgroundColor: c.card,
+      borderRadius: 12,
+      overflow: 'hidden',
+    },
+    matchRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.border,
+    },
+    matchTextCol: { flex: 1 },
+    matchLabel: { fontSize: 15, fontWeight: '500', color: c.label },
+    matchStoreRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 2,
+    },
+    matchStore: { fontSize: 12, color: c.label3 },
+    matchOnList: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: c.label3,
+      textTransform: 'uppercase',
+      letterSpacing: 0.3,
+    },
     fieldRow: {
       flexDirection: 'row',
       alignItems: 'center',
