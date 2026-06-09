@@ -71,6 +71,7 @@ import {
   formatRecurrence,
 } from "../../core/src/logic/utils";
 import { strings } from "../../core/src/data/i18n";
+import { normalizeSuggestedReminder } from "../../core/src/logic/suggestFields";
 import type { Todo, Filter } from "../../core/src/domain/types";
 
 // ---- migrateTodos --------------------------------------------------------
@@ -1670,6 +1671,31 @@ describe("todoSetRecurrence assigns seriesId", () => {
     const td = { ...newTodo({ text: "x", priority: "low", dueDate: "" }), recurrence: { freq: "daily" as const }, seriesId: "s1" };
     const [next] = todoSetRecurrence([td], td.id, undefined);
     expect(next.recurrence).toBeUndefined();
+  });
+});
+
+describe("normalizeSuggestedReminder", () => {
+  it("drops a >=1-day interval when a recurrence is present", () => {
+    const out = normalizeSuggestedReminder(
+      { freq: "weekly" },
+      { at: "2026-06-15T09:00", intervalMinutes: 10080, until: "2026-12-31T09:00" },
+    );
+    expect(out).toEqual({ at: "2026-06-15T09:00" });
+  });
+  it("keeps a sub-daily interval (legit within an occurrence)", () => {
+    const r = { at: "2026-06-15T09:00", intervalMinutes: 120, until: "2026-06-15T17:00" };
+    expect(normalizeSuggestedReminder({ freq: "daily" }, r)).toEqual(r);
+  });
+  it("leaves a fixed reminder untouched", () => {
+    const r = { at: "2026-06-15T09:00" };
+    expect(normalizeSuggestedReminder({ freq: "weekly" }, r)).toEqual(r);
+  });
+  it("no-op without a recurrence (keeps the interval)", () => {
+    const r = { at: "2026-06-15T09:00", intervalMinutes: 10080 };
+    expect(normalizeSuggestedReminder(null, r)).toEqual(r);
+  });
+  it("returns null for a null reminder", () => {
+    expect(normalizeSuggestedReminder({ freq: "weekly" }, null)).toBeNull();
   });
 });
 

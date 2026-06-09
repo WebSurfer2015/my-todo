@@ -146,7 +146,16 @@ describe('parseSuggestFieldsOutput', () => {
       dueDate: null,
       recurrence: null,
       reminder: null,
+      cleanedText: null,
     })
+  })
+  it('parses a non-empty cleanedText', () => {
+    const out = parseSuggestFieldsOutput('{"cleanedText":"Walk Conner"}')
+    expect(out.cleanedText).toBe('Walk Conner')
+  })
+  it('drops blank/whitespace cleanedText to null', () => {
+    expect(parseSuggestFieldsOutput('{"cleanedText":"   "}').cleanedText).toBeNull()
+    expect(parseSuggestFieldsOutput('{"cleanedText":42}').cleanedText).toBeNull()
   })
   it('parses category + priority + dueDate', () => {
     const out = parseSuggestFieldsOutput(

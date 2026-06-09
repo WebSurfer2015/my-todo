@@ -1,4 +1,5 @@
 import auth from '@react-native-firebase/auth'
+import { normalizeSuggestedReminder } from '../../../core/src/logic/suggestFields'
 
 /**
  * Client wrappers for the aiInfer Cloud Function. Same pattern as
@@ -167,28 +168,13 @@ export async function classifyGroceryDept(input: ClassifyDeptInput): Promise<Cla
  */
 export async function suggestTodoFields(input: SuggestFieldsInput): Promise<SuggestFieldsResult> {
   try {
-    return normalizeSuggestReminder(
-      await callAiInfer<SuggestFieldsResult>('suggest-todo-fields', input),
-    )
+    const res = await callAiInfer<SuggestFieldsResult>('suggest-todo-fields', input)
+    // Drop a recurrence-cadence-as-reminder mis-parse (pure helper in core,
+    // unit-tested there).
+    return { ...res, reminder: normalizeSuggestedReminder(res.recurrence, res.reminder) }
   } catch {
     return { category: null, newCategoryLabel: null, priority: null, dueDate: null, recurrence: null, reminder: null, cleanedText: null }
   }
-}
-
-/** Guard against the model mapping a recurrence cadence into the reminder
- * as a long repeating interval — e.g. "remind at 9am" on a Mon/Wed/Fri
- * todo coming back as {intervalMinutes: 10080} ("every 168 hours"). When a
- * recurrence is present and the reminder repeats on a daily-or-longer
- * cadence, drop the interval and keep just the fixed `at` time: the
- * recurrence already repeats the todo, and the app rebases the reminder
- * per occurrence (so it fires at that time on each one). Sub-daily nudges
- * (< 1 day) are left alone — those are legitimate within an occurrence. */
-function normalizeSuggestReminder(res: SuggestFieldsResult): SuggestFieldsResult {
-  const rem = res.reminder
-  if (res.recurrence && rem?.intervalMinutes && rem.intervalMinutes >= 1440) {
-    return { ...res, reminder: { at: rem.at } }
-  }
-  return res
 }
 
 interface LinkStoreInput {
