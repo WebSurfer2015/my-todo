@@ -53,7 +53,11 @@ describe('derive-path performance', () => {
     expect(ms, `buildGroups took ${ms.toFixed(1)}ms for ${N} todos`).toBeLessThan(1000)
   })
 
-  it('scales roughly linearly (10× todos ≪ 100× time)', () => {
+  // Ratio-of-two-timings is inherently noisy and gets worse under v8
+  // coverage instrumentation (the small run is dominated by fixed
+  // overhead), so skip it during coverage runs (COVERAGE=1). The two
+  // absolute-budget checks above still run and catch real O(n^2) blowups.
+  it.skipIf(process.env.COVERAGE === '1')('scales roughly linearly (10× todos ≪ 100× time)', () => {
     const small = makeTodos(1000)
     const big = makeTodos(10000)
     const tA = performance.now()

@@ -30,6 +30,11 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'json-summary'],
+      // NOTE: core/ can't be attributed here — v8 only instruments files
+      // under this project's (web/) root, so cross-workspace `../core/src`
+      // reads as 0/0 even though the suite exercises it heavily. Real,
+      // gateable core coverage needs a repo-root vitest workspace
+      // (root config + projects: ['web', ...]). Tracked as P1-coverage.
       include: ['src/**/*.ts', 'src/**/*.tsx'],
       exclude: [
         '**/*.test.ts',

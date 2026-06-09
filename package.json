@@ -6,7 +6,7 @@
   "scripts": {
     "lint:arch": "depcruise \"core/src/**/*.{ts,tsx}\" \"web/src/**/*.{ts,tsx}\" \"mobile/src/**/*.{ts,tsx}\" --config .dependency-cruiser.cjs --ignore-known .dependency-cruiser-known-violations.json",
     "lint:arch:baseline": "depcruise \"core/src/**/*.{ts,tsx}\" \"web/src/**/*.{ts,tsx}\" \"mobile/src/**/*.{ts,tsx}\" --config .dependency-cruiser.cjs --output-type baseline > .dependency-cruiser-known-violations.json",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "npm --prefix web run coverage"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.7.0",

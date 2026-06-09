@@ -12,7 +12,8 @@
     "test:rules": "firebase emulators:exec --only firestore 'vitest run tests/'",
     "lint": "eslint .",
     "deploy": "npm run build && firebase deploy --only hosting",
-    "deploy:rules": "firebase deploy --only firestore:rules"
+    "deploy:rules": "firebase deploy --only firestore:rules",
+    "coverage": "COVERAGE=1 vitest run --exclude 'tests/**' --coverage"
   },
   "dependencies": {
     "@sentry/react": "^10.52.0",
