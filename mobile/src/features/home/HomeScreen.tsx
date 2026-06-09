@@ -787,6 +787,9 @@ function resolveDashboardTile(
       ).length,
       icon: <StoreIcon size={11} color={theme.primary} strokeWidth={2.4} />,
       onPress: () => {
+        // Dashboard cards are single-select: a store card clears any active
+        // department (the Shopping screen's pills still allow store + dept).
+        store.setActiveGroceryDept(undefined)
         store.setActiveGroceryStore(tile.store)
         navigate('Groceries')
       },
@@ -800,6 +803,8 @@ function resolveDashboardTile(
       .length,
     icon: <Tag size={11} color={theme.primary} strokeWidth={2.4} />,
     onPress: () => {
+      // Single-select from the Dashboard: clear any active store first.
+      store.setActiveGroceryStore(undefined)
       store.setActiveGroceryDept(tile.dept)
       navigate('Groceries')
     },
