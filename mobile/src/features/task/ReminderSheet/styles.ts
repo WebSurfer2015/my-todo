@@ -120,7 +120,7 @@ export function makeStyles(c: ThemeColors) {
       borderRadius: 999,
       backgroundColor: c.primary,
     },
-    fixedAddBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+    fixedAddBtnText: { color: c.primaryOn, fontSize: 14, fontWeight: '700' },
     sectionHeader: {
       fontSize: 11,
       fontWeight: '700',

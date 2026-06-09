@@ -200,7 +200,7 @@ function makeReviewStyles(c: ThemeColors) {
       borderColor: c.primary,
     },
     check: {
-      color: '#fff',
+      color: c.primaryOn,
       fontSize: 12,
       fontWeight: '700',
       lineHeight: 14,
@@ -237,7 +237,7 @@ function makeReviewStyles(c: ThemeColors) {
       opacity: 0.4,
     },
     btnPrimaryText: {
-      color: '#fff',
+      color: c.primaryOn,
       fontSize: 13,
       fontWeight: '600',
     },

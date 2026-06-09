@@ -39,7 +39,10 @@ export default function StorePill({
   inactiveOutline,
 }: StorePillProps) {
   const pinColor =
-    pinIconColor ?? (active ? "#fff" : (styles.storePillLabel.color as string));
+    pinIconColor ??
+    (active
+      ? (styles.storePillLabelActive.color as string)
+      : (styles.storePillLabel.color as string));
   return (
     <TouchableOpacity
       style={[

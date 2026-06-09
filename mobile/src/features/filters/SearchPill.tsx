@@ -34,7 +34,7 @@ export default function SearchPill({ query, onPress, onClear }: Props) {
       accessibilityRole="button"
       accessibilityLabel={`Search: ${query}. Tap to edit.`}
     >
-      <SearchIcon size={12} color="#fff" strokeWidth={2.5} />
+      <SearchIcon size={12} color={theme.primaryOn} strokeWidth={2.5} />
       <Text style={styles.text} numberOfLines={1}>
         {query}
       </Text>
@@ -71,7 +71,7 @@ function makeStyles(c: ThemeColors) {
       fontSize: 13,
       fontWeight: '600',
       letterSpacing: -0.16,
-      color: '#fff',
+      color: c.primaryOn,
       maxWidth: 160,
     },
     clearGlyph: {

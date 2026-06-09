@@ -896,7 +896,7 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.primary,
     },
     todayCheckmark: {
-      color: '#fff',
+      color: c.primaryOn,
       fontSize: 13,
       fontWeight: '700',
       lineHeight: 14,

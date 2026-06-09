@@ -1,7 +1,7 @@
 import React from 'react'
 import Svg, { Path, Circle, Polyline } from 'react-native-svg'
 import { StatusFilter } from '../core-bindings/types'
-import type { ThemeColors } from '../app/theme'
+import { useTheme, type ThemeColors } from '../app/theme'
 
 export function statusColor(id: StatusFilter, theme: ThemeColors): string {
   switch (id) {
@@ -65,12 +65,16 @@ function NotDoIcon({ size = 16, color = '#3C3C43' }: Props) {
   )
 }
 
-export default function StatusIcon({ id, size = 16, color = '#3C3C43' }: { id: StatusFilter; size?: number; color?: string }) {
+export default function StatusIcon({ id, size = 16, color }: { id: StatusFilter; size?: number; color?: string }) {
+  const theme = useTheme()
+  // Default to the sage tertiary label so an unstyled status glyph matches
+  // the palette (light + dark) instead of the old cold iOS system gray.
+  const c = color ?? theme.label3
   switch (id) {
-    case 'overdue': return <OverdueIcon size={size} color={color} />
-    case 'open':    return <OpenIcon    size={size} color={color} />
-    case 'done':    return <DoneIcon    size={size} color={color} />
-    case 'trash':   return <TrashIcon   size={size} color={color} />
-    case 'notDo':   return <NotDoIcon   size={size} color={color} />
+    case 'overdue': return <OverdueIcon size={size} color={c} />
+    case 'open':    return <OpenIcon    size={size} color={c} />
+    case 'done':    return <DoneIcon    size={size} color={c} />
+    case 'trash':   return <TrashIcon   size={size} color={c} />
+    case 'notDo':   return <NotDoIcon   size={size} color={c} />
   }
 }

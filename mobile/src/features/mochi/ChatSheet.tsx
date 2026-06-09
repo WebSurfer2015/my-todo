@@ -331,7 +331,7 @@ function makeStyles(c: ThemeColors) {
     backdrop: {
       flex: 1,
       justifyContent: 'flex-end',
-      backgroundColor: 'rgba(0,0,0,0.35)',
+      backgroundColor: 'rgba(0,0,0,0.45)',
     },
     sheet: {
       backgroundColor: c.modal,
@@ -406,7 +406,7 @@ function makeStyles(c: ThemeColors) {
       justifyContent: 'center',
     },
     btnPrimary: { backgroundColor: c.primary },
-    btnPrimaryText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+    btnPrimaryText: { color: c.primaryOn, fontSize: 15, fontWeight: '600' },
     btnSecondary: {
       backgroundColor: c.bg,
       borderWidth: StyleSheet.hairlineWidth,
@@ -441,7 +441,7 @@ function makeStyles(c: ThemeColors) {
       justifyContent: 'center',
     },
     sendBtnDisabled: { opacity: 0.4 },
-    sendBtnText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+    sendBtnText: { color: c.primaryOn, fontSize: 18, fontWeight: '700' },
     micBtn: {
       width: 44,
       height: 44,

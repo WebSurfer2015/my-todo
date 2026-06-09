@@ -63,7 +63,7 @@ export function makeStyles(c: ThemeColors) {
       color: c.label,
       maxWidth: 180,
     },
-    storePillLabelActive: { color: '#fff' },
+    storePillLabelActive: { color: c.primaryOn },
     storePillCount: {
       fontSize: 12,
       fontWeight: '700',
@@ -156,7 +156,7 @@ export function makeStyles(c: ThemeColors) {
     checkboxChecked: { backgroundColor: c.primary, borderColor: c.primary },
     checkboxFuture: { borderColor: c.label3, borderStyle: 'dashed' },
     checkboxCheck: { color: c.primaryOn, fontSize: 14, fontWeight: '700', lineHeight: 16 },
-    checkboxPlus: { color: '#fff', fontSize: 16, fontWeight: '700', lineHeight: 16 },
+    checkboxPlus: { color: c.primaryOn, fontSize: 16, fontWeight: '700', lineHeight: 16 },
     rowText: {
       flex: 1,
       fontSize: 15,

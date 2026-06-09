@@ -442,7 +442,7 @@ function makeStyles(c: ThemeColors) {
     flex: { flex: 1 },
     backdrop: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.35)",
+      backgroundColor: "rgba(0,0,0,0.45)",
       justifyContent: "flex-end",
     },
     sheet: {

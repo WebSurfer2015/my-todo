@@ -614,7 +614,7 @@ function TaskItem({
       return (
         <View style={styles.swipeActionsRow}>
           <TouchableOpacity style={[styles.swipeAction, styles.swipeEdit]} onPress={openDetails}>
-            <Pencil size={20} color="#fff" strokeWidth={2} />
+            <Pencil size={20} color={theme.primaryOn} strokeWidth={2} />
             <Text style={styles.swipeActionText}>{t.editTask}</Text>
           </TouchableOpacity>
         </View>
@@ -625,7 +625,7 @@ function TaskItem({
         <FullSwipeWatcher dragX={dragX} direction="left" onFullSwipe={handleMarkDone} />
         {!hasSubs && (
           <TouchableOpacity style={[styles.swipeAction, styles.swipeEdit]} onPress={openDetails}>
-            <Pencil size={20} color="#fff" strokeWidth={2} />
+            <Pencil size={20} color={theme.primaryOn} strokeWidth={2} />
             <Text style={styles.swipeActionText}>{t.editTask}</Text>
           </TouchableOpacity>
         )}

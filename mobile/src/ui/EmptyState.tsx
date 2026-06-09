@@ -9,13 +9,14 @@ import { useTheme, ThemeColors } from '../app/theme'
  * background-decorative, not the focal point.
  */
 function MochiCameo({ size = 64, ringColor }: { size?: number; ringColor: string }) {
+  const theme = useTheme()
   return (
     <View
       style={{
         width: size,
         height: size,
         borderRadius: size / 2,
-        backgroundColor: '#E8F0E5',
+        backgroundColor: theme.primarySoft,
         borderWidth: 1.5,
         borderColor: ringColor,
         overflow: 'hidden',
@@ -147,7 +148,7 @@ function makeStyles(c: ThemeColors, variant: 'default' | 'compact') {
       backgroundColor: c.blue,
     },
     ctaText: {
-      color: '#fff',
+      color: c.primaryOn,
       fontSize: 14,
       fontWeight: '600',
       letterSpacing: -0.16,

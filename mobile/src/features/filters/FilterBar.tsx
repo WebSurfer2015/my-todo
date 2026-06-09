@@ -438,7 +438,7 @@ export default function FilterBar({
                 {pinned && (
                   <Pin
                     size={10}
-                    color={active ? '#fff' : theme.label3}
+                    color={active ? theme.primaryOn : theme.label3}
                     strokeWidth={2.5}
                   />
                 )}
@@ -537,7 +537,7 @@ function makeStyles(c: ThemeColors) {
       color: c.label,
       maxWidth: 180,
     },
-    pillLabelActive: { color: '#fff' },
+    pillLabelActive: { color: c.primaryOn },
     // Count chip — bumped up one weight step + tabular-nums so wide
     // counts (e.g. "12") align consistently next to the label.
     pillCount: {

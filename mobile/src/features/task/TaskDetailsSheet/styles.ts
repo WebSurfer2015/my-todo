@@ -5,7 +5,7 @@ export function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     overlay: {
       flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.4)',
+      backgroundColor: 'rgba(0,0,0,0.45)',
       justifyContent: 'flex-end',
     },
     overlayTouch: {
@@ -117,7 +117,7 @@ export function makeStyles(c: ThemeColors) {
       borderColor: c.primary,
     },
     subCardCheckmark: {
-      color: '#fff',
+      color: c.primaryOn,
       fontSize: 12,
       fontWeight: '700',
       lineHeight: 14,
@@ -169,7 +169,7 @@ export function makeStyles(c: ThemeColors) {
       backgroundColor: c.blue,
     },
     addSubtaskBtnText: {
-      color: '#fff',
+      color: c.primaryOn,
       fontSize: 16,
       fontWeight: '600',
       letterSpacing: -0.16,
@@ -501,7 +501,7 @@ export function makeStyles(c: ThemeColors) {
       justifyContent: 'center',
     },
     dateDoneBtnText: {
-      color: '#fff',
+      color: c.primaryOn,
       fontSize: 16,
       fontWeight: '600',
     },
@@ -597,7 +597,7 @@ export function makeStyles(c: ThemeColors) {
       textAlign: 'right',
     },
     subEditDoneText: {
-      color: '#fff',
+      color: c.primaryOn,
       fontSize: 16,
       fontWeight: '600',
       letterSpacing: -0.2,
@@ -683,7 +683,7 @@ export function makeStyles(c: ThemeColors) {
 
     dateOverlay: {
       flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.4)',
+      backgroundColor: 'rgba(0,0,0,0.45)',
       justifyContent: 'center',
       alignItems: 'center',
       paddingHorizontal: 16,

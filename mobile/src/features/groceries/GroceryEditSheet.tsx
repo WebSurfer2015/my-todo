@@ -332,6 +332,6 @@ function makeStyles(c: ThemeColors) {
       fontWeight: '500',
       color: c.label,
     },
-    storeChipTextOn: { color: '#fff' },
+    storeChipTextOn: { color: c.primaryOn },
   })
 }

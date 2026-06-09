@@ -366,7 +366,7 @@ function makeLangPickerStyles(c: ThemeColors) {
     btnText: { color: c.label2, fontSize: 12 },
     backdrop: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.4)",
+      backgroundColor: "rgba(0,0,0,0.45)",
       justifyContent: "center",
       alignItems: "center",
       paddingHorizontal: 32,

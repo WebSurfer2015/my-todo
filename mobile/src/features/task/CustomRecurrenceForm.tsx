@@ -356,7 +356,7 @@ function makeStyles(c: ThemeColors) {
       color: c.label,
     },
     pillTextActive: {
-      color: '#fff',
+      color: c.primaryOn,
     },
     previewBox: {
       marginTop: 16,

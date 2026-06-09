@@ -70,13 +70,13 @@ export default function Fab({ onPress, accessibilityLabel, agentEnabled = false,
       // Maestro matches via `id:`, replacing brittle point-taps (.maestro).
       testID="fab"
     >
-      <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.5} strokeLinecap="round">
+      <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={theme.primaryOn} strokeWidth={2.5} strokeLinecap="round">
         <Line x1="12" y1="5" x2="12" y2="19" />
         <Line x1="5" y1="12" x2="19" y2="12" />
       </Svg>
       {agentEnabled && (
         <View style={styles.sparkleBadge} pointerEvents="none">
-          <Sparkles size={12} color="#fff" strokeWidth={2.4} />
+          <Sparkles size={12} color={theme.primaryOn} strokeWidth={2.4} />
         </View>
       )}
     </TouchableOpacity>

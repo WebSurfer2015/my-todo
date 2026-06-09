@@ -536,10 +536,10 @@ export default function GroceryView({
                   customIcon={leadingActiveDept.icon}
                   customColor={leadingActiveDept.color}
                   size={14}
-                  color="#fff"
+                  color={theme.primaryOn}
                 />
               }
-              pinIconColor="#fff"
+              pinIconColor={theme.primaryOn}
               onPress={() => onSetActiveDept(undefined)}
               onLayoutX={(x) => {
                 pillXRef.current[`dept-${leadingActiveDept.id}`] = x
@@ -569,7 +569,7 @@ export default function GroceryView({
             const g = visibleGroups.find((x) => x.id === id)
             if (!g) return null
             const isActive = effectiveDept === g.id
-            const pinIconColor = isActive ? '#fff' : (g.color ?? theme.label2)
+            const pinIconColor = isActive ? theme.primaryOn : (g.color ?? theme.label2)
             return (
               <StorePill
                 key={`dept-${g.id}`}
@@ -584,7 +584,7 @@ export default function GroceryView({
                     customIcon={g.icon}
                     customColor={g.color}
                     size={14}
-                    color={isActive ? '#fff' : undefined}
+                    color={isActive ? theme.primaryOn : undefined}
                   />
                 }
                 pinIconColor={pinIconColor}

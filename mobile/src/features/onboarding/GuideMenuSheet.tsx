@@ -108,7 +108,7 @@ export default function GuideMenuSheet({ visible, seen, onSelect, onClose }: Pro
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     flex: { flex: 1 },
-    backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
+    backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
     sheet: {
       backgroundColor: c.bg,
       borderTopLeftRadius: 18,

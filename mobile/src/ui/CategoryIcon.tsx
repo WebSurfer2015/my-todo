@@ -1,5 +1,6 @@
 import React from 'react'
 import { ICONS, IconKey } from './icons'
+import { useTheme } from '../app/theme'
 
 interface Props {
   icon: IconKey | string
@@ -7,7 +8,10 @@ interface Props {
   color?: string
 }
 
-export default function CategoryIcon({ icon, size = 15, color = '#8E8E93' }: Props) {
+export default function CategoryIcon({ icon, size = 15, color }: Props) {
+  const theme = useTheme()
   const Component = ICONS[icon as IconKey] ?? ICONS.tag
-  return <Component size={size} color={color} strokeWidth={2} />
+  // Default to the sage tertiary label so unset icons match the palette
+  // (in both light + dark) instead of the old cold iOS system gray.
+  return <Component size={size} color={color ?? theme.label3} strokeWidth={2} />
 }

@@ -387,7 +387,7 @@ export function makeStyles(c: ThemeColors) {
       opacity: 0.5,
     },
     addBtnText: {
-      color: '#fff',
+      color: c.primaryOn,
       fontSize: 16,
       fontWeight: '600',
       letterSpacing: -0.16,
@@ -453,7 +453,7 @@ export function makeStyles(c: ThemeColors) {
       justifyContent: 'center',
     },
     dateDoneBtnText: {
-      color: '#fff',
+      color: c.primaryOn,
       fontSize: 16,
       fontWeight: '600',
     },

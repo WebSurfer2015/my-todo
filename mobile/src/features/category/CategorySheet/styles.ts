@@ -136,7 +136,7 @@ export function makeStyles(c: ThemeColors) {
       justifyContent: 'center',
     },
     editCatSaveText: {
-      color: '#fff',
+      color: c.primaryOn,
       fontSize: 16,
       fontWeight: '600',
       letterSpacing: -0.2,
@@ -152,7 +152,7 @@ export function makeStyles(c: ThemeColors) {
       justifyContent: 'center',
     },
     viewDoneText: {
-      color: '#fff',
+      color: c.primaryOn,
       fontSize: 16,
       fontWeight: '600',
       letterSpacing: -0.2,
@@ -229,7 +229,7 @@ export function makeStyles(c: ThemeColors) {
       lineHeight: 14,
     },
     tileBadgeTextPicked: {
-      color: "#fff",
+      color: c.primaryOn,
     },
     tileBadgeTextDisabled: {
       color: c.label3,
@@ -354,7 +354,7 @@ export function makeStyles(c: ThemeColors) {
     },
     btnPrimary: { backgroundColor: c.primary },
     btnText: { fontSize: 14, fontWeight: "600", color: c.label },
-    btnPrimaryText: { color: "#fff" },
+    btnPrimaryText: { color: c.primaryOn },
     allCard: {
       marginTop: 14,
     },

@@ -47,7 +47,7 @@ export function makeStyles(c: ThemeColors, density: Density) {
       borderStyle: 'dashed',
     },
     checkmark: {
-      color: '#fff',
+      color: c.primaryOn,
       fontSize: 13,
       fontWeight: '700',
       lineHeight: 15,
@@ -202,7 +202,7 @@ export function makeStyles(c: ThemeColors, density: Density) {
       borderColor: c.blue,
     },
     subCheckmark: {
-      color: '#fff',
+      color: c.primaryOn,
       fontSize: 11,
       fontWeight: '700',
       lineHeight: 13,
@@ -261,7 +261,7 @@ export function makeStyles(c: ThemeColors, density: Density) {
     },
     dateOverlay: {
       flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.4)',
+      backgroundColor: 'rgba(0,0,0,0.45)',
       justifyContent: 'center',
       alignItems: 'center',
       paddingHorizontal: 16,

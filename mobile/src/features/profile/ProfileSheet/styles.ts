@@ -323,7 +323,7 @@ export function makeStyles(c: ThemeColors) {
       color: c.label,
     },
     langBtnTextActive: {
-      color: "#fff",
+      color: c.primaryOn,
     },
     pebbleHero: {
       // Hero card — the user's "look what I built" moment. Full-width
@@ -475,7 +475,7 @@ export function makeStyles(c: ThemeColors) {
       color: c.label,
     },
     btnPrimaryText: {
-      color: "#fff",
+      color: c.primaryOn,
     },
     toggleRow: {
       flexDirection: "row",
