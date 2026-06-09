@@ -19,6 +19,18 @@ appId: com.websurfer.mytodo
 ---
 - stopApp
 - launchApp
+# Let the cold-launch splash + auth-resolve settle so the SignIn screen
+# (or the Dashboard, if already authed) has actually rendered before we
+# branch. Without this the `when` below was evaluated DURING the splash —
+# signin-with-email wasn't on screen yet, so the whole sign-in block was
+# silently SKIPPED and every later flow died signed-out.
+# optional:true → when already signed in, signin-with-email never appears;
+# don't fail the wait, just fall through to the Dashboard assert.
+- extendedWaitUntil:
+    visible:
+      id: "signin-with-email"
+    timeout: 20000
+    optional: true
 - runFlow:
     when:
       visible:

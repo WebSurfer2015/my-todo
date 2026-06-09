@@ -316,6 +316,11 @@ function LangPicker({ theme }: { theme: ThemeColors }) {
       >
         <Text style={styles.btnText}>{LANG_NAMES[lang]} ▾</Text>
       </TouchableOpacity>
+      {/* Mount the Modal only while open. A mounted (even invisible) RN
+          <Modal> flattens the SignIn screen's iOS a11y tree (#15), which
+          hid every sign-in control from Maestro and broke the E2E prelude.
+          Gating on `open` keeps the SignIn a11y intact when it's closed. */}
+      {open && (
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         {/* Sibling backdrop tap-layer (not a wrapper) — a wrapping touchable
             collapses the language list into one iOS a11y leaf (#15). */}
@@ -343,6 +348,7 @@ function LangPicker({ theme }: { theme: ThemeColors }) {
           </View>
         </View>
       </Modal>
+      )}
     </View>
   );
 }

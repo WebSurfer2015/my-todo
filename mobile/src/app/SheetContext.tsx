@@ -101,7 +101,7 @@ export const sheetNavigationRef = createNavigationContainerRef<{
 
 export function SheetProvider({ children }: { children: ReactNode }) {
   const store = useStore()
-  const { deleteAccount, signOut } = useAuth()
+  const { user, deleteAccount, signOut } = useAuth()
   const { t } = useLang()
   const [profileOpen, setProfileOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -306,6 +306,13 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   return (
     <SheetContext.Provider value={{ openProfile, openSettings, openBackgrounds, openGuides, openCompose, openMochi, openManageFilter, openSelectFilter, openManageGroceries, manageRequest, requestTodosScroll, todosScrollRequest }}>
       {children}
+      {/* Sheets are only relevant once signed in. Crucially, mounting these
+          <Modal>s on the signed-out SignIn screen FLATTENS its iOS a11y tree
+          (RN Modal quirk, #15) — which hid every SignIn control from Maestro
+          and broke the E2E sign-in prelude. Gating on `user` keeps the
+          SignIn screen's a11y intact. */}
+      {user && (
+      <>
       <ProfileSheet
         visible={profileOpen}
         profile={store.profile}
@@ -507,6 +514,8 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         onReorderPriorities={store.reorderPriorities}
         onClose={() => setCategorySheetOpen(false)}
       />
+      </>
+      )}
     </SheetContext.Provider>
   )
 }
