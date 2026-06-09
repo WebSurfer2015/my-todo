@@ -692,6 +692,78 @@ export function inferGroceryGroupLocal(
   return undefined
 }
 
+/** Minimum typed characters before the Add-Item match list activates.
+ * Two chars keeps single-letter noise out while still catching short
+ * grocery words ("ham", "tea"). */
+export const GROCERY_MATCH_MIN_CHARS = 2
+
+/** One row in the Add-Item partial-match list. */
+export interface GroceryMatch {
+  /** Display label (original casing from the matched item). */
+  label: string
+  /** Union of stores across every item sharing this label. */
+  stores: string[]
+  /** Department to apply on re-add (prefers a real dept over OTHERS). */
+  groupId: string
+  /** True when an unchecked (active) item with this label is already on
+   * the list — the caller should treat a tap as a no-op rather than a
+   * duplicate add. */
+  onList: boolean
+}
+
+/**
+ * Partial-LABEL match over the user's grocery items, powering the
+ * Add-Item autocomplete. As the user types, surface items (current +
+ * past) whose label contains the query so a known item can be re-added
+ * with one tap — its saved dept + stores ride along, no AI roundtrip.
+ *
+ * Matching is label-only (the store is shown for context, never matched
+ * on). Results are deduped by lowercased label, prefix matches sort
+ * first (more relevant), then alphabetically; capped at `limit`. An
+ * exact-equality row is kept (a fully-typed known item is still worth
+ * one-tapping). `onList` flags labels that already have an active
+ * (unchecked) item so the caller can no-op instead of duplicating.
+ */
+export function groceryMatches(
+  query: string,
+  items: GroceryItem[],
+  limit = 6,
+): GroceryMatch[] {
+  const q = query.trim().toLowerCase()
+  if (q.length < GROCERY_MATCH_MIN_CHARS) return []
+  const byLabel = new Map<string, GroceryMatch & { _stores: Set<string> }>()
+  for (const it of items) {
+    const label = it.text.trim()
+    if (!label) continue
+    if (!label.toLowerCase().includes(q)) continue
+    const key = label.toLowerCase()
+    let entry = byLabel.get(key)
+    if (!entry) {
+      entry = { label, stores: [], _stores: new Set(), groupId: it.groupId, onList: false }
+      byLabel.set(key, entry)
+    }
+    for (const s of it.stores) entry._stores.add(s)
+    if (!it.checked) entry.onList = true
+    // Prefer a real dept over Uncategorized when entries disagree.
+    if (entry.groupId === OTHERS_GROUP_ID && it.groupId !== OTHERS_GROUP_ID) {
+      entry.groupId = it.groupId
+    }
+  }
+  const rows = Array.from(byLabel.values())
+  rows.sort((a, b) => {
+    const ap = a.label.toLowerCase().startsWith(q) ? 0 : 1
+    const bp = b.label.toLowerCase().startsWith(q) ? 0 : 1
+    if (ap !== bp) return ap - bp
+    return a.label.localeCompare(b.label)
+  })
+  return rows.slice(0, limit).map((r) => ({
+    label: r.label,
+    stores: Array.from(r._stores),
+    groupId: r.groupId,
+    onList: r.onList,
+  }))
+}
+
 /** Return items whose `purchases` log shows ≥`minCount` check-offs within
  * `windowMs` of `now`. Sorted by in-window count desc, ties broken by
  * latest in-window timestamp desc. `now` is injectable for tests. */

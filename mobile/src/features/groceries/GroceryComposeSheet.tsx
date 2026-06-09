@@ -38,6 +38,7 @@ import {
   OTHERS_GROUP_ID,
   resolveGroup,
   inferGroceryGroupLocal,
+  groceryMatches,
 } from '../../core-bindings/groceries'
 import { classifyGroceryDept } from '../../adapters/aiInfer'
 import { useLang } from '../../app/LangContext'
@@ -403,42 +404,12 @@ export default function GroceryComposeSheet({
   //                      list; tapping does nothing (per spec).
   //   • onList = false → only checked/past entries exist; tapping
   //                      re-adds it.
-  // Matching is label-only; the store(s) are shown for context.
-  const MATCH_MIN_CHARS = 2
-  const matches = useMemo(() => {
-    const q = text.trim().toLowerCase()
-    if (q.length < MATCH_MIN_CHARS) return []
-    const byLabel = new Map<
-      string,
-      { label: string; stores: Set<string>; groupId: string; onList: boolean }
-    >()
-    for (const it of existingItems) {
-      const label = it.text.trim()
-      if (!label) continue
-      if (!label.toLowerCase().includes(q)) continue
-      const key = label.toLowerCase()
-      let entry = byLabel.get(key)
-      if (!entry) {
-        entry = { label, stores: new Set(), groupId: it.groupId, onList: false }
-        byLabel.set(key, entry)
-      }
-      for (const s of it.stores) entry.stores.add(s)
-      if (!it.checked) entry.onList = true
-      // Prefer a real dept over Uncategorized when entries disagree.
-      if (entry.groupId === OTHERS_GROUP_ID && it.groupId !== OTHERS_GROUP_ID) {
-        entry.groupId = it.groupId
-      }
-    }
-    const rows = Array.from(byLabel.values())
-    // Prefix matches first (more relevant), then alphabetical; cap to 6.
-    rows.sort((a, b) => {
-      const ap = a.label.toLowerCase().startsWith(q) ? 0 : 1
-      const bp = b.label.toLowerCase().startsWith(q) ? 0 : 1
-      if (ap !== bp) return ap - bp
-      return a.label.localeCompare(b.label)
-    })
-    return rows.slice(0, 6)
-  }, [text, existingItems])
+  // Pure matching logic lives in core (groceryMatches) so it's
+  // unit-testable; this just memoizes it against the live text + items.
+  const matches = useMemo(
+    () => groceryMatches(text, existingItems),
+    [text, existingItems],
+  )
 
   function commit(): boolean {
     const trimmed = text.trim()
@@ -481,7 +452,7 @@ export default function GroceryComposeSheet({
     // Re-add a past item with its saved dept + stores (filtered to ones
     // that still exist). Falls back to whatever stores are already
     // picked if none of the saved stores survive.
-    const validStores = stores.filter((s) => m.stores.has(s))
+    const validStores = stores.filter((s) => m.stores.includes(s))
     const finalStores = validStores.length > 0 ? validStores : selectedStores
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
     onAdd({ text: m.label, groupId: m.groupId, stores: finalStores })
@@ -553,7 +524,7 @@ export default function GroceryComposeSheet({
                   {matches.length > 0 && (
                     <View style={styles.matchList}>
                       {matches.map((m) => {
-                        const saved = Array.from(m.stores)
+                        const saved = m.stores
                         const valid = saved.filter((s) => stores.includes(s))
                         const storesText = (valid.length > 0 ? valid : saved).join(', ')
                         return (
