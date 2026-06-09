@@ -47,12 +47,17 @@ export interface SuggestFieldsOutput {
     intervalMinutes?: number
     until?: string
   } | null
+  /** The title with any date / time / recurrence / reminder phrases
+   * removed (trimmed) — so once those are lifted into structured fields,
+   * the title isn't redundant. Null when nothing was extractable (title
+   * unchanged). */
+  cleanedText: string | null
 }
 
 export const SUGGEST_FIELDS_SYSTEM = `You read one to-do title and suggest field values the user can tap to apply.
 
 Output ONLY a JSON object on one line, no prose, no markdown, no code fences:
-{"category":"<id>" or null,"newCategoryLabel":"<label>" or null,"priority":"high"|"medium"|"low" or null,"dueDate":"yyyy-mm-dd" or "yyyy-mm-ddTHH:mm" or null,"recurrence":{"freq":"daily"|"weekly"|"monthly"|"yearly","byWeekday":[0-6 ints],"endDate":"yyyy-mm-dd"} or null,"reminder":{"at":"yyyy-mm-ddTHH:mm","intervalMinutes":positive int,"until":"yyyy-mm-ddTHH:mm"} or null}
+{"category":"<id>" or null,"newCategoryLabel":"<label>" or null,"priority":"high"|"medium"|"low" or null,"dueDate":"yyyy-mm-dd" or "yyyy-mm-ddTHH:mm" or null,"recurrence":{"freq":"daily"|"weekly"|"monthly"|"yearly","byWeekday":[0-6 ints],"endDate":"yyyy-mm-dd"} or null,"reminder":{"at":"yyyy-mm-ddTHH:mm","intervalMinutes":positive int,"until":"yyyy-mm-ddTHH:mm"} or null,"cleanedText":"<title minus date/time/recurrence/reminder phrases>" or null}
 
 Rules — every field is independently nullable. At most ONE of
 \`category\` and \`newCategoryLabel\` may be non-null:
@@ -135,6 +140,14 @@ Rules — every field is independently nullable. At most ONE of
     {"at":"<now-aligned>","intervalMinutes":120,"until":"<that day>T15:00"}
   - the morning of a date — return at=09:00 only if the text
     explicitly says "morning of"
+  IMPORTANT — recurring todos: when the todo ALSO recurs (you set a
+  'recurrence' above) and the reminder is a clock time ("remind at
+  9am"), return a SINGLE 'at' at that time on the first occurrence and
+  OMIT 'intervalMinutes' — the recurrence already repeats it, and the
+  app re-fires the reminder at that time on every occurrence. NEVER use
+  'intervalMinutes' to mirror the recurrence cadence (a weekly todo is
+  NOT "intervalMinutes:10080"). 'intervalMinutes' is ONLY for sub-daily
+  nudges within a single day (< 1440).
   When the recurring phrase has no "until" but the text states a due
   time (e.g. "by 3pm tomorrow, remind every 2 hours"), set 'until'
   to that due datetime. NEVER schedule a recurring reminder with no
@@ -148,8 +161,24 @@ Rules — every field is independently nullable. At most ONE of
       → {"at":"<now+2h aligned>","intervalMinutes":120,"until":"2026-05-24T15:00"}
     "every 30 min between 9am and noon"
       → {"at":"2026-05-23T09:00","intervalMinutes":30,"until":"2026-05-23T12:00"}
+    "walk dog mon wed fri, remind at 9am" (recurring → no interval)
+      → recurrence {"freq":"weekly","byWeekday":[1,3,5]},
+        reminder {"at":"2026-05-25T09:00"}
     "submit report by friday"            → null  (no clock time)
     "buy milk tomorrow"                  → null
+
+- cleanedText: the to-do title with any date, time, recurrence, and
+  reminder phrases REMOVED, so the title isn't redundant once those are
+  lifted into structured fields. Keep the core action + object intact and
+  natural; trim leftover punctuation/filler ("on", "every", "at",
+  trailing commas). Return null if nothing temporal was found or the
+  result would equal the input. Never invent or rephrase the task.
+  Examples:
+    "Walk Conner Mon, Wed and Friday. Remind me at 9am" → "Walk Conner"
+    "pay rent on the 1st every month"                   → "pay rent"
+    "call mom tomorrow at 3pm"                           → "call mom"
+    "buy milk"                                           → null
+    "submit Q3 report"                                   → null
 
 Be conservative — return null when uncertain. The user only sees
 suggestions you're confident about.
@@ -221,7 +250,7 @@ export function parseSuggestFieldsOutput(text: string): SuggestFieldsOutput {
   // Malformed output on an ambient feature → all-null. The client
   // shows no pills and the user types as usual.
   const empty: SuggestFieldsOutput = {
-    category: null, newCategoryLabel: null, priority: null, dueDate: null, recurrence: null, reminder: null,
+    category: null, newCategoryLabel: null, priority: null, dueDate: null, recurrence: null, reminder: null, cleanedText: null,
   }
   let parsed: unknown
   try {
@@ -305,6 +334,14 @@ export function parseSuggestFieldsOutput(text: string): SuggestFieldsOutput {
       }
       out.reminder = rem
     }
+  }
+  // cleanedText — only honored when it's a non-empty string that actually
+  // differs from the original title (the model is told to return null
+  // otherwise, but guard here too). Cap to the title length budget.
+  const rawClean = (parsed as { cleanedText?: unknown }).cleanedText
+  if (typeof rawClean === 'string') {
+    const trimmed = rawClean.trim().slice(0, 500)
+    if (trimmed.length > 0) out.cleanedText = trimmed
   }
   return out
 }

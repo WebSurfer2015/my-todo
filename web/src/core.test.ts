@@ -11,6 +11,9 @@ import {
   todoRestoreFromTrash,
   todoToggle,
   todoSet,
+  todoSetRecurrence,
+  todoSkipSeriesFuture,
+  todoPermanentlyDeleteSeriesFuture,
   pebbleDelta,
   subtaskAdd,
   subtaskToggle,
@@ -26,6 +29,8 @@ import {
   categoryReorder,
   todoApplySeriesFutureEdits,
   todoMoveToTrashFutureSeries,
+  getReminders,
+  dedupeReminders,
   recordTodoReference,
   migrateTodoReferences,
   MAX_TODO_REFERENCES,
@@ -63,6 +68,7 @@ import {
   nextOccurrence,
   expandRecurrence,
   MAX_RECURRENCE_INSTANCES,
+  formatRecurrence,
 } from "../../core/src/logic/utils";
 import { strings } from "../../core/src/data/i18n";
 import type { Todo, Filter } from "../../core/src/domain/types";
@@ -1533,5 +1539,164 @@ describe("grocery helpers", () => {
     ];
     const out = frequentGroceries(items, { now, minCount: FREQUENT_GROCERY_MIN_COUNT });
     expect(out.map((i) => i.text)).toEqual(["Eggs", "Bread", "Apples"]);
+  });
+});
+
+describe("formatRecurrence interval", () => {
+  it("weekly with byWeekday honors interval > 1", () => {
+    expect(formatRecurrence({ freq: "weekly", byWeekday: [2, 4] })).toBe("Weekly · Tue, Thu");
+    expect(
+      formatRecurrence({ freq: "weekly", interval: 2, byWeekday: [2, 4] }),
+    ).toBe("Every 2 weeks · Tue, Thu");
+  });
+  it("monthly with byWeekday honors interval > 1", () => {
+    expect(
+      formatRecurrence({ freq: "monthly", interval: 3, byWeekday: [1], bySetPos: [1] }),
+    ).toBe("Every 3 months · 1st Mon");
+  });
+  it("plain frequencies still honor interval", () => {
+    expect(formatRecurrence({ freq: "daily", interval: 2 })).toBe("Every 2 days");
+    expect(formatRecurrence({ freq: "weekly" })).toBe("Weekly");
+  });
+});
+
+describe("migrateTodos preserves series + reminders (regression)", () => {
+  it("keeps seriesId, detachedFromSeries, status, and reminders[] across migrate", () => {
+    const raw = [{
+      id: "t1",
+      text: "walk dog",
+      priority: "medium",
+      dueDate: "2026-06-15",
+      done: false,
+      trashed: false,
+      recurrence: { freq: "weekly", byWeekday: [1, 3, 5] },
+      seriesId: "series-abc",
+      detachedFromSeries: true,
+      status: "notDo",
+      reminders: [
+        { id: "r1", at: "2026-06-15T09:00" },
+        { id: "r2", at: "2026-06-15T08:45", offsetMinutes: 15 },
+      ],
+    }];
+    const [out] = migrateTodos(raw);
+    expect(out.seriesId).toBe("series-abc");
+    expect(out.detachedFromSeries).toBe(true);
+    expect(out.status).toBe("notDo");
+    expect(out.reminders).toHaveLength(2);
+    expect(out.reminders!.map((r) => r.id).sort()).toEqual(["r1", "r2"]);
+  });
+  it("assigns a seriesId to a recurring todo that lacks one", () => {
+    const raw = [{
+      id: "t2", text: "x", priority: "low", dueDate: "2026-06-15", done: false, trashed: false,
+      recurrence: { freq: "daily" },
+    }];
+    const [out] = migrateTodos(raw);
+    expect(out.seriesId).toBeTruthy();
+  });
+  it("does not invent a seriesId for a non-recurring todo", () => {
+    const raw = [{ id: "t3", text: "x", priority: "low", dueDate: "", done: false, trashed: false }];
+    const [out] = migrateTodos(raw);
+    expect(out.seriesId).toBeUndefined();
+  });
+});
+
+describe("todoSkipSeriesFuture", () => {
+  const mk = (id: string, seriesId: string, dueDate: string) => ({
+    ...newTodo({ text: id, priority: "medium" as const, dueDate }),
+    id,
+    seriesId,
+    recurrence: { freq: "daily" as const },
+  });
+  it("skips this + future siblings, leaves past ones", () => {
+    const todos = [
+      mk("a", "s1", "2026-06-01"), // past
+      mk("b", "s1", "2026-06-10"), // target
+      mk("c", "s1", "2026-06-11"), // future
+      mk("d", "s2", "2026-06-11"), // other series
+    ];
+    const { next, affected } = todoSkipSeriesFuture(todos, "b");
+    expect(affected).toBe(2);
+    const byId = Object.fromEntries(next.map((t) => [t.id, t]));
+    expect(byId.a.trashed).toBe(false); // past untouched
+    expect(byId.b.status).toBe("notDo");
+    expect(byId.b.trashed).toBe(true);
+    expect(byId.c.status).toBe("notDo");
+    expect(byId.d.trashed).toBe(false); // other series untouched
+  });
+  it("falls back to single skip for a one-off (no seriesId)", () => {
+    const t = newTodo({ text: "x", priority: "low", dueDate: "2026-06-10" });
+    const { next, affected } = todoSkipSeriesFuture([t], t.id);
+    expect(affected).toBe(1);
+    expect(next[0].status).toBe("notDo");
+  });
+});
+
+describe("todoPermanentlyDeleteSeriesFuture", () => {
+  const mk = (id: string, seriesId: string, dueDate: string) => ({
+    ...newTodo({ text: id, priority: "medium" as const, dueDate }),
+    id,
+    seriesId,
+  });
+  it("hard-removes this + future siblings, keeps past + other series", () => {
+    const todos = [
+      mk("a", "s1", "2026-06-01"), // past — kept
+      mk("b", "s1", "2026-06-10"), // target — removed
+      mk("c", "s1", "2026-06-12"), // future — removed
+      mk("d", "s2", "2026-06-12"), // other series — kept
+    ];
+    const out = todoPermanentlyDeleteSeriesFuture(todos, "b");
+    expect(out.map((t) => t.id).sort()).toEqual(["a", "d"]);
+  });
+  it("falls back to single delete for a one-off", () => {
+    const t = newTodo({ text: "x", priority: "low", dueDate: "" });
+    expect(todoPermanentlyDeleteSeriesFuture([t], t.id)).toHaveLength(0);
+  });
+});
+
+describe("todoSetRecurrence assigns seriesId", () => {
+  it("adding a recurrence to a plain todo gives it a seriesId", () => {
+    const td = newTodo({ text: "walk dog", priority: "medium", dueDate: "2026-06-15" });
+    expect(td.seriesId).toBeUndefined();
+    const [next] = todoSetRecurrence([td], td.id, { freq: "weekly", byWeekday: [1, 3, 5] });
+    expect(next.recurrence).toBeTruthy();
+    expect(next.seriesId).toBeTruthy();
+  });
+  it("preserves an existing seriesId", () => {
+    const td = { ...newTodo({ text: "x", priority: "low", dueDate: "" }), seriesId: "keep-me" };
+    const [next] = todoSetRecurrence([td], td.id, { freq: "daily" });
+    expect(next.seriesId).toBe("keep-me");
+  });
+  it("removing a recurrence clears the recurrence field", () => {
+    const td = { ...newTodo({ text: "x", priority: "low", dueDate: "" }), recurrence: { freq: "daily" as const }, seriesId: "s1" };
+    const [next] = todoSetRecurrence([td], td.id, undefined);
+    expect(next.recurrence).toBeUndefined();
+  });
+});
+
+describe("reminder dedup", () => {
+  const r = (
+    id: string,
+    at: string,
+    extra?: Partial<{ offsetMinutes: number; intervalMinutes: number }>,
+  ) => ({ id, at, ...extra });
+  it("dedupeReminders drops same at/offset/interval, keeps first", () => {
+    const out = dedupeReminders([
+      r("a", "2026-06-08T09:00"),
+      r("b", "2026-06-08T09:00"), // dup of a
+      r("c", "2026-06-08T08:45", { offsetMinutes: 15 }),
+    ]);
+    expect(out.map((x) => x.id)).toEqual(["a", "c"]);
+  });
+  it("keeps distinct cadences at the same time", () => {
+    const out = dedupeReminders([
+      r("a", "2026-06-08T09:00"),
+      r("b", "2026-06-08T09:00", { intervalMinutes: 60 }),
+    ]);
+    expect(out).toHaveLength(2);
+  });
+  it("getReminders dedupes the stored array", () => {
+    const td = newTodo({ text: "walk dog", priority: "medium", dueDate: "" });
+    td.reminders = [r("a", "2026-06-08T09:00"), r("b", "2026-06-08T09:00")];
+    expect(getReminders(td)).toHaveLength(1);
   });
 });

@@ -871,6 +871,48 @@ export function todoMoveToTrashFutureSeries(prev: Todo[], id: string): { next: T
   return { next, affected };
 }
 
+/**
+ * Skip this occurrence AND all future siblings in the series — the
+ * "Skip all" action. Mirrors todoMoveToTrashFutureSeries' targeting (same
+ * seriesId, dueDate >= this row's, not already done/trashed) but applies
+ * skip semantics (status 'notDo' + completionDate) rather than a plain
+ * trash, and does NOT append a next instance (the series is being ended).
+ * Falls back to a single-occurrence skip for a one-off (no seriesId).
+ */
+export function todoSkipSeriesFuture(
+  prev: Todo[],
+  id: string,
+  todayISO?: string,
+): { next: Todo[]; affected: number } {
+  const target = prev.find((t) => t.id === id);
+  if (!target) return { next: prev, affected: 0 };
+  const today = todayISO ?? todayLocal();
+  if (!target.seriesId) {
+    return { next: todoSkip(prev, id, today), affected: 1 };
+  }
+  const cutoff = target.dueDate;
+  const now = Date.now();
+  let affected = 0;
+  const next = prev.map((td) => {
+    if (td.seriesId !== target.seriesId) return td;
+    if (td.trashed || td.done) return td;
+    if (cutoff && td.dueDate && td.dueDate < cutoff) return td;
+    affected += 1;
+    const out: Todo = {
+      ...td,
+      status: "notDo",
+      trashed: true,
+      trashedAt: now,
+      completionDate: today,
+      updatedAt: now,
+    };
+    delete out.reminder;
+    delete out.reminders;
+    return out;
+  });
+  return { next, affected };
+}
+
 // ---- Recurring series: horizon/window helpers ---------------------------
 //
 // R1 of the recurring redesign (see docs/RECURRING-REDESIGN-PLAN.md).
@@ -1171,8 +1213,30 @@ export function nextUpcomingSeriesInstance(
  * or `.reminders` directly — always go through this so legacy docs
  * keep working until they're rewritten via a multi-reminder write.
  */
+/** Stable identity for a reminder, ignoring its id — two entries with
+ * the same at/offset/interval are the same reminder to the user (and to
+ * the OS scheduler). Used to drop accidental duplicates. */
+export function reminderKey(r: Reminder): string {
+  return `${r.at}|${r.offsetMinutes ?? ''}|${r.intervalMinutes ?? ''}`;
+}
+
+/** Drop duplicate reminders (same at/offset/interval), keeping the first.
+ * Guards against mixed legacy/array writes or double-applies stacking
+ * identical reminders (which would double-fire notifications). */
+export function dedupeReminders(rs: Reminder[]): Reminder[] {
+  const seen = new Set<string>();
+  const out: Reminder[] = [];
+  for (const r of rs) {
+    const k = reminderKey(r);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(r);
+  }
+  return out;
+}
+
 export function getReminders(td: Todo): Reminder[] {
-  if (td.reminders && td.reminders.length > 0) return td.reminders;
+  if (td.reminders && td.reminders.length > 0) return dedupeReminders(td.reminders);
   if (td.reminder?.at) {
     // Synthesize a stable-ish id from the at-string so the same
     // legacy doc produces the same id across reads — avoids the
@@ -1457,6 +1521,24 @@ export function todoPermanentlyDelete(prev: Todo[], id: string): Todo[] {
   return prev.filter((td) => td.id !== id);
 }
 
+/**
+ * Permanently delete this occurrence + every future sibling in the series
+ * ("Delete series"). Distinct from "Mark all done" (which moves this+future
+ * to the bin, recoverable) — this hard-removes them. Past instances are
+ * kept. Falls back to a single permanent delete for a one-off.
+ */
+export function todoPermanentlyDeleteSeriesFuture(prev: Todo[], id: string): Todo[] {
+  const target = prev.find((td) => td.id === id);
+  if (!target) return prev;
+  if (!target.seriesId) return prev.filter((td) => td.id !== id);
+  const cutoff = target.dueDate;
+  return prev.filter((td) => {
+    if (td.seriesId !== target.seriesId) return true; // other series/one-offs
+    if (cutoff && td.dueDate && td.dueDate < cutoff) return true; // keep past
+    return false; // drop this + all future siblings
+  });
+}
+
 export function todoEmptyTrash(prev: Todo[]): Todo[] {
   return prev.filter((td) => !td.trashed);
 }
@@ -1529,7 +1611,16 @@ export function todoSetRecurrence(
   const now = Date.now();
   return prev.map((td) => {
     if (td.id !== id) return td;
-    if (recurrence) return { ...td, recurrence, updatedAt: now };
+    if (recurrence) {
+      // Adding/changing a recurrence makes this a series. Assign a
+      // seriesId if it lacks one so series-scoped UI + ops ("Edit
+      // series", "Delete series", future-edit propagation) light up —
+      // without this, a recurrence applied via the edit view (which
+      // routes through here, not addTask's expandSeries) had no seriesId
+      // and the "Edit series" control silently disappeared.
+      const seriesId = td.seriesId ?? genUuid();
+      return { ...td, recurrence, seriesId, updatedAt: now };
+    }
     const next: Todo = { ...td, updatedAt: now };
     delete next.recurrence;
     return next;
@@ -1793,6 +1884,18 @@ export function migrateTodo(raw: unknown, ctx: MigrateTodoCtx): Todo | null {
     if (recurrence) merged.recurrence = recurrence;
     if (notes && notes.length > 0) merged.notes = notes;
     if (completionDate) merged.completionDate = completionDate;
+    // seriesId / detachedFromSeries / status were previously NOT copied
+    // here, so they were silently dropped on every load + cloud round-trip
+    // — which made the "Edit series" control vanish and lost custom status.
+    // Preserve them; also assign a seriesId to any recurring todo that
+    // lacks one so the series UI + ops always work.
+    if (typeof item.seriesId === "string" && item.seriesId.length > 0) {
+      merged.seriesId = item.seriesId;
+    } else if (recurrence) {
+      merged.seriesId = genUuid();
+    }
+    if (item.detachedFromSeries === true) merged.detachedFromSeries = true;
+    if (item.status === "notDo") merged.status = "notDo";
     // Reminder: validate the shape. `at` is required, must be a
     // datetime string. interval/until are optional. Past-dated
     // `at` still passes through; the scheduler filters at schedule
@@ -1813,6 +1916,40 @@ export function migrateTodo(raw: unknown, ctx: MigrateTodoCtx): Todo | null {
           reminder.until = r.until;
         }
         merged.reminder = reminder;
+      }
+    }
+
+    // Multi-reminder array (the preferred schema). Previously dropped here
+    // too — every reminder the user set vanished on the next load/sync.
+    // Validate + dedupe each entry; when present it supersedes the legacy
+    // singular `reminder`.
+    const rawReminders = (item as { reminders?: unknown }).reminders;
+    if (Array.isArray(rawReminders)) {
+      const cleanedRems: Reminder[] = [];
+      const seenRemIds = new Set<string>();
+      for (const rRaw of rawReminders.slice(0, 50)) {
+        if (typeof rRaw !== "object" || rRaw === null || Array.isArray(rRaw)) continue;
+        const r = rRaw as Partial<Reminder>;
+        if (typeof r.at !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(r.at)) continue;
+        const rid = typeof r.id === "string" && r.id.length > 0 ? r.id : genUuid();
+        if (seenRemIds.has(rid)) continue;
+        seenRemIds.add(rid);
+        const rem: Reminder = { id: rid, at: r.at };
+        if (typeof r.offsetMinutes === "number" && Number.isFinite(r.offsetMinutes)) {
+          rem.offsetMinutes = Math.floor(r.offsetMinutes);
+        }
+        if (typeof r.intervalMinutes === "number" && Number.isFinite(r.intervalMinutes) && r.intervalMinutes >= 1) {
+          rem.intervalMinutes = Math.floor(r.intervalMinutes);
+        }
+        if (typeof r.until === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(r.until)) {
+          rem.until = r.until;
+        }
+        cleanedRems.push(rem);
+      }
+      if (cleanedRems.length > 0) {
+        merged.reminders = dedupeReminders(cleanedRems);
+        // Converge on the array schema so getReminders has a single source.
+        delete merged.reminder;
       }
     }
 

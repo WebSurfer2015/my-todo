@@ -270,14 +270,16 @@ export function formatRecurrence(rec: {
   const everyN = interval === 1 ? 'every' : `every ${interval}`
   if (rec.freq === 'weekly' && rec.byWeekday && rec.byWeekday.length > 0) {
     const days = rec.byWeekday.slice().sort().map((w) => WEEKDAYS[w]).join(', ')
-    return `Weekly · ${days}`
+    const prefix = interval === 1 ? 'Weekly' : `Every ${interval} weeks`
+    return `${prefix} · ${days}`
   }
   if (rec.freq === 'monthly' && rec.byWeekday && rec.byWeekday.length > 0) {
     const days = rec.byWeekday.slice().sort().map((w) => WEEKDAYS[w]).join(', ')
     const positions = rec.bySetPos && rec.bySetPos.length > 0
       ? rec.bySetPos.slice().sort((a, b) => a - b).map((p) => POS_LABELS[p] ?? `${p}`).join(' & ')
       : ''
-    return positions ? `Monthly · ${positions} ${days}` : `Monthly · ${days}`
+    const prefix = interval === 1 ? 'Monthly' : `Every ${interval} months`
+    return positions ? `${prefix} · ${positions} ${days}` : `${prefix} · ${days}`
   }
   switch (rec.freq) {
     case 'daily':   return interval === 1 ? 'Daily'   : `Every ${interval} days`
