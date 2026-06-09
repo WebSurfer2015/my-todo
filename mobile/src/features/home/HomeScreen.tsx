@@ -20,7 +20,7 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useIsFocused, useNavigation } from '@react-navigation/native'
-import { CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react-native'
+import { CheckCircle2, ChevronRight } from 'lucide-react-native'
 import { useStore } from '../../app/StoreContext'
 import { useLang } from '../../app/LangContext'
 import { useSheets } from '../../app/SheetContext'
@@ -84,7 +84,6 @@ export default function HomeScreen() {
   // Measured height of the sticky stats row at the bottom. The Add FAB
   // reads this so it can sit ABOVE the tiles instead of overlapping
   // them. onLayout from the tiles' wrapping View populates it.
-  const [statsRowHeight, setStatsRowHeight] = useState(0)
 
   const today = todayLocal()
 
@@ -170,42 +169,28 @@ export default function HomeScreen() {
     [todayBucket],
   )
 
-  // Pagination on Home — "+ N more" cycles to the next page in place
-  // instead of jumping to Todos, so the user can scan all today-actionable
-  // rows without leaving the calm dashboard. Wraps back to page 0 when
-  // the user reaches the end.
-  const [pageIndex, setPageIndex] = useState(0)
-  const pageCount = Math.max(
-    1,
-    Math.ceil(todayBucket.length / TODAY_PREVIEW_CAP),
+  // Split the today-actionable bucket so the dashboard can title each
+  // group separately: "Carried over" = own dueDate strictly before today;
+  // "Today" = everything else (due today, or sub-driven with no/future
+  // own date). No cap — the outer ScrollView scrolls.
+  const carriedOverItems = useMemo(
+    () => todayBucket.filter((td) => !!td.dueDate && td.dueDate < today),
+    [todayBucket, today],
   )
-  // Clamp if the bucket shrinks (e.g. someone marked everything done).
-  const safePageIndex = Math.min(pageIndex, pageCount - 1)
-  const pageStart = safePageIndex * TODAY_PREVIEW_CAP
-  const previewItems = todayBucket.slice(
-    pageStart,
-    pageStart + TODAY_PREVIEW_CAP,
+  const todayDueItems = useMemo(
+    () => todayBucket.filter((td) => !(td.dueDate && td.dueDate < today)),
+    [todayBucket, today],
   )
-  const remainingAfterPage = Math.max(
-    0,
-    todayBucket.length - (pageStart + previewItems.length),
-  )
-  // "+ N more →" advances to the next page. On the last page, it
-  // wraps back to page 0 so the user can re-scan; the label updates
-  // to "↺ start over" in that case.
-  const overflow = remainingAfterPage
-  const isLastPage = safePageIndex >= pageCount - 1
+
 
   // "What's Next?" cycles through Todos' time buckets in order. State:
   //   `nextExpanded` — section visible / TODAY's content collapsed.
   //   `nextGroupKey` — which bucket is being shown (sticks even when
   //     the user empties it by completing things, so we can render
   //     an empty-state inside it and advance to the next bucket).
-  //   `nextPageIndex` — paging within the current bucket.
   const NEXT_GROUP_SEQUENCE: GroupKey[] = ['overdue', 'week', 'upcoming', 'noDate']
   const [nextExpanded, setNextExpanded] = useState(false)
   const [nextGroupKey, setNextGroupKey] = useState<GroupKey | null>(null)
-  const [nextPageIndex, setNextPageIndex] = useState(0)
 
   // Open-only buckets, derived from the same buildGroups pipeline Todos
   // uses. Empty buckets are dropped by buildGroups, so groupsByKey only
@@ -247,33 +232,18 @@ export default function HomeScreen() {
   const nextSectionLabel = nextGroupKey ? t.groups[nextGroupKey] : "What's next"
   const hasNextGroupAfter = nextGroupAfter(nextGroupKey) !== null
 
-  const nextPageCount = Math.max(
-    1,
-    Math.ceil(nextBucket.length / TODAY_PREVIEW_CAP),
-  )
-  const safeNextPageIndex = Math.min(nextPageIndex, nextPageCount - 1)
-  const nextPageStart = safeNextPageIndex * TODAY_PREVIEW_CAP
-  const nextPreviewItems = nextBucket.slice(
-    nextPageStart,
-    nextPageStart + TODAY_PREVIEW_CAP,
-  )
-  const nextRemainingAfterPage = Math.max(
-    0,
-    nextBucket.length - (nextPageStart + TODAY_PREVIEW_CAP),
-  )
-  const nextOverflow = nextRemainingAfterPage
-  const nextIsLastPage = safeNextPageIndex >= nextPageCount - 1
+  const nextPreviewItems = nextBucket.slice(0, TODAY_PREVIEW_CAP)
 
   const openTodos = useCallback(
-    (filter?: Filter) => {
+    (filter?: Filter, scrollGroup?: string) => {
       if (filter) store.setFilter(filter)
+      if (scrollGroup) sheets.requestTodosScroll(scrollGroup)
       navigation.navigate('Todos')
     },
-    [navigation, store],
+    [navigation, store, sheets],
   )
 
   const openWhatsNext = useCallback(() => {
-    setNextPageIndex(0)
     setNextGroupKey(firstAvailableNextKey)
     setNextExpanded(true)
   }, [firstAvailableNextKey])
@@ -282,7 +252,6 @@ export default function HomeScreen() {
   const advanceToNextGroup = useCallback(() => {
     const next = nextGroupAfter(nextGroupKey)
     if (!next) return
-    setNextPageIndex(0)
     setNextGroupKey(next)
   }, [nextGroupKey, groupsByKey])
 
@@ -319,6 +288,54 @@ export default function HomeScreen() {
   const openSingleDefer = useCallback((todo: Todo) => {
     setDeferTarget(todo)
   }, [])
+
+  // Shared row renderer for the Home today/carried-over groups — keeps
+  // the long TaskItem prop list in one place (and wires the series
+  // skip/delete handlers the embedded TaskDetailsSheet needs).
+  const renderRow = (td: Todo) => (
+    <TaskItem
+      key={td.id}
+      todo={td}
+      categories={store.categories}
+      density={store.profile.density}
+      celebrate={celebrate}
+      playSound={playSound}
+      onToggle={store.toggle}
+      onMoveToTrash={store.moveToTrash}
+      onSkip={store.skipTodo}
+      onSkipSeries={store.skipSeriesFuture}
+      onRestore={store.restoreFromTrash}
+      onPermanentDelete={store.permanentlyDelete}
+      onPermanentDeleteSeries={store.permanentlyDeleteSeriesFuture}
+      onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
+      onApplySeriesFutureEdits={store.applySeriesFutureEdits}
+      onDetachFromSeries={store.detachFromSeries}
+      onApplyRecurrenceChange={store.applyRecurrenceChange}
+      onApplySeriesSubtasks={store.applySeriesSubtasks}
+      onUpdatePriority={store.updatePriority}
+      onUpdateDueDate={store.updateDueDate}
+      onSnooze={store.snooze}
+      onLongPressDefer={openSingleDefer}
+      onUpdateCategory={store.updateTaskCategory}
+      onUpdateText={store.updateText}
+      onUpdateNotes={store.updateNotes}
+      onUpdateRecurrence={store.updateRecurrence}
+      onUpdateReminder={store.updateReminder}
+      onUpdateReminders={store.updateReminders}
+      onAddSubtask={store.addSubtask}
+      onToggleSubtask={store.toggleSubtask}
+      onUpdateSubtaskText={store.updateSubtaskText}
+      onUpdateSubtaskPriority={store.updateSubtaskPriority}
+      onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
+      onRemoveSubtask={store.removeSubtask}
+      agentEnabled={store.profile.agentEnabled !== false}
+      onClearSubtasks={store.clearSubtasks}
+      subtaskVisibility="open"
+      dateChipFormat="home-today"
+      tapBehavior="expandIfHasSubs"
+      subtaskDateFilter="due-today"
+    />
+  )
 
   // PebbleStrip on Home is rendered conditionally when this screen is
   // focused — its useEffect handles flight-target registration on
@@ -384,173 +401,110 @@ export default function HomeScreen() {
             plain label, no chevron, no tap target — there's nowhere
             useful to navigate. Reads as a quiet section header
             instead of a misleading "0 done →" scoreboard. */}
-        {openCount === 0 && store.todayPebbles === 0 ? (
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionHeader}>TODAY</Text>
-          </View>
-        ) : (
-          <TouchableOpacity
-            style={styles.sectionHeaderRow}
-            onPress={() => openTodos(openCount === 0 ? 'done' : 'all')}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel={
-              openCount === 0
-                ? 'Open Todos showing Done items'
-                : `Open Todos showing ${openCount} items`
-            }
-          >
-            <Text style={styles.sectionHeader}>TODAY</Text>
-            <View style={styles.sectionRight}>
-              <Text style={styles.sectionCount}>
-                {openCount === 0
-                  ? `${store.todayPebbles} done`
-                  : openCount === 1
-                    ? '1 to do'
-                    : `${openCount} to do`}
-              </Text>
-              <ChevronRight size={14} color={theme.label3} strokeWidth={2.5} />
-            </View>
-          </TouchableOpacity>
-        )}
-
-        {/* When What's Next is expanded, the TODAY band's content
-            collapses so the next group can take the focus. The header
-            above still shows, so the user knows TODAY is still here
-            and can collapse NEXT to return to it. */}
+        {/* When What's Next is expanded, the TODAY band collapses so the
+            next group can take focus. Otherwise: an empty state when
+            nothing's actionable, or the TODAY + CARRIED OVER groups (each
+            unlimited; the page scrolls). */}
         {nextExpanded ? null : todayBucket.length === 0 ? (
-          // Unified empty state — same component as Todos + Shopping
-          // so the visual matches across tabs.
-          //
-          // CTA depends on whether anything exists to navigate to:
-          //   - any future open todo (overdue/week/upcoming/no-date)
-          //     → show "What's Next?" (advances to next group)
-          //   - nothing at all → show "Add a to-do" (compose) so the
-          //     user has a way forward instead of a dead-end button
-          firstAvailableNextKey == null ? (
-            <EmptyStateCard
-              title="You're all caught up."
-              hint="Add a to-do to get started."
-              actionLabel="Add a to-do"
-              onAction={() => {
-                void Analytics.emptyStateCtaTapped('todos')
-                sheets.openCompose()
-              }}
-            />
-          ) : (
-            <EmptyStateCard
-              title="Nothing pending."
-              subline={
-                store.todayPebbles === 0
-                  ? undefined
-                  : store.todayPebbles === 1
-                    ? '1 done today.'
-                    : `${store.todayPebbles} done today.`
-              }
-              hint="Enjoy the breathing room."
-              actionLabel="What's Next?"
-              onAction={openWhatsNext}
-              actionAccessibilityLabel="What's Next? Ask Mochi or open the upcoming list."
-            />
-          )
-        ) : (
-          <View style={styles.todayList}>
-            {previewItems.map((td) => (
-              <TaskItem
-                key={td.id}
-                todo={td}
-                categories={store.categories}
-                density={store.profile.density}
-                celebrate={celebrate}
-                playSound={playSound}
-                onToggle={store.toggle}
-                onMoveToTrash={store.moveToTrash}
-                onSkip={store.skipTodo}
-                onRestore={store.restoreFromTrash}
-                onPermanentDelete={store.permanentlyDelete}
-                onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
-                onApplySeriesFutureEdits={store.applySeriesFutureEdits}
-                onDetachFromSeries={store.detachFromSeries}
-                onApplyRecurrenceChange={store.applyRecurrenceChange}
-                onApplySeriesSubtasks={store.applySeriesSubtasks}
-                onUpdatePriority={store.updatePriority}
-                onUpdateDueDate={store.updateDueDate}
-                onSnooze={store.snooze}
-                onLongPressDefer={openSingleDefer}
-                onUpdateCategory={store.updateTaskCategory}
-                onUpdateText={store.updateText}
-                onUpdateNotes={store.updateNotes}
-                onUpdateRecurrence={store.updateRecurrence}
-                onUpdateReminder={store.updateReminder}
-                onUpdateReminders={store.updateReminders}
-                onAddSubtask={store.addSubtask}
-                onToggleSubtask={store.toggleSubtask}
-                onUpdateSubtaskText={store.updateSubtaskText}
-                onUpdateSubtaskPriority={store.updateSubtaskPriority}
-                onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
-                onRemoveSubtask={store.removeSubtask}
-                agentEnabled={store.profile.agentEnabled !== false}
-                onClearSubtasks={store.clearSubtasks}
-                subtaskVisibility="open"
-                dateChipFormat="home-today"
-                tapBehavior="expandIfHasSubs"
-                subtaskDateFilter="due-today"
-              />
-            ))}
-            {pageCount > 1 && (
-              <View style={styles.todayPaginator}>
-                {safePageIndex === 0 ? (
-                  // First page: only "+ N more", centered.
-                  <TouchableOpacity
-                    style={styles.todayPaginatorCenter}
-                    onPress={() => setPageIndex((i) => i + 1)}
-                    activeOpacity={0.65}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Show next ${Math.min(TODAY_PREVIEW_CAP, overflow)} TODAY items, page 2 of ${pageCount}`}
-                  >
-                    <Text style={styles.todayMoreText}>+ {overflow} more</Text>
-                    <ChevronRight size={14} color={theme.primary} strokeWidth={2.5} />
-                  </TouchableOpacity>
-                ) : isLastPage ? (
-                  // Last page: only "↺ Start over", centered.
-                  <TouchableOpacity
-                    style={styles.todayPaginatorCenter}
-                    onPress={() => setPageIndex(0)}
-                    activeOpacity={0.65}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Start over from the top of TODAY, page 1 of ${pageCount}`}
-                  >
-                    <Text style={styles.todayMoreText}>↺ Start over</Text>
-                  </TouchableOpacity>
-                ) : (
-                  // Middle pages: [Previous] left + [+ N more] right.
-                  <>
-                    <TouchableOpacity
-                      style={styles.todayPaginatorBtn}
-                      onPress={() => setPageIndex((i) => i - 1)}
-                      activeOpacity={0.65}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Previous TODAY page, ${safePageIndex} of ${pageCount}`}
-                    >
-                      <ChevronLeft size={14} color={theme.primary} strokeWidth={2.5} />
-                      <Text style={styles.todayMoreText}>Previous</Text>
-                    </TouchableOpacity>
-                    <View style={{ flex: 1 }} />
-                    <TouchableOpacity
-                      style={styles.todayPaginatorBtn}
-                      onPress={() => setPageIndex((i) => i + 1)}
-                      activeOpacity={0.65}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Show next ${Math.min(TODAY_PREVIEW_CAP, overflow)} TODAY items, page ${safePageIndex + 2} of ${pageCount}`}
-                    >
-                      <Text style={styles.todayMoreText}>+ {overflow} more</Text>
-                      <ChevronRight size={14} color={theme.primary} strokeWidth={2.5} />
-                    </TouchableOpacity>
-                  </>
-                )}
+          <>
+            {/* Quiet TODAY header above the empty state. */}
+            {openCount === 0 && store.todayPebbles === 0 ? (
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionHeader}>TODAY</Text>
               </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.sectionHeaderRow}
+                onPress={() => openTodos('done')}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Open Todos showing Done items"
+              >
+                <Text style={styles.sectionHeader}>TODAY</Text>
+                <View style={styles.sectionRight}>
+                  <Text style={styles.sectionCount}>{`${store.todayPebbles} done`}</Text>
+                  <ChevronRight size={14} color={theme.label3} strokeWidth={2.5} />
+                </View>
+              </TouchableOpacity>
             )}
-          </View>
+            {firstAvailableNextKey == null ? (
+              <EmptyStateCard
+                title="You're all caught up."
+                hint="Add a to-do to get started."
+                actionLabel="Add a to-do"
+                onAction={() => {
+                  void Analytics.emptyStateCtaTapped('todos')
+                  sheets.openCompose()
+                }}
+              />
+            ) : (
+              <EmptyStateCard
+                title="Nothing pending."
+                subline={
+                  store.todayPebbles === 0
+                    ? undefined
+                    : store.todayPebbles === 1
+                      ? '1 done today.'
+                      : `${store.todayPebbles} done today.`
+                }
+                hint="Enjoy the breathing room."
+                actionLabel="What's Next?"
+                onAction={openWhatsNext}
+                actionAccessibilityLabel="What's Next? Ask Mochi or open the upcoming list."
+              />
+            )}
+          </>
+        ) : (
+          <>
+            {todayDueItems.length > 0 && (
+              <>
+                <TouchableOpacity
+                  style={styles.sectionHeaderRow}
+                  onPress={() => openTodos('open', 'today')}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open Todos, ${todayDueItems.length} due today`}
+                >
+                  <Text style={styles.sectionHeader}>TODAY</Text>
+                  <View style={styles.sectionRight}>
+                    <Text style={styles.sectionCount}>
+                      {todayDueItems.length === 1
+                        ? '1 to do'
+                        : `${todayDueItems.length} to do`}
+                    </Text>
+                    <ChevronRight size={14} color={theme.label3} strokeWidth={2.5} />
+                  </View>
+                </TouchableOpacity>
+                <View style={styles.todayList}>
+                  {todayDueItems.map(renderRow)}
+                </View>
+              </>
+            )}
+            {carriedOverItems.length > 0 && (
+              <>
+                <TouchableOpacity
+                  style={styles.sectionHeaderRow}
+                  onPress={() => openTodos('open', 'overdue')}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open Todos, ${carriedOverItems.length} carried over`}
+                >
+                  <Text style={styles.sectionHeader}>CARRIED OVER</Text>
+                  <View style={styles.sectionRight}>
+                    <Text style={styles.sectionCount}>
+                      {carriedOverItems.length === 1
+                        ? '1 to do'
+                        : `${carriedOverItems.length} to do`}
+                    </Text>
+                    <ChevronRight size={14} color={theme.label3} strokeWidth={2.5} />
+                  </View>
+                </TouchableOpacity>
+                <View style={styles.todayList}>
+                  {carriedOverItems.map(renderRow)}
+                </View>
+              </>
+            )}
+          </>
         )}
 
         {/* NEXT — open todos NOT due today, surfaced inline when the
@@ -558,27 +512,48 @@ export default function HomeScreen() {
             header chevron to collapse. */}
         {nextExpanded && (
           <>
-            <TouchableOpacity
-              style={styles.sectionHeaderRow}
-              onPress={() => setNextExpanded(false)}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={`Collapse ${nextSectionLabel}, ${nextBucket.length} items`}
-            >
-              <Text style={styles.sectionHeader}>
-                {nextSectionLabel.toUpperCase()}
-              </Text>
-              <View style={styles.sectionRight}>
-                <Text style={styles.sectionCount}>
-                  {nextBucket.length === 0
-                    ? 'nothing queued'
-                    : nextBucket.length === 1
-                      ? '1 open'
-                      : `${nextBucket.length} open`}
+            <View style={styles.sectionHeaderRow}>
+              <TouchableOpacity
+                onPress={() => setNextExpanded(false)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`Collapse ${nextSectionLabel}`}
+              >
+                <Text style={styles.sectionHeader}>
+                  {nextSectionLabel.toUpperCase()}
                 </Text>
-                <Text style={styles.sectionCollapse}>×</Text>
+              </TouchableOpacity>
+              <View style={styles.sectionRight}>
+                {nextBucket.length === 0 ? (
+                  <Text style={styles.sectionCount}>nothing queued</Text>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.sectionRight}
+                    onPress={() =>
+                      nextGroupKey && openTodos('open', nextGroupKey)
+                    }
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open Todos showing ${nextBucket.length} ${nextSectionLabel} items`}
+                  >
+                    <Text style={styles.sectionCount}>
+                      {nextBucket.length === 1
+                        ? '1 open'
+                        : `${nextBucket.length} open`}
+                    </Text>
+                    <ChevronRight size={14} color={theme.label3} strokeWidth={2.5} />
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  onPress={() => setNextExpanded(false)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Collapse"
+                >
+                  <Text style={styles.sectionCollapse}>×</Text>
+                </TouchableOpacity>
               </View>
-            </TouchableOpacity>
+            </View>
             {nextBucket.length === 0 ? (
               // Group emptied (or starting empty) — mirror TODAY's
               // empty state via the shared EmptyStateCard. The
@@ -635,56 +610,6 @@ export default function HomeScreen() {
                     tapBehavior="expandIfHasSubs"
                   />
                 ))}
-                {nextPageCount > 1 && (
-                  <View style={styles.todayPaginator}>
-                    {safeNextPageIndex === 0 ? (
-                      <TouchableOpacity
-                        style={styles.todayPaginatorCenter}
-                        onPress={() => setNextPageIndex((i) => i + 1)}
-                        activeOpacity={0.65}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Show next ${Math.min(TODAY_PREVIEW_CAP, nextOverflow)} What's Next items`}
-                      >
-                        <Text style={styles.todayMoreText}>+ {nextOverflow} more</Text>
-                        <ChevronRight size={14} color={theme.primary} strokeWidth={2.5} />
-                      </TouchableOpacity>
-                    ) : nextIsLastPage ? (
-                      <TouchableOpacity
-                        style={styles.todayPaginatorCenter}
-                        onPress={() => setNextPageIndex(0)}
-                        activeOpacity={0.65}
-                        accessibilityRole="button"
-                        accessibilityLabel="Start over from the top of What's Next"
-                      >
-                        <Text style={styles.todayMoreText}>↺ Start over</Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <>
-                        <TouchableOpacity
-                          style={styles.todayPaginatorBtn}
-                          onPress={() => setNextPageIndex((i) => i - 1)}
-                          activeOpacity={0.65}
-                          accessibilityRole="button"
-                          accessibilityLabel="Previous What's Next page"
-                        >
-                          <ChevronLeft size={14} color={theme.primary} strokeWidth={2.5} />
-                          <Text style={styles.todayMoreText}>Previous</Text>
-                        </TouchableOpacity>
-                        <View style={{ flex: 1 }} />
-                        <TouchableOpacity
-                          style={styles.todayPaginatorBtn}
-                          onPress={() => setNextPageIndex((i) => i + 1)}
-                          activeOpacity={0.65}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Show next ${Math.min(TODAY_PREVIEW_CAP, nextOverflow)} What's Next items`}
-                        >
-                          <Text style={styles.todayMoreText}>+ {nextOverflow} more</Text>
-                          <ChevronRight size={14} color={theme.primary} strokeWidth={2.5} />
-                        </TouchableOpacity>
-                      </>
-                    )}
-                  </View>
-                )}
               </View>
             )}
           </>
@@ -708,10 +633,7 @@ export default function HomeScreen() {
           tap to open it in the right tab. Replaces the old Manage-Tiles
           stat row. */}
       {dashboardTiles.length > 0 && (
-        <View
-          style={styles.statsRowSticky}
-          onLayout={(e) => setStatsRowHeight(e.nativeEvent.layout.height)}
-        >
+        <View style={styles.statsRowSticky}>
           <DraggableFlatList
             horizontal
             data={dashboardTiles}
@@ -768,7 +690,6 @@ export default function HomeScreen() {
         }}
         accessibilityLabel={t.addPlaceholder}
         agentEnabled={store.profile.agentEnabled !== false}
-        extraBottom={dashboardTiles.length > 0 ? statsRowHeight + 4 : 0}
       />
     </View>
   )
@@ -849,6 +770,10 @@ function resolveDashboardTile(
           <CheckCircle2 size={11} color={theme.primary} strokeWidth={2.4} />
         ),
       onPress: () => {
+        // Single-selection: clear any prior selection, then apply ONLY
+        // this card's filter set — tapping a card never accumulates onto
+        // a previously-active filter.
+        store.clearFilters()
         store.setFilters(tile.set as Filter[])
         navigate('Todos')
       },

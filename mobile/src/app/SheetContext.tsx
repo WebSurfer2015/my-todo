@@ -77,6 +77,11 @@ interface Sheets {
   /** Latest manage-sheet request the SheetContext has dispatched.
    * Tab screens read this to know when to open their local sheets. */
   manageRequest: ManageRequest
+  /** Ask the Todos screen to scroll to a date-bucket group (by key). The
+   * `seq` bumps so a repeat request for the same group re-fires. Set by the
+   * Dashboard's "N open →" links; read by TodosScreen. */
+  requestTodosScroll: (group: string) => void
+  todosScrollRequest: { group: string | null; seq: number }
 }
 
 const SheetContext = createContext<Sheets | null>(null)
@@ -108,6 +113,10 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   const [categorySheetOpen, setCategorySheetOpen] = useState(false)
   const [categorySheetMode, setCategorySheetMode] = useState<'view' | 'edit'>('view')
   const [manageRequest, setManageRequest] = useState<ManageRequest>({ target: null, seq: 0 })
+  const [todosScrollRequest, setTodosScrollRequest] = useState<{ group: string | null; seq: number }>({ group: null, seq: 0 })
+  const requestTodosScroll = useCallback((group: string) => {
+    setTodosScrollRequest((p) => ({ group, seq: p.seq + 1 }))
+  }, [])
   // Currently-playing single guide. Null when only the menu is up
   // (or both are closed). Setting this immediately renders the
   // guide carousel over the menu.
@@ -295,7 +304,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <SheetContext.Provider value={{ openProfile, openSettings, openBackgrounds, openGuides, openCompose, openMochi, openManageFilter, openSelectFilter, openManageGroceries, manageRequest }}>
+    <SheetContext.Provider value={{ openProfile, openSettings, openBackgrounds, openGuides, openCompose, openMochi, openManageFilter, openSelectFilter, openManageGroceries, manageRequest, requestTodosScroll, todosScrollRequest }}>
       {children}
       <ProfileSheet
         visible={profileOpen}

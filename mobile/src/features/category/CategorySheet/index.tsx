@@ -401,17 +401,15 @@ export default function CategorySheet({
                     <Text style={styles.headerTitle}>
                       {isEditing ? "Manage Todo's Filter" : 'Select Filter'}
                     </Text>
-                    <TouchableOpacity
-                      // Both modes: "Done" closes the sheet. The two flows
-                      // are reached from separate entry-points (funnel →
-                      // Select, gear → Manage); we no longer let the user
-                      // toggle modes from within the sheet so each one
-                      // stays purely-pick or purely-manage.
-                      onPress={onClose}
-                      hitSlop={8}
-                    >
-                      <Text style={styles.headerRight}>{t.done}</Text>
-                    </TouchableOpacity>
+                    {isEditing ? (
+                      // Manage flow keeps Done in the header. Select Filter's
+                      // Done now lives in the sticky footer below.
+                      <TouchableOpacity onPress={onClose} hitSlop={8}>
+                        <Text style={styles.headerRight}>{t.done}</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={styles.headerRightSpacer} />
+                    )}
                   </View>
 
                   {isEditing ? (
@@ -703,6 +701,7 @@ export default function CategorySheet({
                       </View>
                     </ScrollView>
                   ) : (
+                    <>
                     <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
                       <View style={[styles.listCard, styles.allCard]}>
                         <TouchableOpacity
@@ -737,6 +736,9 @@ export default function CategorySheet({
                       <View style={styles.listCard}>
                         {categories.map(viewCategoryRow)}
                       </View>
+                    </ScrollView>
+                    {/* Sticky Done — pinned below the scrollable filter list. */}
+                    <View style={styles.viewStickyFooter}>
                       <TouchableOpacity
                         style={styles.viewDoneBtn}
                         onPress={onClose}
@@ -746,7 +748,8 @@ export default function CategorySheet({
                       >
                         <Text style={styles.viewDoneText}>{t.done}</Text>
                       </TouchableOpacity>
-                    </ScrollView>
+                    </View>
+                    </>
                   )}
                 </>
               ) : (

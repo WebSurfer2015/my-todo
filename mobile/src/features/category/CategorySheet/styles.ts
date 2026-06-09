@@ -40,6 +40,15 @@ export function makeStyles(c: ThemeColors) {
     headerTitle: { fontSize: 17, fontWeight: "700", color: c.label },
     headerLeft: { fontSize: 16, fontWeight: "500", color: c.primary },
     headerRight: { fontSize: 16, fontWeight: "600", color: c.primary },
+    // Balances Cancel so the title stays centered when the header's
+    // right-side Done is hidden (Select Filter → Done is sticky below).
+    headerRightSpacer: { minWidth: 56 },
+    // Sticky footer holding the Select Filter Done button.
+    viewStickyFooter: {
+      backgroundColor: c.modal,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.separator,
+    },
     title: {
       fontSize: 17,
       fontWeight: "700",

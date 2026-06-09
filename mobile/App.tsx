@@ -97,6 +97,31 @@ function TodosScreen() {
   // compose sheet. CategorySheet moved to SheetContext so Settings →
   // Manage Todos can open it from any tab.
   const sheets = useSheets();
+  // Scroll-to-group: the Dashboard's "N open →" links ask us (via
+  // sheets.todosScrollRequest) to scroll to a date-bucket group. We
+  // capture each group's Y and the sticky filter's height so the group
+  // header lands just below the pinned filter row.
+  const scrollRef = useRef<ScrollView>(null);
+  const groupYRef = useRef<Record<string, number>>({});
+  const stickyHRef = useRef(0);
+  const scrollReq = sheets.todosScrollRequest;
+  useEffect(() => {
+    if (!scrollReq.group || scrollReq.seq === 0) return;
+    const targetGroup = scrollReq.group;
+    // Defer a beat so a just-changed filter has laid its groups out.
+    const id = setTimeout(() => {
+      const y =
+        groupYRef.current[targetGroup] ??
+        (targetGroup === "today" ? 0 : undefined);
+      if (y == null) return;
+      scrollRef.current?.scrollTo({
+        y: Math.max(0, y - stickyHRef.current - 8),
+        animated: true,
+      });
+    }, 140);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollReq.seq]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   // Defer modal: which group is being deferred (label for the
@@ -132,7 +157,19 @@ function TodosScreen() {
   // itself after the breath + fade animation. Only blocks once per cold
   // launch.
   const [splashShown, setSplashShown] = useState(true);
-  const onboardingNeeded = store.loaded && store.profile.onboardingDone !== true;
+  // Onboarding is decided ONCE, the first time the store finishes
+  // hydrating — then latched. Without the latch, a later profile-sync
+  // tick (or any churn that momentarily lacks onboardingDone) could flip
+  // `needed` true mid-session and pop "Meet Mochi" over the app (e.g.
+  // when the user just tapped a to-do). It must only appear at first
+  // login, never resurface after.
+  const [onboardingNeeded, setOnboardingNeeded] = useState(false);
+  const onboardingDecidedRef = useRef(false);
+  useEffect(() => {
+    if (!store.loaded || onboardingDecidedRef.current) return;
+    onboardingDecidedRef.current = true;
+    if (store.profile.onboardingDone !== true) setOnboardingNeeded(true);
+  }, [store.loaded, store.profile.onboardingDone]);
 
   // Search narrows the already-filtered + grouped view (case-insensitive
   // substring over text/subtasks/notes). The linger projection (keeping a
@@ -201,6 +238,7 @@ function TodosScreen() {
             Mochi avatar in AppHeader, which does a happy-dance on
             every check-off (animation-aware). */}
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
           stickyHeaderIndices={[0]}
@@ -208,7 +246,12 @@ function TodosScreen() {
           {/* Single sticky container — filter row only now. The pebble
               strip used to live here too, but per the v1.5 unification
               it moved above to match Dashboard + Shopping placement. */}
-          <View style={styles.stickyFilter}>
+          <View
+            style={styles.stickyFilter}
+            onLayout={(e) => {
+              stickyHRef.current = e.nativeEvent.layout.height;
+            }}
+          >
             <SearchTopSheet
               visible={isFocused && searchOpen}
               placeholder="Search todos"
@@ -319,14 +362,14 @@ function TodosScreen() {
                         onToggleSelect={store.toggleTrashSelection}
                         onToggle={store.toggle}
                         onMoveToTrash={store.moveToTrash}
-                        onSkip={store.skipTodo}
+                        onSkip={store.skipTodo} onSkipSeries={store.skipSeriesFuture}
                         onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
                         onApplySeriesFutureEdits={store.applySeriesFutureEdits}
                         onDetachFromSeries={store.detachFromSeries}
                         onApplyRecurrenceChange={store.applyRecurrenceChange}
                         onApplySeriesSubtasks={store.applySeriesSubtasks}
                         onRestore={store.restoreFromTrash}
-                        onPermanentDelete={store.permanentlyDelete}
+                        onPermanentDelete={store.permanentlyDelete} onPermanentDeleteSeries={store.permanentlyDeleteSeriesFuture}
                         onUpdatePriority={store.updatePriority}
                         onUpdateDueDate={store.updateDueDate}
                         onSnooze={store.snooze}
@@ -428,35 +471,38 @@ function TodosScreen() {
                         <Text style={styles.groupHeader}>
                           {headerLabel} ({g.todos.length})
                         </Text>
-                        {g.isEarlier && g.todos.length > 0 && (
-                          <TouchableOpacity
-                            onPress={() => {
-                              const ids = g.todos.map((td) => td.id);
-                              Alert.alert(
-                                t.deletePermanently,
-                                t.deletePermanentlyConfirm(
-                                  `${ids.length} ${ids.length === 1 ? 'item' : 'items'}`,
-                                ),
-                                [
-                                  { text: t.cancel, style: 'cancel' },
-                                  {
-                                    text: t.deletePermanently,
-                                    style: 'destructive',
-                                    onPress: () => {
-                                      for (const id of ids) {
-                                        store.permanentlyDelete(id);
-                                      }
+                        {g.todos.length > 0 && (
+                          <>
+                            <View style={{ flex: 1 }} />
+                            <TouchableOpacity
+                              onPress={() => {
+                                const ids = g.todos.map((td) => td.id);
+                                Alert.alert(
+                                  t.deletePermanently,
+                                  t.deletePermanentlyConfirm(
+                                    `${ids.length} ${ids.length === 1 ? 'item' : 'items'}`,
+                                  ),
+                                  [
+                                    { text: t.cancel, style: 'cancel' },
+                                    {
+                                      text: t.deletePermanently,
+                                      style: 'destructive',
+                                      onPress: () => {
+                                        for (const id of ids) {
+                                          store.permanentlyDelete(id);
+                                        }
+                                      },
                                     },
-                                  },
-                                ],
-                              );
-                            }}
-                            activeOpacity={0.6}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Delete all ${g.todos.length} items in Earlier`}
-                          >
-                            <Text style={styles.groupHeaderDeleteText}>Delete all →</Text>
-                          </TouchableOpacity>
+                                  ],
+                                );
+                              }}
+                              activeOpacity={0.6}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Delete all ${g.todos.length} items in ${headerLabel}`}
+                            >
+                              <Text style={styles.groupHeaderDeleteText}>Delete all →</Text>
+                            </TouchableOpacity>
+                          </>
                         )}
                       </View>
                       <View style={styles.groupCard}>
@@ -471,9 +517,9 @@ function TodosScreen() {
                               binFilterView
                               onToggle={store.toggle}
                               onMoveToTrash={store.moveToTrash}
-                              onSkip={store.skipTodo}
+                              onSkip={store.skipTodo} onSkipSeries={store.skipSeriesFuture}
                               onRestore={store.restoreFromTrash}
-                              onPermanentDelete={store.permanentlyDelete}
+                              onPermanentDelete={store.permanentlyDelete} onPermanentDeleteSeries={store.permanentlyDeleteSeriesFuture}
                               onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
                               onApplySeriesFutureEdits={store.applySeriesFutureEdits}
                               onDetachFromSeries={store.detachFromSeries}
@@ -552,9 +598,9 @@ function TodosScreen() {
                             playSound={store.profile.completionSound !== false}
                             onToggle={store.toggle}
                             onMoveToTrash={store.moveToTrash}
-                            onSkip={store.skipTodo}
+                            onSkip={store.skipTodo} onSkipSeries={store.skipSeriesFuture}
                             onRestore={store.restoreFromTrash}
-                            onPermanentDelete={store.permanentlyDelete}
+                            onPermanentDelete={store.permanentlyDelete} onPermanentDeleteSeries={store.permanentlyDeleteSeriesFuture}
                             onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
                             onApplySeriesFutureEdits={store.applySeriesFutureEdits}
                             onDetachFromSeries={store.detachFromSeries}
@@ -620,7 +666,13 @@ function TodosScreen() {
                 const openInGroup = group.todos.filter((td) => !td.done);
                 const openInGroupCount = openInGroup.length;
                 return (
-                  <View key={group.key} style={styles.groupSection}>
+                  <View
+                    key={group.key}
+                    style={styles.groupSection}
+                    onLayout={(e) => {
+                      groupYRef.current[group.key] = e.nativeEvent.layout.y;
+                    }}
+                  >
                     <View style={styles.groupHeaderContainer}>
                       {toggleable ? (
                         <TouchableOpacity
@@ -677,13 +729,13 @@ function TodosScreen() {
                         playSound={store.profile.completionSound !== false}
                               onToggle={store.toggle}
                               onMoveToTrash={store.moveToTrash}
-                              onSkip={store.skipTodo}
+                              onSkip={store.skipTodo} onSkipSeries={store.skipSeriesFuture}
                         onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
                         onApplySeriesFutureEdits={store.applySeriesFutureEdits}
                         onDetachFromSeries={store.detachFromSeries}
                         onApplyRecurrenceChange={store.applyRecurrenceChange}
                         onApplySeriesSubtasks={store.applySeriesSubtasks}
-                              onPermanentDelete={store.permanentlyDelete}
+                              onPermanentDelete={store.permanentlyDelete} onPermanentDeleteSeries={store.permanentlyDeleteSeriesFuture}
                               onUpdatePriority={store.updatePriority}
                               onUpdateDueDate={store.updateDueDate}
                         onSnooze={store.snooze}
@@ -778,6 +830,7 @@ function TodosScreen() {
       <Onboarding
         visible={onboardingNeeded}
         onComplete={(intent) => {
+          setOnboardingNeeded(false);
           store.saveProfile({ ...store.profile, onboardingDone: true });
           if (intent === "firstTask") {
             // Defer compose so the onboarding modal animates out first.
@@ -785,6 +838,7 @@ function TodosScreen() {
           }
         }}
         onSkip={() => {
+          setOnboardingNeeded(false);
           store.saveProfile({ ...store.profile, onboardingDone: true });
         }}
       />
