@@ -37,8 +37,8 @@ const PLANS: PlanView[] = [
     tier: 'premium',
     name: 'Premium',
     bullets: [
-      `${TIER_LIMITS.premium.mochiMonthly} Mochi AI requests / month`,
-      'No daily limit · pay as you go',
+      `${TIER_LIMITS.premium.mochiMonthly} Mochi AI requests / month, then pay as you go`,
+      'No daily limit',
       'Themes & icons',
     ],
     product: { monthly: PRODUCT_IDS.premiumMonthly, annual: PRODUCT_IDS.premiumAnnual },
