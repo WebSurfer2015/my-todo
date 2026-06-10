@@ -486,7 +486,13 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           categories={store.categories}
           todos={store.todos
             .filter((td) => !td.done && !td.trashed)
-            .map((td) => ({ id: td.id, text: td.text }))}
+            .map((td) => ({
+              id: td.id,
+              text: td.text,
+              priority: td.priority,
+              category: td.category,
+              dueDate: td.dueDate,
+            }))}
           groceryGroups={store.groceryGroups.map((g) => ({
             id: g.id,
             label: g.label,

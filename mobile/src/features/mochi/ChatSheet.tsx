@@ -25,9 +25,17 @@ interface Props {
   /** First name (or display name) for the greeting line. */
   greetingName: string
   categories: CategoryDef[]
-  /** Open todos (id + text) sent as agent context so Mochi can target
-   * editTodo / markDone / addSteps at real ids. */
-  todos: Array<{ id: string; text: string }>
+  /** Open todos. id + text go to the agent so it can target editTodo /
+   * markDone / addSteps at real ids; priority/category/dueDate are used
+   * locally to show an edit's RESULTING state (existing value for fields
+   * the edit leaves unchanged). */
+  todos: Array<{
+    id: string
+    text: string
+    priority?: string
+    category?: string
+    dueDate?: string
+  }>
   /** Grocery departments (id + label) so Mochi can target addGroceryItem. */
   groceryGroups: Array<{ id: string; label: string }>
   /** Grocery store names so Mochi can tag items / detect a missing store. */
@@ -99,7 +107,8 @@ export default function ChatSheet({
       today: todayLocal(),
       // Strip to id + label only — no need to leak counts/colors to the model.
       categories: categories.map((c) => ({ id: c.id, label: categoryLabel(c, t) })),
-      todos,
+      // Strip to id + text for the agent — it doesn't need the local fields.
+      todos: todos.map((td) => ({ id: td.id, text: td.text })),
       groceryGroups,
       stores,
     })
@@ -127,6 +136,7 @@ export default function ChatSheet({
   }
   const todoTextLookup = (id: string) =>
     todos.find((td) => td.id === id)?.text ?? 'that to-do'
+  const todoLookup = (id: string) => todos.find((td) => td.id === id)
   const groupLookup = (id: string) =>
     groceryGroups.find((g) => g.id === id)?.label ?? id
 
@@ -219,6 +229,7 @@ export default function ChatSheet({
                             op={op}
                             categoryLabelLookup={categoryLookup}
                             todoTextLookup={todoTextLookup}
+                            todoLookup={todoLookup}
                             groupLabelLookup={groupLookup}
                             styles={styles}
                             theme={theme}
@@ -322,6 +333,7 @@ function OperationPreview({
   op,
   categoryLabelLookup,
   todoTextLookup,
+  todoLookup,
   groupLabelLookup,
   styles,
   theme,
@@ -329,6 +341,7 @@ function OperationPreview({
   op: ProposedOperation
   categoryLabelLookup: (id: string) => string
   todoTextLookup: (id: string) => string
+  todoLookup: (id: string) => { priority?: string; category?: string; dueDate?: string } | undefined
   groupLabelLookup: (id: string) => string
   styles: ReturnType<typeof makeStyles>
   theme: ThemeColors
@@ -371,23 +384,37 @@ function OperationPreview({
 
   if (op.kind === 'editTodo') {
     const a = op.args
+    // Resulting state: the edit's value where provided, else the existing
+    // todo's value (an edit leaves unspecified fields unchanged). dueDate
+    // is special — an explicit empty string clears it.
+    const existing = todoLookup(a.todoId)
+    const category = a.category ?? existing?.category
+    const dueDate = a.dueDate !== undefined ? a.dueDate : existing?.dueDate
+    const priority = a.priority ?? existing?.priority ?? 'medium'
     return (
       <View>
         <Text style={styles.proposalKind}>Edit todo</Text>
-        <Text style={styles.proposalTitle}>{todoTextLookup(a.todoId)}</Text>
+        <Text style={styles.proposalTitle}>
+          {a.text ? a.text : todoTextLookup(a.todoId)}
+        </Text>
         <View style={styles.proposalMeta}>
-          {a.text && <Chip styles={styles}>Rename: {a.text}</Chip>}
-          {a.category && <Chip styles={styles}>{categoryLabelLookup(a.category)}</Chip>}
-          {a.dueDate && <Chip styles={styles}>Due {a.dueDate}</Chip>}
-          {a.priority && <Chip styles={styles}>Priority: {a.priority}</Chip>}
+          <Chip styles={styles}>
+            {category ? categoryLabelLookup(category) : 'No category'}
+          </Chip>
+          <Chip styles={styles}>{dueDate ? `Due ${dueDate}` : 'No due date'}</Chip>
+          <Chip styles={styles}>Priority: {priority}</Chip>
           {recurrenceLabel(a.recurrence) && (
             <Chip styles={styles}>{recurrenceLabel(a.recurrence)}</Chip>
           )}
-          {a.reminders?.map((r, i) => (
-            <Chip key={i} styles={styles} icon={reminderIcon}>
-              {reminderText(r.at)}
-            </Chip>
-          ))}
+          {a.reminders && a.reminders.length > 0 ? (
+            a.reminders.map((r, i) => (
+              <Chip key={i} styles={styles} icon={reminderIcon}>
+                {reminderText(r.at)}
+              </Chip>
+            ))
+          ) : (
+            <Chip styles={styles} icon={reminderIcon}>No reminder</Chip>
+          )}
         </View>
         {a.notes && <Text style={styles.proposalNotes}>{a.notes}</Text>}
       </View>
