@@ -60,7 +60,7 @@ const PLANS: PlanView[] = [
     name: 'Max',
     bullets: [
       'Everything in Premium',
-      `${TIER_LIMITS.max.mochiMonthly} Mochi requests / month`,
+      `${TIER_LIMITS.max.mochiMonthly} Mochi requests / month, then pay as you go`,
       'Planning features — weekly planner, auto-defer, event planner with to-do generation',
     ],
     product: { monthly: PRODUCT_IDS.maxMonthly, annual: PRODUCT_IDS.maxAnnual },
