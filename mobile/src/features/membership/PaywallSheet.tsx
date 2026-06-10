@@ -48,7 +48,6 @@ const PLANS: PlanView[] = [
     name: 'Premium',
     bullets: [
       'Everything in Free',
-      'No daily limit',
       `${TIER_LIMITS.premium.mochiMonthly} Mochi AI requests / month, then pay as you go`,
       'Premium features — theme-based UI, auto-defer',
     ],
