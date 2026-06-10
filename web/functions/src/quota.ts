@@ -13,6 +13,14 @@
 
 import { HttpsError } from 'firebase-functions/v2/https'
 import * as admin from 'firebase-admin'
+import {
+  TIER_LIMITS,
+  FREE_ENTITLEMENT,
+  effectiveTier,
+  mochiMonthlyBudget,
+  type Entitlement,
+  type Tier,
+} from './entitlements'
 
 // Per-user daily ceiling, shared across every AI endpoint. Sized to
 // cover an active user's normal day (~20–30 calls between ambient
@@ -90,6 +98,154 @@ export async function reserveDailyCall(uid: string, label = 'AI'): Promise<void>
     // briefly disables AI for everyone — better than silently letting
     // the cap leak.
     console.error('reserveDailyCall failed', err)
+    throw new HttpsError('internal', "Couldn't reach the quota check.")
+  }
+}
+
+// ─── Tier-aware Mochi allowance ────────────────────────────────────────
+//
+// Used by agentChat when MOCHI_TIER_ENFORCEMENT is on (see index.ts).
+// Enforces the per-tier monthly allowance (+ purchased top-ups) AND a
+// per-day sub-cap, reading the user's validated entitlement from
+// Firestore. Until the purchase flow (Phase 2) writes an entitlement, all
+// users resolve to basic — which is why enforcement ships behind a flag,
+// off until monetization launches.
+
+interface MochiUsageData {
+  /** UTC month, YYYY-MM. */
+  month: string
+  monthCalls: number
+  /** UTC day, YYYY-MM-DD. */
+  date: string
+  dayCalls: number
+}
+
+/** Decode the `{version,data}` envelope at users/{uid}/state/entitlement.
+ * Any parse failure → free/basic (fail toward the cheapest tier). */
+function parseEntitlement(raw: unknown): Entitlement {
+  if (!raw || typeof raw !== 'object') return FREE_ENTITLEMENT
+  const val = (raw as { value?: unknown }).value
+  if (typeof val !== 'string') return FREE_ENTITLEMENT
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(val)
+  } catch {
+    return FREE_ENTITLEMENT
+  }
+  const data = (parsed as { data?: unknown })?.data
+  if (!data || typeof data !== 'object') return FREE_ENTITLEMENT
+  const { tier, validUntil, topUpBalance } = data as {
+    tier?: unknown
+    validUntil?: unknown
+    topUpBalance?: unknown
+  }
+  const safeTier: Tier =
+    tier === 'pro' || tier === 'elite' || tier === 'basic' ? tier : 'basic'
+  return {
+    tier: safeTier,
+    validUntil: typeof validUntil === 'string' ? validUntil : null,
+    topUpBalance:
+      typeof topUpBalance === 'number' && Number.isFinite(topUpBalance)
+        ? Math.max(0, Math.floor(topUpBalance))
+        : 0,
+  }
+}
+
+function parseMochiUsage(raw: unknown): MochiUsageData | null {
+  if (!raw || typeof raw !== 'object') return null
+  const val = (raw as { value?: unknown }).value
+  if (typeof val !== 'string') return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(val)
+  } catch {
+    return null
+  }
+  const data = (parsed as { data?: unknown })?.data
+  if (!data || typeof data !== 'object') return null
+  const { month, monthCalls, date, dayCalls } = data as Record<string, unknown>
+  if (
+    typeof month !== 'string' ||
+    typeof date !== 'string' ||
+    typeof monthCalls !== 'number' ||
+    typeof dayCalls !== 'number'
+  ) {
+    return null
+  }
+  return {
+    month,
+    monthCalls: Math.max(0, Math.floor(monthCalls)),
+    date,
+    dayCalls: Math.max(0, Math.floor(dayCalls)),
+  }
+}
+
+/**
+ * Tier-aware reservation for ONE Mochi request. Throws
+ * HttpsError('resource-exhausted') when the daily sub-cap or the monthly
+ * budget (allowance + top-ups) is hit. Consumes a top-up only once the
+ * base monthly allowance is spent. Two-doc transaction (usage +
+ * entitlement) so the top-up decrement is atomic with the usage bump.
+ */
+export async function reserveMochiRequest(uid: string): Promise<void> {
+  const now = new Date()
+  const today = now.toISOString().slice(0, 10) // YYYY-MM-DD UTC
+  const month = today.slice(0, 7) // YYYY-MM UTC
+  const usageRef = adminDb.doc(`users/${uid}/state/mochiUsage`)
+  const entRef = adminDb.doc(`users/${uid}/state/entitlement`)
+  try {
+    await adminDb.runTransaction(async (tx) => {
+      const [usageSnap, entSnap] = await Promise.all([tx.get(usageRef), tx.get(entRef)])
+      const ent = parseEntitlement(entSnap.exists ? entSnap.data() : null)
+      const tier = effectiveTier(ent, now.getTime())
+      const limits = TIER_LIMITS[tier]
+
+      const usage = usageSnap.exists ? parseMochiUsage(usageSnap.data()) : null
+      const dayCalls = usage && usage.date === today ? usage.dayCalls : 0
+      const monthCalls = usage && usage.month === month ? usage.monthCalls : 0
+
+      if (dayCalls >= limits.mochiDaily) {
+        throw new HttpsError(
+          'resource-exhausted',
+          `Daily Mochi limit reached (${limits.mochiDaily} per day on the ${tier} plan). It resets after midnight UTC.`,
+        )
+      }
+      const budget = mochiMonthlyBudget(tier, ent.topUpBalance)
+      if (monthCalls >= budget) {
+        throw new HttpsError(
+          'resource-exhausted',
+          tier === 'basic'
+            ? `You've used your ${limits.mochiMonthly} free Mochi requests this month. Upgrade for more.`
+            : `Monthly Mochi allowance reached. Add a top-up or wait for next month.`,
+        )
+      }
+
+      // Drawing from a purchased top-up once the base allowance is spent.
+      const usingTopUp = monthCalls >= limits.mochiMonthly
+      const next: MochiUsageData = {
+        month,
+        monthCalls: monthCalls + 1,
+        date: today,
+        dayCalls: dayCalls + 1,
+      }
+      tx.set(usageRef, {
+        value: JSON.stringify({ version: 1, data: next }),
+        updatedAt: now.getTime(),
+      })
+      if (usingTopUp) {
+        const nextEnt: Entitlement = {
+          ...ent,
+          topUpBalance: Math.max(0, ent.topUpBalance - 1),
+        }
+        tx.set(entRef, {
+          value: JSON.stringify({ version: 1, data: nextEnt }),
+          updatedAt: now.getTime(),
+        })
+      }
+    })
+  } catch (err) {
+    if (err instanceof HttpsError) throw err
+    console.error('reserveMochiRequest failed', err)
     throw new HttpsError('internal', "Couldn't reach the quota check.")
   }
 }

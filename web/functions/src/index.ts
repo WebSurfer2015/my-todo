@@ -21,7 +21,7 @@ import {
   validateOperation,
   type ProposedOperation,
 } from './agentTools'
-import { reserveDailyCall } from './quota'
+import { reserveDailyCall, reserveMochiRequest } from './quota'
 import { isAgentEnabled } from './aiInfer'
 
 export { aiInfer } from './aiInfer'
@@ -34,6 +34,13 @@ const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY')
 // Tool args here are small; bump only if a future tool needs deeper
 // reasoning. Haiku does NOT accept the `effort` param — don't add it.
 const MODEL = 'claude-haiku-4-5'
+
+// Tiered-pricing allowance enforcement. OFF until the purchase flow
+// (Phase 2) ships — otherwise every free user is throttled to the basic
+// allowance with no way to upgrade. When true, agentChat reserves against
+// the per-tier monthly + daily Mochi budget; when false, it uses the flat
+// shared daily cap (current behavior). Flip to true at monetization launch.
+const MOCHI_TIER_ENFORCEMENT = false
 
 interface ChatContext {
   /** Today as ISO yyyy-mm-dd in the user's local timezone. The client
@@ -193,7 +200,11 @@ export const agentChat = onCall(
     // hammered model endpoint can't drain the user's quota past the cap
     // (each slot is committed in a transaction before the Anthropic
     // request runs).
-    await reserveDailyCall(request.auth.uid, 'Mochi')
+    if (MOCHI_TIER_ENFORCEMENT) {
+      await reserveMochiRequest(request.auth.uid)
+    } else {
+      await reserveDailyCall(request.auth.uid, 'Mochi')
+    }
 
     const ctx = data?.context ?? {}
     // `today` is reflected into Claude's system prompt as natural-language
