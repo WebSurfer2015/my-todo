@@ -384,7 +384,7 @@ function makeStyles(c: ThemeColors) {
       paddingBottom: 10,
     },
     titleSideBtn: { width: 64 },
-    title: { fontSize: 17, fontWeight: '700', color: c.label, textAlign: 'center' },
+    title: { fontSize: 20, fontWeight: '700', color: c.label, textAlign: 'center' },
     manageText: { fontSize: 15, fontWeight: '600', color: c.primary, textAlign: 'right' },
     scroll: { flexShrink: 1 },
     scrollContent: { paddingHorizontal: 16, paddingBottom: 12 },

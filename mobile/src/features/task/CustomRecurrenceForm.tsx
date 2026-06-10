@@ -230,7 +230,7 @@ function makeStyles(c: ThemeColors) {
       color: c.gray3,
     },
     title: {
-      fontSize: 15,
+      fontSize: 20,
       fontWeight: '700',
       color: c.label,
     },

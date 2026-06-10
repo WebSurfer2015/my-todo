@@ -135,7 +135,7 @@ function makeStyles(c: ThemeColors) {
       paddingBottom: 4,
     },
     titleSide: { minWidth: 56, alignItems: 'flex-end' },
-    title: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '600', color: c.label },
+    title: { flex: 1, textAlign: 'center', fontSize: 20, fontWeight: '600', color: c.label },
     doneText: { fontSize: 16, color: c.primary, fontWeight: '600' },
     intro: {
       paddingHorizontal: 20,

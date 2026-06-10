@@ -168,7 +168,7 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'flex-end',
     },
     title: {
-      fontSize: 16,
+      fontSize: 20,
       fontWeight: '700',
       color: c.label,
     },

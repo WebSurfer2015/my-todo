@@ -329,7 +329,7 @@ function makeStyles(c: ThemeColors) {
     },
     titleSideBtn: { width: 72, paddingTop: 2 },
     titleCenter: { flex: 1, alignItems: 'center' },
-    title: { fontSize: 17, fontWeight: '700', color: c.label, textAlign: 'center' },
+    title: { fontSize: 20, fontWeight: '700', color: c.label, textAlign: 'center' },
     subtitle: {
       fontSize: 12,
       color: c.label3,

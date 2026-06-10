@@ -51,7 +51,7 @@ export function makeStyles(c: ThemeColors) {
       letterSpacing: -0.1,
       flexShrink: 1,
     },
-    title: { fontSize: 17, fontWeight: "700", color: c.label, textAlign: "center" },
+    title: { fontSize: 20, fontWeight: "700", color: c.label, textAlign: "center" },
     manageText: { fontSize: 15, fontWeight: "600", color: c.primary, textAlign: "right" },
     cancelText: { fontSize: 15, fontWeight: "500", color: c.primary, textAlign: "left" },
     scroll: { flexShrink: 1 },

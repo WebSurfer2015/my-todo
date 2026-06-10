@@ -266,7 +266,7 @@ function makeStyles(c: ThemeColors) {
       width: 56,
     },
     title: {
-      fontSize: 15,
+      fontSize: 20,
       fontWeight: '700',
       color: c.label,
     },
