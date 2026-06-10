@@ -26,7 +26,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
   free: {
     mochiMonthly: 90,
     mochiDaily: 3,
-    topUps: false,
+    topUps: true,
     themes: false,
     aiPlanning: false,
   },

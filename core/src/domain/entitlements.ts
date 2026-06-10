@@ -57,10 +57,13 @@ export interface TierLimits {
  * KEEP IN SYNC with the server mirror (web/functions/src/entitlements.ts).
  */
 export const TIER_LIMITS: Record<Tier, TierLimits> = {
+  // Free's topUps:true lets it pay as you go beyond the 3/day taste —
+  // top-ups bypass the daily + monthly caps (see canSendMochiRequest /
+  // reserveMochiRequest).
   free: {
     mochiMonthly: 90,
     mochiDaily: 3,
-    topUps: false,
+    topUps: true,
     themes: false,
     aiPlanning: false,
   },
@@ -181,13 +184,17 @@ export function mochiRemaining(
   return Math.max(0, mochiMonthlyBudget(tier, topUpBalance) - usage.monthUsed)
 }
 
-/** Whether the user may send one more Mochi request right now: under both
- * the monthly budget (incl. top-ups) AND the per-day sub-cap. */
+/** Whether the user may send one more Mochi request right now. The tier
+ * allowance is gated by BOTH the daily sub-cap and the monthly cap; once
+ * the base allowance is unavailable (either cap hit), a purchased top-up
+ * balance lets the user keep going (pay as you go) with no cap. */
 export function canSendMochiRequest(
   tier: Tier,
   usage: MochiUsage,
   topUpBalance: number,
 ): boolean {
-  if (usage.dayUsed >= TIER_LIMITS[tier].mochiDaily) return false
-  return mochiRemaining(tier, usage, topUpBalance) > 0
+  const baseAvailable =
+    usage.dayUsed < TIER_LIMITS[tier].mochiDaily &&
+    usage.monthUsed < TIER_LIMITS[tier].mochiMonthly
+  return baseAvailable || topUpBalance > 0
 }

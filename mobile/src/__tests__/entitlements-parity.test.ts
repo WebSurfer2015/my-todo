@@ -17,9 +17,9 @@ import { resolve } from 'path'
 const CORE = resolve(__dirname, '../../../core/src/domain/entitlements.ts')
 const SERVER = resolve(__dirname, '../../../web/functions/src/entitlements.ts')
 
-/** Extract the `TIER_LIMITS` object literal and strip whitespace so
- * formatting differences don't false-positive — only keys + values
- * (in the same order, which both files share) matter. */
+/** Extract the `TIER_LIMITS` object literal, then strip comments +
+ * whitespace so formatting/comment differences don't false-positive —
+ * only keys + values (in the same order, which both files share) matter. */
 function extractLimits(src: string): string {
   const marker = 'TIER_LIMITS: Record<Tier, TierLimits> = {'
   const start = src.indexOf(marker)
@@ -31,7 +31,11 @@ function extractLimits(src: string): string {
     else if (src[i] === '}') {
       depth--
       if (depth === 0) {
-        return src.slice(braceStart, i + 1).replace(/\s+/g, '')
+        return src
+          .slice(braceStart, i + 1)
+          .replace(/\/\*[\s\S]*?\*\//g, '') // block comments
+          .replace(/\/\/[^\n]*/g, '') // line comments
+          .replace(/\s+/g, '')
       }
     }
   }

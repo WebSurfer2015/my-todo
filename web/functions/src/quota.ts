@@ -17,7 +17,6 @@ import {
   TIER_LIMITS,
   FREE_ENTITLEMENT,
   effectiveTier,
-  mochiMonthlyBudget,
   type Entitlement,
   type Tier,
 } from './entitlements'
@@ -204,45 +203,45 @@ export async function reserveMochiRequest(uid: string): Promise<void> {
       const dayCalls = usage && usage.date === today ? usage.dayCalls : 0
       const monthCalls = usage && usage.month === month ? usage.monthCalls : 0
 
-      if (dayCalls >= limits.mochiDaily) {
-        throw new HttpsError(
-          'resource-exhausted',
-          tier === 'free'
-            ? `That's your ${limits.mochiDaily} free Mochi requests for today. They reset tomorrow, or upgrade for more.`
-            : `Daily Mochi limit reached (${limits.mochiDaily}/day). It resets after midnight UTC.`,
-        )
-      }
-      const budget = mochiMonthlyBudget(tier, ent.topUpBalance)
-      if (monthCalls >= budget) {
-        throw new HttpsError(
-          'resource-exhausted',
-          tier === 'free'
-            ? `You've used your free Mochi requests this month. Upgrade for more.`
-            : `Monthly Mochi allowance reached. Pay as you go, or wait for next month.`,
-        )
-      }
+      // The tier ALLOWANCE is gated by both the daily sub-cap and the
+      // monthly cap. Once the base allowance is unavailable (either cap
+      // hit), a purchased top-up balance lets the user keep going — pay as
+      // you go, with no cap. Top-up draws don't touch the daily/monthly
+      // counters; they only decrement the balance.
+      const baseAvailable = dayCalls < limits.mochiDaily && monthCalls < limits.mochiMonthly
 
-      // Drawing from a purchased top-up once the base allowance is spent.
-      const usingTopUp = monthCalls >= limits.mochiMonthly
-      const next: MochiUsageData = {
-        month,
-        monthCalls: monthCalls + 1,
-        date: today,
-        dayCalls: dayCalls + 1,
-      }
-      tx.set(usageRef, {
-        value: JSON.stringify({ version: 1, data: next }),
-        updatedAt: now.getTime(),
-      })
-      if (usingTopUp) {
+      if (baseAvailable) {
+        const next: MochiUsageData = {
+          month,
+          monthCalls: monthCalls + 1,
+          date: today,
+          dayCalls: dayCalls + 1,
+        }
+        tx.set(usageRef, {
+          value: JSON.stringify({ version: 1, data: next }),
+          updatedAt: now.getTime(),
+        })
+      } else if (ent.topUpBalance > 0) {
         const nextEnt: Entitlement = {
           ...ent,
-          topUpBalance: Math.max(0, ent.topUpBalance - 1),
+          topUpBalance: ent.topUpBalance - 1,
         }
         tx.set(entRef, {
           value: JSON.stringify({ version: 1, data: nextEnt }),
           updatedAt: now.getTime(),
         })
+      } else {
+        const dailyHit = dayCalls >= limits.mochiDaily && monthCalls < limits.mochiMonthly
+        throw new HttpsError(
+          'resource-exhausted',
+          dailyHit
+            ? tier === 'free'
+              ? `That's your ${limits.mochiDaily} free Mochi requests for today. Pay as you go, or they reset tomorrow.`
+              : `Daily Mochi limit reached (${limits.mochiDaily}/day). Pay as you go, or it resets after midnight UTC.`
+            : tier === 'free'
+              ? `You've used your free Mochi requests. Pay as you go, or upgrade for more.`
+              : `Monthly Mochi allowance reached. Pay as you go, or wait for next month.`,
+        )
       }
     })
   } catch (err) {
