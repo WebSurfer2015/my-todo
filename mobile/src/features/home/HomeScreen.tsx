@@ -18,7 +18,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useIsFocused, useNavigation } from '@react-navigation/native'
 import { CheckCircle2, ChevronRight } from 'lucide-react-native'
 import { useStore } from '../../app/StoreContext'
@@ -77,7 +76,6 @@ export default function HomeScreen() {
   const { t } = useLang()
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
-  const insets = useSafeAreaInsets()
   const navigation = useNavigation<any>()
   const sheets = useSheets()
 
@@ -357,7 +355,7 @@ export default function HomeScreen() {
     const firstName =
       store.profile.firstName?.trim() || store.profile.name?.trim() || ''
     return (
-      <View style={[styles.flex, { paddingTop: insets.top }]}>
+      <View style={styles.flex}>
         <AppHeader onGearPress={sheets.openSettings} />
         <View style={styles.dayOneEmptyWrap}>
           <EmptyStateCard
@@ -383,7 +381,7 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={[styles.flex, { paddingTop: insets.top }]}>
+    <View style={styles.flex}>
       <AppHeader onGearPress={sheets.openSettings} />
       {/* PebbleStrip removed — completion celebration moved to the
           Mochi avatar in AppHeader, which does a happy-dance on
@@ -1021,6 +1019,12 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 12,
       alignItems: 'center',
       marginRight: 10,
+      // Soft lift so the stat tiles read as raised cards.
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
+      elevation: 3,
     },
     statTileDragging: {
       opacity: 0.9,

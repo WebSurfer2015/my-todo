@@ -310,11 +310,11 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'flex-start',
       justifyContent: 'center',
       gap: 4,
-      // Pale theme-tinted surface so the strip reads as chrome
-      // (between AppHeader and content) rather than blending into
-      // the canvas. primarySoft adapts to avatar theme + dark mode
-      // so it stays subtle across every palette.
-      backgroundColor: c.primarySoft,
+      // Shares AppHeader's calm warm-neutral chrome band (headerBg) so
+      // the strip + header merge into one continuous region instead of
+      // showing a seam. Neutral (not avatar-tinted) so it doesn't
+      // compete with the deep-green actions.
+      backgroundColor: c.headerBg,
     },
     row: {
       flexDirection: 'row',

@@ -99,9 +99,23 @@ export default function Avatar({ avatar, size = 36 }: { avatar: AvatarT; size?: 
         <Text
           style={{
             fontSize: emojiSize,
-            lineHeight: emojiSize * 1.1,
+            // lineHeight == fontSize so the glyph's line box hugs it and
+            // the parent's center alignment truly centers the animal.
+            lineHeight: emojiSize,
             textAlign: 'center',
+            textAlignVertical: 'center',
             includeFontPadding: false,
+            // Emoji glyphs sit a little high in their box — nudge down
+            // so the animal reads visually centered in the circle.
+            // Butterfly + fish render higher than the rest, so they get
+            // a touch more.
+            transform: [
+              {
+                translateY:
+                  emojiSize *
+                  (preset.key === 'butterfly' || preset.key === 'fish' ? 0.13 : 0.08),
+              },
+            ],
           }}
         >
           {preset.emoji}

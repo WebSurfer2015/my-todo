@@ -8,6 +8,10 @@ export interface ThemeColors {
   surface: string
   surfaceAlt: string
   modal: string
+  /** Title-bar / header chrome band. A calm warm neutral that recedes
+   * behind the (avatar-derived) primary actions so the two don't
+   * compete. Deliberately NOT part of the avatar override. */
+  headerBg: string
   // Text
   label: string
   label2: string
@@ -44,10 +48,11 @@ export interface ThemeColors {
 // per the anxiety-conscious design guideline.
 export const LIGHT: ThemeColors = {
   bg: '#F5F0E2',        // icon cream — warmer, slightly more yellow
-  card: '#FCFAF3',      // near-white with warm cast
+  card: '#FFFFFF',      // pure white so todo + stat cards stand out on cream
   surface: 'rgba(252, 250, 243, 0.65)',
   surfaceAlt: 'rgba(252, 250, 243, 0.78)',
   modal: '#FCFAF3',
+  headerBg: '#E9E4D7',  // neutral fallback (turtle avatar supplies the teal; others their own tint)
   label: '#2A3530',     // deep teal-tinted near-black
   label2: '#5A6B62',    // sage-tinted gray
   label3: '#8A998F',    // muted sage
@@ -78,6 +83,7 @@ export const DARK: ThemeColors = {
   surface: 'rgba(36, 33, 27, 0.65)',
   surfaceAlt: 'rgba(36, 33, 27, 0.78)',
   modal: '#24211B',
+  headerBg: '#262420',  // neutral fallback (turtle avatar supplies the teal; others their own tint)
   label: '#ECEEE6',     // off-white with mint tint
   label2: '#B8C4BA',
   label3: '#8FA095',
@@ -107,7 +113,13 @@ export const DARK: ThemeColors = {
  * Other token groups (labels, separators, status colors) stay
  * untouched — the avatar only retints the accent surfaces.
  */
-type PrimaryOverride = Pick<ThemeColors, 'primary' | 'primaryHover' | 'primarySoft' | 'primaryOn' | 'blue' | 'teal'> | null
+type PrimaryOverride =
+  | (Pick<ThemeColors, 'primary' | 'primaryHover' | 'primarySoft' | 'primaryOn' | 'blue' | 'teal'> & {
+      // Optional: most overrides leave the header to the base palette;
+      // per-avatar logic (e.g. the turtle) may set it explicitly.
+      headerBg?: ThemeColors['headerBg']
+    })
+  | null
 
 const ThemeOverrideContext = createContext<PrimaryOverride>(null)
 
@@ -191,11 +203,13 @@ function hslToHex(h: number, s: number, l: number): string {
 export function deriveThemeFromAvatarBg(bg: string, scheme: 'light' | 'dark'): PrimaryOverride {
   const hsl = hexToHSL(bg)
   if (!hsl) return null
-  // Calm-app target: saturation around 30-40 (presets are typically
-  // 10-25). Lightness around 40 in light mode, 65 in dark.
-  const targetSat = Math.min(45, hsl.s + 18)
-  const targetLightLight = 40
-  const targetLightDark = 65
+  // Accent = a DEEP but FAITHFUL tint of the avatar color. Only a small
+  // saturation nudge so it tracks the avatar's actual tone (the turtle's
+  // muted teal-green) instead of over-saturating into a vivid pure green.
+  // Low lightness keeps it confidently deep for the FAB + labels/counts.
+  const targetSat = Math.min(46, hsl.s + 12)
+  const targetLightLight = 30
+  const targetLightDark = 62
   const primary = hslToHex(
     hsl.h,
     targetSat,
@@ -206,14 +220,19 @@ export function deriveThemeFromAvatarBg(bg: string, scheme: 'light' | 'dark'): P
     targetSat,
     scheme === 'dark' ? targetLightDark + 8 : targetLightLight - 8,
   )
+  // Soft chips: a defined soft tint at the accent's hue.
   const primarySoft =
     scheme === 'dark'
-      // In dark mode the preset bg is too light; use a darkened sibling.
       ? hslToHex(hsl.h, Math.min(35, hsl.s + 5), 25)
-      : bg
-  // Contrast for foreground text on primary — primary is mid-tone so
-  // white always wins in light mode; in dark we go off-black.
+      : hslToHex(hsl.h, Math.min(26, hsl.s + 8), 91)
+  // Contrast for foreground text on primary.
   const primaryOn = scheme === 'dark' ? '#1A1814' : '#FFFFFF'
+  // Avatar-themed header tint — a few shades DEEPER than primarySoft so
+  // the title bar reads as defined chrome rather than a near-white wash.
+  const headerBg =
+    scheme === 'dark'
+      ? hslToHex(hsl.h, Math.min(34, hsl.s + 6), 26)
+      : hslToHex(hsl.h, Math.min(32, hsl.s + 14), 82)
   return {
     primary,
     primaryHover,
@@ -221,5 +240,6 @@ export function deriveThemeFromAvatarBg(bg: string, scheme: 'light' | 'dark'): P
     primaryOn,
     blue: primary, // legacy alias
     teal: primary,
+    headerBg,
   }
 }

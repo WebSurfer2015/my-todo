@@ -13,13 +13,28 @@
 import React, { useEffect, useMemo, useRef } from 'react'
 import { Animated, Easing, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { useIsFocused } from '@react-navigation/native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Settings as SettingsIcon, Search as SearchIcon, Filter as FilterIcon } from 'lucide-react-native'
+import { collectedGlyphFor } from '../core-bindings/profile'
 import { useStore } from './StoreContext'
 import { useSheets } from './SheetContext'
 import { useLang } from './LangContext'
 import { useTheme, ThemeColors } from './theme'
 import Avatar from '../ui/Avatar'
 import { useRegisterCairn } from '../features/mochi/PebbleFlight'
+
+// Sparse pebble scatter for the header watermark — fixed layout (no
+// randomness so it's stable across renders/resume). Small, varied
+// ellipses spread across the full band; {l,t}=left/top, {w,h}=size,
+// r=tilt, o=opacity. Positioned relative to the visible band (the
+// decor layer is offset below the status-bar inset).
+const HEADER_PEBBLES = [
+  { l: 16, t: 72, w: 34, h: 25, r: '24deg', o: 0.09 },
+  { l: 116, t: 20, w: 22, h: 17, r: '140deg', o: 0.06 },
+  { l: 208, t: 96, w: 30, h: 22, r: '215deg', o: 0.07 },
+  { l: 290, t: 40, w: 37, h: 27, r: '300deg', o: 0.08 },
+  { l: 384, t: 64, w: 24, h: 18, r: '75deg', o: 0.06 },
+]
 
 interface Props {
   /** Static screen title (Todos / Groceries). When provided, the
@@ -49,7 +64,12 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
   const sheets = useSheets()
   const { t } = useLang()
   const theme = useTheme()
+  const insets = useSafeAreaInsets()
   const styles = useMemo(() => makeStyles(theme), [theme])
+  // The header watermark uses the avatar's reward icon (cat→fish,
+  // dog→bone, rabbit→carrot, …). The turtle/Mochi has no glyph → we
+  // fall back to abstract pebbles.
+  const rewardGlyph = collectedGlyphFor(store.profile.avatar)
 
   // Register the avatar's screen position as the "home" target for
   // mark-done celebrations (the flying Mochi glides here). Only the
@@ -125,7 +145,49 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
   })
 
   return (
-    <View style={styles.row}>
+    // Extend the header band up through the status-bar inset so the
+    // chrome color fills all the way to the top edge (screens no longer
+    // pad the top — the header owns that space now).
+    <View style={[styles.row, { paddingTop: insets.top + 6 }]}>
+      {/* Reward-icon watermark — the avatar's reward (fish/bone/carrot…)
+          scattered across the header with random tilts + a 3D shadow;
+          the turtle falls back to abstract pebbles. */}
+      <View style={styles.decorLayer} pointerEvents="none">
+        {HEADER_PEBBLES.map((p, i) =>
+          rewardGlyph ? (
+            <Text
+              key={i}
+              style={[
+                styles.rewardGlyph,
+                {
+                  left: p.l,
+                  top: p.t,
+                  fontSize: p.w + 6,
+                  opacity: Math.min(0.42, p.o * 4.5),
+                  transform: [{ rotate: p.r }],
+                },
+              ]}
+            >
+              {rewardGlyph}
+            </Text>
+          ) : (
+            <View
+              key={i}
+              style={[
+                styles.pebble,
+                {
+                  left: p.l,
+                  top: p.t,
+                  width: p.w,
+                  height: p.h,
+                  backgroundColor: `rgba(255,255,255,${(p.o * 2).toFixed(3)})`,
+                  transform: [{ rotate: p.r }],
+                },
+              ]}
+            />
+          ),
+        )}
+      </View>
       <TouchableOpacity
         style={styles.avatarTouch}
         onPress={sheets.openProfile}
@@ -138,7 +200,7 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
           ref={avatarRef}
           style={{ transform: [{ scale }, { rotate: rotateDeg }] }}
         >
-          <Avatar avatar={store.profile.avatar} size={44} />
+          <Avatar avatar={store.profile.avatar} size={54} />
         </Animated.View>
         <View style={styles.textWrap}>
           {title ? (
@@ -174,7 +236,7 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
           accessibilityLabel="Filter"
           testID="filter-button"
         >
-          <FilterIcon size={22} color={theme.label3} strokeWidth={1.8} />
+          <FilterIcon size={22} color={theme.primaryOn} strokeWidth={1.8} />
         </TouchableOpacity>
       )}
       {onSearchPress && (
@@ -185,7 +247,7 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
           accessibilityRole="button"
           accessibilityLabel="Search"
         >
-          <SearchIcon size={22} color={theme.label3} strokeWidth={1.8} />
+          <SearchIcon size={22} color={theme.primaryOn} strokeWidth={1.8} />
         </TouchableOpacity>
       )}
       {onGearPress && (
@@ -197,7 +259,7 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
           accessibilityLabel="Manage"
           testID="settings-button"
         >
-          <SettingsIcon size={22} color={theme.label3} strokeWidth={1.8} />
+          <SettingsIcon size={22} color={theme.primaryOn} strokeWidth={1.8} />
         </TouchableOpacity>
       )}
     </View>
@@ -212,11 +274,35 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 20,
       paddingTop: 14,
       paddingBottom: 12,
-      // Same primarySoft tint that PebbleStrip uses, so the two
-      // visually merge into one continuous header chrome region
-      // instead of two stacked tinted bands. Theme-aware (avatar
-      // theme retints both surfaces together) + dark-mode safe.
-      backgroundColor: c.primarySoft,
+      // Header band uses the primary (FAB) color; text + icons flip to
+      // primaryOn for contrast.
+      backgroundColor: c.primary,
+      // Clip the decorative pebble watermark to the band.
+      overflow: 'hidden',
+    },
+    // A few big, simple "reward" pebbles tinted very faintly into the
+    // header for depth + a calm, sophisticated feel. Decorative only
+    // (pointerEvents none); kept sparse so it never reads as busy.
+    decorLayer: {
+      ...StyleSheet.absoluteFillObject,
+    },
+    pebble: {
+      position: 'absolute',
+      borderRadius: 999,
+      // Drop shadow gives the faint stones a raised, 3D feel. (Fill
+      // color is set inline so the per-pebble alpha doesn't dim the
+      // shadow.)
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1.5 },
+      shadowOpacity: 0.22,
+      shadowRadius: 2,
+    },
+    rewardGlyph: {
+      position: 'absolute',
+      // Soft shadow for a little dimensional, "fun" pop on the emoji.
+      textShadowColor: 'rgba(0,0,0,0.28)',
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 1.5,
     },
     avatarTouch: {
       flex: 1,
@@ -226,29 +312,30 @@ function makeStyles(c: ThemeColors) {
     },
     textWrap: { flex: 1, minWidth: 0 },
     screenTitle: {
-      fontSize: 24,
-      color: c.label,
+      fontSize: 27,
+      color: c.primaryOn,
       fontWeight: '700',
       letterSpacing: -0.3,
-      lineHeight: 28,
+      lineHeight: 31,
     },
     greeting: {
-      fontSize: 17,
-      color: c.label,
+      fontSize: 21,
+      color: c.primaryOn,
       fontWeight: '700',
       letterSpacing: -0.2,
-      lineHeight: 21,
+      lineHeight: 25,
     },
     identity: {
       fontSize: 13,
-      color: c.label2,
+      color: c.primaryOn,
+      opacity: 0.82,
       fontWeight: '500',
       marginTop: 2,
       lineHeight: 18,
     },
     identityQuote: {
       fontStyle: 'italic',
-      color: c.label3,
+      color: c.primaryOn,
     },
     gearTouch: {
       width: 36,

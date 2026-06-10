@@ -213,7 +213,7 @@ function TodosScreen() {
   // are all guaranteed satisfied.
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+    <SafeAreaView style={styles.safe} edges={["bottom"]}>
       <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
       <KeyboardAvoidingView
         style={styles.kb}
@@ -866,9 +866,21 @@ function AppGate() {
     if (store.profile.themeFromAvatar !== true) return null;
     const av = store.profile.avatar;
     if (!av || av.kind !== 'preset') return null;
+    const isDark = scheme === 'dark';
+    // Turtle (Mochi) gets a bespoke palette: a dark teal/green FAB +
+    // labels and the dusty-teal title bar. Every other avatar keeps its
+    // derived theme, and its header tracks its own soft tint — the teal
+    // header is turtle-only.
+    if (av.key === 'mochi') {
+      return isDark
+        ? { primary: '#5FB89C', primaryHover: '#72C7AC', primarySoft: '#26433A', primaryOn: '#1A1814', blue: '#5FB89C', teal: '#5FB89C', headerBg: '#243A35' }
+        : { primary: '#246B5A', primaryHover: '#1C5749', primarySoft: '#DCEAE4', primaryOn: '#FFFFFF', blue: '#246B5A', teal: '#246B5A', headerBg: '#C4DCD6' };
+    }
     const preset = findPreset(av.key);
     if (!preset) return null;
-    return deriveThemeFromAvatarBg(preset.bg, scheme === 'dark' ? 'dark' : 'light');
+    // Non-turtle: keep the avatar-derived theme; its header uses the
+    // deeper avatar tint (derived.headerBg). The teal header is turtle-only.
+    return deriveThemeFromAvatarBg(preset.bg, isDark ? 'dark' : 'light');
   }, [store.profile.themeFromAvatar, store.profile.avatar, scheme]);
 
   // Companion background override — when themeFromAvatar is on we
@@ -938,12 +950,26 @@ function AppGate() {
             // every tab. Without this, react-navigation paints an
             // opaque scene bg that covers the wallpaper.
             sceneStyle: { backgroundColor: 'transparent' },
-          tabBarActiveTintColor: theme.primary,
-          tabBarInactiveTintColor: theme.label3,
+          // Tab bar uses the primary (FAB) color as its background, so
+          // active/inactive tints flip to the on-primary foreground:
+          // full primaryOn for the active tab, a faded variant for the rest.
+          tabBarActiveTintColor: theme.primaryOn,
+          tabBarInactiveTintColor:
+            scheme === 'dark' ? 'rgba(26,24,20,0.5)' : 'rgba(255,255,255,0.62)',
           tabBarStyle: {
-            backgroundColor: theme.card,
-            borderTopColor: theme.separator,
-            borderTopWidth: StyleSheet.hairlineWidth,
+            backgroundColor: theme.primary,
+            borderTopColor: 'transparent',
+            borderTopWidth: 0,
+            // Nudge icons + labels down so they sit vertically centered
+            // in the bar (above the home-indicator safe area).
+            paddingTop: 12,
+            // Soft upward shadow so the tab bar reads as a raised surface
+            // floating above the content.
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: -3 },
+            shadowOpacity: 0.12,
+            shadowRadius: 8,
+            elevation: 12,
           },
           tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
         }}

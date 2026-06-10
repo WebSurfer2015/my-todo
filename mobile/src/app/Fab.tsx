@@ -70,7 +70,7 @@ export default function Fab({ onPress, accessibilityLabel, agentEnabled = false,
       // Maestro matches via `id:`, replacing brittle point-taps (.maestro).
       testID="fab"
     >
-      <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={theme.primaryOn} strokeWidth={2.5} strokeLinecap="round">
+      <Svg width={30} height={30} viewBox="0 0 24 24" fill="none" stroke={theme.primaryOn} strokeWidth={2.5} strokeLinecap="round">
         <Line x1="12" y1="5" x2="12" y2="19" />
         <Line x1="5" y1="12" x2="19" y2="12" />
       </Svg>
@@ -89,21 +89,26 @@ function makeStyles(c: ThemeColors, bottom: number) {
       position: 'absolute',
       right: 20,
       bottom,
-      width: 56,
-      height: 56,
-      borderRadius: 28,
+      width: 70,
+      height: 70,
+      borderRadius: 35,
       backgroundColor: c.blue,
+      // The tab bar now shares the FAB's color, so add a halo in the
+      // canvas color + a stronger shadow to keep the FAB distinct where
+      // it overlaps the bottom menu.
+      borderWidth: 3,
+      borderColor: c.bg,
       alignItems: 'center',
       justifyContent: 'center',
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.2,
+      shadowOpacity: 0.28,
       shadowRadius: 10,
-      elevation: 6,
+      elevation: 8,
     },
     // Subtle AI indicator pinned to the FAB's top-right so the +
     // stays optically centered. pointerEvents="none" on the parent
-    // View keeps the whole 56×56 hit area dedicated to the + tap.
+    // View keeps the whole 64×64 hit area dedicated to the + tap.
     sparkleBadge: {
       position: 'absolute',
       top: 8,

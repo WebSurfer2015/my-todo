@@ -715,6 +715,7 @@ function TaskItem({
   }
 
   return (
+    <View style={styles.cardShadow}>
     <Swipeable
       ref={swipeableRef}
       renderLeftActions={renderLeftActions}
@@ -1231,6 +1232,7 @@ function TaskItem({
         )}
       </Pressable>
     </Swipeable>
+    </View>
   )
 }
 

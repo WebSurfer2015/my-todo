@@ -222,6 +222,21 @@ export function makeStyles(c: ThemeColors, density: Density) {
     },
     swipeContainer: {
       overflow: 'hidden',
+      borderRadius: 14,
+    },
+    // Soft lift + rounded edges for each card. Lives on a wrapper
+    // OUTSIDE swipeContainer (which clips, so a shadow there wouldn't
+    // show). Subtle + sleek; small vertical margin separates the
+    // rounded cards.
+    cardShadow: {
+      backgroundColor: c.card,
+      borderRadius: 14,
+      marginVertical: 3,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.07,
+      shadowRadius: 5,
+      elevation: 2,
     },
     swipeAction: {
       width: 86,

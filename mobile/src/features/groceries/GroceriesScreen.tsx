@@ -7,7 +7,6 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useIsFocused } from '@react-navigation/native'
 import { useStore } from '../../app/StoreContext'
 import { useSheets } from '../../app/SheetContext'
@@ -19,7 +18,6 @@ import SearchTopSheet from '../filters/SearchTopSheet'
 export default function GroceriesScreen() {
   const store = useStore()
   const sheets = useSheets()
-  const insets = useSafeAreaInsets()
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   // Lifted from GroceryView so the AppHeader filter icon can open the
@@ -50,7 +48,7 @@ export default function GroceriesScreen() {
   }, [sheets.manageRequest])
 
   return (
-    <View style={[styles.flex, { paddingTop: insets.top }]}>
+    <View style={styles.flex}>
       <AppHeader
         title="Shopping"
         onSearchPress={() => setSearchOpen(true)}
