@@ -408,7 +408,10 @@ export default function CategorySheet({
                         <Text style={styles.headerRight}>{t.done}</Text>
                       </TouchableOpacity>
                     ) : (
-                      <View style={styles.headerRightSpacer} />
+                      // Reset clears every selected filter (back to "All").
+                      <TouchableOpacity onPress={onClearFilters} hitSlop={8}>
+                        <Text style={styles.headerRight}>Reset</Text>
+                      </TouchableOpacity>
                     )}
                   </View>
 
@@ -702,6 +705,9 @@ export default function CategorySheet({
                     </ScrollView>
                   ) : (
                     <>
+                    <Text style={styles.multiSelectNote}>
+                      Pick more than one in any group to combine filters.
+                    </Text>
                     <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
                       <View style={[styles.listCard, styles.allCard]}>
                         <TouchableOpacity
@@ -744,9 +750,9 @@ export default function CategorySheet({
                         onPress={onClose}
                         activeOpacity={0.85}
                         accessibilityRole="button"
-                        accessibilityLabel={t.done}
+                        accessibilityLabel="Set Filter"
                       >
-                        <Text style={styles.viewDoneText}>{t.done}</Text>
+                        <Text style={styles.viewDoneText}>Set Filter</Text>
                       </TouchableOpacity>
                     </View>
                     </>

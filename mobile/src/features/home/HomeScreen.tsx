@@ -654,11 +654,13 @@ export default function HomeScreen() {
                     accessibilityLabel={`${r.label}, ${r.count}. Tap to open; long-press to reorder.`}
                   >
                     <Text style={styles.statValue}>{r.count}</Text>
-                    <View style={styles.statLabelRow}>
-                      {r.icon}
-                      <Text style={styles.statLabel} numberOfLines={1}>
-                        {r.label}
-                      </Text>
+                    <View style={styles.statLabelArea}>
+                      <View style={styles.statLabelRow}>
+                        {r.icon}
+                        <Text style={styles.statLabel} numberOfLines={2} ellipsizeMode="tail">
+                          {r.label}
+                        </Text>
+                      </View>
                     </View>
                   </TouchableOpacity>
                 </ScaleDecorator>
@@ -760,8 +762,22 @@ function resolveDashboardTile(
 ): { label: string; count: number; icon: React.ReactNode; onPress: () => void } {
   if (tile.kind === 'todoFilter') {
     const parts = tile.set.map((f) => resolveTile(f as Filter, store, t, theme))
+    // Group filters by kind — statuses, then priorities, then
+    // categories. Same-group selections join with ", "; different
+    // groups join with " + ". e.g. "Open, Done + Medium + Work, Home".
+    const groupOf = (f: Filter): number =>
+      isCategoryFilter(f) ? 2 : isPriorityFilter(f) ? 1 : 0
+    const byGroup: string[][] = [[], [], []]
+    tile.set.forEach((f, i) => {
+      byGroup[groupOf(f as Filter)].push(parts[i].label)
+    })
+    const groupedLabel =
+      byGroup
+        .filter((g) => g.length > 0)
+        .map((g) => g.join(', '))
+        .join(' + ') || (t.filters.all ?? 'All')
     return {
-      label: parts.map((p) => p.label).join(' + ') || (t.filters.all ?? 'All'),
+      label: groupedLabel,
       count: countTodosForFilterSet(store.todos, tile.set),
       icon:
         parts[0]?.icon ?? (
@@ -1000,24 +1016,33 @@ function makeStyles(c: ThemeColors) {
       flexDirection: 'row',
       gap: 10,
       paddingHorizontal: 16,
+      // Stretch tiles to a uniform height (tallest wins) so single-row
+      // and two-row labels share the same card height.
+      alignItems: 'stretch',
     },
     statsRowScrollCenter: {
       // flexGrow lets the contentContainer span the ScrollView width,
       // so justifyContent: 'center' actually centers the children.
       flexGrow: 1,
       justifyContent: 'center',
+      alignItems: 'stretch',
     },
     statTile: {
       // Fixed minWidth so the horizontal scroll lays out cleanly when
       // the user picks many tiles. ~3 fit comfortably without
       // scrolling on iPhone 17 Pro width (393pt - 32 pad = 361pt;
       // 3 × 110 + 2 × 10 = 350).
-      minWidth: 110,
+      // Fixed width — long multi-filter labels wrap inside instead of
+      // stretching the card.
+      width: 132,
       backgroundColor: c.card,
       borderRadius: 14,
       paddingVertical: 18,
       paddingHorizontal: 12,
       alignItems: 'center',
+      // Count pinned to the top row; the label area below handles its
+      // own vertical centering (see statLabelArea).
+      justifyContent: 'flex-start',
       marginRight: 10,
       // Soft lift so the stat tiles read as raised cards.
       shadowColor: '#000',
@@ -1038,17 +1063,30 @@ function makeStyles(c: ThemeColors) {
       fontVariant: ['tabular-nums'],
       letterSpacing: -0.5,
     },
+    // Fixed two-line area below the count; the label (1 or 2 lines) is
+    // vertically centered within it so single-row labels sit in the
+    // middle of the two rows while the count stays on the first row.
+    statLabelArea: {
+      marginTop: 4,
+      height: 34,
+      alignSelf: 'stretch',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     statLabelRow: {
       flexDirection: 'row',
-      alignItems: 'center',
+      alignItems: 'flex-start',
+      justifyContent: 'center',
       gap: 4,
-      marginTop: 4,
     },
     statLabel: {
       fontSize: 12,
       color: c.label3,
       fontWeight: '600',
       letterSpacing: 0.2,
+      // Wrap within the fixed-width card rather than overflow.
+      flexShrink: 1,
+      textAlign: 'center',
     },
     footnote: {
       fontSize: 13,

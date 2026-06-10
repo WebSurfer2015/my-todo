@@ -163,7 +163,10 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
                   left: p.l,
                   top: p.t,
                   fontSize: p.w + 6,
-                  opacity: Math.min(0.42, p.o * 4.5),
+                  // Much fainter than the abstract pebbles — the reward
+                  // emojis are full-color, so keep them as a whisper so
+                  // strong ones (carrot, books) don't shout.
+                  opacity: Math.min(0.17, p.o * 2.1),
                   transform: [{ rotate: p.r }],
                 },
               ]}
@@ -319,11 +322,12 @@ function makeStyles(c: ThemeColors) {
       lineHeight: 31,
     },
     greeting: {
-      fontSize: 21,
+      // Match the Todos/Shopping screen-title font exactly.
+      fontSize: 27,
       color: c.primaryOn,
       fontWeight: '700',
-      letterSpacing: -0.2,
-      lineHeight: 25,
+      letterSpacing: -0.3,
+      lineHeight: 31,
     },
     identity: {
       fontSize: 13,

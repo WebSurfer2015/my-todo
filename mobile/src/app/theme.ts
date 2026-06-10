@@ -208,7 +208,7 @@ export function deriveThemeFromAvatarBg(bg: string, scheme: 'light' | 'dark'): P
   // muted teal-green) instead of over-saturating into a vivid pure green.
   // Low lightness keeps it confidently deep for the FAB + labels/counts.
   const targetSat = Math.min(46, hsl.s + 12)
-  const targetLightLight = 30
+  const targetLightLight = 37
   const targetLightDark = 62
   const primary = hslToHex(
     hsl.h,

@@ -57,6 +57,14 @@ export function makeStyles(c: ThemeColors) {
     },
     body: { flex: 1 },
     bodyContent: { paddingTop: 4, paddingBottom: 12 },
+    multiSelectNote: {
+      fontSize: 12,
+      color: c.label3,
+      textAlign: 'center',
+      paddingHorizontal: 16,
+      paddingTop: 2,
+      paddingBottom: 6,
+    },
     sectionHeader: {
       // Comfort: was 11/14/8 — bumped to 12/20/12 so section breaks
       // breathe and the sheet feels less crammed.

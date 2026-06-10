@@ -874,7 +874,7 @@ function AppGate() {
     if (av.key === 'mochi') {
       return isDark
         ? { primary: '#5FB89C', primaryHover: '#72C7AC', primarySoft: '#26433A', primaryOn: '#1A1814', blue: '#5FB89C', teal: '#5FB89C', headerBg: '#243A35' }
-        : { primary: '#246B5A', primaryHover: '#1C5749', primarySoft: '#DCEAE4', primaryOn: '#FFFFFF', blue: '#246B5A', teal: '#246B5A', headerBg: '#C4DCD6' };
+        : { primary: '#2C7D64', primaryHover: '#246A55', primarySoft: '#DCEAE4', primaryOn: '#FFFFFF', blue: '#2C7D64', teal: '#2C7D64', headerBg: '#C4DCD6' };
     }
     const preset = findPreset(av.key);
     if (!preset) return null;
