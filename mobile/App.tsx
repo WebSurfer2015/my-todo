@@ -1153,12 +1153,10 @@ function makeStyles(c: ThemeColors) {
       color: c.label3,
     },
     stickyFilter: {
-      // Opaque bg so scrolled content doesn't bleed through this
-      // pinned row. Combined with the also-opaque stickyStrip below
-      // it, the pair stays solidly persistent during scroll.
-      backgroundColor: c.bg,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: c.separator,
+      // Transparent — the filter pills float directly on the page
+      // background, matching the Shopping filter row (no opaque strip,
+      // no border).
+      backgroundColor: 'transparent',
     },
     stickyStrip: {
       backgroundColor: c.bg,

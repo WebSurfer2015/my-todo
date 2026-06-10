@@ -479,7 +479,10 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center',
       gap: 8,
       paddingHorizontal: 16,
-      paddingVertical: 8,
+      // Extra top padding so the pills sit centered in the space below
+      // the header rather than hugging the top.
+      paddingTop: 14,
+      paddingBottom: 8,
     },
     iconBtn: {
       flexDirection: 'row',

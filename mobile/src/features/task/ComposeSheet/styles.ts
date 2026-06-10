@@ -70,7 +70,7 @@ export function makeStyles(c: ThemeColors) {
       gap: 6,
     },
     title: {
-      fontSize: 15,
+      fontSize: 20,
       fontWeight: '700',
       color: c.label,
     },

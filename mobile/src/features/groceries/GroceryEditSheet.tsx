@@ -250,7 +250,7 @@ function makeStyles(c: ThemeColors) {
       paddingBottom: 10,
     },
     titleSideBtn: { width: 64 },
-    title: { fontSize: 17, fontWeight: '700', color: c.label, textAlign: 'center' },
+    title: { fontSize: 20, fontWeight: '700', color: c.label, textAlign: 'center' },
     cancelText: { fontSize: 15, color: c.blue, fontWeight: '500' },
     saveText: { fontSize: 15, color: c.blue, fontWeight: '700', textAlign: 'right' },
     saveTextDisabled: { color: c.gray3 },

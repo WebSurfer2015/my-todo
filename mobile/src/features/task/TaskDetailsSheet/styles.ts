@@ -37,10 +37,10 @@ export function makeStyles(c: ThemeColors) {
       borderBottomColor: c.separator,
     },
     title: {
-      fontSize: 18,
+      fontSize: 20,
       fontWeight: '700',
       color: c.label,
-      lineHeight: 23,
+      lineHeight: 25,
     },
     titleEdit: {
       fontSize: 18,

@@ -32,6 +32,9 @@ interface Props {
    * update* / addSubtask / toggle) so the agent shares the manual write
    * surface — confirm-before-apply keeps the user in control. */
   onApplyOperation: (op: ProposedOperation) => void
+  /** Switch back to the manual compose form. Renders an "Enter manually
+   * instead" action; omit to hide it. */
+  onEnterManually?: () => void
 }
 
 /**
@@ -43,6 +46,7 @@ interface Props {
 export default function ChatSheet({
   visible,
   onClose,
+  onEnterManually,
   categories,
   todos,
   onApplyOperation,
@@ -123,6 +127,18 @@ export default function ChatSheet({
               </TouchableOpacity>
             </View>
 
+            {onEnterManually && (
+              <TouchableOpacity
+                style={styles.enterManuallyRow}
+                onPress={onEnterManually}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Switch to entering the to-do manually"
+              >
+                <Text style={styles.enterManuallyText}>Enter manually instead</Text>
+              </TouchableOpacity>
+            )}
+
             <ScrollView
               style={styles.body}
               contentContainerStyle={styles.bodyContent}
@@ -164,7 +180,7 @@ export default function ChatSheet({
                       style={[styles.btn, styles.btnPrimary]}
                       onPress={handleApply}
                     >
-                      <Text style={styles.btnPrimaryText}>Use this</Text>
+                      <Text style={styles.btnPrimaryText}>Add this todo</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -358,7 +374,27 @@ function makeStyles(c: ThemeColors) {
       marginBottom: 12,
     },
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    title: { fontSize: 17, fontWeight: '700', color: c.label },
+    title: { fontSize: 20, fontWeight: '700', color: c.label },
+    // Mirror of the compose "Ask Mochi instead" pill — lets the user
+    // switch back to the manual form.
+    enterManuallyRow: {
+      alignSelf: 'center',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: c.primary,
+      marginBottom: 10,
+    },
+    enterManuallyText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: c.primary,
+      letterSpacing: -0.1,
+    },
     closeText: { fontSize: 15, color: c.label2, fontWeight: '500' },
     body: { flexGrow: 0, flexShrink: 1 },
     bodyContent: { paddingVertical: 12, gap: 12 },

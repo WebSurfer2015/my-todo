@@ -473,6 +473,10 @@ export function SheetProvider({ children }: { children: ReactNode }) {
             .map((td) => ({ id: td.id, text: td.text }))}
           onApplyOperation={applyMochiOp}
           onClose={() => setMochiOpen(false)}
+          onEnterManually={() => {
+            setMochiOpen(false)
+            setComposeOpen(true)
+          }}
         />
       )}
       <ManageAnimationSoundSheet

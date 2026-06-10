@@ -29,7 +29,7 @@ export function makeStyles(c: ThemeColors) {
       marginBottom: 12,
     },
     title: {
-      fontSize: 17,
+      fontSize: 20,
       fontWeight: "700",
       color: c.label,
       letterSpacing: -0.2,

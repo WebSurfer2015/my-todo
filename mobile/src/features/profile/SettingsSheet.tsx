@@ -468,7 +468,7 @@ function makeStyles(c: ThemeColors) {
       paddingBottom: 10,
     },
     titleSideBtn: { width: 64 },
-    title: { fontSize: 17, fontWeight: "700", color: c.label, textAlign: "center" },
+    title: { fontSize: 20, fontWeight: "700", color: c.label, textAlign: "center" },
     doneText: { fontSize: 17, fontWeight: "600", color: c.primary, textAlign: "right" },
     scroll: { paddingBottom: 24 },
     sectionLabel: {

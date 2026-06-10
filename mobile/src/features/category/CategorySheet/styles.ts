@@ -37,7 +37,7 @@ export function makeStyles(c: ThemeColors) {
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.separator,
     },
-    headerTitle: { fontSize: 17, fontWeight: "700", color: c.label },
+    headerTitle: { fontSize: 20, fontWeight: "700", color: c.label },
     headerLeft: { fontSize: 16, fontWeight: "500", color: c.primary },
     headerRight: { fontSize: 16, fontWeight: "600", color: c.primary },
     // Balances Cancel so the title stays centered when the header's

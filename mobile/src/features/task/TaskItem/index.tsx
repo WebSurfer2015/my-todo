@@ -607,18 +607,9 @@ function TaskItem({
     // that context. Long-press still opens the parent edit sheet for
     // anyone who needs it.
     if (isBin) {
-      // Bin row's only left action was Edit; remove it for parents
-      // with steps and the menu is empty — return null so Swipeable
-      // skips rendering a left-action area entirely.
-      if (hasSubs) return null
-      return (
-        <View style={styles.swipeActionsRow}>
-          <TouchableOpacity style={[styles.swipeAction, styles.swipeEdit]} onPress={openDetails}>
-            <Pencil size={20} color={theme.primaryOn} strokeWidth={2} />
-            <Text style={styles.swipeActionText}>{t.editTask}</Text>
-          </TouchableOpacity>
-        </View>
-      )
+      // Done / bin rows have only Reopen + Delete (right swipe) — no
+      // Edit left action. Long-press still opens details if needed.
+      return null
     }
     return (
       <View style={styles.swipeActionsRow}>

@@ -12,7 +12,10 @@ export function makeStyles(c: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 16,
-      paddingVertical: 8,
+      // Extra top padding so the pills sit centered in the space below
+      // the header rather than hugging the top.
+      paddingTop: 14,
+      paddingBottom: 8,
       gap: 8,
     },
     pillsScroll: {

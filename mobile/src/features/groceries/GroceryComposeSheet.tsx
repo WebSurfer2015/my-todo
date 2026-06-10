@@ -523,6 +523,7 @@ export default function GroceryComposeSheet({
                       badge and don't re-add. */}
                   {matches.length > 0 && (
                     <View style={styles.matchList}>
+                      <Text style={styles.matchHeader}>Saved items · tap to add</Text>
                       {matches.map((m) => {
                         const saved = m.stores
                         const valid = saved.filter((s) => stores.includes(s))
@@ -729,7 +730,7 @@ function makeStyles(c: ThemeColors) {
       paddingBottom: 10,
     },
     headerSideBtn: { width: 64 },
-    title: { fontSize: 17, fontWeight: '700', color: c.label, textAlign: 'center' },
+    title: { fontSize: 20, fontWeight: '700', color: c.label, textAlign: 'center' },
     cancelText: { fontSize: 15, fontWeight: '500', color: c.primary },
     body: { paddingHorizontal: 16, paddingBottom: 12 },
     textInput: {
@@ -853,11 +854,25 @@ function makeStyles(c: ThemeColors) {
       color: c.label,
     },
     storeChipTextOn: { color: c.primaryOn },
+    // Distinct "suggestions" panel — tinted + accent-bordered so it
+    // reads as a separate affordance from the white page fields.
     matchList: {
-      marginTop: 6,
-      backgroundColor: c.card,
+      marginTop: 8,
+      backgroundColor: c.primarySoft,
       borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.primary,
       overflow: 'hidden',
+    },
+    matchHeader: {
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+      color: c.primary,
+      paddingHorizontal: 14,
+      paddingTop: 10,
+      paddingBottom: 2,
     },
     matchRow: {
       flexDirection: 'row',
@@ -866,7 +881,7 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 14,
       paddingVertical: 11,
       borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: c.border,
+      borderBottomColor: 'rgba(0,0,0,0.06)',
     },
     matchTextCol: { flex: 1 },
     matchLabel: { fontSize: 15, fontWeight: '500', color: c.label },
