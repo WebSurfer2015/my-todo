@@ -24,15 +24,25 @@ import {
 type Billing = 'annual' | 'monthly'
 
 interface PlanView {
-  tier: Exclude<Tier, 'free'>
+  tier: Tier
   name: string
   bullets: string[]
-  product: Record<Billing, string>
+  /** Absent for Free (no purchase). */
+  product?: Record<Billing, string>
   /** Fallback price strings shown before RevenueCat is configured. */
-  fallbackPrice: Record<Billing, string>
+  fallbackPrice?: Record<Billing, string>
 }
 
 const PLANS: PlanView[] = [
+  {
+    tier: 'free',
+    name: 'Free',
+    bullets: [
+      'Unlimited to-dos & groceries',
+      'Reminders, recurring & before-due',
+      `${TIER_LIMITS.free.mochiDaily} Mochi AI requests / day`,
+    ],
+  },
   {
     tier: 'premium',
     name: 'Premium',
@@ -138,14 +148,39 @@ export default function PaywallSheet({
               </View>
 
               {PLANS.map((plan) => {
-                const owned = tierAtLeast(currentTier, plan.tier)
-                const productId = plan.product[billing]
-                const pkg = pkgFor(productId)
-                const price = pkg?.product.priceString ?? plan.fallbackPrice[billing]
+                const isCurrent = currentTier === plan.tier
+                const owned = tierAtLeast(currentTier, plan.tier) // current or below
+                const productId = plan.product?.[billing]
+                const pkg = productId ? pkgFor(productId) : null
+                const price =
+                  plan.tier === 'free'
+                    ? 'Free'
+                    : pkg?.product.priceString ?? plan.fallbackPrice?.[billing] ?? ''
+                // A button only for a plan the user can actually buy (above
+                // their current tier, with a package available). Otherwise a
+                // quiet status.
+                const purchasable = !owned && plan.tier !== 'free' && !!pkg
+                const status = isCurrent
+                  ? 'Current plan'
+                  : owned
+                    ? 'Included'
+                    : plan.tier === 'free'
+                      ? 'Free'
+                      : 'Coming soon'
                 return (
-                  <View key={plan.tier} style={styles.card}>
+                  <View
+                    key={plan.tier}
+                    style={[styles.card, isCurrent && styles.cardCurrent]}
+                  >
                     <View style={styles.cardHead}>
-                      <Text style={styles.planName}>{plan.name}</Text>
+                      <View style={styles.planNameRow}>
+                        <Text style={styles.planName}>{plan.name}</Text>
+                        {isCurrent && (
+                          <View style={styles.currentBadge}>
+                            <Text style={styles.currentBadgeText}>Current</Text>
+                          </View>
+                        )}
+                      </View>
                       <Text style={styles.price}>{price}</Text>
                     </View>
                     {plan.bullets.map((b) => (
@@ -154,22 +189,22 @@ export default function PaywallSheet({
                         <Text style={styles.bulletText}>{b}</Text>
                       </View>
                     ))}
-                    <TouchableOpacity
-                      style={[styles.cta, (owned || !pkg) && styles.ctaDisabled]}
-                      disabled={owned || !pkg || busy}
-                      onPress={() => buy(productId)}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={styles.ctaText}>
-                        {owned
-                          ? 'Current plan'
-                          : !pkg
-                            ? 'Coming soon'
-                            : billing === 'annual'
-                              ? 'Start 7-day free trial'
-                              : `Subscribe · ${price}`}
-                      </Text>
-                    </TouchableOpacity>
+                    {purchasable ? (
+                      <TouchableOpacity
+                        style={styles.cta}
+                        disabled={busy}
+                        onPress={() => productId && buy(productId)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.ctaText}>
+                          {billing === 'annual'
+                            ? 'Start 7-day free trial'
+                            : `Subscribe · ${price}`}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={styles.ctaStatus}>{status}</Text>
+                    )}
                   </View>
                 )
               })}
@@ -243,8 +278,24 @@ function makeStyles(c: ThemeColors) {
       padding: 14,
       gap: 8,
     },
+    cardCurrent: { borderColor: c.primary, borderWidth: 1.5 },
     cardHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+    planNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     planName: { fontSize: 18, fontWeight: '700', color: c.label },
+    currentBadge: {
+      backgroundColor: c.primarySoft,
+      borderRadius: 999,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+    },
+    currentBadgeText: { fontSize: 11, fontWeight: '700', color: c.primary },
+    ctaStatus: {
+      marginTop: 4,
+      textAlign: 'center',
+      fontSize: 13,
+      fontWeight: '600',
+      color: c.label3,
+    },
     price: { fontSize: 15, fontWeight: '700', color: c.primary },
     bulletRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
     bulletText: { flex: 1, fontSize: 14, color: c.label, lineHeight: 20 },
@@ -256,7 +307,6 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    ctaDisabled: { backgroundColor: c.gray3 },
     ctaText: { color: c.primaryOn, fontSize: 15, fontWeight: '700' },
     restore: { alignSelf: 'center', paddingVertical: 8 },
     restoreText: { fontSize: 13, fontWeight: '600', color: c.primary },
