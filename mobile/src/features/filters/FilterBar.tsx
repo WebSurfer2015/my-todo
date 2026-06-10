@@ -129,11 +129,17 @@ export default function FilterBar({
   // so this effect IS the only place that resets pillXRef.
   useEffect(() => {
     pillXRef.current = {}
-    if (selectedFilters.length === 0) {
-      // No filters selected → rewind the scroll to the start so the
-      // user lands cleanly on the "All" pill.
-      scrollRef.current?.scrollTo({ x: 0, animated: true })
-    }
+    // Rewind to the start on ANY filter/pin change. The active pill is
+    // rendered FIRST (the transient pill, at content-x ≈ 0); when it
+    // instead matches a pinned set further right, that pill's onLayout
+    // below scrolls right to reveal it. The unconditional rewind matters
+    // for the transient case: its TouchableOpacity has a constant key
+    // ('__transient') and a stable x, so switching to a new transient
+    // filter while the row is scrolled right does NOT re-fire its
+    // onLayout — without this the active pill stays scrolled off-left,
+    // hidden behind the sticky "All" pill (e.g. after a Dashboard
+    // filter-card tap).
+    scrollRef.current?.scrollTo({ x: 0, animated: true })
   }, [selectedFilters, pinnedFilters])
 
   // Resolve display info (icon/label/count/color) for any Filter. Returns
