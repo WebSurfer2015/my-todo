@@ -41,6 +41,7 @@ import { MOCHI_AGENT_ENABLED } from './featureFlags'
 import ManageAnimationSoundSheet from '../features/profile/ManageAnimationSoundSheet'
 import CategorySheet from '../features/category/CategorySheet'
 import { COLOR_PALETTE } from '../core-bindings/categories'
+import { SEED_GROCERY_STORES } from '../core-bindings/groceries'
 import type { Filter } from '../core-bindings/types'
 import type { Guide } from '../features/onboarding/guides'
 import { todayLocal, genUuid } from '../../../core/src/logic/utils'
@@ -185,6 +186,18 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         // "make it done", never "un-done it").
         const td = store.todos.find((t) => t.id === op.args.todoId)
         if (td && !td.done) store.toggle(op.args.todoId)
+      } else if (op.kind === 'createCategory') {
+        const a = op.args
+        store.addCategory({
+          label: a.label,
+          color: a.color ?? COLOR_PALETTE[store.categories.length % COLOR_PALETTE.length],
+          icon: a.icon ?? 'tag',
+        })
+      } else if (op.kind === 'createStore') {
+        store.addGroceryStore(op.args.name)
+      } else if (op.kind === 'addGroceryItem') {
+        const a = op.args
+        store.addGrocery({ text: a.text, groupId: a.groupId, stores: a.stores })
       }
     },
     [store],
@@ -467,10 +480,18 @@ export function SheetProvider({ children }: { children: ReactNode }) {
       {MOCHI_AGENT_ENABLED && (
         <ChatSheet
           visible={mochiOpen}
+          greetingName={
+            store.profile.firstName?.trim() || store.profile.name?.trim() || ''
+          }
           categories={store.categories}
           todos={store.todos
             .filter((td) => !td.done && !td.trashed)
             .map((td) => ({ id: td.id, text: td.text }))}
+          groceryGroups={store.groceryGroups.map((g) => ({
+            id: g.id,
+            label: g.label,
+          }))}
+          stores={store.profile.groceryStores ?? SEED_GROCERY_STORES}
           onApplyOperation={applyMochiOp}
           onClose={() => setMochiOpen(false)}
           onEnterManually={() => {

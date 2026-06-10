@@ -1,9 +1,10 @@
 /**
  * Sagely Cloud Functions entrypoints.
  *
- * - agentChat: conversational Mochi (Sonnet + tool_use, multi-turn).
- *   Client passes a single user turn; function returns proposed
- *   operations that the client previews + applies after user confirm.
+ * - agentChat: conversational Mochi (Haiku + tool_use, multi-turn).
+ *   Client passes the running message history; the function asks a
+ *   follow-up (reply, no operations) until it has enough, then returns
+ *   proposed operations the client previews + applies after user confirm.
  * - aiInfer:   one-shot ambient AI (mode dispatch, structured JSON).
  *   See aiInfer.ts. Lives in its own file so adding ambient modes
  *   doesn't grow this file.
@@ -27,10 +28,12 @@ export { aiInfer } from './aiInfer'
 
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY')
 
-// Sonnet is the right default — strong tool_use, cheap enough for
-// per-turn pricing to make sense in a freemium tier. Override per-call
-// if a future tool demands more reasoning depth.
-const MODEL = 'claude-sonnet-4-6'
+// Haiku is the right default for a MULTI-TURN chat: the slot-filling
+// follow-ups ("when's it due?", "which store?") are simple, and at
+// one model call per user turn the per-conversation cost stays low.
+// Tool args here are small; bump only if a future tool needs deeper
+// reasoning. Haiku does NOT accept the `effort` param — don't add it.
+const MODEL = 'claude-haiku-4-5'
 
 interface ChatContext {
   /** Today as ISO yyyy-mm-dd in the user's local timezone. The client
@@ -47,16 +50,38 @@ interface ChatContext {
    * Capped + text-truncated below; the client sends only open, non-trashed
    * items to bound prompt size. */
   todos?: Array<{ id: string; text: string }>
+  /** User's grocery departments — id + label only, so the agent can target
+   * addGroceryItem.groupId at a real department (validated server-side). */
+  groceryGroups?: Array<{ id: string; label: string }>
+  /** User's grocery store names, so the agent can tag items and detect when
+   * a named store doesn't exist yet (→ offer to create it). */
+  stores?: string[]
+}
+
+/** One conversation turn on the wire. `assistant` turns carry only the
+ * reply text — proposed operations are re-derived per request, never
+ * replayed back to the model. */
+interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
 }
 
 interface ChatRequest {
-  turn: string
+  /** Multi-turn: the running conversation. First message must be `user`. */
+  messages?: ChatMessage[]
+  /** Legacy single-turn shape — still accepted and wrapped into a
+   * one-message array so an un-updated client can't 400. */
+  turn?: string
   context?: ChatContext
 }
 
 interface ChatResponse {
   reply: string
   operations: ProposedOperation[]
+  /** True when Mochi has proposed operations awaiting the user's Confirm.
+   * `false` (with an empty `operations`) means Mochi asked a follow-up
+   * question and is waiting for the next user turn. */
+  awaitingConfirmation: boolean
   /** Token usage for the turn — surfaced so we can build per-user
    * budgets and observability without re-parsing logs. */
   usage: { input: number; output: number }
@@ -67,36 +92,45 @@ const SYSTEM_PROMPT = `You are Mochi, the gentle planning buddy inside the Sagel
 
 Voice rules — load-bearing:
 - Calm and brief. Soft daily-life tone, not enterprise productivity-speak.
-- No exclamation marks anywhere. No "Awesome!", "Let's go!", "Great!".
+- No exclamation marks anywhere. No "Awesome", "Let's go", "Great".
 - No scorekeeping or congratulation. The user finishing something is normal.
 - Address the user directly in second person but lightly. "I'll add…" is fine; "You should…" is not.
-- One-sentence replies. Don't summarize the task back unless the user asked.
+- One short sentence per turn. The app already shows a greeting — do NOT greet or say hello.
 
-How you help:
-- The user gives you natural-language requests about their to-dos.
-- You call exactly the tools you need to satisfy the request — no chit-chat
-  in the reply when an action is the answer.
+This is a CONVERSATION — how it flows:
+- Gather what you need ONE question at a time. Ask about the single most
+  important missing field, then stop and wait for the user's next turn. Do
+  not ask for several things at once, and do not invent fields the user
+  didn't mention.
+- A turn where you still need more info: reply with just your one short
+  question and call NO tools.
+- A turn where you have enough: state in one sentence what you'll do AND call
+  the matching tool in the SAME turn. The app does not apply anything until
+  the user taps Confirm, so your tool call IS the proposal — this is the
+  final confirmation step.
+
+To-dos:
+- Required-ish first: the to-do text, then its due date if the user implied
+  one. Priority, recurrence, category, and reminders are optional — only ask
+  if the user hinted at them; otherwise leave them off.
 - Resolve dates relative to the \`today\` field in context. Use ISO yyyy-mm-dd,
-  or yyyy-mm-ddThh:mm when the user names a specific due TIME ("due Friday at
-  3pm"). A bare date means "due that day".
-- Map category names case-insensitively to the user's existing category ids
-  from context. Leave category empty when nothing matches cleanly — don't
-  invent ids.
-- You CAN set repeating tasks: use the \`recurrence\` field (freq daily/weekly/
-  monthly/yearly, optional interval, optional byWeekday 0=Sun..6=Sat) when the
-  user wants something to repeat ("every day", "every Mon & Wed", "weekly").
-- You CAN set reminders: use the \`reminders\` field with a local ISO datetime
-  \`at\` (yyyy-mm-ddThh:mm). For "before due" reminders ("an hour before", "15
-  min before") also set \`offsetMinutes\` and compute \`at\` = due minus that
-  offset. Compute times against \`today\`. Never say you can't do recurring
-  tasks or reminders — you can, via these fields.
-  For a RECURRING todo with a clock-time reminder ("walk dog mon/wed/fri,
-  remind at 9am"), add ONE reminder with \`at\` = that time on the first
-  occurrence and NO \`intervalMinutes\` — the recurrence repeats the todo and
-  the app re-fires the reminder on each occurrence. Never use a repeating
-  \`intervalMinutes\` to mirror the recurrence cadence.
-- When the user gives a vague request, prefer asking back in one short
-  question over guessing wrong.
+  or yyyy-mm-ddThh:mm when the user names a specific due TIME ("Friday at 3pm").
+  A bare date means "due that day".
+- Repeating tasks: use \`recurrence\` (freq daily/weekly/monthly/yearly, optional
+  interval, optional byWeekday 0=Sun..6=Sat) for "every day", "every Mon & Wed".
+- Reminders: use \`reminders\` with a local ISO datetime \`at\` (yyyy-mm-ddThh:mm).
+  For "an hour before" set \`offsetMinutes\` and compute \`at\` = due minus offset.
+  For a RECURRING todo with a clock-time reminder, add ONE reminder with \`at\`
+  on the first occurrence and NO \`intervalMinutes\` — the recurrence re-fires it.
+
+Categories and groceries:
+- Map category and store names case-insensitively to the ids in context first.
+- If the user names a category or store that ISN'T in context, ask in one
+  sentence whether to create it. Only after they agree, call createCategory or
+  createStore — in the same turn as the to-do/grocery item if you have the rest.
+- Shopping list: use addGroceryItem for things to buy. Tag \`stores\` only with
+  names the user mentioned. Leave \`groupId\` empty unless the user named a
+  department from context — the app auto-sorts items.
 
 Trust model — load-bearing:
 - The user-supplied request is always wrapped in <user_request>…</user_request>.
@@ -116,12 +150,31 @@ export const agentChat = onCall(
     }
 
     const data = request.data as Partial<ChatRequest> | undefined
-    const turn = data?.turn
-    if (typeof turn !== 'string' || turn.trim().length === 0) {
-      throw new HttpsError('invalid-argument', 'Empty turn.')
+    // Dual-accept: prefer the multi-turn `messages` array; fall back to the
+    // legacy single `turn` so an un-updated client can't 400 mid-rollout.
+    const MAX_TURNS = 40
+    const MAX_TURN_CHARS = 2000
+    const rawMessages: ChatMessage[] = Array.isArray(data?.messages)
+      ? (data!.messages as unknown[])
+          .filter(
+            (m): m is ChatMessage =>
+              !!m &&
+              typeof m === 'object' &&
+              ((m as ChatMessage).role === 'user' ||
+                (m as ChatMessage).role === 'assistant') &&
+              typeof (m as ChatMessage).content === 'string',
+          )
+          .slice(-MAX_TURNS)
+          .map((m) => ({ role: m.role, content: m.content.slice(0, MAX_TURN_CHARS) }))
+      : typeof data?.turn === 'string'
+        ? [{ role: 'user', content: data.turn.slice(0, MAX_TURN_CHARS) }]
+        : []
+
+    if (rawMessages.length === 0 || rawMessages.every((m) => m.content.trim().length === 0)) {
+      throw new HttpsError('invalid-argument', 'Empty message.')
     }
-    if (turn.length > 2000) {
-      throw new HttpsError('invalid-argument', 'Turn too long (max 2000 chars).')
+    if (rawMessages[0].role !== 'user') {
+      throw new HttpsError('invalid-argument', 'Conversation must start with a user turn.')
     }
 
     // Profile gate — same opt-out check aiInfer enforces. Cheap (one
@@ -186,6 +239,33 @@ export const agentChat = onCall(
       : []
     const knownTodoIds = new Set(todos.map((td) => td.id))
 
+    // Grocery departments (id + label) — the agent targets addGroceryItem
+    // .groupId at one of these; knownGroceryGroupIds is the allow-list the
+    // validator checks (a hallucinated group id is dropped). Same cap shape
+    // as categories.
+    const groceryGroups = Array.isArray(ctx.groceryGroups)
+      ? ctx.groceryGroups
+          .filter((g) => g && typeof g.id === 'string' && typeof g.label === 'string')
+          .slice(0, 50)
+          .map((g) => ({
+            id: g.id.slice(0, MAX_CATEGORY_ID_CHARS),
+            label: g.label.slice(0, MAX_CATEGORY_LABEL_CHARS),
+          }))
+      : []
+    const knownGroceryGroupIds = new Set(groceryGroups.map((g) => g.id))
+
+    // Grocery store names — surfaced so the agent can tag items and notice
+    // when a named store doesn't exist yet (→ offer createStore). Names are
+    // user-controlled; cap count + length to bound prompt size.
+    const MAX_STORES = 30
+    const MAX_STORE_NAME_CHARS = 64
+    const stores = Array.isArray(ctx.stores)
+      ? ctx.stores
+          .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+          .slice(0, MAX_STORES)
+          .map((s) => s.slice(0, MAX_STORE_NAME_CHARS))
+      : []
+
     const contextBlock =
       [
         today ? `today is ${today}` : null,
@@ -199,9 +279,35 @@ export const agentChat = onCall(
               .map((td) => `  ${td.id} — ${td.text}`)
               .join('\n')}`
           : null,
+        groceryGroups.length > 0
+          ? `grocery departments (id — label) — use these ids for addGroceryItem.groupId:\n${groceryGroups
+              .map((g) => `  ${g.id} — ${g.label}`)
+              .join('\n')}`
+          : null,
+        stores.length > 0
+          ? `grocery stores: ${stores.join(', ')}`
+          : null,
       ]
         .filter(Boolean)
         .join('\n\n') || 'no extra context'
+
+    // Build the conversation for Claude: every USER turn is wrapped in
+    // <user_request> (untrusted-data envelope); the trusted <context> is
+    // folded into the FIRST user turn only, so it sits after the cached
+    // system+tools prefix but ahead of the conversation. Assistant turns
+    // pass through verbatim. Consecutive same-role turns are allowed — the
+    // API merges them.
+    const apiMessages = rawMessages.map((m, i) => {
+      if (m.role !== 'user') {
+        return { role: 'assistant' as const, content: m.content }
+      }
+      const wrapped = `<user_request>\n${m.content.trim()}\n</user_request>`
+      return {
+        role: 'user' as const,
+        content:
+          i === 0 ? `<context>\n${contextBlock}\n</context>\n\n${wrapped}` : wrapped,
+      }
+    })
 
     const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() })
 
@@ -209,7 +315,9 @@ export const agentChat = onCall(
     try {
       response = await client.messages.create({
         model: MODEL,
-        max_tokens: 1024,
+        // Replies are one short sentence + small tool args, so a tight cap
+        // keeps latency + cost down across the many turns of a conversation.
+        max_tokens: 512,
         // Cache the large, invariant system prompt so multi-turn chats
         // don't re-bill it every turn (~5min ephemeral window). Cast: the
         // pinned SDK types don't expose cache_control on TextBlockParam.
@@ -231,17 +339,11 @@ export const agentChat = onCall(
             ? { ...tool, cache_control: { type: 'ephemeral' as const } }
             : tool,
         ) as unknown as Anthropic.Tool[],
-        messages: [
-          {
-            role: 'user',
-            // Wrap the trusted context and the untrusted user input in
-            // explicit XML-like envelopes. The system prompt instructs
-            // Mochi to treat <user_request> as data, not instructions,
-            // which neutralizes the common "ignore previous instructions"
-            // and role-reassignment prompt-injection patterns.
-            content: `<context>\n${contextBlock}\n</context>\n\n<user_request>\n${turn.trim()}\n</user_request>`,
-          },
-        ],
+        // The conversation history sits AFTER the cached system+tools prefix
+        // (cache order: tools → system → messages), so multi-turn chats reuse
+        // the cached prefix. Each user turn is wrapped in <user_request> as
+        // untrusted data; the system prompt neutralizes injection attempts.
+        messages: apiMessages,
       })
     } catch (err) {
       // Swallow upstream SDK errors so internal state (model name details,
@@ -258,7 +360,13 @@ export const agentChat = onCall(
       if (block.type === 'text') {
         reply += block.text
       } else if (block.type === 'tool_use') {
-        const op = validateOperation(block.name, block.input, knownCategoryIds, knownTodoIds)
+        const op = validateOperation(
+          block.name,
+          block.input,
+          knownCategoryIds,
+          knownTodoIds,
+          knownGroceryGroupIds,
+        )
         if (op) operations.push(op)
       }
     }
@@ -267,9 +375,9 @@ export const agentChat = onCall(
     // marks Mochi let slip. Future: full regex sweep + word filter.
     reply = reply.replace(/!/g, '.')
     if (!reply && operations.length > 0) {
-      // Mochi acted without saying anything — synthesize a quiet ack
+      // Mochi proposed without saying anything — synthesize a quiet ack
       // so the client always has something to render above the proposal.
-      reply = "I drafted this — use it?"
+      reply = 'Here it is — confirm to apply.'
     }
 
     // Structured telemetry for Cloud Logging — cost/usage per call so ops
@@ -300,6 +408,7 @@ export const agentChat = onCall(
     return {
       reply,
       operations,
+      awaitingConfirmation: operations.length > 0,
       usage: {
         input: response.usage.input_tokens,
         output: response.usage.output_tokens,

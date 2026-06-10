@@ -11,11 +11,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import { Sparkles, Mic } from 'lucide-react-native'
+import { Sparkles } from 'lucide-react-native'
 import { useLang } from '../../app/LangContext'
 import { useTheme, ThemeColors } from '../../app/theme'
 import { useMochiAgent, type ProposedOperation } from './useMochiAgent'
-import { useVoiceInput } from './useVoiceInput'
 import { todayLocal } from '../../core-bindings/utils'
 import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 import { Analytics } from '../../adapters/analytics'
@@ -23,13 +22,18 @@ import { Analytics } from '../../adapters/analytics'
 interface Props {
   visible: boolean
   onClose: () => void
+  /** First name (or display name) for the greeting line. */
+  greetingName: string
   categories: CategoryDef[]
   /** Open todos (id + text) sent as agent context so Mochi can target
    * editTodo / markDone / addSteps at real ids. */
   todos: Array<{ id: string; text: string }>
-  /** Apply one validated proposed operation (any of the four kinds). The
-   * parent maps each kind to the existing store mutation (addTask /
-   * update* / addSubtask / toggle) so the agent shares the manual write
+  /** Grocery departments (id + label) so Mochi can target addGroceryItem. */
+  groceryGroups: Array<{ id: string; label: string }>
+  /** Grocery store names so Mochi can tag items / detect a missing store. */
+  stores: string[]
+  /** Apply one validated proposed operation. The parent maps each kind to
+   * the existing store mutation so the agent shares the manual write
    * surface — confirm-before-apply keeps the user in control. */
   onApplyOperation: (op: ProposedOperation) => void
   /** Switch back to the manual compose form. Renders an "Enter manually
@@ -37,28 +41,43 @@ interface Props {
   onEnterManually?: () => void
 }
 
+/** Opening intent chips — pre-fill the input so the user can elaborate. */
+const INTENT_CHIPS = [
+  'Add a to-do',
+  'Update a to-do',
+  'Add steps',
+  'Mark one done',
+  'Add to shopping list',
+]
+
 /**
- * Mochi agent UI: a calm capture-and-edit surface with one user turn, a
- * single Claude reply, and the proposed operations awaiting confirm.
- * Supports all four ops (create / edit / add steps / mark done); the user
- * always confirms before anything is applied.
+ * Mochi chatbot: a calm, multi-turn capture surface. Mochi greets, asks a
+ * follow-up per missing field, can create a missing category/store, and
+ * gives a final confirmation (a proposal card) the user applies with
+ * Confirm. Every write goes through the same store mutations a manual tap
+ * uses.
  */
 export default function ChatSheet({
   visible,
   onClose,
   onEnterManually,
+  greetingName,
   categories,
   todos,
+  groceryGroups,
+  stores,
   onApplyOperation,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
-  const { send, reset, isThinking, proposal, error } = useMochiAgent()
+  const { send, reset, isThinking, messages, error } = useMochiAgent()
   const [input, setInput] = useState('')
+  // Per-proposal resolution so a confirmed/declined turn swaps its action
+  // row for a quiet footer. Keyed by message index (append-only, stable).
+  const [resolved, setResolved] = useState<Record<number, 'applied' | 'declined'>>({})
   const inputRef = useRef<TextInput>(null)
-  // Voice dictation — live transcript streams straight into the box.
-  const { listening, toggle: toggleVoice } = useVoiceInput(setInput)
+  const scrollRef = useRef<ScrollView>(null)
 
   // Fire once per open. visible flips true → false → true counts as
   // two separate "opened" events, which matches the analytics intent.
@@ -66,38 +85,56 @@ export default function ChatSheet({
     if (visible) void Analytics.mochiChatOpened()
   }, [visible])
 
+  // Keep the latest turn in view as the conversation grows / Mochi thinks.
+  useEffect(() => {
+    const id = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60)
+    return () => clearTimeout(id)
+  }, [messages, isThinking])
+
   function handleSend() {
     const turn = input.trim()
     if (!turn) return
     setInput('')
     send(turn, {
       today: todayLocal(),
-      // Strip to id + label only — no need to leak counts/colors to
-      // the model.
-      categories: categories.map((c) => ({
-        id: c.id,
-        label: categoryLabel(c, t),
-      })),
+      // Strip to id + label only — no need to leak counts/colors to the model.
+      categories: categories.map((c) => ({ id: c.id, label: categoryLabel(c, t) })),
       todos,
+      groceryGroups,
+      stores,
     })
   }
 
-  function handleApply() {
-    if (!proposal) return
-    for (const op of proposal.operations) onApplyOperation(op)
-    reset()
-    onClose()
+  function handleConfirm(index: number, ops: ProposedOperation[]) {
+    for (const op of ops) onApplyOperation(op)
+    setResolved((prev) => ({ ...prev, [index]: 'applied' }))
   }
 
-  function handleReject() {
-    reset()
+  // "Try again" — drop this proposal's action row and let the user restate.
+  function handleReject(index: number) {
+    setResolved((prev) => ({ ...prev, [index]: 'declined' }))
+    inputRef.current?.focus()
   }
 
   function close() {
     reset()
     setInput('')
+    setResolved({})
     onClose()
   }
+
+  const greeting = greetingName.trim()
+    ? `Hello ${greetingName.trim()}, how can I help you?`
+    : 'Hello, how can I help you?'
+
+  const categoryLookup = (id: string) => {
+    const c = categories.find((cat) => cat.id === id)
+    return c ? categoryLabel(c, t) : id
+  }
+  const todoTextLookup = (id: string) =>
+    todos.find((td) => td.id === id)?.text ?? 'that to-do'
+  const groupLookup = (id: string) =>
+    groceryGroups.find((g) => g.id === id)?.label ?? id
 
   return (
     <Modal
@@ -117,12 +154,13 @@ export default function ChatSheet({
           <Pressable style={StyleSheet.absoluteFill} onPress={close} accessible={false} />
           <View style={styles.sheet}>
             <View style={styles.handle} />
+            {/* Cancel pinned left, title optically centered, no right action. */}
             <View style={styles.headerRow}>
               <View style={styles.titleRow}>
                 <Sparkles size={16} color={theme.primary} strokeWidth={2.2} />
                 <Text style={styles.title}>Ask Mochi</Text>
               </View>
-              <TouchableOpacity onPress={close} hitSlop={10}>
+              <TouchableOpacity onPress={close} hitSlop={10} style={styles.cancelBtn}>
                 <Text style={styles.closeText}>{t.cancel}</Text>
               </TouchableOpacity>
             </View>
@@ -140,77 +178,98 @@ export default function ChatSheet({
             )}
 
             <ScrollView
+              ref={scrollRef}
               style={styles.body}
               contentContainerStyle={styles.bodyContent}
               keyboardShouldPersistTaps="handled"
             >
-              {isThinking && (
-                <Text style={styles.mochiLine}>Mochi's reading…</Text>
-              )}
-
-              {error && <Text style={styles.errorLine}>{error}</Text>}
-
-              {proposal && (
+              {/* Greeting + intent chips — only before the first user turn. */}
+              {messages.length === 0 && (
                 <View>
-                  <Text style={styles.mochiLine}>{proposal.reply}</Text>
-                  {proposal.operations.map((op, i) => (
-                    <View key={i} style={styles.proposalCard}>
-                      <OperationPreview
-                        op={op}
-                        categoryLabelLookup={(id) =>
-                          categories.find((c) => c.id === id)
-                            ? categoryLabel(categories.find((c) => c.id === id)!, t)
-                            : id
-                        }
-                        todoTextLookup={(id) =>
-                          todos.find((td) => td.id === id)?.text ?? 'that to-do'
-                        }
-                        styles={styles}
-                      />
-                    </View>
-                  ))}
-                  <View style={styles.actionsRow}>
-                    <TouchableOpacity
-                      style={[styles.btn, styles.btnSecondary]}
-                      onPress={handleReject}
-                    >
-                      <Text style={styles.btnSecondaryText}>No</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.btn, styles.btnPrimary]}
-                      onPress={handleApply}
-                    >
-                      <Text style={styles.btnPrimaryText}>Add this todo</Text>
-                    </TouchableOpacity>
+                  <Text style={styles.greeting}>{greeting}</Text>
+                  <View style={styles.chipsRow}>
+                    {INTENT_CHIPS.map((c) => (
+                      <TouchableOpacity
+                        key={c}
+                        style={styles.intentChip}
+                        activeOpacity={0.7}
+                        onPress={() => {
+                          setInput(c + ' ')
+                          inputRef.current?.focus()
+                        }}
+                      >
+                        <Text style={styles.intentChipText}>{c}</Text>
+                      </TouchableOpacity>
+                    ))}
                   </View>
                 </View>
               )}
 
-              {!isThinking && !proposal && !error && (
-                <Text style={styles.hint}>
-                  Try: “add email therapist for Friday under Home”
-                </Text>
+              {messages.map((m, i) =>
+                m.role === 'user' ? (
+                  <View key={i} style={styles.userRow}>
+                    <View style={styles.userBubble}>
+                      <Text style={styles.userBubbleText}>{m.content}</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View key={i} style={styles.mochiRow}>
+                    <View style={styles.mochiBubble}>
+                      {!!m.content && <Text style={styles.mochiLine}>{m.content}</Text>}
+                      {m.operations?.map((op, j) => (
+                        <View key={j} style={styles.proposalCard}>
+                          <OperationPreview
+                            op={op}
+                            categoryLabelLookup={categoryLookup}
+                            todoTextLookup={todoTextLookup}
+                            groupLabelLookup={groupLookup}
+                            styles={styles}
+                          />
+                        </View>
+                      ))}
+                      {m.operations && m.operations.length > 0 && (
+                        resolved[i] === 'applied' ? (
+                          <Text style={styles.appliedNote}>✓ Done</Text>
+                        ) : resolved[i] === 'declined' ? (
+                          <Text style={styles.appliedNote}>Okay — tell me what to change.</Text>
+                        ) : m.awaitingConfirmation ? (
+                          <View style={styles.actionsRow}>
+                            <TouchableOpacity
+                              style={[styles.btn, styles.btnSecondary]}
+                              onPress={() => handleReject(i)}
+                            >
+                              <Text style={styles.btnSecondaryText}>Try again</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.btn, styles.btnPrimary]}
+                              onPress={() => handleConfirm(i, m.operations!)}
+                            >
+                              <Text style={styles.btnPrimaryText}>Confirm</Text>
+                            </TouchableOpacity>
+                          </View>
+                        ) : null
+                      )}
+                    </View>
+                  </View>
+                ),
               )}
+
+              {isThinking && (
+                <View style={styles.mochiRow}>
+                  <View style={styles.mochiBubble}>
+                    <Text style={styles.mochiLine}>Mochi's thinking…</Text>
+                  </View>
+                </View>
+              )}
+
+              {error && <Text style={styles.errorLine}>{error}</Text>}
             </ScrollView>
 
             <View style={styles.inputRow}>
-              <TouchableOpacity
-                style={[styles.micBtn, listening && styles.micBtnActive]}
-                onPress={toggleVoice}
-                disabled={isThinking}
-                accessibilityRole="button"
-                accessibilityLabel={listening ? 'Stop voice input' : 'Start voice input'}
-              >
-                <Mic
-                  size={20}
-                  color={listening ? '#fff' : theme.label2}
-                  strokeWidth={2}
-                />
-              </TouchableOpacity>
               <TextInput
                 ref={inputRef}
                 style={styles.input}
-                placeholder="Say what you'd like to add or change…"
+                placeholder="Message Mochi…"
                 placeholderTextColor={theme.gray3}
                 value={input}
                 onChangeText={setInput}
@@ -224,6 +283,8 @@ export default function ChatSheet({
                 style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
                 onPress={handleSend}
                 disabled={!input.trim() || isThinking}
+                accessibilityRole="button"
+                accessibilityLabel="Send"
               >
                 <Text style={styles.sendBtnText}>↑</Text>
               </TouchableOpacity>
@@ -235,17 +296,19 @@ export default function ChatSheet({
   )
 }
 
-/** Renders a confirm-preview for any of the four proposed operations, so
- * the user sees exactly what Mochi will do before tapping "Use this". */
+/** Renders a confirm-preview for any proposed operation, so the user sees
+ * exactly what Mochi will do before tapping Confirm. */
 function OperationPreview({
   op,
   categoryLabelLookup,
   todoTextLookup,
+  groupLabelLookup,
   styles,
 }: {
   op: ProposedOperation
   categoryLabelLookup: (id: string) => string
   todoTextLookup: (id: string) => string
+  groupLabelLookup: (id: string) => string
   styles: ReturnType<typeof makeStyles>
 }) {
   if (op.kind === 'createTodo') {
@@ -256,7 +319,7 @@ function OperationPreview({
         <Text style={styles.proposalTitle}>{a.text}</Text>
         <View style={styles.proposalMeta}>
           {a.category && <Text style={styles.proposalChip}>{categoryLabelLookup(a.category)}</Text>}
-          {a.dueDate && <Text style={styles.proposalChip}>Completed by {a.dueDate}</Text>}
+          {a.dueDate && <Text style={styles.proposalChip}>Completion by {a.dueDate}</Text>}
           {a.priority && a.priority !== 'medium' && (
             <Text style={styles.proposalChip}>Priority: {a.priority}</Text>
           )}
@@ -304,6 +367,44 @@ function OperationPreview({
         {a.steps.map((s, i) => (
           <Text key={i} style={styles.proposalNotes}>• {s.text}</Text>
         ))}
+      </View>
+    )
+  }
+
+  if (op.kind === 'createCategory') {
+    const a = op.args
+    return (
+      <View>
+        <Text style={styles.proposalKind}>New category</Text>
+        <View style={styles.swatchRow}>
+          {a.color && <View style={[styles.swatch, { backgroundColor: a.color }]} />}
+          <Text style={styles.proposalTitle}>{a.label}</Text>
+        </View>
+      </View>
+    )
+  }
+
+  if (op.kind === 'createStore') {
+    return (
+      <View>
+        <Text style={styles.proposalKind}>New store</Text>
+        <Text style={styles.proposalTitle}>{op.args.name}</Text>
+      </View>
+    )
+  }
+
+  if (op.kind === 'addGroceryItem') {
+    const a = op.args
+    return (
+      <View>
+        <Text style={styles.proposalKind}>Add to shopping list</Text>
+        <Text style={styles.proposalTitle}>{a.text}</Text>
+        <View style={styles.proposalMeta}>
+          {a.groupId && <Text style={styles.proposalChip}>{groupLabelLookup(a.groupId)}</Text>}
+          {a.stores?.map((s, i) => (
+            <Text key={i} style={styles.proposalChip}>🛒 {s}</Text>
+          ))}
+        </View>
       </View>
     )
   }
@@ -357,7 +458,7 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 16,
       paddingBottom: Platform.OS === 'ios' ? 32 : 16,
       maxHeight: '85%',
-      minHeight: 380,
+      minHeight: 420,
     },
     handle: {
       alignSelf: 'center',
@@ -370,13 +471,20 @@ function makeStyles(c: ThemeColors) {
     headerRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
+      justifyContent: 'center',
+      minHeight: 28,
       marginBottom: 12,
     },
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    // Absolute so the centered title isn't pushed off-center by Cancel's width.
+    cancelBtn: {
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      bottom: 0,
+      justifyContent: 'center',
+    },
     title: { fontSize: 20, fontWeight: '700', color: c.label },
-    // Mirror of the compose "Ask Mochi instead" pill — lets the user
-    // switch back to the manual form.
     enterManuallyRow: {
       alignSelf: 'center',
       flexDirection: 'row',
@@ -397,12 +505,42 @@ function makeStyles(c: ThemeColors) {
     },
     closeText: { fontSize: 15, color: c.label2, fontWeight: '500' },
     body: { flexGrow: 0, flexShrink: 1 },
-    bodyContent: { paddingVertical: 12, gap: 12 },
+    bodyContent: { paddingVertical: 12, gap: 10 },
+    // Greeting + intent chips (pre-first-turn).
+    greeting: { fontSize: 17, fontWeight: '600', color: c.label, marginBottom: 12 },
+    chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    intentChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 999,
+      backgroundColor: c.primarySoft,
+    },
+    intentChipText: { fontSize: 13, fontWeight: '600', color: c.primary },
+    // Chat bubbles.
+    userRow: { alignItems: 'flex-end' },
+    userBubble: {
+      maxWidth: '85%',
+      backgroundColor: c.primary,
+      borderRadius: 16,
+      borderBottomRightRadius: 4,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+    },
+    userBubbleText: { fontSize: 15, color: c.primaryOn, lineHeight: 21 },
+    mochiRow: { alignItems: 'flex-start' },
+    mochiBubble: {
+      maxWidth: '92%',
+      backgroundColor: c.card,
+      borderRadius: 16,
+      borderBottomLeftRadius: 4,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      gap: 8,
+    },
     mochiLine: { fontSize: 15, color: c.label, lineHeight: 22 },
     errorLine: { fontSize: 13, color: c.red },
-    hint: { fontSize: 13, color: c.label3, fontStyle: 'italic' },
     proposalCard: {
-      backgroundColor: c.card,
+      backgroundColor: c.modal,
       borderRadius: 12,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
@@ -417,26 +555,26 @@ function makeStyles(c: ThemeColors) {
       letterSpacing: 0.5,
       marginBottom: 2,
     },
-    proposalTitle: { fontSize: 15, fontWeight: '600', color: c.label },
-    proposalMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    proposalTitle: { fontSize: 17, fontWeight: '600', color: c.label },
+    proposalMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 },
     proposalChip: {
-      fontSize: 12,
-      fontWeight: '500',
-      color: c.label2,
-      paddingHorizontal: 8,
-      paddingVertical: 3,
+      fontSize: 13,
+      fontWeight: '600',
+      color: c.primary,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
       borderRadius: 999,
-      backgroundColor: c.bg,
+      backgroundColor: c.primarySoft,
+      overflow: 'hidden',
     },
     proposalNotes: { fontSize: 13, color: c.label3, fontStyle: 'italic' },
-    actionsRow: {
-      flexDirection: 'row',
-      gap: 10,
-      marginTop: 12,
-    },
+    swatchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    swatch: { width: 16, height: 16, borderRadius: 8 },
+    appliedNote: { fontSize: 13, fontWeight: '600', color: c.label3, marginTop: 4 },
+    actionsRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
     btn: {
       flex: 1,
-      height: 44,
+      height: 42,
       borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
@@ -478,14 +616,5 @@ function makeStyles(c: ThemeColors) {
     },
     sendBtnDisabled: { opacity: 0.4 },
     sendBtnText: { color: c.primaryOn, fontSize: 18, fontWeight: '700' },
-    micBtn: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: c.bg,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    micBtnActive: { backgroundColor: c.red },
   })
 }

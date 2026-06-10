@@ -2,20 +2,21 @@ import { useCallback, useState } from 'react'
 import auth from '@react-native-firebase/auth'
 
 /**
- * Minimal client for the agentChat Cloud Function. Posts a single turn,
- * surfaces the reply + the proposed operations Claude returned, and
- * exposes them for the UI to render in a confirmation panel. The hook
- * does NOT apply the operations — that's the caller's job after the
- * user explicitly confirms. Keeping apply outside the hook means the
- * existing store mutations stay the single source of truth for writes,
- * and the agent has the same write surface as a manual tap.
+ * Multi-turn client for the agentChat Cloud Function. Holds the running
+ * conversation, posts the whole history on each turn, and surfaces Mochi's
+ * reply + any proposed operations for the UI to render as chat bubbles.
  *
- * Scope: single-turn (no conversation history), direct HTTPS POST (no
- * firebase-functions native module yet). All four ops (createTodo /
- * editTodo / addSteps / markDone) are live; the server validates + returns
- * them and SheetContext applies each via the same store mutations a manual
- * edit uses. The ProposedOperation union below mirrors the server's
- * (agentTools.ts) — a parity test guards them against drift.
+ * The hook does NOT apply operations — that's the caller's job after the
+ * user taps Confirm. Keeping apply outside the hook means the existing
+ * store mutations stay the single source of truth for writes, and the
+ * agent has the same write surface as a manual tap.
+ *
+ * Conversation flow: each user turn → one server call. The server replies
+ * with a short question (operations:[] ⇒ still gathering) OR a final
+ * proposal (operations.length>0, awaitingConfirmation true ⇒ render a
+ * Confirm/Try again row). The ProposedOperation union below mirrors the
+ * server's (web/functions/src/agentTools.ts) — a parity test guards them
+ * against drift.
  */
 
 const AGENT_CHAT_URL =
@@ -78,10 +79,23 @@ export type ProposedOperation =
       kind: 'markDone'
       args: { todoId: string }
     }
+  | {
+      kind: 'createCategory'
+      args: { label: string; color?: string; icon?: string }
+    }
+  | {
+      kind: 'createStore'
+      args: { name: string }
+    }
+  | {
+      kind: 'addGroceryItem'
+      args: { text: string; stores?: string[]; groupId?: string }
+    }
 
 export interface AgentResponse {
   reply: string
   operations: ProposedOperation[]
+  awaitingConfirmation: boolean
   usage: { input: number; output: number }
   model: string
 }
@@ -92,6 +106,22 @@ interface AgentContext {
   /** Open todos (id + text) so the agent can target edit/markDone/addSteps
    * at real ids; the server validates proposed ids against this set. */
   todos: Array<{ id: string; text: string }>
+  /** Grocery departments (id + label) so the agent can target
+   * addGroceryItem.groupId at a real department. */
+  groceryGroups: Array<{ id: string; label: string }>
+  /** Grocery store names so the agent can tag items + notice a missing
+   * store to offer creating. */
+  stores: string[]
+}
+
+/** One rendered conversation turn. `assistant` turns may carry proposed
+ * operations + the awaiting-confirmation flag; only `role`+`content` go
+ * back to the server on the next turn. */
+export interface ChatTurn {
+  role: 'user' | 'assistant'
+  content: string
+  operations?: ProposedOperation[]
+  awaitingConfirmation?: boolean
 }
 
 interface SendResult {
@@ -102,16 +132,24 @@ interface SendResult {
 
 export function useMochiAgent() {
   const [isThinking, setIsThinking] = useState(false)
-  const [proposal, setProposal] = useState<AgentResponse | null>(null)
+  const [messages, setMessages] = useState<ChatTurn[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const send = useCallback(
     async (turn: string, context: AgentContext): Promise<SendResult> => {
+      const text = turn.trim()
+      if (!text) return { ok: false, error: 'empty' }
+
       const user = auth().currentUser
       if (!user) {
         setError('Sign in to use Mochi.')
         return { ok: false, error: 'unauthenticated' }
       }
+
+      // Optimistically append the user turn; build the wire history from it
+      // so the server sees this turn too (setState is async).
+      const history: ChatTurn[] = [...messages, { role: 'user', content: text }]
+      setMessages(history)
       setIsThinking(true)
       setError(null)
       try {
@@ -123,17 +161,23 @@ export function useMochiAgent() {
             Authorization: `Bearer ${idToken}`,
           },
           // Firebase callable functions wrap the payload in `{data: ...}`
-          // and return `{result: ...}`. Plain HTTPS without the
-          // @react-native-firebase/functions native module works fine
-          // when both sides honor this contract.
-          body: JSON.stringify({ data: { turn, context } }),
+          // and return `{result: ...}`. Strip operations off the wire —
+          // assistant turns carry text only.
+          body: JSON.stringify({
+            data: {
+              messages: history.map((m) => ({ role: m.role, content: m.content })),
+              context,
+            },
+          }),
         })
         if (!res.ok) {
-          const text = await res.text().catch(() => '')
           setError(`Mochi couldn't reach us (${res.status}).`)
-          return { ok: false, error: text || String(res.status) }
+          return { ok: false, error: String(res.status) }
         }
-        const body = (await res.json()) as { result?: AgentResponse; error?: { message?: string } }
+        const body = (await res.json()) as {
+          result?: AgentResponse
+          error?: { message?: string }
+        }
         if (body.error) {
           setError(body.error.message || 'Something went wrong.')
           return { ok: false, error: body.error.message }
@@ -142,8 +186,17 @@ export function useMochiAgent() {
           setError('Empty reply from Mochi.')
           return { ok: false, error: 'empty' }
         }
-        setProposal(body.result)
-        return { ok: true, data: body.result }
+        const result = body.result
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: result.reply,
+            operations: result.operations,
+            awaitingConfirmation: result.awaitingConfirmation,
+          },
+        ])
+        return { ok: true, data: result }
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Network error.'
         setError(msg)
@@ -152,13 +205,13 @@ export function useMochiAgent() {
         setIsThinking(false)
       }
     },
-    [],
+    [messages],
   )
 
   const reset = useCallback(() => {
-    setProposal(null)
+    setMessages([])
     setError(null)
   }, [])
 
-  return { send, reset, isThinking, proposal, error }
+  return { send, reset, isThinking, messages, error }
 }

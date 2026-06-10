@@ -118,6 +118,37 @@ export type ProposedOperation =
         todoId: string
       }
     }
+  | {
+      kind: 'createCategory'
+      args: {
+        /** Display label for the new category (e.g. "Garden"). */
+        label: string
+        /** Optional hex color (#rrggbb). The client picks a palette
+         * default when omitted. */
+        color?: string
+        /** Optional icon key. The client defaults to 'tag'. */
+        icon?: string
+      }
+    }
+  | {
+      kind: 'createStore'
+      args: {
+        /** Name of the new grocery store (e.g. "Costco"). */
+        name: string
+      }
+    }
+  | {
+      kind: 'addGroceryItem'
+      args: {
+        /** Item text (e.g. "milk"). */
+        text: string
+        /** Optional store names to tag the item with. */
+        stores?: string[]
+        /** Optional grocery department/group id from context. Omit to let
+         * the app auto-infer the department. */
+        groupId?: string
+      }
+    }
 
 // ─── Shared cap constants ──────────────────────────────────────────
 const MAX_TEXT_LEN = 4096
@@ -126,6 +157,11 @@ const MAX_STEP_LEN = 80
 const MAX_STEPS = 8
 const MAX_TODO_ID_LEN = 64
 const MAX_REMINDERS = 5
+const MAX_CATEGORY_LABEL_LEN = 40
+const MAX_ICON_KEY_LEN = 40
+const MAX_STORE_NAME_LEN = 64
+const MAX_ITEM_STORES = 8
+const MAX_GROUP_ID_LEN = 64
 
 // Shared JSON-schema fragments for recurrence + reminders (used by both
 // createTodo and editTodo) so the model gets one consistent description.
@@ -328,6 +364,82 @@ export const AGENT_TOOLS: AgentTool[] = [
       required: ['todoId'],
     },
   },
+  {
+    name: 'createCategory',
+    description:
+      "Create a new to-do category. Use ONLY after the user has agreed to create a " +
+      "category that doesn't already exist in the context list. Match existing category " +
+      "labels case-insensitively first; never create a duplicate of one already present.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        label: {
+          type: 'string',
+          description: 'Display label for the new category, verbatim from the user.',
+          maxLength: MAX_CATEGORY_LABEL_LEN,
+        },
+        color: {
+          type: 'string',
+          description: 'Optional hex color #rrggbb. Omit to let the app pick one.',
+          pattern: '^#[0-9a-fA-F]{6}$',
+        },
+        icon: {
+          type: 'string',
+          description: 'Optional icon key. Omit to let the app default it.',
+          maxLength: MAX_ICON_KEY_LEN,
+        },
+      },
+      required: ['label'],
+    },
+  },
+  {
+    name: 'createStore',
+    description:
+      "Create a new grocery store. Use ONLY after the user has agreed to create a store " +
+      "that isn't already in the context store list. Match existing store names " +
+      "case-insensitively first; never create a duplicate.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Name of the new grocery store, verbatim from the user.',
+          maxLength: MAX_STORE_NAME_LEN,
+        },
+      },
+      required: ['name'],
+    },
+  },
+  {
+    name: 'addGroceryItem',
+    description:
+      "Add an item to the user's shopping list. Use when the user wants to add something " +
+      "to buy (e.g. 'add milk to my shopping list'). Optionally tag it with store names " +
+      "the user mentioned (match the context store list case-insensitively). Leave " +
+      "groupId empty unless the user explicitly named a department from the context list — " +
+      "the app auto-sorts items into departments.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        text: {
+          type: 'string',
+          description: 'The grocery item, concise and verbatim (e.g. "milk").',
+          maxLength: MAX_TEXT_LEN,
+        },
+        stores: {
+          type: 'array',
+          description: 'Optional store names to tag the item with, from the context list.',
+          maxItems: MAX_ITEM_STORES,
+          items: { type: 'string', maxLength: MAX_STORE_NAME_LEN },
+        },
+        groupId: {
+          type: 'string',
+          description: 'Optional grocery department/group id from the context list.',
+        },
+      },
+      required: ['text'],
+    },
+  },
 ]
 
 /** Sanitize a proposed recurrence into the safe agent subset, or
@@ -391,6 +503,7 @@ export function validateOperation(
   args: unknown,
   knownCategoryIds: ReadonlySet<string>,
   knownTodoIds: ReadonlySet<string> = new Set(),
+  knownGroceryGroupIds: ReadonlySet<string> = new Set(),
 ): ProposedOperation | null {
   if (!args || typeof args !== 'object') return null
   const a = args as Record<string, unknown>
@@ -508,6 +621,52 @@ export function validateOperation(
       return null
     }
     return { kind: 'markDone', args: { todoId: a.todoId } }
+  }
+
+  if (name === 'createCategory') {
+    if (typeof a.label !== 'string' || a.label.trim().length === 0) return null
+    const op: ProposedOperation = {
+      kind: 'createCategory',
+      args: { label: a.label.trim().slice(0, MAX_CATEGORY_LABEL_LEN) },
+    }
+    if (typeof a.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(a.color)) {
+      op.args.color = a.color
+    }
+    if (typeof a.icon === 'string' && a.icon.trim().length > 0) {
+      op.args.icon = a.icon.trim().slice(0, MAX_ICON_KEY_LEN)
+    }
+    return op
+  }
+
+  if (name === 'createStore') {
+    if (typeof a.name !== 'string' || a.name.trim().length === 0) return null
+    return {
+      kind: 'createStore',
+      args: { name: a.name.trim().slice(0, MAX_STORE_NAME_LEN) },
+    }
+  }
+
+  if (name === 'addGroceryItem') {
+    if (typeof a.text !== 'string' || a.text.trim().length === 0) return null
+    const op: ProposedOperation = {
+      kind: 'addGroceryItem',
+      args: { text: a.text.trim().slice(0, MAX_TEXT_LEN) },
+    }
+    if (Array.isArray(a.stores)) {
+      const stores = a.stores
+        .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+        .slice(0, MAX_ITEM_STORES)
+        .map((s) => s.trim().slice(0, MAX_STORE_NAME_LEN))
+      if (stores.length > 0) op.args.stores = stores
+    }
+    if (
+      typeof a.groupId === 'string' &&
+      a.groupId.length <= MAX_GROUP_ID_LEN &&
+      knownGroceryGroupIds.has(a.groupId)
+    ) {
+      op.args.groupId = a.groupId
+    }
+    return op
   }
 
   return null

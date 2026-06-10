@@ -27,8 +27,8 @@ const CLIENT = resolve(__dirname, '../features/mochi/useMochiAgent.ts')
 function extractOps(src: string): Record<string, string[]> {
   const start = src.indexOf('export type ProposedOperation')
   if (start < 0) throw new Error('ProposedOperation type not found')
-  // Generous slice — the union is well under 2KB in both files.
-  const region = src.slice(start, start + 2000)
+  // Generous slice — the 7-op union is a few KB in both files.
+  const region = src.slice(start, start + 5000)
   const kinds: { name: string; idx: number }[] = []
   const kindRe = /kind:\s*'(\w+)'/g
   let m: RegExpExecArray | null
@@ -92,10 +92,16 @@ describe('ProposedOperation server↔client parity', () => {
   const server = extractOps(readFileSync(SERVER, 'utf8'))
   const client = extractOps(readFileSync(CLIENT, 'utf8'))
 
-  it('parses all four op kinds from both files', () => {
-    expect(Object.keys(server).sort()).toEqual(
-      ['addSteps', 'createTodo', 'editTodo', 'markDone'],
-    )
+  it('parses all seven op kinds from both files', () => {
+    expect(Object.keys(server).sort()).toEqual([
+      'addGroceryItem',
+      'addSteps',
+      'createCategory',
+      'createStore',
+      'createTodo',
+      'editTodo',
+      'markDone',
+    ])
     expect(Object.keys(client).sort()).toEqual(Object.keys(server).sort())
   })
 
