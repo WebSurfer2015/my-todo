@@ -51,8 +51,32 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
   },
 }
 
+/** App Store product IDs — KEEP IN SYNC with core PRODUCT_IDS. */
+export const PRODUCT_IDS = {
+  proMonthly: 'com.websurfer.mytodo.pro.monthly',
+  proAnnual: 'com.websurfer.mytodo.pro.annual',
+  eliteMonthly: 'com.websurfer.mytodo.elite.monthly',
+  eliteAnnual: 'com.websurfer.mytodo.elite.annual',
+  topup150: 'com.websurfer.mytodo.topup.150',
+  topup500: 'com.websurfer.mytodo.topup.500',
+} as const
+
+/** Mochi requests granted by each consumable top-up pack. */
+export const TOPUP_GRANTS: Record<string, number> = {
+  [PRODUCT_IDS.topup150]: 150,
+  [PRODUCT_IDS.topup500]: 500,
+}
+
+/** Map a purchased subscription product to the tier it grants (null for
+ * consumables / unknown ids). */
+export function tierForProduct(productId: string): Tier | null {
+  if (productId === PRODUCT_IDS.proMonthly || productId === PRODUCT_IDS.proAnnual) return 'pro'
+  if (productId === PRODUCT_IDS.eliteMonthly || productId === PRODUCT_IDS.eliteAnnual) return 'elite'
+  return null
+}
+
 /** What we persist per user at users/{uid}/state/entitlement (written by
- * the purchase flow in Phase 2; absent → free/basic). */
+ * the RevenueCat webhook; absent → free/basic). */
 export interface Entitlement {
   tier: Tier
   /** ISO datetime the paid tier is valid through; null = basic. */

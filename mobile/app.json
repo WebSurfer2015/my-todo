@@ -76,7 +76,8 @@
     "extra": {
       "eas": {
         "projectId": "c564f1cd-f80d-49e5-9520-fc5191f74c09"
-      }
+      },
+      "revenueCatIosKey": ""
     },
     "owner": "yingnming"
   }

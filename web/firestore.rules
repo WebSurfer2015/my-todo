@@ -6,7 +6,12 @@ rules_version = '2';
 //   users/{uid}/state/{key}
 //     • Client-writable keys:  todos, categories, profile,
 //                              groceries, groceryGroups (mobile-only)
-//     • Function-only key:     agentUsage (admin SDK bypasses rules)
+//     • Function-only keys:    agentUsage, mochiUsage (AI quota counters),
+//                              entitlement (written ONLY by the RevenueCat
+//                              webhook) — clients may READ them (quota/tier
+//                              UX) but never write, since they gate real AI
+//                              spend. Enforced by absence from the write
+//                              whitelist below; admin SDK bypasses rules.
 //
 // Each user can read AND write only their own subtree. Default deny on
 // everything else — including listing the root users collection (which would
