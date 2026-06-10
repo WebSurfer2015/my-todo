@@ -5,6 +5,7 @@
 // should prefer this index export.
 
 export * from "./domain/types";
+export * from "./domain/entitlements";
 export * from "./logic/utils";
 export * from "./ports/persistence";
 export * from "./data/categories";
