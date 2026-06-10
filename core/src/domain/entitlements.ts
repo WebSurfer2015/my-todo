@@ -67,16 +67,19 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     themes: false,
     aiPlanning: false,
   },
+  // Paid tiers have "no daily limit": mochiDaily == mochiMonthly, so the
+  // daily sub-cap can never bind before the monthly cap. The monthly cap
+  // still bounds total cost; top-ups then go uncapped (pay as you go).
   premium: {
     mochiMonthly: 250,
-    mochiDaily: 30,
+    mochiDaily: 250,
     topUps: true,
     themes: true,
     aiPlanning: false,
   },
   max: {
     mochiMonthly: 750,
-    mochiDaily: 60,
+    mochiDaily: 750,
     topUps: true,
     themes: true,
     aiPlanning: true,

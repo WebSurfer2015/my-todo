@@ -21,8 +21,8 @@ import {
 import {
   FREE_ENTITLEMENT,
   TIER_LIMITS,
+  canSendMochiRequest,
   effectiveTier,
-  mochiMonthlyBudget,
   type Entitlement,
   type Tier,
 } from '../core-bindings/entitlements'
@@ -41,10 +41,15 @@ import PaywallSheet from '../features/membership/PaywallSheet'
 interface PurchasesValue {
   tier: Tier
   entitlement: Entitlement
-  /** Mochi requests left this month (tier allowance + top-ups), or null
-   * until the usage doc loads. */
+  /** Base allowance left in the current period (the day for Free, the
+   * month for paid) — null until the usage doc loads. Beyond this it's
+   * pay as you go. */
   mochiRemaining: number | null
-  mochiBudget: number
+  /** Which period `mochiRemaining` counts. */
+  mochiPeriod: 'today' | 'month'
+  /** Whether one more request is allowed right now (base allowance OR a
+   * top-up balance). */
+  canSendMochi: boolean
   offering: PurchasesOffering | null
   purchasesEnabled: boolean
   purchase: (pkg: PurchasesPackage) => Promise<boolean>
@@ -71,6 +76,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
   const uid = user?.uid ?? null
   const [entitlement, setEntitlement] = useState<Entitlement>(FREE_ENTITLEMENT)
   const [monthUsed, setMonthUsed] = useState<number | null>(null)
+  const [dayUsed, setDayUsed] = useState<number>(0)
   const [offering, setOffering] = useState<PurchasesOffering | null>(null)
   const [paywall, setPaywall] = useState<{ open: boolean; reason?: string }>({ open: false })
 
@@ -133,11 +139,22 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
     return onSnapshot(
       ref,
       (snap) => {
-        const data = parseEnvelope<{ month?: string; monthCalls?: number }>(snap.data())
-        const month = new Date().toISOString().slice(0, 7)
+        const data = parseEnvelope<{
+          month?: string
+          monthCalls?: number
+          date?: string
+          dayCalls?: number
+        }>(snap.data())
+        const now = new Date()
+        const month = now.toISOString().slice(0, 7)
+        const today = now.toISOString().slice(0, 10)
         setMonthUsed(data && data.month === month ? Math.max(0, data.monthCalls ?? 0) : 0)
+        setDayUsed(data && data.date === today ? Math.max(0, data.dayCalls ?? 0) : 0)
       },
-      () => setMonthUsed(0),
+      () => {
+        setMonthUsed(0)
+        setDayUsed(0)
+      },
     )
   }, [uid])
 
@@ -145,8 +162,19 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
     () => effectiveTier(entitlement, new Date().toISOString()),
     [entitlement],
   )
-  const mochiBudget = mochiMonthlyBudget(tier, entitlement.topUpBalance)
-  const mochiRemaining = monthUsed == null ? null : Math.max(0, mochiBudget - monthUsed)
+  // Period-appropriate base allowance: Free is gated per-day, paid per-month.
+  const limits = TIER_LIMITS[tier]
+  const mochiPeriod: 'today' | 'month' = tier === 'free' ? 'today' : 'month'
+  const mochiRemaining =
+    monthUsed == null
+      ? null
+      : tier === 'free'
+        ? Math.max(0, limits.mochiDaily - dayUsed)
+        : Math.max(0, limits.mochiMonthly - monthUsed)
+  const canSendMochi =
+    monthUsed == null
+      ? true
+      : canSendMochiRequest(tier, { dayUsed, monthUsed }, entitlement.topUpBalance)
 
   const purchase = useCallback(async (pkg: PurchasesPackage): Promise<boolean> => {
     const info = await rcPurchase(pkg)
@@ -165,7 +193,8 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       tier,
       entitlement,
       mochiRemaining,
-      mochiBudget,
+      mochiPeriod,
+      canSendMochi,
       offering,
       purchasesEnabled: isPurchasesEnabled(),
       purchase,
@@ -173,7 +202,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       openPaywall,
       closePaywall,
     }),
-    [tier, entitlement, mochiRemaining, mochiBudget, offering, purchase, restore, openPaywall, closePaywall],
+    [tier, entitlement, mochiRemaining, mochiPeriod, canSendMochi, offering, purchase, restore, openPaywall, closePaywall],
   )
 
   return (

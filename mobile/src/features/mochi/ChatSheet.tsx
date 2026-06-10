@@ -81,7 +81,7 @@ export default function ChatSheet({
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
   const { send, reset, isThinking, messages, error } = useMochiAgent()
-  const { mochiRemaining, openPaywall } = usePurchases()
+  const { mochiRemaining, mochiPeriod, canSendMochi, openPaywall } = usePurchases()
   const [input, setInput] = useState('')
   // Per-proposal resolution so a confirmed/declined turn swaps its action
   // row for a quiet footer. Keyed by message index (append-only, stable).
@@ -104,8 +104,9 @@ export default function ChatSheet({
   function handleSend(raw: string = input) {
     const turn = raw.trim()
     if (!turn || isThinking) return
-    // Out of Mochi requests → open the paywall instead of spending a call.
-    if (mochiRemaining === 0) {
+    // Out of Mochi requests (base allowance + no top-ups) → open the paywall
+    // instead of spending a call.
+    if (!canSendMochi) {
       openPaywall("You're out of Mochi requests for now.")
       return
     }
@@ -278,14 +279,16 @@ export default function ChatSheet({
 
             {mochiRemaining != null && (
               <TouchableOpacity
-                onPress={() => mochiRemaining === 0 && openPaywall()}
-                disabled={mochiRemaining > 0}
+                onPress={() => !canSendMochi && openPaywall()}
+                disabled={canSendMochi}
                 activeOpacity={0.7}
               >
                 <Text style={styles.meter}>
-                  {mochiRemaining > 0
-                    ? `${mochiRemaining} Mochi requests left`
-                    : 'Out of Mochi requests — tap to upgrade'}
+                  {!canSendMochi
+                    ? 'Out of Mochi requests — tap to upgrade'
+                    : mochiRemaining > 0
+                      ? `${mochiRemaining} Mochi requests left ${mochiPeriod === 'today' ? 'today' : 'this month'}`
+                      : 'Allowance used — now pay as you go'}
                 </Text>
               </TouchableOpacity>
             )}

@@ -32,14 +32,14 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
   },
   premium: {
     mochiMonthly: 250,
-    mochiDaily: 30,
+    mochiDaily: 250,
     topUps: true,
     themes: true,
     aiPlanning: false,
   },
   max: {
     mochiMonthly: 750,
-    mochiDaily: 60,
+    mochiDaily: 750,
     topUps: true,
     themes: true,
     aiPlanning: true,
