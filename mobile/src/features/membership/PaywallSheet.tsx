@@ -50,7 +50,7 @@ const PLANS: PlanView[] = [
       'Everything in Free',
       'No daily limit',
       `${TIER_LIMITS.premium.mochiMonthly} Mochi AI requests / month, then pay as you go`,
-      'Premium features — theme-based UI',
+      'Premium features — theme-based UI, auto-defer',
     ],
     product: { monthly: PRODUCT_IDS.premiumMonthly, annual: PRODUCT_IDS.premiumAnnual },
     fallbackPrice: { monthly: '$2.99/mo', annual: '$19.99/yr' },
@@ -61,7 +61,7 @@ const PLANS: PlanView[] = [
     bullets: [
       'Everything in Premium',
       `${TIER_LIMITS.max.mochiMonthly} Mochi requests / month, then pay as you go`,
-      'Planning features — weekly planner, auto-defer, event planner with to-do generation',
+      'Planning features — weekly planner, event planner with to-do generation',
     ],
     product: { monthly: PRODUCT_IDS.maxMonthly, annual: PRODUCT_IDS.maxAnnual },
     fallbackPrice: { monthly: '$7.99/mo', annual: '$59.99/yr' },
