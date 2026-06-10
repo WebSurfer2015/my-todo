@@ -563,8 +563,8 @@ function makeStyles(c: ThemeColors) {
       paddingVertical: 9,
     },
     userBubbleText: { fontSize: 15, color: c.primaryOn, lineHeight: 21 },
-    mochiRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
-    // Small Mochi avatar (sparkle) beside each assistant bubble.
+    mochiRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+    // Small Mochi avatar (sparkle) beside each assistant bubble — top-aligned.
     mochiAvatar: {
       width: 26,
       height: 26,
@@ -572,7 +572,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.primarySoft,
       alignItems: 'center',
       justifyContent: 'center',
-      marginBottom: 2,
+      marginTop: 2,
     },
     mochiBubble: {
       maxWidth: '86%',
