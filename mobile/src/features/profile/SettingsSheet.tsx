@@ -29,6 +29,7 @@ import {
 } from "react-native";
 import { Profile } from "../../core-bindings/profile";
 import { useLang } from "../../app/LangContext";
+import { usePurchases } from "../../app/PurchasesContext";
 import { useTheme, ThemeColors } from "../../app/theme";
 import {
   DEFAULT_BACKGROUND,
@@ -97,6 +98,9 @@ export default function SettingsSheet({
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
+  const { tier, openPaywall } = usePurchases();
+  const membershipLabel =
+    tier === "premium" ? "Premium" : tier === "max" ? "Max" : "Free";
 
   const bgChoice = profile.background ?? DEFAULT_BACKGROUND;
   const bgPair = lookupPair(bgChoice.pairKey);
@@ -144,6 +148,25 @@ export default function SettingsSheet({
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
+              {/* MEMBERSHIP */}
+              <Text style={styles.sectionLabel}>MEMBERSHIP</Text>
+              <View style={styles.card}>
+                <TouchableOpacity
+                  style={styles.row}
+                  onPress={() => {
+                    onClose()
+                    setTimeout(() => openPaywall(), 280)
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.rowLabel}>Sagely Membership</Text>
+                  <Text style={styles.rowValue} numberOfLines={1}>
+                    {membershipLabel}
+                  </Text>
+                  <Text style={styles.rowChevron}>›</Text>
+                </TouchableOpacity>
+              </View>
+
               {/* APPEARANCE */}
               <Text style={styles.sectionLabel}>APPEARANCE</Text>
               <View style={styles.card}>

@@ -13,6 +13,7 @@ import {
 } from 'react-native'
 import { Sparkles, Bell } from 'lucide-react-native'
 import { useLang } from '../../app/LangContext'
+import { usePurchases } from '../../app/PurchasesContext'
 import { useTheme, ThemeColors } from '../../app/theme'
 import { useMochiAgent, type ProposedOperation } from './useMochiAgent'
 import { todayLocal } from '../../core-bindings/utils'
@@ -80,6 +81,7 @@ export default function ChatSheet({
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
   const { send, reset, isThinking, messages, error } = useMochiAgent()
+  const { mochiRemaining, openPaywall } = usePurchases()
   const [input, setInput] = useState('')
   // Per-proposal resolution so a confirmed/declined turn swaps its action
   // row for a quiet footer. Keyed by message index (append-only, stable).
@@ -102,6 +104,11 @@ export default function ChatSheet({
   function handleSend(raw: string = input) {
     const turn = raw.trim()
     if (!turn || isThinking) return
+    // Out of Mochi requests → open the paywall instead of spending a call.
+    if (mochiRemaining === 0) {
+      openPaywall("You're out of Mochi requests for now.")
+      return
+    }
     setInput('')
     send(turn, {
       today: todayLocal(),
@@ -268,6 +275,20 @@ export default function ChatSheet({
 
               {error && <Text style={styles.errorLine}>{error}</Text>}
             </ScrollView>
+
+            {mochiRemaining != null && (
+              <TouchableOpacity
+                onPress={() => mochiRemaining === 0 && openPaywall()}
+                disabled={mochiRemaining > 0}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.meter}>
+                  {mochiRemaining > 0
+                    ? `${mochiRemaining} Mochi requests left`
+                    : 'Out of Mochi requests — tap to upgrade'}
+                </Text>
+              </TouchableOpacity>
+            )}
 
             <View style={styles.inputRow}>
               <TextInput
@@ -654,6 +675,13 @@ function makeStyles(c: ThemeColors) {
     },
     btnPrimary: { backgroundColor: c.primary },
     btnPrimaryText: { color: c.primaryOn, fontSize: 15, fontWeight: '600' },
+    meter: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: c.label3,
+      textAlign: 'center',
+      paddingTop: 8,
+    },
     inputRow: {
       flexDirection: 'row',
       alignItems: 'flex-end',

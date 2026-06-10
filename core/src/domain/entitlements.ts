@@ -2,93 +2,93 @@
  * Monetization model — tiers, per-tier limits, and the pure gate helpers
  * the UI and server use to enforce them.
  *
- * Three tiers (one App Store subscription group + consumable top-ups):
- *   - basic  — free. Core capture, one one-shot reminder per task, a small
- *              taste of Mochi AI. Acquisition funnel.
- *   - pro    — $2.99/mo · $19.99/yr. Full reminders + recurring + 250 AI
- *              requests/mo + top-ups.
- *   - elite  — $7.99/mo · $59.99/yr. 600 AI requests/mo + themes.
+ * AI-led pricing: the productivity basics (reminders incl. recurring /
+ * before-due / multiple, and recurring tasks) are FREE on every tier — they
+ * cost us nothing and are table stakes for a calm to-do app. The tiers gate
+ * on what's actually differentiated and costly: Mochi AI allowance, plus a
+ * few power/cosmetic extras.
  *
- * This module is PURE (core has no platform deps): it owns the limits +
- * the gate functions. Enforcement splits by trust level —
- *   - Feature gates (reminders/recurring/themes): client-side, off the
- *     effective tier. They cost us nothing, so a bypass is low-stakes.
- *   - AI-request allowance: MUST be enforced server-side (it spends real
- *     Anthropic tokens). The Cloud Function mirrors TIER_LIMITS the same
- *     way agentTools.ts is mirrored — a parity test guards the copies.
+ *   - free    — all productivity features + a daily AI taste (3/day). The
+ *               daily reset builds the habit and the gentle "hit the wall"
+ *               upgrade moment.
+ *   - premium — $2.99/mo · $19.99/yr. A generous monthly AI pool + top-ups
+ *               + themes.
+ *   - max     — $7.99/mo · $59.99/yr ("Mochi Max"). Abundant AI + AI
+ *               superpowers (proactive weekly planning / review) + all
+ *               customization.
  *
- * The tier itself comes from validated StoreKit receipts (or RevenueCat);
- * `effectiveTier` downgrades to basic once a subscription lapses.
+ * PURE (core has no platform deps): owns the limits + gate functions.
+ * Enforcement splits by trust level —
+ *   - Cosmetic/feature gates (themes, AI-planning): client-side; a bypass
+ *     costs us nothing.
+ *   - AI-request allowance: MUST be server-enforced (it spends Anthropic
+ *     tokens). The Cloud Function mirrors TIER_LIMITS (parity test guards
+ *     the copies). Tier comes from validated StoreKit receipts via the
+ *     RevenueCat webhook; `effectiveTier` downgrades to free on lapse.
  */
 
-export type Tier = 'basic' | 'pro' | 'elite'
+export type Tier = 'free' | 'premium' | 'max'
 
-/** Ordered low → high so comparisons ("at least Pro") are index-based. */
-export const TIER_ORDER: readonly Tier[] = ['basic', 'pro', 'elite'] as const
-
-/** Reminder capability gate. basic gets a SINGLE one-shot reminder per
- * task; pro/elite unlock recurring reminders, before-due offsets, and
- * multiple reminders per task. */
-export type ReminderCapability = 'oneShot' | 'full'
+/** Ordered low → high so "at least premium" is an index comparison. */
+export const TIER_ORDER: readonly Tier[] = ['free', 'premium', 'max'] as const
 
 export interface TierLimits {
   /** Monthly Mochi-request (one message = one turn) allowance. */
   mochiMonthly: number
-  /** Per-day sub-cap — anti-blowout so a single day can't burn the month. */
+  /** Per-day sub-cap. For free this is the binding constraint (the daily
+   * taste); for paid it's anti-blowout. */
   mochiDaily: number
-  reminders: ReminderCapability
-  recurring: boolean
   /** Whether consumable AI top-up packs can be purchased + applied. */
   topUps: boolean
+  /** Themes / icon customization — premium and up. */
   themes: boolean
+  /** AI superpowers (proactive weekly planning, "review my week", bulk AI
+   * edits) — max only. The headline reason Max exists. */
+  aiPlanning: boolean
 }
 
 /**
- * The source of truth for what each tier gets. Allowances are sized so
- * that even a user who burns 100% of the quota on the deepest-discounted
- * annual plan still nets positive after Apple's cut (see pricing model):
- * at ~$0.005/request, pro maxes at ~$1.25 vs ~$1.42/mo net, elite at
- * ~$3.00 vs ~$4.25/mo net. AI cost can never exceed revenue.
+ * Source of truth for what each tier gets. Allowances are sized so worst-
+ * case AI spend stays below post-Apple revenue even on the deepest annual
+ * discount (at ~$0.005/request): premium maxes at ~$1.25 vs ~$1.42/mo net,
+ * max at ~$3.75 vs ~$4.25/mo net; free maxes at ~$0.45/mo (acquisition
+ * cost). AI cost can never exceed revenue.
  *
  * KEEP IN SYNC with the server mirror (web/functions/src/entitlements.ts).
  */
 export const TIER_LIMITS: Record<Tier, TierLimits> = {
-  basic: {
-    mochiMonthly: 25,
+  free: {
+    mochiMonthly: 90,
     mochiDaily: 3,
-    reminders: 'oneShot',
-    recurring: false,
     topUps: false,
     themes: false,
+    aiPlanning: false,
   },
-  pro: {
+  premium: {
     mochiMonthly: 250,
     mochiDaily: 30,
-    reminders: 'full',
-    recurring: true,
-    topUps: true,
-    themes: false,
-  },
-  elite: {
-    mochiMonthly: 600,
-    mochiDaily: 60,
-    reminders: 'full',
-    recurring: true,
     topUps: true,
     themes: true,
+    aiPlanning: false,
+  },
+  max: {
+    mochiMonthly: 750,
+    mochiDaily: 60,
+    topUps: true,
+    themes: true,
+    aiPlanning: true,
   },
 }
 
 /**
  * App Store Connect product identifiers. Auto-renewable subs live in ONE
- * subscription group ("Sagely Membership") so up/downgrades are clean;
- * top-ups are consumables. Mirror these exactly in ASC.
+ * subscription group ("Sagely Membership"); top-ups are consumables.
  */
 export const PRODUCT_IDS = {
-  proMonthly: 'com.websurfer.mytodo.pro.monthly',
-  proAnnual: 'com.websurfer.mytodo.pro.annual',
-  eliteMonthly: 'com.websurfer.mytodo.elite.monthly',
-  eliteAnnual: 'com.websurfer.mytodo.elite.annual',
+  premiumMonthly: 'com.websurfer.mytodo.premium.monthly',
+  premiumAnnual: 'com.websurfer.mytodo.premium.annual',
+  maxMonthly: 'com.websurfer.mytodo.max.monthly',
+  maxAnnual: 'com.websurfer.mytodo.max.annual',
   topup150: 'com.websurfer.mytodo.topup.150',
   topup500: 'com.websurfer.mytodo.topup.500',
 } as const
@@ -103,38 +103,37 @@ export const TOPUP_GRANTS: Record<string, number> = {
 
 /** Map a purchased subscription product to the tier it grants. */
 export function tierForProduct(productId: string): Tier | null {
-  if (productId === PRODUCT_IDS.proMonthly || productId === PRODUCT_IDS.proAnnual) return 'pro'
-  if (productId === PRODUCT_IDS.eliteMonthly || productId === PRODUCT_IDS.eliteAnnual) return 'elite'
+  if (productId === PRODUCT_IDS.premiumMonthly || productId === PRODUCT_IDS.premiumAnnual) {
+    return 'premium'
+  }
+  if (productId === PRODUCT_IDS.maxMonthly || productId === PRODUCT_IDS.maxAnnual) return 'max'
   return null
 }
 
 /**
- * The user's current entitlement, persisted alongside profile + synced to
- * the server (which re-derives it from the receipt — never trust the
- * client for the AI allowance).
+ * The user's current entitlement, written by the RevenueCat webhook and
+ * read (never written) by the client.
  */
 export interface Entitlement {
   tier: Tier
-  /** ISO datetime the paid tier is valid through; null for basic (free,
-   * never expires). */
+  /** ISO datetime the paid tier is valid through; null for free. */
   validUntil: string | null
-  /** Remaining consumable top-up requests (carry over month to month). */
+  /** Remaining consumable top-up requests (carry month to month). */
   topUpBalance: number
 }
 
 export const FREE_ENTITLEMENT: Entitlement = {
-  tier: 'basic',
+  tier: 'free',
   validUntil: null,
   topUpBalance: 0,
 }
 
-/** The effective tier right now: paid tiers fall back to basic once the
- * subscription has lapsed. `now` is passed in (core never reads the clock
- * itself) — yyyy-mm-ddThh:mm or any Date-parseable ISO string. */
+/** The effective tier right now: paid tiers fall back to free once the
+ * subscription has lapsed. `now` is passed in (core never reads the clock). */
 export function effectiveTier(ent: Entitlement, now: string): Tier {
-  if (ent.tier === 'basic') return 'basic'
-  if (!ent.validUntil) return 'basic'
-  return Date.parse(ent.validUntil) > Date.parse(now) ? ent.tier : 'basic'
+  if (ent.tier === 'free') return 'free'
+  if (!ent.validUntil) return 'free'
+  return Date.parse(ent.validUntil) > Date.parse(now) ? ent.tier : 'free'
 }
 
 export function tierAtLeast(tier: Tier, min: Tier): boolean {
@@ -142,33 +141,20 @@ export function tierAtLeast(tier: Tier, min: Tier): boolean {
 }
 
 // ─── Feature gates (client-enforced; cost us nothing) ──────────────────
+// Reminders + recurring tasks are intentionally NOT gated — they're free
+// on every tier.
 
-export function reminderCapability(tier: Tier): ReminderCapability {
-  return TIER_LIMITS[tier].reminders
+export function canUseThemes(tier: Tier): boolean {
+  return TIER_LIMITS[tier].themes
 }
 
-/** basic allows exactly ONE one-shot reminder per task; pro/elite are
- * unbounded. `existingCount` is how many reminders the task already has. */
-export function canAddReminder(tier: Tier, existingCount: number): boolean {
-  return TIER_LIMITS[tier].reminders === 'full' || existingCount < 1
-}
-
-/** Recurring reminders (offsets / intervals) are pro+. */
-export function canUseRecurringReminder(tier: Tier): boolean {
-  return TIER_LIMITS[tier].reminders === 'full'
-}
-
-/** Recurring TASKS are pro+. */
-export function canUseRecurringTask(tier: Tier): boolean {
-  return TIER_LIMITS[tier].recurring
+/** Max-only AI superpowers. */
+export function canUseAiPlanning(tier: Tier): boolean {
+  return TIER_LIMITS[tier].aiPlanning
 }
 
 export function canBuyTopUp(tier: Tier): boolean {
   return TIER_LIMITS[tier].topUps
-}
-
-export function canUseThemes(tier: Tier): boolean {
-  return TIER_LIMITS[tier].themes
 }
 
 // ─── AI allowance accounting (model only; ENFORCE server-side) ─────────
@@ -196,8 +182,7 @@ export function mochiRemaining(
 }
 
 /** Whether the user may send one more Mochi request right now: under both
- * the monthly budget (incl. top-ups) AND the per-day sub-cap. This is the
- * predicate the server's reserve step checks before spending tokens. */
+ * the monthly budget (incl. top-ups) AND the per-day sub-cap. */
 export function canSendMochiRequest(
   tier: Tier,
   usage: MochiUsage,

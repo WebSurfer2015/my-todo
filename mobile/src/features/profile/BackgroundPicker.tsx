@@ -34,6 +34,8 @@ import {
 import { renderPattern } from '../../ui/backgroundPatterns'
 import { useTheme, ThemeColors } from '../../app/theme'
 import type { BackgroundChoice } from '../../core-bindings/profile'
+import { usePurchases } from '../../app/PurchasesContext'
+import { canUseThemes } from '../../core-bindings/entitlements'
 
 const TILE_W = 168
 const TILE_H = 200
@@ -48,8 +50,18 @@ interface Props {
 export default function BackgroundPicker({ visible, value, onChange, onClose }: Props) {
   const theme = useTheme()
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light'
+  const { tier, openPaywall } = usePurchases()
+  const themesLocked = !canUseThemes(tier)
 
   const resolved: BackgroundChoice = value ?? DEFAULT_BACKGROUND
+
+  const pick = (choice: BackgroundChoice) => {
+    if (themesLocked) {
+      openPaywall('Themes are a Premium feature.')
+      return
+    }
+    onChange(choice)
+  }
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -60,6 +72,17 @@ export default function BackgroundPicker({ visible, value, onChange, onClose }: 
             <Text style={[styles.close, { color: theme.primary }]}>Done</Text>
           </TouchableOpacity>
         </View>
+        {themesLocked && (
+          <TouchableOpacity
+            onPress={() => openPaywall('Themes are a Premium feature.')}
+            activeOpacity={0.8}
+            style={[styles.lockBanner, { backgroundColor: theme.primarySoft }]}
+          >
+            <Text style={[styles.lockText, { color: theme.primary }]}>
+              🔒 Themes are a Premium feature — tap to unlock
+            </Text>
+          </TouchableOpacity>
+        )}
         <ScrollView
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
@@ -85,9 +108,7 @@ export default function BackgroundPicker({ visible, value, onChange, onClose }: 
                       scheme={scheme}
                       selected={selected}
                       theme={theme}
-                      onPress={() =>
-                        onChange({ pattern: p.key, pairKey: pair.key })
-                      }
+                      onPress={() => pick({ pattern: p.key, pairKey: pair.key })}
                     />
                   )
                 })}
@@ -170,6 +191,15 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 22, fontWeight: '700' },
   close: { fontSize: 17, fontWeight: '600' },
+  lockBanner: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  lockText: { fontSize: 13, fontWeight: '600' },
   scroll: { paddingBottom: 24 },
   section: { marginBottom: 22 },
   sectionLabel: {

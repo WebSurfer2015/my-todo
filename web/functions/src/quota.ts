@@ -140,7 +140,7 @@ function parseEntitlement(raw: unknown): Entitlement {
     topUpBalance?: unknown
   }
   const safeTier: Tier =
-    tier === 'pro' || tier === 'elite' || tier === 'basic' ? tier : 'basic'
+    tier === 'premium' || tier === 'max' || tier === 'free' ? tier : 'free'
   return {
     tier: safeTier,
     validUntil: typeof validUntil === 'string' ? validUntil : null,
@@ -207,15 +207,17 @@ export async function reserveMochiRequest(uid: string): Promise<void> {
       if (dayCalls >= limits.mochiDaily) {
         throw new HttpsError(
           'resource-exhausted',
-          `Daily Mochi limit reached (${limits.mochiDaily} per day on the ${tier} plan). It resets after midnight UTC.`,
+          tier === 'free'
+            ? `That's your ${limits.mochiDaily} free Mochi requests for today. They reset tomorrow, or upgrade for more.`
+            : `Daily Mochi limit reached (${limits.mochiDaily}/day). It resets after midnight UTC.`,
         )
       }
       const budget = mochiMonthlyBudget(tier, ent.topUpBalance)
       if (monthCalls >= budget) {
         throw new HttpsError(
           'resource-exhausted',
-          tier === 'basic'
-            ? `You've used your ${limits.mochiMonthly} free Mochi requests this month. Upgrade for more.`
+          tier === 'free'
+            ? `You've used your free Mochi requests this month. Upgrade for more.`
             : `Monthly Mochi allowance reached. Add a top-up or wait for next month.`,
         )
       }

@@ -48,9 +48,9 @@ function parseEntitlement(raw: unknown): Entitlement {
     if (!data) return FREE_ENTITLEMENT
     return {
       tier:
-        data.tier === 'pro' || data.tier === 'elite' || data.tier === 'basic'
+        data.tier === 'premium' || data.tier === 'max' || data.tier === 'free'
           ? data.tier
-          : 'basic',
+          : 'free',
       validUntil: typeof data.validUntil === 'string' ? data.validUntil : null,
       topUpBalance:
         typeof data.topUpBalance === 'number' && Number.isFinite(data.topUpBalance)
@@ -118,8 +118,8 @@ export const revenuecatWebhook = onRequest(
             return
           }
           case 'EXPIRATION': {
-            // Subscription lapsed — drop to basic, keep any top-up balance.
-            tx.set(ref, writeEnvelope({ ...current, tier: 'basic', validUntil: null }))
+            // Subscription lapsed — drop to free, keep any top-up balance.
+            tx.set(ref, writeEnvelope({ ...current, tier: 'free', validUntil: null }))
             return
           }
           // CANCELLATION = auto-renew off but still valid until expiry;

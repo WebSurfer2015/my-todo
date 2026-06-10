@@ -15,16 +15,16 @@
  *     catches up within seconds and remains authoritative.
  *
  * Fully GUARDED: with no API key configured (extra.revenueCatIosKey), every
- * call is an inert no-op and tier stays 'basic', so the app runs unchanged
+ * call is an inert no-op and tier stays 'free', so the app runs unchanged
  * until you wire RevenueCat + rebuild the dev client. RC entitlement
- * identifiers expected in the dashboard: "pro" and "elite".
+ * identifiers expected in the dashboard: "premium" and "max".
  */
 
 import Constants from 'expo-constants'
-import Purchases, {
-  type CustomerInfo,
-  type PurchasesOffering,
-  type PurchasesPackage,
+import type {
+  CustomerInfo,
+  PurchasesOffering,
+  PurchasesPackage,
 } from 'react-native-purchases'
 import type { Tier } from '../core-bindings/entitlements'
 
@@ -36,6 +36,15 @@ export function isPurchasesEnabled(): boolean {
   return API_KEY.length > 0
 }
 
+// Lazy runtime handle. The static `import Purchases from 'react-native-
+// purchases'` instantiates a NativeEventEmitter at module load and CRASHES
+// if the native module isn't linked (e.g. a JS-only reload before an EAS
+// rebuild). We only require() it once enabled — and every caller below is
+// guarded by isPurchasesEnabled(), so on a key-less build it's never loaded.
+function rc(): typeof import('react-native-purchases').default {
+  return require('react-native-purchases').default
+}
+
 let configured = false
 
 /** Configure RC once + identify the user. Safe to call repeatedly. No-op
@@ -44,10 +53,10 @@ export async function configurePurchases(uid: string): Promise<void> {
   if (!isPurchasesEnabled()) return
   try {
     if (!configured) {
-      Purchases.configure({ apiKey: API_KEY, appUserID: uid })
+      rc().configure({ apiKey: API_KEY, appUserID: uid })
       configured = true
     } else {
-      await Purchases.logIn(uid)
+      await rc().logIn(uid)
     }
   } catch (err) {
     console.warn('configurePurchases failed', err)
@@ -59,7 +68,7 @@ export async function configurePurchases(uid: string): Promise<void> {
 export async function fetchCurrentOffering(): Promise<PurchasesOffering | null> {
   if (!isPurchasesEnabled()) return null
   try {
-    const offerings = await Purchases.getOfferings()
+    const offerings = await rc().getOfferings()
     return offerings.current ?? null
   } catch (err) {
     console.warn('fetchCurrentOffering failed', err)
@@ -74,7 +83,7 @@ export async function purchasePackage(
 ): Promise<CustomerInfo | null> {
   if (!isPurchasesEnabled()) return null
   try {
-    const { customerInfo } = await Purchases.purchasePackage(pkg)
+    const { customerInfo } = await rc().purchasePackage(pkg)
     return customerInfo
   } catch (err) {
     // RC throws with userCancelled=true when the user backs out — not an error.
@@ -88,7 +97,7 @@ export async function purchasePackage(
 export async function restorePurchases(): Promise<CustomerInfo | null> {
   if (!isPurchasesEnabled()) return null
   try {
-    return await Purchases.restorePurchases()
+    return await rc().restorePurchases()
   } catch (err) {
     console.warn('restorePurchases failed', err)
     return null
@@ -98,7 +107,7 @@ export async function restorePurchases(): Promise<CustomerInfo | null> {
 export async function currentCustomerInfo(): Promise<CustomerInfo | null> {
   if (!isPurchasesEnabled()) return null
   try {
-    return await Purchases.getCustomerInfo()
+    return await rc().getCustomerInfo()
   } catch (err) {
     console.warn('getCustomerInfo failed', err)
     return null
@@ -109,8 +118,8 @@ export async function currentCustomerInfo(): Promise<CustomerInfo | null> {
  * an unsubscribe fn. No-op when disabled. */
 export function onCustomerInfoChange(cb: (info: CustomerInfo) => void): () => void {
   if (!isPurchasesEnabled()) return () => {}
-  Purchases.addCustomerInfoUpdateListener(cb)
-  return () => Purchases.removeCustomerInfoUpdateListener(cb)
+  rc().addCustomerInfoUpdateListener(cb)
+  return () => rc().removeCustomerInfoUpdateListener(cb)
 }
 
 /** Map RC CustomerInfo → effective Tier for instant UI. Elite wins over Pro.
@@ -118,7 +127,7 @@ export function onCustomerInfoChange(cb: (info: CustomerInfo) => void): () => vo
  * the Firestore entitlement doc written by the webhook.) */
 export function tierFromCustomerInfo(info: CustomerInfo | null): Tier {
   const active = info?.entitlements.active ?? {}
-  if (active['elite']) return 'elite'
-  if (active['pro']) return 'pro'
-  return 'basic'
+  if (active['max']) return 'max'
+  if (active['premium']) return 'premium'
+  return 'free'
 }
