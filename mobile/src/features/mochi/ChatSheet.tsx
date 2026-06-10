@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import { Sparkles } from 'lucide-react-native'
+import { Sparkles, Bell } from 'lucide-react-native'
 import { useLang } from '../../app/LangContext'
 import { useTheme, ThemeColors } from '../../app/theme'
 import { useMochiAgent, type ProposedOperation } from './useMochiAgent'
@@ -91,9 +91,9 @@ export default function ChatSheet({
     return () => clearTimeout(id)
   }, [messages, isThinking])
 
-  function handleSend() {
-    const turn = input.trim()
-    if (!turn) return
+  function handleSend(raw: string = input) {
+    const turn = raw.trim()
+    if (!turn || isThinking) return
     setInput('')
     send(turn, {
       today: todayLocal(),
@@ -108,12 +108,6 @@ export default function ChatSheet({
   function handleConfirm(index: number, ops: ProposedOperation[]) {
     for (const op of ops) onApplyOperation(op)
     setResolved((prev) => ({ ...prev, [index]: 'applied' }))
-  }
-
-  // "Try again" — drop this proposal's action row and let the user restate.
-  function handleReject(index: number) {
-    setResolved((prev) => ({ ...prev, [index]: 'declined' }))
-    inputRef.current?.focus()
   }
 
   function close() {
@@ -214,6 +208,9 @@ export default function ChatSheet({
                   </View>
                 ) : (
                   <View key={i} style={styles.mochiRow}>
+                    <View style={styles.mochiAvatar}>
+                      <Sparkles size={14} color={theme.primary} strokeWidth={2.2} />
+                    </View>
                     <View style={styles.mochiBubble}>
                       {!!m.content && <Text style={styles.mochiLine}>{m.content}</Text>}
                       {m.operations?.map((op, j) => (
@@ -224,22 +221,15 @@ export default function ChatSheet({
                             todoTextLookup={todoTextLookup}
                             groupLabelLookup={groupLookup}
                             styles={styles}
+                            theme={theme}
                           />
                         </View>
                       ))}
                       {m.operations && m.operations.length > 0 && (
                         resolved[i] === 'applied' ? (
                           <Text style={styles.appliedNote}>✓ Done</Text>
-                        ) : resolved[i] === 'declined' ? (
-                          <Text style={styles.appliedNote}>Okay — tell me what to change.</Text>
                         ) : m.awaitingConfirmation ? (
                           <View style={styles.actionsRow}>
-                            <TouchableOpacity
-                              style={[styles.btn, styles.btnSecondary]}
-                              onPress={() => handleReject(i)}
-                            >
-                              <Text style={styles.btnSecondaryText}>Try again</Text>
-                            </TouchableOpacity>
                             <TouchableOpacity
                               style={[styles.btn, styles.btnPrimary]}
                               onPress={() => handleConfirm(i, m.operations!)}
@@ -256,6 +246,9 @@ export default function ChatSheet({
 
               {isThinking && (
                 <View style={styles.mochiRow}>
+                  <View style={styles.mochiAvatar}>
+                    <Sparkles size={14} color={theme.primary} strokeWidth={2.2} />
+                  </View>
                   <View style={styles.mochiBubble}>
                     <Text style={styles.mochiLine}>Mochi's thinking…</Text>
                   </View>
@@ -272,16 +265,22 @@ export default function ChatSheet({
                 placeholder="Message Mochi…"
                 placeholderTextColor={theme.gray3}
                 value={input}
-                onChangeText={setInput}
+                // Multiline so long input WRAPS, but a Return submits like
+                // the send action: the soft/hardware Enter appends "\n",
+                // which we intercept here and send instead of inserting a
+                // newline. (onSubmitEditing never fires for multiline.)
+                onChangeText={(text) => {
+                  if (text.endsWith('\n')) handleSend(text.replace(/\n+$/, ''))
+                  else setInput(text)
+                }}
                 multiline
                 maxLength={2000}
-                onSubmitEditing={handleSend}
                 blurOnSubmit={false}
                 editable={!isThinking}
               />
               <TouchableOpacity
                 style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
-                onPress={handleSend}
+                onPress={() => handleSend()}
                 disabled={!input.trim() || isThinking}
                 accessibilityRole="button"
                 accessibilityLabel="Send"
@@ -301,13 +300,17 @@ export default function ChatSheet({
  * flex-row child on iOS. */
 function Chip({
   children,
+  icon,
   styles,
 }: {
   children: React.ReactNode
+  /** Optional leading icon (e.g. a Bell for reminders). */
+  icon?: React.ReactNode
   styles: ReturnType<typeof makeStyles>
 }) {
   return (
     <View style={styles.chip}>
+      {icon}
       <Text style={styles.chipText}>{children}</Text>
     </View>
   )
@@ -321,13 +324,17 @@ function OperationPreview({
   todoTextLookup,
   groupLabelLookup,
   styles,
+  theme,
 }: {
   op: ProposedOperation
   categoryLabelLookup: (id: string) => string
   todoTextLookup: (id: string) => string
   groupLabelLookup: (id: string) => string
   styles: ReturnType<typeof makeStyles>
+  theme: ThemeColors
 }) {
+  const reminderIcon = <Bell size={12} color={theme.primary} strokeWidth={2.4} />
+  const reminderText = (at: string) => at.replace('T', ' ')
   if (op.kind === 'createTodo') {
     const a = op.args
     return (
@@ -349,10 +356,12 @@ function OperationPreview({
           )}
           {a.reminders && a.reminders.length > 0 ? (
             a.reminders.map((r, i) => (
-              <Chip key={i} styles={styles}>⏰ {r.at.replace('T', ' ')}</Chip>
+              <Chip key={i} styles={styles} icon={reminderIcon}>
+                {reminderText(r.at)}
+              </Chip>
             ))
           ) : (
-            <Chip styles={styles}>No reminder</Chip>
+            <Chip styles={styles} icon={reminderIcon}>No reminder</Chip>
           )}
         </View>
         {a.notes && <Text style={styles.proposalNotes}>{a.notes}</Text>}
@@ -364,7 +373,7 @@ function OperationPreview({
     const a = op.args
     return (
       <View>
-        <Text style={styles.proposalKind}>Edit</Text>
+        <Text style={styles.proposalKind}>Edit todo</Text>
         <Text style={styles.proposalTitle}>{todoTextLookup(a.todoId)}</Text>
         <View style={styles.proposalMeta}>
           {a.text && <Chip styles={styles}>Rename: {a.text}</Chip>}
@@ -375,7 +384,9 @@ function OperationPreview({
             <Chip styles={styles}>{recurrenceLabel(a.recurrence)}</Chip>
           )}
           {a.reminders?.map((r, i) => (
-            <Chip key={i} styles={styles}>⏰ {r.at.replace('T', ' ')}</Chip>
+            <Chip key={i} styles={styles} icon={reminderIcon}>
+              {reminderText(r.at)}
+            </Chip>
           ))}
         </View>
         {a.notes && <Text style={styles.proposalNotes}>{a.notes}</Text>}
@@ -552,9 +563,19 @@ function makeStyles(c: ThemeColors) {
       paddingVertical: 9,
     },
     userBubbleText: { fontSize: 15, color: c.primaryOn, lineHeight: 21 },
-    mochiRow: { alignItems: 'flex-start' },
+    mochiRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
+    // Small Mochi avatar (sparkle) beside each assistant bubble.
+    mochiAvatar: {
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      backgroundColor: c.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 2,
+    },
     mochiBubble: {
-      maxWidth: '92%',
+      maxWidth: '86%',
       backgroundColor: c.card,
       borderRadius: 16,
       borderBottomLeftRadius: 4,
@@ -583,6 +604,9 @@ function makeStyles(c: ThemeColors) {
     proposalTitle: { fontSize: 17, fontWeight: '600', color: c.label },
     proposalMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 },
     chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
       paddingHorizontal: 10,
       paddingVertical: 5,
       borderRadius: 999,
@@ -603,12 +627,6 @@ function makeStyles(c: ThemeColors) {
     },
     btnPrimary: { backgroundColor: c.primary },
     btnPrimaryText: { color: c.primaryOn, fontSize: 15, fontWeight: '600' },
-    btnSecondary: {
-      backgroundColor: c.bg,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: c.border,
-    },
-    btnSecondaryText: { color: c.label2, fontSize: 15, fontWeight: '500' },
     inputRow: {
       flexDirection: 'row',
       alignItems: 'flex-end',
