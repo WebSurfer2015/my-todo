@@ -218,7 +218,7 @@ export async function reserveMochiRequest(uid: string): Promise<void> {
           'resource-exhausted',
           tier === 'free'
             ? `You've used your free Mochi requests this month. Upgrade for more.`
-            : `Monthly Mochi allowance reached. Add a top-up or wait for next month.`,
+            : `Monthly Mochi allowance reached. Pay as you go, or wait for next month.`,
         )
       }
 

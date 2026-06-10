@@ -38,7 +38,7 @@ const PLANS: PlanView[] = [
     name: 'Premium',
     bullets: [
       `${TIER_LIMITS.premium.mochiMonthly} Mochi AI requests / month`,
-      'No daily limit · top-up packs',
+      'No daily limit · pay as you go',
       'Themes & icons',
     ],
     product: { monthly: PRODUCT_IDS.premiumMonthly, annual: PRODUCT_IDS.premiumAnnual },
@@ -179,7 +179,7 @@ export default function PaywallSheet({
               </TouchableOpacity>
               <Text style={styles.fine}>
                 Subscriptions renew automatically until cancelled. Manage in your App
-                Store account. Top-up packs are available when your Mochi allowance runs out.
+                Store account. Pay-as-you-go requests are available when your Mochi allowance runs out.
               </Text>
             </ScrollView>
           </View>
