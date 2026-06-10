@@ -296,6 +296,23 @@ export default function ChatSheet({
   )
 }
 
+/** A field pill. Must be a <View> wrapping a <Text> — a <Text> styled as a
+ * pill (background + padding + overflow:hidden) collapses to zero size as a
+ * flex-row child on iOS. */
+function Chip({
+  children,
+  styles,
+}: {
+  children: React.ReactNode
+  styles: ReturnType<typeof makeStyles>
+}) {
+  return (
+    <View style={styles.chip}>
+      <Text style={styles.chipText}>{children}</Text>
+    </View>
+  )
+}
+
 /** Renders a confirm-preview for any proposed operation, so the user sees
  * exactly what Mochi will do before tapping Confirm. */
 function OperationPreview({
@@ -317,18 +334,26 @@ function OperationPreview({
       <View>
         <Text style={styles.proposalKind}>New to-do</Text>
         <Text style={styles.proposalTitle}>{a.text}</Text>
+        {/* Always surface the parsed fields (incl. defaults) so the user
+            sees exactly what will be set before confirming. */}
         <View style={styles.proposalMeta}>
-          {a.category && <Text style={styles.proposalChip}>{categoryLabelLookup(a.category)}</Text>}
-          {a.dueDate && <Text style={styles.proposalChip}>Completion by {a.dueDate}</Text>}
-          {a.priority && a.priority !== 'medium' && (
-            <Text style={styles.proposalChip}>Priority: {a.priority}</Text>
-          )}
+          <Chip styles={styles}>
+            {a.category ? categoryLabelLookup(a.category) : 'No category'}
+          </Chip>
+          <Chip styles={styles}>
+            {a.dueDate ? `Completion by ${a.dueDate}` : 'No due date'}
+          </Chip>
+          <Chip styles={styles}>Priority: {a.priority ?? 'medium'}</Chip>
           {recurrenceLabel(a.recurrence) && (
-            <Text style={styles.proposalChip}>{recurrenceLabel(a.recurrence)}</Text>
+            <Chip styles={styles}>{recurrenceLabel(a.recurrence)}</Chip>
           )}
-          {a.reminders?.map((r, i) => (
-            <Text key={i} style={styles.proposalChip}>⏰ {r.at.replace('T', ' ')}</Text>
-          ))}
+          {a.reminders && a.reminders.length > 0 ? (
+            a.reminders.map((r, i) => (
+              <Chip key={i} styles={styles}>⏰ {r.at.replace('T', ' ')}</Chip>
+            ))
+          ) : (
+            <Chip styles={styles}>No reminder</Chip>
+          )}
         </View>
         {a.notes && <Text style={styles.proposalNotes}>{a.notes}</Text>}
       </View>
@@ -342,15 +367,15 @@ function OperationPreview({
         <Text style={styles.proposalKind}>Edit</Text>
         <Text style={styles.proposalTitle}>{todoTextLookup(a.todoId)}</Text>
         <View style={styles.proposalMeta}>
-          {a.text && <Text style={styles.proposalChip}>Rename: {a.text}</Text>}
-          {a.category && <Text style={styles.proposalChip}>{categoryLabelLookup(a.category)}</Text>}
-          {a.dueDate && <Text style={styles.proposalChip}>Due {a.dueDate}</Text>}
-          {a.priority && <Text style={styles.proposalChip}>Priority: {a.priority}</Text>}
+          {a.text && <Chip styles={styles}>Rename: {a.text}</Chip>}
+          {a.category && <Chip styles={styles}>{categoryLabelLookup(a.category)}</Chip>}
+          {a.dueDate && <Chip styles={styles}>Due {a.dueDate}</Chip>}
+          {a.priority && <Chip styles={styles}>Priority: {a.priority}</Chip>}
           {recurrenceLabel(a.recurrence) && (
-            <Text style={styles.proposalChip}>{recurrenceLabel(a.recurrence)}</Text>
+            <Chip styles={styles}>{recurrenceLabel(a.recurrence)}</Chip>
           )}
           {a.reminders?.map((r, i) => (
-            <Text key={i} style={styles.proposalChip}>⏰ {r.at.replace('T', ' ')}</Text>
+            <Chip key={i} styles={styles}>⏰ {r.at.replace('T', ' ')}</Chip>
           ))}
         </View>
         {a.notes && <Text style={styles.proposalNotes}>{a.notes}</Text>}
@@ -400,9 +425,9 @@ function OperationPreview({
         <Text style={styles.proposalKind}>Add to shopping list</Text>
         <Text style={styles.proposalTitle}>{a.text}</Text>
         <View style={styles.proposalMeta}>
-          {a.groupId && <Text style={styles.proposalChip}>{groupLabelLookup(a.groupId)}</Text>}
+          {a.groupId && <Chip styles={styles}>{groupLabelLookup(a.groupId)}</Chip>}
           {a.stores?.map((s, i) => (
-            <Text key={i} style={styles.proposalChip}>🛒 {s}</Text>
+            <Chip key={i} styles={styles}>🛒 {s}</Chip>
           ))}
         </View>
       </View>
@@ -557,16 +582,13 @@ function makeStyles(c: ThemeColors) {
     },
     proposalTitle: { fontSize: 17, fontWeight: '600', color: c.label },
     proposalMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 },
-    proposalChip: {
-      fontSize: 13,
-      fontWeight: '600',
-      color: c.primary,
+    chip: {
       paddingHorizontal: 10,
       paddingVertical: 5,
       borderRadius: 999,
       backgroundColor: c.primarySoft,
-      overflow: 'hidden',
     },
+    chipText: { fontSize: 13, fontWeight: '600', color: c.primary },
     proposalNotes: { fontSize: 13, color: c.label3, fontStyle: 'italic' },
     swatchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     swatch: { width: 16, height: 16, borderRadius: 8 },
