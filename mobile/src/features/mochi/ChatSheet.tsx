@@ -16,6 +16,7 @@ import { useLang } from '../../app/LangContext'
 import { usePurchases } from '../../app/PurchasesContext'
 import { useTheme, ThemeColors } from '../../app/theme'
 import { useMochiAgent, type ProposedOperation } from './useMochiAgent'
+import MochiThinking from './MochiThinking'
 import { todayLocal } from '../../core-bindings/utils'
 import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 import { Analytics } from '../../adapters/analytics'
@@ -265,12 +266,7 @@ export default function ChatSheet({
 
               {isThinking && (
                 <View style={styles.mochiRow}>
-                  <View style={styles.mochiAvatar}>
-                    <Sparkles size={14} color={theme.primary} strokeWidth={2.2} />
-                  </View>
-                  <View style={styles.mochiBubble}>
-                    <Text style={styles.mochiLine}>Mochi's thinking…</Text>
-                  </View>
+                  <MochiThinking />
                 </View>
               )}
 

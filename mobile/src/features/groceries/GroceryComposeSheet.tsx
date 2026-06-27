@@ -3,12 +3,12 @@
  * structure: bottom-sheet modal with a multiline title input, a
  * grouped field card (Department + Store), and a primary action.
  *
- * Two bottom actions side-by-side:
- * - "Add" (left): save the item and close the sheet.
- * - "Add another" (right): save the item, clear the text, and keep
- *   the sheet open + the input focused so the user can fire off a
- *   string of items without re-opening the sheet each time. The
- *   current department + store carry over between adds.
+ * Single primary action, serial by default: the header "Add" saves
+ * the item, clears the text, and keeps the sheet open + the input
+ * focused so the user can fire off a string of items without
+ * re-opening the sheet. Department + store carry over between adds.
+ * Cancel / backdrop / swipe-down closes — each add is already
+ * committed, so there is no separate "done" step.
  *
  * Inline sub-views (not nested modals) are used for the Department
  * and Store pickers — opening another <Modal> on top of this Modal
@@ -419,11 +419,10 @@ export default function GroceryComposeSheet({
     return true
   }
 
+  // Serial add: commit the item, clear the field, and keep the
+  // keyboard up so the user can keep firing off items. Each add is
+  // already saved — closing is Cancel / backdrop / swipe-down.
   function handleAdd() {
-    if (commit()) onClose()
-  }
-
-  function handleAddAnother() {
     if (commit()) {
       setText('')
       // Re-focus on the next frame so the keyboard stays up and the
@@ -496,7 +495,7 @@ export default function GroceryComposeSheet({
                     accessibilityLabel="Add item"
                   >
                     <Text style={[styles.headerDoneText, !canSubmit && styles.headerDoneTextDisabled]}>
-                      {t.done}
+                      {t.add}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -514,7 +513,7 @@ export default function GroceryComposeSheet({
                     textAlignVertical="top"
                     blurOnSubmit={false}
                     returnKeyType="done"
-                    onSubmitEditing={handleAddAnother}
+                    onSubmitEditing={handleAdd}
                   />
 
                   {/* Match list — known items (current + past) whose
@@ -634,29 +633,6 @@ export default function GroceryComposeSheet({
                       </Text>
                     </TouchableOpacity>
                   )}
-
-                  <View style={styles.actionRow}>
-                    <TouchableOpacity
-                      style={[
-                        styles.actionBtn,
-                        styles.actionBtnPrimary,
-                        !canSubmit && styles.actionBtnDisabled,
-                      ]}
-                      onPress={handleAddAnother}
-                      disabled={!canSubmit}
-                      accessibilityRole="button"
-                      accessibilityLabel="Add this item and keep adding"
-                    >
-                      <Text
-                        style={[
-                          styles.actionTextPrimary,
-                          !canSubmit && styles.actionTextDisabled,
-                        ]}
-                      >
-                        Add another
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
                 </View>
               </>
             )}
@@ -921,38 +897,6 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.separator,
       marginLeft: 44,
     },
-    actionRow: {
-      marginTop: 20,
-      flexDirection: 'row',
-      gap: 10,
-    },
-    actionBtn: {
-      flex: 1,
-      paddingVertical: 14,
-      borderRadius: 12,
-      alignItems: 'center',
-    },
-    actionBtnPrimary: { backgroundColor: c.primary },
-    actionBtnSecondary: {
-      backgroundColor: c.card,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: c.border,
-    },
-    actionBtnDisabled: {
-      backgroundColor: c.card,
-      borderColor: c.border,
-    },
-    actionTextPrimary: {
-      color: c.primaryOn,
-      fontSize: 16,
-      fontWeight: '700',
-    },
-    actionTextSecondary: {
-      color: c.primary,
-      fontSize: 16,
-      fontWeight: '600',
-    },
-    actionTextDisabled: { color: c.gray3 },
     subBody: { paddingHorizontal: 16, paddingBottom: 24 },
     subRow: {
       flexDirection: 'row',

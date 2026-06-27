@@ -160,6 +160,11 @@ export default function PaywallSheet({
                 // their current tier, with a package available). Otherwise a
                 // quiet status.
                 const purchasable = !owned && plan.tier !== 'free' && !!pkg
+                // Premium is the recommended plan: it gets the single
+                // filled CTA + a "Popular" tag, so only one primary action
+                // competes for the eye. Other purchasable plans (Max) get a
+                // quieter outline CTA — present, but visually subordinate.
+                const recommended = plan.tier === 'premium'
                 const status = isCurrent
                   ? 'Current plan'
                   : owned
@@ -175,11 +180,15 @@ export default function PaywallSheet({
                     <View style={styles.cardHead}>
                       <View style={styles.planNameRow}>
                         <Text style={styles.planName}>{plan.name}</Text>
-                        {isCurrent && (
+                        {isCurrent ? (
                           <View style={styles.currentBadge}>
                             <Text style={styles.currentBadgeText}>Current</Text>
                           </View>
-                        )}
+                        ) : recommended ? (
+                          <View style={styles.popularBadge}>
+                            <Text style={styles.popularBadgeText}>Popular</Text>
+                          </View>
+                        ) : null}
                       </View>
                       <Text style={styles.price}>{price}</Text>
                     </View>
@@ -191,12 +200,12 @@ export default function PaywallSheet({
                     ))}
                     {purchasable ? (
                       <TouchableOpacity
-                        style={styles.cta}
+                        style={recommended ? styles.cta : styles.ctaOutline}
                         disabled={busy}
                         onPress={() => productId && buy(productId)}
                         activeOpacity={0.85}
                       >
-                        <Text style={styles.ctaText}>
+                        <Text style={recommended ? styles.ctaText : styles.ctaOutlineText}>
                           {billing === 'annual'
                             ? 'Start 7-day free trial'
                             : `Subscribe · ${price}`}
@@ -289,6 +298,13 @@ function makeStyles(c: ThemeColors) {
       paddingVertical: 2,
     },
     currentBadgeText: { fontSize: 11, fontWeight: '700', color: c.primary },
+    popularBadge: {
+      backgroundColor: c.primary,
+      borderRadius: 999,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+    },
+    popularBadgeText: { fontSize: 11, fontWeight: '700', color: c.primaryOn },
     ctaStatus: {
       marginTop: 4,
       textAlign: 'center',
@@ -308,6 +324,16 @@ function makeStyles(c: ThemeColors) {
       justifyContent: 'center',
     },
     ctaText: { color: c.primaryOn, fontSize: 15, fontWeight: '700' },
+    ctaOutline: {
+      marginTop: 4,
+      height: 46,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderColor: c.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    ctaOutlineText: { color: c.primary, fontSize: 15, fontWeight: '700' },
     restore: { alignSelf: 'center', paddingVertical: 8 },
     restoreText: { fontSize: 13, fontWeight: '600', color: c.primary },
     fine: { fontSize: 11, color: c.label3, textAlign: 'center', lineHeight: 16 },
