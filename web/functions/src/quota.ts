@@ -20,6 +20,7 @@ import {
   type Entitlement,
   type Tier,
 } from './entitlements'
+import { decideMochiReservation } from './mochiReservation'
 
 // Per-user daily ceiling, shared across every AI endpoint. Sized to
 // cover an active user's normal day (~20–30 calls between ambient
@@ -197,44 +198,17 @@ export async function reserveMochiRequest(uid: string): Promise<void> {
       const [usageSnap, entSnap] = await Promise.all([tx.get(usageRef), tx.get(entRef)])
       const ent = parseEntitlement(entSnap.exists ? entSnap.data() : null)
       const tier = effectiveTier(ent, now.getTime())
-      const limits = TIER_LIMITS[tier]
-
       const usage = usageSnap.exists ? parseMochiUsage(usageSnap.data()) : null
-      const dayCalls = usage && usage.date === today ? usage.dayCalls : 0
-      const monthCalls = usage && usage.month === month ? usage.monthCalls : 0
 
-      // The tier ALLOWANCE is gated by both the daily sub-cap and the
-      // monthly cap. Once the base allowance is unavailable (either cap
-      // hit), a purchased top-up balance lets the user keep going — pay as
-      // you go, with no cap. Top-up draws don't touch the daily/monthly
-      // counters; they only decrement the balance.
-      const baseAvailable = dayCalls < limits.mochiDaily && monthCalls < limits.mochiMonthly
+      // Pure decision (unit-tested in web/src/mochiReservation.test.ts) —
+      // the Firestore writes/throw here are the only impure part.
+      const d = decideMochiReservation(tier, ent, usage, today, month)
 
-      if (baseAvailable) {
-        const next: MochiUsageData = {
-          month,
-          monthCalls: monthCalls + 1,
-          date: today,
-          dayCalls: dayCalls + 1,
-        }
-        tx.set(usageRef, {
-          value: JSON.stringify({ version: 1, data: next }),
-          updatedAt: now.getTime(),
-        })
-      } else if (ent.topUpBalance > 0) {
-        const nextEnt: Entitlement = {
-          ...ent,
-          topUpBalance: ent.topUpBalance - 1,
-        }
-        tx.set(entRef, {
-          value: JSON.stringify({ version: 1, data: nextEnt }),
-          updatedAt: now.getTime(),
-        })
-      } else {
-        const dailyHit = dayCalls >= limits.mochiDaily && monthCalls < limits.mochiMonthly
+      if (!d.allow) {
+        const limits = TIER_LIMITS[tier]
         throw new HttpsError(
           'resource-exhausted',
-          dailyHit
+          d.reason === 'daily'
             ? tier === 'free'
               ? `That's your ${limits.mochiDaily} free Mochi requests for today. Pay as you go, or they reset tomorrow.`
               : `Daily Mochi limit reached (${limits.mochiDaily}/day). Pay as you go, or it resets after midnight UTC.`
@@ -242,6 +216,18 @@ export async function reserveMochiRequest(uid: string): Promise<void> {
               ? `You've used your free Mochi requests. Pay as you go, or upgrade for more.`
               : `Monthly Mochi allowance reached. Pay as you go, or wait for next month.`,
         )
+      }
+      if (d.nextUsage) {
+        tx.set(usageRef, {
+          value: JSON.stringify({ version: 1, data: d.nextUsage }),
+          updatedAt: now.getTime(),
+        })
+      }
+      if (d.nextEntitlement) {
+        tx.set(entRef, {
+          value: JSON.stringify({ version: 1, data: d.nextEntitlement }),
+          updatedAt: now.getTime(),
+        })
       }
     })
   } catch (err) {
