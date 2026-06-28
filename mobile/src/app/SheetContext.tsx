@@ -144,12 +144,15 @@ export function SheetProvider({ children }: { children: ReactNode }) {
 
   // The FAB reopens whichever capture surface you used last — manual compose
   // or Ask Mochi — persisted on the profile so it sticks across launches. The
-  // two "switch" links below update it.
+  // two "switch" links below update it. When AI assistance is OFF, the FAB
+  // always opens manual compose, regardless of the remembered mode — Ask Mochi
+  // shouldn't surface at all while AI is disabled.
+  const agentEnabled = store.profile.agentEnabled !== false
   const lastComposeMode = store.profile.lastComposeMode ?? 'manual'
   const openCapture = useCallback(() => {
-    if (lastComposeMode === 'mochi') setMochiOpen(true)
+    if (agentEnabled && lastComposeMode === 'mochi') setMochiOpen(true)
     else openCompose()
-  }, [lastComposeMode, openCompose])
+  }, [agentEnabled, lastComposeMode, openCompose])
 
   // Ask Mochi → "Review & add": hand the chat's createTodo proposal to the
   // manual ComposeSheet (the same code a manual add uses) so the user reviews
