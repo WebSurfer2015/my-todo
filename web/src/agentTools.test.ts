@@ -33,6 +33,7 @@ describe('AGENT_TOOLS registry', () => {
     expect(names).toContain('markDone')
     expect(names).toContain('deleteTodo')
     expect(names).toContain('deleteGroceryItem')
+    expect(names).toContain('pickTodos')
   })
   it('every tool has a name, description, and JSON-schema-shaped input', () => {
     for (const tool of AGENT_TOOLS) {
@@ -388,6 +389,105 @@ describe('validateOperation — deleteGroceryItem', () => {
   it('safe-by-default when knownGroceryIds is omitted (returns null)', () => {
     expect(
       validateOperation('deleteGroceryItem', { groceryId: 'g-1' }, knownCats, knownTodoIds),
+    ).toBeNull()
+  })
+})
+
+// ─── pickTodos ─────────────────────────────────────────────────────
+
+describe('validateOperation — pickTodos', () => {
+  it('accepts a delete pick with 2+ known ids + query', () => {
+    const op = validateOperation(
+      'pickTodos',
+      { action: 'delete', todoIds: ['t-1', 't-2'], query: 'water' },
+      knownCats,
+      knownTodoIds,
+    )
+    expect(op).toEqual({
+      kind: 'pickTodos',
+      args: { action: 'delete', todoIds: ['t-1', 't-2'], query: 'water' },
+    })
+  })
+  it('rejects a single match — that should use the single-target tool', () => {
+    expect(
+      validateOperation('pickTodos', { action: 'delete', todoIds: ['t-1'] }, knownCats, knownTodoIds),
+    ).toBeNull()
+  })
+  it('drops unknown + duplicate ids; null when <2 survive', () => {
+    expect(
+      validateOperation(
+        'pickTodos',
+        { action: 'markDone', todoIds: ['t-1', 'ghost', 't-1'] },
+        knownCats,
+        knownTodoIds,
+      ),
+    ).toBeNull()
+  })
+  it('keeps known, de-duped ids in order', () => {
+    const op = validateOperation(
+      'pickTodos',
+      { action: 'markDone', todoIds: ['t-1', 't-2', 't-2', 'ghost', 't-3'] },
+      knownCats,
+      knownTodoIds,
+    )
+    expect(op?.kind === 'pickTodos' && op.args.todoIds).toEqual(['t-1', 't-2', 't-3'])
+  })
+  it('rejects an unknown action', () => {
+    expect(
+      validateOperation(
+        'pickTodos',
+        { action: 'archive', todoIds: ['t-1', 't-2'] },
+        knownCats,
+        knownTodoIds,
+      ),
+    ).toBeNull()
+  })
+  it('edit action requires at least one field', () => {
+    expect(
+      validateOperation(
+        'pickTodos',
+        { action: 'edit', todoIds: ['t-1', 't-2'], edit: {} },
+        knownCats,
+        knownTodoIds,
+      ),
+    ).toBeNull()
+  })
+  it('edit action carries the validated patch (and drops unknown category)', () => {
+    const op = validateOperation(
+      'pickTodos',
+      {
+        action: 'edit',
+        todoIds: ['t-1', 't-2'],
+        edit: { priority: 'high', dueDate: '2026-07-01', category: 'ghostcat' },
+      },
+      knownCats,
+      knownTodoIds,
+    )
+    expect(op?.kind === 'pickTodos' && op.args.edit).toEqual({
+      priority: 'high',
+      dueDate: '2026-07-01',
+    })
+  })
+  it('addSteps action requires steps', () => {
+    expect(
+      validateOperation(
+        'pickTodos',
+        { action: 'addSteps', todoIds: ['t-1', 't-2'] },
+        knownCats,
+        knownTodoIds,
+      ),
+    ).toBeNull()
+    const op = validateOperation(
+      'pickTodos',
+      { action: 'addSteps', todoIds: ['t-1', 't-2'], steps: [{ text: 'do it' }] },
+      knownCats,
+      knownTodoIds,
+    )
+    expect(op?.kind === 'pickTodos' && op.args.steps).toEqual([{ text: 'do it' }])
+  })
+  it('safe-by-default when knownTodoIds omitted (all ids drop → null)', () => {
+    expect(
+      validateOperation('pickTodos', { action: 'delete', todoIds: ['t-1', 't-2'] }, knownCats),
     ).toBeNull()
   })
 })

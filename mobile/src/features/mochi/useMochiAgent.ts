@@ -1,6 +1,7 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import auth from '@react-native-firebase/auth'
 import { isoDate } from '../../core-bindings/utils'
+import { COLD_START_RETRY_MS } from '../../../../core/src/ports/aiContracts'
 
 /**
  * Multi-turn client for the agentChat Cloud Function. Holds the running
@@ -22,6 +23,11 @@ import { isoDate } from '../../core-bindings/utils'
 
 const AGENT_CHAT_URL =
   'https://us-central1-my-todos-1b079.cloudfunctions.net/agentChat'
+
+// Bound every turn's fetch — a stalled connection would otherwise leave
+// the "thinking…" spinner stuck forever. Manual setTimeout + AbortController
+// (AbortSignal.timeout() isn't reliable in Hermes/RN 0.81).
+const AGENT_FETCH_TIMEOUT_MS = 25000
 
 export type AgentPriority = 'high' | 'medium' | 'low'
 
@@ -100,6 +106,24 @@ export type ProposedOperation =
       kind: 'deleteGroceryItem'
       args: { groceryId: string }
     }
+  | {
+      kind: 'pickTodos'
+      args: {
+        action: 'delete' | 'markDone' | 'edit' | 'addSteps'
+        todoIds: string[]
+        query?: string
+        edit?: {
+          text?: string
+          dueDate?: string
+          priority?: AgentPriority
+          category?: string
+          notes?: string
+          recurrence?: AgentRecurrence
+          reminders?: AgentReminder[]
+        }
+        steps?: Array<{ text: string }>
+      }
+    }
 
 export interface AgentResponse {
   reply: string
@@ -164,6 +188,12 @@ export function useMochiAgent() {
   const [error, setError] = useState<string | null>(null)
   const [errorKind, setErrorKind] = useState<MochiErrorKind>(null)
 
+  // The in-flight turn's controller — aborted on unmount (close the sheet
+  // mid-request) and when a fresh send supersedes a pending one, so the
+  // model call stops billing once nobody's waiting on it.
+  const controllerRef = useRef<AbortController | null>(null)
+  useEffect(() => () => controllerRef.current?.abort(), [])
+
   const send = useCallback(
     async (turn: string, context: AgentContext): Promise<SendResult> => {
       const text = turn.trim()
@@ -175,6 +205,11 @@ export function useMochiAgent() {
         return { ok: false, error: 'unauthenticated' }
       }
 
+      // A fresh send supersedes any pending one — abort it first.
+      controllerRef.current?.abort()
+      const controller = new AbortController()
+      controllerRef.current = controller
+
       // Optimistically append the user turn; build the wire history from it
       // so the server sees this turn too (setState is async).
       const history: ChatTurn[] = [...messages, { role: 'user', content: text }]
@@ -182,6 +217,9 @@ export function useMochiAgent() {
       setIsThinking(true)
       setError(null)
       setErrorKind(null)
+      // Tracks whether the abort below came from our timeout (a real
+      // failure to surface) vs an unmount / supersede (stay silent).
+      let timedOut = false
       try {
         const idToken = await user.getIdToken()
         const init: RequestInit = {
@@ -199,8 +237,22 @@ export function useMochiAgent() {
               context,
             },
           }),
+          signal: controller.signal,
         }
-        let res = await fetch(AGENT_CHAT_URL, init)
+        // Each fetch attempt gets its own 25s timeout that aborts the shared
+        // controller; cleared the moment the fetch settles.
+        const runFetch = async (): Promise<Response> => {
+          const timer = setTimeout(() => {
+            timedOut = true
+            controller.abort()
+          }, AGENT_FETCH_TIMEOUT_MS)
+          try {
+            return await fetch(AGENT_CHAT_URL, init)
+          } finally {
+            clearTimeout(timer)
+          }
+        }
+        let res = await runFetch()
         if (res.status === 429) {
           // Two very different 429s: a HARD daily-quota cap (the callable
           // throws resource-exhausted → body.error.status === RESOURCE_EXHAUSTED)
@@ -214,8 +266,8 @@ export function useMochiAgent() {
             return { ok: false, error: 'quota' }
           }
           // Transient — back off once and retry before surfacing anything.
-          await new Promise((r) => setTimeout(r, 1500))
-          res = await fetch(AGENT_CHAT_URL, init)
+          await new Promise((r) => setTimeout(r, COLD_START_RETRY_MS))
+          res = await runFetch()
         }
         if (!res.ok) {
           setError(
@@ -266,6 +318,18 @@ export function useMochiAgent() {
         ])
         return { ok: true, data: result }
       } catch (e) {
+        if (timedOut) {
+          // The connection stalled past the timeout — surface the calm
+          // network copy so the spinner doesn't just vanish silently.
+          setError("Couldn't reach Mochi — check your connection and try again.")
+          setErrorKind('fail')
+          return { ok: false, error: 'timeout' }
+        }
+        if (controller.signal.aborted) {
+          // Superseded by a newer send, or the sheet closed mid-request —
+          // not a real failure, so surface nothing.
+          return { ok: false, error: 'aborted' }
+        }
         // Raw fetch errors ("Network request failed") aren't calm or
         // actionable — show on-brand copy, keep the real message for logs.
         const raw = e instanceof Error ? e.message : 'Network error.'
@@ -273,7 +337,9 @@ export function useMochiAgent() {
         setErrorKind('fail')
         return { ok: false, error: raw }
       } finally {
-        setIsThinking(false)
+        // Only the live request controls the spinner — a superseded send
+        // must not flip it off under a newer in-flight one.
+        if (controllerRef.current === controller) setIsThinking(false)
       }
     },
     [messages],

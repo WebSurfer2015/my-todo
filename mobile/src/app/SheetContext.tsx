@@ -389,6 +389,62 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     },
     [store],
   )
+
+  // Apply a pick-list proposal to the user's chosen subset of ids. Each action
+  // runs through the SAME store mutations a manual edit / applyMochiOp uses, so
+  // the agent has no privileged write path — delete still warns it's permanent.
+  const applyPickedTodos = useCallback(
+    (op: Extract<ProposedOperation, { kind: 'pickTodos' }>, ids: string[]) => {
+      if (ids.length === 0) return
+      const { action } = op.args
+      if (action === 'delete') {
+        const n = ids.length
+        Alert.alert(
+          n === 1 ? 'Delete to-do?' : `Delete ${n} to-dos?`,
+          `Permanently delete ${n === 1 ? 'this to-do' : `these ${n} to-dos`}. This can't be undone.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Delete',
+              style: 'destructive',
+              onPress: () => ids.forEach((id) => store.permanentlyDelete(id)),
+            },
+          ],
+        )
+      } else if (action === 'markDone') {
+        // Idempotent — only flip ones that aren't already done.
+        ids.forEach((id) => {
+          const td = store.todos.find((t) => t.id === id)
+          if (td && !td.done) store.toggle(id)
+        })
+      } else if (action === 'edit') {
+        const e = op.args.edit
+        if (!e) return
+        const reminders =
+          e.reminders && e.reminders.length > 0
+            ? e.reminders.map((r) => ({
+                id: genUuid(),
+                at: r.at,
+                ...(r.offsetMinutes ? { offsetMinutes: r.offsetMinutes } : {}),
+                ...(r.intervalMinutes ? { intervalMinutes: r.intervalMinutes } : {}),
+              }))
+            : undefined
+        ids.forEach((id) => {
+          if (e.text !== undefined) store.updateText(id, e.text)
+          if (e.priority !== undefined) store.updatePriority(id, e.priority)
+          if (e.dueDate !== undefined) store.updateDueDate(id, e.dueDate)
+          if (e.category !== undefined) store.updateTaskCategory(id, e.category)
+          if (e.notes !== undefined) store.updateNotes(id, e.notes)
+          if (e.recurrence !== undefined) store.updateRecurrence(id, e.recurrence)
+          if (reminders) store.updateReminders(id, reminders)
+        })
+      } else if (action === 'addSteps') {
+        const steps = op.args.steps ?? []
+        ids.forEach((id) => steps.forEach((s) => store.addSubtask(id, s.text)))
+      }
+    },
+    [store],
+  )
   const openManageFilter = useCallback(() => {
     setCategorySheetMode('edit')
     setCategorySheetOpen(true)
@@ -655,6 +711,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
               priority: td.priority,
               category: td.category,
               dueDate: td.dueDate,
+              recurrence: td.recurrence,
             }))}
           groceryGroups={store.groceryGroups.map((g) => ({
             id: g.id,
@@ -674,6 +731,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           onApplyOperation={applyMochiOp}
           onCaptureWithUndo={applyCaptureWithUndo}
           onEditCapturedTodo={editCapturedTodo}
+          onApplyPickedTodos={applyPickedTodos}
           onReviewCreateTodo={reviewCreateTodo}
           onClose={() => setMochiOpen(false)}
           onEnterManually={() => {

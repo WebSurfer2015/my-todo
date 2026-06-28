@@ -14,7 +14,7 @@ import {
   View,
 } from 'react-native'
 import * as Haptics from 'expo-haptics'
-import { Sparkles, Bell } from 'lucide-react-native'
+import { Sparkles, Bell, Check } from 'lucide-react-native'
 import { useLang } from '../../app/LangContext'
 import { usePurchases } from '../../app/PurchasesContext'
 import { useTheme, ThemeColors } from '../../app/theme'
@@ -23,7 +23,7 @@ import MochiThinking from './MochiThinking'
 import EditableCaptureCard from './EditableCaptureCard'
 import { type Priority } from '../../core-bindings/types'
 import { snapDueDateToRecurrence } from '../../../../core/src/logic/derive'
-import { todayLocal } from '../../core-bindings/utils'
+import { todayLocal, formatDisplayDate } from '../../core-bindings/utils'
 import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 import { Analytics } from '../../adapters/analytics'
 
@@ -46,6 +46,8 @@ interface Props {
     priority?: string
     category?: string
     dueDate?: string
+    /** Surfaced so the pick-list can differentiate identical-titled tasks. */
+    recurrence?: { freq: string; interval?: number; byWeekday?: number[] }
   }>
   /** Grocery departments (id + label) so Mochi can target addGroceryItem. */
   groceryGroups: Array<{ id: string; label: string }>
@@ -70,6 +72,13 @@ interface Props {
   onEditCapturedTodo: (
     id: string,
     patch: { category?: string; priority?: Priority; dueDate?: string },
+  ) => void
+  /** Apply a pick-list proposal to the user's chosen subset of ids. The parent
+   * runs the action (delete / markDone / edit / addSteps) per id via the same
+   * store mutations a manual edit uses — delete still warns it's permanent. */
+  onApplyPickedTodos: (
+    op: Extract<ProposedOperation, { kind: 'pickTodos' }>,
+    selectedIds: string[],
   ) => void
   /** Review a proposed NEW todo in the manual ComposeSheet instead of
    * applying it directly — the chat parsed the words, the manual form (the
@@ -196,6 +205,7 @@ export default function ChatSheet({
   onApplyOperation,
   onCaptureWithUndo,
   onEditCapturedTodo,
+  onApplyPickedTodos,
   onReviewCreateTodo,
 }: Props) {
   const { t } = useLang()
@@ -341,6 +351,10 @@ export default function ChatSheet({
     groceryGroups.find((g) => g.id === id)?.label ?? id
   const groceryTextLookup = (id: string) =>
     groceries.find((g) => g.id === id)?.text ?? 'that item'
+  // Resolve a pick-list's ids to full local todos (dropping any that vanished),
+  // so the checklist rows can show due date / category / recurrence.
+  const pickCandidates = (ids: string[]) =>
+    ids.map((id) => todos.find((td) => td.id === id)).filter((t): t is PickCandidate => !!t)
 
   return (
     <Modal
@@ -448,6 +462,20 @@ export default function ChatSheet({
                               onEdit={onEditCapturedTodo}
                               onRemove={() => undoFnsRef.current[i]?.()}
                             />
+                          ) : op.kind === 'pickTodos' ? (
+                            // Several tasks matched — let the user tick which
+                            // ones to action. Owns its own confirm row.
+                            <PickTodosCard
+                              op={op}
+                              candidates={pickCandidates(op.args.todoIds)}
+                              categoryLabelLookup={categoryLookup}
+                              onConfirm={(ids) => {
+                                onApplyPickedTodos(op, ids)
+                                setResolved((prev) => ({ ...prev, [i]: 'applied' }))
+                              }}
+                              styles={styles}
+                              theme={theme}
+                            />
                           ) : (
                             <OperationPreview
                               op={op}
@@ -462,16 +490,16 @@ export default function ChatSheet({
                           )}
                         </View>
                       ))}
-                      {/* The EditableCaptureCard renders its OWN action row
-                          (added / multi-level undo), so skip the generic one
-                          for that case. */}
+                      {/* The EditableCaptureCard and PickTodosCard render their
+                          OWN action rows, so skip the generic one for those. */}
                       {m.operations &&
                         m.operations.length > 0 &&
                         !(
                           m.operations.length === 1 &&
-                          m.operations[0].kind === 'createTodo' &&
-                          resolved[i] === 'applied' &&
-                          capturedIdRef.current[i]
+                          ((m.operations[0].kind === 'createTodo' &&
+                            resolved[i] === 'applied' &&
+                            capturedIdRef.current[i]) ||
+                            m.operations[0].kind === 'pickTodos')
                         ) && (
                         resolved[i] === 'applied' ? (
                           // Optimistically-applied turns carry an inline Undo;
@@ -621,6 +649,193 @@ export default function ChatSheet({
         </View>
       </KeyboardAvoidingView>
     </Modal>
+  )
+}
+
+/** A local to-do enriched enough to tell identical-titled tasks apart. */
+type PickCandidate = {
+  id: string
+  text: string
+  priority?: string
+  category?: string
+  dueDate?: string
+  recurrence?: { freq: string; interval?: number; byWeekday?: number[] }
+}
+
+const PICK_VERB: Record<'delete' | 'markDone' | 'edit' | 'addSteps', string> = {
+  delete: 'delete',
+  markDone: 'complete',
+  edit: 'edit',
+  addSteps: 'add steps to',
+}
+const PICK_CTA: Record<'delete' | 'markDone' | 'edit' | 'addSteps', string> = {
+  delete: 'Delete',
+  markDone: 'Mark done',
+  edit: 'Apply to',
+  addSteps: 'Add steps to',
+}
+const PICK_DONE: Record<'delete' | 'markDone' | 'edit' | 'addSteps', string> = {
+  delete: 'Deleted',
+  markDone: 'Completed',
+  edit: 'Updated',
+  addSteps: 'Updated',
+}
+
+/** One-line summary of an edit patch for the pick-list header. */
+function pickEditSummary(
+  edit: Extract<ProposedOperation, { kind: 'pickTodos' }>['args']['edit'],
+  categoryLabelLookup: (id: string) => string,
+): string | null {
+  if (!edit) return null
+  const parts: string[] = []
+  if (edit.text !== undefined) parts.push(`rename to "${edit.text}"`)
+  if (edit.dueDate !== undefined) parts.push(edit.dueDate ? `due ${edit.dueDate}` : 'clear due date')
+  if (edit.priority) parts.push(`${edit.priority} priority`)
+  if (edit.category) parts.push(categoryLabelLookup(edit.category))
+  if (recurrenceLabel(edit.recurrence)) parts.push(recurrenceLabel(edit.recurrence)!)
+  if (edit.reminders && edit.reminders.length > 0) parts.push('set reminder')
+  if (edit.notes !== undefined) parts.push(edit.notes ? 'update notes' : 'clear notes')
+  return parts.length > 0 ? `Set: ${parts.join(' · ')}` : null
+}
+
+/** A square checkbox. */
+function PickCheck({
+  checked,
+  theme,
+  styles,
+}: {
+  checked: boolean
+  theme: ThemeColors
+  styles: ReturnType<typeof makeStyles>
+}) {
+  return (
+    <View style={[styles.pickCheckbox, checked && styles.pickCheckboxOn]}>
+      {checked && <Check size={13} color={theme.primaryOn} strokeWidth={3} />}
+    </View>
+  )
+}
+
+/**
+ * Several existing tasks matched what the user asked to act on — render them as
+ * a checklist so the user ticks exactly which to delete / complete / edit /
+ * add-steps. Rows show due date + category + recurrence so identical titles are
+ * distinguishable. Owns its own confirm row; for delete, the parent's apply
+ * still fires the permanent-delete warning.
+ */
+function PickTodosCard({
+  op,
+  candidates,
+  categoryLabelLookup,
+  onConfirm,
+  styles,
+  theme,
+}: {
+  op: Extract<ProposedOperation, { kind: 'pickTodos' }>
+  candidates: PickCandidate[]
+  categoryLabelLookup: (id: string) => string
+  onConfirm: (selectedIds: string[]) => void
+  styles: ReturnType<typeof makeStyles>
+  theme: ThemeColors
+}) {
+  const { t } = useLang()
+  const { action, query } = op.args
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [done, setDone] = useState<{ n: number } | null>(null)
+
+  const allOn = candidates.length > 0 && selected.size === candidates.length
+  const toggle = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  const toggleAll = () => {
+    Haptics.selectionAsync().catch(() => {})
+    setSelected(allOn ? new Set() : new Set(candidates.map((c) => c.id)))
+  }
+  const confirm = () => {
+    if (selected.size === 0) return
+    const ids = candidates.filter((c) => selected.has(c.id)).map((c) => c.id)
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
+    onConfirm(ids)
+    setDone({ n: ids.length })
+  }
+
+  if (done) {
+    return (
+      <Text style={styles.appliedNote}>
+        ✓ {PICK_DONE[action]} {done.n}
+      </Text>
+    )
+  }
+
+  const editSummary = action === 'edit' ? pickEditSummary(op.args.edit, categoryLabelLookup) : null
+  const stepsNote =
+    action === 'addSteps' && op.args.steps
+      ? `Add ${op.args.steps.length} step${op.args.steps.length === 1 ? '' : 's'}`
+      : null
+
+  return (
+    <View>
+      <Text style={styles.proposalKind}>Choose which to {PICK_VERB[action]}</Text>
+      <Text style={styles.pickSubtitle}>
+        {candidates.length} {query ? `match "${query}"` : 'matches'}
+      </Text>
+      {!!editSummary && <Text style={styles.pickSummary}>{editSummary}</Text>}
+      {!!stepsNote && <Text style={styles.pickSummary}>{stepsNote}</Text>}
+
+      <TouchableOpacity style={styles.pickSelectAll} onPress={toggleAll} hitSlop={6}>
+        <PickCheck checked={allOn} theme={theme} styles={styles} />
+        <Text style={styles.pickSelectAllText}>{allOn ? 'Clear all' : 'Select all'}</Text>
+      </TouchableOpacity>
+
+      <ScrollView style={styles.pickList} nestedScrollEnabled>
+        {candidates.map((c) => {
+          const meta = [
+            c.dueDate ? `Due ${formatDisplayDate(c.dueDate, t.locale)}` : null,
+            c.category ? categoryLabelLookup(c.category) : null,
+            recurrenceLabel(c.recurrence),
+          ]
+            .filter(Boolean)
+            .join(' · ')
+          const on = selected.has(c.id)
+          return (
+            <TouchableOpacity
+              key={c.id}
+              style={styles.pickRow}
+              onPress={() => toggle(c.id)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: on }}
+              accessibilityLabel={`${c.text}${meta ? `, ${meta}` : ''}`}
+            >
+              <PickCheck checked={on} theme={theme} styles={styles} />
+              <View style={styles.pickRowBody}>
+                <Text style={styles.pickRowText} numberOfLines={2}>
+                  {c.text}
+                </Text>
+                {!!meta && <Text style={styles.pickRowMeta}>{meta}</Text>}
+              </View>
+            </TouchableOpacity>
+          )
+        })}
+      </ScrollView>
+
+      <TouchableOpacity
+        style={[
+          styles.btn,
+          action === 'delete' ? styles.btnDanger : styles.btnPrimary,
+          selected.size === 0 && styles.btnDisabled,
+        ]}
+        disabled={selected.size === 0}
+        onPress={confirm}
+        accessibilityRole="button"
+      >
+        <Text style={action === 'delete' ? styles.btnDangerText : styles.btnPrimaryText}>
+          {PICK_CTA[action]} {selected.size > 0 ? selected.size : ''}
+        </Text>
+      </TouchableOpacity>
+    </View>
   )
 }
 
@@ -809,13 +1024,17 @@ function OperationPreview({
     )
   }
 
-  // markDone
-  return (
-    <View>
-      <Text style={styles.proposalKind}>Mark done</Text>
-      <Text style={styles.proposalTitle}>{todoTextLookup(op.args.todoId)}</Text>
-    </View>
-  )
+  if (op.kind === 'markDone') {
+    return (
+      <View>
+        <Text style={styles.proposalKind}>Mark done</Text>
+        <Text style={styles.proposalTitle}>{todoTextLookup(op.args.todoId)}</Text>
+      </View>
+    )
+  }
+
+  // pickTodos renders via PickTodosCard (not here); nothing to preview.
+  return null
 }
 
 const WEEKDAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -1004,6 +1223,47 @@ function makeStyles(c: ThemeColors) {
     },
     btnPrimary: { backgroundColor: c.primary },
     btnPrimaryText: { color: c.primaryOn, fontSize: 15, fontWeight: '600' },
+    btnDanger: { backgroundColor: c.red },
+    btnDangerText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+    btnDisabled: { opacity: 0.4 },
+    // ── Pick-list (multi-select checklist) ──
+    pickSubtitle: { fontSize: 13, color: c.label3, marginTop: 1, marginBottom: 4 },
+    pickSummary: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: c.primary,
+      marginBottom: 6,
+    },
+    pickSelectAll: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 6,
+    },
+    pickSelectAllText: { fontSize: 13, fontWeight: '600', color: c.label2 },
+    pickList: { maxHeight: 240, marginBottom: 8 },
+    pickRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+      paddingVertical: 8,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.border,
+    },
+    pickRowBody: { flex: 1 },
+    pickRowText: { fontSize: 15, fontWeight: '500', color: c.label },
+    pickRowMeta: { fontSize: 12, color: c.label3, marginTop: 1 },
+    pickCheckbox: {
+      width: 22,
+      height: 22,
+      borderRadius: 6,
+      borderWidth: 1.5,
+      borderColor: c.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 1,
+    },
+    pickCheckboxOn: { backgroundColor: c.primary, borderColor: c.primary },
     meter: {
       fontSize: 11,
       fontWeight: '600',

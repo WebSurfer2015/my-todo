@@ -23,6 +23,8 @@
  *   - markDone          — flip a task to done
  *   - deleteTodo        — remove an existing task (or its whole series)
  *   - deleteGroceryItem — remove an item from the shopping list
+ *   - pickTodos         — when 2+ tasks match, hand the user a checklist to
+ *                         choose which to delete / complete / edit / add-steps
  *   - createCategory / createStore / addGroceryItem
  *
  * The two delete ops honor Sagely's "every destructive action is reversible
@@ -174,6 +176,33 @@ export type ProposedOperation =
         groceryId: string
       }
     }
+  | {
+      kind: 'pickTodos'
+      args: {
+        /** What to do with the chosen tasks. */
+        action: 'delete' | 'markDone' | 'edit' | 'addSteps'
+        /** Every matching candidate id (≥2 — a single clear match uses the
+         * single-target tool). The client renders these as a checklist so the
+         * user ticks which to action; rows are enriched with the user's local
+         * due date / category so identical titles are tellable apart. */
+        todoIds: string[]
+        /** The user's phrase (e.g. "Water flower"), for the card header. */
+        query?: string
+        /** For action:'edit' — the field patch applied to each chosen task
+         * (same shape as editTodo's args, minus todoId). */
+        edit?: {
+          text?: string
+          dueDate?: string
+          priority?: Priority
+          category?: string
+          notes?: string
+          recurrence?: AgentRecurrence
+          reminders?: AgentReminder[]
+        }
+        /** For action:'addSteps' — steps appended to each chosen task. */
+        steps?: Array<{ text: string }>
+      }
+    }
 
 // ─── Shared cap constants ──────────────────────────────────────────
 const MAX_TEXT_LEN = 4096
@@ -188,6 +217,9 @@ const MAX_STORE_NAME_LEN = 64
 const MAX_ITEM_STORES = 8
 const MAX_GROUP_ID_LEN = 64
 const MAX_GROCERY_ID_LEN = 64
+// Cap the candidate list a pickTodos proposal can carry. Matches the card's
+// row cap on the client — beyond this the agent should ask the user to narrow.
+const MAX_PICK_TODOS = 25
 
 // Shared JSON-schema fragments for recurrence + reminders (used by both
 // createTodo and editTodo) so the model gets one consistent description.
@@ -502,6 +534,72 @@ export const AGENT_TOOLS: AgentTool[] = [
       required: ['groceryId'],
     },
   },
+  {
+    name: 'pickTodos',
+    description:
+      "Let the user CHOOSE which of several matching to-dos to act on. Use this " +
+      "INSTEAD of deleteTodo/markDone/editTodo/addSteps whenever MORE THAN ONE to-do " +
+      "in context matches what the user wants to act on (e.g. they say 'delete the " +
+      "water plant task' and several share that text). Put EVERY matching todoId in " +
+      "`todoIds` (2 or more) and set `action`; the app shows them as a checklist — " +
+      "enriched with each to-do's due date / category so even identical titles are " +
+      "distinguishable — and the user ticks which ones to apply the action to. When " +
+      "exactly one to-do clearly matches, use the single-target tool instead.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          enum: ['delete', 'markDone', 'edit', 'addSteps'],
+          description: 'What to do with the to-dos the user picks.',
+        },
+        todoIds: {
+          type: 'array',
+          description:
+            'All matching to-do ids from the context list (2+). Include every ' +
+            'plausible match — the user narrows it down by ticking the checklist.',
+          minItems: 2,
+          items: { type: 'string' },
+        },
+        query: {
+          type: 'string',
+          description: "The user's phrase for these to-dos (e.g. 'water plant'), shown in the picker header.",
+          maxLength: MAX_TEXT_LEN,
+        },
+        edit: {
+          type: 'object',
+          description:
+            "For action 'edit' ONLY — the change to apply to every picked to-do. Same " +
+            'fields as editTodo (omit todoId). At least one field required.',
+          properties: {
+            text: { type: 'string', maxLength: MAX_TEXT_LEN },
+            dueDate: {
+              type: 'string',
+              description: 'ISO yyyy-mm-dd, or empty string to clear.',
+              pattern: '^(\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2})?)?$',
+            },
+            priority: { type: 'string', enum: ['high', 'medium', 'low'] },
+            category: { type: 'string', description: 'Category id from context.' },
+            notes: { type: 'string', maxLength: MAX_NOTES_LEN },
+            recurrence: RECURRENCE_SCHEMA,
+            reminders: REMINDERS_SCHEMA,
+          },
+        },
+        steps: {
+          type: 'array',
+          description: "For action 'addSteps' ONLY — steps appended to each picked to-do.",
+          minItems: 1,
+          maxItems: MAX_STEPS,
+          items: {
+            type: 'object',
+            properties: { text: { type: 'string', maxLength: MAX_STEP_LEN } },
+            required: ['text'],
+          },
+        },
+      },
+      required: ['action', 'todoIds'],
+    },
+  },
 ]
 
 /** Sanitize a proposed recurrence into the safe agent subset, or
@@ -547,6 +645,81 @@ function validateReminders(raw: unknown): AgentReminder[] | undefined {
     out.push(rem)
   }
   return out.length > 0 ? out : undefined
+}
+
+/** The editable to-do fields, shared by editTodo and pickTodos(action:'edit'). */
+type EditPatch = {
+  text?: string
+  dueDate?: string
+  priority?: Priority
+  category?: string
+  notes?: string
+  recurrence?: AgentRecurrence
+  reminders?: AgentReminder[]
+}
+
+/** Validate the editable fields off a raw args object. Returns the cleaned
+ * patch and whether ANY field was actually set (callers reject a no-op edit).
+ * Shared so editTodo and pickTodos can't drift in what an "edit" accepts. */
+function validateEditPatch(
+  a: Record<string, unknown>,
+  knownCategoryIds: ReadonlySet<string>,
+): { patch: EditPatch; hasField: boolean } {
+  const patch: EditPatch = {}
+  let hasField = false
+  if (typeof a.text === 'string' && a.text.trim().length > 0) {
+    patch.text = a.text.trim().slice(0, MAX_TEXT_LEN)
+    hasField = true
+  }
+  if (typeof a.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(a.dueDate)) {
+    patch.dueDate = a.dueDate
+    hasField = true
+  } else if (a.dueDate === '') {
+    // Explicit empty string means "clear the date" — preserve that signal so
+    // the client can distinguish "no change" from "clear".
+    patch.dueDate = ''
+    hasField = true
+  }
+  if (a.priority === 'high' || a.priority === 'medium' || a.priority === 'low') {
+    patch.priority = a.priority
+    hasField = true
+  }
+  if (typeof a.category === 'string' && knownCategoryIds.has(a.category)) {
+    patch.category = a.category
+    hasField = true
+  }
+  if (typeof a.notes === 'string') {
+    // Including empty string here so the user can clear notes.
+    patch.notes = a.notes.slice(0, MAX_NOTES_LEN)
+    hasField = true
+  }
+  const rec = validateRecurrence(a.recurrence)
+  if (rec) {
+    patch.recurrence = rec
+    hasField = true
+  }
+  const rems = validateReminders(a.reminders)
+  if (rems) {
+    patch.reminders = rems
+    hasField = true
+  }
+  return { patch, hasField }
+}
+
+/** Validate a steps array (shared by addSteps and pickTodos(action:'addSteps')).
+ * Drops malformed/empty entries, trims, caps count + length. */
+function validateSteps(raw: unknown): Array<{ text: string }> {
+  if (!Array.isArray(raw)) return []
+  const steps: Array<{ text: string }> = []
+  for (const r of raw.slice(0, MAX_STEPS)) {
+    if (!r || typeof r !== 'object') continue
+    const t = (r as { text?: unknown }).text
+    if (typeof t !== 'string') continue
+    const trimmed = t.trim().slice(0, MAX_STEP_LEN)
+    if (trimmed.length === 0) continue
+    steps.push({ text: trimmed })
+  }
+  return steps
 }
 
 /** Server-side validator. Returns the cleaned-up op or null on garbage
@@ -605,50 +778,10 @@ export function validateOperation(
     ) {
       return null
     }
-    const op: ProposedOperation = {
-      kind: 'editTodo',
-      args: { todoId: a.todoId },
-    }
-    let hasField = false
-    if (typeof a.text === 'string' && a.text.trim().length > 0) {
-      op.args.text = a.text.trim().slice(0, MAX_TEXT_LEN)
-      hasField = true
-    }
-    if (typeof a.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(a.dueDate)) {
-      op.args.dueDate = a.dueDate
-      hasField = true
-    } else if (a.dueDate === '') {
-      // Explicit empty string means "clear the date" — preserve that
-      // signal so the client can distinguish "no change" from "clear".
-      op.args.dueDate = ''
-      hasField = true
-    }
-    if (a.priority === 'high' || a.priority === 'medium' || a.priority === 'low') {
-      op.args.priority = a.priority
-      hasField = true
-    }
-    if (typeof a.category === 'string' && knownCategoryIds.has(a.category)) {
-      op.args.category = a.category
-      hasField = true
-    }
-    if (typeof a.notes === 'string') {
-      // Including empty string here so user can clear notes.
-      op.args.notes = a.notes.slice(0, MAX_NOTES_LEN)
-      hasField = true
-    }
-    const editRec = validateRecurrence(a.recurrence)
-    if (editRec) {
-      op.args.recurrence = editRec
-      hasField = true
-    }
-    const editRems = validateReminders(a.reminders)
-    if (editRems) {
-      op.args.reminders = editRems
-      hasField = true
-    }
+    const { patch, hasField } = validateEditPatch(a, knownCategoryIds)
     // Reject when no actual change was proposed.
     if (!hasField) return null
-    return op
+    return { kind: 'editTodo', args: { todoId: a.todoId, ...patch } }
   }
 
   if (name === 'addSteps') {
@@ -660,16 +793,7 @@ export function validateOperation(
     ) {
       return null
     }
-    if (!Array.isArray(a.steps) || a.steps.length === 0) return null
-    const steps: Array<{ text: string }> = []
-    for (const raw of a.steps.slice(0, MAX_STEPS)) {
-      if (!raw || typeof raw !== 'object') continue
-      const t = (raw as { text?: unknown }).text
-      if (typeof t !== 'string') continue
-      const trimmed = t.trim().slice(0, MAX_STEP_LEN)
-      if (trimmed.length === 0) continue
-      steps.push({ text: trimmed })
-    }
+    const steps = validateSteps(a.steps)
     if (steps.length === 0) return null
     return { kind: 'addSteps', args: { todoId: a.todoId, steps } }
   }
@@ -754,6 +878,51 @@ export function validateOperation(
       return null
     }
     return { kind: 'deleteGroceryItem', args: { groceryId: a.groceryId } }
+  }
+
+  if (name === 'pickTodos') {
+    if (
+      a.action !== 'delete' &&
+      a.action !== 'markDone' &&
+      a.action !== 'edit' &&
+      a.action !== 'addSteps'
+    ) {
+      return null
+    }
+    if (!Array.isArray(a.todoIds)) return null
+    // Keep only known, well-formed, de-duped ids.
+    const ids: string[] = []
+    const seen = new Set<string>()
+    for (const raw of a.todoIds) {
+      if (typeof raw !== 'string' || raw.length === 0 || raw.length > MAX_TODO_ID_LEN) continue
+      if (!knownTodoIds.has(raw) || seen.has(raw)) continue
+      seen.add(raw)
+      ids.push(raw)
+      if (ids.length >= MAX_PICK_TODOS) break
+    }
+    // A pick-list is only meaningful for 2+ candidates — a single clear match
+    // should come back as the single-target tool (deleteTodo/markDone/…).
+    if (ids.length < 2) return null
+    const op: ProposedOperation = {
+      kind: 'pickTodos',
+      args: { action: a.action, todoIds: ids },
+    }
+    if (typeof a.query === 'string' && a.query.trim().length > 0) {
+      op.args.query = a.query.trim().slice(0, MAX_TEXT_LEN)
+    }
+    if (a.action === 'edit') {
+      const editArgs =
+        a.edit && typeof a.edit === 'object' ? (a.edit as Record<string, unknown>) : {}
+      const { patch, hasField } = validateEditPatch(editArgs, knownCategoryIds)
+      if (!hasField) return null // an edit with nothing to change is meaningless
+      op.args.edit = patch
+    }
+    if (a.action === 'addSteps') {
+      const steps = validateSteps(a.steps)
+      if (steps.length === 0) return null
+      op.args.steps = steps
+    }
+    return op
   }
 
   return null
