@@ -23,6 +23,7 @@
  *   - markDone          — flip a task to done
  *   - deleteTodo        — remove an existing task (or its whole series)
  *   - deleteGroceryItem — remove an item from the shopping list
+ *   - editGroceryItem   — rename / retag / re-department a shopping item
  *   - pickTodos         — when 2+ tasks match, hand the user a checklist to
  *                         choose which to delete / complete / edit / add-steps
  *   - createCategory / createStore / addGroceryItem
@@ -201,6 +202,19 @@ export type ProposedOperation =
         }
         /** For action:'addSteps' — steps appended to each chosen task. */
         steps?: Array<{ text: string }>
+      }
+    }
+  | {
+      kind: 'editGroceryItem'
+      args: {
+        /** The id of the existing shopping item to change, from context. */
+        groceryId: string
+        /** New item text (e.g. rename "buy milk" → "milk"). */
+        text?: string
+        /** Replacement store tags. */
+        stores?: string[]
+        /** Move to a different department/group (id from context). */
+        groupId?: string
       }
     }
 
@@ -597,6 +611,39 @@ export const AGENT_TOOLS: AgentTool[] = [
       required: ['action', 'query'],
     },
   },
+  {
+    name: 'editGroceryItem',
+    description:
+      "Change an EXISTING shopping item — rename it ('change buy milk to milk'), " +
+      "retag its stores, or move its department. Pick the matching groceryId from the " +
+      "context shopping-list and include only the fields that change. At least one of " +
+      "text / stores / groupId is required.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        groceryId: {
+          type: 'string',
+          description: 'The id of the existing shopping item from the context shopping-list.',
+        },
+        text: {
+          type: 'string',
+          description: 'New item text. Omit to leave unchanged.',
+          maxLength: MAX_TEXT_LEN,
+        },
+        stores: {
+          type: 'array',
+          description: 'Replacement store tags, from the context store list. Omit to leave unchanged.',
+          maxItems: MAX_ITEM_STORES,
+          items: { type: 'string', maxLength: MAX_STORE_NAME_LEN },
+        },
+        groupId: {
+          type: 'string',
+          description: 'Move to this department/group id from context. Omit to leave unchanged.',
+        },
+      },
+      required: ['groceryId'],
+    },
+  },
 ]
 
 /** Sanitize a proposed recurrence into the safe agent subset, or
@@ -878,6 +925,44 @@ export function validateOperation(
       return null
     }
     return { kind: 'deleteGroceryItem', args: { groceryId: a.groceryId } }
+  }
+
+  if (name === 'editGroceryItem') {
+    if (
+      typeof a.groceryId !== 'string' ||
+      a.groceryId.length === 0 ||
+      a.groceryId.length > MAX_GROCERY_ID_LEN ||
+      !knownGroceryIds.has(a.groceryId)
+    ) {
+      return null
+    }
+    const op: ProposedOperation = {
+      kind: 'editGroceryItem',
+      args: { groceryId: a.groceryId },
+    }
+    let hasField = false
+    if (typeof a.text === 'string' && a.text.trim().length > 0) {
+      op.args.text = a.text.trim().slice(0, MAX_TEXT_LEN)
+      hasField = true
+    }
+    if (Array.isArray(a.stores)) {
+      const stores = a.stores
+        .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+        .slice(0, MAX_ITEM_STORES)
+        .map((s) => s.trim().slice(0, MAX_STORE_NAME_LEN))
+      op.args.stores = stores
+      hasField = true
+    }
+    if (
+      typeof a.groupId === 'string' &&
+      a.groupId.length <= MAX_GROUP_ID_LEN &&
+      knownGroceryGroupIds.has(a.groupId)
+    ) {
+      op.args.groupId = a.groupId
+      hasField = true
+    }
+    if (!hasField) return null
+    return op
   }
 
   if (name === 'pickTodos') {

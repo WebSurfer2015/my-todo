@@ -1194,6 +1194,22 @@ function OperationPreview({
     )
   }
 
+  if (op.kind === 'editGroceryItem') {
+    const a = op.args
+    return (
+      <View>
+        <Text style={styles.proposalKind}>Edit shopping item</Text>
+        <Text style={styles.proposalTitle}>{a.text ?? groceryTextLookup(a.groceryId)}</Text>
+        <View style={styles.proposalMeta}>
+          {a.groupId && <Chip styles={styles}>{groupLabelLookup(a.groupId)}</Chip>}
+          {a.stores?.map((s, i) => (
+            <Chip key={i} styles={styles}>🛒 {s}</Chip>
+          ))}
+        </View>
+      </View>
+    )
+  }
+
   if (op.kind === 'markDone') {
     // Freeze the title: once marked done the to-do drops out of the open list,
     // so a live lookup would read "that to-do" after the action.

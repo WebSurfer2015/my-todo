@@ -288,6 +288,13 @@ export function SheetProvider({ children }: { children: ReactNode }) {
             ],
           )
         }
+      } else if (op.kind === 'editGroceryItem') {
+        const a = op.args
+        store.editGrocery(a.groceryId, {
+          ...(a.text !== undefined ? { text: a.text } : {}),
+          ...(a.stores !== undefined ? { stores: a.stores } : {}),
+          ...(a.groupId !== undefined ? { groupId: a.groupId } : {}),
+        })
       } else if (op.kind === 'deleteGroceryItem') {
         const item = store.groceries.find((g) => g.id === op.args.groceryId)
         Alert.alert(

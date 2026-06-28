@@ -92,7 +92,7 @@ describe('ProposedOperation server↔client parity', () => {
   const server = extractOps(readFileSync(SERVER, 'utf8'))
   const client = extractOps(readFileSync(CLIENT, 'utf8'))
 
-  it('parses all ten op kinds from both files', () => {
+  it('parses all eleven op kinds from both files', () => {
     expect(Object.keys(server).sort()).toEqual([
       'addGroceryItem',
       'addSteps',
@@ -101,6 +101,7 @@ describe('ProposedOperation server↔client parity', () => {
       'createTodo',
       'deleteGroceryItem',
       'deleteTodo',
+      'editGroceryItem',
       'editTodo',
       'markDone',
       'pickTodos',

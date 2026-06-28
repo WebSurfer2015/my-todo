@@ -143,6 +143,9 @@ Categories and groceries:
 - Shopping list: use addGroceryItem for things to buy. Tag \`stores\` only with
   names the user mentioned. Leave \`groupId\` empty unless the user named a
   department from context — the app auto-sorts items.
+- To CHANGE an existing shopping item — rename it ("change buy milk to milk"),
+  retag its stores, or move its department — use editGroceryItem with the
+  groceryId from context and only the fields that change.
 
 Removing things (delete vs complete):
 - deleteTodo / deleteGroceryItem REMOVE an existing item the user no longer

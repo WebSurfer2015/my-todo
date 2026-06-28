@@ -33,6 +33,7 @@ describe('AGENT_TOOLS registry', () => {
     expect(names).toContain('markDone')
     expect(names).toContain('deleteTodo')
     expect(names).toContain('deleteGroceryItem')
+    expect(names).toContain('editGroceryItem')
     expect(names).toContain('pickTodos')
   })
   it('every tool has a name, description, and JSON-schema-shaped input', () => {
@@ -390,6 +391,57 @@ describe('validateOperation — deleteGroceryItem', () => {
     expect(
       validateOperation('deleteGroceryItem', { groceryId: 'g-1' }, knownCats, knownTodoIds),
     ).toBeNull()
+  })
+})
+
+// ─── editGroceryItem ───────────────────────────────────────────────
+
+describe('validateOperation — editGroceryItem', () => {
+  it('renames a known item', () => {
+    const op = validateOperation(
+      'editGroceryItem',
+      { groceryId: 'g-1', text: 'milk' },
+      knownCats,
+      knownTodoIds,
+      knownGroceryGroupIds,
+      knownGroceryIds,
+    )
+    expect(op).toEqual({ kind: 'editGroceryItem', args: { groceryId: 'g-1', text: 'milk' } })
+  })
+  it('rejects a hallucinated groceryId', () => {
+    expect(
+      validateOperation(
+        'editGroceryItem',
+        { groceryId: 'ghost', text: 'milk' },
+        knownCats,
+        knownTodoIds,
+        knownGroceryGroupIds,
+        knownGroceryIds,
+      ),
+    ).toBeNull()
+  })
+  it('rejects a no-op edit (no fields)', () => {
+    expect(
+      validateOperation(
+        'editGroceryItem',
+        { groceryId: 'g-1' },
+        knownCats,
+        knownTodoIds,
+        knownGroceryGroupIds,
+        knownGroceryIds,
+      ),
+    ).toBeNull()
+  })
+  it('drops an unknown groupId but keeps a valid text change', () => {
+    const op = validateOperation(
+      'editGroceryItem',
+      { groceryId: 'g-2', text: 'eggs', groupId: 'ghostdept' },
+      knownCats,
+      knownTodoIds,
+      knownGroceryGroupIds,
+      knownGroceryIds,
+    )
+    expect(op).toEqual({ kind: 'editGroceryItem', args: { groceryId: 'g-2', text: 'eggs' } })
   })
 })
 

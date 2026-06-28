@@ -124,6 +124,15 @@ export type ProposedOperation =
         steps?: Array<{ text: string }>
       }
     }
+  | {
+      kind: 'editGroceryItem'
+      args: {
+        groceryId: string
+        text?: string
+        stores?: string[]
+        groupId?: string
+      }
+    }
 
 export interface AgentResponse {
   reply: string
