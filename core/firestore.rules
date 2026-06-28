@@ -1,19 +1,37 @@
 rules_version = '2';
 
-// Per-user state at the precise schema path. Each authenticated user can
-// read and write only their own per-key state docs at users/{uid}/state/{key}.
+// MIRROR of web/firestore.rules — that file is the authoritative, deployed
+// copy (see web/firebase.json). This is a reference copy kept in core/ so
+// the rules sit next to the schema they protect (core/src/persistence.ts →
+// stateDocPath). Keep the rule logic below byte-identical to
+// web/firestore.rules; deploy only from web (`npm run deploy:rules`).
 //
-// Key whitelist:
-//   • Client-writable:  todos, categories, profile,
-//                       groceries, groceryGroups (mobile-only)
-//   • Function-only:    agentUsage (admin SDK bypasses rules)
+// Schema (see core/src/persistence.ts → stateDocPath):
+//   users/{uid}/state/{key}
+//     • Client-writable keys:  todos, categories, profile,
+//                              groceries, groceryGroups (mobile-only)
+//     • Function-only keys:    agentUsage, mochiUsage (AI quota counters),
+//                              entitlement (written ONLY by the RevenueCat
+//                              webhook) — clients may READ them (quota/tier
+//                              UX) but never write, since they gate real AI
+//                              spend. Enforced by absence from the write
+//                              whitelist below; admin SDK bypasses rules.
 //
-// Anything else under /users/{uid}/** is denied so future code that
-// accidentally writes outside this schema can't expose data on a path
-// the rules forgot to cover.
+// Each user can read AND write only their own subtree. Default deny on
+// everything else — including listing the root users collection (which would
+// leak the set of valid uids and account count).
 //
-// Paste these rules into Firebase Console → Firestore Database → Rules.
-// The same rules live in web/firestore.rules; keep them in sync.
+// Hardening notes:
+//   * `key` is restricted to a known whitelist so a malicious client
+//     can't spawn arbitrary docs under their state subtree and inflate
+//     Firestore costs.
+//   * Document shape is validated: only `value` (map) + `updatedAt` (int)
+//     are allowed at the top level. This matches the versioned envelope
+//     in core/src/persistence.ts and keeps a hostile client from
+//     attaching extra fields that downstream code might trust.
+//   * Firestore's hard 1 MiB per-doc limit caps total size; we don't
+//     re-check byte size here because the rules language doesn't expose
+//     a stable byte-size accessor across SDK versions.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -33,7 +51,15 @@ service cloud.firestore {
       // its length at 512 KiB stays well under Firestore's hard 1 MiB
       // per-doc limit while bounding what a compromised client can
       // upload in a single write.
-      allow write:
+      // create/update only — the shape check needs request.resource, which
+      // is null on delete. Deletes are INTENTIONALLY never allowed on state
+      // docs: the app clears state by writing an empty {version,data:[]}
+      // envelope (see useTodoStore "Cloud strategy: setItem the empty
+      // wrapper, NOT removeItem"), so a delete path is only a footgun. Made
+      // explicit (allow delete: if false) so a future refactor of the write
+      // rule can't accidentally expose delete — e.g. letting a client wipe
+      // the function-only agentUsage counter to reset its AI quota.
+      allow create, update:
         if request.auth != null
         && request.auth.uid == uid
         && key in ['todos', 'categories', 'profile', 'groceries', 'groceryGroups', 'todoReferences']
@@ -41,10 +67,58 @@ service cloud.firestore {
         && request.resource.data.value is string
         && request.resource.data.value.size() <= 524288
         && request.resource.data.updatedAt is int;
+      allow delete: if false;
+    }
+
+    // Per-ITEM collections (scale path — docs/SPIKE-persistence-scale.md
+    // option B): one doc per todo/grocery instead of the whole array in a
+    // single state doc. Same { value, updatedAt } envelope + owner-only
+    // access as state, but delete IS allowed here — per-item delete (e.g.
+    // the 30-day trash purge) is the natural model for a collection, unlike
+    // the single state doc which clears via setItem-empty. Listed
+    // explicitly (not a {coll} wildcard) so it can't overlap the state /
+    // devices matches above.
+    match /users/{uid}/todos/{todoId} {
+      allow read:
+        if request.auth != null && request.auth.uid == uid;
+      allow create, update:
+        if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['value', 'updatedAt'])
+        && request.resource.data.value is string
+        && request.resource.data.value.size() <= 524288
+        && request.resource.data.updatedAt is int;
+      allow delete:
+        if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Push notification device registry. Each device the user signs in
+    // on writes one doc with its Expo push token; Cloud Functions read
+    // these to address pushes per uid. Only the owning user can read or
+    // write their own devices subtree.
+    //
+    // Shape validation: token is a string capped at 200 chars (Expo's
+    // ExponentPushToken[...] format is well under 100, but allow
+    // headroom for the wrapper). platform is short ("ios"|"android").
+    // updatedAt is the same epoch-millis int used elsewhere.
+    match /users/{uid}/devices/{deviceId} {
+      allow read:
+        if request.auth != null && request.auth.uid == uid;
+      allow write:
+        if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['token', 'platform', 'updatedAt'])
+        && request.resource.data.token is string
+        && request.resource.data.token.size() <= 200
+        && request.resource.data.platform is string
+        && request.resource.data.platform.size() <= 16
+        && request.resource.data.updatedAt is int;
+      allow delete:
+        if request.auth != null && request.auth.uid == uid;
     }
 
     // Default deny — explicit so no future "match /{document=**}" elsewhere
-    // accidentally exposes data. Required even with the allow rule above.
+    // accidentally exposes data. Required even with allow rules above.
     match /{document=**} {
       allow read, write: if false;
     }

@@ -1,5 +1,17 @@
 import auth from '@react-native-firebase/auth'
 import { normalizeSuggestedReminder } from '../../../core/src/logic/suggestFields'
+import {
+  COLD_START_RETRY_MS,
+  type InferEnvelope,
+  type BreakdownInput,
+  type BreakdownResult,
+  type ClassifyDeptInput,
+  type ClassifyDeptResult,
+  type SuggestFieldsInput,
+  type SuggestFieldsResult,
+  type LinkStoreInput,
+  type LinkStoreResult,
+} from '../../../core/src/ports/aiContracts'
 
 /**
  * Client wrappers for the aiInfer Cloud Function. Same pattern as
@@ -9,108 +21,58 @@ import { normalizeSuggestedReminder } from '../../../core/src/logic/suggestField
  *
  * Server contract (callable functions): body wrapped in {data: ...},
  * response wrapped in {result: ...}.
+ *
+ * The wire contract types live in core/src/ports/aiContracts.ts (shared,
+ * platform-pure) so web + mobile + the server's text-parity test stay in
+ * lockstep. Re-export SuggestFieldsResult so existing callers that import
+ * it from this module keep working.
  */
+
+export type { SuggestFieldsResult } from '../../../core/src/ports/aiContracts'
 
 const AI_INFER_URL =
   'https://us-central1-my-todos-1b079.cloudfunctions.net/aiInfer'
 
-interface InferEnvelope<R> {
-  result: R
-  usage: { input: number; output: number }
-  model: string
-}
+// A stalled connection (no response, no error) would otherwise hang the
+// caller forever — bound every client fetch with a manual timeout. We use
+// setTimeout + AbortController rather than AbortSignal.timeout(), which
+// isn't reliably present in Hermes/RN 0.81.
+const AI_FETCH_TIMEOUT_MS = 25000
 
-interface BreakdownInput {
-  title: string
-  notes?: string
-}
-
-interface BreakdownResult {
-  subtasks: Array<{ text: string }>
-}
-
-interface ClassifyDeptInput {
-  text: string
-  departments: Array<{ id: string; label: string }>
-  /** Existing stores in the user's profile. Sent so the model can
-   * decide isNew for a detected store mention. */
-  stores?: string[]
-}
-
-interface ClassifyDeptResult {
-  groupId: string | null
-  /** Set when the AI proposes a department label that doesn't exist
-   * in the user's list. The caller should confirm with the user
-   * before creating + assigning. Mutually exclusive with groupId. */
-  newGroupLabel: string | null
-  /** Set when the text explicitly mentions a store ("from Target",
-   * "at Costco"). isNew indicates whether the name matches an
-   * existing store in the user's profile (case-insensitive). */
-  storeHint: { name: string; isNew: boolean } | null
-  /** Up-to-3 stores from the user's existing configured list that
-   * typically carry this item. Names are guaranteed to exist in
-   * the input `stores` (server post-process filters out anything
-   * unrecognized) and use the user's canonical casing. Empty when:
-   * storeHint is non-null, no stores are configured, or the item
-   * is too generic / niche to recommend confidently. */
-  recommendedStores: string[]
-}
-
-interface SuggestFieldsInput {
-  text: string
-  today: string
-  categories: Array<{ id: string; label: string }>
-}
-
-export interface SuggestFieldsResult {
-  category: string | null
-  /** Set when the AI proposes a category label that doesn't exist
-   * in the user's list. UI should confirm with the user before
-   * creating + assigning. Mutually exclusive with `category`. */
-  newCategoryLabel: string | null
-  priority: 'high' | 'medium' | 'low' | null
-  dueDate: string | null
-  /** Basic recurrence — frequency, optional byWeekday filter, and
-   * optional end date. Caller constructs the full Recurrence on
-   * apply; user can refine bySetPos via the Repeat sub-view. */
-  recurrence: {
-    freq: 'daily' | 'weekly' | 'monthly' | 'yearly'
-    /** Days of week (0=Sun..6=Sat). Meaningful for weekly only
-     * in this v1 ("every mon and tue" → [1,2]). */
-    byWeekday?: number[]
-    endDate?: string
-  } | null
-  /** Reminder spec. One-shot when no intervalMinutes; recurring
-   * when interval+until set. Null when no clock time mentioned. */
-  reminder: {
-    at: string
-    intervalMinutes?: number
-    until?: string
-  } | null
-  /** Title with date/time/recurrence/reminder phrases removed, so the
-   * title isn't redundant once those become structured fields. Null when
-   * nothing temporal was found. */
-  cleanedText: string | null
-}
-
-async function callAiInfer<R>(mode: string, input: unknown): Promise<R> {
+async function callAiInfer<R>(
+  mode: string,
+  input: unknown,
+  signal?: AbortSignal,
+): Promise<R> {
   const user = auth().currentUser
   if (!user) throw new Error('Sign in to use AI assistance.')
   const idToken = await user.getIdToken()
-  // Retry once on 429 with a 1.5s delay. The function runs with
-  // minInstances:0, so the first request after idle hits a cold
-  // start (~1-2s); a follow-up request landing in that window can
-  // get 429'd by Cloud Run's autoscaler before reaching our handler.
-  // One retry after a brief pause absorbs the cold-start gap without
-  // adding any standing cost. Non-429 errors fail fast.
-  const COLD_START_RETRY_MS = 1500
-  let res = await fetchAi(idToken, mode, input)
+  // Retry once on a transient 429. The function runs with minInstances:0,
+  // so the first request after idle hits a cold start (~1-2s); a follow-up
+  // landing in that window can get 429'd by Cloud Run's autoscaler before
+  // reaching our handler. One retry after a brief pause absorbs that gap.
+  let res = await fetchAi(idToken, mode, input, signal)
   if (res.status === 429) {
+    // Two very different 429s: a HARD daily-quota cap (the callable throws
+    // resource-exhausted → body.error.status === RESOURCE_EXHAUSTED) vs a
+    // transient cold-start throttle. Only the latter is worth retrying —
+    // retrying the cap just wastes an invocation + the back-off sleep.
+    const peek = (await res.json().catch(() => null)) as {
+      error?: { status?: string; message?: string }
+    } | null
+    if (peek?.error?.status === 'RESOURCE_EXHAUSTED') {
+      throw new Error(peek.error.message ?? 'AI daily limit reached.')
+    }
     await new Promise((resolve) => setTimeout(resolve, COLD_START_RETRY_MS))
-    res = await fetchAi(idToken, mode, input)
+    res = await fetchAi(idToken, mode, input, signal)
   }
   if (!res.ok) {
-    throw new Error(`AI request failed (${res.status}).`)
+    // Prefer the server's own message ("AI assistance is off in your
+    // profile") over a bare status code when the body carries one.
+    const body = (await res.json().catch(() => null)) as {
+      error?: { message?: string }
+    } | null
+    throw new Error(body?.error?.message ?? `AI request failed (${res.status}).`)
   }
   const body = (await res.json()) as { result?: InferEnvelope<R>; error?: { message?: string } }
   if (body.error) throw new Error(body.error.message ?? 'AI request failed.')
@@ -118,7 +80,20 @@ async function callAiInfer<R>(mode: string, input: unknown): Promise<R> {
   return body.result.result
 }
 
-function fetchAi(idToken: string, mode: string, input: unknown): Promise<Response> {
+function fetchAi(
+  idToken: string,
+  mode: string,
+  input: unknown,
+  signal?: AbortSignal,
+): Promise<Response> {
+  // One controller drives both the timeout abort and the caller's
+  // cancellation signal (unmount / new send). AbortSignal.any() isn't
+  // reliable in Hermes/RN 0.81, so we forward the caller's signal manually.
+  const controller = new AbortController()
+  if (signal?.aborted) controller.abort()
+  const onAbort = () => controller.abort()
+  signal?.addEventListener('abort', onAbort)
+  const timeout = setTimeout(() => controller.abort(), AI_FETCH_TIMEOUT_MS)
   return fetch(AI_INFER_URL, {
     method: 'POST',
     headers: {
@@ -126,12 +101,19 @@ function fetchAi(idToken: string, mode: string, input: unknown): Promise<Respons
       Authorization: `Bearer ${idToken}`,
     },
     body: JSON.stringify({ data: { mode, input } }),
+    signal: controller.signal,
+  }).finally(() => {
+    clearTimeout(timeout)
+    signal?.removeEventListener('abort', onAbort)
   })
 }
 
 /** Breaks a single to-do into 3–6 concrete steps. */
-export async function suggestSubtasks(input: BreakdownInput): Promise<BreakdownResult> {
-  return callAiInfer<BreakdownResult>('breakdown-subtasks', input)
+export async function suggestSubtasks(
+  input: BreakdownInput,
+  signal?: AbortSignal,
+): Promise<BreakdownResult> {
+  return callAiInfer<BreakdownResult>('breakdown-subtasks', input, signal)
 }
 
 /**
@@ -166,28 +148,20 @@ export async function classifyGroceryDept(input: ClassifyDeptInput): Promise<Cla
  * Same null-on-failure contract: any error returns all-null so the
  * caller never has to try/catch for an ambient feature.
  */
-export async function suggestTodoFields(input: SuggestFieldsInput): Promise<SuggestFieldsResult> {
+export async function suggestTodoFields(
+  input: SuggestFieldsInput,
+  signal?: AbortSignal,
+): Promise<SuggestFieldsResult> {
   try {
-    const res = await callAiInfer<SuggestFieldsResult>('suggest-todo-fields', input)
+    const res = await callAiInfer<SuggestFieldsResult>('suggest-todo-fields', input, signal)
     // Drop a recurrence-cadence-as-reminder mis-parse (pure helper in core,
     // unit-tested there).
     return { ...res, reminder: normalizeSuggestedReminder(res.recurrence, res.reminder) }
   } catch {
+    // Any failure (incl. an aborted request on unmount/supersede) resolves
+    // to the all-null no-op — this is an ambient feature, never surfaced.
     return { category: null, newCategoryLabel: null, priority: null, dueDate: null, recurrence: null, reminder: null, cleanedText: null }
   }
-}
-
-interface LinkStoreInput {
-  storeName: string
-  items: Array<{ id: string; text: string }>
-}
-
-interface LinkStoreResult {
-  /** Subset of input ids the server judges would be available at
-   * the new store. Already filtered server-side against the input
-   * items so every id is guaranteed to exist in the user's items
-   * list at dispatch time. */
-  linkedItemIds: string[]
 }
 
 /**

@@ -246,7 +246,15 @@ export const aiInfer = onCall(
               )
           : null
 
-    const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() })
+    // Own the latency/retry budget against the function's 60s timeout: the
+    // SDK default (maxRetries:2 + long timeout) can stack backoff past the
+    // function deadline and surface as a generic timeout. One bounded attempt
+    // with a ~25s ceiling leaves room to return a clean error instead.
+    const client = new Anthropic({
+      apiKey: ANTHROPIC_API_KEY.value(),
+      maxRetries: 0,
+      timeout: 25_000,
+    })
 
     // Build the system payload. For cacheable modes we send the prompt
     // as a TextBlockParam array carrying cache_control: ephemeral so
@@ -274,7 +282,15 @@ export const aiInfer = onCall(
         ],
       })
     } catch (err) {
-      console.error('aiInfer: Anthropic SDK error', err)
+      // Log only the safe envelope (status/name/request_id) — the raw SDK
+      // error object can carry request metadata (user task text) into Cloud
+      // Logging. request_id stays for support correlation with Anthropic.
+      console.error(
+        'aiInfer: Anthropic SDK error',
+        err instanceof Anthropic.APIError
+          ? { status: err.status, name: err.name, requestId: err.request_id }
+          : String(err),
+      )
       throw new HttpsError('internal', "Couldn't reach the AI service.")
     }
 

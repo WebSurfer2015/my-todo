@@ -676,8 +676,8 @@ export default function GroceryView({
                         {i > 0 && <View style={styles.divider} />}
                         <Row
                           item={it}
-                          onToggle={() => onToggleChecked(it.id)}
-                          onOpenEdit={() => setEditingId(it.id)}
+                          onToggle={onToggleChecked}
+                          onOpenEdit={setEditingId}
                           styles={styles}
                           tint={dept?.color}
                           celebrate={celebrate}
@@ -728,8 +728,8 @@ export default function GroceryView({
                         {i > 0 && <View style={styles.divider} />}
                         <Row
                           item={it}
-                          onToggle={() => onToggleChecked(it.id)}
-                          onOpenEdit={() => setEditingId(it.id)}
+                          onToggle={onToggleChecked}
+                          onOpenEdit={setEditingId}
                           styles={styles}
                           futureMode
                         />
@@ -775,8 +775,8 @@ export default function GroceryView({
                         {i > 0 && <View style={styles.divider} />}
                         <Row
                           item={it}
-                          onToggle={() => onToggleChecked(it.id)}
-                          onOpenEdit={() => setEditingId(it.id)}
+                          onToggle={onToggleChecked}
+                          onOpenEdit={setEditingId}
                           styles={styles}
                           futureMode
                         />

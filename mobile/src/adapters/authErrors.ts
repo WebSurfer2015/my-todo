@@ -3,59 +3,27 @@
  * user-readable string. Unknown errors fall back to the raw message plus
  * the code in parens so debugging never requires a Metro session.
  *
- * Codes worth flagging specifically:
- *   - auth/invalid-api-key, auth/app-not-authorized: the bundled
- *     GoogleService-Info.plist or google-services.json is stale; the app
- *     needs a rebuild with fresh config. See docs/AUTH-RECOVERY.md.
- *   - auth/operation-not-allowed: the provider (apple.com / google.com)
- *     is disabled in Firebase Console.
- *   - auth/network-request-failed: device offline or Firebase unreachable.
+ * The platform-pure Firebase `auth/*` code map + lookup live in
+ * core/src/data/authMessages.ts (shared, no RN deps). The Apple/Google
+ * NATIVE-SDK maps below are SDK-specific and stay mobile-side, layered on
+ * top of the core Firebase lookup.
  *
  * The Apple/Google native SDKs throw their own error shapes; we surface
  * those too so the visible message is never just a silent failure.
  */
 
+import {
+  AuthFlow,
+  appendCode,
+  mapFirebaseAuthError,
+} from "../../../core/src/data/authMessages";
+
+export type { AuthFlow };
+
 interface ErrLike {
   code?: string | number;
   message?: string;
 }
-
-export type AuthFlow = "apple" | "google" | "email";
-
-const FIREBASE_AUTH_MESSAGES: Record<string, string> = {
-  "auth/invalid-api-key":
-    "Sign-in is misconfigured for this build. The app needs to be updated.",
-  "auth/app-not-authorized":
-    "This build is not authorized for sign-in. The app needs to be updated.",
-  "auth/operation-not-allowed":
-    "This sign-in method is currently disabled. Try a different option.",
-  "auth/network-request-failed":
-    "Can't reach the sign-in server. Check your connection and try again.",
-  // auth/internal-error gets a flow-specific override below — Firebase's
-  // generic catch-all for this code is usually a credential/audience
-  // mismatch and the fix differs per provider.
-  "auth/internal-error": "Sign-in handshake failed.",
-  "auth/account-exists-with-different-credential":
-    "An account with this email already exists. Sign in with the original method.",
-  "auth/email-already-in-use":
-    "An account with this email already exists.",
-  "auth/invalid-email": "That email address doesn't look right.",
-  "auth/invalid-credential": "That email or password isn't right.",
-  "auth/invalid-login-credentials": "That email or password isn't right.",
-  "auth/user-disabled": "This account has been disabled.",
-  "auth/user-not-found": "No account found for that email.",
-  "auth/wrong-password": "That email or password isn't right.",
-  "auth/weak-password": "Password is too weak — pick something longer.",
-  "auth/too-many-requests":
-    "Too many attempts. Wait a few minutes and try again.",
-  "auth/requires-recent-login":
-    "Please sign out and sign back in, then try again.",
-  "auth/missing-or-invalid-nonce":
-    "Apple sign-in handshake failed. Try again.",
-  "auth/popup-blocked": "Sign-in popup was blocked.",
-  "auth/cancelled-popup-request": "",
-  "auth/popup-closed-by-user": "",
-};
 
 const APPLE_NATIVE_MESSAGES: Record<string, string> = {
   // ASAuthorizationError codes from AuthenticationServices.framework
@@ -89,27 +57,9 @@ export function mapAuthError(err: unknown, flow?: AuthFlow): string {
   const code = e.code != null ? String(e.code) : "";
   const rawMessage = (e.message ?? "").trim();
 
-  // 1. Known Firebase auth codes
+  // 1. Known Firebase auth codes (platform-pure map in core)
   if (code.startsWith("auth/")) {
-    // auth/internal-error needs flow-specific guidance — Firebase's
-    // catch-all is almost always a configuration drift in Firebase Console.
-    if (code === "auth/internal-error") {
-      if (flow === "google") {
-        return appendCode(
-          "Google sign-in handshake failed. The OAuth web client ID in this build doesn't match what Firebase expects. The app needs to be updated.",
-          code,
-        );
-      }
-      if (flow === "apple") {
-        return appendCode(
-          "Apple sign-in handshake failed. The Apple Service ID or Sign-in-with-Apple key in Firebase Console may be out of sync. The app needs to be updated.",
-          code,
-        );
-      }
-    }
-    const mapped = FIREBASE_AUTH_MESSAGES[code];
-    if (mapped !== undefined) return appendCode(mapped || rawMessage, code);
-    return appendCode(`Sign-in failed: ${rawMessage || "unknown Firebase error"}`, code);
+    return mapFirebaseAuthError(code, flow, rawMessage);
   }
 
   // 2. Apple native SDK codes
@@ -141,9 +91,4 @@ export function mapAuthError(err: unknown, flow?: AuthFlow): string {
 
   // 6. Fallback: show raw message + code so future incidents are diagnosable
   return appendCode(rawMessage || "Sign-in failed.", code);
-}
-
-function appendCode(msg: string, code: string): string {
-  if (!code) return msg;
-  return `${msg} (${code})`;
 }

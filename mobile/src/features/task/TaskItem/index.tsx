@@ -1034,31 +1034,38 @@ function TaskItem({
           )}
         </View>
 
-        <PickerModal
-          visible={priorityOpen}
-          selectedKey={todo.priority}
-          onSelect={(k) => onUpdatePriority(todo.id, k as Priority)}
-          onClose={() => setPriorityOpen(false)}
-          options={PRIORITY_VALUES.map((v) => ({
-            key: v,
-            label: t.priority[v],
-            color: PRIORITY_COLORS[v],
-            icon: <PriorityDot level={v} size={12} />,
-          }))}
-        />
+        {/* Parent-gated on open-state so closed rows never build the
+            options array or reconcile the Modal subtree — matches the
+            subtask pickers below (gated on subPriorityForId/subDateForId). */}
+        {priorityOpen && (
+          <PickerModal
+            visible={priorityOpen}
+            selectedKey={todo.priority}
+            onSelect={(k) => onUpdatePriority(todo.id, k as Priority)}
+            onClose={() => setPriorityOpen(false)}
+            options={PRIORITY_VALUES.map((v) => ({
+              key: v,
+              label: t.priority[v],
+              color: PRIORITY_COLORS[v],
+              icon: <PriorityDot level={v} size={12} />,
+            }))}
+          />
+        )}
 
-        <PickerModal
-          visible={categoryOpen}
-          selectedKey={todo.category || ''}
-          onSelect={(k) => onUpdateCategory(todo.id, k)}
-          onClose={() => setCategoryOpen(false)}
-          options={categories.map((c) => ({
-            key: c.id,
-            label: categoryLabel(c, t),
-            color: c.color,
-            icon: <CategoryIcon icon={c.icon} size={16} color={c.color} />,
-          }))}
-        />
+        {categoryOpen && (
+          <PickerModal
+            visible={categoryOpen}
+            selectedKey={todo.category || ''}
+            onSelect={(k) => onUpdateCategory(todo.id, k)}
+            onClose={() => setCategoryOpen(false)}
+            options={categories.map((c) => ({
+              key: c.id,
+              label: categoryLabel(c, t),
+              color: c.color,
+              icon: <CategoryIcon icon={c.icon} size={16} color={c.color} />,
+            }))}
+          />
+        )}
 
         {dateOpen && Platform.OS === 'ios' && (
           <Modal visible transparent animationType="fade" onRequestClose={() => setDateOpen(false)}>
@@ -1183,7 +1190,7 @@ function TaskItem({
           />
         )}
 
-        {detailsAvailable && (
+        {detailsAvailable && detailsOpen && (
           <TaskDetailsSheet
             visible={detailsOpen}
             todo={todo}

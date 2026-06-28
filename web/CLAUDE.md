@@ -131,7 +131,7 @@ const adapter = useMemo<StorageAdapter>(
 
 ### Grouping (`src/groups.ts`)
 
-After filtering, todos are bucketed into `overdue` / `today` / `week` / `upcoming` / `done` based on `dueDate` vs `todayLocal()` and `endOfWeekLocal()` (see `src/utils.ts` — these use **local** dates, not UTC, to avoid off-by-one bugs at midnight). `endOfMonthLocal` is also exported but currently unused.
+After filtering, todos are bucketed into `overdue` / `today` / `week` / `upcoming` / `done` based on `dueDate` vs `todayLocal()` and `endOfWeekLocal()` (see `src/utils.ts` — these use **local** dates, not UTC, to avoid off-by-one bugs at midnight). `endOfMonthLocal` is also exported (used by mobile's date chips).
 
 `buildGroups` takes an optional `{ separateDone }` flag. When true, completed todos are pulled into the `done` bucket instead of being date-bucketed; when false, all todos are date-bucketed. The store passes `separateDone: filter !== 'done'` so the Done filter view still date-buckets completed todos, while every other view shows completed todos in a trailing Done group.
 

@@ -217,7 +217,6 @@ export function useTodoStore() {
     setTodoReferences,
     selectedTrashIds,
     todosRef,
-    applyPebbleDelta,
     applyPebbleDeltaTimed,
     toggle,
     moveToTrash,
@@ -257,10 +256,9 @@ export function useTodoStore() {
     bulkPermanentDelete,
     clearDone,
   } = todosBundle;
-  // applyPebbleDelta is no longer read in the composer body — the
-  // slice handles every call site internally. Composer re-exposes it
-  // in the return for back-compat with any caller that reaches in.
-  void applyPebbleDelta;
+  // applyPebbleDelta is intentionally NOT destructured here — every call
+  // site lives inside useTodosSlice, and applyPebbleDeltaTimed is the
+  // public pebble-accounting chokepoint the composer threads onward.
 
   // Persistence-scale dual-write (default-OFF). Shadow-populates the
   // per-item todos collection alongside the single-doc write so a future

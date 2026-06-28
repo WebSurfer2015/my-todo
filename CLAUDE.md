@@ -13,7 +13,7 @@ This is the repo-level guide. The two app workspaces have their own deeper guide
 my-todo/
 ├── core/      Pure TypeScript, organized into Clean Architecture rings:
 │              domain/ (types, priorities, statuses), logic/ (derive, groups,
-│              selection, utils, filters), ports/ (persistence, agentTools),
+│              selection, utils, filters), ports/ (persistence),
 │              data/ (categories, profile, i18n, exporter, groceries),
 │              store/ (createTodoStore, coordinators); index.ts is the barrel
 ├── web/       Vite + React 18 + TypeScript

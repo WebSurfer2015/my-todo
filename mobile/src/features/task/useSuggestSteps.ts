@@ -9,7 +9,7 @@
  * this when the user dismisses the panel.
  */
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { suggestSubtasks } from '../../adapters/aiInfer'
 import { useLang } from '../../app/LangContext'
 
@@ -25,11 +25,22 @@ export function useSuggestSteps({
   const [suggestions, setSuggestions] = useState<string[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // Abort the in-flight request when the panel unmounts (or a new request
+  // supersedes it) so the model call doesn't bill after the UI is gone.
+  const controllerRef = useRef<AbortController | null>(null)
+  useEffect(() => () => controllerRef.current?.abort(), [])
+
   async function request() {
+    controllerRef.current?.abort()
+    const controller = new AbortController()
+    controllerRef.current = controller
     setThinking(true)
     setError(null)
     try {
-      const res = await suggestSubtasks({ title: parentTitle, notes: parentNotes })
+      const res = await suggestSubtasks(
+        { title: parentTitle, notes: parentNotes },
+        controller.signal,
+      )
       // Trim before the length check — a whitespace-only suggestion
       // would otherwise pass the > 0 guard and render as a blank step.
       const texts = res.subtasks
@@ -40,7 +51,10 @@ export function useSuggestSteps({
         return
       }
       setSuggestions(texts)
-    } catch {
+    } catch (e) {
+      // A cancelled request (unmount / new request) is not a failure —
+      // stay silent rather than flashing an error as the panel closes.
+      if (e instanceof Error && e.name === 'AbortError') return
       setError(t.suggestStepsError)
     } finally {
       setThinking(false)

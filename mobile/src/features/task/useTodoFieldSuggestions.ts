@@ -89,6 +89,9 @@ export function useTodoFieldSuggestions({
   const seqRef = useRef(0)
   const lastQueriedRef = useRef<string>('')
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Aborts the in-flight request when the effect re-runs or the hook
+  // unmounts — stops a model call billing after the compose UI is gone.
+  const controllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     if (timerRef.current !== null) {
@@ -144,11 +147,16 @@ export function useTodoFieldSuggestions({
       const queryText = trimmed
       lastQueriedRef.current = queryText
       setThinking(true)
-      void suggestTodoFields({
-        text: queryText,
-        today: todayRef.current,
-        categories: categoriesRef.current,
-      }).then((res) => {
+      const controller = new AbortController()
+      controllerRef.current = controller
+      void suggestTodoFields(
+        {
+          text: queryText,
+          today: todayRef.current,
+          categories: categoriesRef.current,
+        },
+        controller.signal,
+      ).then((res) => {
         // Drop stale response — the user kept typing.
         if (querySeq !== seqRef.current) return
         // If every field is null, hide the row entirely rather than
@@ -171,6 +179,11 @@ export function useTodoFieldSuggestions({
         clearTimeout(timerRef.current)
         timerRef.current = null
       }
+      // Cancel + invalidate any in-flight request: abort the fetch (so it
+      // stops billing) AND bump seqRef so a late resolve can't setState on
+      // an unmounted component.
+      controllerRef.current?.abort()
+      seqRef.current += 1
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, agentEnabled])

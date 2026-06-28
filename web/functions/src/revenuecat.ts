@@ -16,6 +16,7 @@
  *     (Purchases.logIn(uid)) so event.app_user_id maps to our user.
  */
 
+import { timingSafeEqual } from 'node:crypto'
 import { onRequest } from 'firebase-functions/v2/https'
 import { defineSecret } from 'firebase-functions/params'
 import * as admin from 'firebase-admin'
@@ -74,7 +75,11 @@ export const revenuecatWebhook = onRequest(
       return
     }
     // Shared-secret auth — RC sends the value configured in its dashboard.
-    if (req.header('Authorization') !== REVENUECAT_WEBHOOK_SECRET.value()) {
+    // Constant-time compare so a network attacker can't recover the secret
+    // (the only writer of the paid-entitlement doc) via a timing oracle.
+    const got = Buffer.from(req.header('Authorization') ?? '')
+    const want = Buffer.from(REVENUECAT_WEBHOOK_SECRET.value())
+    if (got.length !== want.length || !timingSafeEqual(got, want)) {
       res.status(401).send('Unauthorized')
       return
     }

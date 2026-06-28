@@ -20,6 +20,10 @@ interface Props {
 export default function PickerModal({ visible, options, selectedKey, onSelect, onClose }: Props) {
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
+  // RN <Modal visible={false}> still reconciles its JS subtree on every render.
+  // With a long list of TaskItems each mounting 2-3 of these, that cost
+  // multiplies per-row — skip the subtree entirely while closed.
+  if (!visible) return null
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity style={styles.overlay} onPress={onClose} activeOpacity={1}>

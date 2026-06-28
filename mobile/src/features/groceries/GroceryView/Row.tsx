@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from "react";
+import React, { memo, useCallback, useRef } from "react";
 import { Dimensions, Text, TouchableOpacity, View } from "react-native";
 import { GroceryItem } from "../../../core-bindings/groceries";
 import { useTriggerPebbleFlight } from "../../mochi/PebbleFlight";
@@ -8,9 +8,11 @@ export interface RowProps {
   item: GroceryItem;
   /** Returns the (store × dept) bucket-completion delta from
    * useGroceriesSlice.toggleGroceryChecked. When > 0 the row fires
-   * the Mochi pebble-flight to celebrate. */
-  onToggle: () => number;
-  onOpenEdit: () => void;
+   * the Mochi pebble-flight to celebrate. Takes the item id so the
+   * parent can pass a reference-stable callback (the row supplies
+   * `item.id`), keeping the React.memo wrapper effective. */
+  onToggle: (id: string) => number;
+  onOpenEdit: (id: string) => void;
   styles: Styles;
   futureMode?: boolean;
   /** Department color — feeds PebbleFlight as `tint` for the
@@ -27,7 +29,7 @@ export interface RowProps {
  *   (tap anywhere to check an item off the list quickly).
  * - The trailing "›" chevron, or a long-press anywhere → open the edit sheet.
  */
-export default function Row({
+function Row({
   item,
   onToggle,
   onOpenEdit,
@@ -39,8 +41,9 @@ export default function Row({
 }: RowProps) {
   const triggerPebbleFlight = useTriggerPebbleFlight();
   const measureRef = useRef<View>(null);
+  const handleOpenEdit = useCallback(() => onOpenEdit(item.id), [onOpenEdit, item.id]);
   const handleToggle = useCallback(() => {
-    const delta = onToggle();
+    const delta = onToggle(item.id);
     if (delta > 0 && (celebrate || playSound)) {
       const fallback = {
         x: Dimensions.get("window").width / 2,
@@ -59,7 +62,7 @@ export default function Row({
         triggerPebbleFlight(fallback, { animate: celebrate, chime: playSound, tint });
       }
     }
-  }, [onToggle, celebrate, playSound, tint, triggerPebbleFlight]);
+  }, [onToggle, item.id, celebrate, playSound, tint, triggerPebbleFlight]);
   return (
     <View ref={measureRef} style={styles.row}>
       <TouchableOpacity
@@ -89,7 +92,7 @@ export default function Row({
         style={styles.rowBody}
         activeOpacity={0.6}
         onPress={handleToggle}
-        onLongPress={onOpenEdit}
+        onLongPress={handleOpenEdit}
         delayLongPress={350}
         accessibilityRole="button"
         accessibilityLabel={
@@ -115,7 +118,7 @@ export default function Row({
       {/* Visible edit affordance — tap-to-toggle owns the row body, so a quiet
           chevron gives a discoverable edit path without relying on long-press. */}
       <TouchableOpacity
-        onPress={onOpenEdit}
+        onPress={handleOpenEdit}
         hitSlop={10}
         style={styles.rowEditBtn}
         accessibilityRole="button"
@@ -126,3 +129,10 @@ export default function Row({
     </View>
   );
 }
+
+// Memoized: the parent rebuilds the byGroup/future arrays on every
+// store mutation, but the underlying item objects keep their identity
+// unless that specific item changed. With id-aware stable onToggle/
+// onOpenEdit callbacks (and the useMemo'd `styles`), only the rows
+// whose `item` actually changed re-render.
+export default memo(Row);

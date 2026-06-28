@@ -52,10 +52,21 @@ export function makeFirestoreCollectionAdapter(
       await deleteDoc(doc(db, path, id));
     },
     subscribe(callback) {
-      return onSnapshot(collection(db, path), (snap) => {
-        if (snap.metadata.hasPendingWrites) return;
-        callback(read(snap));
-      });
+      return onSnapshot(
+        collection(db, path),
+        (snap) => {
+          if (snap.metadata.hasPendingWrites) return;
+          callback(read(snap));
+        },
+        (err) => {
+          // permission-denied is expected during the sign-out / uid-swap
+          // teardown window — the listener can outlive auth for a tick.
+          // Stay quiet on it; surface anything else.
+          const code = (err as { code?: string }).code ?? "";
+          if (code.includes("permission-denied")) return;
+          console.warn("Firestore subscribe error:", err);
+        },
+      );
     },
   };
 }
