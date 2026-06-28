@@ -1383,7 +1383,11 @@ export default function TaskDetailsSheet({
                   accessibilityRole="button"
                   accessibilityLabel={`Priority, ${t.priority[editPriority]}. Tap to change.`}
                 >
-                  <PriorityDot level={editPriority} size={14} />
+                  {/* 18-wide slot so the dot matches the other rows' 18pt
+                      icons → the Priority label aligns with them. */}
+                  <View style={{ width: 18, alignItems: 'center' }}>
+                    <PriorityDot level={editPriority} size={14} />
+                  </View>
                   <Text style={styles.editFieldLabel}>{t.composePriorityLabel}</Text>
                   <Text style={styles.editFieldValue} numberOfLines={1}>
                     {t.priority[editPriority]}

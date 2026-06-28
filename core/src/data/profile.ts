@@ -74,6 +74,12 @@ export interface Profile {
    * rolls over (so the daily rotation resumes automatically at midnight).
    */
   quoteShuffle?: { date: string; index: number }
+  /**
+   * Which capture surface the add-FAB reopens — the one the user used last.
+   * 'manual' = the compose form, 'mochi' = the Ask Mochi chat. Set by the
+   * "Ask Mochi instead" / "Enter manually instead" switch links.
+   */
+  lastComposeMode?: 'manual' | 'mochi'
   avatar: Avatar
   density?: Density
   title?: string
@@ -536,6 +542,10 @@ export function migrateProfile(raw: unknown): Profile {
             date: (p.quoteShuffle as { date: string }).date,
             index: Math.max(0, Math.floor((p.quoteShuffle as { index: number }).index)),
           }
+        : undefined,
+    lastComposeMode:
+      p.lastComposeMode === 'manual' || p.lastComposeMode === 'mochi'
+        ? p.lastComposeMode
         : undefined,
     completionSound:
       typeof p.completionSound === 'boolean' ? p.completionSound : undefined,

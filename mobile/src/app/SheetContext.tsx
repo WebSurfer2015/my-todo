@@ -143,9 +143,9 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   const openMochi = useCallback(() => setMochiOpen(true), [])
 
   // The FAB reopens whichever capture surface you used last — manual compose
-  // or Ask Mochi. Session-scoped (resets to manual on app restart). The two
-  // "switch" links below update it.
-  const [lastComposeMode, setLastComposeMode] = useState<'manual' | 'mochi'>('manual')
+  // or Ask Mochi — persisted on the profile so it sticks across launches. The
+  // two "switch" links below update it.
+  const lastComposeMode = store.profile.lastComposeMode ?? 'manual'
   const openCapture = useCallback(() => {
     if (lastComposeMode === 'mochi') setMochiOpen(true)
     else openCompose()
@@ -554,7 +554,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         onAskMochi={
           MOCHI_AGENT_ENABLED
             ? () => {
-                setLastComposeMode('mochi')
+                store.saveProfile((p) => ({ ...p, lastComposeMode: 'mochi' }))
                 setComposeOpen(false)
                 setMochiOpen(true)
               }
@@ -593,7 +593,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           onReviewCreateTodo={reviewCreateTodo}
           onClose={() => setMochiOpen(false)}
           onEnterManually={() => {
-            setLastComposeMode('manual')
+            store.saveProfile((p) => ({ ...p, lastComposeMode: 'manual' }))
             setMochiOpen(false)
             setComposeOpen(true)
           }}
