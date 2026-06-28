@@ -41,7 +41,7 @@ import { MOCHI_AGENT_ENABLED } from './featureFlags'
 import ManageAnimationSoundSheet from '../features/profile/ManageAnimationSoundSheet'
 import CategorySheet from '../features/category/CategorySheet'
 import { COLOR_PALETTE } from '../core-bindings/categories'
-import { SEED_GROCERY_STORES } from '../core-bindings/groceries'
+import { SEED_GROCERY_STORES, frequentGroceries } from '../core-bindings/groceries'
 import type { Filter, Priority } from '../core-bindings/types'
 import type { Guide } from '../features/onboarding/guides'
 import { genUuid } from '../../../core/src/logic/utils'
@@ -658,6 +658,15 @@ export function SheetProvider({ children }: { children: ReactNode }) {
             label: g.label,
           }))}
           groceries={store.groceries.map((g) => ({ id: g.id, text: g.text }))}
+          // Top frequently-bought staples → quick re-add chips on the opening
+          // screen (minCount 2 so they surface without a long history). Empty
+          // for a new account; ChatSheet falls back to teaching examples.
+          frequentChips={frequentGroceries(store.groceries, { minCount: 2 })
+            .slice(0, 3)
+            .map((g) => ({
+              label: g.text.charAt(0).toUpperCase() + g.text.slice(1),
+              prefill: `Add ${g.text} to shopping list`,
+            }))}
           stores={store.profile.groceryStores ?? SEED_GROCERY_STORES}
           onApplyOperation={applyMochiOp}
           onCaptureWithUndo={applyCaptureWithUndo}

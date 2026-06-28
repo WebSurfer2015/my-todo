@@ -52,6 +52,10 @@ interface Props {
   /** Shopping items (id + text) so Mochi can target deleteGroceryItem and the
    * preview can show which item it'll remove. */
   groceries: Array<{ id: string; text: string }>
+  /** The user's most frequently-bought staples, top-first — shown as quick
+   * re-add chips on the opening screen. Each `prefill` seeds the capture box.
+   * Empty for a new account, in which case the teaching examples show. */
+  frequentChips: Array<{ label: string; prefill: string }>
   /** Grocery store names so Mochi can tag items / detect a missing store. */
   stores: string[]
   /** Apply one validated proposed operation. The parent maps each kind to
@@ -79,11 +83,13 @@ interface Props {
 
 /** Example chips — tapping one PRE-FILLS the capture box (it doesn't ask a
  * question). The user tweaks and sends, so capture leads instead of a
- * back-and-forth. These double as a "here's what I can do" teaser. */
-const EXAMPLE_CHIPS: string[] = [
-  'Buy milk tomorrow',
-  'Run Mon/Wed/Fri 11am',
-  'Add eggs to shopping',
+ * back-and-forth. These double as a "here's what I can do" teaser, and are the
+ * fallback when the account has no frequent-staple history yet. `label` is what
+ * the chip shows; `prefill` is what lands in the box. */
+const EXAMPLE_CHIPS: Array<{ label: string; prefill: string }> = [
+  { label: 'Buy milk tomorrow', prefill: 'Buy milk tomorrow' },
+  { label: 'Run Mon/Wed/Fri 11am', prefill: 'Run Mon/Wed/Fri 11am' },
+  { label: 'Add eggs to shopping', prefill: 'Add eggs to shopping' },
 ]
 
 /** Rotating placeholder hints — cycle while the box is empty so the field
@@ -185,6 +191,7 @@ export default function ChatSheet({
   todos,
   groceryGroups,
   groceries,
+  frequentChips,
   stores,
   onApplyOperation,
   onCaptureWithUndo,
@@ -311,6 +318,18 @@ export default function ChatSheet({
     ? `Hi ${greetingName.trim()} — what should I add?`
     : 'What should I add?'
 
+  // Opening-screen chips: the user's frequent staples first (top 3), padded
+  // with teaching examples (skipping any that duplicate a staple's prefill) so
+  // there are always three and a fresh account still learns what Mochi can do.
+  const openingChips = useMemo(() => {
+    const out = [...frequentChips]
+    for (const ex of EXAMPLE_CHIPS) {
+      if (out.length >= 3) break
+      if (!out.some((c) => c.prefill === ex.prefill)) out.push(ex)
+    }
+    return out.slice(0, 3)
+  }, [frequentChips])
+
   const categoryLookup = (id: string) => {
     const c = categories.find((cat) => cat.id === id)
     return c ? categoryLabel(c, t) : id
@@ -380,20 +399,20 @@ export default function ChatSheet({
                     Type it however you like — I'll turn it into a to-do or list item.
                   </Text>
                   <View style={styles.chipsRow}>
-                    {EXAMPLE_CHIPS.map((ex) => (
+                    {openingChips.map((chip) => (
                       <TouchableOpacity
-                        key={ex}
+                        key={chip.label}
                         style={styles.intentChip}
                         activeOpacity={0.7}
                         onPress={() => {
                           // Pre-fill the box; the user tweaks + sends. No AI
                           // round here — capture leads.
                           Haptics.selectionAsync().catch(() => {})
-                          setInput(ex)
+                          setInput(chip.prefill)
                           inputRef.current?.focus()
                         }}
                       >
-                        <Text style={styles.intentChipText}>{ex}</Text>
+                        <Text style={styles.intentChipText}>{chip.label}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
