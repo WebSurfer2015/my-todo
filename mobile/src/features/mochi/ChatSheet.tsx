@@ -415,7 +415,7 @@ export default function ChatSheet({
                               <Text style={styles.appliedNote}>Removed</Text>
                             ) : (
                               <View style={styles.appliedRow}>
-                                <Text style={styles.appliedNote}>✓ Added</Text>
+                                <Text style={[styles.appliedNote, { marginTop: 0 }]}>✓ Added</Text>
                                 <TouchableOpacity
                                   hitSlop={8}
                                   onPress={() => {
