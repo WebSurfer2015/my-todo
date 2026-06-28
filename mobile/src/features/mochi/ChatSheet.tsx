@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native'
 import * as Haptics from 'expo-haptics'
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Sparkles, Bell, Check } from 'lucide-react-native'
 import { useLang } from '../../app/LangContext'
 import { usePurchases } from '../../app/PurchasesContext'
@@ -24,7 +25,7 @@ import MochiThinking from './MochiThinking'
 import EditableCaptureCard from './EditableCaptureCard'
 import { type Priority } from '../../core-bindings/types'
 import { snapDueDateToRecurrence } from '../../../../core/src/logic/derive'
-import { todayLocal, formatDisplayDate } from '../../core-bindings/utils'
+import { todayLocal, formatDisplayDate, isoDate } from '../../core-bindings/utils'
 import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 import { Analytics } from '../../adapters/analytics'
 
@@ -93,6 +94,9 @@ interface Props {
   /** Permanently delete one to-do — `scope:'series'` removes this + all future
    * occurrences. The card owns the permanence confirm; this just deletes. */
   onDeleteTodo: (id: string, scope: 'one' | 'series') => void
+  /** Bulk-act on the pick-list's ticked items: skip / defer (to dueDate) /
+   * delete. The card owns the date picker + delete confirm. */
+  onPickAction: (action: 'skip' | 'defer' | 'delete', ids: string[], dueDate?: string) => void
   /** Review a proposed NEW todo in the manual ComposeSheet instead of
    * applying it directly — the chat parsed the words, the manual form (the
    * same code a manual add uses) lets the user confirm/edit and save. When
@@ -221,6 +225,7 @@ export default function ChatSheet({
   onEditCapturedTodo,
   onApplyPickedTodos,
   onDeleteTodo,
+  onPickAction,
   onReviewCreateTodo,
 }: Props) {
   const { t } = useLang()
@@ -500,6 +505,10 @@ export default function ChatSheet({
                                 onDeleteTodo(id, scope)
                                 setResolved((prev) => ({ ...prev, [i]: 'applied' }))
                               }}
+                              onPickAction={(act, ids, dueDate) => {
+                                onPickAction(act, ids, dueDate)
+                                setResolved((prev) => ({ ...prev, [i]: 'applied' }))
+                              }}
                               styles={styles}
                               theme={theme}
                             />
@@ -771,6 +780,7 @@ function PickTodosCard({
   categoryLabelLookup,
   onConfirm,
   onDeleteTodo,
+  onPickAction,
   styles,
   theme,
 }: {
@@ -779,14 +789,19 @@ function PickTodosCard({
   categoryLabelLookup: (id: string) => string
   onConfirm: (selectedIds: string[]) => void
   onDeleteTodo: (id: string, scope: 'one' | 'series') => void
+  onPickAction: (action: 'skip' | 'defer' | 'delete', ids: string[], dueDate?: string) => void
   styles: ReturnType<typeof makeStyles>
   theme: ThemeColors
 }) {
   const { t } = useLang()
   const { action, query } = op.args
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [done, setDone] = useState<{ n: number } | null>(null)
+  const [done, setDone] = useState<{ verb: string; n: number } | null>(null)
   const [seriesDeleted, setSeriesDeleted] = useState(false)
+  const [deferOpen, setDeferOpen] = useState(false)
+  // delete/markDone lists let the user choose Skip / Defer / Delete on the
+  // ticked items; edit/addSteps keep their single agent-payload button.
+  const simpleActions = action === 'delete' || action === 'markDone'
 
   // When a delete search lands entirely inside ONE generated series, offer to
   // drop the whole series instead of ticking every instance. `mode` starts on
@@ -812,12 +827,46 @@ function PickTodosCard({
     Haptics.selectionAsync().catch(() => {})
     setSelected(allOn ? new Set() : new Set(candidates.map((c) => c.id)))
   }
+  const selectedIds = () => candidates.filter((c) => selected.has(c.id)).map((c) => c.id)
   const confirm = () => {
     if (selected.size === 0) return
-    const ids = candidates.filter((c) => selected.has(c.id)).map((c) => c.id)
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
-    onConfirm(ids)
-    setDone({ n: ids.length })
+    onConfirm(selectedIds())
+    setDone({ verb: PICK_DONE[action], n: selected.size })
+  }
+  const doSkip = () => {
+    if (selected.size === 0) return
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
+    onPickAction('skip', selectedIds())
+    setDone({ verb: 'Skipped', n: selected.size })
+  }
+  const doDelete = () => {
+    if (selected.size === 0) return
+    const ids = selectedIds()
+    const n = ids.length
+    Alert.alert(
+      n === 1 ? 'Delete to-do?' : `Delete ${n} to-dos?`,
+      `Permanently delete ${n === 1 ? 'this to-do' : `these ${n} to-dos`}. This can't be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            onPickAction('delete', ids)
+            setDone({ verb: 'Deleted', n })
+          },
+        },
+      ],
+    )
+  }
+  const onDeferDate = (e: DateTimePickerEvent, d?: Date) => {
+    setDeferOpen(false)
+    if (e.type === 'set' && d && selected.size > 0) {
+      const ids = selectedIds()
+      onPickAction('defer', ids, isoDate(d))
+      setDone({ verb: 'Deferred', n: ids.length })
+    }
   }
 
   const deleteSeries = () => {
@@ -845,7 +894,7 @@ function PickTodosCard({
   if (done) {
     return (
       <Text style={styles.appliedNote}>
-        ✓ {PICK_DONE[action]} {done.n}
+        ✓ {done.verb} {done.n}
       </Text>
     )
   }
@@ -930,20 +979,60 @@ function PickTodosCard({
         })}
       </ScrollView>
 
-      <TouchableOpacity
-        style={[
-          styles.btn,
-          action === 'delete' ? styles.btnDanger : styles.btnPrimary,
-          selected.size === 0 && styles.btnDisabled,
-        ]}
-        disabled={selected.size === 0}
-        onPress={confirm}
-        accessibilityRole="button"
-      >
-        <Text style={action === 'delete' ? styles.btnDangerText : styles.btnPrimaryText}>
-          {PICK_CTA[action]} {selected.size > 0 ? selected.size : ''}
-        </Text>
-      </TouchableOpacity>
+      {simpleActions ? (
+        // Skip / Defer / Delete on the ticked items.
+        <>
+          <View style={styles.actionsRow}>
+            <TouchableOpacity
+              style={[styles.btn, styles.btnNeutral, selected.size === 0 && styles.btnDisabled]}
+              disabled={selected.size === 0}
+              onPress={doSkip}
+              accessibilityRole="button"
+            >
+              <Text style={styles.btnNeutralText}>Skip{selected.size > 0 ? ` ${selected.size}` : ''}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.btn, styles.btnNeutral, selected.size === 0 && styles.btnDisabled]}
+              disabled={selected.size === 0}
+              onPress={() => setDeferOpen(true)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.btnNeutralText}>Defer{selected.size > 0 ? ` ${selected.size}` : ''}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.btn, styles.btnDanger, selected.size === 0 && styles.btnDisabled]}
+              disabled={selected.size === 0}
+              onPress={doDelete}
+              accessibilityRole="button"
+            >
+              <Text style={styles.btnDangerText}>Delete{selected.size > 0 ? ` ${selected.size}` : ''}</Text>
+            </TouchableOpacity>
+          </View>
+          {deferOpen && (
+            <View style={styles.pickDeferWrap}>
+              <Text style={styles.pickDeferLabel}>Move {selected.size} to:</Text>
+              <DateTimePicker
+                value={new Date()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'compact' : 'default'}
+                themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
+                onChange={onDeferDate}
+              />
+            </View>
+          )}
+        </>
+      ) : (
+        <TouchableOpacity
+          style={[styles.btn, styles.btnPrimary, selected.size === 0 && styles.btnDisabled]}
+          disabled={selected.size === 0}
+          onPress={confirm}
+          accessibilityRole="button"
+        >
+          <Text style={styles.btnPrimaryText}>
+            {PICK_CTA[action]} {selected.size > 0 ? selected.size : ''}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   )
 }
@@ -1607,6 +1696,8 @@ function makeStyles(c: ThemeColors) {
       marginTop: 1,
     },
     pickCheckboxOn: { backgroundColor: c.primary, borderColor: c.primary },
+    pickDeferWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
+    pickDeferLabel: { fontSize: 13, fontWeight: '600', color: c.label2 },
     meter: {
       fontSize: 11,
       fontWeight: '600',

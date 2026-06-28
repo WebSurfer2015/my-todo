@@ -515,6 +515,18 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     },
     [store],
   )
+
+  // Bulk action on the pick-list's chosen ids — the card owns the date picker +
+  // delete confirm, so these just perform the mutation per id.
+  const applyPickAction = useCallback(
+    (action: 'skip' | 'defer' | 'delete', ids: string[], dueDate?: string) => {
+      if (action === 'skip') ids.forEach((id) => store.skipTodo(id))
+      else if (action === 'defer' && dueDate)
+        ids.forEach((id) => store.updateDueDate(id, dueDate))
+      else if (action === 'delete') ids.forEach((id) => store.permanentlyDelete(id))
+    },
+    [store],
+  )
   const openManageFilter = useCallback(() => {
     setCategorySheetMode('edit')
     setCategorySheetOpen(true)
@@ -809,6 +821,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           onEditCapturedTodo={editCapturedTodo}
           onApplyPickedTodos={applyPickedTodos}
           onDeleteTodo={deleteTodoScoped}
+          onPickAction={applyPickAction}
           onReviewCreateTodo={reviewCreateTodo}
           onClose={() => setMochiOpen(false)}
           onEnterManually={() => {
