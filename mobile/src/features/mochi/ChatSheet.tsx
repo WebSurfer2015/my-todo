@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  Animated,
+  Easing,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -11,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
+import * as Haptics from 'expo-haptics'
 import { Sparkles, Bell } from 'lucide-react-native'
 import { useLang } from '../../app/LangContext'
 import { usePurchases } from '../../app/PurchasesContext'
@@ -27,6 +30,9 @@ interface Props {
   onClose: () => void
   /** First name (or display name) for the greeting line. */
   greetingName: string
+  /** Honor the user's reduce-motion preference — skip the entrance + breathing
+   * animations when true. */
+  reduceMotion?: boolean
   categories: CategoryDef[]
   /** Open todos. id + text go to the agent so it can target editTodo /
    * markDone / addSteps at real ids; priority/category/dueDate are used
@@ -68,6 +74,78 @@ const INTENT_CHIPS: { label: string; prompt: string }[] = [
   { label: 'Add to shopping list', prompt: 'What should I add to your list?' },
 ]
 
+/** Fade-and-rise entrance for a chat row. New bubbles ease up into place so the
+ * conversation feels alive; static when reduce-motion is on. */
+function Appear({
+  reduceMotion,
+  style,
+  children,
+}: {
+  reduceMotion: boolean
+  style?: object
+  children: React.ReactNode
+}) {
+  const v = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current
+  useEffect(() => {
+    if (reduceMotion) return
+    Animated.timing(v, {
+      toValue: 1,
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start()
+  }, [reduceMotion, v])
+  return (
+    <Animated.View
+      style={[
+        style,
+        reduceMotion
+          ? null
+          : {
+              opacity: v,
+              transform: [
+                { translateY: v.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) },
+              ],
+            },
+      ]}
+    >
+      {children}
+    </Animated.View>
+  )
+}
+
+/** Slow breathing sparkle for the empty-state greeting — a calm sign of life,
+ * not a spinner. Static when reduce-motion is on. */
+function BreathingSparkle({ reduceMotion, color }: { reduceMotion: boolean; color: string }) {
+  const v = useRef(new Animated.Value(0)).current
+  useEffect(() => {
+    if (reduceMotion) return
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(v, { toValue: 1, duration: 1400, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(v, { toValue: 0, duration: 1400, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ]),
+    )
+    loop.start()
+    return () => loop.stop()
+  }, [reduceMotion, v])
+  return (
+    <Animated.View
+      style={
+        reduceMotion
+          ? { marginBottom: 8 }
+          : {
+              marginBottom: 8,
+              opacity: v.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }),
+              transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1.08] }) }],
+            }
+      }
+    >
+      <Sparkles size={22} color={color} strokeWidth={2.2} />
+    </Animated.View>
+  )
+}
+
 /**
  * Mochi chatbot: a calm, multi-turn capture surface. Mochi greets, asks a
  * follow-up per missing field, can create a missing category/store, and
@@ -80,6 +158,7 @@ export default function ChatSheet({
   onClose,
   onEnterManually,
   greetingName,
+  reduceMotion = false,
   categories,
   todos,
   groceryGroups,
@@ -120,6 +199,7 @@ export default function ChatSheet({
       openPaywall("You're out of Mochi requests for now.")
       return
     }
+    Haptics.selectionAsync().catch(() => {})
     setInput('')
     send(turn, {
       today: todayLocal(),
@@ -133,6 +213,8 @@ export default function ChatSheet({
   }
 
   function handleConfirm(index: number, ops: ProposedOperation[]) {
+    // Gentle success beat — the satisfying "Mochi got it" moment.
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
     // A single new-todo turn is handed to the manual ComposeSheet (the same
     // code a manual add uses) so the user reviews + saves through one path —
     // identical outcome, no separate apply logic. Close the chat so Compose
@@ -155,8 +237,8 @@ export default function ChatSheet({
   }
 
   const greeting = greetingName.trim()
-    ? `Hello ${greetingName.trim()}, how can I help you?`
-    : 'Hello, how can I help you?'
+    ? `Hi ${greetingName.trim()}. What's on your mind?`
+    : "Hi. What's on your mind?"
 
   const categoryLookup = (id: string) => {
     const c = categories.find((cat) => cat.id === id)
@@ -218,6 +300,7 @@ export default function ChatSheet({
               {/* Greeting + intent chips — only before the first user turn. */}
               {messages.length === 0 && (
                 <View>
+                  <BreathingSparkle reduceMotion={reduceMotion} color={theme.primary} />
                   <Text style={styles.greeting}>{greeting}</Text>
                   <View style={styles.chipsRow}>
                     {INTENT_CHIPS.map((c) => (
@@ -229,6 +312,7 @@ export default function ChatSheet({
                           // Auto-send the intent + an instant canned question —
                           // no AI round for a bare intent. The user then types
                           // the details, which DO go to Mochi.
+                          Haptics.selectionAsync().catch(() => {})
                           pushLocalExchange(c.label, c.prompt)
                           inputRef.current?.focus()
                         }}
@@ -242,13 +326,13 @@ export default function ChatSheet({
 
               {messages.map((m, i) =>
                 m.role === 'user' ? (
-                  <View key={i} style={styles.userRow}>
+                  <Appear key={i} reduceMotion={reduceMotion} style={styles.userRow}>
                     <View style={styles.userBubble}>
                       <Text style={styles.userBubbleText}>{m.content}</Text>
                     </View>
-                  </View>
+                  </Appear>
                 ) : (
-                  <View key={i} style={styles.mochiRow}>
+                  <Appear key={i} reduceMotion={reduceMotion} style={styles.mochiRow}>
                     <View style={styles.mochiAvatar}>
                       <Sparkles size={14} color={theme.primary} strokeWidth={2.2} />
                     </View>
@@ -288,7 +372,7 @@ export default function ChatSheet({
                         ) : null
                       )}
                     </View>
-                  </View>
+                  </Appear>
                 ),
               )}
 
@@ -337,15 +421,20 @@ export default function ChatSheet({
                 blurOnSubmit={false}
                 editable={!isThinking}
               />
-              <TouchableOpacity
-                style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.sendBtn,
+                  !input.trim() && styles.sendBtnDisabled,
+                  // Living send: a small press-dip when there's something to send.
+                  pressed && !!input.trim() && { transform: [{ scale: 0.88 }] },
+                ]}
                 onPress={() => handleSend()}
                 disabled={!input.trim() || isThinking}
                 accessibilityRole="button"
                 accessibilityLabel="Send"
               >
                 <Text style={styles.sendBtnText}>↑</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
           </View>
         </View>
