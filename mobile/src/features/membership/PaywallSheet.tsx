@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react'
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -22,6 +24,14 @@ import {
 } from '../../core-bindings/entitlements'
 
 type Billing = 'annual' | 'monthly'
+
+// Apple/Google require functional Terms (EULA) + Privacy links in the purchase
+// flow for auto-renewable subscriptions (App Store 3.1.2). Privacy is our own
+// published policy; Terms falls back to Apple's standard EULA since we don't
+// ship a custom one — swap in a custom URL here if that changes.
+const TERMS_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'
+const PRIVACY_URL = 'https://websurfer2015.github.io/my-todo/PRIVACY.html'
+const openLink = (url: string) => Linking.openURL(url).catch(() => {})
 
 interface PlanView {
   tier: Tier
@@ -90,7 +100,11 @@ export default function PaywallSheet({
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
   const [billing, setBilling] = useState<Billing>('annual')
-  const [busy, setBusy] = useState(false)
+  // Track the product mid-purchase so its own CTA shows the spinner (and all
+  // CTAs disable) — the StoreKit call can take a couple seconds and a silent
+  // disabled button reads as "stuck" at the highest-stakes tap in the app.
+  const [pendingId, setPendingId] = useState<string | null>(null)
+  const busy = pendingId !== null
 
   const pkgFor = (productId: string): PurchasesPackage | null =>
     offering?.availablePackages.find((p) => p.product.identifier === productId) ?? null
@@ -98,9 +112,9 @@ export default function PaywallSheet({
   async function buy(productId: string) {
     const pkg = pkgFor(productId)
     if (!pkg || busy) return
-    setBusy(true)
+    setPendingId(productId)
     const ok = await onPurchase(pkg)
-    setBusy(false)
+    setPendingId(null)
     if (ok) onClose()
   }
 
@@ -213,9 +227,13 @@ export default function PaywallSheet({
                         onPress={() => productId && buy(productId)}
                         activeOpacity={0.85}
                       >
-                        <Text style={recommended ? styles.ctaText : styles.ctaOutlineText}>
-                          {trialText ?? `Subscribe · ${price}`}
-                        </Text>
+                        {pendingId === productId ? (
+                          <ActivityIndicator color={recommended ? theme.primaryOn : theme.primary} />
+                        ) : (
+                          <Text style={recommended ? styles.ctaText : styles.ctaOutlineText}>
+                            {trialText ?? `Subscribe · ${price}`}
+                          </Text>
+                        )}
                       </TouchableOpacity>
                     ) : (
                       <Text style={styles.ctaStatus}>{status}</Text>
@@ -224,7 +242,7 @@ export default function PaywallSheet({
                 )
               })}
 
-              <TouchableOpacity onPress={onRestore} style={styles.restore} hitSlop={8}>
+              <TouchableOpacity onPress={onRestore} style={styles.restore} hitSlop={10}>
                 <Text style={styles.restoreText}>Restore purchases</Text>
               </TouchableOpacity>
               <Text style={styles.fine}>
@@ -233,6 +251,15 @@ export default function PaywallSheet({
                 cancelled — manage in your App Store account. Pay-as-you-go requests
                 are available when your Mochi allowance runs out.
               </Text>
+              <View style={styles.legalRow}>
+                <TouchableOpacity onPress={() => openLink(TERMS_URL)} hitSlop={10}>
+                  <Text style={styles.legalLink}>Terms of Use</Text>
+                </TouchableOpacity>
+                <Text style={styles.legalDot}>·</Text>
+                <TouchableOpacity onPress={() => openLink(PRIVACY_URL)} hitSlop={10}>
+                  <Text style={styles.legalLink}>Privacy Policy</Text>
+                </TouchableOpacity>
+              </View>
             </ScrollView>
           </View>
         </View>
@@ -344,6 +371,15 @@ function makeStyles(c: ThemeColors) {
     ctaOutlineText: { color: c.primary, fontSize: 15, fontWeight: '700' },
     restore: { alignSelf: 'center', paddingVertical: 8 },
     restoreText: { fontSize: 13, fontWeight: '600', color: c.primary },
-    fine: { fontSize: 11, color: c.label3, textAlign: 'center', lineHeight: 16 },
+    fine: { fontSize: 12, color: c.label3, textAlign: 'center', lineHeight: 17 },
+    legalRow: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 4,
+    },
+    legalLink: { fontSize: 12, color: c.label2, fontWeight: '600', textDecorationLine: 'underline' },
+    legalDot: { fontSize: 12, color: c.label3 },
   })
 }
