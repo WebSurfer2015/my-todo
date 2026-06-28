@@ -165,6 +165,19 @@ export type ProposedOperation =
       kind: 'deferOverdue'
       args: { dueDate: string }
     }
+  | {
+      kind: 'restoreTodo'
+      args: { todoId: string }
+    }
+  | {
+      kind: 'subtaskAction'
+      args: {
+        todoId: string
+        subtaskText: string
+        action: 'complete' | 'uncomplete' | 'remove' | 'rename'
+        newText?: string
+      }
+    }
 
 export interface AgentResponse {
   reply: string
@@ -177,9 +190,12 @@ export interface AgentResponse {
 interface AgentContext {
   today: string
   categories: Array<{ id: string; label: string }>
-  /** Open todos (id + text) so the agent can target edit/markDone/addSteps
-   * at real ids; the server validates proposed ids against this set. */
-  todos: Array<{ id: string; text: string }>
+  /** Non-trashed todos (id + text, `done` flag, step texts) so the agent can
+   * target edit/markDone/markUndone/skipTodo/subtaskAction at real ids; the
+   * server validates proposed ids against this set. */
+  todos: Array<{ id: string; text: string; done?: boolean; subtasks?: string[] }>
+  /** Trashed todos (id + text) — the allow-list for restoreTodo. */
+  trashedTodos: Array<{ id: string; text: string }>
   /** Grocery departments (id + label) so the agent can target
    * addGroceryItem.groupId at a real department. */
   groceryGroups: Array<{ id: string; label: string }>

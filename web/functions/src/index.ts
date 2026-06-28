@@ -52,12 +52,14 @@ interface ChatContext {
    * agent uses these to map natural-language categories ("home") to
    * the user's actual category id. */
   categories?: Array<{ id: string; label: string }>
-  /** Compact list of the user's CURRENT open todos (id + text only) so the
-   * agent can target editTodo/addSteps/markDone at REAL ids — and so the
-   * server can validate proposed ids against this set (knownTodoIds).
-   * Capped + text-truncated below; the client sends only open, non-trashed
-   * items to bound prompt size. */
-  todos?: Array<{ id: string; text: string }>
+  /** Compact list of the user's CURRENT todos (id + text) so the agent can
+   * target editTodo/addSteps/markDone/markUndone/skipTodo at REAL ids — and so
+   * the server can validate ids against this set (knownTodoIds). Includes
+   * non-trashed items (open + done; `done` flags completed ones). `subtasks`
+   * lists each step's text so subtaskAction can target one. Capped below. */
+  todos?: Array<{ id: string; text: string; done?: boolean; subtasks?: string[] }>
+  /** Trashed todos (id + text) — the allow-list for restoreTodo. */
+  trashedTodos?: Array<{ id: string; text: string }>
   /** User's grocery departments — id + label only, so the agent can target
    * addGroceryItem.groupId at a real department (validated server-side). */
   groceryGroups?: Array<{ id: string; label: string }>
@@ -159,6 +161,12 @@ Tasks — beyond create/edit/done/delete:
   scope 'series' skips this and all future. Use markDone only when they DID it.
 - deferOverdue reschedules every overdue task to a date ("push overdue to Monday")
   — you give the date, the app finds the overdue ones.
+- restoreTodo brings a TRASHED task back ("restore the dentist task") — pick its
+  id from the trashed-to-dos list in context.
+- subtaskAction acts on one STEP of a task — complete / uncomplete / remove /
+  rename ("mark the buy-milk step done", "rename step 2 to X"). Set todoId to the
+  parent and subtaskText to words from the step (steps are listed under each
+  to-do in context); for rename also set newText.
 
 Removing things (delete vs complete):
 - deleteTodo / deleteGroceryItem REMOVE an existing item the user no longer
@@ -282,6 +290,7 @@ export const agentChat = onCall(
     const MAX_CONTEXT_TODOS = 100
     const MAX_TODO_TEXT_CHARS = 120
     const MAX_TODO_ID_CHARS = 64
+    const MAX_CONTEXT_SUBTASKS = 12
     const todos = Array.isArray(ctx.todos)
       ? ctx.todos
           .filter((td) => td && typeof td.id === 'string' && typeof td.text === 'string')
@@ -289,9 +298,29 @@ export const agentChat = onCall(
           .map((td) => ({
             id: td.id.slice(0, MAX_TODO_ID_CHARS),
             text: td.text.slice(0, MAX_TODO_TEXT_CHARS),
+            done: td.done === true,
+            subtasks: Array.isArray(td.subtasks)
+              ? td.subtasks
+                  .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+                  .slice(0, MAX_CONTEXT_SUBTASKS)
+                  .map((s) => s.slice(0, MAX_TODO_TEXT_CHARS))
+              : [],
           }))
       : []
     const knownTodoIds = new Set(todos.map((td) => td.id))
+
+    // Trashed todos — separate allow-list for restoreTodo so the active list
+    // stays uncluttered. id + text only, same caps.
+    const trashedTodos = Array.isArray(ctx.trashedTodos)
+      ? ctx.trashedTodos
+          .filter((td) => td && typeof td.id === 'string' && typeof td.text === 'string')
+          .slice(0, MAX_CONTEXT_TODOS)
+          .map((td) => ({
+            id: td.id.slice(0, MAX_TODO_ID_CHARS),
+            text: td.text.slice(0, MAX_TODO_TEXT_CHARS),
+          }))
+      : []
+    const knownTrashedIds = new Set(trashedTodos.map((td) => td.id))
 
     // Grocery departments (id + label) — the agent targets addGroceryItem
     // .groupId at one of these; knownGroceryGroupIds is the allow-list the
@@ -344,7 +373,18 @@ export const agentChat = onCall(
               .join('\n')}`
           : null,
         todos.length > 0
-          ? `current open to-dos (id — text) — use these ids for editTodo / addSteps / markDone:\n${todos
+          ? `current to-dos (id — text) — use these ids for editTodo / addSteps / markDone / markUndone / skipTodo / subtaskAction. [done] marks completed ones; steps listed under a to-do are its subtasks:\n${todos
+              .map(
+                (td) =>
+                  `  ${td.id} — ${td.text}${td.done ? ' [done]' : ''}` +
+                  (td.subtasks.length > 0
+                    ? `\n${td.subtasks.map((s) => `      • ${s}`).join('\n')}`
+                    : ''),
+              )
+              .join('\n')}`
+          : null,
+        trashedTodos.length > 0
+          ? `trashed to-dos (id — text) — use these ids for restoreTodo:\n${trashedTodos
               .map((td) => `  ${td.id} — ${td.text}`)
               .join('\n')}`
           : null,
@@ -457,6 +497,7 @@ export const agentChat = onCall(
           knownGroceryGroupIds,
           knownGroceryIds,
           todos,
+          knownTrashedIds,
         )
         if (op) operations.push(op)
       }

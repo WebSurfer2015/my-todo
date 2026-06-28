@@ -348,6 +348,19 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           .filter((t) => !t.done && !t.trashed && !!t.dueDate && t.dueDate < today)
           .map((t) => t.id)
         if (overdue.length > 0) store.bulkDeferTodos(overdue, op.args.dueDate)
+      } else if (op.kind === 'restoreTodo') {
+        store.restoreFromTrash(op.args.todoId)
+      } else if (op.kind === 'subtaskAction') {
+        const a = op.args
+        const td = store.todos.find((t) => t.id === a.todoId)
+        const q = a.subtaskText.trim().toLowerCase()
+        const sub = td?.subtasks?.find((s) => s.text.toLowerCase().includes(q))
+        if (!td || !sub) return
+        if (a.action === 'complete' && !sub.done) store.toggleSubtask(td.id, sub.id)
+        else if (a.action === 'uncomplete' && sub.done) store.toggleSubtask(td.id, sub.id)
+        else if (a.action === 'remove') store.removeSubtask(td.id, sub.id)
+        else if (a.action === 'rename' && a.newText)
+          store.updateSubtaskText(td.id, sub.id, a.newText)
       }
     },
     [store],
@@ -761,16 +774,21 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           reduceMotion={store.profile.reduceMotion === true}
           categories={store.categories}
           todos={store.todos
-            .filter((td) => !td.done && !td.trashed)
+            .filter((td) => !td.trashed)
             .map((td) => ({
               id: td.id,
               text: td.text,
               priority: td.priority,
               category: td.category,
               dueDate: td.dueDate,
+              done: td.done,
+              subtasks: td.subtasks?.map((s) => s.text),
               recurrence: td.recurrence,
               seriesId: td.seriesId,
             }))}
+          trashedTodos={store.todos
+            .filter((td) => td.trashed)
+            .map((td) => ({ id: td.id, text: td.text }))}
           groceryGroups={store.groceryGroups.map((g) => ({
             id: g.id,
             label: g.label,

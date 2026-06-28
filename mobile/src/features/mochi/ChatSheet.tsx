@@ -47,12 +47,18 @@ interface Props {
     priority?: string
     category?: string
     dueDate?: string
+    done?: boolean
+    /** Step texts, so subtaskAction can target one. */
+    subtasks?: string[]
     /** Surfaced so the pick-list can differentiate identical-titled tasks. */
     recurrence?: { freq: string; interval?: number; byWeekday?: number[] }
     /** Present when this to-do is one instance of a generated series — drives
      * the "Delete series" option on the delete card. */
     seriesId?: string
   }>
+  /** Trashed todos (id + text) so Mochi can restore one and the preview can
+   * name it. */
+  trashedTodos: Array<{ id: string; text: string }>
   /** Grocery departments (id + label) so Mochi can target addGroceryItem. */
   groceryGroups: Array<{ id: string; label: string }>
   /** Shopping items (id + text) so Mochi can target deleteGroceryItem and the
@@ -205,6 +211,7 @@ export default function ChatSheet({
   reduceMotion = false,
   categories,
   todos,
+  trashedTodos,
   groceryGroups,
   groceries,
   frequentChips,
@@ -297,7 +304,13 @@ export default function ChatSheet({
       // Strip to id + label only — no need to leak counts/colors to the model.
       categories: categories.map((c) => ({ id: c.id, label: categoryLabel(c, t) })),
       // Strip to id + text for the agent — it doesn't need the local fields.
-      todos: todos.map((td) => ({ id: td.id, text: td.text })),
+      todos: todos.map((td) => ({
+        id: td.id,
+        text: td.text,
+        done: td.done,
+        subtasks: td.subtasks,
+      })),
+      trashedTodos: trashedTodos.map((td) => ({ id: td.id, text: td.text })),
       groceryGroups,
       groceries: groceries.map((g) => ({ id: g.id, text: g.text })),
       stores,
@@ -359,6 +372,8 @@ export default function ChatSheet({
     groceryGroups.find((g) => g.id === id)?.label ?? id
   const groceryTextLookup = (id: string) =>
     groceries.find((g) => g.id === id)?.text ?? 'that item'
+  const trashedTextLookup = (id: string) =>
+    trashedTodos.find((td) => td.id === id)?.text ?? 'that to-do'
   // Resolve a pick-list's ids to full local todos (dropping any that vanished),
   // so the checklist rows can show due date / category / recurrence.
   const pickCandidates = (ids: string[]) =>
@@ -508,6 +523,7 @@ export default function ChatSheet({
                               todoLookup={todoLookup}
                               groupLabelLookup={groupLookup}
                               groceryTextLookup={groceryTextLookup}
+                              trashedTextLookup={trashedTextLookup}
                               styles={styles}
                               theme={theme}
                             />
@@ -1045,6 +1061,7 @@ function OperationPreview({
   todoLookup,
   groupLabelLookup,
   groceryTextLookup,
+  trashedTextLookup,
   styles,
   theme,
 }: {
@@ -1054,6 +1071,7 @@ function OperationPreview({
   todoLookup: (id: string) => { priority?: string; category?: string; dueDate?: string } | undefined
   groupLabelLookup: (id: string) => string
   groceryTextLookup: (id: string) => string
+  trashedTextLookup: (id: string) => string
   styles: ReturnType<typeof makeStyles>
   theme: ThemeColors
 }) {
@@ -1273,6 +1291,35 @@ function OperationPreview({
       <View>
         <Text style={styles.proposalKind}>Reschedule overdue</Text>
         <Text style={styles.proposalTitle}>Move overdue to-dos to {op.args.dueDate}</Text>
+      </View>
+    )
+  }
+
+  if (op.kind === 'restoreTodo') {
+    return (
+      <FrozenTitle
+        kindLabel="Restore from trash"
+        resolve={() => trashedTextLookup(op.args.todoId)}
+        styles={styles}
+      />
+    )
+  }
+
+  if (op.kind === 'subtaskAction') {
+    const a = op.args
+    const kindLabel = {
+      complete: 'Complete step',
+      uncomplete: 'Re-open step',
+      remove: 'Remove step',
+      rename: 'Rename step',
+    }[a.action]
+    return (
+      <View>
+        <Text style={styles.proposalKind}>{kindLabel}</Text>
+        <Text style={styles.proposalTitle}>
+          {a.action === 'rename' && a.newText ? `${a.subtaskText} → ${a.newText}` : a.subtaskText}
+        </Text>
+        <Text style={styles.proposalNotes}>on {todoTextLookup(a.todoId)}</Text>
       </View>
     )
   }

@@ -31,6 +31,8 @@
  *   - renameStore / deleteStore — manage grocery stores by name
  *   - skipTodo / markUndone / deferOverdue — skip a recurring task, re-open a
  *                         done one, or reschedule every overdue task
+ *   - restoreTodo       — bring a trashed task back
+ *   - subtaskAction     — complete / remove / rename one step of a task
  *   - createCategory / createStore / addGroceryItem
  *
  * The two delete ops honor Sagely's "every destructive action is reversible
@@ -288,6 +290,26 @@ export type ProposedOperation =
       args: {
         /** ISO yyyy-mm-dd to move every overdue to-do to. */
         dueDate: string
+      }
+    }
+  | {
+      kind: 'restoreTodo'
+      args: {
+        /** Trashed to-do id (from the context trash list) to restore. */
+        todoId: string
+      }
+    }
+  | {
+      kind: 'subtaskAction'
+      args: {
+        /** Parent to-do id from context. */
+        todoId: string
+        /** Words identifying the step — matched against the parent's steps. */
+        subtaskText: string
+        /** What to do to the matched step. */
+        action: 'complete' | 'uncomplete' | 'remove' | 'rename'
+        /** New text — required for action 'rename'. */
+        newText?: string
       }
     }
 
@@ -842,6 +864,51 @@ export const AGENT_TOOLS: AgentTool[] = [
       required: ['dueDate'],
     },
   },
+  {
+    name: 'restoreTodo',
+    description:
+      "Restore a TRASHED to-do back to the active list ('restore the dentist task', " +
+      "'bring back X'). Pick the todoId from the context TRASH list (only trashed items " +
+      "can be restored).",
+    input_schema: {
+      type: 'object',
+      properties: {
+        todoId: { type: 'string', description: 'Trashed to-do id from the context trash list.' },
+      },
+      required: ['todoId'],
+    },
+  },
+  {
+    name: 'subtaskAction',
+    description:
+      "Act on a single STEP (subtask) of a to-do — complete it, un-complete it, remove it, " +
+      "or rename it ('mark the buy-milk step done', 'remove the last step', 'rename step 2 " +
+      "to X'). Set todoId to the parent (from context), and subtaskText to the words that " +
+      "identify the step — the app matches it against that to-do's steps (shown in context). " +
+      "For 'rename', also set newText.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        todoId: { type: 'string', description: 'Parent to-do id from context.' },
+        subtaskText: {
+          type: 'string',
+          description: "Words identifying the step, matched against the parent's steps.",
+          maxLength: MAX_STEP_LEN,
+        },
+        action: {
+          type: 'string',
+          enum: ['complete', 'uncomplete', 'remove', 'rename'],
+          description: 'What to do to the matched step.',
+        },
+        newText: {
+          type: 'string',
+          description: "New step text — required for action 'rename'.",
+          maxLength: MAX_STEP_LEN,
+        },
+      },
+      required: ['todoId', 'subtaskText', 'action'],
+    },
+  },
 ]
 
 /** Sanitize a proposed recurrence into the safe agent subset, or
@@ -985,6 +1052,8 @@ export function validateOperation(
   // Context todos (id + text) — pickTodos resolves its `query` against these
   // server-side, so the model never has to enumerate ids.
   knownTodos: ReadonlyArray<{ id: string; text: string }> = [],
+  // Trashed to-do ids — the allow-list restoreTodo validates against.
+  knownTrashedIds: ReadonlySet<string> = new Set(),
 ): ProposedOperation | null {
   if (!args || typeof args !== 'object') return null
   const a = args as Record<string, unknown>
@@ -1299,6 +1368,51 @@ export function validateOperation(
   if (name === 'deferOverdue') {
     if (typeof a.dueDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(a.dueDate)) return null
     return { kind: 'deferOverdue', args: { dueDate: a.dueDate } }
+  }
+
+  if (name === 'restoreTodo') {
+    if (
+      typeof a.todoId !== 'string' ||
+      a.todoId.length === 0 ||
+      a.todoId.length > MAX_TODO_ID_LEN ||
+      !knownTrashedIds.has(a.todoId)
+    ) {
+      return null
+    }
+    return { kind: 'restoreTodo', args: { todoId: a.todoId } }
+  }
+
+  if (name === 'subtaskAction') {
+    if (
+      typeof a.todoId !== 'string' ||
+      a.todoId.length === 0 ||
+      a.todoId.length > MAX_TODO_ID_LEN ||
+      !knownTodoIds.has(a.todoId)
+    ) {
+      return null
+    }
+    if (typeof a.subtaskText !== 'string' || a.subtaskText.trim().length === 0) return null
+    if (
+      a.action !== 'complete' &&
+      a.action !== 'uncomplete' &&
+      a.action !== 'remove' &&
+      a.action !== 'rename'
+    ) {
+      return null
+    }
+    const op: ProposedOperation = {
+      kind: 'subtaskAction',
+      args: {
+        todoId: a.todoId,
+        subtaskText: a.subtaskText.trim().slice(0, MAX_STEP_LEN),
+        action: a.action,
+      },
+    }
+    if (a.action === 'rename') {
+      if (typeof a.newText !== 'string' || a.newText.trim().length === 0) return null
+      op.args.newText = a.newText.trim().slice(0, MAX_STEP_LEN)
+    }
+    return op
   }
 
   return null

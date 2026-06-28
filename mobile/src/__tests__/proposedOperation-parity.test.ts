@@ -111,8 +111,10 @@ describe('ProposedOperation server↔client parity', () => {
       'markUndone',
       'pickTodos',
       'renameStore',
+      'restoreTodo',
       'setGroceryChecked',
       'skipTodo',
+      'subtaskAction',
     ])
     expect(Object.keys(client).sort()).toEqual(Object.keys(server).sort())
   })

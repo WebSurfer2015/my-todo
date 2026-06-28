@@ -43,6 +43,8 @@ describe('AGENT_TOOLS registry', () => {
     expect(names).toContain('skipTodo')
     expect(names).toContain('markUndone')
     expect(names).toContain('deferOverdue')
+    expect(names).toContain('restoreTodo')
+    expect(names).toContain('subtaskAction')
   })
   it('every tool has a name, description, and JSON-schema-shaped input', () => {
     for (const tool of AGENT_TOOLS) {
@@ -471,6 +473,53 @@ describe('validateOperation — category/store/task ops', () => {
       args: { dueDate: '2026-07-06' },
     })
     expect(validateOperation('deferOverdue', { dueDate: 'monday' }, knownCats)).toBeNull()
+  })
+  it('restoreTodo: only against the trash allow-list (8th arg)', () => {
+    const trashed = new Set(['tr-1'])
+    const ok = validateOperation(
+      'restoreTodo',
+      { todoId: 'tr-1' },
+      knownCats,
+      knownTodoIds,
+      new Set(),
+      new Set(),
+      [],
+      trashed,
+    )
+    expect(ok).toEqual({ kind: 'restoreTodo', args: { todoId: 'tr-1' } })
+    // An open id is NOT restorable.
+    expect(
+      validateOperation('restoreTodo', { todoId: 't-1' }, knownCats, knownTodoIds, new Set(), new Set(), [], trashed),
+    ).toBeNull()
+  })
+  it('subtaskAction: known parent + action; rename needs newText', () => {
+    expect(
+      validateOperation(
+        'subtaskAction',
+        { todoId: 't-1', subtaskText: 'buy milk', action: 'complete' },
+        knownCats,
+        knownTodoIds,
+      ),
+    ).toEqual({
+      kind: 'subtaskAction',
+      args: { todoId: 't-1', subtaskText: 'buy milk', action: 'complete' },
+    })
+    expect(
+      validateOperation(
+        'subtaskAction',
+        { todoId: 't-1', subtaskText: 'x', action: 'rename' },
+        knownCats,
+        knownTodoIds,
+      ),
+    ).toBeNull() // rename without newText
+    expect(
+      validateOperation(
+        'subtaskAction',
+        { todoId: 'ghost', subtaskText: 'x', action: 'remove' },
+        knownCats,
+        knownTodoIds,
+      ),
+    ).toBeNull()
   })
 })
 
