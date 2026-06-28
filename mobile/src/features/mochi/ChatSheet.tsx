@@ -63,15 +63,23 @@ interface Props {
   onEnterManually?: () => void
 }
 
-/** Opening intent chips. Tapping one auto-sends the intent and gets an instant
- * canned follow-up question — no AI round (no "thinking…", no token cost) for a
- * bare intent that would otherwise just make Mochi ask "what?". */
-const INTENT_CHIPS: { label: string; prompt: string }[] = [
-  { label: 'Add a to-do', prompt: 'What would you like to add?' },
-  { label: 'Update a to-do', prompt: 'Which to-do should I change, and how?' },
-  { label: 'Add steps', prompt: 'Which to-do needs steps?' },
-  { label: 'Mark one done', prompt: 'Which one did you finish?' },
-  { label: 'Add to shopping list', prompt: 'What should I add to your list?' },
+/** Example chips — tapping one PRE-FILLS the capture box (it doesn't ask a
+ * question). The user tweaks and sends, so capture leads instead of a
+ * back-and-forth. These double as a "here's what I can do" teaser. */
+const EXAMPLE_CHIPS: string[] = [
+  'Buy milk tomorrow',
+  'Run Mon/Wed/Fri 11am',
+  'Add eggs to shopping',
+]
+
+/** Rotating placeholder hints — cycle while the box is empty so the field
+ * itself teaches capability without an instructions screen. */
+const PLACEHOLDER_EXAMPLES: string[] = [
+  'Buy milk tomorrow',
+  'Call dentist Tue 3pm',
+  'Run Mon/Wed/Fri 11am',
+  'Eggs, bread, butter to shopping',
+  'Plan today',
 ]
 
 /** Fade-and-rise entrance for a chat row. New bubbles ease up into place so the
@@ -169,9 +177,13 @@ export default function ChatSheet({
   const { t } = useLang()
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
-  const { send, reset, isThinking, messages, error, pushLocalExchange } = useMochiAgent()
+  const { send, reset, isThinking, messages, error } = useMochiAgent()
   const { mochiRemaining, mochiPeriod, canSendMochi, openPaywall } = usePurchases()
   const [input, setInput] = useState('')
+  // Rotating placeholder index (cycles while the box is empty + pre-first-turn).
+  const [phIdx, setPhIdx] = useState(0)
+  // Last user turn, for the "Try again" recovery action on an error.
+  const lastSentRef = useRef('')
   // Per-proposal resolution so a confirmed/declined turn swaps its action
   // row for a quiet footer. Keyed by message index (append-only, stable).
   const [resolved, setResolved] = useState<Record<number, 'applied' | 'declined'>>({})
@@ -190,6 +202,13 @@ export default function ChatSheet({
     return () => clearTimeout(id)
   }, [messages, isThinking])
 
+  // Rotate the placeholder hint while the box is empty on the opening screen.
+  useEffect(() => {
+    if (!visible || input.length > 0 || messages.length > 0) return
+    const id = setInterval(() => setPhIdx((i) => (i + 1) % PLACEHOLDER_EXAMPLES.length), 3200)
+    return () => clearInterval(id)
+  }, [visible, input.length, messages.length])
+
   function handleSend(raw: string = input) {
     const turn = raw.trim()
     if (!turn || isThinking) return
@@ -201,6 +220,7 @@ export default function ChatSheet({
     }
     Haptics.selectionAsync().catch(() => {})
     setInput('')
+    lastSentRef.current = turn
     send(turn, {
       today: todayLocal(),
       // Strip to id + label only — no need to leak counts/colors to the model.
@@ -237,8 +257,8 @@ export default function ChatSheet({
   }
 
   const greeting = greetingName.trim()
-    ? `Hi ${greetingName.trim()}. What's on your mind?`
-    : "Hi. What's on your mind?"
+    ? `Hi ${greetingName.trim()} — what should I add?`
+    : 'What should I add?'
 
   const categoryLookup = (id: string) => {
     const c = categories.find((cat) => cat.id === id)
@@ -297,27 +317,30 @@ export default function ChatSheet({
               contentContainerStyle={styles.bodyContent}
               keyboardShouldPersistTaps="handled"
             >
-              {/* Greeting + intent chips — only before the first user turn. */}
+              {/* Greeting + example chips — only before the first user turn.
+                  Chips PRE-FILL the box (capture-first) rather than asking. */}
               {messages.length === 0 && (
                 <View>
                   <BreathingSparkle reduceMotion={reduceMotion} color={theme.primary} />
                   <Text style={styles.greeting}>{greeting}</Text>
+                  <Text style={styles.captureHint}>
+                    Type it however you like — I'll turn it into a to-do or list item.
+                  </Text>
                   <View style={styles.chipsRow}>
-                    {INTENT_CHIPS.map((c) => (
+                    {EXAMPLE_CHIPS.map((ex) => (
                       <TouchableOpacity
-                        key={c.label}
+                        key={ex}
                         style={styles.intentChip}
                         activeOpacity={0.7}
                         onPress={() => {
-                          // Auto-send the intent + an instant canned question —
-                          // no AI round for a bare intent. The user then types
-                          // the details, which DO go to Mochi.
+                          // Pre-fill the box; the user tweaks + sends. No AI
+                          // round here — capture leads.
                           Haptics.selectionAsync().catch(() => {})
-                          pushLocalExchange(c.label, c.prompt)
+                          setInput(ex)
                           inputRef.current?.focus()
                         }}
                       >
-                        <Text style={styles.intentChipText}>{c.label}</Text>
+                        <Text style={styles.intentChipText}>{ex}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -382,7 +405,31 @@ export default function ChatSheet({
                 </View>
               )}
 
-              {error && <Text style={styles.errorLine}>{error}</Text>}
+              {error && (
+                <View style={styles.errorBlock}>
+                  <Text style={styles.errorLine}>{error}</Text>
+                  <View style={styles.errorActions}>
+                    {!!lastSentRef.current && (
+                      <TouchableOpacity
+                        style={styles.errorBtn}
+                        onPress={() => handleSend(lastSentRef.current)}
+                        accessibilityRole="button"
+                      >
+                        <Text style={styles.errorBtnText}>Try again</Text>
+                      </TouchableOpacity>
+                    )}
+                    {onEnterManually && (
+                      <TouchableOpacity
+                        style={styles.errorBtn}
+                        onPress={onEnterManually}
+                        accessibilityRole="button"
+                      >
+                        <Text style={styles.errorBtnText}>Enter manually</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              )}
             </ScrollView>
 
             {mochiRemaining != null && (
@@ -405,8 +452,13 @@ export default function ChatSheet({
               <TextInput
                 ref={inputRef}
                 style={styles.input}
-                placeholder="Message Mochi…"
+                placeholder={
+                  messages.length === 0
+                    ? `e.g. ${PLACEHOLDER_EXAMPLES[phIdx]}`
+                    : 'Message Mochi…'
+                }
                 placeholderTextColor={theme.gray3}
+                autoCapitalize="sentences"
                 value={input}
                 // Multiline so long input WRAPS, but a Return submits like
                 // the send action: the soft/hardware Enter appends "\n",
@@ -706,7 +758,8 @@ function makeStyles(c: ThemeColors) {
     body: { flexGrow: 0, flexShrink: 1 },
     bodyContent: { paddingVertical: 12, gap: 8 },
     // Greeting + intent chips (pre-first-turn).
-    greeting: { fontSize: 17, fontWeight: '600', color: c.label, marginBottom: 12 },
+    greeting: { fontSize: 17, fontWeight: '600', color: c.label, marginBottom: 6 },
+    captureHint: { fontSize: 13, color: c.label3, lineHeight: 18, marginBottom: 12 },
     chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     intentChip: {
       paddingHorizontal: 12,
@@ -748,6 +801,16 @@ function makeStyles(c: ThemeColors) {
     },
     mochiLine: { fontSize: 15, color: c.label, lineHeight: 22 },
     errorLine: { fontSize: 13, color: c.red },
+    errorBlock: { gap: 8, paddingVertical: 4 },
+    errorActions: { flexDirection: 'row', gap: 8 },
+    errorBtn: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: c.primary,
+    },
+    errorBtnText: { fontSize: 13, fontWeight: '600', color: c.primary },
     proposalCard: {
       backgroundColor: c.modal,
       borderRadius: 12,
