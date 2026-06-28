@@ -420,6 +420,7 @@ export default function ChatSheet({
                               categories={categories}
                               recurrenceText={recurrenceLabel(op.args.recurrence)}
                               onEdit={onEditCapturedTodo}
+                              onRemove={() => undoFnsRef.current[i]?.()}
                             />
                           ) : (
                             <OperationPreview
@@ -434,7 +435,17 @@ export default function ChatSheet({
                           )}
                         </View>
                       ))}
-                      {m.operations && m.operations.length > 0 && (
+                      {/* The EditableCaptureCard renders its OWN action row
+                          (added / multi-level undo), so skip the generic one
+                          for that case. */}
+                      {m.operations &&
+                        m.operations.length > 0 &&
+                        !(
+                          m.operations.length === 1 &&
+                          m.operations[0].kind === 'createTodo' &&
+                          resolved[i] === 'applied' &&
+                          capturedIdRef.current[i]
+                        ) && (
                         resolved[i] === 'applied' ? (
                           // Optimistically-applied turns carry an inline Undo;
                           // Confirm-applied turns just show ✓ Done.
