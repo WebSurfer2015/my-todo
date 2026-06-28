@@ -164,7 +164,7 @@ export function useMochiAgent() {
       setError(null)
       try {
         const idToken = await user.getIdToken()
-        const res = await fetch(AGENT_CHAT_URL, {
+        const init: RequestInit = {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -179,9 +179,23 @@ export function useMochiAgent() {
               context,
             },
           }),
-        })
+        }
+        // A 429 (rate limit, usually upstream model throttling) is transient —
+        // retry ONCE after a short backoff before surfacing anything, so a
+        // brief spike self-heals without the user re-sending.
+        let res = await fetch(AGENT_CHAT_URL, init)
+        if (res.status === 429) {
+          await new Promise((r) => setTimeout(r, 1500))
+          res = await fetch(AGENT_CHAT_URL, init)
+        }
         if (!res.ok) {
-          setError(`Mochi couldn't reach us (${res.status}).`)
+          // Calm, on-brand copy for the rate limit — no error code; it clears
+          // on its own. Other failures keep the diagnostic status.
+          setError(
+            res.status === 429
+              ? "Mochi's catching its breath — try again in a moment."
+              : `Mochi couldn't reach us (${res.status}).`,
+          )
           return { ok: false, error: String(res.status) }
         }
         const body = (await res.json()) as {
