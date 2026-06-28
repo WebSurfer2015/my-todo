@@ -12,17 +12,13 @@
 import React, { useMemo, useState } from 'react'
 import {
   Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native'
+import SheetShell from '../../ui/SheetShell'
 import {
   Check,
   Eye,
@@ -137,53 +133,19 @@ export default function DepartmentPicker({
     onClose()
   }
 
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={() => {
-        if (editing) setEditing(false)
-        onClose()
-      }}
-    >
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        {/* Sibling backdrop tap-layer (not a wrapper) — a wrapping Pressable
-            collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
-        <View style={styles.backdrop}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            accessible={false}
-            onPress={() => {
-              if (editing) setEditing(false)
-              onClose()
-            }}
-          />
-          <View style={styles.sheet}>
-            <View style={styles.handle} />
-            <View style={styles.titleRow}>
-              <View style={styles.titleSideBtn} />
-              <Text style={styles.title}>Select a Department</Text>
-              <TouchableOpacity
-                onPress={() => setEditing((v) => !v)}
-                hitSlop={10}
-                style={styles.titleSideBtn}
-              >
-                <Text style={styles.manageText}>{editing ? t.done : 'Manage'}</Text>
-              </TouchableOpacity>
-            </View>
+  const closeAndReset = () => {
+    setEditing(false)
+    onClose()
+  }
 
-            <ScrollView
-              style={styles.scroll}
-              contentContainerStyle={styles.scrollContent}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              nestedScrollEnabled
-            >
-              <View style={styles.card}>
+  return (
+    <SheetShell
+      visible={visible}
+      onClose={closeAndReset}
+      title="Select a Department"
+      primary={{ label: editing ? t.done : 'Manage', onPress: () => setEditing((v) => !v) }}
+    >
+      <View style={styles.card}>
                 {editing ? (
                   <>
                     <DraggableFlatList
@@ -344,50 +306,13 @@ export default function DepartmentPicker({
                   ))
                 )}
               </View>
-              <View style={{ height: 24 }} />
-            </ScrollView>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+      <View style={{ height: 24 }} />
+    </SheetShell>
   )
 }
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    flex: { flex: 1 },
-    backdrop: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.45)',
-      justifyContent: 'flex-end',
-    },
-    sheet: {
-      backgroundColor: c.modal,
-      borderTopLeftRadius: 18,
-      borderTopRightRadius: 18,
-      paddingTop: 6,
-      maxHeight: '85%',
-    },
-    handle: {
-      alignSelf: 'center',
-      width: 36,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: c.gray3,
-      marginVertical: 6,
-    },
-    titleRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingBottom: 10,
-    },
-    titleSideBtn: { width: 64 },
-    title: { fontSize: 20, fontWeight: '700', color: c.label, textAlign: 'center' },
-    manageText: { fontSize: 15, fontWeight: '600', color: c.primary, textAlign: 'right' },
-    scroll: { flexShrink: 1 },
-    scrollContent: { paddingHorizontal: 16, paddingBottom: 12 },
     card: {
       backgroundColor: c.card,
       borderRadius: 12,

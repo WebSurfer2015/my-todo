@@ -147,6 +147,7 @@ export default function SheetShell({
               contentContainerStyle={[styles.bodyContent, padded && styles.bodyPad]}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
             >
               {children}
             </ScrollView>
