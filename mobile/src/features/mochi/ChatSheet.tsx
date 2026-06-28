@@ -1194,6 +1194,89 @@ function OperationPreview({
     )
   }
 
+  if (op.kind === 'editCategory') {
+    const a = op.args
+    return (
+      <View>
+        <Text style={styles.proposalKind}>Edit category</Text>
+        <View style={styles.swatchRow}>
+          {a.color && <View style={[styles.swatch, { backgroundColor: a.color }]} />}
+          <Text style={styles.proposalTitle}>{a.label ?? categoryLabelLookup(a.categoryId)}</Text>
+        </View>
+        {a.icon ? <Text style={styles.proposalNotes}>Icon: {a.icon}</Text> : null}
+      </View>
+    )
+  }
+
+  if (op.kind === 'deleteCategory') {
+    return (
+      <FrozenTitle
+        kindLabel="Delete category"
+        resolve={() => categoryLabelLookup(op.args.categoryId)}
+        styles={styles}
+      />
+    )
+  }
+
+  if (op.kind === 'setGroceryChecked') {
+    return (
+      <FrozenTitle
+        kindLabel={op.args.checked ? 'Mark bought' : 'Back on the list'}
+        resolve={() => groceryTextLookup(op.args.groceryId)}
+        styles={styles}
+      />
+    )
+  }
+
+  if (op.kind === 'renameStore') {
+    return (
+      <View>
+        <Text style={styles.proposalKind}>Rename store</Text>
+        <Text style={styles.proposalTitle}>
+          {op.args.from} → {op.args.to}
+        </Text>
+      </View>
+    )
+  }
+
+  if (op.kind === 'deleteStore') {
+    return (
+      <View>
+        <Text style={styles.proposalKind}>Remove store</Text>
+        <Text style={styles.proposalTitle}>{op.args.name}</Text>
+      </View>
+    )
+  }
+
+  if (op.kind === 'skipTodo') {
+    return (
+      <FrozenTitle
+        kindLabel={op.args.scope === 'series' ? 'Skip this & future' : 'Skip this time'}
+        resolve={() => todoTextLookup(op.args.todoId)}
+        styles={styles}
+      />
+    )
+  }
+
+  if (op.kind === 'markUndone') {
+    return (
+      <FrozenTitle
+        kindLabel="Re-open"
+        resolve={() => todoTextLookup(op.args.todoId)}
+        styles={styles}
+      />
+    )
+  }
+
+  if (op.kind === 'deferOverdue') {
+    return (
+      <View>
+        <Text style={styles.proposalKind}>Reschedule overdue</Text>
+        <Text style={styles.proposalTitle}>Move overdue to-dos to {op.args.dueDate}</Text>
+      </View>
+    )
+  }
+
   if (op.kind === 'editGroceryItem') {
     const a = op.args
     return (

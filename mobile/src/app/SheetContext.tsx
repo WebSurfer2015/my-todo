@@ -44,7 +44,7 @@ import { COLOR_PALETTE } from '../core-bindings/categories'
 import { SEED_GROCERY_STORES, frequentGroceries } from '../core-bindings/groceries'
 import type { Filter, Priority } from '../core-bindings/types'
 import type { Guide } from '../features/onboarding/guides'
-import { genUuid } from '../../../core/src/logic/utils'
+import { genUuid, todayLocal } from '../../../core/src/logic/utils'
 
 /** Signal that a screen should open its tab-local manage sheet. The
  * `seq` bumps so a repeat-trigger fires even when target stays the
@@ -309,6 +309,45 @@ export function SheetProvider({ children }: { children: ReactNode }) {
             },
           ],
         )
+      } else if (op.kind === 'editCategory') {
+        // editCategory replaces all three fields, so merge the patch over the
+        // category's current values (empty label preserves the localized
+        // built-in fallback).
+        const a = op.args
+        const cat = store.categories.find((c) => c.id === a.categoryId)
+        if (!cat) return
+        store.editCategory(a.categoryId, {
+          label: a.label ?? cat.label ?? '',
+          color: a.color ?? cat.color,
+          icon: a.icon ?? cat.icon,
+        })
+      } else if (op.kind === 'deleteCategory') {
+        // store.deleteCategory cascades (reassigns to-dos) + guards the last
+        // category; the chat Confirm tap is the user's go-ahead.
+        store.deleteCategory(op.args.categoryId)
+      } else if (op.kind === 'setGroceryChecked') {
+        const item = store.groceries.find((g) => g.id === op.args.groceryId)
+        if (item && item.checked !== op.args.checked) {
+          store.toggleGroceryChecked(op.args.groceryId)
+        }
+      } else if (op.kind === 'renameStore') {
+        store.renameGroceryStore(op.args.from, op.args.to)
+      } else if (op.kind === 'deleteStore') {
+        store.deleteGroceryStore(op.args.name)
+      } else if (op.kind === 'skipTodo') {
+        const td = store.todos.find((t) => t.id === op.args.todoId)
+        if (!td) return
+        if (op.args.scope === 'series' && td.seriesId) store.skipSeriesFuture(td.id)
+        else store.skipTodo(td.id)
+      } else if (op.kind === 'markUndone') {
+        const td = store.todos.find((t) => t.id === op.args.todoId)
+        if (td && td.done) store.toggle(td.id)
+      } else if (op.kind === 'deferOverdue') {
+        const today = todayLocal()
+        const overdue = store.todos
+          .filter((t) => !t.done && !t.trashed && !!t.dueDate && t.dueDate < today)
+          .map((t) => t.id)
+        if (overdue.length > 0) store.bulkDeferTodos(overdue, op.args.dueDate)
       }
     },
     [store],

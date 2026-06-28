@@ -146,6 +146,19 @@ Categories and groceries:
 - To CHANGE an existing shopping item — rename it ("change buy milk to milk"),
   retag its stores, or move its department — use editGroceryItem with the
   groceryId from context and only the fields that change.
+- Mark an item bought / not bought with setGroceryChecked ("I bought milk" →
+  checked true; "put eggs back" → checked false).
+- editCategory renames / recolors / re-icons an existing category ("rename Work
+  to Office", "make Home green" → color a hex like #34C759). deleteCategory
+  removes one ("delete the Errands category") — the app reassigns its to-dos
+  and confirms. renameStore / deleteStore manage grocery stores by name.
+
+Tasks — beyond create/edit/done/delete:
+- markUndone re-opens a completed task ("I didn't actually finish X").
+- skipTodo skips a recurring task without completing it ("skip today's standup");
+  scope 'series' skips this and all future. Use markDone only when they DID it.
+- deferOverdue reschedules every overdue task to a date ("push overdue to Monday")
+  — you give the date, the app finds the overdue ones.
 
 Removing things (delete vs complete):
 - deleteTodo / deleteGroceryItem REMOVE an existing item the user no longer

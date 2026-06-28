@@ -28,7 +28,7 @@ function extractOps(src: string): Record<string, string[]> {
   const start = src.indexOf('export type ProposedOperation')
   if (start < 0) throw new Error('ProposedOperation type not found')
   // Generous slice — the 7-op union is a few KB in both files.
-  const region = src.slice(start, start + 5000)
+  const region = src.slice(start, start + 16000)
   const kinds: { name: string; idx: number }[] = []
   const kindRe = /kind:\s*'(\w+)'/g
   let m: RegExpExecArray | null
@@ -92,19 +92,27 @@ describe('ProposedOperation server↔client parity', () => {
   const server = extractOps(readFileSync(SERVER, 'utf8'))
   const client = extractOps(readFileSync(CLIENT, 'utf8'))
 
-  it('parses all eleven op kinds from both files', () => {
+  it('parses every op kind identically from both files', () => {
     expect(Object.keys(server).sort()).toEqual([
       'addGroceryItem',
       'addSteps',
       'createCategory',
       'createStore',
       'createTodo',
+      'deferOverdue',
+      'deleteCategory',
       'deleteGroceryItem',
+      'deleteStore',
       'deleteTodo',
+      'editCategory',
       'editGroceryItem',
       'editTodo',
       'markDone',
+      'markUndone',
       'pickTodos',
+      'renameStore',
+      'setGroceryChecked',
+      'skipTodo',
     ])
     expect(Object.keys(client).sort()).toEqual(Object.keys(server).sort())
   })

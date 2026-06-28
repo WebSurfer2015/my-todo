@@ -133,6 +133,38 @@ export type ProposedOperation =
         groupId?: string
       }
     }
+  | {
+      kind: 'editCategory'
+      args: { categoryId: string; label?: string; color?: string; icon?: string }
+    }
+  | {
+      kind: 'deleteCategory'
+      args: { categoryId: string }
+    }
+  | {
+      kind: 'setGroceryChecked'
+      args: { groceryId: string; checked: boolean }
+    }
+  | {
+      kind: 'renameStore'
+      args: { from: string; to: string }
+    }
+  | {
+      kind: 'deleteStore'
+      args: { name: string }
+    }
+  | {
+      kind: 'skipTodo'
+      args: { todoId: string; scope?: 'one' | 'series' }
+    }
+  | {
+      kind: 'markUndone'
+      args: { todoId: string }
+    }
+  | {
+      kind: 'deferOverdue'
+      args: { dueDate: string }
+    }
 
 export interface AgentResponse {
   reply: string

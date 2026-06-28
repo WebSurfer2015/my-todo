@@ -26,6 +26,11 @@
  *   - editGroceryItem   — rename / retag / re-department a shopping item
  *   - pickTodos         — when 2+ tasks match, hand the user a checklist to
  *                         choose which to delete / complete / edit / add-steps
+ *   - editCategory / deleteCategory — rename/recolor/remove a category
+ *   - setGroceryChecked — mark a shopping item bought / not bought
+ *   - renameStore / deleteStore — manage grocery stores by name
+ *   - skipTodo / markUndone / deferOverdue — skip a recurring task, re-open a
+ *                         done one, or reschedule every overdue task
  *   - createCategory / createStore / addGroceryItem
  *
  * The two delete ops honor Sagely's "every destructive action is reversible
@@ -215,6 +220,74 @@ export type ProposedOperation =
         stores?: string[]
         /** Move to a different department/group (id from context). */
         groupId?: string
+      }
+    }
+  | {
+      kind: 'editCategory'
+      args: {
+        /** Category id from context. */
+        categoryId: string
+        /** New display label. */
+        label?: string
+        /** New hex color #rrggbb. */
+        color?: string
+        /** New icon key. */
+        icon?: string
+      }
+    }
+  | {
+      kind: 'deleteCategory'
+      args: {
+        /** Category id from context. Client reassigns affected to-dos + confirms. */
+        categoryId: string
+      }
+    }
+  | {
+      kind: 'setGroceryChecked'
+      args: {
+        /** Shopping item id from context. */
+        groceryId: string
+        /** true = bought/checked, false = back on the list. */
+        checked: boolean
+      }
+    }
+  | {
+      kind: 'renameStore'
+      args: {
+        /** Existing store name (from context store list). */
+        from: string
+        /** New store name. */
+        to: string
+      }
+    }
+  | {
+      kind: 'deleteStore'
+      args: {
+        /** Existing store name (from context store list) to remove. */
+        name: string
+      }
+    }
+  | {
+      kind: 'skipTodo'
+      args: {
+        /** Existing to-do id from context. */
+        todoId: string
+        /** 'series' skips this + all future occurrences; default 'one'. */
+        scope?: 'one' | 'series'
+      }
+    }
+  | {
+      kind: 'markUndone'
+      args: {
+        /** Existing to-do id from context to re-open (un-complete). */
+        todoId: string
+      }
+    }
+  | {
+      kind: 'deferOverdue'
+      args: {
+        /** ISO yyyy-mm-dd to move every overdue to-do to. */
+        dueDate: string
       }
     }
 
@@ -644,6 +717,131 @@ export const AGENT_TOOLS: AgentTool[] = [
       required: ['groceryId'],
     },
   },
+  {
+    name: 'editCategory',
+    description:
+      "Change an EXISTING category — rename it ('rename Work to Office'), recolor it " +
+      "('make Home green'), or change its icon. Pick the categoryId from the context " +
+      "category list and include only the fields that change. At least one of " +
+      "label / color / icon is required.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        categoryId: { type: 'string', description: 'Category id from the context list.' },
+        label: { type: 'string', description: 'New label. Omit to leave unchanged.', maxLength: MAX_CATEGORY_LABEL_LEN },
+        color: {
+          type: 'string',
+          description: 'New hex color #rrggbb. Omit to leave unchanged.',
+          pattern: '^#[0-9a-fA-F]{6}$',
+        },
+        icon: { type: 'string', description: 'New icon key. Omit to leave unchanged.', maxLength: MAX_ICON_KEY_LEN },
+      },
+      required: ['categoryId'],
+    },
+  },
+  {
+    name: 'deleteCategory',
+    description:
+      "Delete an EXISTING category ('delete the Errands category'). Pick the categoryId " +
+      "from context. The app reassigns affected to-dos and asks the user to confirm, so " +
+      "use this only when the user clearly wants the category itself removed.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        categoryId: { type: 'string', description: 'Category id from the context list.' },
+      },
+      required: ['categoryId'],
+    },
+  },
+  {
+    name: 'setGroceryChecked',
+    description:
+      "Mark a shopping item as bought (checked) or put it back on the list (unchecked) — " +
+      "\"I bought milk\", \"uncheck eggs\". Pick the groceryId from the context shopping-" +
+      "list and set checked true/false.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        groceryId: { type: 'string', description: 'Shopping item id from context.' },
+        checked: { type: 'boolean', description: 'true = bought, false = back on the list.' },
+      },
+      required: ['groceryId', 'checked'],
+    },
+  },
+  {
+    name: 'renameStore',
+    description:
+      "Rename a grocery store ('rename Costco to BJ's'). `from` must be an existing store " +
+      "name from the context store list; `to` is the new name.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        from: { type: 'string', description: 'Existing store name from context.', maxLength: MAX_STORE_NAME_LEN },
+        to: { type: 'string', description: 'New store name.', maxLength: MAX_STORE_NAME_LEN },
+      },
+      required: ['from', 'to'],
+    },
+  },
+  {
+    name: 'deleteStore',
+    description:
+      "Remove a grocery store ('delete the Costco store'). `name` must be an existing " +
+      "store from the context store list. The app untags it from every item.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Existing store name from context.', maxLength: MAX_STORE_NAME_LEN },
+      },
+      required: ['name'],
+    },
+  },
+  {
+    name: 'skipTodo',
+    description:
+      "Skip a recurring to-do without completing it ('skip today's standup', 'skip the " +
+      "rest of these'). Pick the todoId from context. Set scope 'series' to skip this and " +
+      "all future occurrences; otherwise just this one. Use markDone when the user " +
+      "actually DID the task; skip is for 'not this time'.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        todoId: { type: 'string', description: 'Existing to-do id from context.' },
+        scope: { type: 'string', enum: ['one', 'series'], description: "Default 'one'." },
+      },
+      required: ['todoId'],
+    },
+  },
+  {
+    name: 'markUndone',
+    description:
+      "Re-open a completed to-do — un-check it ('mark X not done', 'I didn't actually " +
+      "finish that'). Pick the todoId from context. The opposite of markDone.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        todoId: { type: 'string', description: 'Existing to-do id from context.' },
+      },
+      required: ['todoId'],
+    },
+  },
+  {
+    name: 'deferOverdue',
+    description:
+      "Reschedule EVERY overdue to-do to a new date ('push everything overdue to Monday', " +
+      "'move my overdue tasks to tomorrow'). The app finds the overdue ones; you just give " +
+      "the target date. Resolve it against `today` and return ISO yyyy-mm-dd.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        dueDate: {
+          type: 'string',
+          description: 'ISO yyyy-mm-dd to move overdue to-dos to.',
+          pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+        },
+      },
+      required: ['dueDate'],
+    },
+  },
 ]
 
 /** Sanitize a proposed recurrence into the safe agent subset, or
@@ -1017,6 +1215,90 @@ export function validateOperation(
       op.args.steps = steps
     }
     return op
+  }
+
+  if (name === 'editCategory') {
+    if (typeof a.categoryId !== 'string' || !knownCategoryIds.has(a.categoryId)) return null
+    const op: ProposedOperation = { kind: 'editCategory', args: { categoryId: a.categoryId } }
+    let hasField = false
+    if (typeof a.label === 'string' && a.label.trim().length > 0) {
+      op.args.label = a.label.trim().slice(0, MAX_CATEGORY_LABEL_LEN)
+      hasField = true
+    }
+    if (typeof a.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(a.color)) {
+      op.args.color = a.color
+      hasField = true
+    }
+    if (typeof a.icon === 'string' && a.icon.trim().length > 0) {
+      op.args.icon = a.icon.trim().slice(0, MAX_ICON_KEY_LEN)
+      hasField = true
+    }
+    if (!hasField) return null
+    return op
+  }
+
+  if (name === 'deleteCategory') {
+    if (typeof a.categoryId !== 'string' || !knownCategoryIds.has(a.categoryId)) return null
+    return { kind: 'deleteCategory', args: { categoryId: a.categoryId } }
+  }
+
+  if (name === 'setGroceryChecked') {
+    if (
+      typeof a.groceryId !== 'string' ||
+      a.groceryId.length === 0 ||
+      a.groceryId.length > MAX_GROCERY_ID_LEN ||
+      !knownGroceryIds.has(a.groceryId) ||
+      typeof a.checked !== 'boolean'
+    ) {
+      return null
+    }
+    return { kind: 'setGroceryChecked', args: { groceryId: a.groceryId, checked: a.checked } }
+  }
+
+  if (name === 'renameStore') {
+    const from = typeof a.from === 'string' ? a.from.trim() : ''
+    const to = typeof a.to === 'string' ? a.to.trim() : ''
+    if (!from || !to || from.length > MAX_STORE_NAME_LEN || to.length > MAX_STORE_NAME_LEN) {
+      return null
+    }
+    return { kind: 'renameStore', args: { from, to } }
+  }
+
+  if (name === 'deleteStore') {
+    const nm = typeof a.name === 'string' ? a.name.trim() : ''
+    if (!nm || nm.length > MAX_STORE_NAME_LEN) return null
+    return { kind: 'deleteStore', args: { name: nm } }
+  }
+
+  if (name === 'skipTodo') {
+    if (
+      typeof a.todoId !== 'string' ||
+      a.todoId.length === 0 ||
+      a.todoId.length > MAX_TODO_ID_LEN ||
+      !knownTodoIds.has(a.todoId)
+    ) {
+      return null
+    }
+    const op: ProposedOperation = { kind: 'skipTodo', args: { todoId: a.todoId } }
+    if (a.scope === 'series' || a.scope === 'one') op.args.scope = a.scope
+    return op
+  }
+
+  if (name === 'markUndone') {
+    if (
+      typeof a.todoId !== 'string' ||
+      a.todoId.length === 0 ||
+      a.todoId.length > MAX_TODO_ID_LEN ||
+      !knownTodoIds.has(a.todoId)
+    ) {
+      return null
+    }
+    return { kind: 'markUndone', args: { todoId: a.todoId } }
+  }
+
+  if (name === 'deferOverdue') {
+    if (typeof a.dueDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(a.dueDate)) return null
+    return { kind: 'deferOverdue', args: { dueDate: a.dueDate } }
   }
 
   return null

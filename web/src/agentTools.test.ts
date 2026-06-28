@@ -35,6 +35,14 @@ describe('AGENT_TOOLS registry', () => {
     expect(names).toContain('deleteGroceryItem')
     expect(names).toContain('editGroceryItem')
     expect(names).toContain('pickTodos')
+    expect(names).toContain('editCategory')
+    expect(names).toContain('deleteCategory')
+    expect(names).toContain('setGroceryChecked')
+    expect(names).toContain('renameStore')
+    expect(names).toContain('deleteStore')
+    expect(names).toContain('skipTodo')
+    expect(names).toContain('markUndone')
+    expect(names).toContain('deferOverdue')
   })
   it('every tool has a name, description, and JSON-schema-shaped input', () => {
     for (const tool of AGENT_TOOLS) {
@@ -391,6 +399,78 @@ describe('validateOperation — deleteGroceryItem', () => {
     expect(
       validateOperation('deleteGroceryItem', { groceryId: 'g-1' }, knownCats, knownTodoIds),
     ).toBeNull()
+  })
+})
+
+// ─── Tier 1/2 capability ops ───────────────────────────────────────
+
+describe('validateOperation — category/store/task ops', () => {
+  it('editCategory: known id + ≥1 field, drops bad color', () => {
+    expect(
+      validateOperation('editCategory', { categoryId: 'work', label: 'Office' }, knownCats),
+    ).toEqual({ kind: 'editCategory', args: { categoryId: 'work', label: 'Office' } })
+    expect(
+      validateOperation('editCategory', { categoryId: 'work', color: 'green' }, knownCats),
+    ).toBeNull() // no valid field
+    expect(validateOperation('editCategory', { categoryId: 'ghost', label: 'X' }, knownCats)).toBeNull()
+  })
+  it('deleteCategory: known id only', () => {
+    expect(validateOperation('deleteCategory', { categoryId: 'home' }, knownCats)).toEqual({
+      kind: 'deleteCategory',
+      args: { categoryId: 'home' },
+    })
+    expect(validateOperation('deleteCategory', { categoryId: 'ghost' }, knownCats)).toBeNull()
+  })
+  it('setGroceryChecked: known id + boolean', () => {
+    const op = validateOperation(
+      'setGroceryChecked',
+      { groceryId: 'g-1', checked: true },
+      knownCats,
+      knownTodoIds,
+      knownGroceryGroupIds,
+      knownGroceryIds,
+    )
+    expect(op).toEqual({ kind: 'setGroceryChecked', args: { groceryId: 'g-1', checked: true } })
+    expect(
+      validateOperation(
+        'setGroceryChecked',
+        { groceryId: 'g-1', checked: 'yes' },
+        knownCats,
+        knownTodoIds,
+        knownGroceryGroupIds,
+        knownGroceryIds,
+      ),
+    ).toBeNull()
+  })
+  it('renameStore / deleteStore: non-empty names', () => {
+    expect(validateOperation('renameStore', { from: 'Costco', to: "BJ's" }, knownCats)).toEqual({
+      kind: 'renameStore',
+      args: { from: 'Costco', to: "BJ's" },
+    })
+    expect(validateOperation('renameStore', { from: '', to: 'X' }, knownCats)).toBeNull()
+    expect(validateOperation('deleteStore', { name: 'Costco' }, knownCats)).toEqual({
+      kind: 'deleteStore',
+      args: { name: 'Costco' },
+    })
+  })
+  it('skipTodo: known id, optional series scope', () => {
+    expect(
+      validateOperation('skipTodo', { todoId: 't-1', scope: 'series' }, knownCats, knownTodoIds),
+    ).toEqual({ kind: 'skipTodo', args: { todoId: 't-1', scope: 'series' } })
+    expect(validateOperation('skipTodo', { todoId: 'ghost' }, knownCats, knownTodoIds)).toBeNull()
+  })
+  it('markUndone: known id', () => {
+    expect(validateOperation('markUndone', { todoId: 't-2' }, knownCats, knownTodoIds)).toEqual({
+      kind: 'markUndone',
+      args: { todoId: 't-2' },
+    })
+  })
+  it('deferOverdue: ISO date only', () => {
+    expect(validateOperation('deferOverdue', { dueDate: '2026-07-06' }, knownCats)).toEqual({
+      kind: 'deferOverdue',
+      args: { dueDate: '2026-07-06' },
+    })
+    expect(validateOperation('deferOverdue', { dueDate: 'monday' }, knownCats)).toBeNull()
   })
 })
 
