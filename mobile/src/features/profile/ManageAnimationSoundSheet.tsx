@@ -135,19 +135,21 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.separator,
       marginLeft: 14,
     },
+    // Matches the SettingsSheet toggle (50×30 / 24×24) so the same switch
+    // doesn't render at two sizes across the app.
     toggleTrack: {
-      width: 44,
-      height: 26,
-      borderRadius: 13,
+      width: 50,
+      height: 30,
+      borderRadius: 15,
       backgroundColor: c.gray3,
       justifyContent: 'center',
       padding: 2,
     },
     toggleTrackOn: { backgroundColor: c.primary },
     toggleKnob: {
-      width: 22,
-      height: 22,
-      borderRadius: 11,
+      width: 24,
+      height: 24,
+      borderRadius: 12,
       backgroundColor: '#fff',
       alignSelf: 'flex-start',
     },

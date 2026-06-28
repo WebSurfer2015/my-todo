@@ -40,6 +40,9 @@ export function makeStyles(c: ThemeColors) {
     headerTitle: { fontSize: 20, fontWeight: "700", color: c.label },
     headerLeft: { fontSize: 16, fontWeight: "500", color: c.primary },
     headerRight: { fontSize: 16, fontWeight: "600", color: c.primary },
+    // "Reset" in view mode — deliberately muted so it doesn't compete with the
+    // green primary "Set Filter" footer button (which owns the commit).
+    headerReset: { fontSize: 15, fontWeight: "500", color: c.label2 },
     // Balances Cancel so the title stays centered when the header's
     // right-side Done is hidden (Select Filter → Done is sticky below).
     headerRightSpacer: { minWidth: 56 },

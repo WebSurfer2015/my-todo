@@ -409,8 +409,8 @@ export default function CategorySheet({
                       </TouchableOpacity>
                     ) : (
                       // Reset clears every selected filter (back to "All").
-                      <TouchableOpacity onPress={onClearFilters} hitSlop={8}>
-                        <Text style={styles.headerRight}>Reset</Text>
+                      <TouchableOpacity onPress={onClearFilters} hitSlop={10}>
+                        <Text style={styles.headerReset}>Reset</Text>
                       </TouchableOpacity>
                     )}
                   </View>

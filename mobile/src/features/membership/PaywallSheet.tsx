@@ -222,8 +222,10 @@ export default function PaywallSheet({
                 <Text style={styles.restoreText}>Restore purchases</Text>
               </TouchableOpacity>
               <Text style={styles.fine}>
-                Subscriptions renew automatically until cancelled. Manage in your App
-                Store account. Pay-as-you-go requests are available when your Mochi allowance runs out.
+                A free trial, where offered, converts to a paid subscription unless
+                cancelled before it ends. Subscriptions renew automatically until
+                cancelled — manage in your App Store account. Pay-as-you-go requests
+                are available when your Mochi allowance runs out.
               </Text>
             </ScrollView>
           </View>
