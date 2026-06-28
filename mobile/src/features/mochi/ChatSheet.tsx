@@ -53,6 +53,9 @@ interface Props {
    * the existing store mutation so the agent shares the manual write
    * surface — confirm-before-apply keeps the user in control. */
   onApplyOperation: (op: ProposedOperation) => void
+  /** Optimistically apply a single new to-do / grocery item and return an
+   * `undo` the card renders inline. Used for the no-Confirm capture path. */
+  onCaptureWithUndo: (op: ProposedOperation) => () => void
   /** Review a proposed NEW todo in the manual ComposeSheet instead of
    * applying it directly — the chat parsed the words, the manual form (the
    * same code a manual add uses) lets the user confirm/edit and save. When
@@ -172,6 +175,7 @@ export default function ChatSheet({
   groceryGroups,
   stores,
   onApplyOperation,
+  onCaptureWithUndo,
   onReviewCreateTodo,
 }: Props) {
   const { t } = useLang()
@@ -187,6 +191,13 @@ export default function ChatSheet({
   // Per-proposal resolution so a confirmed/declined turn swaps its action
   // row for a quiet footer. Keyed by message index (append-only, stable).
   const [resolved, setResolved] = useState<Record<number, 'applied' | 'declined'>>({})
+  // Optimistic-capture bookkeeping. appliedRef is a SYNCHRONOUS guard so the
+  // auto-apply effect can never double-apply a turn (e.g. under a re-run before
+  // setResolved commits). undoFnsRef holds each applied turn's inline undo;
+  // `undone` flips the card to a "Removed" note after Undo.
+  const appliedRef = useRef<Set<number>>(new Set())
+  const undoFnsRef = useRef<Record<number, () => void>>({})
+  const [undone, setUndone] = useState<Record<number, true>>({})
   const inputRef = useRef<TextInput>(null)
   const scrollRef = useRef<ScrollView>(null)
 
@@ -208,6 +219,24 @@ export default function ChatSheet({
     const id = setInterval(() => setPhIdx((i) => (i + 1) % PLACEHOLDER_EXAMPLES.length), 3200)
     return () => clearInterval(id)
   }, [visible, input.length, messages.length])
+
+  // Optimistic capture: a SINGLE new to-do / grocery item is applied the
+  // moment Mochi proposes it (no Confirm tap), with an inline Undo. Multi-op
+  // turns and edits/mark-done keep the explicit Confirm. The appliedRef guard
+  // makes this idempotent — a turn is applied exactly once.
+  useEffect(() => {
+    messages.forEach((m, i) => {
+      if (m.role !== 'assistant' || appliedRef.current.has(i)) return
+      const ops = m.operations
+      if (!m.awaitingConfirmation || !ops || ops.length !== 1) return
+      const op = ops[0]
+      if (op.kind !== 'createTodo' && op.kind !== 'addGroceryItem') return
+      appliedRef.current.add(i)
+      undoFnsRef.current[i] = onCaptureWithUndo(op)
+      setResolved((prev) => ({ ...prev, [i]: 'applied' }))
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
+    })
+  }, [messages, onCaptureWithUndo])
 
   function handleSend(raw: string = input) {
     const turn = raw.trim()
@@ -253,6 +282,9 @@ export default function ChatSheet({
     reset()
     setInput('')
     setResolved({})
+    setUndone({})
+    appliedRef.current.clear()
+    undoFnsRef.current = {}
     onClose()
   }
 
@@ -376,7 +408,30 @@ export default function ChatSheet({
                       ))}
                       {m.operations && m.operations.length > 0 && (
                         resolved[i] === 'applied' ? (
-                          <Text style={styles.appliedNote}>✓ Done</Text>
+                          // Optimistically-applied turns carry an inline Undo;
+                          // Confirm-applied turns just show ✓ Done.
+                          undoFnsRef.current[i] ? (
+                            undone[i] ? (
+                              <Text style={styles.appliedNote}>Removed</Text>
+                            ) : (
+                              <View style={styles.appliedRow}>
+                                <Text style={styles.appliedNote}>✓ Added</Text>
+                                <TouchableOpacity
+                                  hitSlop={8}
+                                  onPress={() => {
+                                    undoFnsRef.current[i]?.()
+                                    setUndone((prev) => ({ ...prev, [i]: true }))
+                                  }}
+                                  accessibilityRole="button"
+                                  accessibilityLabel="Undo this"
+                                >
+                                  <Text style={styles.undoText}>Undo</Text>
+                                </TouchableOpacity>
+                              </View>
+                            )
+                          ) : (
+                            <Text style={styles.appliedNote}>✓ Done</Text>
+                          )
                         ) : m.awaitingConfirmation ? (
                           <View style={styles.actionsRow}>
                             <TouchableOpacity
@@ -845,6 +900,8 @@ function makeStyles(c: ThemeColors) {
     swatchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     swatch: { width: 16, height: 16, borderRadius: 8 },
     appliedNote: { fontSize: 13, fontWeight: '600', color: c.label3, marginTop: 4 },
+    appliedRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
+    undoText: { fontSize: 13, fontWeight: '700', color: c.primary },
     actionsRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
     btn: {
       flex: 1,

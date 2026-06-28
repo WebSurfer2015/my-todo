@@ -240,6 +240,71 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     },
     [store],
   )
+
+  // Optimistic capture: apply a single new to-do / grocery item RIGHT AWAY
+  // (no Confirm tap) and return an `undo` the chat renders inline — a snackbar
+  // would render behind the chat Modal. For a recurring to-do, Undo asks
+  // whether to drop just this occurrence or the whole repeat.
+  const applyCaptureWithUndo = useCallback(
+    (op: ProposedOperation): (() => void) => {
+      const toReminders = (
+        rs?: { at: string; offsetMinutes?: number; intervalMinutes?: number }[],
+      ) =>
+        rs && rs.length > 0
+          ? rs.map((r) => ({
+              id: genUuid(),
+              at: r.at,
+              ...(r.offsetMinutes ? { offsetMinutes: r.offsetMinutes } : {}),
+              ...(r.intervalMinutes ? { intervalMinutes: r.intervalMinutes } : {}),
+            }))
+          : undefined
+
+      if (op.kind === 'createTodo') {
+        const a = op.args
+        const reminders = toReminders(a.reminders)
+        const id = store.addTask(
+          a.text,
+          a.priority ?? 'medium',
+          a.dueDate ?? '',
+          a.category,
+          a.recurrence,
+          {
+            ...(a.notes ? { notes: a.notes } : {}),
+            ...(reminders ? { reminders } : {}),
+          },
+        )
+        const isRecurring = !!a.recurrence
+        return () => {
+          if (isRecurring) {
+            Alert.alert(
+              'Remove repeating to-do?',
+              `"${a.text}" repeats — remove just this one, or the whole series?`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Just this one', onPress: () => store.permanentlyDelete(id) },
+                {
+                  text: 'Whole series',
+                  style: 'destructive',
+                  onPress: () => store.permanentlyDeleteSeriesFuture(id),
+                },
+              ],
+            )
+          } else {
+            store.permanentlyDelete(id)
+          }
+        }
+      }
+      if (op.kind === 'addGroceryItem') {
+        const a = op.args
+        const id = store.addGrocery({ text: a.text, groupId: a.groupId, stores: a.stores })
+        return () => {
+          if (id) store.deleteGrocery(id)
+        }
+      }
+      return () => {}
+    },
+    [store],
+  )
   const openManageFilter = useCallback(() => {
     setCategorySheetMode('edit')
     setCategorySheetOpen(true)
@@ -512,6 +577,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           }))}
           stores={store.profile.groceryStores ?? SEED_GROCERY_STORES}
           onApplyOperation={applyMochiOp}
+          onCaptureWithUndo={applyCaptureWithUndo}
           onReviewCreateTodo={reviewCreateTodo}
           onClose={() => setMochiOpen(false)}
           onEnterManually={() => {

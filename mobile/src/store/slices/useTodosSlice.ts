@@ -212,7 +212,7 @@ export interface TodosSlice {
       reminder?: Todo["reminder"]; // legacy
       reminders?: Reminder[]; // multi-reminder (preferred)
     },
-  ) => void;
+  ) => string;
   emptyTrash: () => void;
   clearTrashSelection: () => void;
   bulkRestore: () => void;
@@ -835,30 +835,33 @@ export function useTodosSlice(
       setTodoReferences((prev) =>
         recordTodoReference(prev, { text, priority, category, recurrence }),
       );
+      // Build the seed OUTSIDE setTodos (newTodo is pure given now/genId) so
+      // we can return its id — callers like the Mochi optimistic-apply need
+      // it to wire an Undo. It also avoids minting two ids under a
+      // double-invoked updater in strict mode.
+      const seed = newTodo({
+        text,
+        priority,
+        dueDate,
+        category,
+        recurrence,
+        subtasks,
+        notes,
+        // Prefer the new multi-reminder array when supplied; the
+        // legacy `reminder` input stays for any caller that hasn't
+        // migrated yet.
+        reminder,
+      });
+      // Attach reminders[] post-newTodo (newTodo's input shape
+      // doesn't have the array yet — keep it narrow).
+      if (reminders && reminders.length > 0) {
+        seed.reminders = reminders;
+        // If both inputs were given, the array wins; drop the
+        // legacy field so the persisted doc converges on the new schema.
+        delete seed.reminder;
+      }
       setTodos((prev) => {
         if (prev.length === 0) void Analytics.firstTodoCreated();
-        const seed = newTodo({
-          text,
-          priority,
-          dueDate,
-          category,
-          recurrence,
-          subtasks,
-          notes,
-          // Prefer the new multi-reminder array when supplied; the
-          // legacy `reminder` input stays for any caller that hasn't
-          // migrated yet.
-          reminder,
-        });
-        // Attach reminders[] post-newTodo (newTodo's input shape
-        // doesn't have the array yet — keep it narrow).
-        if (reminders && reminders.length > 0) {
-          seed.reminders = reminders;
-          // If both inputs were given, the array wins; drop the
-          // legacy field so the persisted doc converges on the new
-          // schema.
-          delete seed.reminder;
-        }
         // R1 — pre-expand the recurring series so the user
         // immediately sees their daily/weekly/monthly/yearly window
         // populated (head + tail). For one-offs, fall through to the
@@ -869,6 +872,7 @@ export function useTodosSlice(
         }
         return [seed, ...prev];
       });
+      return seed.id;
     },
     [setTodos, setTodoReferences],
   );

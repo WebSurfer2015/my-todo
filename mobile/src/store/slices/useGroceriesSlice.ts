@@ -76,7 +76,7 @@ export interface GroceriesSlice {
     text: string;
     groupId?: string;
     stores?: string[];
-  }) => void;
+  }) => string | undefined;
   /** Returns the bucket-completion delta — > 0 when this toggle
    * finished a (store × department) bucket, < 0 when it un-finished
    * one, 0 otherwise. The UI uses the sign to gate the Mochi
@@ -316,6 +316,7 @@ export function useGroceriesSlice(
           });
         }
       }
+      return item.id;
     },
     [setGroceries, setProfile, setGroceryGroups, profileRef, notify, t],
   );
