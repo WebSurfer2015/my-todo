@@ -167,26 +167,33 @@ export default function EditableCaptureCard({
         ))}
       </View>
 
+      {/* Editing controls live in a recessed tray with a header — visually a
+          transient menu, distinct from the chip row that shows the to-do's
+          actual values. */}
       {open === 'category' && (
-        <View style={styles.catPicker}>
-          {categories.map((c) => {
-            const sel = c.id === category
-            return (
-              <TouchableOpacity
-                key={c.id}
-                style={[styles.catOption, sel && styles.catOptionActive]}
-                onPress={() => pickCategory(c.id)}
-              >
-                <Text style={[styles.catOptionText, sel && styles.catOptionTextActive]}>
-                  {categoryLabel(c, t)}
-                </Text>
-              </TouchableOpacity>
-            )
-          })}
+        <View style={styles.pickerPanel}>
+          <Text style={styles.pickerPanelLabel}>Choose a category</Text>
+          <View style={styles.catPicker}>
+            {categories.map((c) => {
+              const sel = c.id === category
+              return (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[styles.catOption, sel && styles.catOptionActive]}
+                  onPress={() => pickCategory(c.id)}
+                >
+                  <Text style={[styles.catOptionText, sel && styles.catOptionTextActive]}>
+                    {categoryLabel(c, t)}
+                  </Text>
+                </TouchableOpacity>
+              )
+            })}
+          </View>
         </View>
       )}
       {open === 'date' && (
-        <View style={styles.datePickerWrap}>
+        <View style={styles.pickerPanel}>
+          <Text style={styles.pickerPanelLabel}>Pick a date</Text>
           <DateTimePicker
             value={pickerValue}
             mode="date"
@@ -260,18 +267,37 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surfaceAlt,
     },
     roChipText: { fontSize: 13, fontWeight: '500', color: c.label3 },
-    catPicker: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+    // A recessed "menu tray" that frames the editing controls so they read as
+    // a transient picker, not as more of the to-do's own fields.
+    pickerPanel: {
+      marginTop: 8,
+      padding: 10,
+      borderRadius: 12,
+      backgroundColor: c.surfaceAlt,
+      alignItems: 'flex-start',
+    },
+    pickerPanelLabel: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: c.label3,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginBottom: 8,
+    },
+    catPicker: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    // White pills pop out of the recessed tray — clearly selectable options.
     catOption: {
       paddingHorizontal: 12,
       paddingVertical: 6,
       borderRadius: 999,
-      backgroundColor: c.surfaceAlt,
+      backgroundColor: c.card,
+      borderWidth: 1,
+      borderColor: c.border,
     },
-    catOptionActive: { backgroundColor: c.primary },
+    catOptionActive: { backgroundColor: c.primary, borderColor: c.primary },
     catOptionText: { fontSize: 13, fontWeight: '600', color: c.label2 },
     catOptionTextActive: { color: c.primaryOn },
     notes: { fontSize: 13, color: c.label3, fontStyle: 'italic', marginTop: 6 },
-    datePickerWrap: { marginTop: 8, alignItems: 'flex-start' },
     actionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
     addedNote: { fontSize: 13, fontWeight: '600', color: c.label3 },
     removedNote: { fontSize: 13, fontWeight: '600', color: c.label3, marginTop: 8 },
