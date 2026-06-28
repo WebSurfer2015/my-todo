@@ -3,35 +3,6 @@ import { ThemeColors } from "../../../app/theme";
 
 export function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    flex: { flex: 1 },
-    backdrop: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.45)",
-      justifyContent: "flex-end",
-    },
-    sheet: {
-      backgroundColor: c.modal,
-      borderTopLeftRadius: 18,
-      borderTopRightRadius: 18,
-      paddingTop: 6,
-      maxHeight: "85%",
-    },
-    handle: {
-      alignSelf: "center",
-      width: 36,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: c.gray3,
-      marginVertical: 6,
-    },
-    titleRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingHorizontal: 16,
-      paddingBottom: 10,
-    },
-    titleSideBtn: { width: 64 },
     linkingBanner: {
       flexDirection: "row",
       alignItems: "center",
@@ -51,9 +22,6 @@ export function makeStyles(c: ThemeColors) {
       letterSpacing: -0.1,
       flexShrink: 1,
     },
-    title: { fontSize: 20, fontWeight: "700", color: c.label, textAlign: "center" },
-    manageText: { fontSize: 15, fontWeight: "600", color: c.primary, textAlign: "right" },
-    cancelText: { fontSize: 15, fontWeight: "500", color: c.primary, textAlign: "left" },
     scroll: { flexShrink: 1 },
     scrollContent: { paddingHorizontal: 16, paddingBottom: 12 },
     scrollContentCenter: {

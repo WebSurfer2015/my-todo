@@ -4,69 +4,32 @@ import { MAX_GROCERY_GROUP_LABEL_LEN } from "../../../core-bindings/groceries";
 import { GROCERY_DEPT_ICONS } from "../groceryDeptIcons";
 import { COLOR_PALETTE } from "../../../core-bindings/categories";
 import { ThemeColors } from "../../../app/theme";
-import { useLang } from "../../../app/LangContext";
 import type { Styles } from "./styles";
 
+/** Headerless add/edit-department fields — the parent's SheetShell owns the
+ * Cancel / title / Save header. */
 export interface DeptFormProps {
-  mode: "add" | "edit";
   label: string;
   color: string;
   icon: string;
   onLabel: (v: string) => void;
   onColor: (v: string) => void;
   onIcon: (v: string) => void;
-  onCancel: () => void;
-  onSave: () => void;
   styles: Styles;
   theme: ThemeColors;
-  t: ReturnType<typeof useLang>["t"];
 }
 
 export default function DeptForm({
-  mode,
   label,
   color,
   icon,
   onLabel,
   onColor,
   onIcon,
-  onCancel,
-  onSave,
   styles,
   theme,
-  t,
 }: DeptFormProps) {
-  const trimmed = label.trim();
-  const canSave = trimmed.length > 0;
   return (
-    <>
-      <View style={styles.titleRow}>
-        <TouchableOpacity onPress={onCancel} hitSlop={10} style={styles.titleSideBtn}>
-          <Text style={{ fontSize: 15, fontWeight: "500", color: theme.primary }}>
-            {t.cancel}
-          </Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>
-          {mode === "add" ? "Add Department" : "Edit Department"}
-        </Text>
-        <TouchableOpacity
-          onPress={onSave}
-          disabled={!canSave}
-          hitSlop={10}
-          style={styles.titleSideBtn}
-        >
-          <Text
-            style={{
-              fontSize: 15,
-              fontWeight: "700",
-              color: canSave ? theme.primary : theme.gray3,
-              textAlign: "right",
-            }}
-          >
-            {t.save}
-          </Text>
-        </TouchableOpacity>
-      </View>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.formBody}
@@ -122,6 +85,5 @@ export default function DeptForm({
           })}
         </View>
       </ScrollView>
-    </>
   );
 }

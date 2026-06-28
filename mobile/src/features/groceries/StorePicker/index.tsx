@@ -19,16 +19,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from "react-native";
 import { Check, Eye, EyeOff, Pencil, Trash2 } from "lucide-react-native";
@@ -54,6 +48,7 @@ import EmptyStateCard from "../../../ui/EmptyStateCard";
 import { COLOR_PALETTE } from "../../../core-bindings/categories";
 import { makeStyles } from "./styles";
 import DeptForm from "./DeptForm";
+import SheetShell from "../../../ui/SheetShell";
 
 interface Props {
   visible: boolean;
@@ -116,7 +111,6 @@ export default function StorePicker({
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const { showSnackbar } = useNotify();
-  const { height: screenH } = useWindowDimensions();
 
   // Inline banner state for the AI link-items flow. Snackbars
   // render at the React root which on iOS sits BELOW a native
@@ -339,86 +333,63 @@ export default function StorePicker({
     ? stores
     : stores.filter((s) => !hiddenStores.includes(s));
 
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={() => {
-        if (editing) setEditing(false);
-        onClose();
-      }}
-    >
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        {/* Sibling backdrop tap-layer (not a wrapper) — a wrapping Pressable
-            collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
-        <View style={styles.backdrop}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            accessible={false}
-            onPress={() => {
-              if (editing) setEditing(false);
-              onClose();
-            }}
-          />
-          <View style={[styles.sheet, { minHeight: screenH * 0.3 }]}>
-            <View style={styles.handle} />
-            {deptFormMode ? (
-              <DeptForm
-                mode={deptFormMode.kind}
-                label={formLabel}
-                color={formColor}
-                icon={formIcon}
-                onLabel={setFormLabel}
-                onColor={setFormColor}
-                onIcon={setFormIcon}
-                onCancel={() => setDeptFormMode(null)}
-                onSave={saveDeptForm}
-                styles={styles}
-                theme={theme}
-                t={t}
-              />
-            ) : (
-              <>
-                <View style={styles.titleRow}>
-                  <TouchableOpacity
-                    onPress={onClose}
-                    hitSlop={10}
-                    style={styles.titleSideBtn}
-                    accessibilityRole="button"
-                    accessibilityLabel="Cancel"
-                  >
-                    <Text style={styles.cancelText}>{t.cancel}</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.title}>
-                    {editing ? "Manage Store" : "Select Store"}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={onClose}
-                    hitSlop={10}
-                    style={styles.titleSideBtn}
-                  >
-                    <Text style={styles.manageText}>{t.done}</Text>
-                  </TouchableOpacity>
-                </View>
+  const closeAndReset = () => {
+    setEditing(false);
+    onClose();
+  };
 
-                <ScrollView
-                  style={styles.scroll}
-                  contentContainerStyle={[
-                    styles.scrollContent,
-                    editing &&
-                      stores.length === 0 &&
-                      !addingNew &&
-                      styles.scrollContentCenter,
-                  ]}
-                  keyboardShouldPersistTaps="handled"
-                  showsVerticalScrollIndicator={false}
-                  nestedScrollEnabled
-                  scrollEnabled={!dragActive}
-                >
+  return (
+    <SheetShell
+      visible={visible}
+      onClose={closeAndReset}
+      scroll={false}
+      padded={false}
+      title={
+        deptFormMode
+          ? deptFormMode.kind === "add"
+            ? "Add Department"
+            : "Edit Department"
+          : editing
+            ? "Manage Store"
+            : "Select Store"
+      }
+      left={
+        deptFormMode
+          ? { label: t.cancel, onPress: () => setDeptFormMode(null) }
+          : { label: t.cancel, onPress: closeAndReset }
+      }
+      primary={
+        deptFormMode
+          ? { label: t.save, onPress: saveDeptForm, disabled: !formLabel.trim() }
+          : { label: t.done, onPress: closeAndReset }
+      }
+    >
+      {deptFormMode ? (
+        <DeptForm
+          label={formLabel}
+          color={formColor}
+          icon={formIcon}
+          onLabel={setFormLabel}
+          onColor={setFormColor}
+          onIcon={setFormIcon}
+          styles={styles}
+          theme={theme}
+        />
+      ) : (
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[
+            styles.scrollContent,
+            editing &&
+              stores.length === 0 &&
+              !addingNew &&
+              styles.scrollContentCenter,
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          nestedScrollEnabled
+          scrollEnabled={!dragActive}
+        >
                   {editing && stores.length === 0 && !addingNew ? (
                     <EmptyStateCard
                       title="No stores yet."
@@ -657,13 +628,9 @@ export default function StorePicker({
                       )}
                     </View>
                   )}
-                  <View style={{ height: 24 }} />
-                </ScrollView>
-              </>
-            )}
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+          <View style={{ height: 24 }} />
+        </ScrollView>
+      )}
+    </SheetShell>
   );
 }
