@@ -20,6 +20,8 @@ import { usePurchases } from '../../app/PurchasesContext'
 import { useTheme, ThemeColors } from '../../app/theme'
 import { useMochiAgent, type ProposedOperation } from './useMochiAgent'
 import MochiThinking from './MochiThinking'
+import EditableCaptureCard from './EditableCaptureCard'
+import { type Priority } from '../../core-bindings/types'
 import { snapDueDateToRecurrence } from '../../../../core/src/logic/derive'
 import { todayLocal } from '../../core-bindings/utils'
 import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
@@ -53,9 +55,15 @@ interface Props {
    * the existing store mutation so the agent shares the manual write
    * surface — confirm-before-apply keeps the user in control. */
   onApplyOperation: (op: ProposedOperation) => void
-  /** Optimistically apply a single new to-do / grocery item and return an
-   * `undo` the card renders inline. Used for the no-Confirm capture path. */
-  onCaptureWithUndo: (op: ProposedOperation) => () => void
+  /** Optimistically apply a single new to-do / grocery item. Returns the live
+   * id (for inline chip-editing; null for groceries) + an `undo` the card
+   * renders inline. The no-Confirm capture path. */
+  onCaptureWithUndo: (op: ProposedOperation) => { id: string | null; undo: () => void }
+  /** Edit a field on a just-captured to-do straight from its card. */
+  onEditCapturedTodo: (
+    id: string,
+    patch: { category?: string; priority?: Priority; dueDate?: string },
+  ) => void
   /** Review a proposed NEW todo in the manual ComposeSheet instead of
    * applying it directly — the chat parsed the words, the manual form (the
    * same code a manual add uses) lets the user confirm/edit and save. When
@@ -176,6 +184,7 @@ export default function ChatSheet({
   stores,
   onApplyOperation,
   onCaptureWithUndo,
+  onEditCapturedTodo,
   onReviewCreateTodo,
 }: Props) {
   const { t } = useLang()
@@ -197,6 +206,8 @@ export default function ChatSheet({
   // `undone` flips the card to a "Removed" note after Undo.
   const appliedRef = useRef<Set<number>>(new Set())
   const undoFnsRef = useRef<Record<number, () => void>>({})
+  // Live id of each auto-applied to-do, so its card chips can edit it in place.
+  const capturedIdRef = useRef<Record<number, string | null>>({})
   const [undone, setUndone] = useState<Record<number, true>>({})
   const inputRef = useRef<TextInput>(null)
   const scrollRef = useRef<ScrollView>(null)
@@ -232,7 +243,9 @@ export default function ChatSheet({
       const op = ops[0]
       if (op.kind !== 'createTodo' && op.kind !== 'addGroceryItem') return
       appliedRef.current.add(i)
-      undoFnsRef.current[i] = onCaptureWithUndo(op)
+      const res = onCaptureWithUndo(op)
+      undoFnsRef.current[i] = res.undo
+      capturedIdRef.current[i] = res.id
       setResolved((prev) => ({ ...prev, [i]: 'applied' }))
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
     })
@@ -285,6 +298,7 @@ export default function ChatSheet({
     setUndone({})
     appliedRef.current.clear()
     undoFnsRef.current = {}
+    capturedIdRef.current = {}
     onClose()
   }
 
@@ -395,15 +409,29 @@ export default function ChatSheet({
                       {!!m.content && <Text style={styles.mochiLine}>{m.content}</Text>}
                       {m.operations?.map((op, j) => (
                         <View key={j} style={styles.proposalCard}>
-                          <OperationPreview
-                            op={op}
-                            categoryLabelLookup={categoryLookup}
-                            todoTextLookup={todoTextLookup}
-                            todoLookup={todoLookup}
-                            groupLabelLookup={groupLookup}
-                            styles={styles}
-                            theme={theme}
-                          />
+                          {/* A just-captured to-do gets editable chips (tap to
+                              fix category/date/priority on the live task). */}
+                          {op.kind === 'createTodo' &&
+                          resolved[i] === 'applied' &&
+                          capturedIdRef.current[i] ? (
+                            <EditableCaptureCard
+                              args={op.args}
+                              id={capturedIdRef.current[i]!}
+                              categories={categories}
+                              recurrenceText={recurrenceLabel(op.args.recurrence)}
+                              onEdit={onEditCapturedTodo}
+                            />
+                          ) : (
+                            <OperationPreview
+                              op={op}
+                              categoryLabelLookup={categoryLookup}
+                              todoTextLookup={todoTextLookup}
+                              todoLookup={todoLookup}
+                              groupLabelLookup={groupLookup}
+                              styles={styles}
+                              theme={theme}
+                            />
+                          )}
                         </View>
                       ))}
                       {m.operations && m.operations.length > 0 && (

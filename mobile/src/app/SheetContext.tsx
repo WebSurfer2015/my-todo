@@ -42,7 +42,7 @@ import ManageAnimationSoundSheet from '../features/profile/ManageAnimationSoundS
 import CategorySheet from '../features/category/CategorySheet'
 import { COLOR_PALETTE } from '../core-bindings/categories'
 import { SEED_GROCERY_STORES } from '../core-bindings/groceries'
-import type { Filter } from '../core-bindings/types'
+import type { Filter, Priority } from '../core-bindings/types'
 import type { Guide } from '../features/onboarding/guides'
 import { genUuid } from '../../../core/src/logic/utils'
 
@@ -257,7 +257,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   // would render behind the chat Modal. For a recurring to-do, Undo asks
   // whether to drop just this occurrence or the whole repeat.
   const applyCaptureWithUndo = useCallback(
-    (op: ProposedOperation): (() => void) => {
+    (op: ProposedOperation): { id: string | null; undo: () => void } => {
       const toReminders = (
         rs?: { at: string; offsetMinutes?: number; intervalMinutes?: number }[],
       ) =>
@@ -285,34 +285,52 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           },
         )
         const isRecurring = !!a.recurrence
-        return () => {
-          if (isRecurring) {
-            Alert.alert(
-              'Remove repeating to-do?',
-              `"${a.text}" repeats — remove just this one, or the whole series?`,
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Just this one', onPress: () => store.permanentlyDelete(id) },
-                {
-                  text: 'Whole series',
-                  style: 'destructive',
-                  onPress: () => store.permanentlyDeleteSeriesFuture(id),
-                },
-              ],
-            )
-          } else {
-            store.permanentlyDelete(id)
-          }
+        return {
+          id,
+          undo: () => {
+            if (isRecurring) {
+              Alert.alert(
+                'Remove repeating to-do?',
+                `"${a.text}" repeats — remove just this one, or the whole series?`,
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Just this one', onPress: () => store.permanentlyDelete(id) },
+                  {
+                    text: 'Whole series',
+                    style: 'destructive',
+                    onPress: () => store.permanentlyDeleteSeriesFuture(id),
+                  },
+                ],
+              )
+            } else {
+              store.permanentlyDelete(id)
+            }
+          },
         }
       }
       if (op.kind === 'addGroceryItem') {
         const a = op.args
         const id = store.addGrocery({ text: a.text, groupId: a.groupId, stores: a.stores })
-        return () => {
-          if (id) store.deleteGrocery(id)
+        return {
+          // null id → no inline chip-editing for groceries (Undo only).
+          id: null,
+          undo: () => {
+            if (id) store.deleteGrocery(id)
+          },
         }
       }
-      return () => {}
+      return { id: null, undo: () => {} }
+    },
+    [store],
+  )
+
+  // Inline-edit a just-captured to-do straight from the Mochi card — fixes the
+  // common "Mochi got the category/date slightly off" without leaving chat.
+  const editCapturedTodo = useCallback(
+    (id: string, patch: { category?: string; priority?: Priority; dueDate?: string }) => {
+      if (patch.category !== undefined) store.updateTaskCategory(id, patch.category)
+      if (patch.priority !== undefined) store.updatePriority(id, patch.priority)
+      if (patch.dueDate !== undefined) store.updateDueDate(id, patch.dueDate)
     },
     [store],
   )
@@ -590,6 +608,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           stores={store.profile.groceryStores ?? SEED_GROCERY_STORES}
           onApplyOperation={applyMochiOp}
           onCaptureWithUndo={applyCaptureWithUndo}
+          onEditCapturedTodo={editCapturedTodo}
           onReviewCreateTodo={reviewCreateTodo}
           onClose={() => setMochiOpen(false)}
           onEnterManually={() => {
