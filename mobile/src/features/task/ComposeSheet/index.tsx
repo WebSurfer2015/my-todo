@@ -699,7 +699,11 @@ export default function ComposeSheet({
                       accessibilityRole="button"
                       accessibilityLabel={`Priority, ${t.priority[priority]}. Tap to change.`}
                     >
-                      <PriorityDot level={priority} size={14} />
+                      {/* 18-wide slot so the dot occupies the same width as
+                          the other rows' 18pt icons → labels stay aligned. */}
+                      <View style={{ width: 18, alignItems: 'center' }}>
+                        <PriorityDot level={priority} size={14} />
+                      </View>
                       <Text style={styles.fieldLabel}>{t.composePriorityLabel}</Text>
                       <Text style={styles.fieldValue} numberOfLines={1}>
                         {t.priority[priority]}

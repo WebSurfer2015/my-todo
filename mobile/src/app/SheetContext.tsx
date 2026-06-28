@@ -64,6 +64,8 @@ interface Sheets {
   openGuides: () => void
   /** Open the add-todo compose sheet from any tab. */
   openCompose: () => void
+  /** FAB entry point — opens the last-used capture surface (manual or Mochi). */
+  openCapture: () => void
   /** Open the Mochi capture assistant (natural-language add/edit). Entry
    * point lives in the compose sheet. */
   openMochi: () => void
@@ -139,6 +141,15 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     setComposeOpen(true)
   }, [])
   const openMochi = useCallback(() => setMochiOpen(true), [])
+
+  // The FAB reopens whichever capture surface you used last — manual compose
+  // or Ask Mochi. Session-scoped (resets to manual on app restart). The two
+  // "switch" links below update it.
+  const [lastComposeMode, setLastComposeMode] = useState<'manual' | 'mochi'>('manual')
+  const openCapture = useCallback(() => {
+    if (lastComposeMode === 'mochi') setMochiOpen(true)
+    else openCompose()
+  }, [lastComposeMode, openCompose])
 
   // Ask Mochi → "Review & add": hand the chat's createTodo proposal to the
   // manual ComposeSheet (the same code a manual add uses) so the user reviews
@@ -420,7 +431,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <SheetContext.Provider value={{ openProfile, openSettings, openTheme, openGuides, openCompose, openMochi, openManageFilter, openSelectFilter, openManageGroceries, manageRequest, requestTodosScroll, todosScrollRequest }}>
+    <SheetContext.Provider value={{ openProfile, openSettings, openTheme, openGuides, openCompose, openCapture, openMochi, openManageFilter, openSelectFilter, openManageGroceries, manageRequest, requestTodosScroll, todosScrollRequest }}>
       {children}
       {/* Sheets are only relevant once signed in. Crucially, mounting these
           <Modal>s on the signed-out SignIn screen FLATTENS its iOS a11y tree
@@ -543,6 +554,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         onAskMochi={
           MOCHI_AGENT_ENABLED
             ? () => {
+                setLastComposeMode('mochi')
                 setComposeOpen(false)
                 setMochiOpen(true)
               }
@@ -581,6 +593,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           onReviewCreateTodo={reviewCreateTodo}
           onClose={() => setMochiOpen(false)}
           onEnterManually={() => {
+            setLastComposeMode('manual')
             setMochiOpen(false)
             setComposeOpen(true)
           }}

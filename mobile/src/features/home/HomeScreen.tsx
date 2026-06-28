@@ -372,7 +372,7 @@ export default function HomeScreen() {
         <Fab
           onPress={() => {
             void Analytics.fabTapped('dashboard')
-            sheets.openCompose()
+            sheets.openCapture()
           }}
           accessibilityLabel={t.addPlaceholder}
           agentEnabled={store.profile.agentEnabled !== false}
@@ -698,7 +698,7 @@ export default function HomeScreen() {
       <Fab
         onPress={() => {
           void Analytics.fabTapped('dashboard')
-          sheets.openCompose()
+          sheets.openCapture()
         }}
         accessibilityLabel={t.addPlaceholder}
         agentEnabled={store.profile.agentEnabled !== false}

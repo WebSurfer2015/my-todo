@@ -807,7 +807,7 @@ function TodosScreen() {
           <Fab
             onPress={() => {
               void Analytics.fabTapped('todos')
-              sheets.openCompose()
+              sheets.openCapture()
             }}
             accessibilityLabel={t.addPlaceholder}
             agentEnabled={store.profile.agentEnabled !== false}
