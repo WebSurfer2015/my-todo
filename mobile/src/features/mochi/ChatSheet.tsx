@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  Alert,
   Animated,
   Easing,
   KeyboardAvoidingView,
@@ -48,6 +49,9 @@ interface Props {
     dueDate?: string
     /** Surfaced so the pick-list can differentiate identical-titled tasks. */
     recurrence?: { freq: string; interval?: number; byWeekday?: number[] }
+    /** Present when this to-do is one instance of a generated series — drives
+     * the "Delete series" option on the delete card. */
+    seriesId?: string
   }>
   /** Grocery departments (id + label) so Mochi can target addGroceryItem. */
   groceryGroups: Array<{ id: string; label: string }>
@@ -80,6 +84,9 @@ interface Props {
     op: Extract<ProposedOperation, { kind: 'pickTodos' }>,
     selectedIds: string[],
   ) => void
+  /** Permanently delete one to-do — `scope:'series'` removes this + all future
+   * occurrences. The card owns the permanence confirm; this just deletes. */
+  onDeleteTodo: (id: string, scope: 'one' | 'series') => void
   /** Review a proposed NEW todo in the manual ComposeSheet instead of
    * applying it directly — the chat parsed the words, the manual form (the
    * same code a manual add uses) lets the user confirm/edit and save. When
@@ -206,6 +213,7 @@ export default function ChatSheet({
   onCaptureWithUndo,
   onEditCapturedTodo,
   onApplyPickedTodos,
+  onDeleteTodo,
   onReviewCreateTodo,
 }: Props) {
   const { t } = useLang()
@@ -476,6 +484,18 @@ export default function ChatSheet({
                               styles={styles}
                               theme={theme}
                             />
+                          ) : op.kind === 'deleteTodo' ? (
+                            // Owns its own action row: frozen title + a series
+                            // instance gets an explicit "Delete series" choice.
+                            <DeleteTodoCard
+                              text={todoTextLookup(op.args.todoId)}
+                              isSeries={!!todoLookup(op.args.todoId)?.seriesId}
+                              onDelete={(scope) => {
+                                onDeleteTodo(op.args.todoId, scope)
+                                setResolved((prev) => ({ ...prev, [i]: 'applied' }))
+                              }}
+                              styles={styles}
+                            />
                           ) : (
                             <OperationPreview
                               op={op}
@@ -490,8 +510,8 @@ export default function ChatSheet({
                           )}
                         </View>
                       ))}
-                      {/* The EditableCaptureCard and PickTodosCard render their
-                          OWN action rows, so skip the generic one for those. */}
+                      {/* EditableCaptureCard, PickTodosCard and DeleteTodoCard
+                          render their OWN action rows — skip the generic one. */}
                       {m.operations &&
                         m.operations.length > 0 &&
                         !(
@@ -499,7 +519,8 @@ export default function ChatSheet({
                           ((m.operations[0].kind === 'createTodo' &&
                             resolved[i] === 'applied' &&
                             capturedIdRef.current[i]) ||
-                            m.operations[0].kind === 'pickTodos')
+                            m.operations[0].kind === 'pickTodos' ||
+                            m.operations[0].kind === 'deleteTodo')
                         ) && (
                         resolved[i] === 'applied' ? (
                           // Optimistically-applied turns carry an inline Undo;
@@ -839,6 +860,89 @@ function PickTodosCard({
   )
 }
 
+/**
+ * The delete-an-existing-to-do card. Owns its own action row so the title can
+ * be frozen (survives the delete) and so a SERIES instance gets an explicit
+ * "Delete series" choice instead of burying it in a post-confirm dialog. Each
+ * button raises the permanent-delete warning before anything is removed.
+ */
+function DeleteTodoCard({
+  text: textProp,
+  isSeries: isSeriesProp,
+  onDelete,
+  styles,
+}: {
+  text: string
+  isSeries: boolean
+  onDelete: (scope: 'one' | 'series') => void
+  styles: ReturnType<typeof makeStyles>
+}) {
+  const [text] = useState(textProp)
+  const [isSeries] = useState(isSeriesProp)
+  const [done, setDone] = useState<null | 'one' | 'series'>(null)
+
+  const confirmDelete = (scope: 'one' | 'series') => {
+    Alert.alert(
+      scope === 'series' ? 'Delete series?' : 'Delete to-do?',
+      scope === 'series'
+        ? `Permanently delete "${text}" and all its future occurrences. This can't be undone.`
+        : `Permanently delete "${text}". This can't be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: scope === 'series' ? 'Delete series' : 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            onDelete(scope)
+            setDone(scope)
+          },
+        },
+      ],
+    )
+  }
+
+  if (done) {
+    return (
+      <Text style={styles.appliedNote}>✓ {done === 'series' ? 'Series deleted' : 'Deleted'}</Text>
+    )
+  }
+
+  return (
+    <View>
+      <Text style={styles.proposalKind}>Delete to-do</Text>
+      <Text style={styles.proposalTitle}>{text}</Text>
+      <View style={styles.actionsRow}>
+        {isSeries ? (
+          <>
+            <TouchableOpacity
+              style={[styles.btn, styles.btnNeutral]}
+              onPress={() => confirmDelete('one')}
+              accessibilityRole="button"
+            >
+              <Text style={styles.btnNeutralText}>Delete this one</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.btn, styles.btnDanger]}
+              onPress={() => confirmDelete('series')}
+              accessibilityRole="button"
+            >
+              <Text style={styles.btnDangerText}>Delete series</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <TouchableOpacity
+            style={[styles.btn, styles.btnDanger]}
+            onPress={() => confirmDelete('one')}
+            accessibilityRole="button"
+          >
+            <Text style={styles.btnDangerText}>Delete</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  )
+}
+
 /** A field pill. Must be a <View> wrapping a <Text> — a <Text> styled as a
  * pill (background + padding + overflow:hidden) collapses to zero size as a
  * flex-row child on iOS. */
@@ -1006,35 +1110,54 @@ function OperationPreview({
     )
   }
 
-  if (op.kind === 'deleteTodo') {
-    return (
-      <View>
-        <Text style={styles.proposalKind}>Delete to-do</Text>
-        <Text style={styles.proposalTitle}>{todoTextLookup(op.args.todoId)}</Text>
-      </View>
-    )
-  }
-
   if (op.kind === 'deleteGroceryItem') {
+    // Freeze the title: after removal the item is gone, so a live lookup would
+    // fall back to "that item" on the post-confirm re-render.
     return (
-      <View>
-        <Text style={styles.proposalKind}>Remove from shopping</Text>
-        <Text style={styles.proposalTitle}>{groceryTextLookup(op.args.groceryId)}</Text>
-      </View>
+      <FrozenTitle
+        kindLabel="Remove from shopping"
+        resolve={() => groceryTextLookup(op.args.groceryId)}
+        styles={styles}
+      />
     )
   }
 
   if (op.kind === 'markDone') {
+    // Freeze the title: once marked done the to-do drops out of the open list,
+    // so a live lookup would read "that to-do" after the action.
     return (
-      <View>
-        <Text style={styles.proposalKind}>Mark done</Text>
-        <Text style={styles.proposalTitle}>{todoTextLookup(op.args.todoId)}</Text>
-      </View>
+      <FrozenTitle
+        kindLabel="Mark done"
+        resolve={() => todoTextLookup(op.args.todoId)}
+        styles={styles}
+      />
     )
   }
 
-  // pickTodos renders via PickTodosCard (not here); nothing to preview.
+  // deleteTodo renders via DeleteTodoCard and pickTodos via PickTodosCard
+  // (both in the message loop) — nothing to preview here.
   return null
+}
+
+/** A preview title whose text is resolved ONCE on mount and frozen, so it
+ * survives the action that deletes/changes the underlying item (a live lookup
+ * would fall back to a generic placeholder on the post-action re-render). */
+function FrozenTitle({
+  kindLabel,
+  resolve,
+  styles,
+}: {
+  kindLabel: string
+  resolve: () => string
+  styles: ReturnType<typeof makeStyles>
+}) {
+  const [text] = useState(resolve)
+  return (
+    <View>
+      <Text style={styles.proposalKind}>{kindLabel}</Text>
+      <Text style={styles.proposalTitle}>{text}</Text>
+    </View>
+  )
 }
 
 const WEEKDAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -1226,6 +1349,8 @@ function makeStyles(c: ThemeColors) {
     btnDanger: { backgroundColor: c.red },
     btnDangerText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
     btnDisabled: { opacity: 0.4 },
+    btnNeutral: { backgroundColor: c.surfaceAlt },
+    btnNeutralText: { color: c.label, fontSize: 15, fontWeight: '600' },
     // ── Pick-list (multi-select checklist) ──
     pickSubtitle: { fontSize: 13, color: c.label3, marginTop: 1, marginBottom: 4 },
     pickSummary: {

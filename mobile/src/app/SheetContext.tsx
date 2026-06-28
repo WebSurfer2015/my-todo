@@ -445,6 +445,17 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     },
     [store],
   )
+
+  // Raw scoped delete for the Mochi delete card — the card owns the permanence
+  // confirm, so this just performs the removal: one instance, or this + every
+  // future occurrence in the series.
+  const deleteTodoScoped = useCallback(
+    (id: string, scope: 'one' | 'series') => {
+      if (scope === 'series') store.permanentlyDeleteSeriesFuture(id)
+      else store.permanentlyDelete(id)
+    },
+    [store],
+  )
   const openManageFilter = useCallback(() => {
     setCategorySheetMode('edit')
     setCategorySheetOpen(true)
@@ -712,6 +723,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
               category: td.category,
               dueDate: td.dueDate,
               recurrence: td.recurrence,
+              seriesId: td.seriesId,
             }))}
           groceryGroups={store.groceryGroups.map((g) => ({
             id: g.id,
@@ -732,6 +744,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           onCaptureWithUndo={applyCaptureWithUndo}
           onEditCapturedTodo={editCapturedTodo}
           onApplyPickedTodos={applyPickedTodos}
+          onDeleteTodo={deleteTodoScoped}
           onReviewCreateTodo={reviewCreateTodo}
           onClose={() => setMochiOpen(false)}
           onEnterManually={() => {
