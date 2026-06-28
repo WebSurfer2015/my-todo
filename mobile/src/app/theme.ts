@@ -84,6 +84,12 @@ const HANDOFF: Record<ThemeName, { light: HandoffPalette; dark: HandoffPalette }
     light: { brand: '#B0A37C', accent: '#9A8C68', accentBright: '#B0A27E', background: '#FBF9F2', surface: '#FFFFFF', textPrimary: '#2E2A20', textSecondary: '#8A8270', divider: '#F0EBDE', completedBg: '#FAF7EF', completedText: '#B2AA96', completedDot: '#E2DAC6', danger: '#DD8B5A' },
     dark: { brand: '#5E5640', accent: '#BEB08A', accentBright: '#CCBE98', background: '#1C1A14', surface: '#262318', textPrimary: '#EEEAE0', textSecondary: '#A8A290', divider: '#34301F', completedBg: '#211E15', completedText: '#827A68', completedDot: '#443E2C', danger: '#E0A07A' },
   },
+  // Lilac — soft lavender, airy and calm. A cool, delightful counterpart to
+  // the warm cream/blossom; the one cool-purple hue not covered above.
+  lilac: {
+    light: { brand: '#9A8AC6', accent: '#8676B8', accentBright: '#9E8FCC', background: '#F8F6FD', surface: '#FFFFFF', textPrimary: '#2E2A38', textSecondary: '#847C95', divider: '#EEEAF6', completedBg: '#F3EFFB', completedText: '#ABA2BE', completedDot: '#DDD4ED', danger: '#E0976A' },
+    dark: { brand: '#574B77', accent: '#B9A9E0', accentBright: '#C6B8EA', background: '#1A1720', surface: '#251F30', textPrimary: '#ECE8F2', textSecondary: '#B0A6C2', divider: '#322B40', completedBg: '#221C2B', completedText: '#80768E', completedDot: '#423A52', danger: '#E0A07A' },
+  },
 }
 
 // Status / category colors — constant across every theme.
@@ -123,6 +129,7 @@ export const THEMES: Record<ThemeName, { light: ThemeColors; dark: ThemeColors }
   blossom: { light: buildTheme(HANDOFF.blossom.light, 'light'), dark: buildTheme(HANDOFF.blossom.dark, 'dark') },
   honey: { light: buildTheme(HANDOFF.honey.light, 'light'), dark: buildTheme(HANDOFF.honey.dark, 'dark') },
   cream: { light: buildTheme(HANDOFF.cream.light, 'light'), dark: buildTheme(HANDOFF.cream.dark, 'dark') },
+  lilac: { light: buildTheme(HANDOFF.lilac.light, 'light'), dark: buildTheme(HANDOFF.lilac.dark, 'dark') },
 }
 
 export const DEFAULT_THEME: ThemeName = 'sage'

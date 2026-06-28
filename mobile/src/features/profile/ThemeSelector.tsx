@@ -24,6 +24,7 @@ const FREE_THEMES: ThemeName[] = ['sage', 'sky']
 const LABELS: Record<ThemeName, string> = {
   sage: 'Sage',
   sky: 'Sky',
+  lilac: 'Lilac',
   blossom: 'Blossom',
   honey: 'Honey',
   cream: 'Cream',

@@ -8,6 +8,7 @@ import {
   ActionSheetIOS,
   Alert,
 } from "react-native";
+import { Shuffle } from "lucide-react-native";
 import SheetShell from "../../../ui/SheetShell";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
@@ -16,7 +17,10 @@ import {
   Profile,
   Avatar as AvatarT,
   AVATAR_LIBRARY,
+  type QuoteMode,
 } from "../../../core-bindings/profile";
+import { todayLocal } from "../../../../../core/src/logic/utils";
+import { DAILY_QUOTES, dailyQuoteIndex, quoteAt } from "../../../../../core/src/data/quotes";
 
 /**
  * Defensive avatar normalizer — guarantees we render Mochi when the saved
@@ -63,89 +67,25 @@ export default function ProfileSheet({
   const [lastName, setLastName] = useState(profile.lastName ?? "");
   const [quote, setQuote] = useState(profile.quote ?? "");
   const [avatar, setAvatar] = useState<AvatarT>(normalizeAvatar(profile.avatar));
-  const [pickingQuote, setPickingQuote] = useState(false);
+  const [quoteMode, setQuoteMode] = useState<QuoteMode>(
+    profile.quoteMode ?? (profile.quote?.trim() ? "custom" : "daily"),
+  );
+  const [quoteShuffle, setQuoteShuffle] = useState(profile.quoteShuffle);
 
-  // Short anxiety-aware quotes for subheader display. Grouped loosely by
-  // intent: breath/grounding, permission/kindness, gentle action, perspective.
-  const QUOTES = [
-    // Breath & grounding — instant calm
-    "Breathe in. Breathe out.",
-    "Inhale. Exhale. Keep going.",
-    "One breath at a time.",
-    "Pause. Settle. Continue.",
-    "Right now, you are safe.",
-    "This moment is enough.",
-    "Be where your feet are.",
-    "Take a deep breath. You're doing better than you think.",
-    // Permission & kindness
-    "Be kind to yourself today.",
-    "Rest is productive too.",
-    "It's okay to take it slow.",
-    "You don't have to do it all.",
-    "You're allowed to rest.",
-    "Pause is part of progress.",
-    "Be gentle with yourself.",
-    // Gentle action
-    "Small steps still count.",
-    "Progress, not perfection.",
-    "Done is better than perfect.",
-    "Tiny wins still count.",
-    "Just the next right thing.",
-    "Start small. Start anyway.",
-    "Showing up is half the work.",
-    "One thing at a time.",
-    // Perspective
-    "This too shall pass.",
-    "Not everything needs your worry.",
-    "You are not your thoughts.",
-    "Zoom out. The picture is bigger.",
-    "Most worries don't come true.",
-    "What matters most? Start there.",
-    "You are not behind.",
-    "You are exactly where you need to be.",
-    // Self-compassion
-    "You're doing better than you think.",
-    "You don't have to be perfect to be amazing.",
-    "Imperfect is allowed.",
-    "You are a work in progress, and that's okay.",
-    // Calm flow
-    "Be like water. Adapt and flow.",
-    "Slow is smooth. Smooth is fast.",
-    "Be the calm in your own storm.",
-    "Less is often more.",
-    "Trust the process.",
-    // Gentle humor
-    "Worry less. Breathe more.",
-    "Your only competition is yesterday's you.",
-    "If in doubt, take a walk.",
-    "Unplug for a few minutes. Most things work again after that.",
-    "Plot twist: I'm doing my best.",
-    "Procrastinators unite! …Tomorrow.",
-    "Worry is a rocking chair. Lots of motion, no progress.",
-    "If you can't fix it, can it wait?",
-    "Coffee first. Decisions later.",
-    "Adulting? More like figuring-it-out-ing.",
-    "Take a nap. The world can wait five minutes.",
-    "I'd panic, but I'm too busy doing my best.",
-    "Tomorrow's problem. Tomorrow's me.",
-    "I came. I saw. I forgot what I was doing.",
-    "My to-do list and I are in a complicated relationship.",
-    "Don't grow up. It's a trap.",
-    "Anxiety: paying interest on trouble that may never come.",
-    "Plot twist: nobody has it all figured out.",
-    "If life gives you lemons, ask for the receipt.",
-  ];
+  // Today's daily quote (honoring a same-day "show me another" shuffle).
+  // Shown as a muted preview when the quote source is "Daily".
+  const today = todayLocal();
+  const dailyIndex =
+    quoteShuffle?.date === today ? quoteShuffle.index : dailyQuoteIndex(today);
+  const dailyPreview = quoteAt(dailyIndex);
 
-  async function pickQuoteForMe() {
-    if (pickingQuote) return;
-    setPickingQuote(true);
-    // Pick a different quote than the current one when possible.
-    const candidates = QUOTES.filter((q) => q !== quote);
-    const next = candidates[Math.floor(Math.random() * candidates.length)];
-    setQuote(next);
+  function shuffleDailyQuote() {
+    let next = dailyIndex;
+    if (DAILY_QUOTES.length > 1) {
+      while (next === dailyIndex) next = Math.floor(Math.random() * DAILY_QUOTES.length);
+    }
+    setQuoteShuffle({ date: today, index: next });
     Haptics.selectionAsync().catch(() => {});
-    // Brief visual feedback so the button feels responsive.
-    setTimeout(() => setPickingQuote(false), 120);
   }
 
   React.useEffect(() => {
@@ -153,6 +93,8 @@ export default function ProfileSheet({
       setFirstName(profile.firstName ?? profile.name ?? "");
       setLastName(profile.lastName ?? "");
       setQuote(profile.quote ?? "");
+      setQuoteMode(profile.quoteMode ?? (profile.quote?.trim() ? "custom" : "daily"));
+      setQuoteShuffle(profile.quoteShuffle);
       setAvatar(normalizeAvatar(profile.avatar));
     }
   }, [visible, profile]);
@@ -256,6 +198,8 @@ export default function ProfileSheet({
       firstName: trimmedFirst,
       lastName: lastName.trim() || undefined,
       quote: quote.trim() || undefined,
+      quoteMode,
+      quoteShuffle: quoteMode === "daily" ? quoteShuffle : undefined,
       avatar,
       density: "comfortable",
       title: profile.title,
@@ -335,33 +279,63 @@ export default function ProfileSheet({
               </View>
               <View style={styles.cardDivider} />
               <View style={styles.cardField}>
-                <View style={styles.labelRow}>
-                  <Text style={styles.cardFieldLabel}>Quote</Text>
-                  <TouchableOpacity
-                    onPress={pickQuoteForMe}
-                    disabled={pickingQuote}
-                    hitSlop={14}
-                  >
-                    <Text
-                      style={[
-                        styles.pickForMeText,
-                        pickingQuote && styles.pickForMeTextDisabled,
-                      ]}
-                    >
-                      {pickingQuote ? "Picking…" : "Pick it for me"}
-                    </Text>
-                  </TouchableOpacity>
+                <Text style={styles.cardFieldLabel}>Quote</Text>
+                {/* Source: Daily (auto-rotating curated), My own, or None. */}
+                <View style={styles.quoteModeRow}>
+                  {([
+                    ["daily", "Daily"],
+                    ["custom", "My own"],
+                    ["off", "None"],
+                  ] as [QuoteMode, string][]).map(([mode, label]) => {
+                    const active = quoteMode === mode;
+                    return (
+                      <TouchableOpacity
+                        key={mode}
+                        style={[styles.quoteChip, active && styles.quoteChipActive]}
+                        onPress={() => setQuoteMode(mode)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                      >
+                        <Text style={[styles.quoteChipText, active && styles.quoteChipTextActive]}>
+                          {label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
-                <TextInput
-                  style={[styles.cardFieldInput, styles.cardFieldInputMulti, styles.inputItalic]}
-                  value={quote}
-                  onChangeText={setQuote}
-                  placeholder={t.profileQuotePlaceholder}
-                  placeholderTextColor={theme.gray3}
-                  multiline
-                  maxLength={128}
-                />
-                <Text style={styles.helper}>Shown under your greeting.</Text>
+                {quoteMode === "custom" && (
+                  <TextInput
+                    style={[styles.cardFieldInput, styles.cardFieldInputMulti, styles.inputItalic]}
+                    value={quote}
+                    onChangeText={setQuote}
+                    placeholder={t.profileQuotePlaceholder}
+                    placeholderTextColor={theme.gray3}
+                    multiline
+                    maxLength={128}
+                  />
+                )}
+                {quoteMode === "daily" && (
+                  <View style={styles.quotePreviewRow}>
+                    <Text style={styles.quotePreviewText} numberOfLines={2}>
+                      “{dailyPreview}”
+                    </Text>
+                    <TouchableOpacity
+                      onPress={shuffleDailyQuote}
+                      hitSlop={14}
+                      accessibilityRole="button"
+                      accessibilityLabel="Show me another quote"
+                    >
+                      <Shuffle size={18} color={theme.primary} strokeWidth={2} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                <Text style={styles.helper}>
+                  {quoteMode === "daily"
+                    ? "A fresh one each day, under your greeting."
+                    : quoteMode === "custom"
+                      ? "Shown under your greeting."
+                      : "No line under your greeting."}
+                </Text>
               </View>
             </View>
 

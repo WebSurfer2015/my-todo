@@ -32,8 +32,9 @@ import { serializeAny } from "../storage/envelope";
 import { DEFAULT_HOME_STAT_TILES } from "../../../core/src/logic/filters";
 import { todayLocal, genUuid } from "../../../core/src/logic/utils";
 import { getTodayPebbles } from "../core-bindings/profile";
+import { dailyQuoteIndex, quoteAt } from "../../../core/src/data/quotes";
 
-import { pickMascotLine, dateSeed } from "../features/mochi/mascotLines";
+import { pickMascotLine } from "../features/mochi/mascotLines";
 import { Analytics } from "../adapters/analytics";
 
 export function useTodoStore() {
@@ -413,21 +414,25 @@ export function useTodoStore() {
   // pebble vocabulary now (this flag can never be true).
   const dethemePebbles = false;
   const mascotLine = pickMascotLine(lang, greetingKey, todayCount, todayDate, dethemePebbles);
-  // Subtitle behavior is opt-in via the quote field:
-  //   - Quote set → alternate user's quote with Mochi's line by
-  //     day-stable seed (predictable rotation, steady within a
-  //     session).
-  //   - Quote empty → no subtitle line at all (mascot line is
-  //     gated on the quote too). Emptying the quote field is the
-  //     user's signal that they want the greeting bar quieter;
-  //     the prior behavior of falling back to Mochi's voice felt
-  //     like the empty-state didn't take effect.
-  const identityLineIsQuote = !!trimmedQuote && dateSeed(todayDate) % 2 === 0;
-  const identityLine = !trimmedQuote
-    ? ''
-    : identityLineIsQuote
-      ? trimmedQuote
-      : mascotLine;
+  // Subtitle source (calm model): a daily curated quote by default — no
+  // button, no effort. Resolution:
+  //   - 'daily'  → date-seeded curated quote, stable all day, rotates at
+  //                midnight; honors a per-day "show me another" shuffle.
+  //   - 'custom' → the user's own quote text.
+  //   - 'off'    → no subtitle.
+  // Legacy/undefined falls back to 'custom' when a quote exists, else 'daily'.
+  const quoteMode = profile.quoteMode ?? (trimmedQuote ? 'custom' : 'daily');
+  const dailyQuote =
+    quoteMode === 'daily'
+      ? quoteAt(
+          profile.quoteShuffle?.date === todayDate
+            ? profile.quoteShuffle.index
+            : dailyQuoteIndex(todayDate),
+        )
+      : '';
+  const identityLine =
+    quoteMode === 'off' ? '' : quoteMode === 'custom' ? trimmedQuote : dailyQuote;
+  const identityLineIsQuote = identityLine !== '';
   // Legacy: still expose quoteLine for any caller that wants the raw
   // value, but App.tsx now reads identityLine + identityLineIsQuote.
   const quoteLine = trimmedQuote;

@@ -492,13 +492,42 @@ export function makeStyles(c: ThemeColors) {
       justifyContent: "space-between",
       marginBottom: 6,
     },
-    pickForMeText: {
-      fontSize: 13,
-      color: c.blue,
-      fontWeight: "600",
+    quoteModeRow: {
+      flexDirection: "row",
+      gap: 6,
+      marginTop: 8,
+      marginBottom: 4,
     },
-    pickForMeTextDisabled: {
-      color: c.gray3,
+    quoteChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 999,
+      backgroundColor: c.surfaceAlt,
+    },
+    quoteChipActive: {
+      backgroundColor: c.primary,
+    },
+    quoteChipText: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: c.label2,
+    },
+    quoteChipTextActive: {
+      color: c.primaryOn,
+    },
+    quotePreviewRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      marginTop: 8,
+      paddingVertical: 4,
+    },
+    quotePreviewText: {
+      flex: 1,
+      fontSize: 15,
+      fontStyle: "italic",
+      color: c.label,
+      lineHeight: 21,
     },
     bottomActionsRow: {
       flexDirection: "row",

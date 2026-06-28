@@ -12,14 +12,17 @@ export type Avatar =
 
 export type Density = 'comfortable' | 'compact'
 
+/** Source for the home-screen subtitle quote. See Profile.quoteMode. */
+export type QuoteMode = 'daily' | 'custom' | 'off'
+
 /**
  * Color themes. Each name maps to a full light+dark palette (the mapping
  * lives in the mobile client's `theme.ts` THEMES table). Sage is the calm
  * default; sky is the free alternative; blossom/honey/cream are the premium
  * pack (gated by `canUseThemes`).
  */
-export type ThemeName = 'sage' | 'sky' | 'blossom' | 'honey' | 'cream'
-export const THEME_NAMES: ThemeName[] = ['sage', 'sky', 'blossom', 'honey', 'cream']
+export type ThemeName = 'sage' | 'sky' | 'blossom' | 'honey' | 'cream' | 'lilac'
+export const THEME_NAMES: ThemeName[] = ['sage', 'sky', 'lilac', 'blossom', 'honey', 'cream']
 export function isThemeName(v: unknown): v is ThemeName {
   return typeof v === 'string' && (THEME_NAMES as string[]).includes(v)
 }
@@ -54,7 +57,23 @@ export interface Profile {
   name: string
   firstName?: string
   lastName?: string
+  /** The user's own custom subtitle quote (used when quoteMode === 'custom'). */
   quote?: string
+  /**
+   * Home subtitle quote source:
+   *  - 'daily'  → an auto-rotating curated quote (date-seeded, see quotes.ts)
+   *  - 'custom' → the user's own `quote` text
+   *  - 'off'    → no subtitle
+   * Undefined (legacy) resolves to 'custom' when `quote` is set, else 'daily'
+   * (the calm default — a fresh quote each day with no effort).
+   */
+  quoteMode?: QuoteMode
+  /**
+   * Optional per-day "show me another" override for the daily quote. Holds
+   * the local ISO day it was chosen + the quote index; ignored once the day
+   * rolls over (so the daily rotation resumes automatically at midnight).
+   */
+  quoteShuffle?: { date: string; index: number }
   avatar: Avatar
   density?: Density
   title?: string
@@ -503,6 +522,21 @@ export function migrateProfile(raw: unknown): Profile {
     themeFromAvatar:
       typeof p.themeFromAvatar === 'boolean' ? p.themeFromAvatar : undefined,
     theme: isThemeName(p.theme) ? p.theme : undefined,
+    quoteMode:
+      p.quoteMode === 'daily' || p.quoteMode === 'custom' || p.quoteMode === 'off'
+        ? p.quoteMode
+        : undefined,
+    quoteShuffle:
+      p.quoteShuffle &&
+      typeof p.quoteShuffle === 'object' &&
+      typeof (p.quoteShuffle as { date?: unknown }).date === 'string' &&
+      /^\d{4}-\d{2}-\d{2}$/.test((p.quoteShuffle as { date: string }).date) &&
+      typeof (p.quoteShuffle as { index?: unknown }).index === 'number'
+        ? {
+            date: (p.quoteShuffle as { date: string }).date,
+            index: Math.max(0, Math.floor((p.quoteShuffle as { index: number }).index)),
+          }
+        : undefined,
     completionSound:
       typeof p.completionSound === 'boolean' ? p.completionSound : undefined,
     lifetimePebbles:
