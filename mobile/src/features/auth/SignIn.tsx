@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  BackHandler,
   Image,
   ScrollView,
   Modal,
@@ -45,6 +46,18 @@ export default function SignIn() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetSent, setResetSent] = useState(false);
+
+  // Android hardware back: from an email sub-flow, go back to the social
+  // screen instead of exiting the app (the platform-expected behavior).
+  useEffect(() => {
+    if (Platform.OS !== "android" || mode === "social") return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      switchMode("social");
+      return true;
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   function switchMode(next: Mode) {
     setError(null);

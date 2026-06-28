@@ -16,7 +16,7 @@ export default function Footer({ completedCount, onClearDone, showClear = false 
   if (!showClear || completedCount === 0) return null
   return (
     <View style={styles.footer}>
-      <TouchableOpacity onPress={onClearDone} hitSlop={10}>
+      <TouchableOpacity onPress={onClearDone} hitSlop={10} style={styles.clearBtn}>
         <Text style={styles.clear}>{t.clearAllCompleted}</Text>
       </TouchableOpacity>
     </View>
@@ -35,6 +35,7 @@ function makeStyles(c: ThemeColors) {
       borderTopColor: c.separator,
       marginTop: 12,
     },
+    clearBtn: { paddingVertical: 8, paddingHorizontal: 8 },
     clear: {
       fontSize: 13,
       color: c.red,

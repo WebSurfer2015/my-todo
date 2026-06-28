@@ -476,7 +476,7 @@ export default function CategorySheet({
                                 )}
                                 <TouchableOpacity
                                   onPress={() => onToggleStatusHidden(s.id)}
-                                  hitSlop={6}
+                                  hitSlop={10}
                                   style={styles.rowAction}
                                   accessibilityRole="switch"
                                   accessibilityState={{ checked: !s.hidden }}
@@ -490,7 +490,7 @@ export default function CategorySheet({
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                   onPress={() => onPinFilter([s.id])}
-                                  hitSlop={6}
+                                  hitSlop={10}
                                   style={styles.rowAction}
                                   accessibilityRole="button"
                                   accessibilityLabel={`${isPinned ? t.unpin : t.pin} ${s.label}`}
@@ -556,7 +556,7 @@ export default function CategorySheet({
                                 </View>
                                 <TouchableOpacity
                                   onPress={() => onTogglePriorityHidden(p.id)}
-                                  hitSlop={6}
+                                  hitSlop={10}
                                   style={styles.rowAction}
                                   accessibilityRole="switch"
                                   accessibilityState={{ checked: !p.hidden }}
@@ -570,7 +570,7 @@ export default function CategorySheet({
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                   onPress={() => onPinFilter([f])}
-                                  hitSlop={6}
+                                  hitSlop={10}
                                   style={styles.rowAction}
                                   accessibilityRole="button"
                                   accessibilityLabel={`${isPinned ? t.unpin : t.pin} ${p.label}`}
@@ -660,7 +660,7 @@ export default function CategorySheet({
                                 )}
                                 <TouchableOpacity
                                   onPress={() => handleDelete(c)}
-                                  hitSlop={6}
+                                  hitSlop={10}
                                   style={styles.rowAction}
                                   accessibilityRole="button"
                                   accessibilityLabel={`${t.deleteTask} ${label}`}
@@ -669,7 +669,7 @@ export default function CategorySheet({
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                   onPress={() => onPinFilter([catFilter])}
-                                  hitSlop={6}
+                                  hitSlop={10}
                                   style={styles.rowAction}
                                   accessibilityRole="button"
                                   accessibilityLabel={`${isPinned ? t.unpin : t.pin} ${label}`}

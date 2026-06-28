@@ -14,6 +14,8 @@ export function makeStyles(c: ThemeColors, density: Density) {
       flexDirection: 'row',
       alignItems: 'flex-start',
       paddingVertical: compact ? 7 : 12,
+      // Floor at 44pt even in compact density — the row is the toggle target.
+      minHeight: 44,
       paddingLeft: 16,
       paddingRight: 16,
       backgroundColor: c.card,
