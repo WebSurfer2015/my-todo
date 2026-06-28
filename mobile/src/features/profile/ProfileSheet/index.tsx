@@ -283,33 +283,33 @@ export default function ProfileSheet({
               </View>
             </View>
 
-            {/* QUOTE */}
-            <Text style={styles.sectionLabel}>QUOTE</Text>
+            {/* QUOTE — section label + the Random daily action on one line.
+                "Random daily" fills the box with the rotating daily quote;
+                tap again for another. Typing switches to a custom line;
+                clearing it shows none. */}
+            <View style={styles.quoteHeader}>
+              <Text style={styles.quoteHeaderLabel}>QUOTE</Text>
+              <TouchableOpacity
+                onPress={onRandomDaily}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel="Random daily quote"
+                accessibilityState={{ selected: quoteMode === "daily" }}
+              >
+                <View style={[styles.randomDailyChip, quoteMode === "daily" && styles.randomDailyChipActive]}>
+                  <Shuffle
+                    size={13}
+                    color={quoteMode === "daily" ? theme.primaryOn : theme.primary}
+                    strokeWidth={2.4}
+                  />
+                  <Text style={[styles.randomDailyText, quoteMode === "daily" && styles.randomDailyTextActive]}>
+                    Random daily
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
             <View style={styles.card}>
               <View style={styles.cardField}>
-                {/* "Random daily" fills the box with the rotating daily quote;
-                    tap again for another. Typing switches to a custom line;
-                    clearing it shows none. */}
-                <View style={styles.quoteActionRow}>
-                  <TouchableOpacity
-                    onPress={onRandomDaily}
-                    hitSlop={12}
-                    accessibilityRole="button"
-                    accessibilityLabel="Random daily quote"
-                    accessibilityState={{ selected: quoteMode === "daily" }}
-                  >
-                    <View style={[styles.randomDailyChip, quoteMode === "daily" && styles.randomDailyChipActive]}>
-                      <Shuffle
-                        size={13}
-                        color={quoteMode === "daily" ? theme.primaryOn : theme.primary}
-                        strokeWidth={2.4}
-                      />
-                      <Text style={[styles.randomDailyText, quoteMode === "daily" && styles.randomDailyTextActive]}>
-                        Random daily
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                </View>
                 <TextInput
                   style={[styles.cardFieldInput, styles.cardFieldInputMulti, styles.inputItalic]}
                   value={quoteMode === "daily" ? dailyPreview : quote}

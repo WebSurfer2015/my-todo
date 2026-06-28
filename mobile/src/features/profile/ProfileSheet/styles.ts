@@ -24,10 +24,19 @@ export function makeStyles(c: ThemeColors) {
       borderWidth: 2.5,
       borderColor: c.modal,
     },
-    quoteActionRow: {
+    quoteHeader: {
       flexDirection: "row",
-      justifyContent: "flex-end",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginTop: 18,
       marginBottom: 8,
+      paddingHorizontal: 4,
+    },
+    quoteHeaderLabel: {
+      fontSize: 12,
+      fontWeight: "700",
+      letterSpacing: 0.6,
+      color: c.label3,
     },
     accountEmailRow: {
       paddingHorizontal: 16,
