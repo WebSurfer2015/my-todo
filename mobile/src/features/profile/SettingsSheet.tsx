@@ -16,11 +16,6 @@
 import React, { useMemo, useState } from "react";
 import {
   Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -39,6 +34,7 @@ import {
 } from "../../ui/backgrounds";
 import { renderPattern } from "../../ui/backgroundPatterns";
 import { Analytics } from "../../adapters/analytics";
+import SheetShell from "../../ui/SheetShell";
 
 interface Props {
   visible: boolean;
@@ -119,35 +115,13 @@ export default function SettingsSheet({
   }
 
   return (
-    <Modal
+    <SheetShell
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
+      onClose={onClose}
+      title="Settings"
+      primary={{ label: t.done, onPress: onClose }}
+      padded={false}
     >
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        {/* Sibling backdrop tap-layer (not a wrapper) — a wrapping Pressable
-            collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
-        <View style={styles.backdrop}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
-          <View style={styles.sheet}>
-            <View style={styles.handle} />
-            <View style={styles.titleRow}>
-              <View style={styles.titleSideBtn} />
-              <Text style={styles.title}>Settings</Text>
-              <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.titleSideBtn}>
-                <Text style={styles.doneText}>{t.done}</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView
-              contentContainerStyle={styles.scroll}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
               {/* MEMBERSHIP */}
               <Text style={styles.sectionLabel}>MEMBERSHIP</Text>
               <View style={styles.card}>
@@ -423,11 +397,7 @@ export default function SettingsSheet({
               </View>
 
               <View style={{ height: 24 }} />
-            </ScrollView>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+    </SheetShell>
   );
 }
 
@@ -462,38 +432,6 @@ function ToggleRow({ label, hint, value, onChange, styles, disabled }: ToggleRow
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    flex: { flex: 1 },
-    backdrop: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.45)",
-      justifyContent: "flex-end",
-    },
-    sheet: {
-      backgroundColor: c.modal,
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
-      maxHeight: "92%",
-      paddingTop: 6,
-    },
-    handle: {
-      alignSelf: "center",
-      width: 36,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: c.gray3,
-      marginVertical: 6,
-    },
-    titleRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingHorizontal: 16,
-      paddingBottom: 10,
-    },
-    titleSideBtn: { width: 64 },
-    title: { fontSize: 20, fontWeight: "700", color: c.label, textAlign: "center" },
-    doneText: { fontSize: 17, fontWeight: "600", color: c.primary, textAlign: "right" },
-    scroll: { paddingBottom: 24 },
     sectionLabel: {
       fontSize: 12,
       fontWeight: "700",

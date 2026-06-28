@@ -3,37 +3,6 @@ import { ThemeColors } from "../../../app/theme";
 
 export function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    flex: { flex: 1 },
-    backdrop: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.45)",
-      justifyContent: "flex-end",
-    },
-    sheet: {
-      backgroundColor: c.modal,
-      borderTopLeftRadius: 18,
-      borderTopRightRadius: 18,
-      paddingHorizontal: 16,
-      paddingTop: 16,
-      paddingBottom: 28,
-      // Cap the sheet so it can't push above the safe area; without this
-      // the title row hides behind the iOS status bar / notch.
-      maxHeight: "88%",
-    },
-    handle: {
-      alignSelf: "center",
-      width: 36,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: c.gray3,
-      marginBottom: 12,
-    },
-    title: {
-      fontSize: 20,
-      fontWeight: "700",
-      color: c.label,
-      letterSpacing: -0.2,
-    },
     avatarRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -515,15 +484,6 @@ export function makeStyles(c: ThemeColors) {
     toggleKnobOn: {
       transform: [{ translateX: 20 }],
     },
-    titleRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingBottom: 14,
-      marginBottom: 4,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: c.separator,
-    },
     labelRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -537,34 +497,6 @@ export function makeStyles(c: ThemeColors) {
     },
     pickForMeTextDisabled: {
       color: c.gray3,
-    },
-    titleSideBtn: {
-      minWidth: 56,
-    },
-    titleSideGroup: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-      minWidth: 56,
-      justifyContent: "flex-end",
-    },
-    settingsIconBtn: {
-      paddingVertical: 4,
-      paddingHorizontal: 2,
-    },
-    cancelHeaderText: {
-      fontSize: 15,
-      color: c.blue,
-      fontWeight: "500",
-    },
-    signOutHeaderText: {
-      fontSize: 15,
-      color: c.red,
-      fontWeight: "500",
-    },
-    signOutHeaderTextDisabled: {
-      color: c.label3,
-      opacity: 0.55,
     },
     bottomActionsRow: {
       flexDirection: "row",
@@ -585,13 +517,6 @@ export function makeStyles(c: ThemeColors) {
       fontWeight: "500",
       paddingVertical: 8,
     },
-    saveHeaderText: {
-      fontSize: 15,
-      color: c.blue,
-      fontWeight: "700",
-      textAlign: "right",
-    },
-    saveHeaderTextDisabled: { color: c.label3, fontWeight: "600" },
     signOutInlineText: {
       fontSize: 14,
       color: c.label2,

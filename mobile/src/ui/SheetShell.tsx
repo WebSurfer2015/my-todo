@@ -44,6 +44,8 @@ interface HeaderAction {
   label: string
   onPress: () => void
   disabled?: boolean
+  /** Render in the destructive (red) tint — e.g. a Sign Out left action. */
+  destructive?: boolean
 }
 
 export interface SheetShellProps {
@@ -59,6 +61,10 @@ export interface SheetShellProps {
   /** Wrap the body in a ScrollView (default). Set false for sheets that own
    * their own scrolling / keyboard layout. */
   scroll?: boolean
+  /** Apply the 16pt body gutter (default). Set false for sheets whose content
+   * manages its own horizontal margins (e.g. full-bleed cards + indented
+   * section labels). The header keeps its gutter either way. */
+  padded?: boolean
   children: React.ReactNode
 }
 
@@ -70,6 +76,7 @@ export default function SheetShell({
   primary,
   left,
   scroll = true,
+  padded = true,
   children,
 }: SheetShellProps) {
   const { t } = useLang()
@@ -103,7 +110,9 @@ export default function SheetShell({
               style={styles.headerSideLeft}
               accessibilityRole="button"
             >
-              <Text style={styles.cancelText}>{leftAction.label}</Text>
+              <Text style={[styles.cancelText, leftAction.destructive && styles.destructiveText]}>
+                {leftAction.label}
+              </Text>
             </TouchableOpacity>
             <View style={styles.titleCol}>
               <Text style={styles.title} numberOfLines={1}>
@@ -135,14 +144,14 @@ export default function SheetShell({
           {scroll ? (
             <ScrollView
               style={styles.body}
-              contentContainerStyle={styles.bodyContent}
+              contentContainerStyle={[styles.bodyContent, padded && styles.bodyPad]}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
               {children}
             </ScrollView>
           ) : (
-            <View style={styles.bodyFixed}>{children}</View>
+            <View style={[styles.bodyFixed, padded && styles.bodyPad]}>{children}</View>
           )}
         </View>
       </View>
@@ -164,7 +173,6 @@ function makeStyles(c: ThemeColors) {
       borderTopLeftRadius: 18,
       borderTopRightRadius: 18,
       paddingTop: 12,
-      paddingHorizontal: 16,
       maxHeight: '85%',
     },
     handle: {
@@ -178,6 +186,7 @@ function makeStyles(c: ThemeColors) {
     headerRow: {
       flexDirection: 'row',
       alignItems: 'center',
+      paddingHorizontal: 16,
       paddingBottom: 8,
     },
     headerSideLeft: { minWidth: 64, alignItems: 'flex-start' },
@@ -196,10 +205,12 @@ function makeStyles(c: ThemeColors) {
       textAlign: 'center',
     },
     cancelText: { fontSize: 15, color: c.primary, fontWeight: '500' },
+    destructiveText: { color: c.red },
     primaryText: { fontSize: 15, color: c.primary, fontWeight: '600' },
     primaryTextDisabled: { color: c.gray3 },
     body: { flexGrow: 0 },
     bodyContent: { paddingBottom: 12 },
     bodyFixed: { flexShrink: 1 },
+    bodyPad: { paddingHorizontal: 16 },
   })
 }

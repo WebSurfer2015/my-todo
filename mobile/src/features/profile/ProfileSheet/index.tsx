@@ -1,18 +1,14 @@
 import React, { useState, useMemo } from "react";
 import {
-  Modal,
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  Pressable,
-  KeyboardAvoidingView,
   Platform,
   ActionSheetIOS,
   Alert,
-  ScrollView,
 } from "react-native";
+import SheetShell from "../../../ui/SheetShell";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 import * as ImageManipulator from "expo-image-manipulator";
@@ -280,63 +276,21 @@ export default function ProfileSheet({
   }
 
   return (
-    <Modal
+    <SheetShell
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
+      onClose={onClose}
+      title={t.editProfile}
+      left={{
+        label: t.signOut,
+        onPress: () => {
+          onClose();
+          signOut();
+        },
+        destructive: true,
+        disabled: !user,
+      }}
+      primary={{ label: t.save, onPress: handleSave, disabled: !canSave }}
     >
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        {/* Sibling backdrop tap-layer (not a wrapper) — a wrapping Pressable
-            collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
-        <View style={styles.backdrop}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
-          <View style={styles.sheet}>
-            <View style={styles.handle} />
-            <View style={styles.titleRow}>
-              <TouchableOpacity
-                onPress={() => {
-                  onClose();
-                  signOut();
-                }}
-                hitSlop={10}
-                style={styles.titleSideBtn}
-                accessibilityRole="button"
-                accessibilityLabel={t.signOut}
-                disabled={!user}
-              >
-                <Text
-                  style={[
-                    styles.signOutHeaderText,
-                    !user && styles.signOutHeaderTextDisabled,
-                  ]}
-                >
-                  {t.signOut}
-                </Text>
-              </TouchableOpacity>
-              <Text style={styles.title}>{t.editProfile}</Text>
-              <TouchableOpacity
-                onPress={handleSave}
-                hitSlop={10}
-                style={styles.titleSideBtn}
-                disabled={!canSave}
-                accessibilityState={{ disabled: !canSave }}
-              >
-                <Text style={[styles.saveHeaderText, !canSave && styles.saveHeaderTextDisabled]}>
-                  {t.save}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView
-              style={styles.scrollBody}
-              contentContainerStyle={styles.scrollBodyContent}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
             {/* Signed-in identity line — sits above the avatar so the
                 user sees who they're editing as before anything else.
                 "Signed in as <email>" all on one row; Sign out lives
@@ -523,11 +477,7 @@ export default function ProfileSheet({
                 hosts the DATA section. */}
 
             <View style={{ height: 24 }} />
-            </ScrollView>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+    </SheetShell>
   );
 }
 
