@@ -27,7 +27,9 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     mochiMonthly: 90,
     mochiDaily: 3,
     topUps: true,
-    themes: false,
+    // Themes are free for everyone — every color theme is available on every
+    // tier (no paywall gate on the theme picker). Mirrors core.
+    themes: true,
     aiPlanning: false,
   },
   premium: {
