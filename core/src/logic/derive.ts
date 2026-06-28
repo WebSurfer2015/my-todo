@@ -58,12 +58,25 @@ export function newTodo(input: {
     typeof input.notes === "string" && input.notes.length > 0
       ? input.notes.slice(0, MAX_TODO_NOTES_LEN)
       : undefined;
+  // Invariant: a recurring todo MUST carry an anchored dueDate. Without
+  // one, expandSeries bails to a single dateless instance (no seriesId,
+  // no tail) and todoToggle can't roll the series forward — both guard on
+  // dueDate. The user sees a "No date" repeat that never advances. Manual
+  // compose snaps the date before calling here, but non-UI creators (the
+  // Mochi agent proposes a recurrence with no start date; future imports)
+  // don't, so enforce it centrally: anchor to today when absent, then snap
+  // to the first matching weekday when the recurrence filters days.
+  let dueDate = input.dueDate;
+  if (input.recurrence) {
+    if (!dueDateOnly(dueDate)) dueDate = todayLocal();
+    dueDate = snapDueDateToRecurrence(dueDate, input.recurrence);
+  }
   return {
     id: genUuid(),
     text: input.text.slice(0, MAX_TODO_TEXT_LEN),
     done: false,
     priority: input.priority,
-    dueDate: input.dueDate,
+    dueDate,
     category: input.category,
     trashed: false,
     updatedAt: Date.now(),
@@ -1619,7 +1632,14 @@ export function todoSetRecurrence(
       // routes through here, not addTask's expandSeries) had no seriesId
       // and the "Edit series" control silently disappeared.
       const seriesId = td.seriesId ?? genUuid();
-      return { ...td, recurrence, seriesId, updatedAt: now };
+      // Same anchored-dueDate invariant as newTodo: a recurrence with no
+      // dueDate yields a dead "No date" series that never advances. Manual
+      // edit snaps before calling here; agent edits (Mochi) route straight
+      // through, so enforce it centrally for identical outcomes.
+      let dueDate = td.dueDate;
+      if (!dueDateOnly(dueDate)) dueDate = todayLocal();
+      dueDate = snapDueDateToRecurrence(dueDate, recurrence);
+      return { ...td, recurrence, seriesId, dueDate, updatedAt: now };
     }
     const next: Todo = { ...td, updatedAt: now };
     delete next.recurrence;

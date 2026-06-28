@@ -34,7 +34,7 @@ import BackgroundPicker from '../features/profile/BackgroundPicker'
 import GuideMenuSheet from '../features/onboarding/GuideMenuSheet'
 import GuideSheet from '../features/onboarding/GuideSheet'
 import GuidesPrompt from '../features/onboarding/GuidesPrompt'
-import ComposeSheet from '../features/task/ComposeSheet'
+import ComposeSheet, { type ComposePrefill } from '../features/task/ComposeSheet'
 import ChatSheet from '../features/mochi/ChatSheet'
 import type { ProposedOperation } from '../features/mochi/useMochiAgent'
 import { MOCHI_AGENT_ENABLED } from './featureFlags'
@@ -109,6 +109,9 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   const [bgPickerOpen, setBgPickerOpen] = useState(false)
   const [guideMenuOpen, setGuideMenuOpen] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
+  // Pre-filled fields when Compose is opened from Ask Mochi's "Review & add".
+  // Null for a normal blank compose (the Add FAB).
+  const [composePrefill, setComposePrefill] = useState<ComposePrefill | null>(null)
   const [mochiOpen, setMochiOpen] = useState(false)
   const [animationSoundOpen, setAnimationSoundOpen] = useState(false)
   const [categorySheetOpen, setCategorySheetOpen] = useState(false)
@@ -131,8 +134,44 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   const openSettings = useCallback(() => setSettingsOpen(true), [])
   const openBackgrounds = useCallback(() => setBgPickerOpen(true), [])
   const openGuides = useCallback(() => setGuideMenuOpen(true), [])
-  const openCompose = useCallback(() => setComposeOpen(true), [])
+  const openCompose = useCallback(() => {
+    setComposePrefill(null) // Add FAB → blank compose
+    setComposeOpen(true)
+  }, [])
   const openMochi = useCallback(() => setMochiOpen(true), [])
+
+  // Ask Mochi → "Review & add": hand the chat's createTodo proposal to the
+  // manual ComposeSheet (the same code a manual add uses) so the user reviews
+  // and saves through one path — no separate apply logic, identical outcome.
+  // The agent's reminders carry no id (the model can't mint stable UUIDs), so
+  // stamp one per entry, exactly as applyMochiOp does.
+  const reviewCreateTodo = useCallback(
+    (args: Extract<ProposedOperation, { kind: 'createTodo' }>['args']) => {
+      const reminders =
+        args.reminders && args.reminders.length > 0
+          ? args.reminders.map((r) => ({
+              id: genUuid(),
+              at: r.at,
+              ...(r.offsetMinutes ? { offsetMinutes: r.offsetMinutes } : {}),
+              ...(r.intervalMinutes ? { intervalMinutes: r.intervalMinutes } : {}),
+            }))
+          : undefined
+      setComposePrefill({
+        text: args.text,
+        priority: args.priority ?? 'medium',
+        category: args.category,
+        dueDate: args.dueDate,
+        recurrence: args.recurrence,
+        ...(args.notes ? { notes: args.notes } : {}),
+        ...(reminders ? { reminders } : {}),
+      })
+      // Close the chat first, then open Compose on the next tick — iOS can't
+      // stack two <Modal>s reliably (same handoff dance as guide menu → guide).
+      setMochiOpen(false)
+      setTimeout(() => setComposeOpen(true), 280)
+    },
+    [],
+  )
 
   // Apply one confirmed Mochi operation through the SAME store mutations a
   // manual tap uses — so the agent has no privileged write path. Each kind
@@ -460,7 +499,11 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           return store.addCategory({ label, color, icon: 'tag' })
         }}
         onAdd={store.addTask}
-        onClose={() => setComposeOpen(false)}
+        prefill={composePrefill}
+        onClose={() => {
+          setComposeOpen(false)
+          setComposePrefill(null)
+        }}
         // Kill-switch: when Mochi is off, omit the callback so the
         // compose sheet hides the "Ask Mochi instead" affordance.
         onAskMochi={
@@ -499,6 +542,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           }))}
           stores={store.profile.groceryStores ?? SEED_GROCERY_STORES}
           onApplyOperation={applyMochiOp}
+          onReviewCreateTodo={reviewCreateTodo}
           onClose={() => setMochiOpen(false)}
           onEnterManually={() => {
             setMochiOpen(false)

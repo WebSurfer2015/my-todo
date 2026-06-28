@@ -51,6 +51,19 @@ function CalendarIcon({ size = 18, color = '#8E8E93' }: { size?: number; color?:
   )
 }
 
+/** Pre-populated fields for the compose form. Set when the sheet is opened
+ * from Ask Mochi's "Review & add" — the chat already parsed the user's words
+ * into structured fields, so we fill them in and skip a second AI round. */
+export interface ComposePrefill {
+  text: string
+  priority?: Priority
+  category?: Category
+  dueDate?: string
+  recurrence?: Recurrence
+  reminders?: Reminder[]
+  notes?: string
+}
+
 interface Props {
   visible: boolean
   categories: CategoryDef[]
@@ -81,6 +94,11 @@ interface Props {
    * describe what they want in words ("every Tuesday remind me to call
    * mom") than fill the form. Optional; the affordance hides when unset. */
   onAskMochi?: () => void
+  /** When set (opened from Ask Mochi's "Review & add"), pre-populates every
+   * field from the chat's proposal and suppresses the inline AI suggestions —
+   * the chat already did the thinking. Null/undefined → a normal blank
+   * compose. */
+  prefill?: ComposePrefill | null
 }
 
 type SubView = 'main' | 'category' | 'priority' | 'date' | 'repeat' | 'repeatEndDate' | 'customRepeat' | 'remindAt'
@@ -184,7 +202,7 @@ function reminderSummary(
 }
 
 export default function ComposeSheet({
-  visible, categories, defaultCategory, references, agentEnabled = false, onCreateCategory, onAdd, onClose, onAskMochi,
+  visible, categories, defaultCategory, references, agentEnabled = false, onCreateCategory, onAdd, onClose, onAskMochi, prefill,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
@@ -329,6 +347,29 @@ export default function ComposeSheet({
   useEffect(() => {
     if (visible) {
       setSubView('main')
+      if (prefill) {
+        // Opened from Ask Mochi → fill every blank from the chat's proposal
+        // and run the SAME dueDate snap a manual recurrence pick does (so a
+        // weekday recurrence lands on a matching day, defaulting to today
+        // when the agent gave no date). markApplied + appliedTextLower
+        // suppress the inline AI so we don't waste a second "thinking" round
+        // re-deriving fields the chat already produced.
+        setText(prefill.text)
+        setPriority(prefill.priority ?? 'medium')
+        setCategory(prefill.category ?? defaultCategory)
+        const baseDue = prefill.dueDate || todayLocal()
+        setDueDate(
+          prefill.recurrence ? snapDueDateToRecurrence(baseDue, prefill.recurrence) : baseDue,
+        )
+        setRecurrence(prefill.recurrence)
+        setReminders(prefill.reminders ?? [])
+        setNotes(prefill.notes ?? '')
+        setPendingSubtasks([])
+        setAppliedTextLower(prefill.text.trim().toLowerCase())
+        ai.markApplied(prefill.text)
+        setPendingFreq(null)
+        return
+      }
       setText('')
       setPriority('medium')
       setCategory(defaultCategory)
@@ -348,7 +389,8 @@ export default function ComposeSheet({
       const id = setTimeout(() => inputRef.current?.focus(), 120)
       return () => clearTimeout(id)
     }
-  }, [visible, defaultCategory])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, defaultCategory, prefill])
 
   const activeCat = categories.find((c) => c.id === category) ?? categories[0]
   const canSubmit = text.trim().length > 0 && !!activeCat

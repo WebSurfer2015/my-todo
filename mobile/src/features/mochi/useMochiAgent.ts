@@ -130,6 +130,16 @@ interface SendResult {
   error?: string
 }
 
+/** Ensure a follow-up turn reads as a question. Mochi (Haiku) doesn't
+ * reliably honor "end questions with ?" from the system prompt, so we
+ * normalize deterministically on the client: strip a trailing calm period
+ * and add a question mark. */
+function toQuestion(s: string): string {
+  const trimmed = s.trimEnd()
+  if (trimmed.endsWith('?')) return trimmed
+  return trimmed.replace(/[.!。\s]+$/, '') + '?'
+}
+
 export function useMochiAgent() {
   const [isThinking, setIsThinking] = useState(false)
   const [messages, setMessages] = useState<ChatTurn[]>([])
@@ -187,11 +197,16 @@ export function useMochiAgent() {
           return { ok: false, error: 'empty' }
         }
         const result = body.result
+        // A follow-up turn (Mochi needs more info: no operations, not
+        // awaiting confirmation) is a question — make it read like one.
+        const isFollowUpQuestion =
+          !result.awaitingConfirmation &&
+          (!result.operations || result.operations.length === 0)
         setMessages((prev) => [
           ...prev,
           {
             role: 'assistant',
-            content: result.reply,
+            content: isFollowUpQuestion ? toQuestion(result.reply) : result.reply,
             operations: result.operations,
             awaitingConfirmation: result.awaitingConfirmation,
           },
@@ -213,5 +228,17 @@ export function useMochiAgent() {
     setError(null)
   }, [])
 
-  return { send, reset, isThinking, messages, error }
+  /** Append a canned user+assistant exchange WITHOUT calling the server —
+   * used by the intent chips so tapping "Add a to-do" auto-sends and gets an
+   * instant follow-up question with no AI round (no "thinking…", no cost).
+   * The canned assistant turn rides along in history on the next real send. */
+  const pushLocalExchange = useCallback((userText: string, assistantText: string) => {
+    setMessages((prev) => [
+      ...prev,
+      { role: 'user', content: userText },
+      { role: 'assistant', content: assistantText },
+    ])
+  }, [])
+
+  return { send, reset, isThinking, messages, error, pushLocalExchange }
 }

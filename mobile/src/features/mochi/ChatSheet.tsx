@@ -17,6 +17,7 @@ import { usePurchases } from '../../app/PurchasesContext'
 import { useTheme, ThemeColors } from '../../app/theme'
 import { useMochiAgent, type ProposedOperation } from './useMochiAgent'
 import MochiThinking from './MochiThinking'
+import { snapDueDateToRecurrence } from '../../../../core/src/logic/derive'
 import { todayLocal } from '../../core-bindings/utils'
 import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 import { Analytics } from '../../adapters/analytics'
@@ -46,18 +47,25 @@ interface Props {
    * the existing store mutation so the agent shares the manual write
    * surface — confirm-before-apply keeps the user in control. */
   onApplyOperation: (op: ProposedOperation) => void
+  /** Review a proposed NEW todo in the manual ComposeSheet instead of
+   * applying it directly — the chat parsed the words, the manual form (the
+   * same code a manual add uses) lets the user confirm/edit and save. When
+   * provided, a single-createTodo confirmation routes here. */
+  onReviewCreateTodo?: (args: Extract<ProposedOperation, { kind: 'createTodo' }>['args']) => void
   /** Switch back to the manual compose form. Renders an "Enter manually
    * instead" action; omit to hide it. */
   onEnterManually?: () => void
 }
 
-/** Opening intent chips — pre-fill the input so the user can elaborate. */
-const INTENT_CHIPS = [
-  'Add a to-do',
-  'Update a to-do',
-  'Add steps',
-  'Mark one done',
-  'Add to shopping list',
+/** Opening intent chips. Tapping one auto-sends the intent and gets an instant
+ * canned follow-up question — no AI round (no "thinking…", no token cost) for a
+ * bare intent that would otherwise just make Mochi ask "what?". */
+const INTENT_CHIPS: { label: string; prompt: string }[] = [
+  { label: 'Add a to-do', prompt: 'What would you like to add?' },
+  { label: 'Update a to-do', prompt: 'Which to-do should I change, and how?' },
+  { label: 'Add steps', prompt: 'Which to-do needs steps?' },
+  { label: 'Mark one done', prompt: 'Which one did you finish?' },
+  { label: 'Add to shopping list', prompt: 'What should I add to your list?' },
 ]
 
 /**
@@ -77,11 +85,12 @@ export default function ChatSheet({
   groceryGroups,
   stores,
   onApplyOperation,
+  onReviewCreateTodo,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
-  const { send, reset, isThinking, messages, error } = useMochiAgent()
+  const { send, reset, isThinking, messages, error, pushLocalExchange } = useMochiAgent()
   const { mochiRemaining, mochiPeriod, canSendMochi, openPaywall } = usePurchases()
   const [input, setInput] = useState('')
   // Per-proposal resolution so a confirmed/declined turn swaps its action
@@ -124,6 +133,16 @@ export default function ChatSheet({
   }
 
   function handleConfirm(index: number, ops: ProposedOperation[]) {
+    // A single new-todo turn is handed to the manual ComposeSheet (the same
+    // code a manual add uses) so the user reviews + saves through one path —
+    // identical outcome, no separate apply logic. Close the chat so Compose
+    // lands on top. Other turns keep the direct-apply path.
+    if (onReviewCreateTodo && ops.length === 1 && ops[0].kind === 'createTodo') {
+      onReviewCreateTodo(ops[0].args)
+      setResolved((prev) => ({ ...prev, [index]: 'applied' }))
+      close()
+      return
+    }
     for (const op of ops) onApplyOperation(op)
     setResolved((prev) => ({ ...prev, [index]: 'applied' }))
   }
@@ -203,15 +222,18 @@ export default function ChatSheet({
                   <View style={styles.chipsRow}>
                     {INTENT_CHIPS.map((c) => (
                       <TouchableOpacity
-                        key={c}
+                        key={c.label}
                         style={styles.intentChip}
                         activeOpacity={0.7}
                         onPress={() => {
-                          setInput(c + ' ')
+                          // Auto-send the intent + an instant canned question —
+                          // no AI round for a bare intent. The user then types
+                          // the details, which DO go to Mochi.
+                          pushLocalExchange(c.label, c.prompt)
                           inputRef.current?.focus()
                         }}
                       >
-                        <Text style={styles.intentChipText}>{c}</Text>
+                        <Text style={styles.intentChipText}>{c.label}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -254,7 +276,13 @@ export default function ChatSheet({
                               style={[styles.btn, styles.btnPrimary]}
                               onPress={() => handleConfirm(i, m.operations!)}
                             >
-                              <Text style={styles.btnPrimaryText}>Confirm</Text>
+                              <Text style={styles.btnPrimaryText}>
+                                {onReviewCreateTodo &&
+                                m.operations!.length === 1 &&
+                                m.operations![0].kind === 'createTodo'
+                                  ? 'Review & add'
+                                  : 'Confirm'}
+                              </Text>
                             </TouchableOpacity>
                           </View>
                         ) : null
@@ -370,32 +398,31 @@ function OperationPreview({
   const reminderText = (at: string) => at.replace('T', ' ')
   if (op.kind === 'createTodo') {
     const a = op.args
+    // Mirror what "Review & add" will actually save: a recurrence anchors the
+    // due date to its first matching occurrence (the same snap ComposeSheet
+    // runs), so show that instead of "No due date". Only surface fields that
+    // are set — no misleading "No category / No due date" negatives, since the
+    // manual form fills the rest in on review.
+    const effectiveDue = a.recurrence
+      ? snapDueDateToRecurrence(a.dueDate || todayLocal(), a.recurrence).slice(0, 10)
+      : a.dueDate
     return (
       <View>
         <Text style={styles.proposalKind}>New to-do</Text>
         <Text style={styles.proposalTitle}>{a.text}</Text>
-        {/* Always surface the parsed fields (incl. defaults) so the user
-            sees exactly what will be set before confirming. */}
         <View style={styles.proposalMeta}>
-          <Chip styles={styles}>
-            {a.category ? categoryLabelLookup(a.category) : 'No category'}
-          </Chip>
-          <Chip styles={styles}>
-            {a.dueDate ? `Completion by ${a.dueDate}` : 'No due date'}
-          </Chip>
+          {a.category && <Chip styles={styles}>{categoryLabelLookup(a.category)}</Chip>}
+          {effectiveDue && <Chip styles={styles}>{`Due ${effectiveDue}`}</Chip>}
           <Chip styles={styles}>Priority: {a.priority ?? 'medium'}</Chip>
           {recurrenceLabel(a.recurrence) && (
             <Chip styles={styles}>{recurrenceLabel(a.recurrence)}</Chip>
           )}
-          {a.reminders && a.reminders.length > 0 ? (
+          {a.reminders && a.reminders.length > 0 &&
             a.reminders.map((r, i) => (
               <Chip key={i} styles={styles} icon={reminderIcon}>
                 {reminderText(r.at)}
               </Chip>
-            ))
-          ) : (
-            <Chip styles={styles} icon={reminderIcon}>No reminder</Chip>
-          )}
+            ))}
         </View>
         {a.notes && <Text style={styles.proposalNotes}>{a.notes}</Text>}
       </View>
