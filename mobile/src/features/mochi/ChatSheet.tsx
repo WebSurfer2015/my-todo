@@ -49,6 +49,9 @@ interface Props {
   }>
   /** Grocery departments (id + label) so Mochi can target addGroceryItem. */
   groceryGroups: Array<{ id: string; label: string }>
+  /** Shopping items (id + text) so Mochi can target deleteGroceryItem and the
+   * preview can show which item it'll remove. */
+  groceries: Array<{ id: string; text: string }>
   /** Grocery store names so Mochi can tag items / detect a missing store. */
   stores: string[]
   /** Apply one validated proposed operation. The parent maps each kind to
@@ -181,6 +184,7 @@ export default function ChatSheet({
   categories,
   todos,
   groceryGroups,
+  groceries,
   stores,
   onApplyOperation,
   onCaptureWithUndo,
@@ -270,6 +274,7 @@ export default function ChatSheet({
       // Strip to id + text for the agent — it doesn't need the local fields.
       todos: todos.map((td) => ({ id: td.id, text: td.text })),
       groceryGroups,
+      groceries: groceries.map((g) => ({ id: g.id, text: g.text })),
       stores,
     })
   }
@@ -315,6 +320,8 @@ export default function ChatSheet({
   const todoLookup = (id: string) => todos.find((td) => td.id === id)
   const groupLookup = (id: string) =>
     groceryGroups.find((g) => g.id === id)?.label ?? id
+  const groceryTextLookup = (id: string) =>
+    groceries.find((g) => g.id === id)?.text ?? 'that item'
 
   return (
     <Modal
@@ -429,6 +436,7 @@ export default function ChatSheet({
                               todoTextLookup={todoTextLookup}
                               todoLookup={todoLookup}
                               groupLabelLookup={groupLookup}
+                              groceryTextLookup={groceryTextLookup}
                               styles={styles}
                               theme={theme}
                             />
@@ -482,7 +490,13 @@ export default function ChatSheet({
                                 m.operations!.length === 1 &&
                                 m.operations![0].kind === 'createTodo'
                                   ? 'Review & add'
-                                  : 'Confirm'}
+                                  : m.operations!.every(
+                                        (o) =>
+                                          o.kind === 'deleteTodo' ||
+                                          o.kind === 'deleteGroceryItem',
+                                      )
+                                    ? 'Delete'
+                                    : 'Confirm'}
                               </Text>
                             </TouchableOpacity>
                           </View>
@@ -620,6 +634,7 @@ function OperationPreview({
   todoTextLookup,
   todoLookup,
   groupLabelLookup,
+  groceryTextLookup,
   styles,
   theme,
 }: {
@@ -628,6 +643,7 @@ function OperationPreview({
   todoTextLookup: (id: string) => string
   todoLookup: (id: string) => { priority?: string; category?: string; dueDate?: string } | undefined
   groupLabelLookup: (id: string) => string
+  groceryTextLookup: (id: string) => string
   styles: ReturnType<typeof makeStyles>
   theme: ThemeColors
 }) {
@@ -752,6 +768,24 @@ function OperationPreview({
             <Chip key={i} styles={styles}>🛒 {s}</Chip>
           ))}
         </View>
+      </View>
+    )
+  }
+
+  if (op.kind === 'deleteTodo') {
+    return (
+      <View>
+        <Text style={styles.proposalKind}>Delete to-do</Text>
+        <Text style={styles.proposalTitle}>{todoTextLookup(op.args.todoId)}</Text>
+      </View>
+    )
+  }
+
+  if (op.kind === 'deleteGroceryItem') {
+    return (
+      <View>
+        <Text style={styles.proposalKind}>Remove from shopping</Text>
+        <Text style={styles.proposalTitle}>{groceryTextLookup(op.args.groceryId)}</Text>
       </View>
     )
   }

@@ -92,6 +92,14 @@ export type ProposedOperation =
       kind: 'addGroceryItem'
       args: { text: string; stores?: string[]; groupId?: string }
     }
+  | {
+      kind: 'deleteTodo'
+      args: { todoId: string }
+    }
+  | {
+      kind: 'deleteGroceryItem'
+      args: { groceryId: string }
+    }
 
 export interface AgentResponse {
   reply: string
@@ -110,6 +118,9 @@ interface AgentContext {
   /** Grocery departments (id + label) so the agent can target
    * addGroceryItem.groupId at a real department. */
   groceryGroups: Array<{ id: string; label: string }>
+  /** Shopping items (id + text) so the agent can target deleteGroceryItem at
+   * a real id; the server validates proposed ids against this set. */
+  groceries: Array<{ id: string; text: string }>
   /** Grocery store names so the agent can tag items + notice a missing
    * store to offer creating. */
   stores: string[]

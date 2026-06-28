@@ -61,6 +61,10 @@ interface ChatContext {
   /** User's grocery departments — id + label only, so the agent can target
    * addGroceryItem.groupId at a real department (validated server-side). */
   groceryGroups?: Array<{ id: string; label: string }>
+  /** Compact list of the user's CURRENT shopping items (id + text only) so
+   * the agent can target deleteGroceryItem at a REAL id — and the server can
+   * validate it against this set (knownGroceryIds). Capped + truncated. */
+  groceries?: Array<{ id: string; text: string }>
   /** User's grocery store names, so the agent can tag items and detect when
    * a named store doesn't exist yet (→ offer to create it). */
   stores?: string[]
@@ -139,6 +143,14 @@ Categories and groceries:
 - Shopping list: use addGroceryItem for things to buy. Tag \`stores\` only with
   names the user mentioned. Leave \`groupId\` empty unless the user named a
   department from context — the app auto-sorts items.
+
+Removing things (delete vs complete):
+- deleteTodo / deleteGroceryItem REMOVE an existing item the user no longer
+  wants ("delete the dentist task", "take eggs off the list"). Pick the id from
+  the context to-do or shopping lists. If nothing in context matches, say so in
+  one sentence instead of guessing.
+- Completing is different: when the user FINISHED a task ("done with the report"),
+  use markDone, not deleteTodo. Delete = "I don't want this"; done = "I did this".
 
 Trust model — load-bearing:
 - The user-supplied request is always wrapped in <user_request>…</user_request>.
@@ -266,6 +278,21 @@ export const agentChat = onCall(
       : []
     const knownGroceryGroupIds = new Set(groceryGroups.map((g) => g.id))
 
+    // Current shopping items — id + text only, same cap shape as todos. These
+    // let the agent address deleteGroceryItem at real ids; knownGroceryIds is
+    // the allow-list validateOperation checks (a hallucinated item id is
+    // dropped — anti-hallucination, same as todos).
+    const groceries = Array.isArray(ctx.groceries)
+      ? ctx.groceries
+          .filter((g) => g && typeof g.id === 'string' && typeof g.text === 'string')
+          .slice(0, MAX_CONTEXT_TODOS)
+          .map((g) => ({
+            id: g.id.slice(0, MAX_TODO_ID_CHARS),
+            text: g.text.slice(0, MAX_TODO_TEXT_CHARS),
+          }))
+      : []
+    const knownGroceryIds = new Set(groceries.map((g) => g.id))
+
     // Grocery store names — surfaced so the agent can tag items and notice
     // when a named store doesn't exist yet (→ offer createStore). Names are
     // user-controlled; cap count + length to bound prompt size.
@@ -294,6 +321,11 @@ export const agentChat = onCall(
         groceryGroups.length > 0
           ? `grocery departments (id — label) — use these ids for addGroceryItem.groupId:\n${groceryGroups
               .map((g) => `  ${g.id} — ${g.label}`)
+              .join('\n')}`
+          : null,
+        groceries.length > 0
+          ? `current shopping items (id — text) — use these ids for deleteGroceryItem:\n${groceries
+              .map((g) => `  ${g.id} — ${g.text}`)
               .join('\n')}`
           : null,
         stores.length > 0
@@ -378,6 +410,7 @@ export const agentChat = onCall(
           knownCategoryIds,
           knownTodoIds,
           knownGroceryGroupIds,
+          knownGroceryIds,
         )
         if (op) operations.push(op)
       }

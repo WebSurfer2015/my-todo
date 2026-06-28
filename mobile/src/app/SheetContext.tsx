@@ -247,6 +247,32 @@ export function SheetProvider({ children }: { children: ReactNode }) {
       } else if (op.kind === 'addGroceryItem') {
         const a = op.args
         store.addGrocery({ text: a.text, groupId: a.groupId, stores: a.stores })
+      } else if (op.kind === 'deleteTodo') {
+        // Reversible delete: route through trash (30-day retention), never a
+        // permanent purge. For a recurring series, ask scope first — drop just
+        // this occurrence or this + all future ones — mirroring the manual
+        // TaskDetails delete.
+        const td = store.todos.find((t) => t.id === op.args.todoId)
+        if (!td) return
+        if (td.seriesId) {
+          Alert.alert(
+            'Delete repeating to-do?',
+            `"${td.text}" repeats — delete just this one, or this and all future?`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Just this one', onPress: () => store.moveToTrash(td.id) },
+              {
+                text: 'This & future',
+                style: 'destructive',
+                onPress: () => store.moveSeriesFutureToTrash(td.id),
+              },
+            ],
+          )
+        } else {
+          store.moveToTrash(td.id)
+        }
+      } else if (op.kind === 'deleteGroceryItem') {
+        store.deleteGrocery(op.args.groceryId)
       }
     },
     [store],
@@ -605,6 +631,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
             id: g.id,
             label: g.label,
           }))}
+          groceries={store.groceries.map((g) => ({ id: g.id, text: g.text }))}
           stores={store.profile.groceryStores ?? SEED_GROCERY_STORES}
           onApplyOperation={applyMochiOp}
           onCaptureWithUndo={applyCaptureWithUndo}

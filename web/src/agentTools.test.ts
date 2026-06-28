@@ -21,6 +21,8 @@ import {
 const knownCats = new Set(['home', 'work', 'school'])
 
 const knownTodoIds = new Set(['t-1', 't-2', 't-3'])
+const knownGroceryGroupIds = new Set(['produce', 'dairy'])
+const knownGroceryIds = new Set(['g-1', 'g-2'])
 
 describe('AGENT_TOOLS registry', () => {
   it('exposes the v1 proposal-style tool set', () => {
@@ -29,6 +31,8 @@ describe('AGENT_TOOLS registry', () => {
     expect(names).toContain('editTodo')
     expect(names).toContain('addSteps')
     expect(names).toContain('markDone')
+    expect(names).toContain('deleteTodo')
+    expect(names).toContain('deleteGroceryItem')
   })
   it('every tool has a name, description, and JSON-schema-shaped input', () => {
     for (const tool of AGENT_TOOLS) {
@@ -319,5 +323,71 @@ describe('validateOperation — markDone', () => {
   })
   it('safe-by-default when knownTodoIds is omitted (returns null)', () => {
     expect(validateOperation('markDone', { todoId: 't-1' }, knownCats)).toBeNull()
+  })
+})
+
+// ─── deleteTodo ────────────────────────────────────────────────────
+
+describe('validateOperation — deleteTodo', () => {
+  it('accepts a known todoId', () => {
+    const op = validateOperation('deleteTodo', { todoId: 't-3' }, knownCats, knownTodoIds)
+    expect(op).toEqual({ kind: 'deleteTodo', args: { todoId: 't-3' } })
+  })
+  it('rejects a hallucinated (unknown) todoId', () => {
+    expect(
+      validateOperation('deleteTodo', { todoId: 'ghost' }, knownCats, knownTodoIds),
+    ).toBeNull()
+  })
+  it('rejects missing / non-string todoId', () => {
+    expect(validateOperation('deleteTodo', {}, knownCats, knownTodoIds)).toBeNull()
+    expect(validateOperation('deleteTodo', { todoId: 42 }, knownCats, knownTodoIds)).toBeNull()
+  })
+  it('safe-by-default when knownTodoIds is omitted (returns null)', () => {
+    expect(validateOperation('deleteTodo', { todoId: 't-1' }, knownCats)).toBeNull()
+  })
+})
+
+// ─── deleteGroceryItem ─────────────────────────────────────────────
+
+describe('validateOperation — deleteGroceryItem', () => {
+  it('accepts a known groceryId', () => {
+    const op = validateOperation(
+      'deleteGroceryItem',
+      { groceryId: 'g-2' },
+      knownCats,
+      knownTodoIds,
+      knownGroceryGroupIds,
+      knownGroceryIds,
+    )
+    expect(op).toEqual({ kind: 'deleteGroceryItem', args: { groceryId: 'g-2' } })
+  })
+  it('rejects a hallucinated (unknown) groceryId', () => {
+    expect(
+      validateOperation(
+        'deleteGroceryItem',
+        { groceryId: 'ghost' },
+        knownCats,
+        knownTodoIds,
+        knownGroceryGroupIds,
+        knownGroceryIds,
+      ),
+    ).toBeNull()
+  })
+  it('rejects missing groceryId', () => {
+    expect(
+      validateOperation(
+        'deleteGroceryItem',
+        {},
+        knownCats,
+        knownTodoIds,
+        knownGroceryGroupIds,
+        knownGroceryIds,
+      ),
+    ).toBeNull()
+  })
+  it('safe-by-default when knownGroceryIds is omitted (returns null)', () => {
+    expect(
+      validateOperation('deleteGroceryItem', { groceryId: 'g-1' }, knownCats, knownTodoIds),
+    ).toBeNull()
   })
 })

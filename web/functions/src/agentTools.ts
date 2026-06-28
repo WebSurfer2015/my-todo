@@ -14,17 +14,24 @@
  * drift risk.)
  *
  * Tool set today (proposal-style — the server validates + returns the
- * args; the client applies after user confirms). All four ops are LIVE:
+ * args; the client applies after user confirms). All ops are LIVE:
  * agentChat offers the full set and the mobile client applies each via the
  * same store mutations a manual edit uses.
- *   - createTodo  — add a new task
- *   - editTodo    — patch fields on an existing task
- *   - addSteps    — append subtasks to a task
- *   - markDone    — flip a task to done
+ *   - createTodo        — add a new task
+ *   - editTodo          — patch fields on an existing task
+ *   - addSteps          — append subtasks to a task
+ *   - markDone          — flip a task to done
+ *   - deleteTodo        — remove an existing task (or its whole series)
+ *   - deleteGroceryItem — remove an item from the shopping list
+ *   - createCategory / createStore / addGroceryItem
+ *
+ * The two delete ops honor Sagely's "every destructive action is reversible
+ * or confirmed" rule on the CLIENT: a delete is never auto-applied — it
+ * needs an explicit Confirm — and a deleted to-do is routed through TRASH
+ * (30-day retention), not a permanent purge. markDone stays the path for
+ * COMPLETING a task; delete is for removing one the user no longer wants.
  *
  * Intentionally NOT in this set:
- *   - deleteTodo: Sagely's "every destructive action is reversible or
- *     confirmed" rule routes trash through markDone, not delete.
  *   - findTodo: needs server-side read of the user's Firestore state,
  *     which is a different architectural pattern. Deferred until
  *     agentChat learns to fetch user data inside the tool loop.
@@ -149,6 +156,23 @@ export type ProposedOperation =
         groupId?: string
       }
     }
+  | {
+      kind: 'deleteTodo'
+      args: {
+        /** The id of the existing to-do to delete, from the context list.
+         * The client routes the delete through trash (reversible) and, for a
+         * recurring series, asks whether to drop one occurrence or all. */
+        todoId: string
+      }
+    }
+  | {
+      kind: 'deleteGroceryItem'
+      args: {
+        /** The id of the existing shopping item to remove, from the context
+         * shopping-list. */
+        groceryId: string
+      }
+    }
 
 // ─── Shared cap constants ──────────────────────────────────────────
 const MAX_TEXT_LEN = 4096
@@ -162,6 +186,7 @@ const MAX_ICON_KEY_LEN = 40
 const MAX_STORE_NAME_LEN = 64
 const MAX_ITEM_STORES = 8
 const MAX_GROUP_ID_LEN = 64
+const MAX_GROCERY_ID_LEN = 64
 
 // Shared JSON-schema fragments for recurrence + reminders (used by both
 // createTodo and editTodo) so the model gets one consistent description.
@@ -440,6 +465,43 @@ export const AGENT_TOOLS: AgentTool[] = [
       required: ['text'],
     },
   },
+  {
+    name: 'deleteTodo',
+    description:
+      "Delete an EXISTING to-do the user wants to remove (\"delete the dentist task\", " +
+      "\"remove buy paint\", \"get rid of that\"). Pick the matching todoId from the " +
+      "context to-do list. Use this ONLY for removal — when the user has COMPLETED a " +
+      "task, use markDone instead. The client confirms before deleting and routes it " +
+      "through trash, so it's reversible; for a recurring task it asks whether to drop " +
+      "one occurrence or the whole series.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        todoId: {
+          type: 'string',
+          description: 'The id of the existing to-do from the user-provided context list.',
+        },
+      },
+      required: ['todoId'],
+    },
+  },
+  {
+    name: 'deleteGroceryItem',
+    description:
+      "Remove an item from the user's shopping list (\"delete milk from shopping\", " +
+      "\"take eggs off the list\"). Pick the matching groceryId from the context " +
+      "shopping-list. The client confirms before removing it.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        groceryId: {
+          type: 'string',
+          description: 'The id of the existing shopping item from the context shopping-list.',
+        },
+      },
+      required: ['groceryId'],
+    },
+  },
 ]
 
 /** Sanitize a proposed recurrence into the safe agent subset, or
@@ -504,6 +566,7 @@ export function validateOperation(
   knownCategoryIds: ReadonlySet<string>,
   knownTodoIds: ReadonlySet<string> = new Set(),
   knownGroceryGroupIds: ReadonlySet<string> = new Set(),
+  knownGroceryIds: ReadonlySet<string> = new Set(),
 ): ProposedOperation | null {
   if (!args || typeof args !== 'object') return null
   const a = args as Record<string, unknown>
@@ -667,6 +730,30 @@ export function validateOperation(
       op.args.groupId = a.groupId
     }
     return op
+  }
+
+  if (name === 'deleteTodo') {
+    if (
+      typeof a.todoId !== 'string' ||
+      a.todoId.length === 0 ||
+      a.todoId.length > MAX_TODO_ID_LEN ||
+      !knownTodoIds.has(a.todoId)
+    ) {
+      return null
+    }
+    return { kind: 'deleteTodo', args: { todoId: a.todoId } }
+  }
+
+  if (name === 'deleteGroceryItem') {
+    if (
+      typeof a.groceryId !== 'string' ||
+      a.groceryId.length === 0 ||
+      a.groceryId.length > MAX_GROCERY_ID_LEN ||
+      !knownGroceryIds.has(a.groceryId)
+    ) {
+      return null
+    }
+    return { kind: 'deleteGroceryItem', args: { groceryId: a.groceryId } }
   }
 
   return null
