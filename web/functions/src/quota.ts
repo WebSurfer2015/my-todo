@@ -22,11 +22,13 @@ import {
 } from './entitlements'
 import { decideMochiReservation } from './mochiReservation'
 
-// Per-user daily ceiling, shared across every AI endpoint. Sized to
-// cover an active user's normal day (~20–30 calls between ambient
-// suggestions, breakdowns, and Mochi turns) with headroom, while
-// bounding blast radius if an account is compromised.
-export const DAILY_CALL_LIMIT = 30
+// Per-user daily ceiling, shared across every AI endpoint (ambient
+// suggestions, breakdowns, and Mochi turns). Raised 30 → 150 to give active
+// development/testing comfortable headroom while pre-monetization
+// (MOCHI_TIER_ENFORCEMENT off). Revisit at monetization launch — the per-tier
+// TIER_LIMITS become the real gate then and this flat ceiling reverts to a
+// blast-radius safety bound.
+export const DAILY_CALL_LIMIT = 150
 
 interface AgentUsageData {
   date: string
