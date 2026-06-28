@@ -79,25 +79,20 @@ export default function ProfileSheet({
     quoteShuffle?.date === today ? quoteShuffle.index : dailyQuoteIndex(today);
   const dailyPreview = quoteAt(dailyIndex);
 
-  function shuffleDailyQuote() {
-    let next = dailyIndex;
+  // "Random daily": EVERY tap advances to a fresh quote, different from the
+  // one currently on screen. (The old two-step — first tap shows today's fixed
+  // quote, second tap shuffles — read as a 2-click cycle that never moved.)
+  function onRandomDaily() {
+    const current = quoteMode === "daily" ? dailyIndex : -1;
+    let next = current;
     if (DAILY_QUOTES.length > 1) {
-      while (next === dailyIndex) next = Math.floor(Math.random() * DAILY_QUOTES.length);
+      while (next === current) next = Math.floor(Math.random() * DAILY_QUOTES.length);
+    } else {
+      next = 0;
     }
     setQuoteShuffle({ date: today, index: next });
+    if (quoteMode !== "daily") setQuoteMode("daily");
     Haptics.selectionAsync().catch(() => {});
-  }
-
-  // "Random daily": first tap fills the box with today's daily quote;
-  // tapping again (already in daily mode) rerolls to a different one.
-  function onRandomDaily() {
-    if (quoteMode !== "daily") {
-      setQuoteShuffle(undefined);
-      setQuoteMode("daily");
-      Haptics.selectionAsync().catch(() => {});
-    } else {
-      shuffleDailyQuote();
-    }
   }
 
   React.useEffect(() => {

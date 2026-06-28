@@ -147,8 +147,9 @@ Categories and groceries:
 Removing things (delete vs complete):
 - deleteTodo / deleteGroceryItem REMOVE an existing item the user no longer
   wants ("delete the dentist task", "take eggs off the list"). Pick the id from
-  the context to-do or shopping lists. If nothing in context matches, say so in
-  one sentence instead of guessing.
+  the context to-do or shopping lists. The client confirms (and warns the
+  removal is permanent) before deleting. If nothing in context matches, say so
+  in one sentence instead of guessing.
 - Completing is different: when the user FINISHED a task ("done with the report"),
   use markDone, not deleteTodo. Delete = "I don't want this"; done = "I did this".
 

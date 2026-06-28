@@ -26,10 +26,11 @@
  *   - createCategory / createStore / addGroceryItem
  *
  * The two delete ops honor Sagely's "every destructive action is reversible
- * or confirmed" rule on the CLIENT: a delete is never auto-applied — it
- * needs an explicit Confirm — and a deleted to-do is routed through TRASH
- * (30-day retention), not a permanent purge. markDone stays the path for
- * COMPLETING a task; delete is for removing one the user no longer wants.
+ * or confirmed" rule on the CLIENT: a delete is never auto-applied — it needs
+ * an explicit Confirm, and the client then shows a second alert spelling out
+ * that the to-do/item is removed PERMANENTLY before it does so. markDone stays
+ * the path for COMPLETING a task; delete is for removing one the user no
+ * longer wants.
  *
  * Intentionally NOT in this set:
  *   - findTodo: needs server-side read of the user's Firestore state,
@@ -471,9 +472,8 @@ export const AGENT_TOOLS: AgentTool[] = [
       "Delete an EXISTING to-do the user wants to remove (\"delete the dentist task\", " +
       "\"remove buy paint\", \"get rid of that\"). Pick the matching todoId from the " +
       "context to-do list. Use this ONLY for removal — when the user has COMPLETED a " +
-      "task, use markDone instead. The client confirms before deleting and routes it " +
-      "through trash, so it's reversible; for a recurring task it asks whether to drop " +
-      "one occurrence or the whole series.",
+      "task, use markDone instead. The client confirms before permanently deleting it; " +
+      "for a recurring task it asks whether to drop one occurrence or the whole series.",
     input_schema: {
       type: 'object',
       properties: {

@@ -248,31 +248,57 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         const a = op.args
         store.addGrocery({ text: a.text, groupId: a.groupId, stores: a.stores })
       } else if (op.kind === 'deleteTodo') {
-        // Reversible delete: route through trash (30-day retention), never a
-        // permanent purge. For a recurring series, ask scope first — drop just
-        // this occurrence or this + all future ones — mirroring the manual
-        // TaskDetails delete.
+        // Permanent delete, gated by an explicit confirm that SPELLS OUT the
+        // permanence — same semantics as the manual TaskDetails "Delete to-do".
+        // For a recurring series, ask scope first (this one vs this + future).
         const td = store.todos.find((t) => t.id === op.args.todoId)
         if (!td) return
         if (td.seriesId) {
           Alert.alert(
             'Delete repeating to-do?',
-            `"${td.text}" repeats — delete just this one, or this and all future?`,
+            `Permanently delete "${td.text}" — just this one, or this and all future? This can't be undone.`,
             [
               { text: 'Cancel', style: 'cancel' },
-              { text: 'Just this one', onPress: () => store.moveToTrash(td.id) },
+              {
+                text: 'Just this one',
+                style: 'destructive',
+                onPress: () => store.permanentlyDelete(td.id),
+              },
               {
                 text: 'This & future',
                 style: 'destructive',
-                onPress: () => store.moveSeriesFutureToTrash(td.id),
+                onPress: () => store.permanentlyDeleteSeriesFuture(td.id),
               },
             ],
           )
         } else {
-          store.moveToTrash(td.id)
+          Alert.alert(
+            'Delete to-do?',
+            `Permanently delete "${td.text}". This can't be undone.`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: () => store.permanentlyDelete(td.id),
+              },
+            ],
+          )
         }
       } else if (op.kind === 'deleteGroceryItem') {
-        store.deleteGrocery(op.args.groceryId)
+        const item = store.groceries.find((g) => g.id === op.args.groceryId)
+        Alert.alert(
+          'Remove from shopping?',
+          `Permanently remove "${item?.text ?? 'this item'}" from your shopping list. This can't be undone.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Remove',
+              style: 'destructive',
+              onPress: () => store.deleteGrocery(op.args.groceryId),
+            },
+          ],
+        )
       }
     },
     [store],
