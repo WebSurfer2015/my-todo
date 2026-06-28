@@ -49,21 +49,33 @@ the brand sage, or the avatar theme silently breaks.
 
 ## Spacing scale
 
-Use multiples of 4. Common values:
+**The canonical ramp is `4 · 8 · 12 · 16 · 24`.** Reach for these first; they
+cover ~everything. Two sanctioned exceptions: **`20`** (Home hero gutter only)
+and **`6`** (the gap *inside* a pill, between glyph and label).
 
 | Value | Use |
 |---|---|
-| `4` | Tight icon gaps |
-| `6` | Pill internal gaps |
-| `8` | Default `gap` in rows |
-| `10` | Compact paddings |
-| `12` | Card internal padding |
-| `14` | Default sheet horizontal padding |
-| `16` | Page-edge gutter (Vito / Shopping bodies, EmptyStateCard) |
-| `20` | Hero gutter (Home body) |
-| `24` | Card internal vertical padding |
+| `4` | Tight icon gaps, hairline offsets |
+| `8` | Default `gap` in rows; compact vertical padding |
+| `12` | Card internal padding (vertical), field padding |
+| `16` | **The default gutter** — page edges, sheet bodies, EmptyStateCard |
+| `24` | Card internal vertical, section breaks |
+| `20` | *Exception:* Home hero gutter only |
+| `6` | *Exception:* glyph↔label gap inside a pill |
 
-When in doubt, use `16` for horizontal and `12` for vertical.
+When in doubt: **`16` horizontal, `12` vertical.**
+
+**Don't introduce `10`, `14`, or `18`.** Those in-between values are exactly the
+drift that makes the chrome feel subtly off. If you're tempted by `14`, the
+answer is almost always `16` (gutter) or `12` (card). The shared
+`SheetShell` already gutters at `16` — sheet bodies inherit it; don't re-pad.
+
+### Touch targets
+
+Interactive controls must be **≥44pt** (iOS HIG) / 48dp (Material). For a
+glyph or text button smaller than that, expand the tap area with `hitSlop`
+(≈`10–12` for a 16pt icon) rather than inflating the visual. Don't ship a
+tappable control under 44pt — it's the most common consumer-mobile miss.
 
 ## Radii
 
@@ -84,9 +96,10 @@ fastest way to make the chrome feel inconsistent.
 | Size | Weight | Use |
 |---|---|---|
 | 24 | 700 | Screen titles ("Shopping", "Todos") |
+| 20 | 700 | Bottom-sheet titles (standardized by `SheetShell`) |
 | 17 | 700 | Greeting line ("Good morning, Ying") |
-| 17 | 700 | Bottom-sheet titles |
-| 15 | 600 | Empty-state title, primary button labels |
+| 15 | 600 | Empty-state title, primary button labels; sheet header actions |
+| 15 | 500 | Cancel / left header action |
 | 14 | 600 | Tab labels, secondary buttons |
 | 13 | 500 | Identity line, field values |
 | 13 | 600 | Pill labels |
@@ -97,6 +110,18 @@ Tabular numbers (`fontVariant: ['tabular-nums']`) for any counter.
 
 ## Bottom sheets
 
+**Build sheets on `mobile/src/ui/SheetShell.tsx`** — the shared primitive that
+owns all the chrome below. It renders the `<Modal>`, the a11y-safe backdrop,
+the keyboard-avoidance, the handle, the 30% floor, and the header. A sheet
+passes `title` + a `primary` action (or omits it for tap-to-select pickers)
+and supplies only its body. Hand-rolling this chrome is what let sheets drift
+(5 header variants, missing min-heights) before the primitive existed. A few
+deliberately-bespoke sheets stay hand-rolled (CategorySheet's 3-mode gesture
+list; Compose/TaskDetails' deep sub-views) — extending the shell to fit them
+cost more than it saved.
+
+The contract `SheetShell` enforces:
+
 - **Min height 30 % of screen** (`useWindowDimensions().height * 0.3`).
   Sheets that render with little content (e.g. StorePicker opened
   straight to the inline-add row) must pad up — don't let them
@@ -104,10 +129,11 @@ Tabular numbers (`fontVariant: ['tabular-nums']`) for any counter.
 - **Top-radius 18**, bottom-radius 0 (sheet rises from the edge).
 - **Top-handle**: 36×4 pill at `c.gray3`, centered, ~6 pt down from
   the sheet top.
-- **Header row**: `Cancel` (left) | title (center, 17 / 700) |
-  `Done` or `Save` (right, primary color). No in-body duplicates of
-  the primary action.
-- **Backdrop**: `rgba(0,0,0,0.45)`, taps close.
+- **Header row**: `Cancel` (left, 15 / 500) | title (center, **20 / 700**) |
+  `Done` or `Save` (right, 15 / 600, primary color). No in-body duplicates of
+  the primary action. Destructive actions never sit in the Cancel slot —
+  they go to a red row at the bottom.
+- **Backdrop**: `rgba(0,0,0,0.45)`, taps close. Swipe-down also dismisses.
 - **iOS modal layering**: native `<Modal>` floats above the React
   tree, so snackbars from `useNotify()` are hidden while a sheet is
   open. Use an in-sheet status banner for any feedback that must
