@@ -540,11 +540,13 @@ export const AGENT_TOOLS: AgentTool[] = [
       "Let the user CHOOSE which of several matching to-dos to act on. Use this " +
       "INSTEAD of deleteTodo/markDone/editTodo/addSteps whenever MORE THAN ONE to-do " +
       "in context matches what the user wants to act on (e.g. they say 'delete the " +
-      "water plant task' and several share that text). Put EVERY matching todoId in " +
-      "`todoIds` (2 or more) and set `action`; the app shows them as a checklist — " +
-      "enriched with each to-do's due date / category so even identical titles are " +
-      "distinguishable — and the user ticks which ones to apply the action to. When " +
-      "exactly one to-do clearly matches, use the single-target tool instead.",
+      "water plant task' and several share that text). You do NOT list the to-dos " +
+      "yourself: just set `action` and put the user's search words in `query` — the " +
+      "app finds EVERY matching to-do and shows them as a checklist (with each one's " +
+      "due date / category) for the user to tick. `query` should be the distinctive " +
+      "part of the title, matched as a case-insensitive substring (so 'AI project' " +
+      "matches 'Work on AI project'). When exactly one to-do clearly matches, use the " +
+      "single-target tool instead.",
     input_schema: {
       type: 'object',
       properties: {
@@ -553,17 +555,12 @@ export const AGENT_TOOLS: AgentTool[] = [
           enum: ['delete', 'markDone', 'edit', 'addSteps'],
           description: 'What to do with the to-dos the user picks.',
         },
-        todoIds: {
-          type: 'array',
-          description:
-            'All matching to-do ids from the context list (2+). Include every ' +
-            'plausible match — the user narrows it down by ticking the checklist.',
-          minItems: 2,
-          items: { type: 'string' },
-        },
         query: {
           type: 'string',
-          description: "The user's phrase for these to-dos (e.g. 'water plant'), shown in the picker header.",
+          description:
+            "The search words that pick out the matching to-dos (e.g. 'water plant', " +
+            "'AI project') — the distinctive part of their title. The app substring-" +
+            'matches this against the user\'s to-dos. Also shown in the picker header.',
           maxLength: MAX_TEXT_LEN,
         },
         edit: {
@@ -597,7 +594,7 @@ export const AGENT_TOOLS: AgentTool[] = [
           },
         },
       },
-      required: ['action', 'todoIds'],
+      required: ['action', 'query'],
     },
   },
 ]
@@ -740,6 +737,9 @@ export function validateOperation(
   knownTodoIds: ReadonlySet<string> = new Set(),
   knownGroceryGroupIds: ReadonlySet<string> = new Set(),
   knownGroceryIds: ReadonlySet<string> = new Set(),
+  // Context todos (id + text) — pickTodos resolves its `query` against these
+  // server-side, so the model never has to enumerate ids.
+  knownTodos: ReadonlyArray<{ id: string; text: string }> = [],
 ): ProposedOperation | null {
   if (!args || typeof args !== 'object') return null
   const a = args as Record<string, unknown>
@@ -889,26 +889,35 @@ export function validateOperation(
     ) {
       return null
     }
-    if (!Array.isArray(a.todoIds)) return null
-    // Keep only known, well-formed, de-duped ids.
+    // Resolve the candidate ids HERE rather than trusting the model to copy a
+    // long list of UUIDs (it won't — it stalls). The primary source is `query`,
+    // matched as a case-insensitive substring against the context todo texts;
+    // any literal ids the model did pass are also honored. De-duped + capped.
     const ids: string[] = []
     const seen = new Set<string>()
-    for (const raw of a.todoIds) {
-      if (typeof raw !== 'string' || raw.length === 0 || raw.length > MAX_TODO_ID_LEN) continue
-      if (!knownTodoIds.has(raw) || seen.has(raw)) continue
-      seen.add(raw)
-      ids.push(raw)
-      if (ids.length >= MAX_PICK_TODOS) break
+    const add = (id: unknown) => {
+      if (typeof id !== 'string' || id.length === 0 || id.length > MAX_TODO_ID_LEN) return
+      if (!knownTodoIds.has(id) || seen.has(id)) return
+      seen.add(id)
+      ids.push(id)
+    }
+    if (Array.isArray(a.todoIds)) for (const raw of a.todoIds) add(raw)
+    const query = typeof a.query === 'string' ? a.query.trim() : ''
+    if (query) {
+      const q = query.toLowerCase()
+      for (const td of knownTodos) {
+        if (td.text.toLowerCase().includes(q)) add(td.id)
+      }
     }
     // A pick-list is only meaningful for 2+ candidates — a single clear match
     // should come back as the single-target tool (deleteTodo/markDone/…).
     if (ids.length < 2) return null
     const op: ProposedOperation = {
       kind: 'pickTodos',
-      args: { action: a.action, todoIds: ids },
+      args: { action: a.action, todoIds: ids.slice(0, MAX_PICK_TODOS) },
     }
-    if (typeof a.query === 'string' && a.query.trim().length > 0) {
-      op.args.query = a.query.trim().slice(0, MAX_TEXT_LEN)
+    if (query) {
+      op.args.query = query.slice(0, MAX_TEXT_LEN)
     }
     if (a.action === 'edit') {
       const editArgs =

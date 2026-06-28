@@ -156,16 +156,14 @@ Removing things (delete vs complete):
 Acting on existing to-dos when SEVERAL match (load-bearing — this OVERRIDES the
 one-question-at-a-time rule above):
 - When the user wants to delete / complete / edit / add-steps to existing to-dos
-  and MORE THAN ONE in context matches, you MUST call pickTodos in that SAME
-  turn. Put EVERY matching id in todoIds — include all of them even if there are
-  many (10, 40, whatever) — set action, and add the user's phrase as query.
-- Calling pickTodos IS how you ask "which ones?". The app turns it into a
-  checklist the user ticks. So do NOT instead reply with a prose question like
-  "Which ones would you like to delete?" and no tool — that strands the user
-  with no way to choose. The checklist IS the question; the tool call IS the ask.
-- Lead with one short sentence ("I'll list them so you can pick.") and call
-  pickTodos in the same turn. Never guess one, and never ask the user to retype
-  or describe which — the checklist does that for them.
+  and MORE THAN ONE in context matches, you MUST call pickTodos in the SAME turn
+  as your reply. You do NOT list the matches or copy any ids — just set the
+  action and put the user's search words in the query field (the distinctive
+  part of the title, e.g. "AI project"). The app finds every match and shows it.
+- Calling pickTodos IS how you ask "which ones?". So do NOT reply with a prose
+  question like "Which ones would you like to delete?" and no tool, and do NOT
+  say "I'll list them" and then stop — that strands the user. Say one short
+  sentence AND call pickTodos in the same turn, immediately, no confirmation step.
 - Use the single-target tool only when exactly one to-do clearly matches.
 
 Trust model — load-bearing:
@@ -442,6 +440,7 @@ export const agentChat = onCall(
           knownTodoIds,
           knownGroceryGroupIds,
           knownGroceryIds,
+          todos,
         )
         if (op) operations.push(op)
       }

@@ -490,4 +490,50 @@ describe('validateOperation — pickTodos', () => {
       validateOperation('pickTodos', { action: 'delete', todoIds: ['t-1', 't-2'] }, knownCats),
     ).toBeNull()
   })
+
+  // The reliable path: the model passes a `query`, the server resolves it to
+  // ids against the context todos (so the model never enumerates UUIDs).
+  const knownTodosList = [
+    { id: 't-1', text: 'Work on AI project' },
+    { id: 't-2', text: 'Work on AI project' },
+    { id: 't-3', text: 'Buy milk' },
+  ]
+  it('resolves a query to matching ids server-side (no ids from the model)', () => {
+    const op = validateOperation(
+      'pickTodos',
+      { action: 'delete', query: 'AI project' },
+      knownCats,
+      knownTodoIds,
+      new Set(),
+      new Set(),
+      knownTodosList,
+    )
+    expect(op?.kind === 'pickTodos' && op.args.todoIds).toEqual(['t-1', 't-2'])
+    expect(op?.kind === 'pickTodos' && op.args.query).toBe('AI project')
+  })
+  it('query matching is case-insensitive substring', () => {
+    const op = validateOperation(
+      'pickTodos',
+      { action: 'markDone', query: 'work ON' },
+      knownCats,
+      knownTodoIds,
+      new Set(),
+      new Set(),
+      knownTodosList,
+    )
+    expect(op?.kind === 'pickTodos' && op.args.todoIds).toEqual(['t-1', 't-2'])
+  })
+  it('null when the query resolves to fewer than 2 matches', () => {
+    expect(
+      validateOperation(
+        'pickTodos',
+        { action: 'delete', query: 'milk' },
+        knownCats,
+        knownTodoIds,
+        new Set(),
+        new Set(),
+        knownTodosList,
+      ),
+    ).toBeNull()
+  })
 })
