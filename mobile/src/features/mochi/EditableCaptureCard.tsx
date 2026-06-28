@@ -91,7 +91,6 @@ export default function EditableCaptureCard({
     sync()
   }
   const onDateChange = (e: DateTimePickerEvent, d?: Date) => {
-    if (Platform.OS === 'android') setOpen(null)
     if (e.type === 'set' && d) {
       const prev = dueDate
       const iso = isoDate(d)
@@ -103,6 +102,8 @@ export default function EditableCaptureCard({
       })
       sync()
     }
+    // Close the tray once the user commits (or dismisses) — on every platform.
+    setOpen(null)
   }
   const undoLast = () => {
     const fn = undoStack.current.pop()
