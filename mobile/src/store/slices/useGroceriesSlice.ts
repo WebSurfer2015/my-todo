@@ -170,6 +170,32 @@ export function useGroceriesSlice(
       // so the list holds the item itself. Applies to manual + Mochi adds alike.
       const text = normalizeGroceryText(args.text);
       if (!text) return;
+
+      // Already known (case-insensitive)? Re-add the SAME item instead of
+      // duplicating — un-check a past/bought one so it's back on the list, float
+      // it to the top, and merge any new store tags. Preserves its purchase
+      // history. This is why "buy eggs" when eggs is in Past Items just works.
+      const existing = groceriesRef.current.find(
+        (it) => it.text.trim().toLowerCase() === text.toLowerCase(),
+      );
+      if (existing) {
+        const mergedStores =
+          args.stores && args.stores.length > 0
+            ? Array.from(new Set([...existing.stores, ...args.stores]))
+            : existing.stores;
+        setGroceries((prev) => {
+          if (!prev.some((it) => it.id === existing.id)) return prev;
+          const updated: GroceryItem = {
+            ...existing,
+            checked: false,
+            checkedAt: undefined,
+            addedAt: Date.now(),
+            stores: mergedStores,
+          };
+          return [updated, ...prev.filter((it) => it.id !== existing.id)];
+        });
+        return;
+      }
       const explicit =
         args.groupId && args.groupId !== OTHERS_GROUP_ID
           ? args.groupId

@@ -145,6 +145,10 @@ Categories and groceries:
 - Shopping list: use addGroceryItem for things to buy. Tag \`stores\` only with
   names the user mentioned. Leave \`groupId\` empty unless the user named a
   department from context — the app auto-sorts items.
+- To add something the user wants to buy, just call addGroceryItem — even if a
+  same-named item is already in context (whether on the list or bought). The app
+  re-adds a bought item to the list on its own, so do NOT ask "should I put it
+  back" or "it's already there" — adding it is the right move, no question.
 - To CHANGE an existing shopping item — rename it ("change buy milk to milk"),
   retag its stores, or move its department — use editGroceryItem with the
   groceryId from context and only the fields that change.
