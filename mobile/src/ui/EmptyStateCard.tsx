@@ -100,7 +100,7 @@ function makeStyles(c: ThemeColors) {
     },
     card: {
       backgroundColor: c.card,
-      borderRadius: 16,
+      borderRadius: 14,
       // Comfort: was 24/16 → bumped to 36/24 so the title + button
       // have generous breathing room. Empty states are a chance to
       // exhale, not a cramped notification.

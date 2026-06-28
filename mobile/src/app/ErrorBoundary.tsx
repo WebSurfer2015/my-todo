@@ -1,8 +1,9 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react'
+import React, { Component, ErrorInfo, ReactNode, useMemo } from 'react'
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import crashlytics from '@react-native-firebase/crashlytics'
 import { clearAllPersisted } from '../adapters/persistence'
+import { useTheme, ThemeColors } from './theme'
 
 interface State {
   error: Error | null
@@ -40,47 +41,72 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
   render() {
     if (!this.state.error) return this.props.children
     return (
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <ScrollView contentContainerStyle={styles.container}>
-          <Text style={styles.title}>Something went wrong</Text>
-          <Text style={styles.body}>{String(this.state.error.message || this.state.error)}</Text>
-          <View style={styles.actions}>
-            <TouchableOpacity style={styles.btn} onPress={this.reset}>
-              <Text style={styles.btnText}>Try again</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.btn, styles.btnDanger]} onPress={this.resetAndClear}>
-              <Text style={[styles.btnText, styles.btnTextDanger]}>Reset all data</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
+      <ErrorFallback
+        error={this.state.error}
+        onRetry={this.reset}
+        onResetAll={this.resetAndClear}
+      />
     )
   }
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#fff' },
-  container: { padding: 24 },
-  title: { fontSize: 22, fontWeight: '700', marginBottom: 12, color: '#111' },
-  body: {
-    fontSize: 13,
-    fontFamily: 'Menlo',
-    backgroundColor: '#fee',
-    color: '#900',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#fbb',
-  },
-  actions: { marginTop: 20, gap: 10 },
-  btn: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: '#f2f2f2',
-    alignItems: 'center',
-  },
-  btnDanger: { backgroundColor: '#fee', borderWidth: StyleSheet.hairlineWidth, borderColor: '#fbb' },
-  btnText: { fontSize: 15, fontWeight: '600', color: '#111' },
-  btnTextDanger: { color: '#c00' },
-})
+/** Themed fallback — a functional child so it can read the palette via
+ * useTheme() (keyed off useColorScheme, no provider needed), keeping the
+ * crash screen calm and on-theme in dark mode instead of a jarring white. */
+function ErrorFallback({
+  error,
+  onRetry,
+  onResetAll,
+}: {
+  error: Error
+  onRetry: () => void
+  onResetAll: () => void
+}) {
+  const c = useTheme()
+  const styles = useMemo(() => makeStyles(c), [c])
+  return (
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.title}>Something went wrong</Text>
+        <Text style={styles.body}>{String(error.message || error)}</Text>
+        <View style={styles.actions}>
+          <TouchableOpacity style={styles.btn} onPress={onRetry}>
+            <Text style={styles.btnText}>Try again</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.btn, styles.btnDanger]} onPress={onResetAll}>
+            <Text style={[styles.btnText, styles.btnTextDanger]}>Reset all data</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  )
+}
+
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: c.bg },
+    container: { padding: 24 },
+    title: { fontSize: 22, fontWeight: '700', marginBottom: 12, color: c.label },
+    body: {
+      fontSize: 13,
+      fontFamily: 'Menlo',
+      backgroundColor: c.card,
+      color: c.red,
+      padding: 12,
+      borderRadius: 8,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.separator,
+    },
+    actions: { marginTop: 24, gap: 8 },
+    btn: {
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderRadius: 10,
+      backgroundColor: c.card,
+      alignItems: 'center',
+    },
+    btnDanger: { borderWidth: StyleSheet.hairlineWidth, borderColor: c.red },
+    btnText: { fontSize: 15, fontWeight: '600', color: c.label },
+    btnTextDanger: { color: c.red },
+  })
+}

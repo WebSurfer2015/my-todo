@@ -1265,6 +1265,16 @@ export default function TaskDetailsSheet({
                   </Text>
                 </TouchableOpacity>
               </View>
+              {/* Persistent scope cue — which dates this edit touches, so the
+                  buffered-vs-live save model and the detached state are never
+                  a surprise on Save. */}
+              <Text style={styles.editModeCaption}>
+                {editMode === 'series'
+                  ? 'Edits apply to all future repeats.'
+                  : todo.detachedFromSeries
+                    ? 'This date is detached from the series.'
+                    : 'Edits apply to this date only.'}
+              </Text>
             </View>
           )}
 
@@ -1436,7 +1446,11 @@ export default function TaskDetailsSheet({
                           : RECURRENCE_LABELS[editRecurrence.freq])
                       : RECURRENCE_LABELS.none}
                   </Text>
-                  <Text style={styles.editChevron}>›</Text>
+                  {repeatLocked ? (
+                    <Text style={styles.editFieldLockHint}>Series only</Text>
+                  ) : (
+                    <Text style={styles.editChevron}>›</Text>
+                  )}
                 </TouchableOpacity>
                 {(onUpdateReminders || onUpdateReminder) && (
                   <>

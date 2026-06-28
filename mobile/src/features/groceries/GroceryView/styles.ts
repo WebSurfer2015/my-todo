@@ -122,7 +122,7 @@ export function makeStyles(c: ThemeColors) {
     },
     groupCard: {
       backgroundColor: c.card,
-      borderRadius: 12,
+      borderRadius: 14,
       overflow: 'hidden',
     },
     divider: {

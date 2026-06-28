@@ -215,6 +215,20 @@ export function makeStyles(c: ThemeColors) {
       paddingHorizontal: 4,
       paddingBottom: 12,
     },
+    editModeCaption: {
+      fontSize: 12,
+      color: c.label3,
+      fontWeight: '500',
+      textAlign: 'center',
+      marginTop: 8,
+      paddingHorizontal: 8,
+    },
+    editFieldLockHint: {
+      fontSize: 12,
+      color: c.label3,
+      fontWeight: '500',
+      marginLeft: 2,
+    },
     editModeSegmented: {
       flexDirection: 'row',
       backgroundColor: c.surfaceAlt,
