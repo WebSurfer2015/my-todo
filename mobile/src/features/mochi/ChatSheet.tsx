@@ -481,6 +481,10 @@ export default function ChatSheet({
                                 onApplyPickedTodos(op, ids)
                                 setResolved((prev) => ({ ...prev, [i]: 'applied' }))
                               }}
+                              onDeleteTodo={(id, scope) => {
+                                onDeleteTodo(id, scope)
+                                setResolved((prev) => ({ ...prev, [i]: 'applied' }))
+                              }}
                               styles={styles}
                               theme={theme}
                             />
@@ -681,6 +685,8 @@ type PickCandidate = {
   category?: string
   dueDate?: string
   recurrence?: { freq: string; interval?: number; byWeekday?: number[] }
+  /** Set when this is one instance of a generated series. */
+  seriesId?: string
 }
 
 const PICK_VERB: Record<'delete' | 'markDone' | 'edit' | 'addSteps', string> = {
@@ -748,6 +754,7 @@ function PickTodosCard({
   candidates,
   categoryLabelLookup,
   onConfirm,
+  onDeleteTodo,
   styles,
   theme,
 }: {
@@ -755,6 +762,7 @@ function PickTodosCard({
   candidates: PickCandidate[]
   categoryLabelLookup: (id: string) => string
   onConfirm: (selectedIds: string[]) => void
+  onDeleteTodo: (id: string, scope: 'one' | 'series') => void
   styles: ReturnType<typeof makeStyles>
   theme: ThemeColors
 }) {
@@ -762,6 +770,19 @@ function PickTodosCard({
   const { action, query } = op.args
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [done, setDone] = useState<{ n: number } | null>(null)
+  const [seriesDeleted, setSeriesDeleted] = useState(false)
+
+  // When a delete search lands entirely inside ONE generated series, offer to
+  // drop the whole series instead of ticking every instance. `mode` starts on
+  // that choice; "Pick which ones" drops into the normal checklist.
+  const seriesId =
+    action === 'delete' &&
+    candidates.length >= 2 &&
+    candidates.every((c) => c.seriesId) &&
+    new Set(candidates.map((c) => c.seriesId)).size === 1
+      ? candidates[0].seriesId
+      : undefined
+  const [mode, setMode] = useState<'choose' | 'list'>(seriesId ? 'choose' : 'list')
 
   const allOn = candidates.length > 0 && selected.size === candidates.length
   const toggle = (id: string) =>
@@ -783,11 +804,62 @@ function PickTodosCard({
     setDone({ n: ids.length })
   }
 
+  const deleteSeries = () => {
+    if (!seriesId) return
+    Alert.alert(
+      'Delete series?',
+      `Permanently delete "${candidates[0].text}" and all its future occurrences. This can't be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete series',
+          style: 'destructive',
+          onPress: () => {
+            onDeleteTodo(candidates[0].id, 'series')
+            setSeriesDeleted(true)
+          },
+        },
+      ],
+    )
+  }
+
+  if (seriesDeleted) {
+    return <Text style={styles.appliedNote}>✓ Series deleted</Text>
+  }
   if (done) {
     return (
       <Text style={styles.appliedNote}>
         ✓ {PICK_DONE[action]} {done.n}
       </Text>
+    )
+  }
+
+  // Series-delete fork: drop the whole repeat, or pick individual occurrences.
+  if (mode === 'choose' && seriesId) {
+    return (
+      <View>
+        <Text style={styles.proposalKind}>Delete repeating to-do</Text>
+        <Text style={styles.proposalTitle}>{candidates[0].text}</Text>
+        <Text style={styles.pickSubtitle}>
+          {candidates.length} occurrences of this series match.
+        </Text>
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={[styles.btn, styles.btnNeutral]}
+            onPress={() => setMode('list')}
+            accessibilityRole="button"
+          >
+            <Text style={styles.btnNeutralText}>Pick which ones</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.btn, styles.btnDanger]}
+            onPress={deleteSeries}
+            accessibilityRole="button"
+          >
+            <Text style={styles.btnDangerText}>Delete series</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     )
   }
 
