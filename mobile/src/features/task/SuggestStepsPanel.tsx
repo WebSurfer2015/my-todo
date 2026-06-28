@@ -46,7 +46,7 @@ export function SuggestStepsTrigger({ thinking, error, onClick }: TriggerProps) 
           <Sparkles size={14} color={theme.primary} strokeWidth={2.2} />
         )}
         <Text style={[styles.text, thinking && styles.textDim]}>
-          {thinking ? t.suggestStepsThinking : t.suggestSteps}
+          {thinking ? 'Breaking it into steps…' : t.suggestSteps}
         </Text>
       </TouchableOpacity>
       {error && <Text style={styles.errorText}>{error}</Text>}

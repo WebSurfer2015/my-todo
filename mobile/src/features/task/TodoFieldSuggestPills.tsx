@@ -160,7 +160,7 @@ export function TodoFieldSuggestPills({
       <Sparkles size={12} color={theme.primary} strokeWidth={2.2} />
       {thinking && (
         <View style={styles.thinkingPill}>
-          <MochiThinking />
+          <MochiThinking label="Reading your to-do…" />
         </View>
       )}
       {showCategoryPill && catDef && (

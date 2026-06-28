@@ -112,6 +112,9 @@ export default function StorePicker({
   // inside the sheet. The final state fires a snackbar too so it
   // lands after the user closes the sheet.
   const [linkingMessage, setLinkingMessage] = useState<string | null>(null);
+  // The store being matched — surfaced in the thinking line ("Matching items
+  // to <store>…") so the user sees what Mochi is actually doing.
+  const [linkingStore, setLinkingStore] = useState("");
   const linkingClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     return () => {
@@ -129,6 +132,7 @@ export default function StorePicker({
     const payload = items
       .slice(0, 50)
       .map((it) => ({ id: it.id, text: it.text }));
+    setLinkingStore(name);
     setLinkingMessage(t.suggestStepsThinking);
     void linkStoreToItems({ storeName: name, items: payload }).then((res) => {
       if (res.linkedItemIds.length === 0) {
@@ -465,7 +469,7 @@ export default function StorePicker({
                       {linkingMessage && (
                         <View style={styles.linkingBanner}>
                           {linkingMessage === t.suggestStepsThinking ? (
-                            <MochiThinking />
+                            <MochiThinking label={`Matching items to ${linkingStore}…`} />
                           ) : (
                             <Text style={styles.linkingBannerText}>
                               {linkingMessage}

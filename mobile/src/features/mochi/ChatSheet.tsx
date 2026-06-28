@@ -378,7 +378,7 @@ export default function ChatSheet({
 
               {isThinking && (
                 <View style={styles.mochiRow}>
-                  <MochiThinking />
+                  <MochiThinking label="Reading your message…" />
                 </View>
               )}
 

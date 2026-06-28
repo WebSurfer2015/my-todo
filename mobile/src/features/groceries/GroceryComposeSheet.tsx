@@ -541,7 +541,7 @@ export default function GroceryComposeSheet({
                       status now. */}
                   {aiBusy && agentEnabled && (
                     <View style={styles.inputAccessoryRow}>
-                      <MochiThinking />
+                      <MochiThinking label="Sorting into aisles…" />
                     </View>
                   )}
 

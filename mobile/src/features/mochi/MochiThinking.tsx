@@ -29,9 +29,13 @@ interface Props {
   compact?: boolean
   /** Override the icon size. Defaults to 18. */
   size?: number
+  /** Context line telling the user what Mochi is actually doing right now
+   * (e.g. "Matching items to Market Basket…"). Falls back to the generic
+   * "Mochi's thinking…" when omitted. Keep it calm + present-tense, end with …. */
+  label?: string
 }
 
-export default function MochiThinking({ compact = false, size = 18 }: Props) {
+export default function MochiThinking({ compact = false, size = 18, label }: Props) {
   const { t } = useLang()
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
@@ -77,7 +81,7 @@ export default function MochiThinking({ compact = false, size = 18 }: Props) {
         <Sparkles size={size - 2} color={theme.primary} strokeWidth={2.2} />
       </Animated.View>
       {!compact && (
-        <Text style={styles.label}>{t.suggestStepsThinking}</Text>
+        <Text style={styles.label}>{label ?? t.suggestStepsThinking}</Text>
       )}
     </View>
   )

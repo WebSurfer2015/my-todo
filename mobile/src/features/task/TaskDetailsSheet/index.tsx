@@ -1314,7 +1314,7 @@ export default function TaskDetailsSheet({
                     as the Add to-do (ComposeSheet) accessory row. */}
                 {(fieldAi.thinking || ai.thinking) && (
                   <View style={styles.inputAccessoryRow}>
-                    <MochiThinking />
+                    <MochiThinking label="Reading your to-do…" />
                   </View>
                 )}
                 <View style={styles.editGroupDivider} />
