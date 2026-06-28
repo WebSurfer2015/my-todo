@@ -84,7 +84,7 @@ const SCREENS: Array<{
   {
     visual: 'mochi-small',
     title: 'Ready when you are',
-    body: "Add one thing. That's it. Mochi's waiting.\n\nTip: long-press any filter pill to pin it to your filter bar.",
+    body: "Add one thing. That's it. Mochi's waiting.",
   },
 ]
 

@@ -447,9 +447,9 @@ export default function HomeScreen() {
                       : `${store.todayPebbles} done today.`
                 }
                 hint="Enjoy the breathing room."
-                actionLabel="What's Next?"
+                actionLabel="Peek ahead"
                 onAction={openWhatsNext}
-                actionAccessibilityLabel="What's Next? Ask Mochi or open the upcoming list."
+                actionAccessibilityLabel="Peek ahead — ask Mochi or open the upcoming list."
               />
             )}
           </>
@@ -562,7 +562,7 @@ export default function HomeScreen() {
               <EmptyStateCard
                 title="Nothing pending."
                 hint="Enjoy the breathing room."
-                actionLabel={hasNextGroupAfter ? "What's Next?" : undefined}
+                actionLabel={hasNextGroupAfter ? "Peek ahead" : undefined}
                 onAction={hasNextGroupAfter ? advanceToNextGroup : undefined}
                 actionAccessibilityLabel="Show the next group"
               />
