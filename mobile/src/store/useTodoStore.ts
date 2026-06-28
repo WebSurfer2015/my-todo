@@ -421,7 +421,7 @@ export function useTodoStore() {
   //   - 'custom' → the user's own quote text.
   //   - 'off'    → no subtitle.
   // Legacy/undefined falls back to 'custom' when a quote exists, else 'daily'.
-  const quoteMode = profile.quoteMode ?? (trimmedQuote ? 'custom' : 'daily');
+  const quoteMode = profile.quoteMode ?? 'custom';
   const dailyQuote =
     quoteMode === 'daily'
       ? quoteAt(

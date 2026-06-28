@@ -177,8 +177,10 @@ export function makeStyles(c: ThemeColors) {
       fontSize: 13,
       color: c.label3,
       fontWeight: "500",
+      textAlign: "center",
       paddingHorizontal: 4,
-      paddingBottom: 18,
+      paddingTop: 8,
+      paddingBottom: 10,
     },
     accountRowAction: {
       fontSize: 15,

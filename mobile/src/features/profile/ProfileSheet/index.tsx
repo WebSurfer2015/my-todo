@@ -68,7 +68,7 @@ export default function ProfileSheet({
   const [quote, setQuote] = useState(profile.quote ?? "");
   const [avatar, setAvatar] = useState<AvatarT>(normalizeAvatar(profile.avatar));
   const [quoteMode, setQuoteMode] = useState<QuoteMode>(
-    profile.quoteMode ?? (profile.quote?.trim() ? "custom" : "daily"),
+    profile.quoteMode ?? "custom",
   );
   const [quoteShuffle, setQuoteShuffle] = useState(profile.quoteShuffle);
 
@@ -105,7 +105,7 @@ export default function ProfileSheet({
       setFirstName(profile.firstName ?? profile.name ?? "");
       setLastName(profile.lastName ?? "");
       setQuote(profile.quote ?? "");
-      setQuoteMode(profile.quoteMode ?? (profile.quote?.trim() ? "custom" : "daily"));
+      setQuoteMode(profile.quoteMode ?? "custom");
       setQuoteShuffle(profile.quoteShuffle);
       setAvatar(normalizeAvatar(profile.avatar));
     }
