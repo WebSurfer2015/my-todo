@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import auth from '@react-native-firebase/auth'
+import { isoDate } from '../../core-bindings/utils'
 
 /**
  * Multi-turn client for the agentChat Cloud Function. Holds the running
@@ -229,17 +230,26 @@ export function useMochiAgent() {
           return { ok: false, error: 'empty' }
         }
         const result = body.result
+        // A repeating to-do anchors its series on dueDate (the first
+        // occurrence). The model often omits it for "every N days"-style
+        // asks, which leaves the series unanchored and the date chip empty —
+        // default the first occurrence to today so the repeat is well-formed
+        // and the card shows a real start date.
+        const operations = result.operations?.map((op) =>
+          op.kind === 'createTodo' && op.args.recurrence && !op.args.dueDate
+            ? { ...op, args: { ...op.args, dueDate: isoDate(new Date()) } }
+            : op,
+        )
         // A follow-up turn (Mochi needs more info: no operations, not
         // awaiting confirmation) is a question — make it read like one.
         const isFollowUpQuestion =
-          !result.awaitingConfirmation &&
-          (!result.operations || result.operations.length === 0)
+          !result.awaitingConfirmation && (!operations || operations.length === 0)
         setMessages((prev) => [
           ...prev,
           {
             role: 'assistant',
             content: isFollowUpQuestion ? toQuestion(result.reply) : result.reply,
-            operations: result.operations,
+            operations,
             awaitingConfirmation: result.awaitingConfirmation,
           },
         ])
