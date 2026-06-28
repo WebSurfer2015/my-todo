@@ -1,20 +1,13 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  Modal,
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  Pressable,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   Alert,
-  Dimensions,
 } from "react-native";
 import { Check, Pin, Pencil, Eye, EyeOff, Trash2 } from "lucide-react-native";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
 import DraggableFlatList, {
   RenderItemParams,
 } from "react-native-draggable-flatlist";
@@ -37,6 +30,7 @@ import StatusIcon, { statusColor } from "../../../ui/StatusIcon";
 import PriorityBars from "../../../ui/PriorityBars";
 import { useLang } from "../../../app/LangContext";
 import { useTheme, ThemeColors } from "../../../app/theme";
+import SheetShell from "../../../ui/SheetShell";
 
 export interface StatusEntry {
   id: StatusFilter;
@@ -163,12 +157,6 @@ export default function CategorySheet({
   // Freeze the outer scroll while a row is being dragged so the sheet
   // doesn't appear to scroll along with the dragged row.
   const [dragActive, setDragActive] = useState(false);
-  // Explicit sheet height instead of maxHeight:'85%'. With percentage
-  // heights the inner ScrollView couldn't reliably bound itself, so the
-  // tail of the categories list (+Add Category row) fell below the
-  // visible area with no scroll recovery. Mirrors ManageHomeTilesSheet.
-  const screenH = Dimensions.get("window").height;
-  const sheetHeight = Math.round(screenH * 0.85);
 
   // Pinned filters are sets (Filter[][]). For inline row pin
   // indicators we only care about the single-filter case — "is the
@@ -368,53 +356,65 @@ export default function CategorySheet({
   const isList = mode.kind === "view" || mode.kind === "edit";
   const isEditing = mode.kind === "edit";
 
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <GestureHandlerRootView style={styles.flex}>
-        <KeyboardAvoidingView
-          style={styles.flex}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
-          {/* Sibling backdrop tap-layer (not a wrapper) — a wrapping Pressable
-              collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
-          <View style={styles.backdrop}>
-            <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
-            {/* Plain View (not Pressable) for the sheet itself. The
-                opaque background already absorbs taps so they don't
-                reach the backdrop, and a Pressable here would claim
-                the touch responder and starve the inner ScrollView's
-                pan recognizer — that's what was blocking scroll. */}
-            <View style={[styles.sheet, { height: sheetHeight }]}>
-              <View style={styles.handle} />
+  const headerLeft =
+    mode.kind === "editCategory"
+      ? { label: `‹ ${t.back}`, onPress: () => setMode({ kind: "edit" }) }
+      : { label: t.cancel, onPress: onClose };
+  const headerTitle =
+    mode.kind === "editCategory"
+      ? mode.id
+        ? t.editCategory
+        : t.addCategory
+      : isEditing
+        ? "Manage Todo's Filter"
+        : "Select Filter";
+  const headerPrimary =
+    mode.kind === "editCategory"
+      ? undefined
+      : isEditing
+        ? { label: t.done, onPress: onClose }
+        : { label: "Reset", onPress: onClearFilters };
+  const headerRight =
+    mode.kind === "editCategory" && mode.id && categories.length > 1 ? (
+      <TouchableOpacity
+        onPress={() => {
+          const c = categories.find((x) => x.id === mode.id);
+          if (c) handleDelete(c);
+        }}
+        hitSlop={10}
+        accessibilityRole="button"
+        accessibilityLabel={t.deleteCategoryAction}
+      >
+        <Trash2 size={20} color={theme.red} strokeWidth={2} />
+      </TouchableOpacity>
+    ) : undefined;
+  const footer =
+    mode.kind === "view" ? (
+      <TouchableOpacity
+        style={styles.viewDoneBtn}
+        onPress={onClose}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel="Set Filter"
+      >
+        <Text style={styles.viewDoneText}>Set Filter</Text>
+      </TouchableOpacity>
+    ) : undefined;
 
+  return (
+    <SheetShell
+      visible={visible}
+      onClose={onClose}
+      scroll={false}
+      heightPct={0.85}
+      title={headerTitle}
+      left={headerLeft}
+      primary={headerPrimary}
+      right={headerRight}
+      footer={footer}
+    >
               {isList ? (
                 <>
-                  <View style={styles.headerRow}>
-                    <TouchableOpacity onPress={onClose} hitSlop={8}>
-                      <Text style={styles.headerLeft}>{t.cancel}</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.headerTitle}>
-                      {isEditing ? "Manage Todo's Filter" : 'Select Filter'}
-                    </Text>
-                    {isEditing ? (
-                      // Manage flow keeps Done in the header. Select Filter's
-                      // Done now lives in the sticky footer below.
-                      <TouchableOpacity onPress={onClose} hitSlop={8}>
-                        <Text style={styles.headerRight}>{t.done}</Text>
-                      </TouchableOpacity>
-                    ) : (
-                      // Reset clears every selected filter (back to "All").
-                      <TouchableOpacity onPress={onClearFilters} hitSlop={8}>
-                        <Text style={styles.headerRight}>Reset</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-
                   {isEditing ? (
                     <ScrollView
                       style={styles.body}
@@ -743,58 +743,11 @@ export default function CategorySheet({
                         {categories.map(viewCategoryRow)}
                       </View>
                     </ScrollView>
-                    {/* Sticky Done — pinned below the scrollable filter list. */}
-                    <View style={styles.viewStickyFooter}>
-                      <TouchableOpacity
-                        style={styles.viewDoneBtn}
-                        onPress={onClose}
-                        activeOpacity={0.85}
-                        accessibilityRole="button"
-                        accessibilityLabel="Set Filter"
-                      >
-                        <Text style={styles.viewDoneText}>Set Filter</Text>
-                      </TouchableOpacity>
-                    </View>
                     </>
                   )}
                 </>
               ) : (
                 <>
-                  {/* Header row matches the unified sheet pattern:
-                      Cancel/Back left, title center, Delete icon
-                      top-right (only when editing an existing
-                      category). Old in-body destructive Text was
-                      removed in favor of this icon. */}
-                  <View style={styles.editCatHeader}>
-                    <TouchableOpacity
-                      onPress={() => setMode({ kind: "edit" })}
-                      hitSlop={10}
-                      style={styles.editCatHeaderSide}
-                      accessibilityRole="button"
-                      accessibilityLabel={t.back}
-                    >
-                      <Text style={styles.cancelText}>‹ {t.back}</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.editCatTitle}>
-                      {mode.id ? t.editCategory : t.addCategory}
-                    </Text>
-                    {mode.id && categories.length > 1 ? (
-                      <TouchableOpacity
-                        onPress={() => {
-                          const c = categories.find((x) => x.id === mode.id);
-                          if (c) handleDelete(c);
-                        }}
-                        hitSlop={10}
-                        style={styles.editCatHeaderSide}
-                        accessibilityRole="button"
-                        accessibilityLabel={t.deleteCategoryAction}
-                      >
-                        <Trash2 size={20} color={theme.red} strokeWidth={2} />
-                      </TouchableOpacity>
-                    ) : (
-                      <View style={styles.editCatHeaderSide} />
-                    )}
-                  </View>
                   <View style={styles.field}>
                     <Text style={styles.label}>{t.categoryNameLabel}</Text>
                     <TextInput
@@ -854,10 +807,6 @@ export default function CategorySheet({
                   </TouchableOpacity>
                 </>
               )}
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </GestureHandlerRootView>
-    </Modal>
+    </SheetShell>
   );
 }

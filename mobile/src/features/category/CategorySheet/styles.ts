@@ -3,52 +3,6 @@ import { ThemeColors } from "../../../app/theme";
 
 export function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    flex: { flex: 1 },
-    backdrop: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.45)",
-      justifyContent: "flex-end",
-    },
-    sheet: {
-      // Height is set inline from Dimensions (~85% of screen) so the
-      // inner ScrollView gets a bounded container and reliably scrolls
-      // when category lists are long. Percentage maxHeight here left
-      // the +Add Category row stranded below the viewport.
-      backgroundColor: c.modal,
-      borderTopLeftRadius: 18,
-      borderTopRightRadius: 18,
-      paddingHorizontal: 16,
-      paddingTop: 16,
-      paddingBottom: 28,
-    },
-    handle: {
-      alignSelf: "center",
-      width: 36,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: c.gray3,
-      marginBottom: 12,
-    },
-    headerRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingBottom: 10,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: c.separator,
-    },
-    headerTitle: { fontSize: 20, fontWeight: "700", color: c.label },
-    headerLeft: { fontSize: 16, fontWeight: "500", color: c.primary },
-    headerRight: { fontSize: 16, fontWeight: "600", color: c.primary },
-    // Balances Cancel so the title stays centered when the header's
-    // right-side Done is hidden (Select Filter → Done is sticky below).
-    headerRightSpacer: { minWidth: 56 },
-    // Sticky footer holding the Select Filter Done button.
-    viewStickyFooter: {
-      backgroundColor: c.modal,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: c.separator,
-    },
     title: {
       fontSize: 17,
       fontWeight: "700",
