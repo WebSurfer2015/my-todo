@@ -18,6 +18,7 @@ import {
   groceryDelete,
   inferGroceryGroupLocal,
   frequentGroceries,
+  normalizeGroceryText,
   groceryGroupAdd,
   insertGroupBeforeOthers,
   addStoreToList,
@@ -525,5 +526,28 @@ describe('linkStoreToItems', () => {
     expect(out[0].stores).toEqual(['Costco'])
     expect(out[1]).toBe(items[1]) // already had it → same ref
     expect(out[2]).toBe(items[2]) // not targeted → same ref
+  })
+})
+
+describe('normalizeGroceryText', () => {
+  it('strips a leading shopping verb, case-insensitively, preserving the rest', () => {
+    expect(normalizeGroceryText('Buy Milk')).toBe('Milk')
+    expect(normalizeGroceryText('buy milk')).toBe('milk')
+    expect(normalizeGroceryText('  GET eggs ')).toBe('eggs')
+    expect(normalizeGroceryText('pick up some bread')).toBe('bread')
+    expect(normalizeGroceryText('pickup paper towels')).toBe('paper towels')
+    expect(normalizeGroceryText('get more bananas')).toBe('bananas')
+    expect(normalizeGroceryText('need a lemon')).toBe('lemon')
+  })
+  it('leaves a plain item untouched', () => {
+    expect(normalizeGroceryText('milk')).toBe('milk')
+    expect(normalizeGroceryText('almond butter')).toBe('almond butter')
+  })
+  it('never returns empty (verb-only falls back to the input)', () => {
+    expect(normalizeGroceryText('buy')).toBe('buy')
+    expect(normalizeGroceryText('  ')).toBe('')
+  })
+  it('only strips a verb at the START, not mid-text', () => {
+    expect(normalizeGroceryText('things to buy milk')).toBe('things to buy milk')
   })
 })

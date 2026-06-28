@@ -110,6 +110,24 @@ export const FREQUENT_GROCERY_MIN_COUNT = 5
  * drift from real calendar months. */
 export const FREQUENT_GROCERY_WINDOW_MS = 6 * 30 * 24 * 60 * 60 * 1000
 
+// ── Entry normalization ─────────────────────────────────────────────
+
+/** Leading shopping verbs stripped on entry, case-insensitively, so "Buy Milk"
+ * / "pick up some eggs" / "get more bread" become "Milk" / "eggs" / "bread".
+ * The remainder is preserved verbatim (casing kept). An optional quantity word
+ * (some/more/a/an/the) after the verb is dropped too. */
+const GROCERY_LEADING_VERB =
+  /^(?:buy|get|grab|pick ?up|purchase|need|add|want)(?:\s+(?:some|more|a|an|the))?\s+/i
+
+/** Clean a manually- or agent-entered grocery line into the item itself:
+ * trim, then strip a leading shopping verb. Never returns empty — falls back
+ * to the trimmed input if stripping would leave nothing. */
+export function normalizeGroceryText(raw: string): string {
+  const trimmed = raw.trim()
+  const stripped = trimmed.replace(GROCERY_LEADING_VERB, '').trim()
+  return stripped.length > 0 ? stripped : trimmed
+}
+
 // ── Constructors ────────────────────────────────────────────────────
 
 export function newGroceryItem(args: {

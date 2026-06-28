@@ -16,6 +16,7 @@ import {
   MAX_GROCERY_ITEMS,
   MAX_GROCERY_GROUPS,
   OTHERS_GROUP_ID,
+  normalizeGroceryText,
 } from "../../core-bindings/groceries";
 import { Profile } from "../../core-bindings/profile";
 import { classifyGroceryDept } from "../../adapters/aiInfer";
@@ -165,7 +166,9 @@ export function useGroceriesSlice(
 
   const addGrocery = useCallback(
     (args: { text: string; groupId?: string; stores?: string[] }) => {
-      const text = args.text.trim();
+      // Strip a leading shopping verb ("Buy Milk" → "Milk"), case-insensitively,
+      // so the list holds the item itself. Applies to manual + Mochi adds alike.
+      const text = normalizeGroceryText(args.text);
       if (!text) return;
       const explicit =
         args.groupId && args.groupId !== OTHERS_GROUP_ID
