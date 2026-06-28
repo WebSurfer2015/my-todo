@@ -19,43 +19,20 @@ import {
   View,
 } from 'react-native'
 import { useIsFocused, useNavigation } from '@react-navigation/native'
-import { CheckCircle2, ChevronRight } from 'lucide-react-native'
+import { ChevronRight } from 'lucide-react-native'
 import { useStore } from '../../app/StoreContext'
 import { useLang } from '../../app/LangContext'
 import { useSheets } from '../../app/SheetContext'
 import { useTheme, ThemeColors } from '../../app/theme'
 import { todayLocal } from '../../../../core/src/logic/utils'
-import {
-  type Todo,
-  type Filter,
-  isCategoryFilter,
-  categoryIdFromFilter,
-  isPriorityFilter,
-  priorityFromFilter,
-} from '../../../../core/src/domain/types'
-import { categoryLabel } from '../../../../core/src/data/categories'
+import { type Todo, type Filter } from '../../../../core/src/domain/types'
 import { buildGroups, type GroupKey } from '../../../../core/src/logic/groups'
 import EmptyStateCard from '../../ui/EmptyStateCard'
-import StatusIcon, { statusColor } from '../../ui/StatusIcon'
-import CategoryIcon from '../../ui/CategoryIcon'
-import PriorityBars from '../../ui/PriorityBars'
 import AppHeader from '../../app/AppHeader'
 import Fab from '../../app/Fab'
 import TaskItem from '../task/TaskItem'
 import DeferModal from '../task/DeferModal'
 import { Analytics } from '../../adapters/analytics'
-import { Store as StoreIcon, Tag } from 'lucide-react-native'
-import DraggableFlatList, {
-  ScaleDecorator,
-  type RenderItemParams,
-} from 'react-native-draggable-flatlist'
-import { LinearGradient } from 'expo-linear-gradient'
-import {
-  effectiveDashboardTiles,
-  dashboardTileKey,
-  countTodosForFilterSet,
-} from '../../../../core/src/logic/filters'
-import type { DashboardTile } from '../../../../core/src/data/profile'
 
 function isoDate(d: Date): string {
   const y = d.getFullYear()
@@ -79,10 +56,6 @@ export default function HomeScreen() {
   const styles = useMemo(() => makeStyles(theme), [theme])
   const navigation = useNavigation<any>()
   const sheets = useSheets()
-
-  // Measured height of the sticky stats row at the bottom. The Add FAB
-  // reads this so it can sit ABOVE the tiles instead of overlapping
-  // them. onLayout from the tiles' wrapping View populates it.
 
   const today = todayLocal()
 
@@ -257,23 +230,6 @@ export default function HomeScreen() {
   // Effective tiles come from the store (defaults to Home/Work/Done when
   // the user hasn't customized). Computed there so the Manage Filter
   // badges stay in sync with what the Home tiles actually render.
-  // Unified Dashboard pinned-card row (Todos filter sets + Shopping
-  // store/dept pins), reconciled to the live pins each render. The user's
-  // drag order persists to profile.dashboardTiles.
-  const dashboardTiles = useMemo(
-    () => effectiveDashboardTiles(store.profile),
-    [store.profile],
-  )
-  const navigateTab = useCallback(
-    (tab: 'Todos' | 'Groceries') => navigation.navigate(tab),
-    [navigation],
-  )
-  const onReorderTiles = useCallback(
-    (data: DashboardTile[]) =>
-      store.saveProfile({ ...store.profile, dashboardTiles: data }),
-    [store],
-  )
-
   // Pass-through render of TaskItem for each row, so Home inherits the
   // unified tap/long-press/swipe model and the embedded TaskDetailsSheet
   // for free. The only Home-local state is the single-todo Defer modal
@@ -617,70 +573,6 @@ export default function HomeScreen() {
         {/* Lifetime card moved into ProfileSheet (YOUR JOURNEY) so the
             destructive Reset action lives alongside identity. */}
       </ScrollView>
-      {/* Stats row pinned to the bottom — sits above the tab bar so the
-          counts stay glanceable while the today list scrolls. Tiles are
-          driven by profile.homeStatTiles (picked in the Dashboard gear's
-          Manage Home Tiles sheet). Default trio: Home/Work/Done. The row
-          is hidden when the user unpicks all; otherwise it horizontally
-          scrolls so any number of picks lays out cleanly.
-          Also hidden when ALL picked tiles have zero count — no point
-          rendering a sticky strip of "0 / 0 / 0", and the per-tile
-          filter below already drops the zero entries. */}
-      {/* Unified pinned-card row — Todos filter sets + Shopping pins,
-          horizontally scrollable, each with its live stat count. Long-press
-          a card to drag-reorder (order persists to profile.dashboardTiles);
-          tap to open it in the right tab. Replaces the old Manage-Tiles
-          stat row. */}
-      {dashboardTiles.length > 0 && (
-        <View style={styles.statsRowSticky}>
-          <DraggableFlatList
-            horizontal
-            data={dashboardTiles}
-            keyExtractor={(item) => dashboardTileKey(item)}
-            onDragEnd={({ data }) => onReorderTiles(data)}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.statsRowScroll}
-            renderItem={({ item, drag, isActive }: RenderItemParams<DashboardTile>) => {
-              const r = resolveDashboardTile(item, store, t, theme, navigateTab)
-              return (
-                <ScaleDecorator>
-                  <TouchableOpacity
-                    style={[styles.statTile, isActive && styles.statTileDragging]}
-                    onPress={r.onPress}
-                    onLongPress={drag}
-                    disabled={isActive}
-                    delayLongPress={200}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${r.label}, ${r.count}. Tap to open; long-press to reorder.`}
-                  >
-                    <Text style={styles.statValue}>{r.count}</Text>
-                    <View style={styles.statLabelArea}>
-                      <View style={styles.statLabelRow}>
-                        {r.icon}
-                        <Text style={styles.statLabel} numberOfLines={2} ellipsizeMode="tail">
-                          {r.label}
-                        </Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                </ScaleDecorator>
-              )
-            }}
-          />
-          {/* Right-edge fade — a quiet "there's more →" affordance so the
-              off-screen stat tiles (category filters) are discoverable. */}
-          {dashboardTiles.length > 3 && (
-            <LinearGradient
-              pointerEvents="none"
-              colors={['transparent', theme.bg]}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={styles.statsFade}
-            />
-          )}
-        </View>
-      )}
       <DeferModal
         visible={deferTarget !== null}
         filterLabel={deferTarget?.text}
@@ -691,10 +583,9 @@ export default function HomeScreen() {
         }}
         onClose={() => setDeferTarget(null)}
       />
-      {/* Add FAB — same component Todos uses; the compose sheet now
-          lives in SheetContext so this can fire from any tab. The
-          extraBottom offset lifts the FAB above the sticky stats row
-          (measured at runtime via onLayout above). */}
+      {/* Add FAB — same component Todos uses; the compose sheet lives in
+          SheetContext so this can fire from any tab. Sits alone above the tab
+          bar now that the stat strip is gone (the calm "doorway"). */}
       <Fab
         onPress={() => {
           void Analytics.fabTapped('dashboard')
@@ -707,135 +598,6 @@ export default function HomeScreen() {
   )
 }
 
-/** Resolve a Filter to its render parts for the sticky Home stats row. */
-function resolveTile(
-  f: Filter,
-  store: ReturnType<typeof useStore>,
-  t: ReturnType<typeof useLang>['t'],
-  theme: ThemeColors,
-): { icon: React.ReactNode; label: string; count: number } {
-  if (isCategoryFilter(f)) {
-    const catId = categoryIdFromFilter(f)
-    const cat = catId ? store.categories.find((c) => c.id === catId) : undefined
-    if (cat) {
-      return {
-        icon: <CategoryIcon icon={cat.icon} color={cat.color} size={11} />,
-        label: categoryLabel(cat, t),
-        count: store.byCategory[cat.id] ?? 0,
-      }
-    }
-    // Category was deleted after being picked — render a neutral placeholder
-    // and a zero count. User can re-pick a valid filter via the sheet.
-    return {
-      icon: <CheckCircle2 size={11} color={theme.label3} strokeWidth={2.4} />,
-      label: '—',
-      count: 0,
-    }
-  }
-  if (isPriorityFilter(f)) {
-    const p = priorityFromFilter(f)
-    return {
-      icon: <PriorityBars level={p} size={11} />,
-      label: t.priority[p],
-      count: store.byPriority[p] ?? 0,
-    }
-  }
-  const counts = store.systemCounts
-  if (f === 'all' || f === 'open' || f === 'done' || f === 'overdue' || f === 'trash') {
-    const count = counts[f] ?? 0
-    const sysLabel = (t.filters as Record<string, string>)[f] ?? f
-    return {
-      icon:
-        f === 'all' ? (
-          <CheckCircle2 size={11} color={theme.primary} strokeWidth={2.4} />
-        ) : (
-          <StatusIcon id={f} size={11} color={statusColor(f, theme)} />
-        ),
-      label: sysLabel,
-      count,
-    }
-  }
-  // Groceries (or any unknown filter shape) — neutral placeholder.
-  return {
-    icon: <CheckCircle2 size={11} color={theme.label3} strokeWidth={2.4} />,
-    label: '—',
-    count: 0,
-  }
-}
-
-/** Resolve a unified Dashboard tile (Todos filter set OR a Shopping
- * store/dept pin) to its label, stat count, icon, and tap action. */
-function resolveDashboardTile(
-  tile: DashboardTile,
-  store: ReturnType<typeof useStore>,
-  t: ReturnType<typeof useLang>['t'],
-  theme: ThemeColors,
-  navigate: (tab: 'Todos' | 'Groceries') => void,
-): { label: string; count: number; icon: React.ReactNode; onPress: () => void } {
-  if (tile.kind === 'todoFilter') {
-    const parts = tile.set.map((f) => resolveTile(f as Filter, store, t, theme))
-    // Group filters by kind — statuses, then priorities, then
-    // categories. Same-group selections join with ", "; different
-    // groups join with " + ". e.g. "Open, Done + Medium + Work, Home".
-    const groupOf = (f: Filter): number =>
-      isCategoryFilter(f) ? 2 : isPriorityFilter(f) ? 1 : 0
-    const byGroup: string[][] = [[], [], []]
-    tile.set.forEach((f, i) => {
-      byGroup[groupOf(f as Filter)].push(parts[i].label)
-    })
-    const groupedLabel =
-      byGroup
-        .filter((g) => g.length > 0)
-        .map((g) => g.join(', '))
-        .join(' + ') || (t.filters.all ?? 'All')
-    return {
-      label: groupedLabel,
-      count: countTodosForFilterSet(store.todos, tile.set),
-      icon:
-        parts[0]?.icon ?? (
-          <CheckCircle2 size={11} color={theme.primary} strokeWidth={2.4} />
-        ),
-      onPress: () => {
-        // Single-selection: clear any prior selection, then apply ONLY
-        // this card's filter set — tapping a card never accumulates onto
-        // a previously-active filter.
-        store.clearFilters()
-        store.setFilters(tile.set as Filter[])
-        navigate('Todos')
-      },
-    }
-  }
-  if (tile.kind === 'groceryStore') {
-    return {
-      label: tile.store,
-      count: store.groceries.filter(
-        (g) => !g.checked && g.stores.includes(tile.store),
-      ).length,
-      icon: <StoreIcon size={11} color={theme.primary} strokeWidth={2.4} />,
-      onPress: () => {
-        // Dashboard cards are single-select: a store card clears any active
-        // department (the Shopping screen's pills still allow store + dept).
-        store.setActiveGroceryDept(undefined)
-        store.setActiveGroceryStore(tile.store)
-        navigate('Groceries')
-      },
-    }
-  }
-  // groceryDept
-  const grp = store.groceryGroups.find((g) => g.id === tile.dept)
-  return {
-    label: grp?.label ?? tile.dept,
-    count: store.groceries.filter((g) => !g.checked && g.groupId === tile.dept)
-      .length,
-    icon: <Tag size={11} color={theme.primary} strokeWidth={2.4} />,
-    onPress: () => {
-      // Single-select from the Dashboard: clear any active store first.
-      store.setActiveGroceryStore(undefined)
-      store.setActiveGroceryDept(tile.dept)
-      navigate('Groceries')
-    },
-  }
-}
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
@@ -1010,96 +772,6 @@ function makeStyles(c: ThemeColors) {
       flexDirection: 'row',
       gap: 8,
       marginTop: 4,
-    },
-    statsRowSticky: {
-      paddingTop: 8,
-      paddingBottom: 8,
-      // Transparent — tile cards themselves carry the surface color.
-      // The hairline border + explicit bg were creating a separate
-      // cream band that visually competed with the tab bar below.
-    },
-    statsFade: {
-      position: 'absolute',
-      right: 0,
-      top: 0,
-      bottom: 0,
-      width: 36,
-    },
-    statsRowScroll: {
-      flexDirection: 'row',
-      gap: 8,
-      paddingHorizontal: 16,
-      // Stretch tiles to a uniform height (tallest wins) so single-row
-      // and two-row labels share the same card height.
-      alignItems: 'stretch',
-    },
-    statsRowScrollCenter: {
-      // flexGrow lets the contentContainer span the ScrollView width,
-      // so justifyContent: 'center' actually centers the children.
-      flexGrow: 1,
-      justifyContent: 'center',
-      alignItems: 'stretch',
-    },
-    statTile: {
-      // Fixed minWidth so the horizontal scroll lays out cleanly when
-      // the user picks many tiles. ~3 fit comfortably without
-      // scrolling on iPhone 17 Pro width (393pt - 32 pad = 361pt;
-      // 3 × 110 + 2 × 10 = 350).
-      // Fixed width — long multi-filter labels wrap inside instead of
-      // stretching the card.
-      width: 132,
-      backgroundColor: c.card,
-      borderRadius: 14,
-      paddingVertical: 18,
-      paddingHorizontal: 12,
-      alignItems: 'center',
-      // Count pinned to the top row; the label area below handles its
-      // own vertical centering (see statLabelArea).
-      justifyContent: 'flex-start',
-      marginRight: 10,
-      // Soft lift so the stat tiles read as raised cards.
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.08,
-      shadowRadius: 8,
-      elevation: 3,
-    },
-    statTileDragging: {
-      opacity: 0.9,
-      borderWidth: 1,
-      borderColor: c.primary,
-    },
-    statValue: {
-      fontSize: 28,
-      fontWeight: '700',
-      color: c.primary,
-      fontVariant: ['tabular-nums'],
-      letterSpacing: -0.5,
-    },
-    // Fixed two-line area below the count; the label (1 or 2 lines) is
-    // vertically centered within it so single-row labels sit in the
-    // middle of the two rows while the count stays on the first row.
-    statLabelArea: {
-      marginTop: 4,
-      height: 34,
-      alignSelf: 'stretch',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    statLabelRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      justifyContent: 'center',
-      gap: 4,
-    },
-    statLabel: {
-      fontSize: 12,
-      color: c.label3,
-      fontWeight: '600',
-      letterSpacing: 0.2,
-      // Wrap within the fixed-width card rather than overflow.
-      flexShrink: 1,
-      textAlign: 'center',
     },
     footnote: {
       fontSize: 13,
