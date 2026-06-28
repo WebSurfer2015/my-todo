@@ -449,12 +449,10 @@ export default function StorePicker({
                               setNewName("");
                               setAddingNew(false);
                             }}
+                            // Blur = cancel (tap away / backdrop / another row),
+                            // not save — otherwise there's no way to back out of
+                            // adding a store. Return key (above) is the commit.
                             onBlur={() => {
-                              const name = newName.trim();
-                              if (name) {
-                                onAdd(name);
-                                maybeLinkExistingItems(name);
-                              }
                               setNewName("");
                               setAddingNew(false);
                             }}
