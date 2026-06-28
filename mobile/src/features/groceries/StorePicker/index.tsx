@@ -32,10 +32,6 @@ import DraggableFlatList, {
 import {
   GroceryItem,
   GroceryGroup,
-  OTHERS_GROUP_ID,
-  newGroceryGroup,
-  MAX_GROCERY_GROUPS,
-  MAX_GROCERY_GROUP_LABEL_LEN,
   MAX_GROCERY_STORE_LEN,
 } from "../../../core-bindings/groceries";
 import { useLang } from "../../../app/LangContext";
@@ -45,9 +41,7 @@ import { linkStoreToItems } from "../../../adapters/aiInfer";
 import GroceryIcon from "../GroceryIcon";
 import MochiThinking from "../../mochi/MochiThinking";
 import EmptyStateCard from "../../../ui/EmptyStateCard";
-import { COLOR_PALETTE } from "../../../core-bindings/categories";
 import { makeStyles } from "./styles";
-import DeptForm from "./DeptForm";
 import SheetShell from "../../../ui/SheetShell";
 
 interface Props {
@@ -179,109 +173,6 @@ export default function StorePicker({
   }, [items]);
   void deptCounts; // currently unused after the dept section was removed; kept for parity.
 
-  function commitGroups(next: GroceryGroup[]) {
-    const o = next.find((g) => g.id === OTHERS_GROUP_ID);
-    const rest = next.filter((g) => g.id !== OTHERS_GROUP_ID);
-    onSetGroups(o ? [...rest, o] : rest);
-  }
-
-  function toggleDeptHidden(g: GroceryGroup) {
-    if (g.id === OTHERS_GROUP_ID) return;
-    const i = groups.findIndex((x) => x.id === g.id);
-    if (i < 0) return;
-    const nextHidden = !g.hidden;
-    const updated = [...groups];
-    updated[i] = { ...g, hidden: nextHidden };
-    commitGroups(updated);
-    if (nextHidden && activeDept === g.id) onSelectDept(undefined);
-  }
-  void toggleDeptHidden;
-
-  function deleteDept(g: GroceryGroup) {
-    if (g.id === OTHERS_GROUP_ID) return;
-    Alert.alert(
-      "Delete department",
-      `Delete "${g.label}"? Items in this department will fall back to Miscellaneous.`,
-      [
-        { text: t.cancel, style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            commitGroups(groups.filter((x) => x.id !== g.id));
-            if (activeDept === g.id) onSelectDept(undefined);
-          },
-        },
-      ],
-    );
-  }
-  void deleteDept;
-
-  const draggableDepts = groups.filter((g) => g.id !== OTHERS_GROUP_ID);
-  void draggableDepts;
-  const othersDept = groups.find((g) => g.id === OTHERS_GROUP_ID);
-  void othersDept;
-  const visibleDepts = editing ? groups : groups.filter((g) => !g.hidden);
-  void visibleDepts;
-
-  // Department edit-form mode. When non-null, the sheet body renders
-  // the form instead of the list view.
-  type DeptFormMode = { kind: "add" } | { kind: "edit"; id: string };
-  const [deptFormMode, setDeptFormMode] = useState<DeptFormMode | null>(null);
-  const [formLabel, setFormLabel] = useState("");
-  const [formColor, setFormColor] = useState<string>(COLOR_PALETTE[3]);
-  const [formIcon, setFormIcon] = useState<string>("tag");
-
-  function openAddDept() {
-    setFormLabel("");
-    setFormColor(COLOR_PALETTE[3]);
-    setFormIcon("tag");
-    setDeptFormMode({ kind: "add" });
-  }
-  void openAddDept;
-
-  function openEditDept(g: GroceryGroup) {
-    setFormLabel(g.label);
-    setFormColor(g.color ?? COLOR_PALETTE[3]);
-    setFormIcon(g.icon ?? "tag");
-    setDeptFormMode({ kind: "edit", id: g.id });
-  }
-  void openEditDept;
-
-  function saveDeptForm() {
-    const label = formLabel.trim();
-    if (!label) return;
-    if (!deptFormMode) return;
-    if (deptFormMode.kind === "add") {
-      if (groups.length >= MAX_GROCERY_GROUPS) {
-        setDeptFormMode(null);
-        return;
-      }
-      const fresh: GroceryGroup = {
-        ...newGroceryGroup(label),
-        color: formColor,
-        icon: formIcon,
-      };
-      const idx = groups.findIndex((g) => g.id === OTHERS_GROUP_ID);
-      const updated = [...groups];
-      if (idx >= 0) updated.splice(idx, 0, fresh);
-      else updated.push(fresh);
-      commitGroups(updated);
-    } else {
-      const i = groups.findIndex((g) => g.id === deptFormMode.id);
-      if (i >= 0) {
-        const updated = [...groups];
-        updated[i] = {
-          ...groups[i],
-          label: label.slice(0, MAX_GROCERY_GROUP_LABEL_LEN),
-          color: formColor,
-          icon: formIcon,
-        };
-        commitGroups(updated);
-      }
-    }
-    setDeptFormMode(null);
-  }
 
   const counts = useMemo(() => {
     const tagged = new Map<string, number>();
@@ -344,38 +235,9 @@ export default function StorePicker({
       onClose={closeAndReset}
       scroll={false}
       padded={false}
-      title={
-        deptFormMode
-          ? deptFormMode.kind === "add"
-            ? "Add Department"
-            : "Edit Department"
-          : editing
-            ? "Manage Store"
-            : "Select Store"
-      }
-      left={
-        deptFormMode
-          ? { label: t.cancel, onPress: () => setDeptFormMode(null) }
-          : { label: t.cancel, onPress: closeAndReset }
-      }
-      primary={
-        deptFormMode
-          ? { label: t.save, onPress: saveDeptForm, disabled: !formLabel.trim() }
-          : { label: t.done, onPress: closeAndReset }
-      }
+      title={editing ? "Manage Store" : "Select Store"}
+      primary={{ label: t.done, onPress: closeAndReset }}
     >
-      {deptFormMode ? (
-        <DeptForm
-          label={formLabel}
-          color={formColor}
-          icon={formIcon}
-          onLabel={setFormLabel}
-          onColor={setFormColor}
-          onIcon={setFormIcon}
-          styles={styles}
-          theme={theme}
-        />
-      ) : (
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[
@@ -630,7 +492,6 @@ export default function StorePicker({
                   )}
           <View style={{ height: 24 }} />
         </ScrollView>
-      )}
     </SheetShell>
   );
 }

@@ -6,7 +6,7 @@
  * single tab screen.
  *
  * Per-tab sheets (ComposeSheet / ChatSheet / CategorySheet for Todos;
- * GroceryEditSheet / StorePicker / DepartmentPicker for Groceries)
+ * GroceryEditSheet / StorePicker for Groceries)
  * stay inside their owning screen — those don't need cross-tab access.
  */
 
