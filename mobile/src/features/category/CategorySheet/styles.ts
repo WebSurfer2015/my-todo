@@ -214,57 +214,6 @@ export function makeStyles(c: ThemeColors) {
     // Edit/Delete). Compact text so 3 actions plus the drag handle still
     // fit on a single row at default density.
     rowAction: { paddingHorizontal: 6, paddingVertical: 4 },
-    tileBadge: {
-      marginHorizontal: 6,
-      minWidth: 26,
-      height: 20,
-      paddingHorizontal: 6,
-      borderRadius: 4,
-      borderWidth: 1,
-      borderColor: c.gray3,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: "transparent",
-    },
-    tileBadgePicked: {
-      backgroundColor: c.primary,
-      borderColor: c.primary,
-    },
-    tileBadgeDisabled: {
-      opacity: 0.35,
-    },
-    tileBadgeText: {
-      fontSize: 12,
-      fontWeight: "700",
-      color: c.label2,
-      lineHeight: 14,
-    },
-    tileBadgeTextPicked: {
-      color: c.primaryOn,
-    },
-    tileBadgeTextDisabled: {
-      color: c.label3,
-    },
-    homeTilesBanner: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "flex-end",
-      gap: 12,
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      marginBottom: 4,
-    },
-    homeTilesBannerLabel: {
-      fontSize: 11,
-      fontWeight: "700",
-      letterSpacing: 0.6,
-      color: c.label2,
-    },
-    homeTilesBannerReset: {
-      fontSize: 12,
-      fontWeight: "600",
-      color: c.red,
-    },
     rowActionText: {
       fontSize: 12,
       fontWeight: "600",
