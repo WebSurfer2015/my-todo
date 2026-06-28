@@ -36,7 +36,6 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native'
-import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLang } from '../app/LangContext'
 import { useTheme, ThemeColors } from '../app/theme'
@@ -57,9 +56,6 @@ export interface SheetShellProps {
   subtitle?: string
   /** Right-side commit action. Omit for tap-to-select pickers. */
   primary?: HeaderAction
-  /** Custom right-slot content (e.g. a delete icon) — overrides `primary`
-   * when provided. For when the right action isn't a simple text label. */
-  right?: React.ReactNode
   /** Left-side action. Defaults to Cancel → onClose. */
   left?: HeaderAction
   /** Wrap the body in a ScrollView (default). Set false for sheets that own
@@ -69,13 +65,6 @@ export interface SheetShellProps {
    * manages its own horizontal margins (e.g. full-bleed cards + indented
    * section labels). The header keeps its gutter either way. */
   padded?: boolean
-  /** Fixed footer below the (scrolling) body — e.g. a sticky primary button.
-   * Sits above the safe-area inset. */
-  footer?: React.ReactNode
-  /** Pin the sheet to a fixed fraction of screen height (e.g. 0.85) instead of
-   * min-30/max-85. Use for sheets whose inner ScrollView needs a hard bound to
-   * scroll the tail of a long list reliably. */
-  heightPct?: number
   children: React.ReactNode
 }
 
@@ -85,12 +74,9 @@ export default function SheetShell({
   title,
   subtitle,
   primary,
-  right,
   left,
   scroll = true,
   padded = true,
-  footer,
-  heightPct,
   children,
 }: SheetShellProps) {
   const { t } = useLang()
@@ -102,9 +88,6 @@ export default function SheetShell({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      {/* GestureHandlerRootView so drag lists (DraggableFlatList) work inside
-          the Modal — Modals portal outside the app-root gesture handler. */}
-      <GestureHandlerRootView style={styles.flex}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -115,10 +98,7 @@ export default function SheetShell({
         <View
           style={[
             styles.sheet,
-            heightPct
-              ? { height: Math.round(height * heightPct) }
-              : { minHeight: height * 0.3 },
-            { paddingBottom: Math.max(24, insets.bottom + 8) },
+            { minHeight: height * 0.3, paddingBottom: Math.max(24, insets.bottom + 8) },
           ]}
         >
           <View style={styles.handle} />
@@ -145,7 +125,7 @@ export default function SheetShell({
               ) : null}
             </View>
             <View style={styles.headerSideRight}>
-              {right ?? (primary && (
+              {primary && (
                 <TouchableOpacity
                   onPress={primary.onPress}
                   disabled={primary.disabled}
@@ -157,7 +137,7 @@ export default function SheetShell({
                     {primary.label}
                   </Text>
                 </TouchableOpacity>
-              ))}
+              )}
             </View>
           </View>
 
@@ -174,11 +154,9 @@ export default function SheetShell({
           ) : (
             <View style={[styles.bodyFixed, padded && styles.bodyPad]}>{children}</View>
           )}
-          {footer ? <View style={styles.footer}>{footer}</View> : null}
         </View>
       </View>
       </KeyboardAvoidingView>
-      </GestureHandlerRootView>
     </Modal>
   )
 }
@@ -235,6 +213,5 @@ function makeStyles(c: ThemeColors) {
     bodyContent: { paddingBottom: 12 },
     bodyFixed: { flexShrink: 1 },
     bodyPad: { paddingHorizontal: 16 },
-    footer: { paddingHorizontal: 16, paddingTop: 8 },
   })
 }
