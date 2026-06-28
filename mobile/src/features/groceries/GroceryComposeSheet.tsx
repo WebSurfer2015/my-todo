@@ -17,11 +17,6 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -29,6 +24,7 @@ import {
   View,
 } from 'react-native'
 import { Alert } from 'react-native'
+import SheetShell from '../../ui/SheetShell'
 import { Check, Plus, Store as StoreIcon } from 'lucide-react-native'
 import MochiThinking from '../mochi/MochiThinking'
 import * as Haptics from 'expo-haptics'
@@ -466,39 +462,14 @@ export default function GroceryComposeSheet({
   const canSubmit = text.trim().length > 0 && selectedStores.length > 0
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        {/* Sibling backdrop tap-layer (not a wrapper) — a wrapping Pressable
-            collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
-        <View style={styles.backdrop}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
-          <View style={styles.sheet}>
-            <View style={styles.handle} />
-
-            {subView === 'main' && (
-              <>
-                <View style={styles.headerRow}>
-                  <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.headerSideBtn}>
-                    <Text style={styles.cancelText}>{t.cancel}</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.title}>Add Item</Text>
-                  <TouchableOpacity
-                    onPress={handleAdd}
-                    disabled={!canSubmit}
-                    hitSlop={10}
-                    style={styles.headerSideBtn}
-                    accessibilityRole="button"
-                    accessibilityState={{ disabled: !canSubmit }}
-                    accessibilityLabel="Add item"
-                  >
-                    <Text style={[styles.headerDoneText, !canSubmit && styles.headerDoneTextDisabled]}>
-                      {t.add}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+    <SheetShell
+      visible={visible}
+      onClose={onClose}
+      scroll={false}
+      padded={false}
+      title="Add Item"
+      primary={{ label: t.add, onPress: handleAdd, disabled: !canSubmit }}
+    >
 
                 <View style={styles.body}>
                   <TextInput
@@ -634,80 +605,12 @@ export default function GroceryComposeSheet({
                     </TouchableOpacity>
                   )}
                 </View>
-              </>
-            )}
-
-            {/* Department + Store sub-view pickers were removed in
-                Phase 1 — Add Item is now name-only. Inferred dept +
-                inherited active-store filter handle the rest. */}
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  )
-}
-
-function SubViewList({
-  title,
-  onBack,
-  children,
-  styles,
-}: {
-  title: string
-  onBack: () => void
-  children: React.ReactNode
-  styles: ReturnType<typeof makeStyles>
-}) {
-  return (
-    <>
-      <View style={styles.headerRow}>
-        <TouchableOpacity onPress={onBack} hitSlop={10} style={styles.headerSideBtn}>
-          <Text style={styles.cancelText}>‹ Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>{title}</Text>
-        <View style={styles.headerSideBtn} />
-      </View>
-      <ScrollView contentContainerStyle={styles.subBody} keyboardShouldPersistTaps="handled">
-        <View style={styles.fieldGroup}>{children}</View>
-      </ScrollView>
-    </>
+    </SheetShell>
   )
 }
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    flex: { flex: 1 },
-    backdrop: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.45)',
-      justifyContent: 'flex-end',
-    },
-    sheet: {
-      backgroundColor: c.modal,
-      borderTopLeftRadius: 18,
-      borderTopRightRadius: 18,
-      paddingTop: 6,
-      paddingBottom: 24,
-      maxHeight: '92%',
-    },
-    handle: {
-      alignSelf: 'center',
-      width: 36,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: c.gray3,
-      marginVertical: 6,
-    },
-    headerRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingBottom: 10,
-    },
-    headerSideBtn: { width: 64 },
-    title: { fontSize: 20, fontWeight: '700', color: c.label, textAlign: 'center' },
-    cancelText: { fontSize: 15, fontWeight: '500', color: c.primary },
     body: { paddingHorizontal: 16, paddingBottom: 12 },
     textInput: {
       // Two visible rows at fontSize 18 / lineHeight ~24 + vertical
@@ -740,24 +643,6 @@ function makeStyles(c: ThemeColors) {
       fontStyle: 'italic',
       color: c.label3,
       letterSpacing: -0.1,
-    },
-    // Top-right "Done" header button — primary save action. Same
-    // weight as the iOS standard right-side commit button. Disabled
-    // styling dims when the form isn't valid (no text or no store).
-    headerDoneText: {
-      fontSize: 15,
-      fontWeight: '600',
-      color: c.primary,
-      textAlign: 'right',
-    },
-    headerDoneTextDisabled: {
-      color: c.label3,
-      opacity: 0.5,
-    },
-    fieldGroup: {
-      backgroundColor: c.card,
-      borderRadius: 12,
-      overflow: 'hidden',
     },
     aiPillRow: {
       flexDirection: 'row',
