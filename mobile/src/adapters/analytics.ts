@@ -81,9 +81,6 @@ export const Analytics = {
   emptyStateCtaTapped(surface: EmptySurface): Promise<void> {
     return safeLog('empty_state_cta_tapped', { surface })
   },
-  themeFromAvatarToggled(value: boolean): Promise<void> {
-    return safeLog('theme_from_avatar_toggled', { value: String(value) })
-  },
   /** Set the signed-in user id for cross-event attribution. Called
    * from AuthContext when auth state resolves. */
   async setUserId(uid: string | null): Promise<void> {

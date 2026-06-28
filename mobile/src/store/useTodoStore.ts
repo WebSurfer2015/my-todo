@@ -414,13 +414,13 @@ export function useTodoStore() {
   // pebble vocabulary now (this flag can never be true).
   const dethemePebbles = false;
   const mascotLine = pickMascotLine(lang, greetingKey, todayCount, todayDate, dethemePebbles);
-  // Subtitle source (calm model): a daily curated quote by default — no
-  // button, no effort. Resolution:
+  // Subtitle source. Resolution:
   //   - 'daily'  → date-seeded curated quote, stable all day, rotates at
   //                midnight; honors a per-day "show me another" shuffle.
   //   - 'custom' → the user's own quote text.
   //   - 'off'    → no subtitle.
-  // Legacy/undefined falls back to 'custom' when a quote exists, else 'daily'.
+  // Default (undefined) is 'custom' → empty box = no subtitle; the daily
+  // quote is opt-in via Profile's "Random daily".
   const quoteMode = profile.quoteMode ?? 'custom';
   const dailyQuote =
     quoteMode === 'daily'

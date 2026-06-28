@@ -952,12 +952,6 @@ function makeStyles(c: ThemeColors) {
       fontSize: 12,
       color: c.label3,
     },
-    todayOverdue: {
-      fontSize: 11,
-      fontWeight: '600',
-      color: c.red,
-      letterSpacing: 0.1,
-    },
     todayDivider: {
       height: StyleSheet.hairlineWidth,
       backgroundColor: c.separator,

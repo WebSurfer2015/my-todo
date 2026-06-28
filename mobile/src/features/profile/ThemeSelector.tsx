@@ -13,14 +13,11 @@ import {
   useColorScheme,
   View,
 } from 'react-native'
-import { Check, Lock } from 'lucide-react-native'
+import { Check } from 'lucide-react-native'
 import SheetShell from '../../ui/SheetShell'
 import { useTheme, ThemeColors, themeSwatch } from '../../app/theme'
 import { THEME_NAMES, type ThemeName } from '../../core-bindings/profile'
-import { usePurchases } from '../../app/PurchasesContext'
-import { canUseThemes } from '../../core-bindings/entitlements'
 
-const FREE_THEMES: ThemeName[] = ['sage', 'sky']
 const LABELS: Record<ThemeName, string> = {
   sage: 'Sage',
   sky: 'Sky',
@@ -41,16 +38,9 @@ export default function ThemeSelector({ visible, value, onChange, onClose }: Pro
   const theme = useTheme()
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light'
   const styles = useMemo(() => makeStyles(theme), [theme])
-  const { tier, openPaywall } = usePurchases()
-  const locked = !canUseThemes(tier)
 
-  const pick = (name: ThemeName) => {
-    if (!FREE_THEMES.includes(name) && locked) {
-      openPaywall('Themes are a Premium feature.')
-      return
-    }
-    onChange(name)
-  }
+  // All themes are free for every tier.
+  const pick = (name: ThemeName) => onChange(name)
 
   return (
     <SheetShell
@@ -64,7 +54,6 @@ export default function ThemeSelector({ visible, value, onChange, onClose }: Pro
         {THEME_NAMES.map((name) => {
           const sw = themeSwatch(name, scheme)
           const selected = value === name
-          const isLocked = !FREE_THEMES.includes(name) && locked
           return (
             <TouchableOpacity
               key={name}
@@ -73,7 +62,7 @@ export default function ThemeSelector({ visible, value, onChange, onClose }: Pro
               onPress={() => pick(name)}
               accessibilityRole="button"
               accessibilityState={{ selected }}
-              accessibilityLabel={`${LABELS[name]} theme${selected ? ', selected' : ''}${isLocked ? ', Premium' : ''}`}
+              accessibilityLabel={`${LABELS[name]} theme${selected ? ', selected' : ''}`}
             >
               <View
                 style={[
@@ -93,11 +82,6 @@ export default function ThemeSelector({ visible, value, onChange, onClose }: Pro
                 {selected && (
                   <View style={[styles.check, { backgroundColor: theme.primary }]}>
                     <Check size={14} color={theme.primaryOn} strokeWidth={3} />
-                  </View>
-                )}
-                {isLocked && (
-                  <View style={styles.lock}>
-                    <Lock size={12} color="#FFFFFF" strokeWidth={2.5} />
                   </View>
                 )}
               </View>

@@ -402,8 +402,11 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           // desyncs iOS's native modal stack and leaves an invisible
           // touch-capturing layer → the UI freezes ("no action works").
           setThemePickerOpen(false)
+          // Functional update so we apply onto the LATEST profile, not the
+          // one captured when onChange fired (avoids clobbering a concurrent
+          // edit during the 260ms dismiss window).
           setTimeout(() => {
-            store.saveProfile({ ...store.profile, theme: next })
+            store.saveProfile((p) => ({ ...p, theme: next }))
           }, 260)
         }}
         onClose={() => setThemePickerOpen(false)}

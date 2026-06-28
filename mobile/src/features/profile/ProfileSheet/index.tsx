@@ -345,8 +345,17 @@ export default function ProfileSheet({
                   <TouchableOpacity
                     style={styles.accountSignOutRow}
                     onPress={() => {
-                      onClose();
-                      signOut();
+                      Alert.alert(t.signOut, "You'll be returned to the sign-in screen. Your data stays in your account.", [
+                        { text: t.cancel, style: "cancel" },
+                        {
+                          text: t.signOut,
+                          style: "destructive",
+                          onPress: () => {
+                            onClose();
+                            signOut();
+                          },
+                        },
+                      ]);
                     }}
                     accessibilityRole="button"
                     accessibilityLabel={t.signOut}
