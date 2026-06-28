@@ -135,7 +135,11 @@ export function makeStyles(c: ThemeColors, density: Density) {
       fontWeight: '500',
     },
     chipTextOverdue: {
-      color: c.red,
+      // Calm lens: overdue is information, not an alarm. Use the same soft
+      // orange as "today" (was c.red) — the app already reframes overdue as
+      // "carried over" and hides its count in the filter bar; the red chip
+      // was the one place it still raised its voice. Red stays for destructive.
+      color: c.orange,
       fontWeight: '700',
     },
     chipTextToday: {

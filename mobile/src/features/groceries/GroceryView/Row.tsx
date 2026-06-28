@@ -22,10 +22,10 @@ export interface RowProps {
 }
 
 /**
- * Row tap targets split iOS-Reminders-style:
- * - Checkbox area (left) → toggle checked / re-add from Future
- * - Text + store (rest of the row) → open edit sheet
- * Long-press anywhere → also opens edit (alternative discovery path).
+ * Row tap targets, tuned for fast shopping:
+ * - Checkbox AND the text/store body → toggle checked / re-add from Future
+ *   (tap anywhere to check an item off the list quickly).
+ * - The trailing "›" chevron, or a long-press anywhere → open the edit sheet.
  */
 export default function Row({
   item,
@@ -111,6 +111,17 @@ export default function Row({
             {item.stores.join(" · ")}
           </Text>
         )}
+      </TouchableOpacity>
+      {/* Visible edit affordance — tap-to-toggle owns the row body, so a quiet
+          chevron gives a discoverable edit path without relying on long-press. */}
+      <TouchableOpacity
+        onPress={onOpenEdit}
+        hitSlop={10}
+        style={styles.rowEditBtn}
+        accessibilityRole="button"
+        accessibilityLabel={`Edit ${item.text}`}
+      >
+        <Text style={styles.rowEditChevron}>›</Text>
       </TouchableOpacity>
     </View>
   );

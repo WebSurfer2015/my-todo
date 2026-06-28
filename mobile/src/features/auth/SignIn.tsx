@@ -39,6 +39,7 @@ export default function SignIn() {
   const [mode, setMode] = useState<Mode>("social");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -219,7 +220,10 @@ export default function SignIn() {
                     onChangeText={setEmail}
                     autoCapitalize="none"
                     autoComplete="email"
+                    textContentType="emailAddress"
                     keyboardType="email-address"
+                    inputMode="email"
+                    clearButtonMode="while-editing"
                     editable={!busy}
                     testID="signin-email-input"
                   />
@@ -227,13 +231,26 @@ export default function SignIn() {
 
                 {mode !== "reset" && (
                   <View style={styles.field}>
-                    <Text style={styles.label}>{t.passwordLabel}</Text>
+                    <View style={styles.passwordLabelRow}>
+                      <Text style={styles.label}>{t.passwordLabel}</Text>
+                      <TouchableOpacity
+                        onPress={() => setShowPassword((v) => !v)}
+                        hitSlop={10}
+                        accessibilityRole="button"
+                        accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                      >
+                        <Text style={styles.showPwText}>
+                          {showPassword ? "Hide" : "Show"}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                     <TextInput
                       style={styles.input}
                       value={password}
                       onChangeText={setPassword}
-                      secureTextEntry
+                      secureTextEntry={!showPassword}
                       autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                      textContentType={mode === "signin" ? "password" : "newPassword"}
                       editable={!busy}
                       testID="signin-password-input"
                     />
@@ -450,8 +467,20 @@ function makeStyles(c: ThemeColors) {
       fontWeight: "600",
       marginBottom: 4,
     },
+    passwordLabelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    showPwText: {
+      fontSize: 12,
+      color: c.primary,
+      fontWeight: "600",
+      marginBottom: 4,
+    },
     input: {
-      paddingVertical: 10,
+      // ~44pt field (was ~40pt) — primary entry points deserve a full target.
+      paddingVertical: 14,
       paddingHorizontal: 12,
       fontSize: 15,
       color: c.label,
@@ -484,7 +513,8 @@ function makeStyles(c: ThemeColors) {
       marginTop: 8,
       backgroundColor: c.blue,
       borderRadius: 10,
-      paddingVertical: 12,
+      // ~48pt — this is the app's primary CTA across all auth modes.
+      paddingVertical: 16,
       alignItems: "center",
     },
     submitDisabled: { opacity: 0.6 },

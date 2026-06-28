@@ -49,6 +49,7 @@ import DraggableFlatList, {
   ScaleDecorator,
   type RenderItemParams,
 } from 'react-native-draggable-flatlist'
+import { LinearGradient } from 'expo-linear-gradient'
 import {
   effectiveDashboardTiles,
   dashboardTileKey,
@@ -667,6 +668,17 @@ export default function HomeScreen() {
               )
             }}
           />
+          {/* Right-edge fade — a quiet "there's more →" affordance so the
+              off-screen stat tiles (category filters) are discoverable. */}
+          {dashboardTiles.length > 3 && (
+            <LinearGradient
+              pointerEvents="none"
+              colors={['transparent', theme.bg]}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={styles.statsFade}
+            />
+          )}
         </View>
       )}
       <DeferModal
@@ -1011,6 +1023,13 @@ function makeStyles(c: ThemeColors) {
       // Transparent — tile cards themselves carry the surface color.
       // The hairline border + explicit bg were creating a separate
       // cream band that visually competed with the tab bar below.
+    },
+    statsFade: {
+      position: 'absolute',
+      right: 0,
+      top: 0,
+      bottom: 0,
+      width: 36,
     },
     statsRowScroll: {
       flexDirection: 'row',

@@ -160,6 +160,14 @@ export default function PaywallSheet({
                 // their current tier, with a package available). Otherwise a
                 // quiet status.
                 const purchasable = !owned && plan.tier !== 'free' && !!pkg
+                // Trial CTA only when THIS package actually carries a free
+                // intro offer (price 0) — not just because the annual toggle
+                // is selected. Keeps the copy honest per billing option.
+                const intro = pkg?.product.introPrice
+                const trialText =
+                  intro && intro.price === 0
+                    ? `Start ${intro.periodNumberOfUnits}-${String(intro.periodUnit).toLowerCase()} free trial`
+                    : null
                 // Premium is the recommended plan: it gets the single
                 // filled CTA + a "Popular" tag, so only one primary action
                 // competes for the eye. Other purchasable plans (Max) get a
@@ -206,9 +214,7 @@ export default function PaywallSheet({
                         activeOpacity={0.85}
                       >
                         <Text style={recommended ? styles.ctaText : styles.ctaOutlineText}>
-                          {billing === 'annual'
-                            ? 'Start 7-day free trial'
-                            : `Subscribe · ${price}`}
+                          {trialText ?? `Subscribe · ${price}`}
                         </Text>
                       </TouchableOpacity>
                     ) : (
