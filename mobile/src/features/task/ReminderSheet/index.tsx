@@ -386,13 +386,17 @@ export default function ReminderSheet({
               <View style={styles.chipsWrap}>
                 {REMIND_BEFORE_DUE_CHOICES.map((c) => {
                   const active = isBeforeDueSelected(c.minutes)
+                  // At the cap, dim the inactive chips so it reads as "full"
+                  // rather than a silent no-op when tapped.
+                  const atCap =
+                    pending.filter((r) => !r.intervalMinutes).length >= MAX_REMINDERS_PER_TODO
                   return (
                     <TouchableOpacity
                       key={`bd-${c.label}`}
                       onPress={() => toggleBeforeDue(c.minutes)}
-                      style={[styles.chip, active && styles.chipActive]}
+                      style={[styles.chip, active && styles.chipActive, !active && atCap && { opacity: 0.4 }]}
                       accessibilityRole="button"
-                      accessibilityState={{ selected: active }}
+                      accessibilityState={{ selected: active, disabled: !active && atCap }}
                       accessibilityLabel={beforeDuePillLabel(c.minutes, t)}
                     >
                       <Text

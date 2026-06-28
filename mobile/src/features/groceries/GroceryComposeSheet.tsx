@@ -148,7 +148,9 @@ export default function GroceryComposeSheet({
       setSubView('main')
       setText('')
       setGroupId(initialDepartmentId ?? OTHERS_GROUP_ID)
-      setSelectedStores([])
+      // Seed the active store filter so adding from a filtered list keeps
+      // that store sticky (AI item-match still unions more in on top).
+      setSelectedStores(initialStore ? [initialStore] : [])
       userPickedDeptRef.current = false
       userPickedStoreRef.current = false
       setNewStoreProposal(null)
