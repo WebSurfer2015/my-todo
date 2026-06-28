@@ -9,18 +9,11 @@
  */
 
 import React, { useMemo } from 'react'
-import {
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native'
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { Profile } from '../../core-bindings/profile'
 import { useLang } from '../../app/LangContext'
 import { useTheme, ThemeColors } from '../../app/theme'
+import SheetShell from '../../ui/SheetShell'
 
 interface Props {
   visible: boolean
@@ -44,61 +37,39 @@ export default function ManageAnimationSoundSheet({
   const reduceMotionOn = profile.reduceMotion === true
 
   return (
-    <Modal
+    <SheetShell
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
+      onClose={onClose}
+      title="Animation & Sound"
+      primary={{ label: t.done, onPress: onClose }}
     >
-      {/* Sibling backdrop tap-layer (not a wrapper) — a wrapping Pressable
-          collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
-      <View style={styles.backdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
-        <View style={styles.sheet}>
-          <View style={styles.handle} />
-          <View style={styles.headerRow}>
-            <View style={styles.headerSide} />
-            <Text style={styles.title}>Animation &amp; Sound</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.headerSide}>
-              <Text style={styles.doneText}>{t.done}</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            style={styles.body}
-            contentContainerStyle={styles.bodyContent}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.card}>
-              <ToggleRow
-                label="Reduce motion"
-                hint="Suppresses Mochi flight, row flash, and the checkbox bounce. Use this if motion makes you queasy."
-                value={reduceMotionOn}
-                onChange={(v) => onSavePartial({ reduceMotion: v })}
-                styles={styles}
-              />
-              <View style={styles.divider} />
-              <ToggleRow
-                label="Completion animation"
-                hint="A calm scale pulse when you mark a task done."
-                value={animationOn && !reduceMotionOn}
-                onChange={(v) => onSavePartial({ completionAnimation: v })}
-                disabled={reduceMotionOn}
-                styles={styles}
-              />
-              <View style={styles.divider} />
-              <ToggleRow
-                label="Completion sound"
-                hint="A soft chime when you mark a task done."
-                value={soundOn}
-                onChange={(v) => onSavePartial({ completionSound: v })}
-                styles={styles}
-              />
-            </View>
-          </ScrollView>
-        </View>
+      <View style={styles.card}>
+        <ToggleRow
+          label="Reduce motion"
+          hint="Suppresses Mochi flight, row flash, and the checkbox bounce. Use this if motion makes you queasy."
+          value={reduceMotionOn}
+          onChange={(v) => onSavePartial({ reduceMotion: v })}
+          styles={styles}
+        />
+        <View style={styles.divider} />
+        <ToggleRow
+          label="Completion animation"
+          hint="A calm scale pulse when you mark a task done."
+          value={animationOn && !reduceMotionOn}
+          onChange={(v) => onSavePartial({ completionAnimation: v })}
+          disabled={reduceMotionOn}
+          styles={styles}
+        />
+        <View style={styles.divider} />
+        <ToggleRow
+          label="Completion sound"
+          hint="A soft chime when you mark a task done."
+          value={soundOn}
+          onChange={(v) => onSavePartial({ completionSound: v })}
+          styles={styles}
+        />
       </View>
-    </Modal>
+    </SheetShell>
   )
 }
 
@@ -135,50 +106,6 @@ function ToggleRow({ label, hint, value, onChange, styles, disabled }: ToggleRow
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    backdrop: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.45)',
-      justifyContent: 'flex-end',
-    },
-    sheet: {
-      backgroundColor: c.modal,
-      borderTopLeftRadius: 18,
-      borderTopRightRadius: 18,
-      paddingTop: 12,
-      paddingBottom: 24,
-      paddingHorizontal: 16,
-      maxHeight: '85%',
-    },
-    handle: {
-      alignSelf: 'center',
-      width: 36,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: c.gray3,
-      marginBottom: 12,
-    },
-    headerRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingBottom: 8,
-    },
-    headerSide: {
-      minWidth: 56,
-      alignItems: 'flex-end',
-    },
-    title: {
-      fontSize: 20,
-      fontWeight: '700',
-      color: c.label,
-    },
-    doneText: {
-      fontSize: 15,
-      color: c.blue,
-      fontWeight: '600',
-    },
-    body: { flexGrow: 0 },
-    bodyContent: { paddingBottom: 12 },
     card: {
       borderRadius: 12,
       backgroundColor: c.card,

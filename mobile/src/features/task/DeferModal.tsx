@@ -24,20 +24,13 @@
  */
 
 import React, { useMemo, useState } from 'react'
-import {
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native'
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { ChevronRight, Calendar } from 'lucide-react-native'
 import { useTheme, ThemeColors } from '../../app/theme'
 import { useLang } from '../../app/LangContext'
 import { isoDate } from '../../core-bindings/utils'
+import SheetShell from '../../ui/SheetShell'
 
 interface Props {
   visible: boolean
@@ -107,137 +100,77 @@ export default function DeferModal({
       : filterLabel
     : ''
 
+  const isPicker = subView === 'picker'
+  // "Defer to" for a single todo (swipe action), "Defer all to" for bulk
+  // (group header). count is the only signal we have — undefined/1 = single.
+  const mainTitle = count && count > 1 ? 'Defer all to' : 'Defer to'
+
   return (
-    <Modal
+    <SheetShell
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
+      onClose={onClose}
+      scroll={false}
+      title={isPicker ? 'Pick a date' : mainTitle}
+      subtitle={isPicker ? formatTargetDate(pickerDate) : subtitle || undefined}
+      // In the picker, the left action steps BACK to the options (not out).
+      left={isPicker ? { label: t.cancel, onPress: () => setSubView('main') } : undefined}
+      primary={
+        isPicker
+          ? { label: t.done, onPress: () => commit(pickerDate) }
+          : { label: t.done, onPress: onClose }
+      }
     >
-      {/* Backdrop is a SIBLING tap-layer (not a wrapper). A Pressable that
-          WRAPS the sheet collapses the whole subtree into one iOS a11y leaf
-          (breaks VoiceOver + Maestro). As a sibling behind the opaque sheet,
-          taps on the dim area still close; taps on the sheet are absorbed by
-          the sheet View, and the sheet's children stay individually exposed. */}
-      <View style={styles.backdrop}>
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={onClose}
-          accessible={false}
-        />
-        <View style={styles.sheet}>
-          <View style={styles.handle} />
-
-          {subView === 'main' && (
-            <>
-              <View style={styles.titleRow}>
-                <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.titleSideBtn}>
-                  <Text style={styles.cancelText}>{t.cancel}</Text>
-                </TouchableOpacity>
-                <View style={styles.titleCenter}>
-                  {/* "Defer to" for a single todo (swipe action),
-                      "Defer all to" for bulk deferrals (group header
-                      action). count is the only signal we have for the
-                      mode — undefined or 1 means single-todo. */}
-                  <Text style={styles.title}>
-                    {count && count > 1 ? 'Defer all to' : 'Defer to'}
-                  </Text>
-                  {subtitle ? (
-                    <Text style={styles.subtitle} numberOfLines={1}>
-                      {subtitle}
-                    </Text>
-                  ) : null}
-                </View>
-                <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.titleSideBtn}>
-                  <Text style={styles.doneText}>Done</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.card}>
-                <OptionRow
-                  label={isTodayGroup ? 'Tomorrow' : 'Next day'}
-                  hint={isTodayGroup ? formatTargetDate(tomorrow) : undefined}
-                  onPress={() => commit(tomorrow)}
-                  styles={styles}
-                />
-                <Divider styles={styles} />
-                <OptionRow
-                  label="A week later"
-                  hint={isTodayGroup ? formatTargetDate(inAWeek) : undefined}
-                  onPress={() => commit(inAWeek)}
-                  styles={styles}
-                />
-                <Divider styles={styles} />
-                <OptionRow
-                  label="A month later"
-                  hint={isTodayGroup ? formatTargetDate(inAMonth) : undefined}
-                  onPress={() => commit(inAMonth)}
-                  styles={styles}
-                />
-                <Divider styles={styles} />
-                <OptionRow
-                  label="Pick a date"
-                  icon={<Calendar size={16} color={theme.label3} strokeWidth={2} />}
-                  onPress={() => setSubView('picker')}
-                  styles={styles}
-                />
-              </View>
-              <View style={{ height: 16 }} />
-            </>
-          )}
-
-          {subView === 'picker' && (
-            <>
-              <View style={styles.titleRow}>
-                <TouchableOpacity
-                  onPress={() => setSubView('main')}
-                  hitSlop={10}
-                  style={styles.titleSideBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel="Back to defer options"
-                >
-                  <Text style={styles.cancelText}>{t.cancel}</Text>
-                </TouchableOpacity>
-                <View style={styles.titleCenter}>
-                  <Text style={styles.title}>Pick a date</Text>
-                  <Text style={styles.subtitle} numberOfLines={1}>
-                    {formatTargetDate(pickerDate)}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => commit(pickerDate)}
-                  hitSlop={10}
-                  style={styles.titleSideBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel="Apply selected date"
-                >
-                  <Text style={styles.doneText}>Done</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={styles.pickerWrap}>
-                <DateTimePicker
-                  value={pickerDate}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                  minimumDate={new Date()}
-                  onChange={(e: DateTimePickerEvent, d?: Date) => {
-                    if (Platform.OS === 'android') {
-                      // Android picker dismisses itself; treat set as
-                      // commit, dismiss as cancel.
-                      if (e.type === 'set' && d) commit(d)
-                      else setSubView('main')
-                    } else if (d) {
-                      setPickerDate(d)
-                    }
-                  }}
-                />
-              </View>
-              <View style={{ height: 16 }} />
-            </>
-          )}
+      {!isPicker ? (
+        <View style={styles.card}>
+          <OptionRow
+            label={isTodayGroup ? 'Tomorrow' : 'Next day'}
+            hint={isTodayGroup ? formatTargetDate(tomorrow) : undefined}
+            onPress={() => commit(tomorrow)}
+            styles={styles}
+          />
+          <Divider styles={styles} />
+          <OptionRow
+            label="A week later"
+            hint={isTodayGroup ? formatTargetDate(inAWeek) : undefined}
+            onPress={() => commit(inAWeek)}
+            styles={styles}
+          />
+          <Divider styles={styles} />
+          <OptionRow
+            label="A month later"
+            hint={isTodayGroup ? formatTargetDate(inAMonth) : undefined}
+            onPress={() => commit(inAMonth)}
+            styles={styles}
+          />
+          <Divider styles={styles} />
+          <OptionRow
+            label="Pick a date"
+            icon={<Calendar size={16} color={theme.label3} strokeWidth={2} />}
+            onPress={() => setSubView('picker')}
+            styles={styles}
+          />
         </View>
-      </View>
-    </Modal>
+      ) : (
+        <View style={styles.pickerWrap}>
+          <DateTimePicker
+            value={pickerDate}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'inline' : 'default'}
+            minimumDate={new Date()}
+            onChange={(e: DateTimePickerEvent, d?: Date) => {
+              if (Platform.OS === 'android') {
+                // Android picker dismisses itself; treat set as commit,
+                // dismiss as cancel.
+                if (e.type === 'set' && d) commit(d)
+                else setSubView('main')
+              } else if (d) {
+                setPickerDate(d)
+              }
+            }}
+          />
+        </View>
+      )}
+    </SheetShell>
   )
 }
 
@@ -300,51 +233,7 @@ function formatTargetDate(d: Date): string {
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    backdrop: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.45)',
-      justifyContent: 'flex-end',
-    },
-    sheet: {
-      backgroundColor: c.modal,
-      borderTopLeftRadius: 18,
-      borderTopRightRadius: 18,
-      paddingTop: 6,
-      paddingBottom: 8,
-    },
-    handle: {
-      alignSelf: 'center',
-      width: 36,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: c.gray3,
-      marginVertical: 6,
-    },
-    titleRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingBottom: 10,
-    },
-    titleSideBtn: { width: 72, paddingTop: 2 },
-    titleCenter: { flex: 1, alignItems: 'center' },
-    title: { fontSize: 20, fontWeight: '700', color: c.label, textAlign: 'center' },
-    subtitle: {
-      fontSize: 12,
-      color: c.label3,
-      marginTop: 2,
-      textAlign: 'center',
-    },
-    cancelText: { fontSize: 15, fontWeight: '500', color: c.primary },
-    doneText: {
-      fontSize: 15,
-      fontWeight: '700',
-      color: c.primary,
-      textAlign: 'right',
-    },
     card: {
-      marginHorizontal: 16,
       backgroundColor: c.card,
       borderRadius: 12,
       overflow: 'hidden',
@@ -383,6 +272,6 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.separator,
       marginLeft: 14,
     },
-    pickerWrap: { paddingHorizontal: 16 },
+    pickerWrap: {},
   })
 }

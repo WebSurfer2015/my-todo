@@ -11,11 +11,6 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import {
   Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -25,6 +20,7 @@ import {
 import { GroceryItem, GroceryGroup } from '../../core-bindings/groceries'
 import { useLang } from '../../app/LangContext'
 import { useTheme, ThemeColors } from '../../app/theme'
+import SheetShell from '../../ui/SheetShell'
 
 interface Props {
   visible: boolean
@@ -105,158 +101,77 @@ export default function GroceryEditSheet({
 
 
   return (
-    <Modal
+    <SheetShell
       visible={visible && !!item}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
+      onClose={onClose}
+      title="Edit item"
+      primary={{ label: t.save, onPress: handleSave, disabled: !text.trim() }}
     >
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        {/* Sibling backdrop tap-layer (not a wrapper) — a wrapping Pressable
-            collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
-        <View style={styles.backdrop}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
-          <View style={styles.sheet}>
-            <View style={styles.handle} />
-            <View style={styles.titleRow}>
-              <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.titleSideBtn}>
-                <Text style={styles.cancelText}>{t.cancel}</Text>
-              </TouchableOpacity>
-              <Text style={styles.title}>Edit item</Text>
-              <TouchableOpacity
-                onPress={handleSave}
-                hitSlop={10}
-                style={styles.titleSideBtn}
-                disabled={!text.trim()}
-              >
-                <Text style={[styles.saveText, !text.trim() && styles.saveTextDisabled]}>
-                  {t.save}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView
-              contentContainerStyle={styles.scroll}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              <View style={styles.card}>
-                <View style={styles.field}>
-                  <Text style={styles.fieldLabel}>Item</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={text}
-                    onChangeText={setText}
-                    placeholder="Milk"
-                    placeholderTextColor={theme.gray3}
-                    autoFocus
-                    maxLength={200}
-                    returnKeyType="done"
-                    onSubmitEditing={handleSave}
-                  />
-                </View>
-                <View style={styles.divider} />
-                <View style={styles.field}>
-                  <Text style={styles.fieldLabel}>Stores</Text>
-                  {stores.length === 0 ? (
-                    <Text style={[styles.rowValue, styles.rowValueMuted]}>
-                      No stores configured
-                    </Text>
-                  ) : (
-                    <View style={styles.storeChipRow}>
-                      {stores.map((s) => {
-                        const on = storesList.includes(s)
-                        return (
-                          <TouchableOpacity
-                            key={s}
-                            onPress={() => toggleStore(s)}
-                            style={[
-                              styles.storeChip,
-                              on && styles.storeChipOn,
-                            ]}
-                            accessibilityRole="button"
-                            accessibilityState={{ selected: on }}
-                            accessibilityLabel={`${on ? 'Remove' : 'Add'} ${s}`}
-                          >
-                            <Text
-                              style={[
-                                styles.storeChipText,
-                                on && styles.storeChipTextOn,
-                              ]}
-                            >
-                              {s}
-                            </Text>
-                          </TouchableOpacity>
-                        )
-                      })}
-                    </View>
-                  )}
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={styles.deleteRow}
-                onPress={handleDelete}
-                accessibilityRole="button"
-                accessibilityLabel="Delete item"
-              >
-                <Text style={styles.deleteText}>Delete item</Text>
-              </TouchableOpacity>
-              <Text style={styles.deleteHint}>
-                Deletion is permanent. Checked items live in Future and can
-                always be added back from there.
-              </Text>
-
-              <View style={{ height: 24 }} />
-            </ScrollView>
-          </View>
+      <View style={styles.card}>
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Item</Text>
+          <TextInput
+            style={styles.input}
+            value={text}
+            onChangeText={setText}
+            placeholder="Milk"
+            placeholderTextColor={theme.gray3}
+            autoFocus
+            maxLength={200}
+            returnKeyType="done"
+            onSubmitEditing={handleSave}
+          />
         </View>
-      </KeyboardAvoidingView>
-    </Modal>
+        <View style={styles.divider} />
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Stores</Text>
+          {stores.length === 0 ? (
+            <Text style={[styles.rowValue, styles.rowValueMuted]}>
+              No stores configured
+            </Text>
+          ) : (
+            <View style={styles.storeChipRow}>
+              {stores.map((s) => {
+                const on = storesList.includes(s)
+                return (
+                  <TouchableOpacity
+                    key={s}
+                    onPress={() => toggleStore(s)}
+                    style={[styles.storeChip, on && styles.storeChipOn]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                    accessibilityLabel={`${on ? 'Remove' : 'Add'} ${s}`}
+                  >
+                    <Text style={[styles.storeChipText, on && styles.storeChipTextOn]}>
+                      {s}
+                    </Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+          )}
+        </View>
+      </View>
+
+      <TouchableOpacity
+        style={styles.deleteRow}
+        onPress={handleDelete}
+        accessibilityRole="button"
+        accessibilityLabel="Delete item"
+      >
+        <Text style={styles.deleteText}>Delete item</Text>
+      </TouchableOpacity>
+      <Text style={styles.deleteHint}>
+        Deletion is permanent. Checked items live in Future and can always be
+        added back from there.
+      </Text>
+    </SheetShell>
   )
 }
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    flex: { flex: 1 },
-    backdrop: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.45)',
-      justifyContent: 'flex-end',
-    },
-    sheet: {
-      backgroundColor: c.modal,
-      borderTopLeftRadius: 18,
-      borderTopRightRadius: 18,
-      maxHeight: '90%',
-      paddingTop: 6,
-    },
-    handle: {
-      alignSelf: 'center',
-      width: 36,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: c.gray3,
-      marginVertical: 6,
-    },
-    titleRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingBottom: 10,
-    },
-    titleSideBtn: { width: 64 },
-    title: { fontSize: 20, fontWeight: '700', color: c.label, textAlign: 'center' },
-    cancelText: { fontSize: 15, color: c.blue, fontWeight: '500' },
-    saveText: { fontSize: 15, color: c.blue, fontWeight: '700', textAlign: 'right' },
-    saveTextDisabled: { color: c.gray3 },
-    scroll: { paddingBottom: 24 },
     card: {
-      marginHorizontal: 16,
       borderRadius: 12,
       backgroundColor: c.card,
       overflow: 'hidden',
@@ -289,7 +204,6 @@ function makeStyles(c: ThemeColors) {
       marginLeft: 14,
     },
     deleteRow: {
-      marginHorizontal: 16,
       marginTop: 18,
       paddingVertical: 14,
       paddingHorizontal: 14,
@@ -305,7 +219,7 @@ function makeStyles(c: ThemeColors) {
     deleteHint: {
       fontSize: 12,
       color: c.label3,
-      paddingHorizontal: 22,
+      paddingHorizontal: 6,
       marginTop: 8,
       lineHeight: 16,
     },
