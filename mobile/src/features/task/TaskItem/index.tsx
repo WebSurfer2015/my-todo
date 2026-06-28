@@ -973,7 +973,7 @@ function TaskItem({
                         if (!s.done) fireSubFlight(s.id)
                         onToggleSubtask!(todo.id, s.id)
                       }}
-                      hitSlop={10}
+                      hitSlop={14}
                       style={[styles.subCheckbox, s.done && styles.subCheckboxDone]}
                       accessibilityRole="checkbox"
                       accessibilityState={{ checked: s.done }}

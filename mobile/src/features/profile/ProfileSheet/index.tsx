@@ -369,7 +369,7 @@ export default function ProfileSheet({
                   <TouchableOpacity
                     onPress={pickQuoteForMe}
                     disabled={pickingQuote}
-                    hitSlop={8}
+                    hitSlop={14}
                   >
                     <Text
                       style={[
@@ -437,7 +437,7 @@ export default function ProfileSheet({
                     </Text>
                     <TouchableOpacity
                       style={styles.journeyResetBtn}
-                      hitSlop={8}
+                      hitSlop={14}
                       onPress={() => {
                         Alert.alert(
                           t.resetLifetimeConfirm,

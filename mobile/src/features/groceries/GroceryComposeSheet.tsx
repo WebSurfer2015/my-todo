@@ -353,6 +353,10 @@ export default function GroceryComposeSheet({
             return liveStores.filter((s) => union.has(s))
           })
         }
+      }).catch(() => {
+        // Dept classify is a silent background enhancement — on failure just
+        // clear the indicator (don't leave "Sorting into aisles…" hanging).
+        if (seq === aiSeqRef.current) setAiBusy(false)
       })
     }, AI_DEBOUNCE_MS)
 

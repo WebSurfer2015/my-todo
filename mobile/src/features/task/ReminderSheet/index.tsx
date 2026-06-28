@@ -407,6 +407,11 @@ export default function ReminderSheet({
                   )
                 })}
               </View>
+              {pending.filter((r) => !r.intervalMinutes).length >= MAX_REMINDERS_PER_TODO && (
+                <Text style={styles.sectionSubhelper}>
+                  Up to {MAX_REMINDERS_PER_TODO} reminders per task.
+                </Text>
+              )}
             </>
           ) : (
             <View style={styles.notice}>

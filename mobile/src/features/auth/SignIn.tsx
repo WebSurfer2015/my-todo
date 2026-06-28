@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -38,6 +38,7 @@ export default function SignIn() {
     appleAvailable,
   } = useAuth();
   const [mode, setMode] = useState<Mode>("social");
+  const passwordRef = useRef<TextInput>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -238,6 +239,11 @@ export default function SignIn() {
                     inputMode="email"
                     clearButtonMode="while-editing"
                     editable={!busy}
+                    returnKeyType={mode === "reset" ? "go" : "next"}
+                    blurOnSubmit={mode === "reset"}
+                    onSubmitEditing={() =>
+                      mode === "reset" ? submit() : passwordRef.current?.focus()
+                    }
                     testID="signin-email-input"
                   />
                 </View>
@@ -258,6 +264,7 @@ export default function SignIn() {
                       </TouchableOpacity>
                     </View>
                     <TextInput
+                      ref={passwordRef}
                       style={styles.input}
                       value={password}
                       onChangeText={setPassword}
@@ -265,6 +272,8 @@ export default function SignIn() {
                       autoComplete={mode === "signin" ? "current-password" : "new-password"}
                       textContentType={mode === "signin" ? "password" : "newPassword"}
                       editable={!busy}
+                      returnKeyType="go"
+                      onSubmitEditing={() => submit()}
                       testID="signin-password-input"
                     />
                   </View>

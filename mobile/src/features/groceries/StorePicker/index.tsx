@@ -147,6 +147,11 @@ export default function StorePicker({
       setLinkingMessage(msg);
       showSnackbar({ message: msg });
       clearLinkingLater();
+    }).catch(() => {
+      // Network / rate-limit (429) — don't leave the "thinking" banner hanging.
+      setLinkingMessage(`Couldn't match items for ${name}. Try again.`);
+      showSnackbar({ message: `Couldn't match items for ${name}.` });
+      clearLinkingLater();
     });
   }
 

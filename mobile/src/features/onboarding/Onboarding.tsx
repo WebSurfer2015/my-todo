@@ -112,7 +112,7 @@ export default function Onboarding({ visible, onComplete, onSkip }: Props) {
   const isLast = page === SCREENS.length - 1
 
   return (
-    <Modal visible={visible} animationType="fade" statusBarTranslucent>
+    <Modal visible={visible} animationType="fade" statusBarTranslucent onRequestClose={onSkip}>
       <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
       <View style={styles.root}>
         {/* Skip button — always available */}

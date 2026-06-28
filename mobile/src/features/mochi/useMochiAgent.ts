@@ -227,9 +227,11 @@ export function useMochiAgent() {
         ])
         return { ok: true, data: result }
       } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Network error.'
-        setError(msg)
-        return { ok: false, error: msg }
+        // Raw fetch errors ("Network request failed") aren't calm or
+        // actionable — show on-brand copy, keep the real message for logs.
+        const raw = e instanceof Error ? e.message : 'Network error.'
+        setError("Couldn't reach Mochi — check your connection and try again.")
+        return { ok: false, error: raw }
       } finally {
         setIsThinking(false)
       }
