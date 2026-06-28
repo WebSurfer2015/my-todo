@@ -162,7 +162,6 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         category: args.category,
         dueDate: args.dueDate,
         recurrence: args.recurrence,
-        ...(args.notes ? { notes: args.notes } : {}),
         ...(reminders ? { reminders } : {}),
       })
       // Close the chat first, then open Compose on the next tick — iOS can't

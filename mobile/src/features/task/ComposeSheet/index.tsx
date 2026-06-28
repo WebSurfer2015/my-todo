@@ -61,7 +61,6 @@ export interface ComposePrefill {
   dueDate?: string
   recurrence?: Recurrence
   reminders?: Reminder[]
-  notes?: string
 }
 
 interface Props {
@@ -242,7 +241,6 @@ export default function ComposeSheet({
   // Notes + queued subtasks: collected in local state so the user can
   // capture everything in one pass, then bulk-attached to the new todo
   // when they tap Add. Mirrors the Edit-Todo sheet's layout.
-  const [notes, setNotes] = useState('')
   const [pendingSubtasks, setPendingSubtasks] = useState<Subtask[]>([])
   const [addSubtaskOpen, setAddSubtaskOpen] = useState(false)
   // Track the lowercased text that the user just APPLIED from the
@@ -273,7 +271,7 @@ export default function ComposeSheet({
   // TaskDetailsSheet, scoped to (text, notes) of what the user is
   // typing. On apply we push to pendingSubtasks (the local queue
   // attached when the user taps Add).
-  const stepsAi = useSuggestSteps({ parentTitle: text, parentNotes: notes })
+  const stepsAi = useSuggestSteps({ parentTitle: text, parentNotes: '' })
 
   // Reset stepsAi state when the sheet opens so suggestions from a
   // prior compose session don't bleed into the new one.
@@ -363,7 +361,6 @@ export default function ComposeSheet({
         )
         setRecurrence(prefill.recurrence)
         setReminders(prefill.reminders ?? [])
-        setNotes(prefill.notes ?? '')
         setPendingSubtasks([])
         setAppliedTextLower(prefill.text.trim().toLowerCase())
         ai.markApplied(prefill.text)
@@ -379,7 +376,6 @@ export default function ComposeSheet({
       setDueDate(todayLocal())
       setRecurrence(undefined)
       setReminders([])
-      setNotes('')
       setPendingSubtasks([])
       // Clear the suggestion-overlay suppression so it re-engages on
       // the next compose session.
@@ -399,15 +395,12 @@ export default function ComposeSheet({
     const trimmed = text.trim()
     if (!trimmed || !activeCat) return
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
-    const trimmedNotes = notes.trim()
     onAdd(trimmed, priority, dueDate, activeCat.id, recurrence, {
-      notes: trimmedNotes || undefined,
       subtasks: pendingSubtasks.length > 0 ? pendingSubtasks : undefined,
       reminders: reminders.length > 0 ? reminders : undefined,
     })
     // Reset compose state so the next open starts clean.
     setText('')
-    setNotes('')
     setPendingSubtasks([])
     onClose()
   }
