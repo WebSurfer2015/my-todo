@@ -16,8 +16,6 @@ import {
   Profile,
   Avatar as AvatarT,
   AVATAR_LIBRARY,
-  collectedGlyphFor,
-  collectedNounKeyFor,
 } from "../../../core-bindings/profile";
 
 /**
@@ -34,11 +32,9 @@ function normalizeAvatar(a: AvatarT | undefined | null): AvatarT {
   return a;
 }
 import Avatar from "../../../ui/Avatar";
-import { CairnGlyph } from "../../mochi/PebbleStrip";
 import { useLang } from "../../../app/LangContext";
 import { useAuth } from "../../../app/AuthContext";
 import { useTheme, ThemeColors } from "../../../app/theme";
-import { darkenHex } from "../../../ui/backgrounds";
 
 import { makeStyles } from "./styles";
 
@@ -46,9 +42,6 @@ interface Props {
   visible: boolean;
   profile: Profile;
   onSave: (p: Profile) => void;
-  /** Resets the cumulative lifetime count to zero. Owned by the parent
-   * so the destructive write doesn't depend on the local edit state. */
-  onResetLifetime: () => void;
   onClose: () => void;
 }
 
@@ -56,7 +49,6 @@ export default function ProfileSheet({
   visible,
   profile,
   onSave,
-  onResetLifetime,
   onClose,
 }: Props) {
   const { t } = useLang();
@@ -306,28 +298,6 @@ export default function ProfileSheet({
               </TouchableOpacity>
             </View>
 
-            {/* AVATAR PRESETS — sits directly under the big avatar so all
-                avatar-related choices are colocated. */}
-            <Text style={styles.sectionLabel}>{t.profilePresetLabel}</Text>
-            <View style={[styles.card, styles.presetCard]}>
-              <View style={styles.presetGrid}>
-                {AVATAR_LIBRARY.map((p) => (
-                  <TouchableOpacity
-                    key={p.key}
-                    onPress={() => setAvatar({ kind: "preset", key: p.key })}
-                    style={styles.presetItem}
-                    accessibilityRole="button"
-                    accessibilityState={{
-                      selected:
-                        avatar.kind === "preset" && avatar.key === p.key,
-                    }}
-                  >
-                    <Avatar avatar={{ kind: "preset", key: p.key }} size={40} />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
             {/* IDENTITY (first+last on one row, then quote) — no section
                 label; the fields speak for themselves. Sits above YOUR
                 JOURNEY so the user lands on editable name fields first
@@ -394,74 +364,6 @@ export default function ProfileSheet({
                 <Text style={styles.helper}>Shown under your greeting.</Text>
               </View>
             </View>
-
-            {/* YOUR JOURNEY — lifetime count card with a Reset action.
-                Themed glyph + label follow the user's avatar choice
-                (preview against local `avatar` state so it updates
-                instantly when they pick a new preset above). */}
-            {(() => {
-              const themed =
-                profile.themeFromAvatar === true ? collectedGlyphFor(avatar) : null;
-              const nounKey =
-                profile.themeFromAvatar === true ? collectedNounKeyFor(avatar) : null;
-              // Pull the avatar's pastel bg and darken it so the lifetime
-              // value reads as part of the same color family as the glyph
-              // above. Only applies when themeFromAvatar is on AND the
-              // current avatar is a preset (custom photos have no bg).
-              const presetBg =
-                profile.themeFromAvatar === true && avatar.kind === "preset"
-                  ? AVATAR_LIBRARY.find((p) => p.key === avatar.key)?.bg
-                  : null;
-              const themedValueColor = presetBg ? darkenHex(presetBg, 0.55) : null;
-              return (
-                <>
-                  <Text style={styles.sectionLabel}>YOUR JOURNEY</Text>
-                  <View style={[styles.card, styles.journeyCard]}>
-                    {themed ? (
-                      <Text style={styles.journeyGlyph}>{themed}</Text>
-                    ) : (
-                      <View style={styles.journeyCairn}>
-                        <CairnGlyph size={48} />
-                      </View>
-                    )}
-                    <Text
-                      style={[
-                        styles.journeyValue,
-                        themedValueColor ? { color: themedValueColor } : null,
-                      ]}
-                    >
-                      {profile.lifetimePebbles ?? 0}
-                    </Text>
-                    <Text style={styles.journeyLabel}>{t.lifetimeLabel(nounKey)}</Text>
-                    <Text style={styles.journeyHint}>
-                      Every task you've finished, since you started.
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.journeyResetBtn}
-                      hitSlop={14}
-                      onPress={() => {
-                        Alert.alert(
-                          t.resetLifetimeConfirm,
-                          t.resetLifetimeConfirmBody,
-                          [
-                            { text: t.cancel, style: "cancel" },
-                            {
-                              text: t.reset,
-                              style: "destructive",
-                              onPress: onResetLifetime,
-                            },
-                          ],
-                        );
-                      }}
-                      accessibilityRole="button"
-                      accessibilityLabel={t.resetLifetimeAction}
-                    >
-                      <Text style={styles.journeyResetText}>{t.resetLifetimeAction}</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              );
-            })()}
 
             {/* Bottom actions (Export / Delete data / Delete account)
                 live in SettingsSheet, not here. Profile stays identity-

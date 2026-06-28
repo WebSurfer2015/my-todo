@@ -31,7 +31,7 @@ import { TODOS_PER_DOC_DUAL_WRITE } from "../app/featureFlags";
 import { serializeAny } from "../storage/envelope";
 import { DEFAULT_HOME_STAT_TILES } from "../../../core/src/logic/filters";
 import { todayLocal, genUuid } from "../../../core/src/logic/utils";
-import { getTodayPebbles, collectedNounKeyFor } from "../core-bindings/profile";
+import { getTodayPebbles } from "../core-bindings/profile";
 
 import { pickMascotLine, dateSeed } from "../features/mochi/mascotLines";
 import { Analytics } from "../adapters/analytics";
@@ -409,12 +409,9 @@ export function useTodoStore() {
     (td) => !td.trashed && td.dueDate === todayDate,
   ).length;
   const plateLine = t.todayPlate(todayCount);
-  // De-pebble the mascot voice when the user has opted into
-  // theme-from-avatar with a non-default preset. The picker drops any
-  // lines mentioning the language's pebble token so the home subtitle
-  // stays consistent with the themed cairn copy.
-  const dethemePebbles =
-    profile.themeFromAvatar === true && !!collectedNounKeyFor(profile.avatar);
+  // Per-avatar theming was removed — the mascot voice always keeps its
+  // pebble vocabulary now (this flag can never be true).
+  const dethemePebbles = false;
   const mascotLine = pickMascotLine(lang, greetingKey, todayCount, todayDate, dethemePebbles);
   // Subtitle behavior is opt-in via the quote field:
   //   - Quote set → alternate user's quote with Mochi's line by

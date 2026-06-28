@@ -1,6 +1,6 @@
 /**
  * Cross-screen sheet host. ProfileSheet, SettingsSheet, and the
- * BackgroundPicker are reachable from every tab (the avatar + gear
+ * ThemeSelector are reachable from every tab (the avatar + gear
  * sit in each screen's AppHeader), so the visibility state + the
  * sheet components themselves live at the app shell, not inside a
  * single tab screen.
@@ -30,7 +30,7 @@ import {
 } from '../../../core/src/data/exporter'
 import ProfileSheet from '../features/profile/ProfileSheet'
 import SettingsSheet from '../features/profile/SettingsSheet'
-import BackgroundPicker from '../features/profile/BackgroundPicker'
+import ThemeSelector from '../features/profile/ThemeSelector'
 import GuideMenuSheet from '../features/onboarding/GuideMenuSheet'
 import GuideSheet from '../features/onboarding/GuideSheet'
 import GuidesPrompt from '../features/onboarding/GuidesPrompt'
@@ -44,7 +44,7 @@ import { COLOR_PALETTE } from '../core-bindings/categories'
 import { SEED_GROCERY_STORES } from '../core-bindings/groceries'
 import type { Filter } from '../core-bindings/types'
 import type { Guide } from '../features/onboarding/guides'
-import { todayLocal, genUuid } from '../../../core/src/logic/utils'
+import { genUuid } from '../../../core/src/logic/utils'
 
 /** Signal that a screen should open its tab-local manage sheet. The
  * `seq` bumps so a repeat-trigger fires even when target stays the
@@ -59,7 +59,7 @@ export interface ManageRequest {
 interface Sheets {
   openProfile: () => void
   openSettings: () => void
-  openBackgrounds: () => void
+  openTheme: () => void
   /** Open the Tips & guides menu (entry point for Settings). */
   openGuides: () => void
   /** Open the add-todo compose sheet from any tab. */
@@ -106,7 +106,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   const { t } = useLang()
   const [profileOpen, setProfileOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [bgPickerOpen, setBgPickerOpen] = useState(false)
+  const [themePickerOpen, setThemePickerOpen] = useState(false)
   const [guideMenuOpen, setGuideMenuOpen] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
   // Pre-filled fields when Compose is opened from Ask Mochi's "Review & add".
@@ -132,7 +132,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
 
   const openProfile = useCallback(() => setProfileOpen(true), [])
   const openSettings = useCallback(() => setSettingsOpen(true), [])
-  const openBackgrounds = useCallback(() => setBgPickerOpen(true), [])
+  const openTheme = useCallback(() => setThemePickerOpen(true), [])
   const openGuides = useCallback(() => setGuideMenuOpen(true), [])
   const openCompose = useCallback(() => {
     setComposePrefill(null) // Add FAB → blank compose
@@ -355,7 +355,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <SheetContext.Provider value={{ openProfile, openSettings, openBackgrounds, openGuides, openCompose, openMochi, openManageFilter, openSelectFilter, openManageGroceries, manageRequest, requestTodosScroll, todosScrollRequest }}>
+    <SheetContext.Provider value={{ openProfile, openSettings, openTheme, openGuides, openCompose, openMochi, openManageFilter, openSelectFilter, openManageGroceries, manageRequest, requestTodosScroll, todosScrollRequest }}>
       {children}
       {/* Sheets are only relevant once signed in. Crucially, mounting these
           <Modal>s on the signed-out SignIn screen FLATTENS its iOS a11y tree
@@ -371,39 +371,6 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           store.saveProfile(p)
           setProfileOpen(false)
         }}
-        onResetLifetime={() => {
-          // Recalibrate counters to match the user's current state
-          // rather than zeroing them out. Lifetime = items currently in
-          // the Done bin (done or trashed-as-done) + done subtasks
-          // under non-trashed parents. Today buckets = the subset of
-          // each whose completionDate is today. This keeps the
-          // visible count consistent with what's actually on screen
-          // after the reset.
-          const today = todayLocal()
-          const tasksDoneTotal = store.todos.filter(
-            (t) => t.done || t.trashed,
-          ).length
-          const tasksDoneToday = store.todos.filter(
-            (t) => !t.trashed && t.done && t.completionDate === today,
-          ).length
-          let subsDoneTotal = 0
-          let subsDoneToday = 0
-          for (const t of store.todos) {
-            if (t.trashed) continue
-            for (const s of t.subtasks ?? []) {
-              if (!s.done) continue
-              subsDoneTotal += 1
-              if (s.completionDate === today) subsDoneToday += 1
-            }
-          }
-          store.saveProfile({
-            ...store.profile,
-            lifetimePebbles: tasksDoneTotal + subsDoneTotal,
-            todayTaskPebbles: tasksDoneToday,
-            todaySubtaskPebbles: subsDoneToday,
-            pebblesDate: today,
-          })
-        }}
         onClose={() => setProfileOpen(false)}
       />
       <SettingsSheet
@@ -412,7 +379,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         onSavePartial={(patch) =>
           store.saveProfile({ ...store.profile, ...patch })
         }
-        onOpenBackgrounds={openBackgrounds}
+        onOpenTheme={openTheme}
         onShowIntro={() =>
           store.saveProfile({ ...store.profile, onboardingDone: false })
         }
@@ -425,21 +392,13 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         onDeleteAccount={handleDeleteAccount}
         onClose={() => setSettingsOpen(false)}
       />
-      <BackgroundPicker
-        visible={bgPickerOpen}
-        value={store.profile.background}
+      <ThemeSelector
+        visible={themePickerOpen}
+        value={store.profile.theme ?? 'sage'}
         onChange={(next) =>
-          // Manual pick wins: also flip `themeFromAvatar` off so the
-          // avatar-derived theme doesn't keep overriding the user's
-          // explicit choice. Re-enabling the toggle in Settings brings
-          // the avatar theme back.
-          store.saveProfile({
-            ...store.profile,
-            background: next,
-            themeFromAvatar: undefined,
-          })
+          store.saveProfile({ ...store.profile, theme: next })
         }
-        onClose={() => setBgPickerOpen(false)}
+        onClose={() => setThemePickerOpen(false)}
       />
       <GuidesPrompt
         visible={promptOpen}

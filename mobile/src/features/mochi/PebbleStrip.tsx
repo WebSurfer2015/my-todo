@@ -3,9 +3,7 @@ import { View, Text, StyleSheet, Dimensions } from 'react-native'
 import Svg, { Ellipse } from 'react-native-svg'
 import { useTheme, ThemeColors } from '../../app/theme'
 import { useRegisterCairn } from './PebbleFlight'
-import { useStore } from '../../app/StoreContext'
 import { useLang } from '../../app/LangContext'
-import { collectedGlyphFor, collectedNounKeyFor } from '../../core-bindings/profile'
 import { darkenHex } from '../../ui/backgrounds'
 
 /**
@@ -100,17 +98,13 @@ export default function PebbleStrip({ count, active = true }: Props) {
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
   const { t } = useLang()
-  const profile = useStore().profile
-  // Themed collectable for the current preset avatar — fish for
-  // the cat, bone for the dog, etc. null means render the default
-  // SVG pebble. Read at render so changes to the avatar (Edit
-  // profile → Save) re-render the strip with the new glyph.
-  const collectedGlyph = collectedGlyphFor(profile.avatar)
-  // Themed caption noun. Only when the user has opted into theme-from-
-  // avatar AND the preset has a noun mapping — otherwise the caption
-  // keeps the default "One pebble. That's it." brand copy.
-  const captionNounKey =
-    profile.themeFromAvatar === true ? collectedNounKeyFor(profile.avatar) : null
+  // Per-avatar collectible glyphs were removed — the strip always
+  // renders the neutral SVG pebble / cairn vocabulary. null selects
+  // that default path in the render below.
+  const collectedGlyph: string | null = null
+  // Caption always uses the default "One pebble. That's it." brand
+  // copy now that theme-from-avatar nouns are gone.
+  const captionNounKey = null
 
   // Register a LIVE resolver with the PebbleFlight overlay so flying
   // Mochis land exactly where the new pebble materializes. Measuring at

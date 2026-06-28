@@ -15,7 +15,6 @@ import { Animated, Easing, StyleSheet, Text, TouchableOpacity, View } from 'reac
 import { useIsFocused } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Settings as SettingsIcon, Search as SearchIcon, Filter as FilterIcon } from 'lucide-react-native'
-import { collectedGlyphFor } from '../core-bindings/profile'
 import { useStore } from './StoreContext'
 import { useSheets } from './SheetContext'
 import { useLang } from './LangContext'
@@ -66,10 +65,10 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
   const theme = useTheme()
   const insets = useSafeAreaInsets()
   const styles = useMemo(() => makeStyles(theme), [theme])
-  // The header watermark uses the avatar's reward icon (cat→fish,
-  // dog→bone, rabbit→carrot, …). The turtle/Mochi has no glyph → we
-  // fall back to abstract pebbles.
-  const rewardGlyph = collectedGlyphFor(store.profile.avatar)
+  // The header watermark always uses the abstract pebble fallback
+  // (per-avatar reward glyphs were removed) — null selects the pebble
+  // branch in the decor map below.
+  const rewardGlyph: string | null = null
 
   // Register the avatar's screen position as the "home" target for
   // mark-done celebrations (the flying Mochi glides here). Only the

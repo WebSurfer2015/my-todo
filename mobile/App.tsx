@@ -20,13 +20,12 @@ import {
   useTheme,
   ThemeColors,
   ThemeOverrideProvider,
-  deriveThemeFromAvatarBg,
+  THEMES,
+  DEFAULT_THEME,
 } from "./src/app/theme";
-import { findPreset, type Avatar as AvatarT } from "./src/core-bindings/profile";
-import {
-  pairFromAvatarBg,
-  lookupPattern,
-} from "./src/ui/backgrounds";
+import { type Avatar as AvatarT } from "./src/core-bindings/profile";
+import { canUseThemes } from "./src/core-bindings/entitlements";
+import { usePurchases } from "./src/app/PurchasesContext";
 // Side-effect import: registers the foreground notification handler at
 // boot so a push arriving while the app is open isn't silently dropped.
 import "./src/adapters/notifications";
@@ -38,7 +37,6 @@ import TaskItem from "./src/features/task/TaskItem";
 import Footer from "./src/app/Footer";
 import Avatar from "./src/ui/Avatar";
 import GroceryView from "./src/features/groceries/GroceryView";
-import AppBackground from "./src/app/AppBackground";
 import SearchTopSheet from "./src/features/filters/SearchTopSheet";
 import SearchPill from "./src/features/filters/SearchPill";
 import DeferModal from "./src/features/task/DeferModal";
@@ -858,53 +856,24 @@ const Tab = createBottomTabNavigator();
 function AppGate() {
   const { user, loading } = useAuth();
   const store = useStore();
-  const baseTheme = useTheme();
   const scheme = useColorScheme();
-  // Avatar-driven theme override (Settings → Theme from avatar).
-  // Memoized on the bits that actually matter so unrelated profile
-  // edits don't churn the tab bar / FAB colors.
-  const themeOverride = useMemo(() => {
-    if (store.profile.themeFromAvatar !== true) return null;
-    const av = store.profile.avatar;
-    if (!av || av.kind !== 'preset') return null;
-    const isDark = scheme === 'dark';
-    // Turtle (Mochi) gets a bespoke palette: a dark teal/green FAB +
-    // labels and the dusty-teal title bar. Every other avatar keeps its
-    // derived theme, and its header tracks its own soft tint — the teal
-    // header is turtle-only.
-    if (av.key === 'mochi') {
-      return isDark
-        ? { primary: '#5FB89C', primaryHover: '#72C7AC', primarySoft: '#26433A', primaryOn: '#1A1814', blue: '#5FB89C', teal: '#5FB89C', headerBg: '#243A35' }
-        : { primary: '#2C7D64', primaryHover: '#246A55', primarySoft: '#DCEAE4', primaryOn: '#FFFFFF', blue: '#2C7D64', teal: '#2C7D64', headerBg: '#C4DCD6' };
-    }
-    const preset = findPreset(av.key);
-    if (!preset) return null;
-    // Non-turtle: keep the avatar-derived theme; its header uses the
-    // deeper avatar tint (derived.headerBg). The teal header is turtle-only.
-    return deriveThemeFromAvatarBg(preset.bg, isDark ? 'dark' : 'light');
-  }, [store.profile.themeFromAvatar, store.profile.avatar, scheme]);
+  const { tier } = usePurchases();
+  // Selected color theme drives the whole palette. Premium themes
+  // (blossom/honey/cream) fall back to the default if the user isn't
+  // entitled — defensive against a post-purchase downgrade; the picker
+  // already prevents selecting a locked theme.
+  const themeName = useMemo(() => {
+    const want = store.profile.theme ?? DEFAULT_THEME;
+    const isFree = want === 'sage' || want === 'sky';
+    return isFree || canUseThemes(tier) ? want : DEFAULT_THEME;
+  }, [store.profile.theme, tier]);
 
-  // Companion background override — when themeFromAvatar is on we
-  // also paint the canvas from the avatar's color so theme + bg
-  // stay cohesive. Always solid pattern in this mode for predictability.
-  const bgOverride = useMemo(() => {
-    if (store.profile.themeFromAvatar !== true) return undefined;
-    const av = store.profile.avatar;
-    if (!av || av.kind !== 'preset') return undefined;
-    const preset = findPreset(av.key);
-    if (!preset) return undefined;
-    return {
-      pair: pairFromAvatarBg(preset.bg),
-      pattern: lookupPattern('solid'),
-    };
-  }, [store.profile.themeFromAvatar, store.profile.avatar]);
-  // Local theme picks up the override too — without this manual
-  // merge, AppGate-rendered chrome (tab bar, splash background)
-  // would stay in the base palette while children inside the
-  // provider go avatar-tinted, creating a split look.
+  // AppGate renders chrome (tab bar, splash) OUTSIDE its own theme
+  // provider, so resolve the palette directly here to keep them in sync
+  // with the themed children below.
   const theme = useMemo(
-    () => (themeOverride ? { ...baseTheme, ...themeOverride } : baseTheme),
-    [baseTheme, themeOverride],
+    () => THEMES[themeName][scheme === 'dark' ? 'dark' : 'light'],
+    [themeName, scheme],
   );
 
   // Per-todo local reminder sync. Runs whenever the live todos list
@@ -935,12 +904,11 @@ function AppGate() {
   // bar shouldn't either.
 
   return (
-    <ThemeOverrideProvider override={themeOverride}>
+    <ThemeOverrideProvider name={themeName}>
+    {/* The theme's `bg` is the whole canvas — flat, per-theme tinted
+        near-white (light) / warm near-black (dark). Tabs render on a
+        transparent scene so this shows through every screen. */}
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
-      {/* AppBackground paints the user-chosen wallpaper across every
-          tab. Mounted here (not per-screen) so Home, Todos, and
-          Groceries all share the same backdrop. */}
-      <AppBackground choice={store.profile.background} override={bgOverride} />
       <NavigationContainer ref={sheetNavigationRef}>
         <Tab.Navigator
           initialRouteName="Home"

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useMemo } from 'react'
 import { useColorScheme } from 'react-native'
+import { ThemeName } from '../core-bindings/profile'
 
 export interface ThemeColors {
   // Backgrounds
@@ -8,9 +9,7 @@ export interface ThemeColors {
   surface: string
   surfaceAlt: string
   modal: string
-  /** Title-bar / header chrome band. A calm warm neutral that recedes
-   * behind the (avatar-derived) primary actions so the two don't
-   * compete. Deliberately NOT part of the avatar override. */
+  /** Title-bar / header chrome band — the theme's weighted brand color. */
   headerBg: string
   // Text
   label: string
@@ -19,15 +18,14 @@ export interface ThemeColors {
   // Lines
   separator: string
   border: string
-  // Primary action (sage/forest from turtle brand)
+  // Primary action (theme accent)
   primary: string
   primaryHover: string
   primarySoft: string
   primaryOn: string
   // Brand semantic slots — `blue` is the long-standing key for primary actions
-  // throughout the codebase. After the turtle rebrand it holds a sage value;
-  // semantically it's "the primary accent" — kept as `blue` to avoid a
-  // codebase-wide rename. New code may use `primary` instead.
+  // throughout the codebase. Semantically it's "the primary accent" — kept as
+  // `blue` to avoid a codebase-wide rename. New code may use `primary`.
   blue: string
   red: string
   orange: string
@@ -42,204 +40,120 @@ export interface ThemeColors {
   statusBar: 'light-content' | 'dark-content'
 }
 
-// Sagely palette — drawn from the Mochi turtle illustration. Pale mint
-// pastels on a warm cream backdrop, with a teal outline color that doubles
-// as the primary action. Lower saturation than the original sage palette
-// per the anxiety-conscious design guideline.
-export const LIGHT: ThemeColors = {
-  bg: '#F5F0E2',        // icon cream — warmer, slightly more yellow
-  card: '#FFFFFF',      // pure white so todo + stat cards stand out on cream
-  surface: 'rgba(252, 250, 243, 0.65)',
-  surfaceAlt: 'rgba(252, 250, 243, 0.78)',
-  modal: '#FCFAF3',
-  headerBg: '#E9E4D7',  // neutral fallback (turtle avatar supplies the teal; others their own tint)
-  label: '#2A3530',     // deep teal-tinted near-black
-  label2: '#5A6B62',    // sage-tinted gray
-  label3: '#8A998F',    // muted sage
-  separator: '#E5EAE0', // soft mint separator
-  border: '#E5EAE0',
-  primary: '#4F8A75',         // Mochi outline teal — primary action
-  primaryHover: '#3F7460',    // darker on press
-  primarySoft: '#E8F0E5',     // pale mint surface (matches icon body)
-  primaryOn: '#FFFFFF',
-  blue: '#4F8A75',      // alias of primary — kept for legacy key compat
-  red: '#D87878',       // soft coral
-  orange: '#E8A964',
-  yellow: '#C9B85F',
-  green: '#7FB59E',     // softer mint (matches Mochi shell)
-  purple: '#927AAE',
-  pink: '#EFB8AE',      // Mochi cheek peach
-  teal: '#4F8A75',      // aligned with primary
-  gray: '#8A998F',
-  gray3: '#CDD4C9',     // mint-tinted neutral
-  statusBar: 'dark-content',
+// --- Theme palettes (from the Sagely theme handoff) ----------------------
+//
+// Each named theme is one brand + one accent + a neutral system. The handoff
+// defines 13 semantic roles per theme; we map them onto this app's ThemeColors
+// token set below. Status / category colors (orange/green/yellow/…) stay
+// CONSTANT across themes — per the handoff, a status must mean the same thing
+// in every theme.
+
+interface HandoffPalette {
+  brand: string
+  accent: string
+  accentBright: string
+  background: string
+  surface: string
+  textPrimary: string
+  textSecondary: string
+  divider: string
+  completedBg: string
+  completedText: string
+  completedDot: string
+  danger: string
 }
 
-// Dark mode — lifted pastel mint on a warm dark surface, matching the
-// Sagely / Mochi palette but tuned for legibility against deep cream-dark.
-export const DARK: ThemeColors = {
-  bg: '#1A1814',        // warm dark, slightly more cream-tinted
-  card: '#24211B',
-  surface: 'rgba(36, 33, 27, 0.65)',
-  surfaceAlt: 'rgba(36, 33, 27, 0.78)',
-  modal: '#24211B',
-  headerBg: '#262420',  // neutral fallback (turtle avatar supplies the teal; others their own tint)
-  label: '#ECEEE6',     // off-white with mint tint
-  label2: '#B8C4BA',
-  label3: '#8FA095',
-  separator: '#3D3F37',
-  border: '#3D3F37',
-  primary: '#86C5A8',         // lifted mint for dark-mode contrast
-  primaryHover: '#9AD3B8',
-  primarySoft: '#2E4639',
-  primaryOn: '#1A1814',
-  blue: '#86C5A8',      // alias of primary
-  red: '#E08A8A',
-  orange: '#ECB178',
-  yellow: '#D9C97A',
-  green: '#94C9AC',     // shell mint (slightly more saturated)
-  purple: '#A89BC2',
-  pink: '#E8B6AE',      // cheek peach lifted
-  teal: '#86C5A8',      // aligned with primary
-  gray: '#8FA095',
-  gray3: '#4D4F47',
-  statusBar: 'light-content',
+const HANDOFF: Record<ThemeName, { light: HandoffPalette; dark: HandoffPalette }> = {
+  sage: {
+    light: { brand: '#6FAE8A', accent: '#5C9A7A', accentBright: '#6FB890', background: '#F6FBF7', surface: '#FFFFFF', textPrimary: '#26352C', textSecondary: '#7E9488', divider: '#EAF2EC', completedBg: '#EEF8F1', completedText: '#9DB3A6', completedDot: '#CDE3D6', danger: '#E0976A' },
+    dark: { brand: '#3E6B55', accent: '#7FC4A0', accentBright: '#8AD0AC', background: '#171E1A', surface: '#212A25', textPrimary: '#E8F0EA', textSecondary: '#9DB3A6', divider: '#2C382F', completedBg: '#1C2620', completedText: '#6E847A', completedDot: '#3A4A40', danger: '#E0A07A' },
+  },
+  sky: {
+    light: { brand: '#5E9BCE', accent: '#5089BC', accentBright: '#5FA0D4', background: '#F5F9FD', surface: '#FFFFFF', textPrimary: '#243038', textSecondary: '#76889A', divider: '#E8EFF5', completedBg: '#EDF4FA', completedText: '#9BAEBE', completedDot: '#CFE0EE', danger: '#E0976A' },
+    dark: { brand: '#2F5C7E', accent: '#74B4E4', accentBright: '#82C0F0', background: '#161B20', surface: '#1F2630', textPrimary: '#E6EEF5', textSecondary: '#9BAEBE', divider: '#2A333D', completedBg: '#1A222B', completedText: '#6E808E', completedDot: '#384450', danger: '#E0A07A' },
+  },
+  blossom: {
+    light: { brand: '#D488A0', accent: '#C77890', accentBright: '#DA8AA2', background: '#FDF5F8', surface: '#FFFFFF', textPrimary: '#352630', textSecondary: '#9A8089', divider: '#F4E8ED', completedBg: '#FBEFF3', completedText: '#BCA4AD', completedDot: '#EED4DE', danger: '#E08F62' },
+    dark: { brand: '#7A4F5E', accent: '#E29CB2', accentBright: '#EAA8BE', background: '#1F171B', surface: '#2A2026', textPrimary: '#F2E6EB', textSecondary: '#B49BA4', divider: '#382A30', completedBg: '#251D22', completedText: '#86727B', completedDot: '#4A3A42', danger: '#E0A07A' },
+  },
+  honey: {
+    light: { brand: '#D2A748', accent: '#BC8E30', accentBright: '#D6A848', background: '#FCF8ED', surface: '#FFFFFF', textPrimary: '#322B18', textSecondary: '#928258', divider: '#F2EAD6', completedBg: '#FBF5E6', completedText: '#B6A884', completedDot: '#E8DCBC', danger: '#DD8B5A' },
+    dark: { brand: '#6E5520', accent: '#E0BC64', accentBright: '#EAC878', background: '#1E1B12', surface: '#28241A', textPrimary: '#F0EAD8', textSecondary: '#A89E80', divider: '#363020', completedBg: '#231F16', completedText: '#84785C', completedDot: '#463E2A', danger: '#E0A07A' },
+  },
+  cream: {
+    light: { brand: '#B0A37C', accent: '#9A8C68', accentBright: '#B0A27E', background: '#FBF9F2', surface: '#FFFFFF', textPrimary: '#2E2A20', textSecondary: '#8A8270', divider: '#F0EBDE', completedBg: '#FAF7EF', completedText: '#B2AA96', completedDot: '#E2DAC6', danger: '#DD8B5A' },
+    dark: { brand: '#5E5640', accent: '#BEB08A', accentBright: '#CCBE98', background: '#1C1A14', surface: '#262318', textPrimary: '#EEEAE0', textSecondary: '#A8A290', divider: '#34301F', completedBg: '#211E15', completedText: '#827A68', completedDot: '#443E2C', danger: '#E0A07A' },
+  },
 }
 
-/**
- * Optional per-render override of the primary token group. When a
- * provider supplies this (typically from profile.themeFromAvatar +
- * preset.bg), `useTheme()` overlays it on top of the base palette.
- * Other token groups (labels, separators, status colors) stay
- * untouched — the avatar only retints the accent surfaces.
- */
-type PrimaryOverride =
-  | (Pick<ThemeColors, 'primary' | 'primaryHover' | 'primarySoft' | 'primaryOn' | 'blue' | 'teal'> & {
-      // Optional: most overrides leave the header to the base palette;
-      // per-avatar logic (e.g. the turtle) may set it explicitly.
-      headerBg?: ThemeColors['headerBg']
-    })
-  | null
+// Status / category colors — constant across every theme.
+const CONST_LIGHT = { orange: '#E8A964', yellow: '#C9B85F', green: '#7FB59E', purple: '#927AAE', pink: '#EFB8AE', gray: '#8A998F', gray3: '#CDD4C9' }
+const CONST_DARK = { orange: '#ECB178', yellow: '#D9C97A', green: '#94C9AC', purple: '#A89BC2', pink: '#E8B6AE', gray: '#8FA095', gray3: '#4D4F47' }
 
-const ThemeOverrideContext = createContext<PrimaryOverride>(null)
+function buildTheme(h: HandoffPalette, scheme: 'light' | 'dark'): ThemeColors {
+  const k = scheme === 'dark' ? CONST_DARK : CONST_LIGHT
+  return {
+    bg: h.background,
+    card: h.surface,
+    surface: h.completedBg,
+    surfaceAlt: h.divider,
+    modal: h.surface,
+    headerBg: h.brand,
+    label: h.textPrimary,
+    label2: h.textSecondary,
+    label3: h.completedText,
+    separator: h.divider,
+    border: h.divider,
+    primary: h.accent,
+    primaryHover: h.accentBright,
+    primarySoft: h.completedBg,
+    primaryOn: scheme === 'dark' ? h.background : '#FFFFFF',
+    blue: h.accent,
+    red: h.danger,
+    teal: h.accent,
+    ...k,
+    statusBar: scheme === 'dark' ? 'light-content' : 'dark-content',
+  }
+}
+
+/** Full light+dark palette for every theme name. */
+export const THEMES: Record<ThemeName, { light: ThemeColors; dark: ThemeColors }> = {
+  sage: { light: buildTheme(HANDOFF.sage.light, 'light'), dark: buildTheme(HANDOFF.sage.dark, 'dark') },
+  sky: { light: buildTheme(HANDOFF.sky.light, 'light'), dark: buildTheme(HANDOFF.sky.dark, 'dark') },
+  blossom: { light: buildTheme(HANDOFF.blossom.light, 'light'), dark: buildTheme(HANDOFF.blossom.dark, 'dark') },
+  honey: { light: buildTheme(HANDOFF.honey.light, 'light'), dark: buildTheme(HANDOFF.honey.dark, 'dark') },
+  cream: { light: buildTheme(HANDOFF.cream.light, 'light'), dark: buildTheme(HANDOFF.cream.dark, 'dark') },
+}
+
+export const DEFAULT_THEME: ThemeName = 'sage'
+
+/** The two signature swatch tones for a theme's pie-chart swatch. */
+export function themeSwatch(name: ThemeName, scheme: 'light' | 'dark') {
+  const h = HANDOFF[name][scheme]
+  return { brand: h.brand, accent: h.accent, accentBright: h.accentBright }
+}
+
+// Legacy aliases — a few modules historically imported LIGHT/DARK directly.
+// They now resolve to the default (sage) theme.
+export const LIGHT = THEMES.sage.light
+export const DARK = THEMES.sage.dark
+
+// --- Selected-theme context ----------------------------------------------
+
+const ThemeNameContext = createContext<ThemeName>(DEFAULT_THEME)
 
 interface ProviderProps {
-  /** When undefined → no override, base palette wins. */
-  override: PrimaryOverride
+  /** The user's selected theme. */
+  name: ThemeName
   children: React.ReactNode
 }
 
-export function ThemeOverrideProvider({ override, children }: ProviderProps) {
-  return React.createElement(ThemeOverrideContext.Provider, { value: override }, children)
+export function ThemeOverrideProvider({ name, children }: ProviderProps) {
+  return React.createElement(ThemeNameContext.Provider, { value: name }, children)
 }
 
 export function useTheme(): ThemeColors {
   const scheme = useColorScheme()
-  const base = scheme === 'dark' ? DARK : LIGHT
-  const override = useContext(ThemeOverrideContext)
-  return useMemo(() => (override ? { ...base, ...override } : base), [base, override])
-}
-
-// --- Avatar-derived theme helpers ----------------------------------------
-
-interface HSL { h: number; s: number; l: number }
-
-function hexToHSL(hex: string): HSL | null {
-  const m = hex.trim().match(/^#?([0-9a-f]{6})$/i)
-  if (!m) return null
-  const n = parseInt(m[1], 16)
-  const r = ((n >> 16) & 0xff) / 255
-  const g = ((n >> 8) & 0xff) / 255
-  const b = (n & 0xff) / 255
-  const max = Math.max(r, g, b)
-  const min = Math.min(r, g, b)
-  const l = (max + min) / 2
-  let h = 0
-  let s = 0
-  if (max !== min) {
-    const d = max - min
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
-    switch (max) {
-      case r: h = (g - b) / d + (g < b ? 6 : 0); break
-      case g: h = (b - r) / d + 2; break
-      case b: h = (r - g) / d + 4; break
-    }
-    h *= 60
-  }
-  return { h, s: s * 100, l: l * 100 }
-}
-
-function hslToHex(h: number, s: number, l: number): string {
-  s = Math.max(0, Math.min(100, s)) / 100
-  l = Math.max(0, Math.min(100, l)) / 100
-  const c = (1 - Math.abs(2 * l - 1)) * s
-  const hp = ((h % 360) + 360) % 360 / 60
-  const x = c * (1 - Math.abs((hp % 2) - 1))
-  let r = 0, g = 0, b = 0
-  if (hp < 1) { r = c; g = x }
-  else if (hp < 2) { r = x; g = c }
-  else if (hp < 3) { g = c; b = x }
-  else if (hp < 4) { g = x; b = c }
-  else if (hp < 5) { r = x; b = c }
-  else { r = c; b = x }
-  const m = l - c / 2
-  const toHex = (v: number) => {
-    const n = Math.round((v + m) * 255)
-    return n.toString(16).padStart(2, '0')
-  }
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
-}
-
-/**
- * Derive a primary-token override from a soft pastel background
- * color (typically preset.bg from AVATAR_PRESET_LIBRARY). Returns
- * null when the input doesn't parse.
- *
- * Strategy: preset bg is already a calm pastel. We use it directly
- * as `primarySoft`, then saturate + darken it to make a usable
- * `primary` for the FAB / pill accents. `primaryOn` picks white
- * vs near-black based on the derived primary's lightness.
- */
-export function deriveThemeFromAvatarBg(bg: string, scheme: 'light' | 'dark'): PrimaryOverride {
-  const hsl = hexToHSL(bg)
-  if (!hsl) return null
-  // Accent = a DEEP but FAITHFUL tint of the avatar color. Only a small
-  // saturation nudge so it tracks the avatar's actual tone (the turtle's
-  // muted teal-green) instead of over-saturating into a vivid pure green.
-  // Low lightness keeps it confidently deep for the FAB + labels/counts.
-  const targetSat = Math.min(46, hsl.s + 12)
-  const targetLightLight = 37
-  const targetLightDark = 62
-  const primary = hslToHex(
-    hsl.h,
-    targetSat,
-    scheme === 'dark' ? targetLightDark : targetLightLight,
-  )
-  const primaryHover = hslToHex(
-    hsl.h,
-    targetSat,
-    scheme === 'dark' ? targetLightDark + 8 : targetLightLight - 8,
-  )
-  // Soft chips: a defined soft tint at the accent's hue.
-  const primarySoft =
-    scheme === 'dark'
-      ? hslToHex(hsl.h, Math.min(35, hsl.s + 5), 25)
-      : hslToHex(hsl.h, Math.min(26, hsl.s + 8), 91)
-  // Contrast for foreground text on primary.
-  const primaryOn = scheme === 'dark' ? '#1A1814' : '#FFFFFF'
-  // Avatar-themed header tint — a few shades DEEPER than primarySoft so
-  // the title bar reads as defined chrome rather than a near-white wash.
-  const headerBg =
-    scheme === 'dark'
-      ? hslToHex(hsl.h, Math.min(34, hsl.s + 6), 26)
-      : hslToHex(hsl.h, Math.min(32, hsl.s + 14), 82)
-  return {
-    primary,
-    primaryHover,
-    primarySoft,
-    primaryOn,
-    blue: primary, // legacy alias
-    teal: primary,
-    headerBg,
-  }
+  const name = useContext(ThemeNameContext)
+  return useMemo(() => THEMES[name][scheme === 'dark' ? 'dark' : 'light'], [name, scheme])
 }

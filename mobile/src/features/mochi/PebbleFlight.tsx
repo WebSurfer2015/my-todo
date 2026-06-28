@@ -10,7 +10,7 @@ import { Animated, Dimensions, Easing, Image, StyleSheet, Text, View } from 'rea
 import Svg, { Ellipse } from 'react-native-svg'
 import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from 'expo-audio'
 import { useStore } from '../../app/StoreContext'
-import { collectedGlyphFor, findPreset, type Avatar } from '../../core-bindings/profile'
+import { findPreset, type Avatar } from '../../core-bindings/profile'
 import { darkenHex } from '../../ui/backgrounds'
 import { FLIGHT_MS, ARRIVAL_AT, DROP_MS } from './pebbleTiming'
 
@@ -371,7 +371,9 @@ function SparkleBurst({
   progress: Animated.Value
   avatar: Avatar | undefined
 }) {
-  const glyph = collectedGlyphFor(avatar)
+  // Per-avatar collectible glyphs were removed — sparkles always use
+  // the neutral primary-colored dot fallback.
+  const glyph: string | null = null
   // 6 directions in a fan biased DOWNWARD and outward — the avatar
   // sits at the top of the screen, so an upward fan partially
   // clipped into the notch / safe-area dead zone. Downward angles
@@ -479,7 +481,9 @@ function renderCollectedGlyph(
   avatar: Avatar | undefined,
   tint: string | undefined,
 ): React.ReactNode {
-  const glyph = collectedGlyphFor(avatar)
+  // Per-avatar collectible glyphs were removed — the flying element
+  // is always the neutral soft pebble below.
+  const glyph: string | null = null
   if (glyph) {
     return <Text style={styles.flyingGlyph}>{glyph}</Text>
   }

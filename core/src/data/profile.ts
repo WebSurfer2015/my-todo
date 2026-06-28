@@ -12,6 +12,18 @@ export type Avatar =
 
 export type Density = 'comfortable' | 'compact'
 
+/**
+ * Color themes. Each name maps to a full light+dark palette (the mapping
+ * lives in the mobile client's `theme.ts` THEMES table). Sage is the calm
+ * default; sky is the free alternative; blossom/honey/cream are the premium
+ * pack (gated by `canUseThemes`).
+ */
+export type ThemeName = 'sage' | 'sky' | 'blossom' | 'honey' | 'cream'
+export const THEME_NAMES: ThemeName[] = ['sage', 'sky', 'blossom', 'honey', 'cream']
+export function isThemeName(v: unknown): v is ThemeName {
+  return typeof v === 'string' && (THEME_NAMES as string[]).includes(v)
+}
+
 import type { ViewMode, StatusFilter, Priority } from '../domain/types'
 
 export interface StatusOverride {
@@ -73,6 +85,12 @@ export interface Profile {
    * Photo/icon avatars fall back to the static palette.
    */
   themeFromAvatar?: boolean
+  /**
+   * Selected color theme — drives the full app palette (background, cards,
+   * header, text, accent). See the mobile client's `theme.ts` THEMES table.
+   * Defaults to 'sage'. Replaces the older background/themeFromAvatar chrome.
+   */
+  theme?: ThemeName
   /**
    * Pebbles — live progress indicator with two scopes:
    *
@@ -484,6 +502,7 @@ export function migrateProfile(raw: unknown): Profile {
       typeof p.completionAnimation === 'boolean' ? p.completionAnimation : undefined,
     themeFromAvatar:
       typeof p.themeFromAvatar === 'boolean' ? p.themeFromAvatar : undefined,
+    theme: isThemeName(p.theme) ? p.theme : undefined,
     completionSound:
       typeof p.completionSound === 'boolean' ? p.completionSound : undefined,
     lifetimePebbles:

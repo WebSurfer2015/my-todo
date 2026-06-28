@@ -24,18 +24,10 @@ import {
   useColorScheme,
 } from "react-native";
 import * as Haptics from "expo-haptics";
-import { Profile } from "../../core-bindings/profile";
+import { Profile, type ThemeName } from "../../core-bindings/profile";
 import { useLang } from "../../app/LangContext";
 import { usePurchases } from "../../app/PurchasesContext";
-import { useTheme, ThemeColors } from "../../app/theme";
-import {
-  DEFAULT_BACKGROUND,
-  lookupPair,
-  lookupPattern,
-  tonesFor,
-} from "../../ui/backgrounds";
-import { renderPattern } from "../../ui/backgroundPatterns";
-import { Analytics } from "../../adapters/analytics";
+import { useTheme, ThemeColors, themeSwatch } from "../../app/theme";
 import SheetShell from "../../ui/SheetShell";
 
 interface Props {
@@ -43,9 +35,9 @@ interface Props {
   profile: Profile;
   /** Live-save patch — called immediately on every toggle / change. */
   onSavePartial: (patch: Partial<Profile>) => void;
-  /** Opens the background picker (parent owns the modal to avoid iOS
+  /** Opens the theme picker (parent owns the modal to avoid iOS
    * modal-on-modal layering issues). */
-  onOpenBackgrounds: () => void;
+  onOpenTheme: () => void;
   /** Re-opens the first-launch intro (sets onboardingDone=false). */
   onShowIntro: () => void;
   /** Opens the Tips & guides menu (parent owns the modal). */
@@ -78,7 +70,7 @@ export default function SettingsSheet({
   visible,
   profile,
   onSavePartial,
-  onOpenBackgrounds,
+  onOpenTheme,
   onShowIntro,
   onOpenGuides,
   onOpenManageTodos,
@@ -100,17 +92,15 @@ export default function SettingsSheet({
   const membershipLabel =
     tier === "premium" ? "Premium" : tier === "max" ? "Max" : "Free";
 
-  const bgChoice = profile.background ?? DEFAULT_BACKGROUND;
-  const bgPair = lookupPair(bgChoice.pairKey);
-  const bgPattern = lookupPattern(bgChoice.pattern);
-  const bgTones = tonesFor(bgPair, scheme);
+  const themeName: ThemeName = profile.theme ?? "sage";
+  const themeLabel = themeName.charAt(0).toUpperCase() + themeName.slice(1);
+  const sw = themeSwatch(themeName, scheme);
 
   const animationOn = profile.completionAnimation !== false;
   const soundOn = profile.completionSound !== false;
   const reduceMotionOn = profile.reduceMotion === true;
   // Tri-state with on-by-default: undefined or true → on; only false is off.
   const agentOn = profile.agentEnabled !== false;
-  const themeFromAvatarOn = profile.themeFromAvatar === true;
 
   function patch(p: Partial<Profile>) {
     onSavePartial(p);
@@ -146,43 +136,29 @@ export default function SettingsSheet({
               {/* APPEARANCE */}
               <Text style={styles.sectionLabel}>APPEARANCE</Text>
               <View style={styles.card}>
-                <ToggleRow
-                  label="Theme from avatar"
-                  hint={
-                    themeFromAvatarOn
-                      ? "App accent + background derive from your current preset avatar. Pick a different preset in Edit profile to change."
-                      : "Tint the FAB, pill accents, and background to match your current avatar. Preset avatars only (photo support coming later)."
-                  }
-                  value={themeFromAvatarOn}
-                  onChange={(v) => {
-                    void Analytics.themeFromAvatarToggled(v)
-                    patch({ themeFromAvatar: v || undefined })
-                  }}
-                  styles={styles}
-                />
-                <View style={styles.divider} />
                 <TouchableOpacity
                   style={styles.row}
                   onPress={() => {
                     onClose();
                     // Defer so this modal can finish dismissing before the
                     // picker modal slides up — iOS dislikes modal-on-modal.
-                    setTimeout(() => onOpenBackgrounds(), 280);
+                    setTimeout(() => onOpenTheme(), 280);
                   }}
                   activeOpacity={0.7}
                   accessibilityRole="button"
-                  accessibilityLabel={`Background, ${bgPair.label}, ${bgPattern.label}. Tap to change.`}
+                  accessibilityLabel={`Theme, ${themeLabel}. Tap to change.`}
                 >
-                  <View style={styles.bgPreview}>
-                    {renderPattern(bgPattern.key, {
-                      tones: bgTones,
-                      width: 56,
-                      height: 36,
-                    })}
+                  {/* Mini 3-tone pie of the current theme. */}
+                  <View style={styles.themePie}>
+                    <View style={[styles.themePieHalf, { backgroundColor: sw.brand }]} />
+                    <View style={styles.themePieHalf}>
+                      <View style={[styles.themePieQuarter, { backgroundColor: sw.accent }]} />
+                      <View style={[styles.themePieQuarter, { backgroundColor: sw.accentBright }]} />
+                    </View>
                   </View>
-                  <Text style={styles.rowLabel}>Background</Text>
+                  <Text style={styles.rowLabel}>Theme</Text>
                   <Text style={styles.rowValue} numberOfLines={1}>
-                    {bgPair.label}
+                    {themeLabel}
                   </Text>
                   <Text style={styles.rowChevron}>›</Text>
                 </TouchableOpacity>
@@ -515,12 +491,17 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.separator,
       marginLeft: 16,
     },
-    bgPreview: {
-      width: 56,
-      height: 36,
-      borderRadius: 6,
+    themePie: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
       overflow: "hidden",
+      flexDirection: "row",
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.separator,
     },
+    themePieHalf: { flex: 1 },
+    themePieQuarter: { flex: 1 },
     timePickerWrap: {
       paddingHorizontal: 8,
       paddingBottom: 8,
