@@ -8,7 +8,7 @@ import {
   ActionSheetIOS,
   Alert,
 } from "react-native";
-import { Shuffle } from "lucide-react-native";
+import { Shuffle, Camera } from "lucide-react-native";
 import SheetShell from "../../../ui/SheetShell";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
@@ -231,24 +231,26 @@ export default function ProfileSheet({
       title={t.editProfile}
       primary={{ label: t.save, onPress: handleSave, disabled: !canSave }}
     >
-            {/* Avatar header */}
-            <View style={styles.avatarRow}>
-              <TouchableOpacity onPress={openAvatarPicker} activeOpacity={0.8}>
-                <Avatar avatar={avatar} size={72} />
-              </TouchableOpacity>
+            {/* Avatar hero — centered identity with a camera badge.
+                Tapping the avatar (or badge) opens the photo picker;
+                the standalone "Change photo" button is gone. */}
+            <View style={styles.avatarHero}>
               <TouchableOpacity
                 onPress={openAvatarPicker}
-                style={styles.avatarBtn}
+                activeOpacity={0.85}
+                style={styles.avatarTouch}
+                accessibilityRole="button"
+                accessibilityLabel={t.profileChangePhoto}
               >
-                <Text style={styles.avatarBtnText}>{t.profileChangePhoto}</Text>
+                <Avatar avatar={avatar} size={92} />
+                <View style={styles.avatarBadge}>
+                  <Camera size={15} color={theme.primaryOn} strokeWidth={2.2} />
+                </View>
               </TouchableOpacity>
             </View>
 
-            {/* IDENTITY (first+last on one row, then quote) — no section
-                label; the fields speak for themselves. Sits above YOUR
-                JOURNEY so the user lands on editable name fields first
-                and the pebble hero feels like a reward below. */}
-            <View style={[styles.card, styles.cardWithTopGap]}>
+            {/* NAME */}
+            <View style={styles.card}>
               <View style={styles.cardFieldRow}>
                 <View style={[styles.cardField, styles.cardFieldHalf]}>
                   <Text style={styles.cardFieldLabel}>
@@ -279,13 +281,16 @@ export default function ProfileSheet({
                   />
                 </View>
               </View>
-              <View style={styles.cardDivider} />
+            </View>
+
+            {/* QUOTE */}
+            <Text style={styles.sectionLabel}>QUOTE</Text>
+            <View style={styles.card}>
               <View style={styles.cardField}>
-                <View style={styles.labelRow}>
-                  <Text style={styles.cardFieldLabel}>Quote</Text>
-                  {/* "Random daily" fills the box with the rotating daily
-                      quote; tap again for another. Typing your own switches
-                      to a custom line; clearing it shows none. */}
+                {/* "Random daily" fills the box with the rotating daily quote;
+                    tap again for another. Typing switches to a custom line;
+                    clearing it shows none. */}
+                <View style={styles.quoteActionRow}>
                   <TouchableOpacity
                     onPress={onRandomDaily}
                     hitSlop={12}
@@ -325,32 +330,32 @@ export default function ProfileSheet({
               </View>
             </View>
 
-            {/* Bottom actions (Export / Delete data / Delete account)
-                live in SettingsSheet, not here. Profile stays identity-
-                only — the gear icon in the header opens Settings, which
-                hosts the DATA section. */}
-
-            {/* Signed-in identity line — sits right above Sign out so the
-                account context reads as a unit with the account action. */}
-            <Text style={styles.signedInLine} numberOfLines={1}>
-              {user?.email ? `You're signed in as  ${user.email}` : 'Not signed in'}
-            </Text>
-
-            {/* Sign Out — destructive, so it sits at the bottom (not the
-                Cancel slot). Disabled when there's no signed-in user. */}
-            {user && (
-              <TouchableOpacity
-                style={styles.signOutRow}
-                onPress={() => {
-                  onClose();
-                  signOut();
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={t.signOut}
-              >
-                <Text style={styles.signOutRowText}>{t.signOut}</Text>
-              </TouchableOpacity>
-            )}
+            {/* ACCOUNT — email + a full-width destructive Sign out row.
+                (Export / Delete data / Delete account live in Settings.) */}
+            <Text style={styles.sectionLabel}>ACCOUNT</Text>
+            <View style={styles.card}>
+              <View style={styles.accountEmailRow}>
+                <Text style={styles.accountEmailText} numberOfLines={1}>
+                  {user?.email ?? "Not signed in"}
+                </Text>
+              </View>
+              {user && (
+                <>
+                  <View style={styles.cardDivider} />
+                  <TouchableOpacity
+                    style={styles.accountSignOutRow}
+                    onPress={() => {
+                      onClose();
+                      signOut();
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t.signOut}
+                  >
+                    <Text style={styles.accountSignOutText}>{t.signOut}</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
 
             <View style={{ height: 24 }} />
     </SheetShell>

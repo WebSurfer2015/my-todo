@@ -3,22 +3,50 @@ import { ThemeColors } from "../../../app/theme";
 
 export function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    avatarRow: {
-      flexDirection: "row",
+    avatarHero: {
       alignItems: "center",
-      gap: 12,
-      marginBottom: 14,
+      marginTop: 4,
+      marginBottom: 20,
     },
-    avatarBtn: {
-      paddingVertical: 8,
+    avatarTouch: {
+      position: "relative",
+    },
+    avatarBadge: {
+      position: "absolute",
+      bottom: 0,
+      right: 0,
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      backgroundColor: c.primary,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 2.5,
+      borderColor: c.modal,
+    },
+    quoteActionRow: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      marginBottom: 8,
+    },
+    accountEmailRow: {
       paddingHorizontal: 16,
-      borderRadius: 8,
-      backgroundColor: c.bg,
+      paddingVertical: 14,
     },
-    avatarBtnText: {
-      fontSize: 14,
+    accountEmailText: {
+      fontSize: 15,
+      color: c.label2,
+      fontWeight: "500",
+    },
+    accountSignOutRow: {
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      alignItems: "center",
+    },
+    accountSignOutText: {
+      fontSize: 15,
       fontWeight: "600",
-      color: c.blue,
+      color: c.red,
     },
     sectionLabel: {
       fontSize: 12,
