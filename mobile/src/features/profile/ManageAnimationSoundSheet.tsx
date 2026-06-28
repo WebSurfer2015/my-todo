@@ -10,6 +10,7 @@
 
 import React, { useMemo } from 'react'
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import * as Haptics from 'expo-haptics'
 import { Profile } from '../../core-bindings/profile'
 import { useLang } from '../../app/LangContext'
 import { useTheme, ThemeColors } from '../../app/theme'
@@ -87,7 +88,7 @@ function ToggleRow({ label, hint, value, onChange, styles, disabled }: ToggleRow
     <TouchableOpacity
       style={[styles.row, disabled && { opacity: 0.4 }]}
       onPress={() => {
-        if (!disabled) onChange(!value)
+        if (!disabled) { Haptics.selectionAsync().catch(() => {}); onChange(!value) }
       }}
       accessibilityRole="switch"
       accessibilityState={{ checked: value, disabled }}

@@ -151,6 +151,7 @@ export default function ProfileSheet({
     const candidates = QUOTES.filter((q) => q !== quote);
     const next = candidates[Math.floor(Math.random() * candidates.length)];
     setQuote(next);
+    Haptics.selectionAsync().catch(() => {});
     // Brief visual feedback so the button feels responsive.
     setTimeout(() => setPickingQuote(false), 120);
   }

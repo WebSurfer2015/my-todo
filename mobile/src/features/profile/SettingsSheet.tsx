@@ -15,6 +15,7 @@
 
 import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   StyleSheet,
   Text,
@@ -22,6 +23,7 @@ import {
   View,
   useColorScheme,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import { Profile } from "../../core-bindings/profile";
 import { useLang } from "../../app/LangContext";
 import { usePurchases } from "../../app/PurchasesContext";
@@ -314,7 +316,11 @@ export default function SettingsSheet({
                     </Text>
                     <Text style={styles.rowHint}>{t.exportDataSubtitle}</Text>
                   </View>
-                  <Text style={styles.rowChevron}>›</Text>
+                  {exporting ? (
+                    <ActivityIndicator size="small" color={theme.label3} />
+                  ) : (
+                    <Text style={styles.rowChevron}>›</Text>
+                  )}
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.row}
@@ -350,6 +356,7 @@ export default function SettingsSheet({
                     </Text>
                     <Text style={styles.rowHint}>{t.deleteDataOnlySubtitle}</Text>
                   </View>
+                  {deletingData && <ActivityIndicator size="small" color={theme.red} />}
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.row}
@@ -385,6 +392,7 @@ export default function SettingsSheet({
                     </Text>
                     <Text style={styles.rowHint}>{t.deleteAccountDescription}</Text>
                   </View>
+                  {deletingAccount && <ActivityIndicator size="small" color={theme.red} />}
                 </TouchableOpacity>
               </View>
 
@@ -414,7 +422,7 @@ function ToggleRow({ label, hint, value, onChange, styles, disabled }: ToggleRow
   return (
     <TouchableOpacity
       style={[styles.row, disabled && { opacity: 0.4 }]}
-      onPress={() => { if (!disabled) onChange(!value) }}
+      onPress={() => { if (!disabled) { Haptics.selectionAsync().catch(() => {}); onChange(!value) } }}
       accessibilityRole="switch"
       accessibilityState={{ checked: value, disabled }}
       disabled={disabled}

@@ -1120,7 +1120,7 @@ export default function TaskDetailsSheet({
                 )}
                 <DateTimePicker
                   value={editPickerDate}
-                  mode="datetime"
+                  mode="date"
                   display={Platform.OS === 'ios' ? 'inline' : 'default'}
                   themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
                   onChange={handleEditDateChange}
