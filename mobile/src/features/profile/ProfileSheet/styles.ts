@@ -114,7 +114,9 @@ export function makeStyles(c: ThemeColors) {
     cardFieldInput: {
       fontSize: 15,
       color: c.label,
-      paddingVertical: 4,
+      // ~23pt was hard to tap for a primary name field (no hitSlop on inputs);
+      // 11pt vertical padding gives a comfortable ~44pt field.
+      paddingVertical: 11,
       paddingHorizontal: 0,
     },
     cardFieldInputMulti: {

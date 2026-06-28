@@ -108,6 +108,7 @@ export default function CustomRecurrenceForm({ initial, onDone, onBack }: Props)
           <View style={styles.stepper}>
             <TouchableOpacity
               style={[styles.stepBtn, interval <= 1 && styles.stepBtnDisabled]}
+              hitSlop={8}
               onPress={() => setInterval((n) => Math.max(1, n - 1))}
               disabled={interval <= 1}
               accessibilityRole="button"
@@ -118,6 +119,7 @@ export default function CustomRecurrenceForm({ initial, onDone, onBack }: Props)
             <Text style={styles.stepValue} maxFontSizeMultiplier={1.2}>{interval}</Text>
             <TouchableOpacity
               style={[styles.stepBtn, interval >= 99 && styles.stepBtnDisabled]}
+              hitSlop={8}
               onPress={() => setInterval((n) => Math.min(99, n + 1))}
               disabled={interval >= 99}
               accessibilityRole="button"

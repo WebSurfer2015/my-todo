@@ -699,7 +699,7 @@ function makeStyles(c: ThemeColors) {
     },
     storeChip: {
       paddingHorizontal: 12,
-      paddingVertical: 6,
+      paddingVertical: 9,
       borderRadius: 999,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,

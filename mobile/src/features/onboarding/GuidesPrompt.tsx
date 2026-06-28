@@ -122,7 +122,7 @@ function makeStyles(c: ThemeColors) {
     actions: { flexDirection: 'row', gap: 8, alignSelf: 'stretch' },
     secondaryBtn: {
       flex: 1,
-      paddingVertical: 12,
+      paddingVertical: 14,
       borderRadius: 12,
       backgroundColor: c.primarySoft,
       alignItems: 'center',
@@ -130,7 +130,7 @@ function makeStyles(c: ThemeColors) {
     secondaryText: { fontSize: 15, fontWeight: '600', color: c.primary },
     primaryBtn: {
       flex: 1,
-      paddingVertical: 12,
+      paddingVertical: 14,
       borderRadius: 12,
       backgroundColor: c.primary,
       alignItems: 'center',

@@ -359,7 +359,7 @@ export default function StorePicker({
                                 )}
                                 <TouchableOpacity
                                   onPress={() => onToggleHidden(s)}
-                                  hitSlop={6}
+                                  hitSlop={12}
                                   style={styles.rowAction}
                                   accessibilityRole="switch"
                                   accessibilityState={{ checked: !hidden }}
@@ -380,7 +380,7 @@ export default function StorePicker({
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                   onPress={() => confirmDelete(s)}
-                                  hitSlop={6}
+                                  hitSlop={12}
                                   style={styles.rowAction}
                                 >
                                   <Trash2

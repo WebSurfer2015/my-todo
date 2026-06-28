@@ -515,7 +515,9 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center',
       gap: 6,
       paddingHorizontal: 12,
-      paddingVertical: 7,
+      // ~27pt was tight for a constantly-tapped (and long-pressable) filter
+      // pill with no hitSlop; 10pt vertical gives a comfortable ~34pt.
+      paddingVertical: 10,
       borderRadius: 100,
       backgroundColor: c.card,
       borderWidth: StyleSheet.hairlineWidth,
