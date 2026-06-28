@@ -384,9 +384,9 @@ export default function HomeScreen() {
   return (
     <View style={styles.flex}>
       <AppHeader onGearPress={sheets.openSettings} />
-      {/* PebbleStrip removed — completion celebration moved to the
-          Mochi avatar in AppHeader, which does a happy-dance on
-          every check-off (animation-aware). */}
+      {/* No PebbleStrip on Home anymore — pebble flights now target the Mochi
+          avatar in AppHeader (it happy-dances on every check-off, motion-aware).
+          The PebbleStrip component still exists; it's just not rendered here. */}
       <ScrollView
         style={styles.flex}
         contentContainerStyle={[styles.body, { paddingBottom: 120 }]}

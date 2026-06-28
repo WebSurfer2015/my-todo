@@ -617,12 +617,12 @@ function TaskItem({
         {!hasSubs && (
           <TouchableOpacity style={[styles.swipeAction, styles.swipeEdit]} onPress={openDetails}>
             <Pencil size={20} color={theme.primaryOn} strokeWidth={2} />
-            <Text style={styles.swipeActionText}>{t.editTask}</Text>
+            <Text style={styles.swipeActionText} numberOfLines={1}>{t.editTask}</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity style={[styles.swipeAction, styles.swipeMarkDone]} onPress={handleMarkDone}>
           <Check size={20} color="#fff" strokeWidth={2} />
-          <Text style={styles.swipeActionText}>{todo.done ? t.markNotDone : t.markDone}</Text>
+          <Text style={styles.swipeActionText} numberOfLines={1}>{todo.done ? t.markNotDone : t.markDone}</Text>
         </TouchableOpacity>
       </View>
     )
@@ -634,11 +634,11 @@ function TaskItem({
         <View style={styles.swipeActionsRow}>
           <TouchableOpacity style={[styles.swipeAction, styles.swipeRestore]} onPress={handleRestore}>
             <RotateCcw size={20} color="#fff" strokeWidth={2} />
-            <Text style={styles.swipeActionText}>{t.restoreTask}</Text>
+            <Text style={styles.swipeActionText} numberOfLines={1}>{t.restoreTask}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.swipeAction, styles.swipeDelete]} onPress={confirmPermanentDelete}>
             <Trash2 size={20} color="#fff" strokeWidth={2} />
-            <Text style={styles.swipeActionText}>{t.deleteTask}</Text>
+            <Text style={styles.swipeActionText} numberOfLines={1}>{t.deleteTask}</Text>
           </TouchableOpacity>
         </View>
       )
@@ -653,7 +653,7 @@ function TaskItem({
           }}
         >
           <Calendar size={20} color="#fff" strokeWidth={2} />
-          <Text style={styles.swipeActionText}>{t.deferTask}</Text>
+          <Text style={styles.swipeActionText} numberOfLines={1}>{t.deferTask}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.swipeAction, styles.swipeTrash]}
@@ -669,11 +669,11 @@ function TaskItem({
           <View style={styles.notDoIcon}>
             <Text style={styles.notDoIconX}>✕</Text>
           </View>
-          <Text style={styles.swipeActionText}>{t.notDo}</Text>
+          <Text style={styles.swipeActionText} numberOfLines={1}>{t.notDo}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.swipeAction, styles.swipeDelete]} onPress={confirmPermanentDelete}>
           <Trash2 size={20} color="#fff" strokeWidth={2} />
-          <Text style={styles.swipeActionText}>{t.deleteTask}</Text>
+          <Text style={styles.swipeActionText} numberOfLines={1}>{t.deleteTask}</Text>
         </TouchableOpacity>
       </View>
     )
