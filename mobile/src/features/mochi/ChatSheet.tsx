@@ -177,7 +177,7 @@ export default function ChatSheet({
   const { t } = useLang()
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
-  const { send, reset, isThinking, messages, error } = useMochiAgent()
+  const { send, reset, isThinking, messages, error, errorKind } = useMochiAgent()
   const { mochiRemaining, mochiPeriod, canSendMochi, openPaywall } = usePurchases()
   const [input, setInput] = useState('')
   // Rotating placeholder index (cycles while the box is empty + pre-first-turn).
@@ -409,7 +409,9 @@ export default function ChatSheet({
                 <View style={styles.errorBlock}>
                   <Text style={styles.errorLine}>{error}</Text>
                   <View style={styles.errorActions}>
-                    {!!lastSentRef.current && (
+                    {/* A hard daily cap ('quota') can't be retried — only
+                        offer "Try again" for transient/network failures. */}
+                    {errorKind !== 'quota' && !!lastSentRef.current && (
                       <TouchableOpacity
                         style={styles.errorBtn}
                         onPress={() => handleSend(lastSentRef.current)}

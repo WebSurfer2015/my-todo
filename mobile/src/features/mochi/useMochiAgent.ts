@@ -140,10 +140,17 @@ function toQuestion(s: string): string {
   return trimmed.replace(/[.!。\s]+$/, '') + '?'
 }
 
+/** What kind of failure the last send hit — drives the recovery UI.
+ *  - 'rate'  → transient throttle; "Try again" can work.
+ *  - 'quota' → hard daily cap; retrying won't help (resets after midnight).
+ *  - 'fail'  → network / server error; "Try again" can work. */
+export type MochiErrorKind = 'rate' | 'quota' | 'fail' | null
+
 export function useMochiAgent() {
   const [isThinking, setIsThinking] = useState(false)
   const [messages, setMessages] = useState<ChatTurn[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [errorKind, setErrorKind] = useState<MochiErrorKind>(null)
 
   const send = useCallback(
     async (turn: string, context: AgentContext): Promise<SendResult> => {
@@ -162,6 +169,7 @@ export function useMochiAgent() {
       setMessages(history)
       setIsThinking(true)
       setError(null)
+      setErrorKind(null)
       try {
         const idToken = await user.getIdToken()
         const init: RequestInit = {
@@ -180,22 +188,30 @@ export function useMochiAgent() {
             },
           }),
         }
-        // A 429 (rate limit, usually upstream model throttling) is transient —
-        // retry ONCE after a short backoff before surfacing anything, so a
-        // brief spike self-heals without the user re-sending.
         let res = await fetch(AGENT_CHAT_URL, init)
         if (res.status === 429) {
+          // Two very different 429s: a HARD daily-quota cap (the callable
+          // throws resource-exhausted → body.error.status === RESOURCE_EXHAUSTED)
+          // vs a transient throttle. Retrying only helps the latter.
+          const peek = (await res.json().catch(() => null)) as {
+            error?: { status?: string; message?: string }
+          } | null
+          if (peek?.error?.status === 'RESOURCE_EXHAUSTED') {
+            setError("That's all your Mochi for today — it resets after midnight.")
+            setErrorKind('quota')
+            return { ok: false, error: 'quota' }
+          }
+          // Transient — back off once and retry before surfacing anything.
           await new Promise((r) => setTimeout(r, 1500))
           res = await fetch(AGENT_CHAT_URL, init)
         }
         if (!res.ok) {
-          // Calm, on-brand copy for the rate limit — no error code; it clears
-          // on its own. Other failures keep the diagnostic status.
           setError(
             res.status === 429
               ? "Mochi's catching its breath — try again in a moment."
               : `Mochi couldn't reach us (${res.status}).`,
           )
+          setErrorKind(res.status === 429 ? 'rate' : 'fail')
           return { ok: false, error: String(res.status) }
         }
         const body = (await res.json()) as {
@@ -204,10 +220,12 @@ export function useMochiAgent() {
         }
         if (body.error) {
           setError(body.error.message || 'Something went wrong.')
+          setErrorKind('fail')
           return { ok: false, error: body.error.message }
         }
         if (!body.result) {
           setError('Empty reply from Mochi.')
+          setErrorKind('fail')
           return { ok: false, error: 'empty' }
         }
         const result = body.result
@@ -231,6 +249,7 @@ export function useMochiAgent() {
         // actionable — show on-brand copy, keep the real message for logs.
         const raw = e instanceof Error ? e.message : 'Network error.'
         setError("Couldn't reach Mochi — check your connection and try again.")
+        setErrorKind('fail')
         return { ok: false, error: raw }
       } finally {
         setIsThinking(false)
@@ -242,6 +261,7 @@ export function useMochiAgent() {
   const reset = useCallback(() => {
     setMessages([])
     setError(null)
+    setErrorKind(null)
   }, [])
 
   /** Append a canned user+assistant exchange WITHOUT calling the server —
@@ -256,5 +276,5 @@ export function useMochiAgent() {
     ])
   }, [])
 
-  return { send, reset, isThinking, messages, error, pushLocalExchange }
+  return { send, reset, isThinking, messages, error, errorKind, pushLocalExchange }
 }
