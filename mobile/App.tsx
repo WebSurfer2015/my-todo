@@ -5,6 +5,7 @@ import {
   View,
   Text,
   ScrollView,
+  SectionList,
   StyleSheet,
   TouchableOpacity,
   StatusBar,
@@ -45,7 +46,7 @@ import { NotifyProvider } from "./src/app/notify";
 import { PebbleFlightProvider } from "./src/features/mochi/PebbleFlight";
 import { ErrorBoundary } from "./src/app/ErrorBoundary";
 import { useTodoStore } from "./src/store/useTodoStore";
-import { buildDoneGroups } from "../core/src/logic/groups";
+import { buildDoneGroups, type TodoGroup, type DoneGroup } from "../core/src/logic/groups";
 import { useLinger } from "./src/features/task/useLinger";
 import { fullDateLabel } from "./src/core-bindings/utils";
 import { todayLocal } from "../core/src/logic/utils";
@@ -73,6 +74,12 @@ import HomeScreen from "./src/features/home/HomeScreen";
 import GroceriesScreen from "./src/features/groceries/GroceriesScreen";
 import AppHeader from "./src/app/AppHeader";
 
+// SectionList section shapes for the two virtualized branches. Each carries
+// its source group alongside `data` (the rows the list renders) so the
+// section-header renderer can read labels/counts/collapse state.
+type GroupedSection = { key: string; group: TodoGroup; data: Todo[] };
+type DoneSection = { key: string; group: DoneGroup; data: Todo[] };
+
 function TodosScreen() {
   const { t } = useLang();
   const { user, loading: authLoading } = useAuth();
@@ -94,24 +101,41 @@ function TodosScreen() {
   // Manage Todos can open it from any tab.
   const sheets = useSheets();
   // Scroll-to-group: the Dashboard's "N open →" links ask us (via
-  // sheets.todosScrollRequest) to scroll to a date-bucket group. We
-  // capture each group's Y and the sticky filter's height so the group
-  // header lands just below the pinned filter row.
-  const scrollRef = useRef<ScrollView>(null);
-  const groupYRef = useRef<Record<string, number>>({});
+  // sheets.todosScrollRequest) to scroll to a date-bucket group. With the
+  // grouped view virtualized into a SectionList, we map the requested
+  // group key → its sectionIndex and scrollToLocation onto its header.
+  // The sticky filter now lives ABOVE the list (pinned, not scrolling), so
+  // no manual offset is needed — viewPosition 0 lands the header at the top
+  // of the list viewport. `pendingScrollRef` lets onScrollToIndexFailed
+  // retry once when variable row heights leave the offset unknown.
+  const sectionListRef = useRef<SectionList<Todo, GroupedSection>>(null);
   const stickyHRef = useRef(0);
+  const pendingScrollRef = useRef<number | null>(null);
   const scrollReq = sheets.todosScrollRequest;
   useEffect(() => {
     if (!scrollReq.group || scrollReq.seq === 0) return;
     const targetGroup = scrollReq.group;
-    // Defer a beat so a just-changed filter has laid its groups out.
+    const sectionIndex = displayGroups.findIndex((g) => g.key === targetGroup);
+    if (sectionIndex < 0) return;
+    // A collapsed target has an empty `data`; scrolling to itemIndex 0 of an
+    // empty section is unreliable, so expand it first and scroll next tick.
+    const toggleable = store.filter === "all" || store.filter === "open";
+    if (toggleable && collapsedGroups.has(targetGroup)) {
+      setCollapsedGroups((prev) => {
+        if (!prev.has(targetGroup)) return prev;
+        const next = new Set(prev);
+        next.delete(targetGroup);
+        return next;
+      });
+    }
+    pendingScrollRef.current = sectionIndex;
+    // Defer a beat so a just-changed filter (and just-expanded group) has
+    // laid its sections out.
     const id = setTimeout(() => {
-      const y =
-        groupYRef.current[targetGroup] ??
-        (targetGroup === "today" ? 0 : undefined);
-      if (y == null) return;
-      scrollRef.current?.scrollTo({
-        y: Math.max(0, y - stickyHRef.current - 8),
+      sectionListRef.current?.scrollToLocation({
+        sectionIndex,
+        itemIndex: 0,
+        viewPosition: 0,
         animated: true,
       });
     }, 140);
@@ -208,6 +232,276 @@ function TodosScreen() {
   // wraps the whole tab navigator. By the time this screen mounts those
   // are all guaranteed satisfied.
 
+  // ── Virtualized list plumbing ──────────────────────────────────────
+  // The default grouped view and the Done view are virtualized via
+  // SectionList (a VirtualizedList must never nest in a ScrollView, so they
+  // replace the scroller entirely for those branches). The bounded
+  // branches — Trash, the empty state, and Overdue — stay in a plain
+  // ScrollView. Collapse is offered only in the All / Open views, where the
+  // date-bucket grouping shows; category / status filters always render
+  // every group expanded.
+  const toggleableGroups = store.filter === "all" || store.filter === "open";
+
+  // Default grouped sections. A collapsed group keeps its header but has
+  // empty `data`, so the chevron/expand affordance still works.
+  const groupedSections: GroupedSection[] = useMemo(
+    () =>
+      displayGroups.map((g) => ({
+        key: g.key,
+        group: g,
+        data: toggleableGroups && collapsedGroups.has(g.key) ? [] : g.todos,
+      })),
+    [displayGroups, toggleableGroups, collapsedGroups],
+  );
+
+  // Done sections — completion-date buckets, never collapsed.
+  const doneSections: DoneSection[] = useMemo(
+    () =>
+      buildDoneGroups(displayFiltered).map((g) => ({
+        key: g.key,
+        group: g,
+        data: g.todos,
+      })),
+    [displayFiltered],
+  );
+
+  // Shared across every row: derives from the current filter only, so the
+  // value is identical for all rows in a render.
+  const subtaskVisibility =
+    store.filter === "open" ? "open" : store.filter === "done" ? "done" : "all";
+
+  const keyExtractor = useCallback((td: Todo) => td.id, []);
+  // 3px between cards (matches groupCard's `gap`); 18px below each section
+  // (matches groupSection's marginBottom).
+  const ItemSeparator = () => <View style={styles.taskGap} />;
+  const SectionFooter = () => <View style={styles.sectionGap} />;
+
+  // Per-row renderer for the default grouped view. Passes ONLY stable
+  // store.* callbacks (no per-row closures) so TaskItem's React.memo holds.
+  const renderGroupedItem = ({ item: td }: { item: Todo }) => (
+    <View style={styles.taskCard}>
+      <TaskItem
+        todo={td}
+        categories={store.categories}
+        density={store.profile.density}
+        celebrate={store.profile.completionAnimation !== false && store.profile.reduceMotion !== true}
+        playSound={store.profile.completionSound !== false}
+        onToggle={store.toggle}
+        onMoveToTrash={store.moveToTrash}
+        onSkip={store.skipTodo} onSkipSeries={store.skipSeriesFuture}
+        onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
+        onApplySeriesFutureEdits={store.applySeriesFutureEdits}
+        onDetachFromSeries={store.detachFromSeries}
+        onApplyRecurrenceChange={store.applyRecurrenceChange}
+        onApplySeriesSubtasks={store.applySeriesSubtasks}
+        onPermanentDelete={store.permanentlyDelete} onPermanentDeleteSeries={store.permanentlyDeleteSeriesFuture}
+        onUpdatePriority={store.updatePriority}
+        onUpdateDueDate={store.updateDueDate}
+        onSnooze={store.snooze}
+        onLongPressDefer={openSingleDefer}
+        onUpdateCategory={store.updateTaskCategory}
+        onUpdateText={store.updateText}
+        onUpdateNotes={store.updateNotes}
+        onUpdateRecurrence={store.updateRecurrence}
+        onUpdateReminder={store.updateReminder}
+        onUpdateReminders={store.updateReminders}
+        onAddSubtask={store.addSubtask}
+        onToggleSubtask={store.toggleSubtask}
+        onUpdateSubtaskText={store.updateSubtaskText}
+        onUpdateSubtaskPriority={store.updateSubtaskPriority}
+        onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
+        onRemoveSubtask={store.removeSubtask}
+        agentEnabled={store.profile.agentEnabled !== false}
+        onClearSubtasks={store.clearSubtasks}
+        subtaskVisibility={subtaskVisibility}
+      />
+    </View>
+  );
+
+  // Collapsible date-bucket header (chevron + label + count + per-group
+  // "Defer all"). Mirrors the former inline group-header JSX exactly.
+  const renderGroupedHeader = ({ section }: { section: GroupedSection }) => {
+    const group = section.group;
+    const collapsed = toggleableGroups && collapsedGroups.has(group.key);
+    const onToggle = toggleableGroups
+      ? () => toggleGroupCollapsed(group.key)
+      : undefined;
+    const statusOverride =
+      group.key === "overdue" || group.key === "done"
+        ? store.orderedStatuses.find((s) => s.id === group.key)
+        : null;
+    const headerLabel = statusOverride
+      ? statusOverride.label
+      : t.groups[group.key];
+    // Header counts include every to-do in the bucket (open + done) so the
+    // number matches what's visible.
+    const headerCount = group.todos.length;
+    // Only OPEN todos in the bucket can be deferred; hidden when zero.
+    const openInGroup = group.todos.filter((td) => !td.done);
+    const openInGroupCount = openInGroup.length;
+    return (
+      <View style={styles.groupHeaderContainer}>
+        {toggleableGroups ? (
+          <TouchableOpacity
+            onPress={onToggle}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: !collapsed }}
+            hitSlop={8}
+            style={styles.groupHeaderRow}
+          >
+            {collapsed ? (
+              <ChevronRight size={14} color={theme.label3} strokeWidth={2.5} />
+            ) : (
+              <ChevronDown size={14} color={theme.label3} strokeWidth={2.5} />
+            )}
+            <Text style={styles.groupHeader}>
+              {headerLabel} ({headerCount})
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={[styles.groupHeader, styles.groupHeaderSpacing]}>
+            {headerLabel} ({headerCount})
+          </Text>
+        )}
+        {openInGroupCount > 0 &&
+          group.key !== 'upcoming' &&
+          group.key !== 'noDate' && (
+            <TouchableOpacity
+              onPress={() =>
+                setDeferTarget({
+                  label: headerLabel,
+                  ids: openInGroup.map((td) => td.id),
+                  isTodayGroup: group.key === 'today',
+                })
+              }
+              style={styles.groupHeaderDeferBtn}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={`Defer ${openInGroupCount} to-dos in ${headerLabel}`}
+            >
+              <Text style={styles.groupHeaderDeferText}>Defer all →</Text>
+            </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
+  // Per-row renderer for the Done view (binFilterView + full subtask props).
+  const renderDoneItem = ({ item: td }: { item: Todo }) => (
+    <View style={styles.taskCard}>
+      <TaskItem
+        todo={td}
+        categories={store.categories}
+        density={store.profile.density}
+        celebrate={store.profile.completionAnimation !== false && store.profile.reduceMotion !== true}
+        playSound={store.profile.completionSound !== false}
+        binFilterView
+        onToggle={store.toggle}
+        onMoveToTrash={store.moveToTrash}
+        onSkip={store.skipTodo} onSkipSeries={store.skipSeriesFuture}
+        onRestore={store.restoreFromTrash}
+        onPermanentDelete={store.permanentlyDelete} onPermanentDeleteSeries={store.permanentlyDeleteSeriesFuture}
+        onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
+        onApplySeriesFutureEdits={store.applySeriesFutureEdits}
+        onDetachFromSeries={store.detachFromSeries}
+        onApplyRecurrenceChange={store.applyRecurrenceChange}
+        onApplySeriesSubtasks={store.applySeriesSubtasks}
+        onUpdatePriority={store.updatePriority}
+        onUpdateDueDate={store.updateDueDate}
+        onSnooze={store.snooze}
+        onLongPressDefer={openSingleDefer}
+        onUpdateCategory={store.updateTaskCategory}
+        onUpdateText={store.updateText}
+        onUpdateNotes={store.updateNotes}
+        onUpdateRecurrence={store.updateRecurrence}
+        onUpdateReminder={store.updateReminder}
+        onUpdateReminders={store.updateReminders}
+        onAddSubtask={store.addSubtask}
+        onToggleSubtask={store.toggleSubtask}
+        onUpdateSubtaskText={store.updateSubtaskText}
+        onUpdateSubtaskPriority={store.updateSubtaskPriority}
+        onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
+        onRemoveSubtask={store.removeSubtask}
+        agentEnabled={store.profile.agentEnabled !== false}
+        onClearSubtasks={store.clearSubtasks}
+        subtaskVisibility={subtaskVisibility}
+      />
+    </View>
+  );
+
+  // Done date-group header (label via isToday/isYesterday/isEarlier/
+  // fullDateLabel + count + "Delete all →" confirm).
+  const renderDoneHeader = ({ section }: { section: DoneSection }) => {
+    const g = section.group;
+    const headerLabel = g.isToday
+      ? t.doneGroups.today
+      : g.isYesterday
+        ? t.doneGroups.yesterday
+        : g.isEarlier
+          ? t.doneGroups.earlier
+          : fullDateLabel(g.key);
+    return (
+      <View style={[styles.groupHeaderRow, styles.groupHeaderSpacing]}>
+        <Text style={styles.groupHeader}>
+          {headerLabel} ({g.todos.length})
+        </Text>
+        {g.todos.length > 0 && (
+          <>
+            <View style={{ flex: 1 }} />
+            <TouchableOpacity
+              onPress={() => {
+                const ids = g.todos.map((td) => td.id);
+                Alert.alert(
+                  t.deletePermanently,
+                  t.deletePermanentlyConfirm(
+                    `${ids.length} ${ids.length === 1 ? 'item' : 'items'}`,
+                  ),
+                  [
+                    { text: t.cancel, style: 'cancel' },
+                    {
+                      text: t.deletePermanently,
+                      style: 'destructive',
+                      onPress: () => {
+                        for (const id of ids) {
+                          store.permanentlyDelete(id);
+                        }
+                      },
+                    },
+                  ],
+                );
+              }}
+              activeOpacity={0.6}
+              accessibilityRole="button"
+              accessibilityLabel={`Delete all ${g.todos.length} items in ${headerLabel}`}
+            >
+              <Text style={styles.groupHeaderDeleteText}>Delete all →</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+    );
+  };
+
+  // Bin-peek footer (surfaces the 30-day Done safety net) + the screen
+  // Footer. Shared by the grouped ScrollView/SectionList footers.
+  const binPeekFooter =
+    !store.inTrashView &&
+    store.filter !== "done" &&
+    store.systemCounts.done > 0 ? (
+      <TouchableOpacity
+        onPress={() => store.setFilter("done")}
+        style={styles.binFooter}
+        hitSlop={6}
+        accessibilityRole="button"
+        accessibilityLabel={t.binFooter.a11y(store.systemCounts.done)}
+      >
+        <Text style={styles.binFooterText}>
+          {t.binFooter.peek(store.systemCounts.done)}
+        </Text>
+      </TouchableOpacity>
+    ) : null;
+
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
       <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
@@ -216,10 +510,9 @@ function TodosScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={0}
       >
-        {/* AppHeader + PebbleStrip live OUTSIDE the ScrollView so the
-            sticky-header math (stickyHeaderIndices) doesn't shift when
-            the strip toggles. This also matches Dashboard's structure
-            where the strip pins just under the header above scrollable
+        {/* AppHeader + the filter row live OUTSIDE the scroller so they pin
+            above the (virtualized) list. This matches Dashboard's structure
+            where the chrome pins just under the header above scrollable
             content. */}
         <AppHeader
           title="Todos"
@@ -233,21 +526,16 @@ function TodosScreen() {
         {/* PebbleStrip removed — completion celebration moved to the
             Mochi avatar in AppHeader, which does a happy-dance on
             every check-off (animation-aware). */}
-        <ScrollView
-          ref={scrollRef}
-          contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled"
-          stickyHeaderIndices={[0]}
+        {/* The filter row is pinned ABOVE the list now (not a sticky scroll
+            header) so it stays put while the virtualized list scrolls beneath
+            it. The pebble strip used to live here too, but per the v1.5
+            unification it moved above to match Dashboard + Shopping. */}
+        <View
+          style={styles.stickyFilter}
+          onLayout={(e) => {
+            stickyHRef.current = e.nativeEvent.layout.height;
+          }}
         >
-          {/* Single sticky container — filter row only now. The pebble
-              strip used to live here too, but per the v1.5 unification
-              it moved above to match Dashboard + Shopping placement. */}
-          <View
-            style={styles.stickyFilter}
-            onLayout={(e) => {
-              stickyHRef.current = e.nativeEvent.layout.height;
-            }}
-          >
             <SearchTopSheet
               visible={isFocused && searchOpen}
               placeholder="Search todos"
@@ -292,9 +580,19 @@ function TodosScreen() {
             />
           </View>
 
-          <View style={styles.body}>
-            {/* Groceries now lives in its own tab; the inline branch
-                that handled filter==='groceries' here is gone. */}
+        {store.inTrashView ||
+        displayGroups.length === 0 ||
+        store.filter === "overdue" ? (
+          // Bounded branches — Trash / the empty state / Overdue. They're
+          // small and fixed-size, so they stay in a plain ScrollView (which
+          // also hosts the centered EmptyStateCard via the container's
+          // flexGrow). A VirtualizedList must never nest inside a ScrollView,
+          // so the two big branches (grouped + Done) use SectionList instead.
+          <ScrollView
+            contentContainerStyle={styles.container}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.body}>
             <>
             {store.inTrashView && store.trashCount > 0 && (
               store.selectedTrashIds.size > 0 ? (
@@ -438,123 +736,7 @@ function TodosScreen() {
                   />
                 )
               })()
-            ) : store.filter === "done" ? (
-              <>
-                {displayFiltered.length > 0 && (
-                  <View style={styles.trashHeader}>
-                    <Text style={styles.trashNotice}>{t.trashRetention}</Text>
-                    <TouchableOpacity
-                      onPress={store.clearDone}
-                      style={styles.emptyTrashBtn}
-                    >
-                      <Text style={styles.emptyTrashText}>
-                        {t.clearAllCompleted}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-                {buildDoneGroups(displayFiltered).map((g) => {
-                  const headerLabel = g.isToday
-                    ? t.doneGroups.today
-                    : g.isYesterday
-                      ? t.doneGroups.yesterday
-                      : g.isEarlier
-                        ? t.doneGroups.earlier
-                        : fullDateLabel(g.key);
-                  return (
-                    <View key={g.key} style={styles.groupSection}>
-                      <View style={[styles.groupHeaderRow, styles.groupHeaderSpacing]}>
-                        <Text style={styles.groupHeader}>
-                          {headerLabel} ({g.todos.length})
-                        </Text>
-                        {g.todos.length > 0 && (
-                          <>
-                            <View style={{ flex: 1 }} />
-                            <TouchableOpacity
-                              onPress={() => {
-                                const ids = g.todos.map((td) => td.id);
-                                Alert.alert(
-                                  t.deletePermanently,
-                                  t.deletePermanentlyConfirm(
-                                    `${ids.length} ${ids.length === 1 ? 'item' : 'items'}`,
-                                  ),
-                                  [
-                                    { text: t.cancel, style: 'cancel' },
-                                    {
-                                      text: t.deletePermanently,
-                                      style: 'destructive',
-                                      onPress: () => {
-                                        for (const id of ids) {
-                                          store.permanentlyDelete(id);
-                                        }
-                                      },
-                                    },
-                                  ],
-                                );
-                              }}
-                              activeOpacity={0.6}
-                              accessibilityRole="button"
-                              accessibilityLabel={`Delete all ${g.todos.length} items in ${headerLabel}`}
-                            >
-                              <Text style={styles.groupHeaderDeleteText}>Delete all →</Text>
-                            </TouchableOpacity>
-                          </>
-                        )}
-                      </View>
-                      <View style={styles.groupCard}>
-                        {g.todos.map((td, i) => (
-                          <View key={td.id} style={styles.taskCard}>
-                            <TaskItem
-                              todo={td}
-                              categories={store.categories}
-                              density={store.profile.density}
-                              celebrate={store.profile.completionAnimation !== false && store.profile.reduceMotion !== true}
-                              playSound={store.profile.completionSound !== false}
-                              binFilterView
-                              onToggle={store.toggle}
-                              onMoveToTrash={store.moveToTrash}
-                              onSkip={store.skipTodo} onSkipSeries={store.skipSeriesFuture}
-                              onRestore={store.restoreFromTrash}
-                              onPermanentDelete={store.permanentlyDelete} onPermanentDeleteSeries={store.permanentlyDeleteSeriesFuture}
-                              onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
-                              onApplySeriesFutureEdits={store.applySeriesFutureEdits}
-                              onDetachFromSeries={store.detachFromSeries}
-                              onApplyRecurrenceChange={store.applyRecurrenceChange}
-                              onApplySeriesSubtasks={store.applySeriesSubtasks}
-                              onUpdatePriority={store.updatePriority}
-                              onUpdateDueDate={store.updateDueDate}
-                              onSnooze={store.snooze}
-                        onLongPressDefer={openSingleDefer}
-                              onUpdateCategory={store.updateTaskCategory}
-                              onUpdateText={store.updateText}
-                              onUpdateNotes={store.updateNotes}
-                              onUpdateRecurrence={store.updateRecurrence}
-                        onUpdateReminder={store.updateReminder}
-                        onUpdateReminders={store.updateReminders}
-                              onAddSubtask={store.addSubtask}
-                              onToggleSubtask={store.toggleSubtask}
-                              onUpdateSubtaskText={store.updateSubtaskText}
-                              onUpdateSubtaskPriority={store.updateSubtaskPriority}
-                              onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
-                              onRemoveSubtask={store.removeSubtask}
-                              agentEnabled={store.profile.agentEnabled !== false}
-                              onClearSubtasks={store.clearSubtasks}
-                              subtaskVisibility={
-                                store.filter === "open"
-                                  ? "open"
-                                  : store.filter === "done"
-                                    ? "done"
-                                    : "all"
-                              }
-                            />
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                  );
-                })}
-              </>
-            ) : store.filter === "overdue" ? (
+            ) : (
               <>
                 <View style={styles.groupSection}>
                   {displayFiltered.some((td) => !td.done) && (
@@ -633,163 +815,9 @@ function TodosScreen() {
                   </View>
                 </View>
               </>
-            ) : (
-              displayGroups.map((group) => {
-                // Collapse is available in the All and Open views, where
-                // the date-bucket grouping shows. Category and status-
-                // specific filters always render every group expanded so
-                // the user always sees the full subset.
-                const toggleable =
-                  store.filter === "all" || store.filter === "open";
-                const collapsed = toggleable && collapsedGroups.has(group.key);
-                const onToggle = toggleable
-                  ? () => toggleGroupCollapsed(group.key)
-                  : undefined;
-                const statusOverride =
-                  group.key === "overdue" || group.key === "done"
-                    ? store.orderedStatuses.find((s) => s.id === group.key)
-                    : null;
-                const headerLabel = statusOverride
-                  ? statusOverride.label
-                  : t.groups[group.key];
-                // Header counts include every to-do in the bucket
-                // (open + done) so the number matches what's visible.
-                const headerCount = group.todos.length;
-                // Only OPEN todos in the bucket can be deferred. Done
-                // items skip — they don't have a dueDate semantics that
-                // needs shifting. Hidden when zero so the "Defer to"
-                // affordance doesn't dangle on a fully-completed bucket.
-                const openInGroup = group.todos.filter((td) => !td.done);
-                const openInGroupCount = openInGroup.length;
-                return (
-                  <View
-                    key={group.key}
-                    style={styles.groupSection}
-                    onLayout={(e) => {
-                      groupYRef.current[group.key] = e.nativeEvent.layout.y;
-                    }}
-                  >
-                    <View style={styles.groupHeaderContainer}>
-                      {toggleable ? (
-                        <TouchableOpacity
-                          onPress={onToggle}
-                          activeOpacity={0.7}
-                          accessibilityRole="button"
-                          accessibilityState={{ expanded: !collapsed }}
-                          hitSlop={8}
-                          style={styles.groupHeaderRow}
-                        >
-                          {collapsed ? (
-                            <ChevronRight size={14} color={theme.label3} strokeWidth={2.5} />
-                          ) : (
-                            <ChevronDown size={14} color={theme.label3} strokeWidth={2.5} />
-                          )}
-                          <Text style={styles.groupHeader}>
-                            {headerLabel} ({headerCount})
-                          </Text>
-                        </TouchableOpacity>
-                      ) : (
-                        <Text style={[styles.groupHeader, styles.groupHeaderSpacing]}>
-                          {headerLabel} ({headerCount})
-                        </Text>
-                      )}
-                      {openInGroupCount > 0 &&
-                        group.key !== 'upcoming' &&
-                        group.key !== 'noDate' && (
-                          <TouchableOpacity
-                            onPress={() =>
-                              setDeferTarget({
-                                label: headerLabel,
-                                ids: openInGroup.map((td) => td.id),
-                                isTodayGroup: group.key === 'today',
-                              })
-                            }
-                            style={styles.groupHeaderDeferBtn}
-                            hitSlop={6}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Defer ${openInGroupCount} to-dos in ${headerLabel}`}
-                          >
-                            <Text style={styles.groupHeaderDeferText}>Defer all →</Text>
-                          </TouchableOpacity>
-                      )}
-                    </View>
-                    {!collapsed && (
-                      <View style={styles.groupCard}>
-                        {group.todos.map((td, i) => (
-                          <View key={td.id} style={styles.taskCard}>
-                            <TaskItem
-                              todo={td}
-                              categories={store.categories}
-                              density={store.profile.density}
-                        celebrate={store.profile.completionAnimation !== false && store.profile.reduceMotion !== true}
-                        playSound={store.profile.completionSound !== false}
-                              onToggle={store.toggle}
-                              onMoveToTrash={store.moveToTrash}
-                              onSkip={store.skipTodo} onSkipSeries={store.skipSeriesFuture}
-                        onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
-                        onApplySeriesFutureEdits={store.applySeriesFutureEdits}
-                        onDetachFromSeries={store.detachFromSeries}
-                        onApplyRecurrenceChange={store.applyRecurrenceChange}
-                        onApplySeriesSubtasks={store.applySeriesSubtasks}
-                              onPermanentDelete={store.permanentlyDelete} onPermanentDeleteSeries={store.permanentlyDeleteSeriesFuture}
-                              onUpdatePriority={store.updatePriority}
-                              onUpdateDueDate={store.updateDueDate}
-                        onSnooze={store.snooze}
-                        onLongPressDefer={openSingleDefer}
-                              onUpdateCategory={store.updateTaskCategory}
-                              onUpdateText={store.updateText}
-                              onUpdateNotes={store.updateNotes}
-                        onUpdateRecurrence={store.updateRecurrence}
-                        onUpdateReminder={store.updateReminder}
-                        onUpdateReminders={store.updateReminders}
-                              onAddSubtask={store.addSubtask}
-                              onToggleSubtask={store.toggleSubtask}
-                              onUpdateSubtaskText={store.updateSubtaskText}
-                              onUpdateSubtaskPriority={
-                                store.updateSubtaskPriority
-                              }
-                              onUpdateSubtaskDueDate={
-                                store.updateSubtaskDueDate
-                              }
-                              onRemoveSubtask={store.removeSubtask}
-                              agentEnabled={store.profile.agentEnabled !== false}
-                              onClearSubtasks={store.clearSubtasks}
-                              subtaskVisibility={
-                                store.filter === "open"
-                                  ? "open"
-                                  : store.filter === "done"
-                                    ? "done"
-                                    : "all"
-                              }
-                            />
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                );
-              })
             )}
 
-            {/* Bin discoverability — surface the 30-day safety net so
-                users know it exists. Only in non-bin views; tapping
-                jumps to the Done filter. */}
-            {!store.inTrashView &&
-              store.filter !== "done" &&
-              store.systemCounts.done > 0 && (
-                <TouchableOpacity
-                  onPress={() => store.setFilter("done")}
-                  style={styles.binFooter}
-                  hitSlop={6}
-                  accessibilityRole="button"
-                  accessibilityLabel={t.binFooter.a11y(store.systemCounts.done)}
-                >
-                  <Text style={styles.binFooterText}>
-                    {t.binFooter.peek(store.systemCounts.done)}
-                  </Text>
-                </TouchableOpacity>
-              )}
-
+            {binPeekFooter}
             {!store.inTrashView && (
               <Footer
                 completedCount={store.completedCount}
@@ -798,8 +826,83 @@ function TodosScreen() {
               />
             )}
             </>
-          </View>
-        </ScrollView>
+            </View>
+          </ScrollView>
+        ) : store.filter === "done" ? (
+          // Done view — virtualized completion-date sections.
+          <SectionList<Todo, DoneSection>
+            sections={doneSections}
+            keyExtractor={keyExtractor}
+            renderItem={renderDoneItem}
+            renderSectionHeader={renderDoneHeader}
+            renderSectionFooter={SectionFooter}
+            ItemSeparatorComponent={ItemSeparator}
+            stickySectionHeadersEnabled={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.listContent}
+            ListHeaderComponent={
+              displayFiltered.length > 0 ? (
+                <View style={styles.trashHeader}>
+                  <Text style={styles.trashNotice}>{t.trashRetention}</Text>
+                  <TouchableOpacity
+                    onPress={store.clearDone}
+                    style={styles.emptyTrashBtn}
+                  >
+                    <Text style={styles.emptyTrashText}>
+                      {t.clearAllCompleted}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null
+            }
+            ListFooterComponent={
+              <Footer
+                completedCount={store.completedCount}
+                onClearDone={store.clearDone}
+                showClear={false}
+              />
+            }
+          />
+        ) : (
+          // Default grouped view — virtualized collapsible date buckets.
+          <SectionList<Todo, GroupedSection>
+            ref={sectionListRef}
+            sections={groupedSections}
+            keyExtractor={keyExtractor}
+            renderItem={renderGroupedItem}
+            renderSectionHeader={renderGroupedHeader}
+            renderSectionFooter={SectionFooter}
+            ItemSeparatorComponent={ItemSeparator}
+            stickySectionHeadersEnabled={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.listContent}
+            onScrollToIndexFailed={() => {
+              // Variable row heights can leave the target offset unknown on
+              // the first try; retry once after a frame, guarding bounds.
+              const target = pendingScrollRef.current;
+              pendingScrollRef.current = null;
+              if (target == null || groupedSections.length === 0) return;
+              setTimeout(() => {
+                sectionListRef.current?.scrollToLocation({
+                  sectionIndex: Math.min(target, groupedSections.length - 1),
+                  itemIndex: 0,
+                  viewPosition: 0,
+                  animated: true,
+                });
+              }, 80);
+            }}
+            ListFooterComponent={
+              <>
+                {binPeekFooter}
+                <Footer
+                  completedCount={store.completedCount}
+                  onClearDone={store.clearDone}
+                  showClear={false}
+                />
+              </>
+            }
+          />
+        )}
       </KeyboardAvoidingView>
       {!store.inTrashView &&
         store.filter !== "done" &&
@@ -1162,6 +1265,24 @@ function makeStyles(c: ThemeColors) {
     },
     groupSection: {
       marginBottom: 18,
+    },
+    // SectionList content padding — mirrors the old container (paddingBottom)
+    // + body (paddingHorizontal / paddingTop) so the virtualized grouped /
+    // Done views land pixel-identical to the former ScrollView layout.
+    listContent: {
+      paddingHorizontal: 16,
+      paddingTop: 16,
+      paddingBottom: 16,
+    },
+    // Replaces groupCard's `gap: 3` between cards (rendered by
+    // ItemSeparatorComponent — never before the first or after the last row).
+    taskGap: {
+      height: 3,
+    },
+    // Replaces groupSection's marginBottom: 18 between/after sections
+    // (rendered by renderSectionFooter).
+    sectionGap: {
+      height: 18,
     },
     groupCard: {
       // Transparent layout container — the card chrome moved to taskCard
