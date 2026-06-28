@@ -1,6 +1,5 @@
 import React from "react";
 import { Text, TouchableOpacity } from "react-native";
-import { Pin } from "lucide-react-native";
 import type { Styles } from "./styles";
 
 export interface StorePillProps {
@@ -38,11 +37,6 @@ export default function StorePill({
   styles,
   inactiveOutline,
 }: StorePillProps) {
-  const pinColor =
-    pinIconColor ??
-    (active
-      ? (styles.storePillLabelActive.color as string)
-      : (styles.storePillLabel.color as string));
   return (
     <TouchableOpacity
       style={[
@@ -60,7 +54,8 @@ export default function StorePill({
       accessibilityLabel={`${label}, ${count}${active ? ", selected" : ""}${pinned ? ", pinned" : ""}`}
       accessibilityHint={onLongPress ? "Long-press to pin or unpin" : undefined}
     >
-      {pinned && <Pin size={10} color={pinColor} strokeWidth={2.4} fill={pinColor} />}
+      {/* Pin glyph removed for calm — a pinned pill persists in the row, which
+          is the signal; long-press still pins/unpins. */}
       {deptIcon}
       <Text
         style={[styles.storePillLabel, active && styles.storePillLabelActive]}

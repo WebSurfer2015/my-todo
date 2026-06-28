@@ -113,6 +113,16 @@ export function makeStyles(c: ThemeColors) {
     },
     groupHeaderFuture: { color: c.label2 },
     groupCount: { fontWeight: '500', color: c.gray3 },
+    // Quiet sub-label inside the Saved accordion ("Often picked up" / "Past items").
+    savedSubLabel: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: c.label3,
+      letterSpacing: 0.3,
+      paddingHorizontal: 4,
+      marginTop: 8,
+      marginBottom: 4,
+    },
     futureHint: {
       fontSize: 12,
       color: c.label3,

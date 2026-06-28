@@ -194,13 +194,10 @@ export default function GroceryView({
   // want the StorePicker to mount with its inline "Add store" row
   // already showing. Resets on every close.
   const [storePickerAutoAdd, setStorePickerAutoAdd] = useState(false)
-  // Per-department + Past-items + Often-picked-up collapse state.
-  // PAST_KEY / OFTEN_KEY are synthetic ids so both synthetic buckets
-  // share the same Set. Past Items defaults to collapsed (rarely
-  // scanned history); Often Picked Up defaults to expanded because
-  // its whole point is one-tap re-add visibility.
+  // Per-department + the single "Saved" accordion collapse state. PAST_KEY is a
+  // synthetic id keying the Saved bucket (staples + past items), collapsed by
+  // default so the active list leads.
   const PAST_KEY = '__past__'
-  const OFTEN_KEY = '__often__'
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
     () => new Set([PAST_KEY]),
   )
@@ -526,7 +523,7 @@ export default function GroceryView({
             <StorePill
               key={`dept-${leadingActiveDept.id}`}
               label={leadingActiveDept.label}
-              count={deptActiveCounts.get(leadingActiveDept.id) ?? 0}
+              count={0 /* dept count lives on the group header below */}
               active
               pinned={pinnedDepts.includes(leadingActiveDept.id)}
               deptIcon={
@@ -574,7 +571,7 @@ export default function GroceryView({
               <StorePill
                 key={`dept-${g.id}`}
                 label={g.label}
-                count={deptActiveCounts.get(g.id) ?? 0}
+                count={0 /* dept count lives on the group header below */}
                 active={isActive}
                 pinned
                 deptIcon={
@@ -692,59 +689,29 @@ export default function GroceryView({
           )
         })}
 
-        {/* Often Picked Up — items checked ≥5 times in the last
-            ~6 months. Quiet header (no per-item count badge) per the
-            calm-app positioning. Sits above Past Items so the user's
-            steady-state staples are one tap away. */}
-        {often.length > 0 && (() => {
-          const collapsed = collapsedGroups.has(OFTEN_KEY)
-          return (
-            <View style={styles.groupBlock}>
-              <TouchableOpacity
-                style={styles.groupHeaderRow}
-                onPress={() => toggleCollapsed(OFTEN_KEY)}
-                activeOpacity={0.6}
-                accessibilityRole="button"
-                accessibilityLabel={`Often picked up, ${often.length}, ${collapsed ? 'collapsed' : 'expanded'}. Tap to toggle.`}
-              >
-                {collapsed ? (
-                  <ChevronRight size={14} color={theme.label3} strokeWidth={2} />
-                ) : (
-                  <ChevronDown size={14} color={theme.label3} strokeWidth={2} />
-                )}
-                <Text style={[styles.groupHeader, styles.groupHeaderFuture]}>
-                  OFTEN PICKED UP
-                  <Text style={styles.groupCount}>  {often.length}</Text>
-                </Text>
-              </TouchableOpacity>
-              {!collapsed && (
-                <>
-                  <Text style={styles.futureHint}>
-                    Tap any item to add it back to its group.
-                  </Text>
-                  <View style={styles.groupCard}>
-                    {often.map((it, i) => (
-                      <View key={it.id}>
-                        {i > 0 && <View style={styles.divider} />}
-                        <Row
-                          item={it}
-                          onToggle={onToggleChecked}
-                          onOpenEdit={setEditingId}
-                          styles={styles}
-                          futureMode
-                        />
-                      </View>
-                    ))}
-                  </View>
-                </>
-              )}
+        {/* SAVED — one calm accordion (collapsed by default) holding the
+            steady-state staples (Often picked up) and checked-off history
+            (Past items). Merges what used to be two competing top-level
+            sections into one, with quiet sub-labels and a single hint. */}
+        {(often.length > 0 || future.length > 0) && (() => {
+          const collapsed = collapsedGroups.has(PAST_KEY)
+          const total = often.length + future.length
+          const renderRows = (items: typeof often) => (
+            <View style={styles.groupCard}>
+              {items.map((it, i) => (
+                <View key={it.id}>
+                  {i > 0 && <View style={styles.divider} />}
+                  <Row
+                    item={it}
+                    onToggle={onToggleChecked}
+                    onOpenEdit={setEditingId}
+                    styles={styles}
+                    futureMode
+                  />
+                </View>
+              ))}
             </View>
           )
-        })()}
-
-        {/* Past Items bucket — checked items waiting for a re-add. */}
-        {future.length > 0 && (() => {
-          const collapsed = collapsedGroups.has(PAST_KEY)
           return (
             <View style={styles.groupBlock}>
               <TouchableOpacity
@@ -752,7 +719,7 @@ export default function GroceryView({
                 onPress={() => toggleCollapsed(PAST_KEY)}
                 activeOpacity={0.6}
                 accessibilityRole="button"
-                accessibilityLabel={`Past items, ${future.length}, ${collapsed ? 'collapsed' : 'expanded'}. Tap to toggle.`}
+                accessibilityLabel={`Saved items, ${total}, ${collapsed ? 'collapsed' : 'expanded'}. Tap to toggle.`}
               >
                 {collapsed ? (
                   <ChevronRight size={14} color={theme.label3} strokeWidth={2} />
@@ -760,8 +727,8 @@ export default function GroceryView({
                   <ChevronDown size={14} color={theme.label3} strokeWidth={2} />
                 )}
                 <Text style={[styles.groupHeader, styles.groupHeaderFuture]}>
-                  PAST ITEMS
-                  <Text style={styles.groupCount}>  {future.length}</Text>
+                  SAVED
+                  <Text style={styles.groupCount}>  {total}</Text>
                 </Text>
               </TouchableOpacity>
               {!collapsed && (
@@ -769,20 +736,18 @@ export default function GroceryView({
                   <Text style={styles.futureHint}>
                     Tap any item to add it back to its group.
                   </Text>
-                  <View style={styles.groupCard}>
-                    {future.map((it, i) => (
-                      <View key={it.id}>
-                        {i > 0 && <View style={styles.divider} />}
-                        <Row
-                          item={it}
-                          onToggle={onToggleChecked}
-                          onOpenEdit={setEditingId}
-                          styles={styles}
-                          futureMode
-                        />
-                      </View>
-                    ))}
-                  </View>
+                  {often.length > 0 && (
+                    <>
+                      <Text style={styles.savedSubLabel}>Often picked up</Text>
+                      {renderRows(often)}
+                    </>
+                  )}
+                  {future.length > 0 && (
+                    <>
+                      <Text style={styles.savedSubLabel}>Past items</Text>
+                      {renderRows(future)}
+                    </>
+                  )}
                 </>
               )}
             </View>
