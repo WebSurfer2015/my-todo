@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActionSheetIOS, Alert, Platform } from 'react-native'
-import { Pin } from 'lucide-react-native'
 import {
   Filter,
   Priority,
@@ -385,14 +384,8 @@ export default function FilterBar({
             >
               {allPill.label}
             </Text>
-            {allPill.count > 0 && (
-              <Text
-                style={[styles.pillCount, isOnAll && styles.pillCountActive]}
-                maxFontSizeMultiplier={1.3}
-              >
-                {allPill.count}
-              </Text>
-            )}
+            {/* No count on All — it's a reset affordance, not a running
+                "how many tasks left" guilt counter. */}
           </TouchableOpacity>
         )
       })()}
@@ -441,13 +434,9 @@ export default function FilterBar({
                 accessibilityLabel={`${label}${count != null ? `, ${count}` : ''}${active ? ', selected — tap to clear' : ', tap to apply'}${pinned ? ', pinned' : ''}`}
                 accessibilityHint="Long-press for Pin or Remove"
               >
-                {pinned && (
-                  <Pin
-                    size={10}
-                    color={active ? theme.primaryOn : theme.label3}
-                    strokeWidth={2.5}
-                  />
-                )}
+                {/* Pin glyph removed — a pinned pill is conveyed by its
+                    persistence in the row; the icon was clutter. Long-press
+                    still pins/unpins. */}
                 <Text
                   style={[styles.pillLabel, active && styles.pillLabelActive]}
                   numberOfLines={1}

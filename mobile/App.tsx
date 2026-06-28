@@ -356,7 +356,8 @@ function TodosScreen() {
               <ChevronDown size={14} color={theme.label3} strokeWidth={2.5} />
             )}
             <Text style={styles.groupHeader}>
-              {headerLabel} ({headerCount})
+              {headerLabel}
+              {collapsed ? '' : ` (${headerCount})`}
             </Text>
           </TouchableOpacity>
         ) : (
@@ -1292,14 +1293,11 @@ function makeStyles(c: ThemeColors) {
       gap: 3,
     },
     taskCard: {
+      // Flat, not raised — the card's surface color + the gap between rows is
+      // enough separation; dropping the shadow reads calmer across a long list.
       backgroundColor: c.card,
       borderRadius: 12,
       overflow: "hidden",
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.04,
-      shadowRadius: 3,
-      elevation: 1,
     },
     groupHeader: {
       fontSize: 12,
