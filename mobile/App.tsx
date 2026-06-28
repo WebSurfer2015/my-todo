@@ -20,12 +20,9 @@ import {
   useTheme,
   ThemeColors,
   ThemeOverrideProvider,
-  THEMES,
   DEFAULT_THEME,
 } from "./src/app/theme";
 import { type Avatar as AvatarT } from "./src/core-bindings/profile";
-import { canUseThemes } from "./src/core-bindings/entitlements";
-import { usePurchases } from "./src/app/PurchasesContext";
 // Side-effect import: registers the foreground notification handler at
 // boot so a push arriving while the app is open isn't silently dropped.
 import "./src/adapters/notifications";
@@ -857,24 +854,11 @@ function AppGate() {
   const { user, loading } = useAuth();
   const store = useStore();
   const scheme = useColorScheme();
-  const { tier } = usePurchases();
-  // Selected color theme drives the whole palette. Premium themes
-  // (blossom/honey/cream) fall back to the default if the user isn't
-  // entitled — defensive against a post-purchase downgrade; the picker
-  // already prevents selecting a locked theme.
-  const themeName = useMemo(() => {
-    const want = store.profile.theme ?? DEFAULT_THEME;
-    const isFree = want === 'sage' || want === 'sky';
-    return isFree || canUseThemes(tier) ? want : DEFAULT_THEME;
-  }, [store.profile.theme, tier]);
-
-  // AppGate renders chrome (tab bar, splash) OUTSIDE its own theme
-  // provider, so resolve the palette directly here to keep them in sync
-  // with the themed children below.
-  const theme = useMemo(
-    () => THEMES[themeName][scheme === 'dark' ? 'dark' : 'light'],
-    [themeName, scheme],
-  );
+  // Theme is provided by <ThemeGate> above SheetProvider, so every sheet
+  // (mounted by SheetProvider) and the tab chrome here all read the SAME
+  // selected palette. (Previously the provider lived inside AppGate, below
+  // SheetProvider — so the sheets fell back to the default sage theme.)
+  const theme = useTheme();
 
   // Per-todo local reminder sync. Runs whenever the live todos list
   // changes — adds new ones, cancels removed/done/trashed/cleared
@@ -904,10 +888,9 @@ function AppGate() {
   // bar shouldn't either.
 
   return (
-    <ThemeOverrideProvider name={themeName}>
-    {/* The theme's `bg` is the whole canvas — flat, per-theme tinted
-        near-white (light) / warm near-black (dark). Tabs render on a
-        transparent scene so this shows through every screen. */}
+    // The theme's `bg` is the whole canvas — flat, per-theme tinted
+    // near-white (light) / warm near-black (dark). Tabs render on a
+    // transparent scene so this shows through every screen.
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
       <NavigationContainer ref={sheetNavigationRef}>
         <Tab.Navigator
@@ -990,6 +973,21 @@ function AppGate() {
         </Tab.Navigator>
       </NavigationContainer>
     </View>
+  );
+}
+
+/**
+ * Provides the selected color theme to EVERYTHING below it — crucially
+ * including SheetProvider, so every sheet/modal reads the user's theme
+ * instead of the default. Lives above SheetProvider, below StoreProvider
+ * (it reads profile.theme). Themes are free for all tiers, so no
+ * entitlement gating here.
+ */
+function ThemeGate({ children }: { children: React.ReactNode }) {
+  const store = useStore();
+  return (
+    <ThemeOverrideProvider name={store.profile.theme ?? DEFAULT_THEME}>
+      {children}
     </ThemeOverrideProvider>
   );
 }
@@ -1005,9 +1003,11 @@ export default function App() {
                 <StoreProvider>
                   <PebbleFlightProvider>
                     <PurchasesProvider>
-                      <SheetProvider>
-                        <AppGate />
-                      </SheetProvider>
+                      <ThemeGate>
+                        <SheetProvider>
+                          <AppGate />
+                        </SheetProvider>
+                      </ThemeGate>
                     </PurchasesProvider>
                   </PebbleFlightProvider>
                 </StoreProvider>

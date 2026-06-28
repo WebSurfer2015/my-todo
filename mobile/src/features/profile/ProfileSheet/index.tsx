@@ -88,6 +88,18 @@ export default function ProfileSheet({
     Haptics.selectionAsync().catch(() => {});
   }
 
+  // "Random daily": first tap fills the box with today's daily quote;
+  // tapping again (already in daily mode) rerolls to a different one.
+  function onRandomDaily() {
+    if (quoteMode !== "daily") {
+      setQuoteShuffle(undefined);
+      setQuoteMode("daily");
+      Haptics.selectionAsync().catch(() => {});
+    } else {
+      shuffleDailyQuote();
+    }
+  }
+
   React.useEffect(() => {
     if (visible) {
       setFirstName(profile.firstName ?? profile.name ?? "");
@@ -219,16 +231,6 @@ export default function ProfileSheet({
       title={t.editProfile}
       primary={{ label: t.save, onPress: handleSave, disabled: !canSave }}
     >
-            {/* Signed-in identity line — sits above the avatar so the
-                user sees who they're editing as before anything else.
-                "Signed in as <email>". Sign out lives in a destructive row
-                at the bottom (the left header slot is Cancel, per convention). */}
-            <Text style={styles.signedInLine} numberOfLines={1}>
-              {user?.email
-                ? `You're signed in as  ${user.email}`
-                : 'Not signed in'}
-            </Text>
-
             {/* Avatar header */}
             <View style={styles.avatarRow}>
               <TouchableOpacity onPress={openAvatarPicker} activeOpacity={0.8}>
@@ -279,62 +281,46 @@ export default function ProfileSheet({
               </View>
               <View style={styles.cardDivider} />
               <View style={styles.cardField}>
-                <Text style={styles.cardFieldLabel}>Quote</Text>
-                {/* Source: Daily (auto-rotating curated), My own, or None. */}
-                <View style={styles.quoteModeRow}>
-                  {([
-                    ["daily", "Daily"],
-                    ["custom", "My own"],
-                    ["off", "None"],
-                  ] as [QuoteMode, string][]).map(([mode, label]) => {
-                    const active = quoteMode === mode;
-                    return (
-                      <TouchableOpacity
-                        key={mode}
-                        style={[styles.quoteChip, active && styles.quoteChipActive]}
-                        onPress={() => setQuoteMode(mode)}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: active }}
-                      >
-                        <Text style={[styles.quoteChipText, active && styles.quoteChipTextActive]}>
-                          {label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
+                <View style={styles.labelRow}>
+                  <Text style={styles.cardFieldLabel}>Quote</Text>
+                  {/* "Random daily" fills the box with the rotating daily
+                      quote; tap again for another. Typing your own switches
+                      to a custom line; clearing it shows none. */}
+                  <TouchableOpacity
+                    onPress={onRandomDaily}
+                    hitSlop={12}
+                    accessibilityRole="button"
+                    accessibilityLabel="Random daily quote"
+                    accessibilityState={{ selected: quoteMode === "daily" }}
+                  >
+                    <View style={[styles.randomDailyChip, quoteMode === "daily" && styles.randomDailyChipActive]}>
+                      <Shuffle
+                        size={13}
+                        color={quoteMode === "daily" ? theme.primaryOn : theme.primary}
+                        strokeWidth={2.4}
+                      />
+                      <Text style={[styles.randomDailyText, quoteMode === "daily" && styles.randomDailyTextActive]}>
+                        Random daily
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
                 </View>
-                {quoteMode === "custom" && (
-                  <TextInput
-                    style={[styles.cardFieldInput, styles.cardFieldInputMulti, styles.inputItalic]}
-                    value={quote}
-                    onChangeText={setQuote}
-                    placeholder={t.profileQuotePlaceholder}
-                    placeholderTextColor={theme.gray3}
-                    multiline
-                    maxLength={128}
-                  />
-                )}
-                {quoteMode === "daily" && (
-                  <View style={styles.quotePreviewRow}>
-                    <Text style={styles.quotePreviewText} numberOfLines={2}>
-                      “{dailyPreview}”
-                    </Text>
-                    <TouchableOpacity
-                      onPress={shuffleDailyQuote}
-                      hitSlop={14}
-                      accessibilityRole="button"
-                      accessibilityLabel="Show me another quote"
-                    >
-                      <Shuffle size={18} color={theme.primary} strokeWidth={2} />
-                    </TouchableOpacity>
-                  </View>
-                )}
+                <TextInput
+                  style={[styles.cardFieldInput, styles.cardFieldInputMulti, styles.inputItalic]}
+                  value={quoteMode === "daily" ? dailyPreview : quote}
+                  onChangeText={(text) => {
+                    setQuote(text);
+                    setQuoteMode("custom");
+                  }}
+                  placeholder={t.profileQuotePlaceholder}
+                  placeholderTextColor={theme.gray3}
+                  multiline
+                  maxLength={128}
+                />
                 <Text style={styles.helper}>
                   {quoteMode === "daily"
-                    ? "A fresh one each day, under your greeting."
-                    : quoteMode === "custom"
-                      ? "Shown under your greeting."
-                      : "No line under your greeting."}
+                    ? "A fresh quote each day. Tap Random daily for another."
+                    : "Shown under your greeting. Leave blank for none."}
                 </Text>
               </View>
             </View>
@@ -343,6 +329,12 @@ export default function ProfileSheet({
                 live in SettingsSheet, not here. Profile stays identity-
                 only — the gear icon in the header opens Settings, which
                 hosts the DATA section. */}
+
+            {/* Signed-in identity line — sits right above Sign out so the
+                account context reads as a unit with the account action. */}
+            <Text style={styles.signedInLine} numberOfLines={1}>
+              {user?.email ? `You're signed in as  ${user.email}` : 'Not signed in'}
+            </Text>
 
             {/* Sign Out — destructive, so it sits at the bottom (not the
                 Cancel slot). Disabled when there's no signed-in user. */}

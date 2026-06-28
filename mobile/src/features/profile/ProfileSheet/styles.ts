@@ -492,42 +492,25 @@ export function makeStyles(c: ThemeColors) {
       justifyContent: "space-between",
       marginBottom: 6,
     },
-    quoteModeRow: {
+    randomDailyChip: {
       flexDirection: "row",
-      gap: 6,
-      marginTop: 8,
-      marginBottom: 4,
-    },
-    quoteChip: {
+      alignItems: "center",
+      gap: 5,
       paddingHorizontal: 12,
       paddingVertical: 6,
       borderRadius: 999,
       backgroundColor: c.surfaceAlt,
     },
-    quoteChipActive: {
+    randomDailyChipActive: {
       backgroundColor: c.primary,
     },
-    quoteChipText: {
+    randomDailyText: {
       fontSize: 13,
       fontWeight: "600",
-      color: c.label2,
+      color: c.primary,
     },
-    quoteChipTextActive: {
+    randomDailyTextActive: {
       color: c.primaryOn,
-    },
-    quotePreviewRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      marginTop: 8,
-      paddingVertical: 4,
-    },
-    quotePreviewText: {
-      flex: 1,
-      fontSize: 15,
-      fontStyle: "italic",
-      color: c.label,
-      lineHeight: 21,
     },
     bottomActionsRow: {
       flexDirection: "row",
