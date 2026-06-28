@@ -25,7 +25,8 @@ import {
 } from "firebase/auth";
 import { deleteDoc, doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, db } from "../adapters/firebase";
-import { stateDocPath } from "../../../core/src/ports/persistence";
+import { stateDocPath, USER_STATE_KEYS } from "../../../core/src/ports/persistence";
+import { runDeleteAccount } from "../../../core/src/store";
 import { Profile, SEED_PROFILE, MAX_PROFILE_NAME_LEN } from "../../../core/src/data/profile";
 
 export class RecentLoginRequiredError extends Error {
@@ -205,27 +206,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const current = auth.currentUser;
     if (!current) throw new Error("Not signed in");
     const uid = current.uid;
-    // Delete Firestore-side data first — once auth is gone, security rules
-    // would reject these writes. This wipe-then-delete-user ORDER is the
-    // load-bearing invariant; it's specified + unit-tested in core's
-    // runDeleteAccount (core/src/store/deleteAccount.ts). Mobile delegates
-    // to that helper; web keeps this inline copy (parity is task #5).
-    await Promise.all(
-      ["todos", "categories", "profile"].map((key) =>
-        deleteDoc(doc(db, stateDocPath(uid, key))).catch(() => {
-          // Best-effort: missing doc is fine, transient failures shouldn't
-          // block the auth delete.
-        }),
-      ),
-    );
-    try {
-      await deleteUser(current);
-    } catch (err) {
-      if ((err as { code?: string } | null)?.code === "auth/requires-recent-login") {
-        throw new RecentLoginRequiredError();
-      }
-      throw err;
-    }
+    // Order (wipe cloud data → THEN delete the auth user) is required by the
+    // security rules and is enforced + unit-tested in core's runDeleteAccount.
+    // Cloud wipe is best-effort per key.
+    await runDeleteAccount({
+      // Wipe EVERY per-user state doc, not just the original three —
+      // todoReferences / groceries / groceryGroups would otherwise be orphaned
+      // in Firestore after the auth user is gone (unreachable but never
+      // deleted: an erasure/cost gap). USER_STATE_KEYS is the canonical list.
+      wipeCloudData: () =>
+        Promise.all(
+          USER_STATE_KEYS.map((key) =>
+            deleteDoc(doc(db, stateDocPath(uid, key))).catch(() => {
+              // Best-effort: missing doc is fine, transient failures
+              // shouldn't block the auth delete.
+            }),
+          ),
+        ).then(() => {}),
+      deleteAuthUser: () => deleteUser(current),
+      onAuthError: (err) => {
+        if ((err as { code?: string } | null)?.code === "auth/requires-recent-login") {
+          throw new RecentLoginRequiredError();
+        }
+      },
+    });
   }, []);
 
   const value = useMemo<AuthApi>(

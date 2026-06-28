@@ -113,9 +113,10 @@ describe('useSuggestSteps', () => {
       useSuggestSteps({ parentTitle: 'Plan trip', parentNotes: 'New Zealand' }),
     )
     await act(async () => { await result.current.request() })
-    expect(suggestSubtasksMock).toHaveBeenCalledWith({
-      title: 'Plan trip',
-      notes: 'New Zealand',
-    })
+    // The hook now passes an AbortSignal as the 2nd arg (request cancellation).
+    expect(suggestSubtasksMock).toHaveBeenCalledWith(
+      { title: 'Plan trip', notes: 'New Zealand' },
+      expect.any(AbortSignal),
+    )
   })
 })

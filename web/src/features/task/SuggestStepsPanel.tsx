@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { suggestSubtasks } from '../../adapters/aiInfer'
 import { distributeSubtaskDueDates } from '../../../../core/src/logic/utils'
@@ -29,11 +29,23 @@ export function useSuggestSteps({
   const [suggestions, setSuggestions] = useState<string[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // The aiInfer call goes through httpsCallable, which can't be aborted —
+  // so we let it resolve and just ignore its result if the panel unmounted
+  // mid-flight (closing the task modal), avoiding a setState-after-unmount.
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
   async function request() {
     setThinking(true)
     setError(null)
     try {
       const res = await suggestSubtasks({ title: parentTitle, notes: parentNotes })
+      if (!mountedRef.current) return
       const texts = res.subtasks.map((s) => s.text).filter((s) => s.length > 0)
       if (texts.length === 0) {
         setError(t.suggestStepsError)
@@ -41,9 +53,9 @@ export function useSuggestSteps({
       }
       setSuggestions(texts)
     } catch {
-      setError(t.suggestStepsError)
+      if (mountedRef.current) setError(t.suggestStepsError)
     } finally {
-      setThinking(false)
+      if (mountedRef.current) setThinking(false)
     }
   }
 

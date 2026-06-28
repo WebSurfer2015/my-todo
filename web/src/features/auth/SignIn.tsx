@@ -2,8 +2,25 @@ import { useState } from "react";
 import { useAuth } from "../../app/AuthContext";
 import { useLang } from "../../app/LangContext";
 import { Lang, LANG_NAMES, LANG_ORDER } from "../../../../core/src/data/i18n";
+import { AuthFlow, mapFirebaseAuthError } from "../../../../core/src/data/authMessages";
 
 type Mode = "social" | "signin" | "signup" | "reset";
+
+/**
+ * Turn a thrown auth error into friendly copy. Firebase `auth/*` codes route
+ * through the shared core map (same source mobile's authErrors uses);
+ * anything else falls back to its raw message. Keeps "Firebase: Error
+ * (auth/invalid-credential)" strings off the screen.
+ */
+function authErrorMessage(err: unknown, flow: AuthFlow): string {
+  const code = (err as { code?: string } | null)?.code ?? "";
+  const rawMessage =
+    err instanceof Error ? err.message : String(err ?? "");
+  if (code.startsWith("auth/")) {
+    return mapFirebaseAuthError(code, flow, rawMessage);
+  }
+  return rawMessage;
+}
 
 export default function SignIn() {
   const { t } = useLang();
@@ -43,14 +60,18 @@ export default function SignIn() {
         setResetSent(true);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(authErrorMessage(err, "email"));
     } finally {
       setBusy(false);
     }
   }
 
   // Wraps a provider call so popup-cancel doesn't surface as an error.
-  async function withProvider(fn: () => Promise<void>, cancelCodes: string[]) {
+  async function withProvider(
+    fn: () => Promise<void>,
+    flow: AuthFlow,
+    cancelCodes: string[],
+  ) {
     setError(null);
     setBusy(true);
     try {
@@ -59,16 +80,16 @@ export default function SignIn() {
       const msg = err instanceof Error ? err.message : String(err);
       const code = (err as { code?: string } | null)?.code ?? "";
       if (cancelCodes.some((c) => msg.includes(c) || code === c)) return;
-      setError(msg);
+      setError(authErrorMessage(err, flow));
     } finally {
       setBusy(false);
     }
   }
 
   const handleApple = () =>
-    withProvider(signInWithApple, ["popup-closed-by-user", "auth/cancelled-popup-request"]);
+    withProvider(signInWithApple, "apple", ["popup-closed-by-user", "auth/cancelled-popup-request"]);
   const handleGoogle = () =>
-    withProvider(signInWithGoogle, ["popup-closed-by-user", "auth/cancelled-popup-request"]);
+    withProvider(signInWithGoogle, "google", ["popup-closed-by-user", "auth/cancelled-popup-request"]);
 
   return (
     <div className="signin-shell">

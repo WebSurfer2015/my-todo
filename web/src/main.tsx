@@ -18,6 +18,14 @@ if (dsn) {
     tracesSampleRate: 0.1,
     replaysSessionSampleRate: 0,
     replaysOnErrorSampleRate: 1.0,
+    // Pin PII masking explicitly — replaysOnErrorSampleRate captures a full
+    // DOM replay on every error, and todo/grocery text is private. Don't
+    // lean on the SDK default; a future config tweak shouldn't be able to
+    // start shipping user content. maskAllText scrubs all text nodes;
+    // blockAllMedia drops images/video from the replay.
+    integrations: [
+      Sentry.replayIntegration({ maskAllText: true, blockAllMedia: true }),
+    ],
   });
 }
 

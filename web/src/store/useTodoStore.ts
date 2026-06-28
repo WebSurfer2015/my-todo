@@ -39,10 +39,10 @@ import {
   subtaskClearAll,
   categoryAdd,
   categoryEdit,
-  categoryDelete,
   categoryReorder,
   deriveState,
 } from "../../../core/src/logic/derive";
+import { deleteCategoryCascade } from "../../../core/src/store";
 import { newCategoryId } from "../../../core/src/data/categories";
 import { vibrate } from "../../../core/src/logic/utils";
 
@@ -389,10 +389,24 @@ export function useTodoStore() {
       variant: "danger",
     });
     if (!ok) return;
-    const next = categoryDelete(todos, categories, id);
-    setTodos(next.todos);
-    setCategories(next.categories);
-    if (filter === `cat:${id}`) setFilter("all");
+    // Route through the shared cascade so every slice the delete touches
+    // stays consistent: it trashes the category's todos, resets the active
+    // filter off the deleted id, AND strips the ghost `cat:<id>` from every
+    // pinned filter set (the bit web's old inline path missed).
+    const res = deleteCategoryCascade({
+      todos,
+      categories,
+      id,
+      filter,
+      pinnedFilters: profile.pinnedFilters,
+    });
+    if (!res.changed) return;
+    setTodos(res.todos);
+    setCategories(res.categories);
+    if (res.filter !== null) setFilter(res.filter);
+    if (res.pinnedFilters !== profile.pinnedFilters) {
+      setProfile((prev) => ({ ...prev, pinnedFilters: res.pinnedFilters }));
+    }
   }
 
   function reorderCategories(fromIdx: number, toIdx: number) {
