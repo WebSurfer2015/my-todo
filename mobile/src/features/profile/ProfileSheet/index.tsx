@@ -280,21 +280,12 @@ export default function ProfileSheet({
       visible={visible}
       onClose={onClose}
       title={t.editProfile}
-      left={{
-        label: t.signOut,
-        onPress: () => {
-          onClose();
-          signOut();
-        },
-        destructive: true,
-        disabled: !user,
-      }}
       primary={{ label: t.save, onPress: handleSave, disabled: !canSave }}
     >
             {/* Signed-in identity line — sits above the avatar so the
                 user sees who they're editing as before anything else.
-                "Signed in as <email>" all on one row; Sign out lives
-                in the title bar (top-left). */}
+                "Signed in as <email>". Sign out lives in a destructive row
+                at the bottom (the left header slot is Cancel, per convention). */}
             <Text style={styles.signedInLine} numberOfLines={1}>
               {user?.email
                 ? `You're signed in as  ${user.email}`
@@ -475,6 +466,22 @@ export default function ProfileSheet({
                 live in SettingsSheet, not here. Profile stays identity-
                 only — the gear icon in the header opens Settings, which
                 hosts the DATA section. */}
+
+            {/* Sign Out — destructive, so it sits at the bottom (not the
+                Cancel slot). Disabled when there's no signed-in user. */}
+            {user && (
+              <TouchableOpacity
+                style={styles.signOutRow}
+                onPress={() => {
+                  onClose();
+                  signOut();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={t.signOut}
+              >
+                <Text style={styles.signOutRowText}>{t.signOut}</Text>
+              </TouchableOpacity>
+            )}
 
             <View style={{ height: 24 }} />
     </SheetShell>

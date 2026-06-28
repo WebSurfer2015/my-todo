@@ -526,6 +526,16 @@ export function makeStyles(c: ThemeColors) {
       paddingVertical: 10,
       paddingHorizontal: 4,
     },
+    // Destructive Sign Out row at the bottom of the sheet (red on a card,
+    // mirrors the grocery/edit delete-row pattern).
+    signOutRow: {
+      marginTop: 16,
+      paddingVertical: 14,
+      borderRadius: 12,
+      backgroundColor: c.card,
+      alignItems: "center",
+    },
+    signOutRowText: { fontSize: 15, fontWeight: "600", color: c.red },
     deleteInlineText: {
       fontSize: 14,
       color: c.label3,
