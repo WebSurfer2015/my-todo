@@ -395,9 +395,17 @@ export function SheetProvider({ children }: { children: ReactNode }) {
       <ThemeSelector
         visible={themePickerOpen}
         value={store.profile.theme ?? 'sage'}
-        onChange={(next) =>
-          store.saveProfile({ ...store.profile, theme: next })
-        }
+        onChange={(next) => {
+          // Close the picker FIRST, then apply the theme after it has
+          // dismissed. Applying live re-themes the whole app (incl. the
+          // mounted Modals) while this Modal is still animating, which
+          // desyncs iOS's native modal stack and leaves an invisible
+          // touch-capturing layer → the UI freezes ("no action works").
+          setThemePickerOpen(false)
+          setTimeout(() => {
+            store.saveProfile({ ...store.profile, theme: next })
+          }, 260)
+        }}
         onClose={() => setThemePickerOpen(false)}
       />
       <GuidesPrompt

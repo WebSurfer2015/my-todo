@@ -120,8 +120,8 @@ describe('Premium — no daily limit, monthly cap, then pay as you go', () => {
 
 describe('feature gates match the offerings', () => {
   const tiers: Tier[] = ['free', 'premium', 'max']
-  it('themes are premium+', () => {
-    expect(tiers.map(canUseThemes)).toEqual([false, true, true])
+  it('themes are free for everyone', () => {
+    expect(tiers.map(canUseThemes)).toEqual([true, true, true])
   })
   it('AI planning is max-only', () => {
     expect(tiers.map(canUseAiPlanning)).toEqual([false, false, true])
