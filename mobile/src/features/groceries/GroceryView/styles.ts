@@ -14,7 +14,7 @@ export function makeStyles(c: ThemeColors) {
       paddingHorizontal: 16,
       // Extra top padding so the pills sit centered in the space below
       // the header rather than hugging the top.
-      paddingTop: 14,
+      paddingTop: 12,
       paddingBottom: 8,
       gap: 8,
     },
@@ -134,8 +134,8 @@ export function makeStyles(c: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
-      paddingVertical: 14,
-      paddingHorizontal: 14,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
       minHeight: 48,
     },
     rowBody: {

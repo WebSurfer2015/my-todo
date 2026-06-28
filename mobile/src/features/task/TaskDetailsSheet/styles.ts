@@ -93,15 +93,15 @@ export function makeStyles(c: ThemeColors) {
     listEmpty: { paddingVertical: 24, alignItems: 'center' },
 
     /* Subtask row — borderless single line, sidecar style.
-       paddingHorizontal:14 matches the editFieldRowInGroup so the checkbox
+       paddingHorizontal: 16 matches the editFieldRowInGroup so the checkbox
        aligns with the Category/Completed-by icons above. */
     subCard: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
+      gap: 8,
       paddingVertical: 8,
-      paddingLeft: 14,
-      paddingRight: 14,
+      paddingLeft: 16,
+      paddingRight: 16,
     },
     subCardCheckbox: {
       width: 20,
@@ -287,9 +287,9 @@ export function makeStyles(c: ThemeColors) {
       minHeight: 96,
       fontSize: 16,
       color: c.label,
-      paddingHorizontal: 14,
-      paddingTop: 14,
-      paddingBottom: 14,
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      paddingBottom: 12,
       letterSpacing: -0.16,
       lineHeight: 22,
     },
@@ -301,8 +301,8 @@ export function makeStyles(c: ThemeColors) {
       fontSize: 14,
       lineHeight: 20,
       color: c.label,
-      paddingHorizontal: 14,
-      paddingTop: 10,
+      paddingHorizontal: 16,
+      paddingTop: 8,
       paddingBottom: 12,
     },
     editGroupDivider: {
@@ -316,7 +316,7 @@ export function makeStyles(c: ThemeColors) {
     inputAccessoryRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 14,
+      paddingHorizontal: 16,
       paddingTop: 4,
       paddingBottom: 8,
     },
@@ -324,8 +324,8 @@ export function makeStyles(c: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
-      paddingHorizontal: 14,
-      paddingVertical: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
     },
     subtaskSectionHeader: {
       fontSize: 11,
@@ -346,7 +346,7 @@ export function makeStyles(c: ThemeColors) {
     notesCard: {
       backgroundColor: c.card,
       borderRadius: 12,
-      paddingHorizontal: 14,
+      paddingHorizontal: 16,
       paddingVertical: 12,
       marginBottom: 4,
     },
@@ -361,12 +361,12 @@ export function makeStyles(c: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
-      paddingHorizontal: 14,
-      paddingVertical: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
     },
     remindChipRow: {
-      paddingHorizontal: 14,
-      paddingVertical: 10,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
       gap: 6,
     },
     remindChipRowLabel: {
@@ -398,7 +398,7 @@ export function makeStyles(c: ThemeColors) {
       color: c.primaryOn,
     },
     remindPreviewWrap: {
-      paddingHorizontal: 14,
+      paddingHorizontal: 16,
       paddingTop: 8,
       paddingBottom: 12,
       alignItems: 'center',
@@ -451,7 +451,7 @@ export function makeStyles(c: ThemeColors) {
     },
     datePresetChip: {
       paddingVertical: 7,
-      paddingHorizontal: 14,
+      paddingHorizontal: 16,
       borderRadius: 999,
       borderWidth: 1,
       borderColor: c.border,
@@ -563,7 +563,7 @@ export function makeStyles(c: ThemeColors) {
     },
     destructiveAction: {
       alignItems: 'flex-start',
-      paddingVertical: 14,
+      paddingVertical: 12,
       paddingHorizontal: 4,
       marginTop: 12,
     },
@@ -655,7 +655,7 @@ export function makeStyles(c: ThemeColors) {
       paddingHorizontal: 4,
     },
     bottomActionButton: {
-      paddingVertical: 14,
+      paddingVertical: 12,
       paddingHorizontal: 4,
     },
     skipActionText: {

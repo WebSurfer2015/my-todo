@@ -143,7 +143,7 @@ function makeStyles(c: ThemeColors, variant: 'default' | 'compact') {
     cta: {
       marginTop: 12,
       paddingHorizontal: 18,
-      paddingVertical: 10,
+      paddingVertical: 8,
       borderRadius: 10,
       backgroundColor: c.blue,
     },

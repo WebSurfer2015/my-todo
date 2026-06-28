@@ -348,7 +348,7 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center',
       backgroundColor: c.primarySoft,
       borderRadius: 999,
-      paddingLeft: 10,
+      paddingLeft: 12,
       paddingRight: 4,
       paddingVertical: 4,
       gap: 4,
@@ -381,7 +381,7 @@ function makeStyles(c: ThemeColors) {
       gap: 6,
       backgroundColor: c.primarySoft,
       borderRadius: 999,
-      paddingHorizontal: 10,
+      paddingHorizontal: 12,
       paddingVertical: 4,
     },
     thinkingText: {

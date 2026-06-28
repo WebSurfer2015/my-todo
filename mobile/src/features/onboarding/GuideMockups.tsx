@@ -203,7 +203,7 @@ function sheetStyles(c: ThemeColors) {
       backgroundColor: c.bg,
       borderRadius: 14,
       paddingTop: 4,
-      paddingBottom: 10,
+      paddingBottom: 8,
       paddingHorizontal: 0,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.separator,
@@ -223,12 +223,12 @@ function sheetStyles(c: ThemeColors) {
     titleRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 14,
+      paddingHorizontal: 16,
       paddingBottom: 6,
     },
     title: { flex: 1, textAlign: 'center', fontSize: 13, fontWeight: '600', color: c.label },
     titleAccent: { width: 40, textAlign: 'right', fontSize: 12, color: c.primary, fontWeight: '600' },
-    body: { paddingHorizontal: 10, gap: 6 },
+    body: { paddingHorizontal: 12, gap: 6 },
   })
 }
 
@@ -237,9 +237,9 @@ function rowStyles(c: ThemeColors, highlight: boolean) {
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 10,
-      paddingVertical: 10,
-      gap: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      gap: 8,
       backgroundColor: c.card,
       borderRadius: 10,
       borderWidth: highlight ? 2 : StyleSheet.hairlineWidth,
@@ -312,7 +312,7 @@ function todoStyles(c: ThemeColors, highlight: boolean) {
       alignItems: 'center',
       paddingHorizontal: 12,
       paddingVertical: 12,
-      gap: 10,
+      gap: 8,
       backgroundColor: c.card,
       borderRadius: 10,
       borderWidth: highlight ? 2 : StyleSheet.hairlineWidth,

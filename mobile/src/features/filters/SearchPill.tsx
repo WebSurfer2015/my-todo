@@ -61,7 +61,7 @@ function makeStyles(c: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      paddingLeft: 10,
+      paddingLeft: 12,
       paddingRight: 4,
       paddingVertical: 6,
       borderRadius: 100,

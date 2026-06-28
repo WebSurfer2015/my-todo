@@ -905,7 +905,7 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center',
       gap: 12,
       paddingVertical: 12,
-      paddingHorizontal: 14,
+      paddingHorizontal: 16,
       minHeight: 56,
     },
     todayCheckbox: {
@@ -980,7 +980,7 @@ function makeStyles(c: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 4,
-      paddingVertical: 10,
+      paddingVertical: 8,
       paddingHorizontal: 8,
       minWidth: 80,
     },
@@ -1005,7 +1005,7 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center',
       justifyContent: 'center',
       gap: 4,
-      paddingVertical: 10,
+      paddingVertical: 8,
     },
     todayMoreText: {
       fontSize: 13,
@@ -1014,7 +1014,7 @@ function makeStyles(c: ThemeColors) {
     },
     statsRow: {
       flexDirection: 'row',
-      gap: 10,
+      gap: 8,
       marginTop: 4,
     },
     statsRowSticky: {
@@ -1033,7 +1033,7 @@ function makeStyles(c: ThemeColors) {
     },
     statsRowScroll: {
       flexDirection: 'row',
-      gap: 10,
+      gap: 8,
       paddingHorizontal: 16,
       // Stretch tiles to a uniform height (tallest wins) so single-row
       // and two-row labels share the same card height.

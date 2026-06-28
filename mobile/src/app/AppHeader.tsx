@@ -275,7 +275,7 @@ function makeStyles(c: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 20,
-      paddingTop: 14,
+      paddingTop: 12,
       paddingBottom: 12,
       // Header band uses the primary (FAB) color; text + icons flip to
       // primaryOn for contrast.
@@ -311,7 +311,7 @@ function makeStyles(c: ThemeColors) {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 14,
+      gap: 12,
     },
     textWrap: { flex: 1, minWidth: 0 },
     screenTitle: {

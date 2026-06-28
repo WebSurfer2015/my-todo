@@ -137,7 +137,7 @@ function makeStyles(c: ThemeColors) {
       // hint, plenty of breathing room without floating away.
       marginTop: 22,
       paddingHorizontal: 20,
-      paddingVertical: 10,
+      paddingVertical: 8,
       borderRadius: 999,
       backgroundColor: c.primarySoft,
     },

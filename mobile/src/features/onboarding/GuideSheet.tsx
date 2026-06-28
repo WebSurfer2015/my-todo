@@ -244,7 +244,7 @@ function makeStyles(c: ThemeColors, _width: number) {
     primaryBtn: {
       backgroundColor: c.primary,
       borderRadius: 14,
-      paddingVertical: 14,
+      paddingVertical: 12,
       alignItems: 'center',
     },
     primaryBtnText: { color: c.primaryOn, fontSize: 17, fontWeight: '600' },

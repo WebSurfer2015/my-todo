@@ -241,9 +241,9 @@ function makeStyles(c: ThemeColors) {
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
-      paddingVertical: 14,
-      paddingHorizontal: 14,
+      gap: 8,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
       minHeight: 48,
     },
     rowLabel: { fontSize: 15, color: c.label, fontWeight: '500' },

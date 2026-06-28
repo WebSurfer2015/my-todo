@@ -177,7 +177,7 @@ function makeStyles(c: ThemeColors) {
       overflow: 'hidden',
       marginTop: 8,
     },
-    field: { paddingVertical: 12, paddingHorizontal: 14 },
+    field: { paddingVertical: 12, paddingHorizontal: 16 },
     fieldLabel: {
       fontSize: 11,
       fontWeight: '700',
@@ -205,8 +205,8 @@ function makeStyles(c: ThemeColors) {
     },
     deleteRow: {
       marginTop: 18,
-      paddingVertical: 14,
-      paddingHorizontal: 14,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
       borderRadius: 12,
       backgroundColor: c.card,
       alignItems: 'flex-start',

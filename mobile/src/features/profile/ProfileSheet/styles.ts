@@ -6,12 +6,12 @@ export function makeStyles(c: ThemeColors) {
     avatarRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 14,
+      gap: 12,
       marginBottom: 14,
     },
     avatarBtn: {
-      paddingVertical: 10,
-      paddingHorizontal: 14,
+      paddingVertical: 8,
+      paddingHorizontal: 16,
       borderRadius: 8,
       backgroundColor: c.bg,
     },
@@ -90,7 +90,7 @@ export function makeStyles(c: ThemeColors) {
     },
     cardField: {
       paddingVertical: 12,
-      paddingHorizontal: 14,
+      paddingHorizontal: 16,
     },
     cardFieldRow: {
       flexDirection: "row",
@@ -129,20 +129,20 @@ export function makeStyles(c: ThemeColors) {
       marginLeft: 14,
     },
     presetCard: {
-      paddingHorizontal: 10,
-      paddingVertical: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
     },
     accountRowStatic: {
-      paddingVertical: 14,
-      paddingHorizontal: 14,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
       minHeight: 48,
     },
     accountRow: {
-      paddingVertical: 14,
-      paddingHorizontal: 14,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
@@ -164,7 +164,7 @@ export function makeStyles(c: ThemeColors) {
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
-      paddingHorizontal: 14,
+      paddingHorizontal: 16,
       paddingVertical: 12,
     },
     accountOneLine: {
@@ -204,7 +204,7 @@ export function makeStyles(c: ThemeColors) {
     field: {
       marginBottom: 12,
     },
-    fieldRow: { flexDirection: "row", gap: 10 },
+    fieldRow: { flexDirection: "row", gap: 8 },
     fieldHalf: { flex: 1 },
     label: {
       fontSize: 11,
@@ -219,7 +219,7 @@ export function makeStyles(c: ThemeColors) {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
       borderRadius: 8,
-      paddingHorizontal: 10,
+      paddingHorizontal: 12,
       fontSize: 14,
       color: c.label,
       backgroundColor: c.bg,
@@ -278,7 +278,7 @@ export function makeStyles(c: ThemeColors) {
     },
     langBtn: {
       paddingHorizontal: 18,
-      paddingVertical: 10,
+      paddingVertical: 8,
       borderRadius: 8,
       backgroundColor: c.bg,
       borderWidth: StyleSheet.hairlineWidth,
@@ -338,7 +338,7 @@ export function makeStyles(c: ThemeColors) {
       alignItems: "center",
       justifyContent: "space-between",
       paddingVertical: 12,
-      paddingHorizontal: 14,
+      paddingHorizontal: 16,
       marginTop: -4,
       marginBottom: 4,
       borderRadius: 10,
@@ -374,7 +374,7 @@ export function makeStyles(c: ThemeColors) {
     privacyCard: {
       backgroundColor: c.bg,
       borderRadius: 12,
-      padding: 14,
+      padding: 12,
       gap: 8,
       marginBottom: 8,
     },
@@ -385,7 +385,7 @@ export function makeStyles(c: ThemeColors) {
     },
     exportBtn: {
       paddingVertical: 12,
-      paddingHorizontal: 14,
+      paddingHorizontal: 16,
       marginBottom: 4,
       alignItems: "flex-start",
     },
@@ -433,7 +433,7 @@ export function makeStyles(c: ThemeColors) {
     },
     btn: {
       paddingHorizontal: 16,
-      paddingVertical: 10,
+      paddingVertical: 8,
       borderRadius: 8,
       backgroundColor: c.bg,
     },
@@ -523,14 +523,14 @@ export function makeStyles(c: ThemeColors) {
       fontSize: 14,
       color: c.label2,
       fontWeight: "500",
-      paddingVertical: 10,
+      paddingVertical: 8,
       paddingHorizontal: 4,
     },
     // Destructive Sign Out row at the bottom of the sheet (red on a card,
     // mirrors the grocery/edit delete-row pattern).
     signOutRow: {
       marginTop: 16,
-      paddingVertical: 14,
+      paddingVertical: 12,
       borderRadius: 12,
       backgroundColor: c.card,
       alignItems: "center",
@@ -540,7 +540,7 @@ export function makeStyles(c: ThemeColors) {
       fontSize: 14,
       color: c.label3,
       fontWeight: "500",
-      paddingVertical: 10,
+      paddingVertical: 8,
       paddingHorizontal: 4,
     },
     deleteInlineTextDisabled: {

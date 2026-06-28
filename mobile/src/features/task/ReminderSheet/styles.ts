@@ -60,7 +60,7 @@ export function makeStyles(c: ThemeColors) {
       backgroundColor: c.surfaceAlt,
       borderRadius: 12,
       paddingHorizontal: 16,
-      paddingVertical: 14,
+      paddingVertical: 12,
     },
     listEmptyText: {
       fontSize: 14,
@@ -77,7 +77,7 @@ export function makeStyles(c: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      paddingLeft: 14,
+      paddingLeft: 16,
       paddingRight: 6,
       paddingVertical: 8,
       borderRadius: 999,
@@ -138,7 +138,7 @@ export function makeStyles(c: ThemeColors) {
       backgroundColor: c.surfaceAlt,
       borderRadius: 12,
       paddingHorizontal: 16,
-      paddingVertical: 14,
+      paddingVertical: 12,
     },
     noticeText: {
       fontSize: 14,
@@ -156,8 +156,8 @@ export function makeStyles(c: ThemeColors) {
     },
     chip: {
       minWidth: 56,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
       borderRadius: 999,
       backgroundColor: c.primarySoft,
       alignItems: 'center',
@@ -198,7 +198,7 @@ export function makeStyles(c: ThemeColors) {
     doneBtn: {
       backgroundColor: c.primary,
       borderRadius: 14,
-      paddingVertical: 14,
+      paddingVertical: 12,
       alignItems: 'center',
       justifyContent: 'center',
     },

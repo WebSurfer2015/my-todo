@@ -165,7 +165,7 @@ function makeStyles(c: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      paddingHorizontal: 10,
+      paddingHorizontal: 12,
       height: 36,
       borderRadius: 10,
       backgroundColor: c.card,

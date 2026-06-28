@@ -19,7 +19,7 @@ export function makeStyles(c: ThemeColors, density: Density) {
       paddingLeft: 16,
       paddingRight: 16,
       backgroundColor: c.card,
-      gap: 10,
+      gap: 8,
       overflow: 'hidden',
     },
     rowDone: {},

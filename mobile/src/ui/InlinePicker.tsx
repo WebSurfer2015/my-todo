@@ -101,8 +101,8 @@ function makeStyles(c: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
-      paddingHorizontal: 14,
-      paddingVertical: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
     },
     rowBorder: {
       borderBottomWidth: StyleSheet.hairlineWidth,

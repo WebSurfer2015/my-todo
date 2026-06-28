@@ -487,7 +487,7 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 16,
       // Extra top padding so the pills sit centered in the space below
       // the header rather than hugging the top.
-      paddingTop: 14,
+      paddingTop: 12,
       paddingBottom: 8,
     },
     iconBtn: {
@@ -517,7 +517,7 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 12,
       // ~27pt was tight for a constantly-tapped (and long-pressable) filter
       // pill with no hitSlop; 10pt vertical gives a comfortable ~34pt.
-      paddingVertical: 10,
+      paddingVertical: 8,
       borderRadius: 100,
       backgroundColor: c.card,
       borderWidth: StyleSheet.hairlineWidth,

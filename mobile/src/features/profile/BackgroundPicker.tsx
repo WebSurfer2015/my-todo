@@ -194,8 +194,8 @@ const styles = StyleSheet.create({
   lockBanner: {
     marginHorizontal: 16,
     marginBottom: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     borderRadius: 12,
     alignItems: 'center',
   },
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     marginBottom: 10,
   },
-  row: { paddingHorizontal: 14, gap: 12 },
+  row: { paddingHorizontal: 16, gap: 12 },
   tileOuter: { width: TILE_W },
   tile: {
     width: TILE_W,
@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 6,

@@ -396,7 +396,7 @@ function makeLangPickerStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { alignSelf: "flex-end", marginBottom: 8, marginTop: -8 },
     btn: {
-      paddingHorizontal: 10,
+      paddingHorizontal: 12,
       paddingVertical: 4,
       borderRadius: 8,
       borderWidth: StyleSheet.hairlineWidth,
@@ -463,7 +463,7 @@ function makeStyles(c: ThemeColors) {
       textAlign: "center",
       fontStyle: "italic",
     },
-    providers: { gap: 10 },
+    providers: { gap: 8 },
     appleButton: { width: "100%", height: 44 },
     socialBtn: {
       width: "100%",
@@ -480,7 +480,7 @@ function makeStyles(c: ThemeColors) {
     googleText: { color: "#1f1f1f", fontSize: 15, fontWeight: "500" },
     toggleEmphasis: { color: c.label, fontSize: 14, fontWeight: "500" },
     field: { marginBottom: 12 },
-    fieldRow: { flexDirection: "row", gap: 10 },
+    fieldRow: { flexDirection: "row", gap: 8 },
     fieldHalf: { flex: 1 },
     required: { color: c.red },
     label: {
@@ -502,7 +502,7 @@ function makeStyles(c: ThemeColors) {
     },
     input: {
       // ~44pt field (was ~40pt) — primary entry points deserve a full target.
-      paddingVertical: 14,
+      paddingVertical: 12,
       paddingHorizontal: 12,
       fontSize: 15,
       color: c.label,
@@ -516,7 +516,7 @@ function makeStyles(c: ThemeColors) {
       color: c.red,
       backgroundColor: "rgba(255,59,48,0.08)",
       paddingVertical: 8,
-      paddingHorizontal: 10,
+      paddingHorizontal: 12,
       borderRadius: 6,
       marginTop: 4,
       marginBottom: 4,
@@ -526,7 +526,7 @@ function makeStyles(c: ThemeColors) {
       color: c.green,
       backgroundColor: "rgba(52,199,89,0.10)",
       paddingVertical: 8,
-      paddingHorizontal: 10,
+      paddingHorizontal: 12,
       borderRadius: 6,
       marginTop: 4,
       marginBottom: 4,

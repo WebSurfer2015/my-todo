@@ -80,7 +80,7 @@ export interface Guide {
 const inlineStyles = StyleSheet.create({
   stack: { width: '100%', maxWidth: 320 },
 
-  subsHeader: { paddingHorizontal: 10, paddingTop: 4 },
+  subsHeader: { paddingHorizontal: 12, paddingTop: 4 },
   subsHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -95,13 +95,13 @@ const inlineStyles = StyleSheet.create({
   clearAllChip: {
     backgroundColor: 'rgba(79,138,117,0.18)',
     borderRadius: 999,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 3,
   },
   clearAllText: { fontSize: 11, fontWeight: '600', color: '#4F8A75' },
   addStepRow: {
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     backgroundColor: 'rgba(79,138,117,0.10)',
     borderRadius: 10,
     alignItems: 'center',
@@ -121,7 +121,7 @@ const inlineStyles = StyleSheet.create({
   oftenRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   oftenChip: {
     backgroundColor: 'rgba(79,138,117,0.15)',
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
   },
@@ -131,7 +131,7 @@ const inlineStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     backgroundColor: 'rgba(0,0,0,0.04)',
     borderRadius: 10,
     width: '100%',
@@ -182,7 +182,7 @@ const inlineStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
     backgroundColor: 'rgba(0,0,0,0.05)',
@@ -196,8 +196,8 @@ const inlineStyles = StyleSheet.create({
   sidebarRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 10,
+    gap: 8,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: 'rgba(0,0,0,0.04)',
     borderRadius: 8,
@@ -216,7 +216,7 @@ const inlineStyles = StyleSheet.create({
   pebbleRow: { flexDirection: 'row', gap: 4 },
   pebbleGlyph: { fontSize: 24 },
 
-  swatchRow: { flexDirection: 'row', gap: 10 },
+  swatchRow: { flexDirection: 'row', gap: 8 },
   swatch: {
     width: 48,
     height: 48,
@@ -225,7 +225,7 @@ const inlineStyles = StyleSheet.create({
     borderColor: 'rgba(0,0,0,0.08)',
   },
 
-  themeWrap: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  themeWrap: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatarCircle: {
     width: 56,
     height: 56,

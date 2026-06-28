@@ -182,7 +182,7 @@ function makeReviewStyles(c: ThemeColors) {
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
+      gap: 8,
       paddingVertical: 4,
     },
     checkbox: {
@@ -218,7 +218,7 @@ function makeReviewStyles(c: ThemeColors) {
       marginTop: 8,
     },
     btnSecondary: {
-      paddingHorizontal: 14,
+      paddingHorizontal: 16,
       paddingVertical: 8,
       borderRadius: 999,
     },

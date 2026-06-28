@@ -319,7 +319,7 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 14,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
-      padding: 14,
+      padding: 12,
       gap: 8,
     },
     cardCurrent: { borderColor: c.primary, borderWidth: 1.5 },

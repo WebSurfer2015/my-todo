@@ -149,8 +149,8 @@ function makeStyles(c: ThemeColors) {
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 14,
-      paddingVertical: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
       gap: 12,
       minHeight: 64,
     },

@@ -366,7 +366,7 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 10,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
-      paddingHorizontal: 14,
+      paddingHorizontal: 16,
       paddingVertical: 12,
     },
     previewLabel: {
