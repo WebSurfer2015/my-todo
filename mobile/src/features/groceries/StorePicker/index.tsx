@@ -449,19 +449,19 @@ export default function StorePicker({
                             autoFocus
                             returnKeyType="done"
                             maxLength={MAX_GROCERY_STORE_LEN}
-                            onSubmitEditing={() => {
+                            // Single commit path: blur. Return dismisses the
+                            // keyboard (blurOnSubmit) → onBlur fires, so we
+                            // don't commit twice. Blur = commit (matches inline
+                            // rename, which also blur-saves) so a typed store
+                            // name isn't silently dropped when the user taps
+                            // Done / away. To back out, clear the field first —
+                            // an empty name adds nothing.
+                            onBlur={() => {
                               const name = newName.trim();
                               if (name) {
                                 onAdd(name);
                                 maybeLinkExistingItems(name);
                               }
-                              setNewName("");
-                              setAddingNew(false);
-                            }}
-                            // Blur = cancel (tap away / backdrop / another row),
-                            // not save — otherwise there's no way to back out of
-                            // adding a store. Return key (above) is the commit.
-                            onBlur={() => {
                               setNewName("");
                               setAddingNew(false);
                             }}

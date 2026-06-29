@@ -466,10 +466,12 @@ export default function GroceryComposeSheet({
     requestAnimationFrame(() => inputRef.current?.focus())
   }
 
-  // Require at least one store pick. When the user has no configured
-  // stores at all, the in-sheet "Add stores first" nudge handles that
-  // edge — the buttons stay disabled because there's nothing to pick.
-  const canSubmit = text.trim().length > 0 && selectedStores.length > 0
+  // Only the item name is required. Stores are optional — a storeless item
+  // is valid (it shows in every store view and can be tagged later from the
+  // Edit sheet), so a shopper with no configured stores (or who just hasn't
+  // picked one) can still add. This unblocks the former dead-end where Add
+  // stayed permanently disabled with no explanation.
+  const canSubmit = text.trim().length > 0
 
   return (
     <SheetShell

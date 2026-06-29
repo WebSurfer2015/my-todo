@@ -80,6 +80,16 @@ export default function GroceryEditSheet({
     onClose()
   }
 
+  // Backdrop / swipe dismiss: auto-save edits to this existing item (calm,
+  // forgiving) when the name is still valid, instead of silently dropping
+  // the changed department / stores.
+  function handleDismiss() {
+    if (item && text.trim()) {
+      onSave(item.id, { text: text.trim(), groupId, stores: storesList })
+    }
+    onClose()
+  }
+
   function handleDelete() {
     if (!item) return
     Alert.alert(
@@ -103,7 +113,7 @@ export default function GroceryEditSheet({
   return (
     <SheetShell
       visible={visible && !!item}
-      onClose={onClose}
+      onClose={handleDismiss}
       title="Edit item"
       primary={{ label: t.save, onPress: handleSave, disabled: !text.trim() }}
     >
@@ -116,11 +126,35 @@ export default function GroceryEditSheet({
             onChangeText={setText}
             placeholder="Milk"
             placeholderTextColor={theme.gray3}
-            autoFocus
             maxLength={200}
             returnKeyType="done"
             onSubmitEditing={handleSave}
           />
+        </View>
+        <View style={styles.divider} />
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Department</Text>
+          <View style={styles.storeChipRow}>
+            {groups
+              .filter((g) => !g.hidden || g.id === groupId)
+              .map((g) => {
+                const on = g.id === groupId
+                return (
+                  <TouchableOpacity
+                    key={g.id}
+                    onPress={() => setGroupId(g.id)}
+                    style={[styles.storeChip, on && styles.storeChipOn]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                    accessibilityLabel={`Department: ${g.label}`}
+                  >
+                    <Text style={[styles.storeChipText, on && styles.storeChipTextOn]}>
+                      {g.label}
+                    </Text>
+                  </TouchableOpacity>
+                )
+              })}
+          </View>
         </View>
         <View style={styles.divider} />
         <View style={styles.field}>
