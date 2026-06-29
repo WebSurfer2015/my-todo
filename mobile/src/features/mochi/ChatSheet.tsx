@@ -357,9 +357,9 @@ export default function ChatSheet({
       close()
       return
     }
-    Alert.alert('End chat?', 'Your conversation with Mochi will be cleared.', [
-      { text: 'Keep chatting', style: 'cancel' },
-      { text: 'End chat', style: 'destructive', onPress: close },
+    Alert.alert(t.endChatTitle, t.endChatBody, [
+      { text: t.keepChatting, style: 'cancel' },
+      { text: t.endChat, style: 'destructive', onPress: close },
     ])
   }
 

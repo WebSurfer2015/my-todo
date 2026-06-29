@@ -103,14 +103,14 @@ export default function DeferModal({
   const isPicker = subView === 'picker'
   // "Defer to" for a single todo (swipe action), "Defer all to" for bulk
   // (group header). count is the only signal we have — undefined/1 = single.
-  const mainTitle = count && count > 1 ? 'Defer all to' : 'Defer to'
+  const mainTitle = count && count > 1 ? t.deferAllTo : t.snooze.title
 
   return (
     <SheetShell
       visible={visible}
       onClose={onClose}
       scroll={false}
-      title={isPicker ? 'Pick a date' : mainTitle}
+      title={isPicker ? t.snooze.pickDate : mainTitle}
       subtitle={isPicker ? formatTargetDate(pickerDate) : subtitle || undefined}
       // In the picker, the left action steps BACK to the options (not out).
       left={isPicker ? { label: t.cancel, onPress: () => setSubView('main') } : undefined}
@@ -123,28 +123,28 @@ export default function DeferModal({
       {!isPicker ? (
         <View style={styles.card}>
           <OptionRow
-            label={isTodayGroup ? 'Tomorrow' : 'Next day'}
+            label={isTodayGroup ? t.snooze.tomorrow : t.deferNextDay}
             hint={isTodayGroup ? formatTargetDate(tomorrow) : undefined}
             onPress={() => commit(tomorrow)}
             styles={styles}
           />
           <Divider styles={styles} />
           <OptionRow
-            label="A week later"
+            label={t.deferWeekLater}
             hint={isTodayGroup ? formatTargetDate(inAWeek) : undefined}
             onPress={() => commit(inAWeek)}
             styles={styles}
           />
           <Divider styles={styles} />
           <OptionRow
-            label="A month later"
+            label={t.deferMonthLater}
             hint={isTodayGroup ? formatTargetDate(inAMonth) : undefined}
             onPress={() => commit(inAMonth)}
             styles={styles}
           />
           <Divider styles={styles} />
           <OptionRow
-            label="Pick a date"
+            label={t.snooze.pickDate}
             icon={<Calendar size={16} color={theme.label3} strokeWidth={2} />}
             onPress={() => setSubView('picker')}
             styles={styles}

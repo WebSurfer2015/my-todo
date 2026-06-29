@@ -235,7 +235,7 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
           style={styles.headerRightIcon}
           hitSlop={12}
           accessibilityRole="button"
-          accessibilityLabel="Filter"
+          accessibilityLabel={t.a11yFilter}
           testID="filter-button"
         >
           <FilterIcon size={22} color={theme.primaryOn} strokeWidth={1.8} />
@@ -247,7 +247,7 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
           style={styles.headerRightIcon}
           hitSlop={12}
           accessibilityRole="button"
-          accessibilityLabel="Search"
+          accessibilityLabel={t.a11ySearch}
         >
           <SearchIcon size={22} color={theme.primaryOn} strokeWidth={1.8} />
         </TouchableOpacity>
@@ -258,7 +258,7 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
           style={styles.gearTouch}
           hitSlop={12}
           accessibilityRole="button"
-          accessibilityLabel="Manage"
+          accessibilityLabel={t.a11yManage}
           testID="settings-button"
         >
           <SettingsIcon size={22} color={theme.primaryOn} strokeWidth={1.8} />

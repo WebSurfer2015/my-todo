@@ -888,7 +888,7 @@ export default function TaskDetailsSheet({
               <>
                 <View style={styles.editHeader}>
                   <TouchableOpacity onPress={() => setEditSubPickerView('main')} hitSlop={10} style={styles.headerSideBtn}>
-                    <Text style={styles.cancelText}>‹ Back</Text>
+                    <Text style={styles.cancelText}>{`‹ ${t.back}`}</Text>
                   </TouchableOpacity>
                   <Text style={styles.editHeaderTitle}>{t.edit.completedBy}</Text>
                   <TouchableOpacity onPress={clearEditSubDate} hitSlop={10} style={styles.headerSideBtn}>
@@ -929,7 +929,7 @@ export default function TaskDetailsSheet({
                     accessibilityRole="button"
                     accessibilityLabel="Save"
                   >
-                    <Text style={styles.dateDoneBtnText}>Save</Text>
+                    <Text style={styles.dateDoneBtnText}>{t.save}</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -1093,7 +1093,7 @@ export default function TaskDetailsSheet({
             <>
               <View style={styles.editHeader}>
                 <TouchableOpacity onPress={() => setParentEditView('main')} hitSlop={10} style={styles.headerSideBtn}>
-                  <Text style={styles.cancelText}>‹ Back</Text>
+                  <Text style={styles.cancelText}>{`‹ ${t.back}`}</Text>
                 </TouchableOpacity>
                 <Text style={styles.editHeaderTitle}>Completed by</Text>
                 <TouchableOpacity
@@ -1107,10 +1107,10 @@ export default function TaskDetailsSheet({
               {/* End-of-period due-date presets (Clear = unspecified). */}
               <View style={styles.datePresetRow}>
                 {[
-                  { label: 'Today', value: todayLocal() },
-                  { label: 'This week', value: endOfWeekLocal() },
-                  { label: 'This month', value: endOfMonthLocal() },
-                  { label: 'This year', value: endOfYearLocal() },
+                  { label: t.presetToday, value: todayLocal() },
+                  { label: t.presetThisWeek, value: endOfWeekLocal() },
+                  { label: t.presetThisMonth, value: endOfMonthLocal() },
+                  { label: t.presetThisYear, value: endOfYearLocal() },
                 ].map((p) => {
                   const active = dueDateOnly(pendingEditDueDate) === p.value
                   return (
@@ -1165,7 +1165,7 @@ export default function TaskDetailsSheet({
                   accessibilityRole="button"
                   accessibilityLabel="Save"
                 >
-                  <Text style={styles.dateDoneBtnText}>Save</Text>
+                  <Text style={styles.dateDoneBtnText}>{t.save}</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -1183,7 +1183,7 @@ export default function TaskDetailsSheet({
             <>
               <View style={styles.editHeader}>
                 <TouchableOpacity onPress={() => setParentEditView('main')} hitSlop={10} style={styles.headerSideBtn}>
-                  <Text style={styles.cancelText}>‹ Back</Text>
+                  <Text style={styles.cancelText}>{`‹ ${t.back}`}</Text>
                 </TouchableOpacity>
                 <Text style={styles.editHeaderTitle}>{t.edit.repeatEnds}</Text>
                 <TouchableOpacity
@@ -1849,7 +1849,7 @@ export default function TaskDetailsSheet({
                         setSubDateForId(null)
                       }}
                     >
-                      <Text style={styles.dateDone}>Save</Text>
+                      <Text style={styles.dateDone}>{t.save}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>

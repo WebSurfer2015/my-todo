@@ -461,7 +461,7 @@ export default function ReminderSheet({
             due date too. On recurring todos the saved `at` is rebased per
             occurrence (core expandSeries), preserving the chosen offset. */}
         <View style={styles.section}>
-          <Text style={styles.sectionHeader}>SPECIFIC TIME</Text>
+          <Text style={styles.sectionHeader}>{t.specificTime}</Text>
           <View style={styles.fixedRow}>
             {Platform.OS === 'ios' ? (
               <DateTimePicker
@@ -480,7 +480,7 @@ export default function ReminderSheet({
                   style={styles.fixedAndroidField}
                   onPress={() => setFixedPickerOpen(true)}
                   accessibilityRole="button"
-                  accessibilityLabel="Choose a date and time"
+                  accessibilityLabel={t.a11yChooseDateTime}
                 >
                   <Text style={styles.fixedAndroidFieldText}>
                     {fixedPillLabel(isoLocalDateTime(fixedDate))}
@@ -502,7 +502,7 @@ export default function ReminderSheet({
               accessibilityRole="button"
               accessibilityLabel="Add a reminder at this date and time"
             >
-              <Text style={styles.fixedAddBtnText}>Add</Text>
+              <Text style={styles.fixedAddBtnText}>{t.add}</Text>
             </TouchableOpacity>
           </View>
         </View>

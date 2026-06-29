@@ -424,9 +424,9 @@ export default function ComposeSheet({
       onClose()
       return
     }
-    Alert.alert('Discard to-do?', "This to-do hasn't been added yet.", [
-      { text: 'Keep editing', style: 'cancel' },
-      { text: 'Discard', style: 'destructive', onPress: onClose },
+    Alert.alert(t.discardTodoTitle, t.discardTodoBody, [
+      { text: t.keepEditing, style: 'cancel' },
+      { text: t.discard, style: 'destructive', onPress: onClose },
     ])
   }
 
@@ -1139,10 +1139,10 @@ export default function ComposeSheet({
                     still allows a specific date+time, and Clear = unspecified. */}
                 <View style={styles.datePresetRow}>
                   {[
-                    { label: 'Today', value: todayLocal() },
-                    { label: 'This week', value: endOfWeekLocal() },
-                    { label: 'This month', value: endOfMonthLocal() },
-                    { label: 'This year', value: endOfYearLocal() },
+                    { label: t.presetToday, value: todayLocal() },
+                    { label: t.presetThisWeek, value: endOfWeekLocal() },
+                    { label: t.presetThisMonth, value: endOfMonthLocal() },
+                    { label: t.presetThisYear, value: endOfYearLocal() },
                   ].map((p) => {
                     const active = dueDateOnly(pendingDueDate) === p.value
                     return (

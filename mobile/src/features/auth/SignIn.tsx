@@ -74,7 +74,7 @@ export default function SignIn() {
     }
     if (mode !== "reset" && password.length < 6) {
       // Catch the too-short case before spending a network round-trip on it.
-      setError("Password must be at least 6 characters.");
+      setError(t.passwordTooShort);
       return;
     }
     setError(null);

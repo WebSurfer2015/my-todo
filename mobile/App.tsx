@@ -698,8 +698,8 @@ function TodosScreen() {
                 if (searchNeedle) {
                   return (
                     <EmptyStateCard
-                      title={`No matches for "${searchQuery.trim()}"`}
-                      hint="Try a different word, or clear the search."
+                      title={t.searchNoMatches(searchQuery.trim())}
+                      hint={t.searchNoMatchesHint}
                       centered
                     />
                   )

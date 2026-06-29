@@ -1099,7 +1099,7 @@ function TaskItem({
                     <Text style={styles.dateClear}>{t.clear}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={commitDate}>
-                    <Text style={styles.dateDone}>Save</Text>
+                    <Text style={styles.dateDone}>{t.save}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1173,7 +1173,7 @@ function TaskItem({
                       setSubDateForId(null)
                     }}
                   >
-                    <Text style={styles.dateDone}>Save</Text>
+                    <Text style={styles.dateDone}>{t.save}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
