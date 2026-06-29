@@ -33,6 +33,7 @@ import type { Reminder } from '../../../core-bindings/types'
 import { genUuid } from '../../../../../core/src/logic/utils'
 import { dedupeReminders } from '../../../../../core/src/logic/derive'
 import { makeStyles } from './styles'
+import AndroidDateFlow from '../../../ui/AndroidDateFlow'
 
 const REMIND_BEFORE_DUE_CHOICES: Array<{ minutes: number; label: string }> = [
   { minutes: 5,     label: '5m' },
@@ -242,6 +243,7 @@ export default function ReminderSheet({
     }
     return new Date(Date.now() + 60 * 60 * 1000)
   })
+  const [fixedPickerOpen, setFixedPickerOpen] = useState(false)
   function onFixedChange(_e: DateTimePickerEvent, selected?: Date) {
     if (selected) setFixedDate(selected)
   }
@@ -461,13 +463,39 @@ export default function ReminderSheet({
         <View style={styles.section}>
           <Text style={styles.sectionHeader}>SPECIFIC TIME</Text>
           <View style={styles.fixedRow}>
-            <DateTimePicker
-              value={fixedDate}
-              mode="datetime"
-              display={Platform.OS === 'ios' ? 'compact' : 'default'}
-              themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
-              onChange={onFixedChange}
-            />
+            {Platform.OS === 'ios' ? (
+              <DateTimePicker
+                value={fixedDate}
+                mode="datetime"
+                display="compact"
+                themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
+                onChange={onFixedChange}
+              />
+            ) : (
+              <>
+                {/* Android's picker is an imperative dialog with no inline
+                    'datetime' — show a tappable field that opens a date->time
+                    flow instead of an always-present picker that pops on mount. */}
+                <TouchableOpacity
+                  style={styles.fixedAndroidField}
+                  onPress={() => setFixedPickerOpen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Choose a date and time"
+                >
+                  <Text style={styles.fixedAndroidFieldText}>
+                    {fixedPillLabel(isoLocalDateTime(fixedDate))}
+                  </Text>
+                </TouchableOpacity>
+                {fixedPickerOpen && (
+                  <AndroidDateFlow
+                    value={fixedDate}
+                    mode="datetime"
+                    onCommit={(d) => setFixedDate(d)}
+                    onDone={() => setFixedPickerOpen(false)}
+                  />
+                )}
+              </>
+            )}
             <TouchableOpacity
               style={styles.fixedAddBtn}
               onPress={addFixed}

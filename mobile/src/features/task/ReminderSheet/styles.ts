@@ -121,6 +121,14 @@ export function makeStyles(c: ThemeColors) {
       backgroundColor: c.primary,
     },
     fixedAddBtnText: { color: c.primaryOn, fontSize: 14, fontWeight: '700' },
+    fixedAndroidField: {
+      flex: 1,
+      paddingVertical: 11,
+      paddingHorizontal: 14,
+      borderRadius: 10,
+      backgroundColor: c.surface,
+    },
+    fixedAndroidFieldText: { color: c.label, fontSize: 15, fontWeight: '600' },
     sectionHeader: {
       fontSize: 11,
       fontWeight: '700',
