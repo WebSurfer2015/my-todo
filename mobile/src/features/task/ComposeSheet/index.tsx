@@ -6,6 +6,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as Haptics from 'expo-haptics'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
+import AndroidDateFlow from '../../../ui/AndroidDateFlow'
 import Svg, { Rect, Path } from 'react-native-svg'
 import { Bell, Repeat, Sparkles } from 'lucide-react-native'
 import { Analytics } from '../../../adapters/analytics'
@@ -405,6 +406,30 @@ export default function ComposeSheet({
     onClose()
   }
 
+  // A new to-do is "dirty" once the user has typed a title or staged any
+  // steps / reminders / recurrence. dueDate defaults to today, so it isn't a
+  // dirty signal on its own.
+  function isDirty() {
+    return (
+      text.trim().length > 0 ||
+      pendingSubtasks.length > 0 ||
+      reminders.length > 0 ||
+      recurrence !== undefined
+    )
+  }
+  // Backdrop / Cancel / Android-back. Confirm before discarding a started
+  // to-do so a stray tap doesn't drop everything the user just composed.
+  function requestClose() {
+    if (!isDirty()) {
+      onClose()
+      return
+    }
+    Alert.alert('Discard to-do?', "This to-do hasn't been added yet.", [
+      { text: 'Keep editing', style: 'cancel' },
+      { text: 'Discard', style: 'destructive', onPress: onClose },
+    ])
+  }
+
   function openDateView() {
     setPickerDate(dueDate ? new Date(`${dueDate}T00:00:00`) : new Date())
     setPendingDueDate(dueDate)
@@ -418,7 +443,7 @@ export default function ComposeSheet({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={requestClose}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -426,14 +451,14 @@ export default function ComposeSheet({
         {/* Sibling backdrop tap-layer (not a wrapper) — a wrapping Pressable
             collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
         <View style={styles.backdrop}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={requestClose} accessible={false} />
           <View style={[styles.sheet, { paddingBottom: sheetBottomPad }]}>
             <View style={styles.handle} />
 
             {subView === 'main' && (
               <>
                 <View style={styles.headerRow}>
-                  <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.headerSideBtn}>
+                  <TouchableOpacity onPress={requestClose} hitSlop={10} style={styles.headerSideBtn}>
                     <Text style={styles.cancelText}>{t.cancel}</Text>
                   </TouchableOpacity>
                   <View style={styles.titleRow}>
@@ -1010,16 +1035,30 @@ export default function ComposeSheet({
                 </View>
                 <View style={styles.dateWrap}>
                   <Text style={styles.datePendingLabel}>{fullDateLabel(isoDate(endDatePickerDate))}</Text>
-                  <DateTimePicker
-                    value={endDatePickerDate}
-                    mode="date"
-                    display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                    themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
-                    minimumDate={new Date()}
-                    onChange={(e, d) => {
-                      if (e.type === 'set' && d) setEndDatePickerDate(d)
-                    }}
-                  />
+                  {Platform.OS === 'ios' ? (
+                    <DateTimePicker
+                      value={endDatePickerDate}
+                      mode="date"
+                      display="inline"
+                      themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
+                      minimumDate={new Date()}
+                      onChange={(e, d) => {
+                        if (e.type === 'set' && d) setEndDatePickerDate(d)
+                      }}
+                    />
+                  ) : (
+                    <AndroidDateFlow
+                      value={endDatePickerDate}
+                      mode="date"
+                      minimumDate={new Date()}
+                      onCommit={(d) => {
+                        setEndDatePickerDate(d)
+                        applyRecurrenceWithSnap({ freq: pendingFreq, endDate: isoDate(d) })
+                        setPendingFreq(null)
+                      }}
+                      onDone={() => setSubView('main')}
+                    />
+                  )}
                 </View>
                 <View style={styles.dateActions}>
                   <TouchableOpacity
@@ -1130,13 +1169,25 @@ export default function ComposeSheet({
                   ) : (
                     <Text style={[styles.datePendingLabel, styles.datePendingLabelEmpty]}>{t.noDate}</Text>
                   )}
-                  <DateTimePicker
-                    value={pickerDate}
-                    mode="datetime"
-                    display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                    themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
-                    onChange={handleInlineDateChange}
-                  />
+                  {Platform.OS === 'ios' ? (
+                    <DateTimePicker
+                      value={pickerDate}
+                      mode="datetime"
+                      display="inline"
+                      themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
+                      onChange={handleInlineDateChange}
+                    />
+                  ) : (
+                    <AndroidDateFlow
+                      value={pickerDate}
+                      mode="datetime"
+                      onCommit={(d) => {
+                        setDueDate(isoLocalDateTime(d))
+                        setPendingDueDate(isoLocalDateTime(d))
+                      }}
+                      onDone={() => setSubView('main')}
+                    />
+                  )}
                 </View>
                 <View style={styles.dateActions}>
                   <TouchableOpacity
