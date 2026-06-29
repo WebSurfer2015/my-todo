@@ -239,6 +239,22 @@ export default function CategorySheet({
     setMode({ kind: "editCategory", id: c.id });
   }
 
+  // Backdrop / Android-back. From the add/edit FORM, return to the list
+  // instead of tearing down the whole sheet (which silently dropped the
+  // staged name/color/icon); auto-save a valid edit to an existing category
+  // on the way out (calm, forgiving). Only the list-view backdrop closes.
+  function handleBackdrop() {
+    if (mode.kind === "editCategory") {
+      const trimmed = name.trim();
+      if (mode.id && trimmed && !isDuplicateCategoryLabel(trimmed, mode.id)) {
+        onEdit(mode.id, { label: trimmed, color, icon });
+      }
+      setMode({ kind: "edit" });
+      return;
+    }
+    onClose();
+  }
+
   function handleSave() {
     const trimmed = name.trim();
     if (!trimmed) return;
@@ -373,7 +389,7 @@ export default function CategorySheet({
       visible={visible}
       transparent
       animationType="slide"
-      onRequestClose={onClose}
+      onRequestClose={handleBackdrop}
     >
       <GestureHandlerRootView style={styles.flex}>
         <KeyboardAvoidingView
@@ -383,7 +399,7 @@ export default function CategorySheet({
           {/* Sibling backdrop tap-layer (not a wrapper) — a wrapping Pressable
               collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
           <View style={styles.backdrop}>
-            <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
+            <Pressable style={StyleSheet.absoluteFill} onPress={handleBackdrop} accessible={false} />
             {/* Plain View (not Pressable) for the sheet itself. The
                 opaque background already absorbs taps so they don't
                 reach the backdrop, and a Pressable here would claim
@@ -844,10 +860,12 @@ export default function CategorySheet({
                       icon). Bottom is now a single primary Save
                       button — consistent with the Edit Step sheet. */}
                   <TouchableOpacity
-                    style={styles.editCatSaveBtn}
+                    style={[styles.editCatSaveBtn, !name.trim() && styles.editCatSaveBtnDisabled]}
                     onPress={handleSave}
+                    disabled={!name.trim()}
                     activeOpacity={0.85}
                     accessibilityRole="button"
+                    accessibilityState={{ disabled: !name.trim() }}
                     accessibilityLabel={t.save}
                   >
                     <Text style={styles.editCatSaveText}>{t.save}</Text>

@@ -146,6 +146,9 @@ export function makeStyles(c: ThemeColors) {
       alignItems: 'center',
       justifyContent: 'center',
     },
+    editCatSaveBtnDisabled: {
+      opacity: 0.4,
+    },
     editCatSaveText: {
       color: c.primaryOn,
       fontSize: 16,
