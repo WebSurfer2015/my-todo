@@ -16,11 +16,14 @@ import {
   purchasePackage as rcPurchase,
   restorePurchases as rcRestore,
   onCustomerInfoChange,
+  currentCustomerInfo,
+  tierFromCustomerInfo,
   isPurchasesEnabled,
 } from '../adapters/purchases'
 import {
   FREE_ENTITLEMENT,
   TIER_LIMITS,
+  TIER_ORDER,
   canSendMochiRequest,
   effectiveTier,
   type Entitlement,
@@ -83,25 +86,35 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
   const [dayUsed, setDayUsed] = useState<number>(0)
   const [offering, setOffering] = useState<PurchasesOffering | null>(null)
   const [offeringLoading, setOfferingLoading] = useState(false)
+  // Instant client-side tier from RevenueCat CustomerInfo. The authoritative
+  // tier is the webhook-written Firestore doc below, but that lags a purchase
+  // by the webhook round-trip — without this, Settings reads "Free" for the
+  // first few seconds after a successful purchase.
+  const [rcTier, setRcTier] = useState<Tier>('free')
   const [paywall, setPaywall] = useState<{ open: boolean; reason?: string }>({ open: false })
 
   // Configure RevenueCat + load offerings once we know the user.
   useEffect(() => {
-    if (!uid) return
+    if (!uid) {
+      setRcTier('free')
+      return
+    }
     let alive = true
     setOfferingLoading(true)
     void (async () => {
       await configurePurchases(uid)
-      const off = await fetchCurrentOffering()
+      const [off, info] = await Promise.all([fetchCurrentOffering(), currentCustomerInfo()])
       if (alive) {
         setOffering(off)
+        setRcTier(tierFromCustomerInfo(info))
         setOfferingLoading(false)
       }
     })()
-    const unsub = onCustomerInfoChange(() => {
-      // A purchase/renewal/restore landed — refresh offerings (entitlement
-      // itself flows in via the Firestore listener below once the webhook
-      // writes it).
+    const unsub = onCustomerInfoChange((info) => {
+      // A purchase/renewal/restore landed. Reflect the new tier instantly from
+      // RevenueCat (the webhook-written Firestore doc catches up a few seconds
+      // later via the listener below), and refresh offerings.
+      if (alive) setRcTier(tierFromCustomerInfo(info))
       void fetchCurrentOffering().then((o) => alive && setOffering(o))
     })
     return () => {
@@ -167,10 +180,14 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
     )
   }, [uid])
 
-  const tier = useMemo(
-    () => effectiveTier(entitlement, new Date().toISOString()),
-    [entitlement],
-  )
+  const tier = useMemo(() => {
+    const fsTier = effectiveTier(entitlement, new Date().toISOString())
+    // Show whichever is higher: the authoritative (but lagging) Firestore tier
+    // or the instant RevenueCat tier. Taking the max means a just-completed
+    // purchase shows immediately and a valid entitlement is never downgraded
+    // by a momentarily-stale CustomerInfo.
+    return TIER_ORDER.indexOf(rcTier) > TIER_ORDER.indexOf(fsTier) ? rcTier : fsTier
+  }, [entitlement, rcTier])
   // Period-appropriate base allowance: Free is gated per-day, paid per-month.
   const limits = TIER_LIMITS[tier]
   const mochiPeriod: 'today' | 'month' = tier === 'free' ? 'today' : 'month'
