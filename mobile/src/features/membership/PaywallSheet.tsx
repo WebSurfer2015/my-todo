@@ -81,9 +81,12 @@ interface Props {
   visible: boolean
   reason?: string
   offering: PurchasesOffering | null
+  offeringLoading: boolean
+  purchasesEnabled: boolean
   currentTier: Tier
-  onPurchase: (pkg: PurchasesPackage) => Promise<boolean>
-  onRestore: () => void
+  onPurchase: (pkg: PurchasesPackage) => Promise<'purchased' | 'cancelled' | 'failed'>
+  onRestore: () => Promise<'found' | 'none' | 'failed'>
+  onRetry: () => void
   onClose: () => void
 }
 
@@ -91,9 +94,12 @@ export default function PaywallSheet({
   visible,
   reason,
   offering,
+  offeringLoading,
+  purchasesEnabled,
   currentTier,
   onPurchase,
   onRestore,
+  onRetry,
   onClose,
 }: Props) {
   const { t } = useLang()
@@ -105,6 +111,14 @@ export default function PaywallSheet({
   // disabled button reads as "stuck" at the highest-stakes tap in the app.
   const [pendingId, setPendingId] = useState<string | null>(null)
   const busy = pendingId !== null
+  // Inline feedback for purchase/restore. A snackbar would render UNDER this
+  // Modal, so result + error copy must live inside the sheet.
+  const [notice, setNotice] = useState<{ kind: 'info' | 'error'; text: string } | null>(null)
+  const [restoring, setRestoring] = useState(false)
+  // Plans can't be shown when the offering hasn't loaded — distinguish the
+  // transient load from a real "products not configured" so a network hiccup
+  // doesn't mislabel shipping products "Coming soon".
+  const offeringUnavailable = purchasesEnabled && !offering
 
   const pkgFor = (productId: string): PurchasesPackage | null =>
     offering?.availablePackages.find((p) => p.product.identifier === productId) ?? null
@@ -112,10 +126,29 @@ export default function PaywallSheet({
   async function buy(productId: string) {
     const pkg = pkgFor(productId)
     if (!pkg || busy) return
+    setNotice(null)
     setPendingId(productId)
-    const ok = await onPurchase(pkg)
+    const res = await onPurchase(pkg)
     setPendingId(null)
-    if (ok) onClose()
+    if (res === 'purchased') onClose()
+    else if (res === 'failed')
+      setNotice({ kind: 'error', text: "Couldn't complete the purchase. Please try again." })
+    // 'cancelled' → silent, the user backed out on purpose.
+  }
+
+  async function restore() {
+    if (restoring) return
+    setNotice(null)
+    setRestoring(true)
+    const res = await onRestore()
+    setRestoring(false)
+    setNotice(
+      res === 'found'
+        ? { kind: 'info', text: 'Purchases restored.' }
+        : res === 'none'
+          ? { kind: 'info', text: 'No purchases to restore.' }
+          : { kind: 'error', text: "Couldn't reach the App Store. Please try again." },
+    )
   }
 
   return (
@@ -145,6 +178,31 @@ export default function PaywallSheet({
             >
               {reason ? <Text style={styles.reason}>{reason}</Text> : null}
 
+              {offeringUnavailable ? (
+                <View style={styles.loadingBlock}>
+                  {offeringLoading ? (
+                    <>
+                      <ActivityIndicator color={theme.primary} />
+                      <Text style={styles.loadingText}>Loading plans…</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.loadingText}>
+                        Couldn't load plans — check your connection.
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.ctaOutline}
+                        onPress={onRetry}
+                        activeOpacity={0.85}
+                        accessibilityRole="button"
+                      >
+                        <Text style={styles.ctaOutlineText}>Retry</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </View>
+              ) : (
+              <>
               {/* Billing toggle */}
               <View style={styles.toggle}>
                 {(['annual', 'monthly'] as Billing[]).map((b) => (
@@ -241,9 +299,27 @@ export default function PaywallSheet({
                   </View>
                 )
               })}
+              </>
+              )}
 
-              <TouchableOpacity onPress={onRestore} style={styles.restore} hitSlop={10}>
-                <Text style={styles.restoreText}>Restore purchases</Text>
+              {notice && (
+                <Text style={notice.kind === 'error' ? styles.noticeError : styles.noticeInfo}>
+                  {notice.text}
+                </Text>
+              )}
+
+              <TouchableOpacity
+                onPress={restore}
+                disabled={restoring}
+                style={styles.restore}
+                hitSlop={10}
+                accessibilityRole="button"
+              >
+                {restoring ? (
+                  <ActivityIndicator size="small" color={theme.label2} />
+                ) : (
+                  <Text style={styles.restoreText}>Restore purchases</Text>
+                )}
               </TouchableOpacity>
               <Text style={styles.fine}>
                 A free trial, where offered, converts to a paid subscription unless
@@ -369,8 +445,24 @@ function makeStyles(c: ThemeColors) {
       justifyContent: 'center',
     },
     ctaOutlineText: { color: c.primary, fontSize: 15, fontWeight: '700' },
-    restore: { alignSelf: 'center', paddingVertical: 8 },
+    restore: { alignSelf: 'center', paddingVertical: 8, minHeight: 32, justifyContent: 'center' },
     restoreText: { fontSize: 13, fontWeight: '600', color: c.primary },
+    loadingBlock: { alignItems: 'center', gap: 14, paddingVertical: 48 },
+    loadingText: { fontSize: 14, color: c.label2, textAlign: 'center', lineHeight: 20 },
+    noticeInfo: {
+      fontSize: 13,
+      color: c.label2,
+      textAlign: 'center',
+      marginBottom: 4,
+      fontWeight: '500',
+    },
+    noticeError: {
+      fontSize: 13,
+      color: c.red,
+      textAlign: 'center',
+      marginBottom: 4,
+      fontWeight: '500',
+    },
     fine: { fontSize: 12, color: c.label3, textAlign: 'center', lineHeight: 17 },
     legalRow: {
       flexDirection: 'row',

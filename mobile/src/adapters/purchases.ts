@@ -76,31 +76,48 @@ export async function fetchCurrentOffering(): Promise<PurchasesOffering | null> 
   }
 }
 
-/** Run a purchase. Returns the resulting CustomerInfo, or null if the user
- * cancelled / it failed. */
+/** Discriminated purchase outcome so callers can tell a user-cancel (silent)
+ * apart from a genuine failure (worth surfacing) — the old `CustomerInfo | null`
+ * collapsed both into null, leaving the paywall silent on a failed payment. */
+export type PurchaseOutcome =
+  | { status: 'purchased'; info: CustomerInfo }
+  | { status: 'cancelled' }
+  | { status: 'failed' }
+
+/** Run a purchase. */
 export async function purchasePackage(
   pkg: PurchasesPackage,
-): Promise<CustomerInfo | null> {
-  if (!isPurchasesEnabled()) return null
+): Promise<PurchaseOutcome> {
+  if (!isPurchasesEnabled()) return { status: 'failed' }
   try {
     const { customerInfo } = await rc().purchasePackage(pkg)
-    return customerInfo
+    return { status: 'purchased', info: customerInfo }
   } catch (err) {
     // RC throws with userCancelled=true when the user backs out — not an error.
-    if ((err as { userCancelled?: boolean })?.userCancelled) return null
+    if ((err as { userCancelled?: boolean })?.userCancelled) return { status: 'cancelled' }
     console.warn('purchasePackage failed', err)
-    return null
+    return { status: 'failed' }
   }
 }
 
+/** Restore outcome: did we find an active entitlement, find nothing, or fail
+ * to reach the store? "Restore" that silently does nothing is an App Review
+ * red flag, so callers need to tell these apart. */
+export type RestoreOutcome =
+  | { status: 'found'; info: CustomerInfo }
+  | { status: 'none' }
+  | { status: 'failed' }
+
 /** Restore prior purchases (App Store "Restore" button). */
-export async function restorePurchases(): Promise<CustomerInfo | null> {
-  if (!isPurchasesEnabled()) return null
+export async function restorePurchases(): Promise<RestoreOutcome> {
+  if (!isPurchasesEnabled()) return { status: 'failed' }
   try {
-    return await rc().restorePurchases()
+    const info = await rc().restorePurchases()
+    const hasActive = Object.keys(info.entitlements.active).length > 0
+    return hasActive ? { status: 'found', info } : { status: 'none' }
   } catch (err) {
     console.warn('restorePurchases failed', err)
-    return null
+    return { status: 'failed' }
   }
 }
 

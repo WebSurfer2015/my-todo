@@ -51,9 +51,13 @@ interface PurchasesValue {
    * top-up balance). */
   canSendMochi: boolean
   offering: PurchasesOffering | null
+  /** True while the first offerings fetch is in flight — lets the paywall show
+   * a loading state instead of mislabeling real products "Coming soon". */
+  offeringLoading: boolean
   purchasesEnabled: boolean
-  purchase: (pkg: PurchasesPackage) => Promise<boolean>
-  restore: () => Promise<void>
+  purchase: (pkg: PurchasesPackage) => Promise<'purchased' | 'cancelled' | 'failed'>
+  restore: () => Promise<'found' | 'none' | 'failed'>
+  refreshOfferings: () => void
   openPaywall: (reason?: string) => void
   closePaywall: () => void
 }
@@ -78,16 +82,21 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
   const [monthUsed, setMonthUsed] = useState<number | null>(null)
   const [dayUsed, setDayUsed] = useState<number>(0)
   const [offering, setOffering] = useState<PurchasesOffering | null>(null)
+  const [offeringLoading, setOfferingLoading] = useState(false)
   const [paywall, setPaywall] = useState<{ open: boolean; reason?: string }>({ open: false })
 
   // Configure RevenueCat + load offerings once we know the user.
   useEffect(() => {
     if (!uid) return
     let alive = true
+    setOfferingLoading(true)
     void (async () => {
       await configurePurchases(uid)
       const off = await fetchCurrentOffering()
-      if (alive) setOffering(off)
+      if (alive) {
+        setOffering(off)
+        setOfferingLoading(false)
+      }
     })()
     const unsub = onCustomerInfoChange(() => {
       // A purchase/renewal/restore landed — refresh offerings (entitlement
@@ -176,13 +185,25 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       ? true
       : canSendMochiRequest(tier, { dayUsed, monthUsed }, entitlement.topUpBalance)
 
-  const purchase = useCallback(async (pkg: PurchasesPackage): Promise<boolean> => {
-    const info = await rcPurchase(pkg)
-    return info != null
+  const purchase = useCallback(
+    async (pkg: PurchasesPackage): Promise<'purchased' | 'cancelled' | 'failed'> => {
+      const res = await rcPurchase(pkg)
+      return res.status
+    },
+    [],
+  )
+
+  const restore = useCallback(async (): Promise<'found' | 'none' | 'failed'> => {
+    const res = await rcRestore()
+    return res.status
   }, [])
 
-  const restore = useCallback(async () => {
-    await rcRestore()
+  const refreshOfferings = useCallback(() => {
+    if (!isPurchasesEnabled()) return
+    setOfferingLoading(true)
+    void fetchCurrentOffering()
+      .then(setOffering)
+      .finally(() => setOfferingLoading(false))
   }, [])
 
   const openPaywall = useCallback((reason?: string) => setPaywall({ open: true, reason }), [])
@@ -196,13 +217,15 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       mochiPeriod,
       canSendMochi,
       offering,
+      offeringLoading,
       purchasesEnabled: isPurchasesEnabled(),
       purchase,
       restore,
+      refreshOfferings,
       openPaywall,
       closePaywall,
     }),
-    [tier, entitlement, mochiRemaining, mochiPeriod, canSendMochi, offering, purchase, restore, openPaywall, closePaywall],
+    [tier, entitlement, mochiRemaining, mochiPeriod, canSendMochi, offering, offeringLoading, purchase, restore, refreshOfferings, openPaywall, closePaywall],
   )
 
   return (
@@ -212,9 +235,12 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
         visible={paywall.open}
         reason={paywall.reason}
         offering={offering}
+        offeringLoading={offeringLoading}
+        purchasesEnabled={isPurchasesEnabled()}
         currentTier={tier}
         onPurchase={purchase}
         onRestore={restore}
+        onRetry={refreshOfferings}
         onClose={closePaywall}
       />
     </PurchasesCtx.Provider>
