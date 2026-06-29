@@ -118,6 +118,44 @@ export function tierForProduct(productId: string): Tier | null {
   return null
 }
 
+export type BillingPeriod = 'monthly' | 'annual'
+
+/** The billing period of a subscription product, or null if it isn't one. */
+export function billingForProduct(productId: string): BillingPeriod | null {
+  if (productId === PRODUCT_IDS.premiumMonthly || productId === PRODUCT_IDS.maxMonthly) {
+    return 'monthly'
+  }
+  if (productId === PRODUCT_IDS.premiumAnnual || productId === PRODUCT_IDS.maxAnnual) {
+    return 'annual'
+  }
+  return null
+}
+
+/**
+ * Ordering rank for subscription products, so the paywall can offer ONLY
+ * upgrades. Higher = better. Free / non-subscription = -1.
+ *
+ * Encodes the allowed-upgrade matrix:
+ *   premium-monthly(0) → premium-annual(1) → max-monthly(2) → max-annual(3)
+ * A target is purchasable from a current plan iff its rank is strictly higher
+ * (so premium-annual → max-monthly is an upgrade, but max-monthly →
+ * premium-annual is not).
+ */
+export function productRank(productId: string | null): number {
+  if (!productId) return -1
+  const tier = tierForProduct(productId)
+  const billing = billingForProduct(productId)
+  if (!tier || !billing) return -1
+  const tierRank = tier === 'max' ? 1 : 0
+  return tierRank * 2 + (billing === 'annual' ? 1 : 0)
+}
+
+/** Whether buying `to` while subscribed to `from` is a strict upgrade. A free
+ * user (`from` null) can buy any paid product. */
+export function isUpgrade(fromProductId: string | null, toProductId: string): boolean {
+  return productRank(toProductId) > productRank(fromProductId)
+}
+
 /**
  * The user's current entitlement, written by the RevenueCat webhook and
  * read (never written) by the client.

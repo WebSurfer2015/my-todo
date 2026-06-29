@@ -18,6 +18,8 @@ import {
   onCustomerInfoChange,
   currentCustomerInfo,
   tierFromCustomerInfo,
+  productFromCustomerInfo,
+  manageSubscriptions as rcManageSubscriptions,
   isPurchasesEnabled,
 } from '../adapters/purchases'
 import {
@@ -57,10 +59,15 @@ interface PurchasesValue {
   /** True while the first offerings fetch is in flight — lets the paywall show
    * a loading state instead of mislabeling real products "Coming soon". */
   offeringLoading: boolean
+  /** Current active subscription product id (tier + billing), or null on Free.
+   * Drives the paywall's upgrade-only buttons. */
+  currentProductId: string | null
   purchasesEnabled: boolean
   purchase: (pkg: PurchasesPackage) => Promise<'purchased' | 'cancelled' | 'failed'>
   restore: () => Promise<'found' | 'none' | 'failed'>
   refreshOfferings: () => void
+  /** Open the OS subscription-management screen (downgrade / cancel to Free). */
+  manageSubscriptions: () => void
   openPaywall: (reason?: string) => void
   closePaywall: () => void
 }
@@ -91,12 +98,16 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
   // by the webhook round-trip — without this, Settings reads "Free" for the
   // first few seconds after a successful purchase.
   const [rcTier, setRcTier] = useState<Tier>('free')
+  // The user's current active subscription product id (tier + billing), for
+  // the paywall's upgrade-only logic. null = Free.
+  const [currentProductId, setCurrentProductId] = useState<string | null>(null)
   const [paywall, setPaywall] = useState<{ open: boolean; reason?: string }>({ open: false })
 
   // Configure RevenueCat + load offerings once we know the user.
   useEffect(() => {
     if (!uid) {
       setRcTier('free')
+      setCurrentProductId(null)
       return
     }
     let alive = true
@@ -107,14 +118,18 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       if (alive) {
         setOffering(off)
         setRcTier(tierFromCustomerInfo(info))
+        setCurrentProductId(productFromCustomerInfo(info))
         setOfferingLoading(false)
       }
     })()
     const unsub = onCustomerInfoChange((info) => {
-      // A purchase/renewal/restore landed. Reflect the new tier instantly from
-      // RevenueCat (the webhook-written Firestore doc catches up a few seconds
-      // later via the listener below), and refresh offerings.
-      if (alive) setRcTier(tierFromCustomerInfo(info))
+      // A purchase/renewal/restore landed. Reflect the new tier + product
+      // instantly from RevenueCat (the webhook-written Firestore doc catches up
+      // a few seconds later via the listener below), and refresh offerings.
+      if (alive) {
+        setRcTier(tierFromCustomerInfo(info))
+        setCurrentProductId(productFromCustomerInfo(info))
+      }
       void fetchCurrentOffering().then((o) => alive && setOffering(o))
     })
     return () => {
@@ -223,6 +238,10 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       .finally(() => setOfferingLoading(false))
   }, [])
 
+  const manageSubscriptions = useCallback(() => {
+    void rcManageSubscriptions()
+  }, [])
+
   const openPaywall = useCallback((reason?: string) => setPaywall({ open: true, reason }), [])
   const closePaywall = useCallback(() => setPaywall({ open: false }), [])
 
@@ -235,14 +254,16 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       canSendMochi,
       offering,
       offeringLoading,
+      currentProductId,
       purchasesEnabled: isPurchasesEnabled(),
       purchase,
       restore,
       refreshOfferings,
+      manageSubscriptions,
       openPaywall,
       closePaywall,
     }),
-    [tier, entitlement, mochiRemaining, mochiPeriod, canSendMochi, offering, offeringLoading, purchase, restore, refreshOfferings, openPaywall, closePaywall],
+    [tier, entitlement, mochiRemaining, mochiPeriod, canSendMochi, offering, offeringLoading, currentProductId, purchase, restore, refreshOfferings, manageSubscriptions, openPaywall, closePaywall],
   )
 
   return (
@@ -255,9 +276,11 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
         offeringLoading={offeringLoading}
         purchasesEnabled={isPurchasesEnabled()}
         currentTier={tier}
+        currentProductId={currentProductId}
         onPurchase={purchase}
         onRestore={restore}
         onRetry={refreshOfferings}
+        onManage={manageSubscriptions}
         onClose={closePaywall}
       />
     </PurchasesCtx.Provider>

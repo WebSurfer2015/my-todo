@@ -27,7 +27,7 @@ import type {
   PurchasesPackage,
 } from 'react-native-purchases'
 import type { Tier } from '../core-bindings/entitlements'
-import { tierForProduct, TIER_ORDER } from '../core-bindings/entitlements'
+import { tierForProduct, TIER_ORDER, productRank } from '../core-bindings/entitlements'
 
 const API_KEY: string =
   (Constants.expoConfig?.extra as { revenueCatIosKey?: string } | undefined)
@@ -174,4 +174,38 @@ export function tierFromCustomerInfo(info: CustomerInfo | null): Tier {
   if (active['max']) return 'max'
   if (active['premium']) return 'premium'
   return 'free'
+}
+
+/** The user's current (highest-rank) active subscription PRODUCT id, or null
+ * when they're on Free. Used by the paywall to offer only upgrades. */
+export function productFromCustomerInfo(info: CustomerInfo | null): string | null {
+  if (!info) return null
+  let best: string | null = null
+  let bestRank = -1
+  const consider = (productId: string | null | undefined) => {
+    if (!productId) return
+    const id = productId.split(':')[0] // strip Android ":basePlan" suffix
+    const r = productRank(id)
+    if (r > bestRank) {
+      bestRank = r
+      best = id
+    }
+  }
+  for (const ent of Object.values(info.entitlements.active ?? {})) {
+    consider((ent as { productIdentifier?: string }).productIdentifier)
+  }
+  for (const productId of info.activeSubscriptions ?? []) consider(productId)
+  return best
+}
+
+/** Open the OS-native subscription-management screen (App Store / Play). This
+ * is the only sanctioned path to cancel / downgrade to Free — the store, not
+ * the app, owns that action. No-op when purchases aren't configured. */
+export async function manageSubscriptions(): Promise<void> {
+  if (!isPurchasesEnabled()) return
+  try {
+    await rc().showManageSubscriptions()
+  } catch (err) {
+    console.warn('showManageSubscriptions failed', err)
+  }
 }

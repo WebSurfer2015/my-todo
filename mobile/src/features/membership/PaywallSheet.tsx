@@ -20,6 +20,7 @@ import {
   PRODUCT_IDS,
   TIER_LIMITS,
   tierAtLeast,
+  isUpgrade,
   type Tier,
 } from '../../core-bindings/entitlements'
 
@@ -84,9 +85,13 @@ interface Props {
   offeringLoading: boolean
   purchasesEnabled: boolean
   currentTier: Tier
+  /** Current active subscription product id (tier + billing), or null on Free. */
+  currentProductId: string | null
   onPurchase: (pkg: PurchasesPackage) => Promise<'purchased' | 'cancelled' | 'failed'>
   onRestore: () => Promise<'found' | 'none' | 'failed'>
   onRetry: () => void
+  /** Open the OS subscription-management screen (downgrade / cancel to Free). */
+  onManage: () => void
   onClose: () => void
 }
 
@@ -97,9 +102,11 @@ export default function PaywallSheet({
   offeringLoading,
   purchasesEnabled,
   currentTier,
+  currentProductId,
   onPurchase,
   onRestore,
   onRetry,
+  onManage,
   onClose,
 }: Props) {
   const { t } = useLang()
@@ -220,18 +227,24 @@ export default function PaywallSheet({
               </View>
 
               {PLANS.map((plan) => {
-                const isCurrent = currentTier === plan.tier
                 const owned = tierAtLeast(currentTier, plan.tier) // current or below
                 const productId = plan.product?.[billing]
                 const pkg = productId ? pkgFor(productId) : null
+                // The card highlights the user's EXACT current product (this
+                // tier at the selected billing), not just the tier — so toggling
+                // billing correctly moves the "Current plan" marker.
+                const isCurrent = !!productId && productId === currentProductId
                 const price =
                   plan.tier === 'free'
                     ? 'Free'
                     : pkg?.product.priceString ?? plan.fallbackPrice?.[billing] ?? ''
-                // A button only for a plan the user can actually buy (above
-                // their current tier, with a package available). Otherwise a
-                // quiet status.
-                const purchasable = !owned && plan.tier !== 'free' && !!pkg
+                // Buyable only when this product is a strict UPGRADE from the
+                // current plan (tier + billing), with a package available.
+                // Premium-monthly → premium-annual / max-monthly / max-annual;
+                // premium-annual → max-monthly / max-annual; etc. Downgrades
+                // and same-product re-buys are never offered (cancel to Free is
+                // the Manage-subscription link below).
+                const purchasable = !!productId && isUpgrade(currentProductId, productId) && !!pkg
                 // Trial CTA only when THIS package actually carries a free
                 // intro offer (price 0) — not just because the annual toggle
                 // is selected. Keeps the copy honest per billing option.
@@ -254,10 +267,10 @@ export default function PaywallSheet({
                 const recommended = plan.tier === 'premium'
                 const status = isCurrent
                   ? 'Current plan'
-                  : owned
-                    ? 'Included'
-                    : plan.tier === 'free'
-                      ? 'Free'
+                  : plan.tier === 'free'
+                    ? 'Free'
+                    : owned
+                      ? 'Included'
                       : 'Coming soon'
                 return (
                   <View
@@ -296,7 +309,7 @@ export default function PaywallSheet({
                           <ActivityIndicator color={recommended ? theme.primaryOn : theme.primary} />
                         ) : (
                           <Text style={recommended ? styles.ctaText : styles.ctaOutlineText}>
-                            {trialText ?? `Subscribe · ${price}`}
+                            {trialText ?? `${currentProductId ? 'Upgrade' : 'Subscribe'} · ${price}`}
                           </Text>
                         )}
                       </TouchableOpacity>
@@ -328,6 +341,20 @@ export default function PaywallSheet({
                   <Text style={styles.restoreText}>Restore purchases</Text>
                 )}
               </TouchableOpacity>
+              {/* Downgrade / cancel to Free lives behind the OS subscription
+                  manager — the only sanctioned path — kept as a quiet link
+                  (not a button) so it's reachable but not a tap-magnet. */}
+              {currentProductId && (
+                <TouchableOpacity
+                  onPress={onManage}
+                  style={styles.manage}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="Manage or cancel subscription"
+                >
+                  <Text style={styles.manageText}>Manage or cancel subscription</Text>
+                </TouchableOpacity>
+              )}
               <Text style={styles.fine}>
                 A free trial, where offered, converts to a paid subscription unless
                 cancelled before it ends. Subscriptions renew automatically until
@@ -454,6 +481,8 @@ function makeStyles(c: ThemeColors) {
     ctaOutlineText: { color: c.primary, fontSize: 15, fontWeight: '700' },
     restore: { alignSelf: 'center', paddingVertical: 8, minHeight: 32, justifyContent: 'center' },
     restoreText: { fontSize: 13, fontWeight: '600', color: c.primary },
+    manage: { alignSelf: 'center', paddingVertical: 6 },
+    manageText: { fontSize: 12, fontWeight: '500', color: c.label3 },
     loadingBlock: { alignItems: 'center', gap: 14, paddingVertical: 48 },
     loadingText: { fontSize: 14, color: c.label2, textAlign: 'center', lineHeight: 20 },
     noticeInfo: {
