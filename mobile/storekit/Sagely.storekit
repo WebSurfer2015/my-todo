@@ -1,0 +1,158 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : []
+  },
+  "identifier" : "SAGELY01",
+  "nonRenewingSubscriptions" : [],
+  "products" : [
+    {
+      "displayPrice" : "1.99",
+      "familyShareable" : false,
+      "internalID" : "10000001",
+      "localizations" : [
+        {
+          "description" : "150 Mochi requests",
+          "displayName" : "150 Mochi requests",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.websurfer.mytodo.topup.150",
+      "referenceName" : "Mochi top-up 150",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "10000002",
+      "localizations" : [
+        {
+          "description" : "500 Mochi requests",
+          "displayName" : "500 Mochi requests",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.websurfer.mytodo.topup.500",
+      "referenceName" : "Mochi top-up 500",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA"
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "20000001",
+      "localizationsAreSynced" : false,
+      "name" : "Sagely Membership",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "59.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "30000001",
+          "introductoryOffer" : {
+            "internalID" : "40000001",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P1W"
+          },
+          "localizations" : [
+            {
+              "description" : "Sagely Max, billed yearly",
+              "displayName" : "Sagely Max Annual",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.websurfer.mytodo.max.annual",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Sagely Max Annual",
+          "subscriptionGroupID" : "20000001",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "7.99",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "30000002",
+          "introductoryOffer" : {
+            "internalID" : "40000002",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P1W"
+          },
+          "localizations" : [
+            {
+              "description" : "Sagely Max, billed monthly",
+              "displayName" : "Sagely Max Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.websurfer.mytodo.max.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Sagely Max Monthly",
+          "subscriptionGroupID" : "20000001",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "19.99",
+          "familyShareable" : false,
+          "groupNumber" : 3,
+          "internalID" : "30000003",
+          "introductoryOffer" : {
+            "internalID" : "40000003",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P1W"
+          },
+          "localizations" : [
+            {
+              "description" : "Sagely Premium, billed yearly",
+              "displayName" : "Sagely Premium Annual",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.websurfer.mytodo.premium.annual",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Sagely Premium Annual",
+          "subscriptionGroupID" : "20000001",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "2.99",
+          "familyShareable" : false,
+          "groupNumber" : 4,
+          "internalID" : "30000004",
+          "introductoryOffer" : {
+            "internalID" : "40000004",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P1W"
+          },
+          "localizations" : [
+            {
+              "description" : "Sagely Premium, billed monthly",
+              "displayName" : "Sagely Premium Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.websurfer.mytodo.premium.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Sagely Premium Monthly",
+          "subscriptionGroupID" : "20000001",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}
