@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import {
   ActivityIndicator,
+  Animated,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -16,6 +17,7 @@ import { Check, Sparkles } from 'lucide-react-native'
 import type { PurchasesOffering, PurchasesPackage } from 'react-native-purchases'
 import { useLang } from '../../app/LangContext'
 import { useTheme, ThemeColors } from '../../app/theme'
+import { useSheetDismiss, sheetGrabZone } from '../../ui/useSheetDismiss'
 import {
   PRODUCT_IDS,
   TIER_LIMITS,
@@ -126,6 +128,7 @@ export default function PaywallSheet({
   // transient load from a real "products not configured" so a network hiccup
   // doesn't mislabel shipping products "Coming soon".
   const offeringUnavailable = purchasesEnabled && !offering
+  const { translateY, panHandlers } = useSheetDismiss(visible, onClose)
 
   const pkgFor = (productId: string): PurchasesPackage | null =>
     offering?.availablePackages.find((p) => p.product.identifier === productId) ?? null
@@ -179,8 +182,10 @@ export default function PaywallSheet({
       >
         <View style={styles.backdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
-          <View style={styles.sheet}>
-            <View style={styles.handle} />
+          <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
+            <View style={sheetGrabZone} {...panHandlers}>
+              <View style={styles.handle} />
+            </View>
             <View style={styles.headerRow}>
               <View style={styles.titleRow}>
                 <Sparkles size={16} color={theme.primary} strokeWidth={2.2} />
@@ -387,7 +392,7 @@ export default function PaywallSheet({
                 </TouchableOpacity>
               </View>
             </ScrollView>
-          </View>
+          </Animated.View>
         </View>
       </KeyboardAvoidingView>
     </Modal>

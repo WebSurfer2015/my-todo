@@ -20,6 +20,7 @@ import { Sparkles, Bell, Check } from 'lucide-react-native'
 import { useLang } from '../../app/LangContext'
 import { usePurchases } from '../../app/PurchasesContext'
 import { useTheme, ThemeColors } from '../../app/theme'
+import { useSheetDismiss, sheetGrabZone } from '../../ui/useSheetDismiss'
 import { useMochiAgent, type ProposedOperation } from './useMochiAgent'
 import MochiThinking from './MochiThinking'
 import EditableCaptureCard from './EditableCaptureCard'
@@ -231,6 +232,11 @@ export default function ChatSheet({
   const { t } = useLang()
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
+  // Swipe-the-grabber-down to dismiss. confirmsClose: requestClose confirms
+  // before clearing a non-empty conversation, so settle back rather than slide.
+  const { translateY, panHandlers } = useSheetDismiss(visible, requestClose, {
+    confirmsClose: true,
+  })
   const { send, reset, isThinking, messages, error, errorKind } = useMochiAgent()
   const { mochiRemaining, mochiPeriod, canSendMochi, openPaywall } = usePurchases()
   const [input, setInput] = useState('')
@@ -413,8 +419,10 @@ export default function ChatSheet({
             collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
         <View style={styles.backdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={requestClose} accessible={false} />
-          <View style={styles.sheet}>
-            <View style={styles.handle} />
+          <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
+            <View style={sheetGrabZone} {...panHandlers}>
+              <View style={styles.handle} />
+            </View>
             {/* Cancel pinned left, title optically centered, no right action. */}
             <View style={styles.headerRow}>
               <View style={styles.titleRow}>
@@ -708,7 +716,7 @@ export default function ChatSheet({
                 <Text style={styles.sendBtnText}>↑</Text>
               </Pressable>
             </View>
-          </View>
+          </Animated.View>
         </View>
       </KeyboardAvoidingView>
     </Modal>

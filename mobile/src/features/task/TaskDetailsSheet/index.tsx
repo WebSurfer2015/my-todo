@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  Animated,
   Modal,
   View,
   Text,
@@ -11,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Alert,
 } from 'react-native'
+import { useSheetDismiss, sheetGrabZone } from '../../../ui/useSheetDismiss'
 import Svg, { Path, Line, Polyline, Rect } from 'react-native-svg'
 import { Bell, Repeat } from 'lucide-react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
@@ -302,6 +304,11 @@ export default function TaskDetailsSheet({
   const theme = useTheme()
   const notify = useNotify()
   const styles = useMemo(() => makeStyles(theme), [theme])
+  // Swipe-the-grabber-down to dismiss. confirmsClose: closeAndFlushText may pop
+  // a series-edit dialog before closing, so settle back rather than slide off.
+  const { translateY, panHandlers } = useSheetDismiss(visible, closeAndFlushText, {
+    confirmsClose: true,
+  })
   const subs = todo.subtasks ?? []
   // R6a — Edit-scope toggle for series instances. Hidden when the
   // row has no seriesId. Default "this only" is the safer choice.
@@ -868,7 +875,10 @@ export default function TaskDetailsSheet({
         {/* Scrim tap + Android back flush unblurred title/notes (calm,
             forgiving auto-save) instead of dropping the last edit. */}
         <TouchableOpacity style={styles.overlayTouch} activeOpacity={1} onPress={closeAndFlushText} />
-        <View style={[styles.sheet, editingSubtaskId && styles.sheetTight]}>
+        <Animated.View style={[styles.sheet, editingSubtaskId && styles.sheetTight, { transform: [{ translateY }] }]}>
+          <View style={sheetGrabZone} {...panHandlers}>
+            <View style={styles.grabHandle} />
+          </View>
           {editingSubtaskId ? (
             editSubPickerView === 'priority' ? (
               <InlinePicker
@@ -1870,7 +1880,7 @@ export default function TaskDetailsSheet({
               }}
             />
           )}
-        </View>
+        </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
   )

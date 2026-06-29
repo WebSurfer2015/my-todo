@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
+  Animated,
   Modal,
   View,
   Text,
@@ -13,6 +14,7 @@ import {
   Alert,
   Dimensions,
 } from "react-native";
+import { useSheetDismiss, sheetGrabZone } from "../../../ui/useSheetDismiss";
 import { Check, Pin, Pencil, Eye, EyeOff, Trash2 } from "lucide-react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import DraggableFlatList, {
@@ -151,6 +153,12 @@ export default function CategorySheet({
   const { t } = useLang();
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
+  // Swipe-the-grabber-down to dismiss. confirmsClose: handleBackdrop returns to
+  // the list (or auto-saves) in edit mode rather than always closing, so settle
+  // back to rest rather than slide off-screen.
+  const { translateY, panHandlers } = useSheetDismiss(visible, handleBackdrop, {
+    confirmsClose: true,
+  });
   const [mode, setMode] = useState<Mode>({ kind: defaultMode });
   const [name, setName] = useState("");
   const [color, setColor] = useState(COLOR_PALETTE[5]);
@@ -405,8 +413,10 @@ export default function CategorySheet({
                 reach the backdrop, and a Pressable here would claim
                 the touch responder and starve the inner ScrollView's
                 pan recognizer — that's what was blocking scroll. */}
-            <View style={[styles.sheet, { height: sheetHeight }]}>
-              <View style={styles.handle} />
+            <Animated.View style={[styles.sheet, { height: sheetHeight, transform: [{ translateY }] }]}>
+              <View style={sheetGrabZone} {...panHandlers}>
+                <View style={styles.handle} />
+              </View>
 
               {isList ? (
                 <>
@@ -872,7 +882,7 @@ export default function CategorySheet({
                   </TouchableOpacity>
                 </>
               )}
-            </View>
+            </Animated.View>
           </View>
         </KeyboardAvoidingView>
       </GestureHandlerRootView>

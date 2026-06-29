@@ -16,11 +16,20 @@ export function makeStyles(c: ThemeColors) {
       // Sheet radius standardized to 18 across the app (was 16 here).
       borderTopLeftRadius: 18,
       borderTopRightRadius: 18,
-      paddingTop: 16,
+      paddingTop: 8,
       paddingBottom: Platform.OS === 'ios' ? 32 : 16,
       paddingHorizontal: 16,
       maxHeight: '90%',
       minHeight: '50%',
+    },
+    // Grabber — added for swipe-to-dismiss + visual parity with every other
+    // sheet (this one previously had none).
+    grabHandle: {
+      width: 36,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: c.gray3,
+      marginBottom: 4,
     },
     // Step / subtask edit views — shaved bottom padding so the Done
     // CTA doesn't float over a large empty band. The 8px floor still

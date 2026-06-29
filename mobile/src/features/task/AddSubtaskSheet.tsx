@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Modal, View, Text, TextInput, TouchableOpacity, StyleSheet,
+  Animated, Modal, View, Text, TextInput, TouchableOpacity, StyleSheet,
   Pressable, KeyboardAvoidingView, Platform,
 } from 'react-native'
+import { useSheetDismiss, sheetGrabZone } from '../../ui/useSheetDismiss'
 import * as Haptics from 'expo-haptics'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import Svg, { Rect, Path } from 'react-native-svg'
@@ -83,6 +84,8 @@ export default function AddSubtaskSheet({ visible, onAdd, onClose, defaultDueDat
     setSubView('main')
   }
 
+  const { translateY, panHandlers } = useSheetDismiss(visible, onClose)
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView
@@ -93,8 +96,10 @@ export default function AddSubtaskSheet({ visible, onAdd, onClose, defaultDueDat
             collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
         <View style={styles.backdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
-          <View style={styles.sheet}>
-            <View style={styles.handle} />
+          <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
+            <View style={sheetGrabZone} {...panHandlers}>
+              <View style={styles.handle} />
+            </View>
 
             {subView === 'main' && (
               <>
@@ -221,7 +226,7 @@ export default function AddSubtaskSheet({ visible, onAdd, onClose, defaultDueDat
                 ) : null}
               </View>
             )}
-          </View>
+          </Animated.View>
         </View>
       </KeyboardAvoidingView>
     </Modal>

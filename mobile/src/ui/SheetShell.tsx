@@ -25,6 +25,7 @@
 
 import React, { useMemo } from 'react'
 import {
+  Animated,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -39,6 +40,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLang } from '../app/LangContext'
 import { useTheme, ThemeColors } from '../app/theme'
+import { useSheetDismiss } from './useSheetDismiss'
 
 interface HeaderAction {
   label: string
@@ -84,6 +86,7 @@ export default function SheetShell({
   const styles = useMemo(() => makeStyles(theme), [theme])
   const { height } = useWindowDimensions()
   const insets = useSafeAreaInsets()
+  const { translateY, panHandlers } = useSheetDismiss(visible, onClose)
   const leftAction: HeaderAction = left ?? { label: t.cancel, onPress: onClose }
 
   return (
@@ -95,13 +98,19 @@ export default function SheetShell({
       {/* Sibling backdrop tap-layer (not a wrapper) — see header comment. */}
       <View style={styles.backdrop}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
-        <View
+        <Animated.View
           style={[
             styles.sheet,
-            { minHeight: height * 0.3, paddingBottom: Math.max(24, insets.bottom + 8) },
+            {
+              minHeight: height * 0.3,
+              paddingBottom: Math.max(24, insets.bottom + 8),
+              transform: [{ translateY }],
+            },
           ]}
         >
-          <View style={styles.handle} />
+          <View style={styles.grabZone} {...panHandlers}>
+            <View style={styles.handle} />
+          </View>
           <View style={styles.headerRow}>
             <TouchableOpacity
               onPress={leftAction.onPress}
@@ -154,7 +163,7 @@ export default function SheetShell({
           ) : (
             <View style={[styles.bodyFixed, padded && styles.bodyPad]}>{children}</View>
           )}
-        </View>
+        </Animated.View>
       </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -176,13 +185,18 @@ function makeStyles(c: ThemeColors) {
       paddingTop: 12,
       maxHeight: '85%',
     },
+    // Enlarged drag target around the 36x4 handle so swipe-to-dismiss has a
+    // comfortable grab area without growing the visible grabber.
+    grabZone: {
+      alignItems: 'center',
+      paddingTop: 2,
+      paddingBottom: 12,
+    },
     handle: {
-      alignSelf: 'center',
       width: 36,
       height: 4,
       borderRadius: 2,
       backgroundColor: c.gray3,
-      marginBottom: 12,
     },
     headerRow: {
       flexDirection: 'row',

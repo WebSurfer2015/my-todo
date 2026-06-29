@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Modal, View, Text, TextInput, TouchableOpacity, StyleSheet,
+  Animated, Modal, View, Text, TextInput, TouchableOpacity, StyleSheet,
   Pressable, KeyboardAvoidingView, Platform, ScrollView, Alert,
 } from 'react-native'
+import { useSheetDismiss, sheetGrabZone } from '../../../ui/useSheetDismiss'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as Haptics from 'expo-haptics'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
@@ -214,6 +215,11 @@ export default function ComposeSheet({
   // indicator strip — final week clipped against the rounded bottom.
   const insets = useSafeAreaInsets()
   const sheetBottomPad = Math.max(24, insets.bottom + 8)
+  // Swipe-the-grabber-down to dismiss. confirmsClose: requestClose may pop a
+  // "Discard?" confirm, so settle back to rest rather than slide off-screen.
+  const { translateY, panHandlers } = useSheetDismiss(visible, requestClose, {
+    confirmsClose: true,
+  })
 
   const [subView, setSubView] = useState<SubView>('main')
   const [text, setText] = useState('')
@@ -452,8 +458,10 @@ export default function ComposeSheet({
             collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
         <View style={styles.backdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={requestClose} accessible={false} />
-          <View style={[styles.sheet, { paddingBottom: sheetBottomPad }]}>
-            <View style={styles.handle} />
+          <Animated.View style={[styles.sheet, { paddingBottom: sheetBottomPad, transform: [{ translateY }] }]}>
+            <View style={sheetGrabZone} {...panHandlers}>
+              <View style={styles.handle} />
+            </View>
 
             {subView === 'main' && (
               <>
@@ -1205,7 +1213,7 @@ export default function ComposeSheet({
                 </View>
               </>
             )}
-          </View>
+          </Animated.View>
         </View>
       </KeyboardAvoidingView>
       <AddSubtaskSheet
