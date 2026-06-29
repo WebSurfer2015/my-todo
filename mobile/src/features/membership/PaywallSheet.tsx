@@ -253,8 +253,12 @@ export default function PaywallSheet({
                 const pkg = productId ? pkgFor(productId) : null
                 // The card highlights the user's EXACT current product (this
                 // tier at the selected billing), not just the tier — so toggling
-                // billing correctly moves the "Current plan" marker.
-                const isCurrent = !!productId && productId === currentProductId
+                // billing correctly moves the "Current plan" marker. The Free
+                // card is "current" whenever the user has no active subscription.
+                const isCurrent =
+                  plan.tier === 'free'
+                    ? !currentProductId
+                    : !!productId && productId === currentProductId
                 const price =
                   plan.tier === 'free'
                     ? 'Free'
@@ -266,13 +270,18 @@ export default function PaywallSheet({
                 // and same-product re-buys are never offered (cancel to Free is
                 // the Manage-subscription link below).
                 const purchasable = !!productId && isUpgrade(currentProductId, productId) && !!pkg
-                // Trial CTA only when THIS package carries a free intro offer
-                // (price 0) AND the user is still eligible for it. Apple grants
-                // the intro once per subscription group, so after any trial is
-                // started the rest stop offering one — we then fall back to the
-                // plain Upgrade/Subscribe price.
+                // Trial CTA only for a FREE user, on a product that carries a
+                // free intro offer (price 0) AND that RevenueCat still reports
+                // as trial-eligible. The !currentProductId guard is the decisive
+                // one: anyone who already has a subscription (incl. one running
+                // on a trial) only ever sees "Upgrade", never another free
+                // trial — even if the products sit in different App Store
+                // subscription groups (where Apple would otherwise grant a
+                // second per-group trial). RC eligibility additionally hides it
+                // for a lapsed free user who already used the group's intro.
                 const intro = pkg?.product.introPrice
-                const eligibleForTrial = !!productId && trialEligible[productId] === true
+                const eligibleForTrial =
+                  !currentProductId && !!productId && trialEligible[productId] === true
                 // Apple has no "7 day" trial duration — a 7-day trial is set up
                 // as "1 week". Normalise weeks to days so the CTA reads
                 // "7-day free trial" (how the trial is described everywhere
