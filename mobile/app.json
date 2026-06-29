@@ -2,7 +2,7 @@
   "expo": {
     "name": "Sagely — Calm To-Dos",
     "slug": "my-todo-mobile",
-    "version": "1.4.0",
+    "version": "1.6.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
