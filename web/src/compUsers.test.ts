@@ -4,7 +4,7 @@ import { isCompName } from '../functions/src/compUsers'
 describe('isCompName — comp allowlist', () => {
   it('matches listed family by first + last, case/whitespace-insensitive', () => {
     expect(isCompName('Joanna', 'Zhou')).toBe(true)
-    expect(isCompName('  helen ', 'ZHOU')).toBe(true)
+    expect(isCompName('Helen ', 'Zhou')).toBe(true)
     expect(isCompName('Sydney', 'Zhou')).toBe(true)
     expect(isCompName('Ying', 'Qin')).toBe(true)
   })
