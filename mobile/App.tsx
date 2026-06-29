@@ -693,6 +693,17 @@ function TodosScreen() {
               //   overdue → open   (today/future items, not carried)
               //   cat:* / pri:* → all  (we can't guess which bucket)
               (() => {
+                // Search with no matches: say so plainly instead of falling
+                // through to the generic "Add a to-do" CTA.
+                if (searchNeedle) {
+                  return (
+                    <EmptyStateCard
+                      title={`No matches for "${searchQuery.trim()}"`}
+                      hint="Try a different word, or clear the search."
+                      centered
+                    />
+                  )
+                }
                 const filterMismatch =
                   !searchNeedle &&
                   store.filter !== 'all' &&

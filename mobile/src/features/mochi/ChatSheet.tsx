@@ -350,6 +350,19 @@ export default function ChatSheet({
     onClose()
   }
 
+  // Backdrop / Android-back. A multi-turn conversation is higher-stakes to
+  // lose than a single field, so confirm before clearing a non-empty thread.
+  function requestClose() {
+    if (messages.length === 0) {
+      close()
+      return
+    }
+    Alert.alert('End chat?', 'Your conversation with Mochi will be cleared.', [
+      { text: 'Keep chatting', style: 'cancel' },
+      { text: 'End chat', style: 'destructive', onPress: close },
+    ])
+  }
+
   const greeting = greetingName.trim()
     ? `Hi ${greetingName.trim()} — what should I add?`
     : 'What should I add?'
@@ -390,7 +403,7 @@ export default function ChatSheet({
       transparent
       animationType="slide"
       onShow={() => inputRef.current?.focus()}
-      onRequestClose={close}
+      onRequestClose={requestClose}
     >
       <KeyboardAvoidingView
         style={styles.flex}
@@ -399,7 +412,7 @@ export default function ChatSheet({
         {/* Sibling backdrop tap-layer (not a wrapper) — a wrapping Pressable
             collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
         <View style={styles.backdrop}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={close} accessible={false} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={requestClose} accessible={false} />
           <View style={styles.sheet}>
             <View style={styles.handle} />
             {/* Cancel pinned left, title optically centered, no right action. */}

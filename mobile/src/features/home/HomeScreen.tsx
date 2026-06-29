@@ -403,7 +403,7 @@ export default function HomeScreen() {
                 hint="Enjoy the breathing room."
                 actionLabel="Peek ahead"
                 onAction={openWhatsNext}
-                actionAccessibilityLabel="Peek ahead — ask Mochi or open the upcoming list."
+                actionAccessibilityLabel="Peek ahead — show what's coming up next."
               />
             )}
           </>
