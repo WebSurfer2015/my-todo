@@ -101,10 +101,7 @@ export default function GroceriesScreen() {
           sheets.openMochi()
         }}
         onToggleChecked={store.toggleGroceryChecked}
-        celebrate={
-          store.profile.completionAnimation !== false &&
-          store.profile.reduceMotion !== true
-        }
+        celebrate={store.animationOn}
         playSound={store.profile.completionSound !== false}
         onEdit={store.editGrocery}
         onDelete={store.deleteGrocery}

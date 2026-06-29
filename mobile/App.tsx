@@ -284,7 +284,7 @@ function TodosScreen() {
         todo={td}
         categories={store.categories}
         density={store.profile.density}
-        celebrate={store.profile.completionAnimation !== false && store.profile.reduceMotion !== true}
+        celebrate={store.animationOn}
         playSound={store.profile.completionSound !== false}
         onToggle={store.toggle}
         onMoveToTrash={store.moveToTrash}
@@ -395,7 +395,7 @@ function TodosScreen() {
         todo={td}
         categories={store.categories}
         density={store.profile.density}
-        celebrate={store.profile.completionAnimation !== false && store.profile.reduceMotion !== true}
+        celebrate={store.animationOn}
         playSound={store.profile.completionSound !== false}
         binFilterView
         onToggle={store.toggle}
@@ -650,7 +650,7 @@ function TodosScreen() {
                         todo={td}
                         categories={store.categories}
                         density={store.profile.density}
-                        celebrate={store.profile.completionAnimation !== false && store.profile.reduceMotion !== true}
+                        celebrate={store.animationOn}
                         playSound={store.profile.completionSound !== false}
                         inTrash
                         selected={store.selectedTrashIds.has(td.id)}
@@ -773,7 +773,7 @@ function TodosScreen() {
                             todo={td}
                             categories={store.categories}
                             density={store.profile.density}
-                            celebrate={store.profile.completionAnimation !== false && store.profile.reduceMotion !== true}
+                            celebrate={store.animationOn}
                             playSound={store.profile.completionSound !== false}
                             onToggle={store.toggle}
                             onMoveToTrash={store.moveToTrash}
@@ -944,7 +944,7 @@ function TodosScreen() {
       />
       {splashShown && (
         <SplashOverlay
-          reduceMotion={store.profile.reduceMotion === true}
+          reduceMotion={store.reduceMotion}
           onDismiss={() => setSplashShown(false)}
         />
       )}

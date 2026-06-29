@@ -24,6 +24,7 @@ import {
   useColorScheme,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import Constants from "expo-constants";
 import { Profile, type ThemeName } from "../../core-bindings/profile";
 import { useLang } from "../../app/LangContext";
 import { usePurchases } from "../../app/PurchasesContext";
@@ -376,7 +377,7 @@ export default function SettingsSheet({
               <View style={styles.card}>
                 <View style={styles.rowStatic}>
                   <Text style={styles.rowLabel}>Sagely</Text>
-                  <Text style={styles.rowValue}>v1.4.0</Text>
+                  <Text style={styles.rowValue}>v{Constants.expoConfig?.version ?? "1.6.0"}</Text>
                 </View>
               </View>
 

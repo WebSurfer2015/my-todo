@@ -783,7 +783,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           greetingName={
             store.profile.firstName?.trim() || store.profile.name?.trim() || ''
           }
-          reduceMotion={store.profile.reduceMotion === true}
+          reduceMotion={store.reduceMotion}
           categories={store.categories}
           todos={store.todos
             .filter((td) => !td.trashed)

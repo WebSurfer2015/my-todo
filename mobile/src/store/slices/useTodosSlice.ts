@@ -69,6 +69,9 @@ export interface TodosSliceDeps {
   filterRef: MutableRefObject<Filter>;
   /** uid for the post-hydrate pebble reconciliation (once per uid swap). */
   uid: string | null;
+  /** OS-level Reduce Motion — folded into the animation gate so the system
+   * accessibility setting suppresses pebble flights too. */
+  osReduceMotion: boolean;
   t: {
     movedToTrash: string;
     movedToTrashMany: (n: number) => string;
@@ -235,6 +238,7 @@ export function useTodosSlice(
     uid,
     t,
     notify,
+    osReduceMotion,
     actions,
   } = deps;
   // Pure transforms via the createTodoStore surface. Stable across
@@ -410,7 +414,9 @@ export function useTodosSlice(
   );
 
   const animationOn =
-    profile.completionAnimation !== false && profile.reduceMotion !== true;
+    profile.completionAnimation !== false &&
+    profile.reduceMotion !== true &&
+    !osReduceMotion;
   const applyPebbleDeltaTimed = useCallback(
     (delta: PebbleDelta) => {
       if (delta.task === 0 && delta.subtask === 0) return;

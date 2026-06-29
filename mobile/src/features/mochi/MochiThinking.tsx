@@ -22,6 +22,7 @@ import { Animated, Easing, StyleSheet, Text, View } from 'react-native'
 import { Sparkles } from 'lucide-react-native'
 import { useLang } from '../../app/LangContext'
 import { useTheme, ThemeColors } from '../../app/theme'
+import { useReducedMotion } from '../../app/useReducedMotion'
 
 interface Props {
   /** When true, render just the sparkles icon (no text). For
@@ -41,9 +42,15 @@ export default function MochiThinking({ compact = false, size = 18, label }: Pro
   const styles = useMemo(() => makeStyles(theme), [theme])
 
   // Single looping breathe — scale + opacity together. Native driver
-  // keeps it 60fps with no JS thread cost.
+  // keeps it 60fps with no JS thread cost. Honors Reduce Motion (OS or
+  // in-app): the sparkle holds steady instead of pulsing forever.
+  const reduceMotion = useReducedMotion()
   const progress = useRef(new Animated.Value(0)).current
   useEffect(() => {
+    if (reduceMotion) {
+      progress.setValue(0.5) // hold at the fully-visible midpoint
+      return
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(progress, {
@@ -62,7 +69,7 @@ export default function MochiThinking({ compact = false, size = 18, label }: Pro
     )
     loop.start()
     return () => loop.stop()
-  }, [progress])
+  }, [progress, reduceMotion])
 
   const sparkleScale = progress.interpolate({
     inputRange: [0, 1],

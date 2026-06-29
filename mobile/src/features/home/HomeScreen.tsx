@@ -234,9 +234,7 @@ export default function HomeScreen() {
   // unified tap/long-press/swipe model and the embedded TaskDetailsSheet
   // for free. The only Home-local state is the single-todo Defer modal
   // — TaskItem's onLongPressDefer prop bubbles up here.
-  const celebrate =
-    store.profile.completionAnimation !== false &&
-    store.profile.reduceMotion !== true
+  const celebrate = store.animationOn
   const playSound = store.profile.completionSound !== false
 
   const [deferTarget, setDeferTarget] = useState<Todo | null>(null)

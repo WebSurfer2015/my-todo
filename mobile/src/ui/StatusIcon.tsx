@@ -5,7 +5,9 @@ import { useTheme, type ThemeColors } from '../app/theme'
 
 export function statusColor(id: StatusFilter, theme: ThemeColors): string {
   switch (id) {
-    case 'overdue': return theme.red
+    // Calm lens: overdue is information, not an alarm — soft orange, not red.
+    // Matches TaskItem / TaskDetails; red is reserved for destructive actions.
+    case 'overdue': return theme.orange
     case 'open':    return theme.blue
     case 'done':    return theme.green
     case 'trash':   return theme.gray

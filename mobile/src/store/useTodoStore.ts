@@ -14,6 +14,7 @@ import { useTodosSlice } from "./slices/useTodosSlice";
 import { useLang } from "../app/LangContext";
 import { useAuth } from "../app/AuthContext";
 import { useNotify } from "../app/notify";
+import { useReducedMotion } from "../app/useReducedMotion";
 import { storage as localAdapter } from "../adapters/persistence";
 import { db } from "../adapters/firebase";
 import { makeFirestoreAdapter } from "../adapters/firestoreAdapter";
@@ -158,12 +159,21 @@ export function useTodoStore() {
     reorderCategories,
   } = useCategoriesSlice(adapter, store.actions, onSaved);
 
+  // OS-level Reduce Motion — folded into every animation gate below so the
+  // system accessibility setting is honored, not just the in-app toggle.
+  const osReduceMotion = useReducedMotion();
+
   const view: ViewMode = profile.view ?? "status";
   // Derived bool re-exposed for screens that hide motion-bound chrome
   // when the user has opted out. Same expression the todos slice
   // uses internally to decide whether to defer pebble flights.
   const animationOn =
-    profile.completionAnimation !== false && profile.reduceMotion !== true;
+    profile.completionAnimation !== false &&
+    profile.reduceMotion !== true &&
+    !osReduceMotion;
+  // Effective motion-reduction for prop-based consumers (SplashOverlay,
+  // ChatSheet) — the in-app toggle OR the OS setting.
+  const reduceMotion = profile.reduceMotion === true || osReduceMotion;
   // Mirror `filter` into a ref so TaskItem-bound callbacks (now in
   // useTodosSlice) can read it without re-firing on every filter
   // change (which would break the React.memo on TaskItem — see the
@@ -207,6 +217,7 @@ export function useTodoStore() {
     uid,
     t,
     notify,
+    osReduceMotion,
     actions: store.actions,
   });
   const {
@@ -497,6 +508,9 @@ export function useTodoStore() {
      * deferred pebble flights. Exposed so screens can hide the
      * PebbleStrip entirely when the user has opted out of motion. */
     animationOn,
+    /** Effective motion-reduction (in-app toggle OR OS Reduce Motion). For
+     * prop-based animation consumers like SplashOverlay / ChatSheet. */
+    reduceMotion,
     orderedStatuses,
     orderedPriorities,
     orderedVisibleStatuses,
