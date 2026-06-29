@@ -83,7 +83,9 @@ export function makeStyles(c: ThemeColors) {
     },
     metaCatText: { fontSize: 12, fontWeight: '600' },
     metaDate: { fontSize: 12, fontWeight: '500', color: c.label2 },
-    metaDateOverdue: { color: c.red, fontWeight: '600' },
+    // Calm lens: overdue is information, not an alarm — match TaskItem's soft
+    // orange (was c.red). Red is reserved for destructive actions.
+    metaDateOverdue: { color: c.orange, fontWeight: '600' },
     metaDateToday: { color: c.orange, fontWeight: '600' },
     metaDateMuted: { color: c.label3, fontStyle: 'italic' },
     metaProgress: { fontSize: 12, color: c.label2, fontVariant: ['tabular-nums'] },
@@ -149,7 +151,7 @@ export function makeStyles(c: ThemeColors) {
     subDateChipText: { fontSize: 12, fontWeight: '500' },
     subDateChipMuted: { color: c.gray3, fontStyle: 'italic', fontWeight: '500' },
     subDateChipPlain: { color: c.label3, fontWeight: '500' },
-    subDateChipOverdue: { color: c.red, fontWeight: '600' },
+    subDateChipOverdue: { color: c.orange, fontWeight: '600' },
     subDateChipToday: { color: c.orange, fontWeight: '600' },
     subRemoveBtn: { padding: 4 },
 

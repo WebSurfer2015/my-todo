@@ -14,6 +14,7 @@ import {
 import Svg, { Path, Line, Polyline, Rect } from 'react-native-svg'
 import { Bell, Repeat } from 'lucide-react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
+import AndroidDateFlow from '../../../ui/AndroidDateFlow'
 import * as Haptics from 'expo-haptics'
 import { Category, Priority, Reminder, Subtask, Todo, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, PRIORITY_VALUES, PRIORITY_COLORS } from '../../../core-bindings/types'
 import { getReminders } from '../../../../../core/src/logic/derive'
@@ -464,7 +465,14 @@ export default function TaskDetailsSheet({
         setEditSubOriginal(null)
       }
     }
-  }, [visible, todo, initialSubtaskEditId])
+    // Re-seed ONLY when the sheet opens or the task identity changes — NOT on
+    // every `todo` reference change. The old `[visible, todo, …]` deps re-ran
+    // this whenever any field of the live todo mutated (a subtask toggle, a
+    // remote sync tick, or the user's own debounced write round-tripping),
+    // silently clobbering title/notes the user had typed but not yet blurred.
+    // Field edits are read live in render; we only need a fresh seed per open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, todo.id, initialSubtaskEditId])
 
   const editActiveCat = categories.find((c) => c.id === editCategory) ?? categories[0]
 
@@ -851,12 +859,14 @@ export default function TaskDetailsSheet({
   const parentToday = !!todo.dueDate && !todo.done && todo.dueDate === today
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={closeAndFlushText}>
       <KeyboardAvoidingView
         style={styles.overlay}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <TouchableOpacity style={styles.overlayTouch} activeOpacity={1} onPress={onClose} />
+        {/* Scrim tap + Android back flush unblurred title/notes (calm,
+            forgiving auto-save) instead of dropping the last edit. */}
+        <TouchableOpacity style={styles.overlayTouch} activeOpacity={1} onPress={closeAndFlushText} />
         <View style={[styles.sheet, editingSubtaskId && styles.sheetTight]}>
           {editingSubtaskId ? (
             editSubPickerView === 'priority' ? (
@@ -891,13 +901,22 @@ export default function TaskDetailsSheet({
                   ) : (
                     <Text style={[styles.datePendingLabel, styles.datePendingLabelEmpty]}>{t.noDate}</Text>
                   )}
-                  <DateTimePicker
-                    value={editSubPickerDate}
-                    mode="date"
-                    display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                    themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
-                    onChange={handleEditSubDateChange}
-                  />
+                  {Platform.OS === 'ios' ? (
+                    <DateTimePicker
+                      value={editSubPickerDate}
+                      mode="date"
+                      display="inline"
+                      themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
+                      onChange={handleEditSubDateChange}
+                    />
+                  ) : (
+                    <AndroidDateFlow
+                      value={editSubPickerDate}
+                      mode="date"
+                      onCommit={(d) => applySubDueDate(isoDate(d))}
+                      onDone={() => setEditSubPickerView('main')}
+                    />
+                  )}
                 </View>
                 <View style={styles.dateActions}>
                   <TouchableOpacity
@@ -965,7 +984,7 @@ export default function TaskDetailsSheet({
                     accessibilityRole="button"
                     accessibilityLabel={t.deleteSubtask}
                   >
-                    <Text style={styles.deleteHeaderText}>{t.deleteTask}</Text>
+                    <Text style={styles.deleteHeaderText}>{t.deleteSubtask}</Text>
                   </TouchableOpacity>
                 </View>
                 <ScrollView style={styles.list} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editStepBody} showsVerticalScrollIndicator={false}>
@@ -1118,13 +1137,22 @@ export default function TaskDetailsSheet({
                 ) : (
                   <Text style={[styles.datePendingLabel, styles.datePendingLabelEmpty]}>{t.noDate}</Text>
                 )}
-                <DateTimePicker
-                  value={editPickerDate}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                  themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
-                  onChange={handleEditDateChange}
-                />
+                {Platform.OS === 'ios' ? (
+                  <DateTimePicker
+                    value={editPickerDate}
+                    mode="date"
+                    display="inline"
+                    themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
+                    onChange={handleEditDateChange}
+                  />
+                ) : (
+                  <AndroidDateFlow
+                    value={editPickerDate}
+                    mode="date"
+                    onCommit={(d) => applyDueDate(isoLocalDateTime(d))}
+                    onDone={() => setParentEditView('main')}
+                  />
+                )}
               </View>
               <View style={styles.dateActions}>
                 <TouchableOpacity
@@ -1172,18 +1200,28 @@ export default function TaskDetailsSheet({
                 ) : (
                   <Text style={[styles.datePendingLabel, styles.datePendingLabelEmpty]}>{t.edit.noEnd}</Text>
                 )}
-                <DateTimePicker
-                  value={endDatePickerDate}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                  themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
-                  minimumDate={new Date()}
-                  onChange={(_e: DateTimePickerEvent, d?: Date) => {
-                    if (!d) return
-                    setEndDatePickerDate(d)
-                    setPendingRecurEndDate(isoDate(d))
-                  }}
-                />
+                {Platform.OS === 'ios' ? (
+                  <DateTimePicker
+                    value={endDatePickerDate}
+                    mode="date"
+                    display="inline"
+                    themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
+                    minimumDate={new Date()}
+                    onChange={(_e: DateTimePickerEvent, d?: Date) => {
+                      if (!d) return
+                      setEndDatePickerDate(d)
+                      setPendingRecurEndDate(isoDate(d))
+                    }}
+                  />
+                ) : (
+                  <AndroidDateFlow
+                    value={endDatePickerDate}
+                    mode="date"
+                    minimumDate={new Date()}
+                    onCommit={(d) => applyRecurrence({ ...editRecurrence, endDate: isoDate(d) })}
+                    onDone={() => setParentEditView('main')}
+                  />
+                )}
               </View>
               <View style={styles.dateActions}>
                 <TouchableOpacity
