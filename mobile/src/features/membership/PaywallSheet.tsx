@@ -236,9 +236,16 @@ export default function PaywallSheet({
                 // intro offer (price 0) — not just because the annual toggle
                 // is selected. Keeps the copy honest per billing option.
                 const intro = pkg?.product.introPrice
+                // Apple has no "7 day" trial duration — a 7-day trial is set up
+                // as "1 week". Normalise weeks to days so the CTA reads
+                // "7-day free trial" (how the trial is described everywhere
+                // else) rather than "1-week free trial".
+                const trialUnit = String(intro?.periodUnit ?? '').toUpperCase()
                 const trialText =
                   intro && intro.price === 0
-                    ? `Start ${intro.periodNumberOfUnits}-${String(intro.periodUnit).toLowerCase()} free trial`
+                    ? trialUnit === 'WEEK'
+                      ? `Start ${intro.periodNumberOfUnits * 7}-day free trial`
+                      : `Start ${intro.periodNumberOfUnits}-${trialUnit.toLowerCase()} free trial`
                     : null
                 // Premium is the recommended plan: it gets the single
                 // filled CTA + a "Popular" tag, so only one primary action
