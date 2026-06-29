@@ -64,14 +64,8 @@ export default function StorePill({
       >
         {label}
       </Text>
-      {count > 0 && (
-        <Text
-          style={[styles.storePillCount, active && styles.storePillCountActive]}
-          maxFontSizeMultiplier={1.3}
-        >
-          {count}
-        </Text>
-      )}
+      {/* Count intentionally not rendered — calm pass. The number stays in the
+          accessibility label for screen readers, just not on-screen. */}
     </TouchableOpacity>
   );
 }

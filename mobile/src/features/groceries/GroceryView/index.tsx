@@ -523,7 +523,7 @@ export default function GroceryView({
             <StorePill
               key={`dept-${leadingActiveDept.id}`}
               label={leadingActiveDept.label}
-              count={0 /* dept count lives on the group header below */}
+              count={deptActiveCounts.get(leadingActiveDept.id) ?? 0}
               active
               pinned={pinnedDepts.includes(leadingActiveDept.id)}
               deptIcon={
@@ -571,7 +571,7 @@ export default function GroceryView({
               <StorePill
                 key={`dept-${g.id}`}
                 label={g.label}
-                count={0 /* dept count lives on the group header below */}
+                count={deptActiveCounts.get(g.id) ?? 0}
                 active={isActive}
                 pinned
                 deptIcon={

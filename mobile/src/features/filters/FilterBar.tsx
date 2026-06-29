@@ -517,9 +517,11 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.primary,
     },
     pillSticky: {
-      // Inactive pinned pill — visible but de-emphasized.
-      backgroundColor: c.card,
-      borderColor: c.border,
+      // Inactive pinned (saved) pill — a soft fill so it reads as "kept",
+      // clearly distinct from the plain outlined "All"/reset pill and the
+      // mint-outlined transient pill, without needing a pin icon.
+      backgroundColor: c.primarySoft,
+      borderColor: c.primarySoft,
     },
     pillExtra: {
       // Currently-selected-but-not-pinned filter — mint outline on the
