@@ -130,6 +130,19 @@ export default function PaywallSheet({
   const pkgFor = (productId: string): PurchasesPackage | null =>
     offering?.availablePackages.find((p) => p.product.identifier === productId) ?? null
 
+  // Which plan's CTA gets the prominent filled style. Lead with Premium when
+  // it's a purchasable upgrade (the "Popular" choice for new subscribers);
+  // otherwise lead with the lowest available upgrade — e.g. Max for an existing
+  // Premium subscriber — so the only actionable CTA isn't styled as
+  // subordinate.
+  const purchasableTiers = PLANS.filter((p) => {
+    const pid = p.product?.[billing]
+    return !!pid && isUpgrade(currentProductId, pid) && !!pkgFor(pid)
+  }).map((p) => p.tier)
+  const leadTier: Tier | null = purchasableTiers.includes('premium')
+    ? 'premium'
+    : purchasableTiers[0] ?? null
+
   async function buy(productId: string) {
     const pkg = pkgFor(productId)
     if (!pkg || busy) return
@@ -260,11 +273,14 @@ export default function PaywallSheet({
                       ? `Start ${intro.periodNumberOfUnits * 7}-day free trial`
                       : `Start ${intro.periodNumberOfUnits}-${trialUnit.toLowerCase()} free trial`
                     : null
-                // Premium is the recommended plan: it gets the single
-                // filled CTA + a "Popular" tag, so only one primary action
-                // competes for the eye. Other purchasable plans (Max) get a
-                // quieter outline CTA — present, but visually subordinate.
+                // "Popular" tag stays on Premium (the headline plan for new
+                // subscribers). The filled CTA, though, follows the lead
+                // upgrade — so the user's only actionable button is always the
+                // prominent one (e.g. Max for an existing Premium subscriber),
+                // never a subordinate outline. Other purchasable plans get the
+                // quieter outline.
                 const recommended = plan.tier === 'premium'
+                const filledCta = plan.tier === leadTier
                 const status = isCurrent
                   ? 'Current plan'
                   : plan.tier === 'free'
@@ -300,15 +316,15 @@ export default function PaywallSheet({
                     ))}
                     {purchasable ? (
                       <TouchableOpacity
-                        style={recommended ? styles.cta : styles.ctaOutline}
+                        style={filledCta ? styles.cta : styles.ctaOutline}
                         disabled={busy}
                         onPress={() => productId && buy(productId)}
                         activeOpacity={0.85}
                       >
                         {pendingId === productId ? (
-                          <ActivityIndicator color={recommended ? theme.primaryOn : theme.primary} />
+                          <ActivityIndicator color={filledCta ? theme.primaryOn : theme.primary} />
                         ) : (
-                          <Text style={recommended ? styles.ctaText : styles.ctaOutlineText}>
+                          <Text style={filledCta ? styles.ctaText : styles.ctaOutlineText}>
                             {trialText ?? `${currentProductId ? 'Upgrade' : 'Subscribe'} · ${price}`}
                           </Text>
                         )}
