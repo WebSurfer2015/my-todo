@@ -27,6 +27,7 @@ import type {
   PurchasesPackage,
 } from 'react-native-purchases'
 import type { Tier } from '../core-bindings/entitlements'
+import { tierForProduct, TIER_ORDER } from '../core-bindings/entitlements'
 
 const API_KEY: string =
   (Constants.expoConfig?.extra as { revenueCatIosKey?: string } | undefined)
@@ -139,11 +140,37 @@ export function onCustomerInfoChange(cb: (info: CustomerInfo) => void): () => vo
   return () => rc().removeCustomerInfoUpdateListener(cb)
 }
 
-/** Map RC CustomerInfo → effective Tier for instant UI. Elite wins over Pro.
+/** Map RC CustomerInfo → effective Tier for instant UI. Max wins over Premium.
+ *
+ * Derives the tier from the ACTIVE SUBSCRIPTION PRODUCT (via tierForProduct),
+ * not the entitlement identifier. A tiered RevenueCat dashboard commonly unlocks
+ * a single shared entitlement (or one not literally named "max") for both the
+ * Premium and Max products — so keying off `active['max']` mis-reads a Max
+ * subscription (or its free trial) as Premium, which is exactly the bug this
+ * fixes. The purchased product id is unambiguous. Falls back to tier-named
+ * entitlement identifiers only if no product matches.
+ *
  * (Top-up balance is NOT here — consumables aren't entitlements; it lives in
  * the Firestore entitlement doc written by the webhook.) */
 export function tierFromCustomerInfo(info: CustomerInfo | null): Tier {
-  const active = info?.entitlements.active ?? {}
+  if (!info) return 'free'
+  let best: Tier = 'free'
+  const consider = (productId: string | null | undefined) => {
+    if (!productId) return
+    // Android Play product ids carry a ":basePlan" suffix; iOS ids don't.
+    const t = tierForProduct(productId.split(':')[0])
+    if (t && TIER_ORDER.indexOf(t) > TIER_ORDER.indexOf(best)) best = t
+  }
+  // The product that unlocked each active entitlement is the most reliable
+  // signal, regardless of how the entitlement itself is named or grouped.
+  for (const ent of Object.values(info.entitlements.active ?? {})) {
+    consider((ent as { productIdentifier?: string }).productIdentifier)
+  }
+  // Also weigh raw active subscription product ids.
+  for (const productId of info.activeSubscriptions ?? []) consider(productId)
+  if (best !== 'free') return best
+  // Last resort: entitlement identifiers literally named after the tier.
+  const active = info.entitlements.active ?? {}
   if (active['max']) return 'max'
   if (active['premium']) return 'premium'
   return 'free'
