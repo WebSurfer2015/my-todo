@@ -293,13 +293,13 @@ export default function PaywallSheet({
                       ? `Start ${intro.periodNumberOfUnits * 7}-day free trial`
                       : `Start ${intro.periodNumberOfUnits}-${trialUnit.toLowerCase()} free trial`
                     : null
-                // Per-product highlight badge: Monthly Premium is the "Popular"
-                // pick, Yearly Max is the "Best Value". (Billing-aware, so the
-                // badge follows the toggle.)
+                // Per-tier highlight badge, shown on both billing options so it
+                // doesn't disappear when the toggle flips: Premium is the
+                // "Popular" pick, Max is the "Best Value".
                 const badgeLabel =
-                  plan.tier === 'premium' && billing === 'monthly'
+                  plan.tier === 'premium'
                     ? 'Popular'
-                    : plan.tier === 'max' && billing === 'annual'
+                    : plan.tier === 'max'
                       ? 'Best Value'
                       : null
                 // The filled CTA follows the lead upgrade — so the user's only
