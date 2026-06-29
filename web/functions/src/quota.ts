@@ -21,6 +21,7 @@ import {
   type Tier,
 } from './entitlements'
 import { decideMochiReservation } from './mochiReservation'
+import { isCompName } from './compUsers'
 
 // Per-user daily ceiling, shared across every AI endpoint (ambient
 // suggestions, breakdowns, and Mochi turns). Raised 30 → 150 to give active
@@ -182,14 +183,58 @@ function parseMochiUsage(raw: unknown): MochiUsageData | null {
   }
 }
 
+// ─── Comp allowlist (full AI, no payment) ──────────────────────────
+//
+// A small set of people (family) get the full Max experience without paying —
+// see compUsers.ts for the list + the soft-comp caveat (names are editable).
+
+/** Extract first/last name from a profile envelope (same {value:<json>}
+ * shape as the other state docs). Empty strings on any parse failure. */
+function parseProfileName(raw: unknown): { firstName: string; lastName: string } {
+  const empty = { firstName: '', lastName: '' }
+  if (!raw || typeof raw !== 'object') return empty
+  const val = (raw as { value?: unknown }).value
+  if (typeof val !== 'string') return empty
+  try {
+    const data = (JSON.parse(val) as { data?: unknown })?.data as
+      | { firstName?: unknown; lastName?: unknown }
+      | undefined
+    return {
+      firstName: typeof data?.firstName === 'string' ? data.firstName : '',
+      lastName: typeof data?.lastName === 'string' ? data.lastName : '',
+    }
+  } catch {
+    return empty
+  }
+}
+
+/** True when the signed-in user is on the comp allowlist (reads their
+ * profile name). Fails closed (false) on any read/parse error. */
+async function isCompUser(uid: string): Promise<boolean> {
+  try {
+    const snap = await adminDb.doc(`users/${uid}/state/profile`).get()
+    if (!snap.exists) return false
+    const { firstName, lastName } = parseProfileName(snap.data())
+    return isCompName(firstName, lastName)
+  } catch (err) {
+    console.error('isCompUser read failed', err)
+    return false
+  }
+}
+
 /**
  * Tier-aware reservation for ONE Mochi request. Throws
  * HttpsError('resource-exhausted') when the daily sub-cap or the monthly
  * budget (allowance + top-ups) is hit. Consumes a top-up only once the
  * base monthly allowance is spent. Two-doc transaction (usage +
  * entitlement) so the top-up decrement is atomic with the usage bump.
+ *
+ * Comp users (family allowlist) bypass metering entirely — full AI, no cap.
  */
 export async function reserveMochiRequest(uid: string): Promise<void> {
+  // Family comp: full access, no metering. Checked only on the enforcement
+  // path, so it costs nothing while MOCHI_TIER_ENFORCEMENT is off.
+  if (await isCompUser(uid)) return
   const now = new Date()
   const today = now.toISOString().slice(0, 10) // YYYY-MM-DD UTC
   const month = today.slice(0, 7) // YYYY-MM UTC
