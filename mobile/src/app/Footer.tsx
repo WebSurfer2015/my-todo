@@ -16,7 +16,13 @@ export default function Footer({ completedCount, onClearDone, showClear = false 
   if (!showClear || completedCount === 0) return null
   return (
     <View style={styles.footer}>
-      <TouchableOpacity onPress={onClearDone} hitSlop={10} style={styles.clearBtn}>
+      <TouchableOpacity
+        onPress={onClearDone}
+        hitSlop={10}
+        style={styles.clearBtn}
+        accessibilityRole="button"
+        accessibilityLabel={t.clearAllCompleted}
+      >
         <Text style={styles.clear}>{t.clearAllCompleted}</Text>
       </TouchableOpacity>
     </View>

@@ -17,6 +17,7 @@
 
 import React, { useEffect, useMemo, useRef } from 'react'
 import {
+  BackHandler,
   Keyboard,
   StyleSheet,
   Text,
@@ -60,6 +61,18 @@ export default function SearchTopSheet({
     const handle = setTimeout(() => inputRef.current?.focus(), 80)
     return () => clearTimeout(handle)
   }, [visible])
+
+  // Android hardware back closes the search overlay (it's a plain View, not a
+  // Modal, so it doesn't get onRequestClose for free).
+  useEffect(() => {
+    if (!visible) return
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      Keyboard.dismiss()
+      onCancel()
+      return true
+    })
+    return () => sub.remove()
+  }, [visible, onCancel])
 
   if (!visible) return null
 

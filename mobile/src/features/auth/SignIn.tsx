@@ -39,6 +39,7 @@ export default function SignIn() {
   } = useAuth();
   const [mode, setMode] = useState<Mode>("social");
   const passwordRef = useRef<TextInput>(null);
+  const emailRef = useRef<TextInput>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -69,6 +70,11 @@ export default function SignIn() {
   async function submit() {
     if (mode === "signup" && !firstName.trim()) {
       setError(t.firstNameRequired);
+      return;
+    }
+    if (mode !== "reset" && password.length < 6) {
+      // Catch the too-short case before spending a network round-trip on it.
+      setError("Password must be at least 6 characters.");
       return;
     }
     setError(null);
@@ -207,8 +213,11 @@ export default function SignIn() {
                         onChangeText={setFirstName}
                         autoComplete="given-name"
                         autoCapitalize="words"
+                        autoFocus
                         maxLength={40}
                         editable={!busy}
+                        returnKeyType="next"
+                        onSubmitEditing={() => emailRef.current?.focus()}
                       />
                     </View>
                     <View style={[styles.field, styles.fieldHalf]}>
@@ -229,6 +238,7 @@ export default function SignIn() {
                 <View style={styles.field}>
                   <Text style={styles.label}>{t.emailLabel}</Text>
                   <TextInput
+                    ref={emailRef}
                     style={styles.input}
                     value={email}
                     onChangeText={setEmail}
@@ -238,6 +248,7 @@ export default function SignIn() {
                     keyboardType="email-address"
                     inputMode="email"
                     clearButtonMode="while-editing"
+                    autoFocus={mode !== "signup"}
                     editable={!busy}
                     returnKeyType={mode === "reset" ? "go" : "next"}
                     blurOnSubmit={mode === "reset"}

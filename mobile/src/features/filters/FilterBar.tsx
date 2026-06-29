@@ -369,6 +369,7 @@ export default function FilterBar({
             ]}
             onPress={() => onClearFilters()}
             activeOpacity={0.75}
+            hitSlop={{ top: 6, bottom: 6 }}
             accessibilityRole="button"
             accessibilityState={{ selected: isOnAll }}
             accessibilityLabel={
@@ -429,6 +430,7 @@ export default function FilterBar({
                 onLongPress={() => promptPin(set, label)}
                 delayLongPress={350}
                 activeOpacity={0.75}
+                hitSlop={{ top: 6, bottom: 6 }}
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
                 accessibilityLabel={`${label}${count != null ? `, ${count}` : ''}${active ? ', selected — tap to clear' : ', tap to apply'}${pinned ? ', pinned' : ''}`}

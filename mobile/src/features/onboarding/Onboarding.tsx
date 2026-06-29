@@ -188,6 +188,8 @@ export default function Onboarding({ visible, onComplete, onSkip }: Props) {
                 style={styles.primaryBtn}
                 onPress={() => onComplete('firstTask')}
                 activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Add my first thing"
               >
                 <Text style={styles.primaryBtnText}>Add my first thing</Text>
               </TouchableOpacity>
@@ -195,12 +197,20 @@ export default function Onboarding({ visible, onComplete, onSkip }: Props) {
                 style={styles.secondaryBtn}
                 onPress={() => onComplete('explore')}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="I'll explore first"
               >
                 <Text style={styles.secondaryBtnText}>I'll explore first</Text>
               </TouchableOpacity>
             </>
           ) : (
-            <TouchableOpacity style={styles.primaryBtn} onPress={next} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              onPress={next}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Next"
+            >
               <Text style={styles.primaryBtnText}>Next</Text>
             </TouchableOpacity>
           )}

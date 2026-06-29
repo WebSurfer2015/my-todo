@@ -72,6 +72,7 @@ export default function EmptyStateCard({
           style={styles.actionBtn}
           onPress={onAction}
           activeOpacity={0.7}
+          hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel={actionAccessibilityLabel ?? actionLabel}
         >

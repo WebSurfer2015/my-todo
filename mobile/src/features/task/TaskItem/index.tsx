@@ -738,7 +738,11 @@ function TaskItem({
             onToggleSelect(todo.id)
             return
           }
-          if (tapBehavior === 'expandIfHasSubs' && hasSubs) {
+          // A parent row's done state is derived from its subs, so a body
+          // tap can't toggle it — expand/collapse the steps instead of doing
+          // nothing. (Was gated on tapBehavior='expandIfHasSubs'; the default
+          // 'toggle' left parent taps as a dead no-op.)
+          if (hasSubs) {
             setExpanded((v) => !v)
             return
           }
