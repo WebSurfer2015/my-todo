@@ -41,6 +41,7 @@ import { useTheme, ThemeColors } from '../../../app/theme'
 import { useLang } from '../../../app/LangContext'
 import { useNotify } from '../../../app/notify'
 import PriorityDot from '../../../ui/PriorityDot'
+import CheckGlyph from '../../../ui/CheckGlyph'
 import CategoryIcon from '../../../ui/CategoryIcon'
 import PickerModal from '../../../ui/PickerModal'
 import AddSubtaskSheet from '../AddSubtaskSheet'
@@ -1930,7 +1931,7 @@ function SubtaskCard({
         hitSlop={10}
         style={[styles.subCardCheckbox, subtask.done && styles.subCardCheckboxDone]}
       >
-        {subtask.done && <Text style={styles.subCardCheckmark}>✓</Text>}
+        {subtask.done && <CheckGlyph size={13} />}
       </TouchableOpacity>
       {editing ? (
         <TextInput

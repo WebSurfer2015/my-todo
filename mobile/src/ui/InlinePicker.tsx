@@ -1,6 +1,7 @@
 import React, { useMemo, ReactNode } from 'react'
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native'
 import { useTheme, ThemeColors } from '../app/theme'
+import CheckGlyph from './CheckGlyph'
 
 interface Option {
   key: string
@@ -52,7 +53,7 @@ export default function InlinePicker({ title, options, selectedKey, onSelect, on
                 {opt.label}
               </Text>
               {selectedKey === opt.key && (
-                <Text style={[styles.check, { color: opt.color ?? theme.blue }]}>✓</Text>
+                <CheckGlyph size={16} color={opt.color ?? theme.blue} />
               )}
             </TouchableOpacity>
           ))}

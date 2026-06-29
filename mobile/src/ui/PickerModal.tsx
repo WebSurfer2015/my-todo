@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react'
 import { Modal, View, TouchableOpacity, Text, StyleSheet } from 'react-native'
 import { useTheme, ThemeColors } from '../app/theme'
+import CheckGlyph from './CheckGlyph'
 
 interface Option {
   key: string
@@ -40,7 +41,7 @@ export default function PickerModal({ visible, options, selectedKey, onSelect, o
             >
               {opt.icon}
               <Text style={[styles.label, { color: opt.color }]}>{opt.label}</Text>
-              {selectedKey === opt.key && <Text style={[styles.check, { color: opt.color }]}>✓</Text>}
+              {selectedKey === opt.key && <CheckGlyph size={16} color={opt.color} />}
             </TouchableOpacity>
           ))}
         </View>

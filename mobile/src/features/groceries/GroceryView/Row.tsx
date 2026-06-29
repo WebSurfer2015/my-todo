@@ -3,6 +3,7 @@ import { Dimensions, Text, TouchableOpacity, View } from "react-native";
 import { GroceryItem } from "../../../core-bindings/groceries";
 import { useTriggerPebbleFlight } from "../../mochi/PebbleFlight";
 import type { Styles } from "./styles";
+import CheckGlyph from "../../../ui/CheckGlyph";
 
 export interface RowProps {
   item: GroceryItem;
@@ -84,7 +85,7 @@ function Row({
           {futureMode ? (
             <Text style={styles.checkboxPlus}>+</Text>
           ) : item.checked ? (
-            <Text style={styles.checkboxCheck}>✓</Text>
+            <CheckGlyph size={14} />
           ) : null}
         </View>
       </TouchableOpacity>

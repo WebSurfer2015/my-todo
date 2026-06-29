@@ -5,6 +5,7 @@ import { distributeSubtaskDueDates } from '../../../../core/src/logic/utils'
 import { useLang } from '../../app/LangContext'
 import { useTheme, ThemeColors } from '../../app/theme'
 import MochiThinking from '../mochi/MochiThinking'
+import CheckGlyph from '../../ui/CheckGlyph'
 import { useSuggestSteps } from './useSuggestSteps'
 
 /**
@@ -104,7 +105,7 @@ export function SuggestStepsReview({
             accessibilityState={{ checked: isOn }}
           >
             <View style={[styles.checkbox, isOn && styles.checkboxOn]}>
-              {isOn && <Text style={styles.check}>✓</Text>}
+              {isOn && <CheckGlyph size={13} />}
             </View>
             <Text style={styles.rowText}>{text}</Text>
           </TouchableOpacity>

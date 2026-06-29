@@ -86,6 +86,7 @@ import { sortedSubs } from '../../../../../core/src/logic/derive'
 import { useTriggerPebbleFlight } from '../../mochi/PebbleFlight'
 import { useTheme, ThemeColors } from '../../../app/theme'
 import PriorityDot from '../../../ui/PriorityDot'
+import CheckGlyph from '../../../ui/CheckGlyph'
 import CategoryIcon from '../../../ui/CategoryIcon'
 import PickerModal from '../../../ui/PickerModal'
 import TaskDetailsSheet from '../TaskDetailsSheet'
@@ -829,7 +830,7 @@ function TaskItem({
               }
             >
               {todo.done || (inTrash && selected) ? (
-                <Text style={styles.checkmark}>✓</Text>
+                <CheckGlyph size={14} />
               ) : todo.trashed ? (
                 <Text style={styles.removedMark}>×</Text>
               ) : null}
@@ -987,7 +988,7 @@ function TaskItem({
                           : `${s.text}, subtask. Mark as done.`
                       }
                     >
-                      {s.done && <Text style={styles.subCheckmark}>✓</Text>}
+                      {s.done && <CheckGlyph size={12} />}
                     </TouchableOpacity>
                     <Text
                       style={[styles.subText, s.done && styles.subTextDone]}
