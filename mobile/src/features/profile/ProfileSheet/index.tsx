@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Platform,
   ActionSheetIOS,
+  ActivityIndicator,
   Alert,
 } from "react-native";
 import { Shuffle, Camera } from "lucide-react-native";
@@ -71,6 +72,9 @@ export default function ProfileSheet({
     profile.quoteMode ?? "custom",
   );
   const [quoteShuffle, setQuoteShuffle] = useState(profile.quoteShuffle);
+  // True while a picked photo is being resized/compressed — a multi-MB crop
+  // can take a beat, and a frozen-looking avatar reads as broken.
+  const [photoBusy, setPhotoBusy] = useState(false);
 
   // Today's daily quote (honoring a same-day "show me another" shuffle).
   // Shown as a muted preview when the quote source is "Daily".
@@ -137,10 +141,13 @@ export default function ProfileSheet({
       quality: 1,
     });
     if (!result.canceled && result.assets[0]) {
+      setPhotoBusy(true);
       try {
         setAvatar({ kind: "image", uri: await compressToDataUri(result.assets[0].uri) });
       } catch (err) {
         Alert.alert("Photo error", err instanceof Error ? err.message : String(err));
+      } finally {
+        setPhotoBusy(false);
       }
     }
   }
@@ -158,47 +165,54 @@ export default function ProfileSheet({
       quality: 1,
     });
     if (!result.canceled && result.assets[0]) {
+      setPhotoBusy(true);
       try {
         setAvatar({ kind: "image", uri: await compressToDataUri(result.assets[0].uri) });
       } catch (err) {
         Alert.alert("Photo error", err instanceof Error ? err.message : String(err));
+      } finally {
+        setPhotoBusy(false);
       }
     }
   }
 
+  function useMochiAvatar() {
+    setAvatar({ kind: "preset", key: "mochi" });
+  }
+
   function openAvatarPicker() {
     const cancelLabel = t.cancel;
+    // Offer a way back to the Mochi mascot once a photo is set — otherwise the
+    // user is trapped in their chosen photo with no "remove" path.
+    const hasPhoto = avatar.kind === "image";
     if (Platform.OS === "ios") {
+      const options = hasPhoto
+        ? [t.profileTakePhoto, t.profileChooseLibrary, "Use Mochi", cancelLabel]
+        : [t.profileTakePhoto, t.profileChooseLibrary, cancelLabel];
       ActionSheetIOS.showActionSheetWithOptions(
         {
-          options: [t.profileTakePhoto, t.profileChooseLibrary, cancelLabel],
-          cancelButtonIndex: 2,
+          options,
+          cancelButtonIndex: hasPhoto ? 3 : 2,
         },
         (i) => {
           if (i === 0) takePhoto();
           else if (i === 1) pickFromLibrary();
+          else if (hasPhoto && i === 2) useMochiAvatar();
         },
       );
     } else {
       Alert.alert(t.profileChangePhoto, undefined, [
         { text: t.profileTakePhoto, onPress: takePhoto },
         { text: t.profileChooseLibrary, onPress: pickFromLibrary },
-        { text: cancelLabel, style: "cancel" },
+        ...(hasPhoto ? [{ text: "Use Mochi", onPress: useMochiAvatar }] : []),
+        { text: cancelLabel, style: "cancel" as const },
       ]);
     }
   }
 
   const canSave = firstName.trim().length > 0;
-  function handleSave() {
+  function commit() {
     const trimmedFirst = firstName.trim();
-    if (!trimmedFirst) {
-      // Don't silently swallow the Save tap — tell the user why
-      // nothing happens. (Save is also visually disabled when
-      // first name is empty, but voice/keyboard nav can still
-      // fire onPress.)
-      Alert.alert("Add a first name", "First name can't be empty.");
-      return;
-    }
     onSave({
       ...profile,
       name: trimmedFirst,
@@ -215,14 +229,32 @@ export default function ProfileSheet({
       // the profile silently forced motion off for everyone, which
       // killed the check-off flight animation.
     });
+  }
+  function handleSave() {
+    if (!firstName.trim()) {
+      // Don't silently swallow the Save tap — tell the user why
+      // nothing happens. (Save is also visually disabled when
+      // first name is empty, but voice/keyboard nav can still
+      // fire onPress.)
+      Alert.alert("Add a first name", "First name can't be empty.");
+      return;
+    }
+    commit();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    onClose();
+  }
+  // Backdrop / swipe dismiss: auto-save edits to this existing profile
+  // (calm, forgiving) when there's a valid name; otherwise just close — a
+  // nameless profile can't be persisted anyway.
+  function handleDismiss() {
+    if (canSave) commit();
     onClose();
   }
 
   return (
     <SheetShell
       visible={visible}
-      onClose={onClose}
+      onClose={handleDismiss}
       title={t.editProfile}
       primary={{ label: t.save, onPress: handleSave, disabled: !canSave }}
     >
@@ -238,6 +270,11 @@ export default function ProfileSheet({
                 accessibilityLabel={t.profileChangePhoto}
               >
                 <Avatar avatar={avatar} size={92} />
+                {photoBusy && (
+                  <View style={styles.avatarBusy}>
+                    <ActivityIndicator color={theme.primaryOn} />
+                  </View>
+                )}
                 <View style={styles.avatarBadge}>
                   <Camera size={15} color={theme.primaryOn} strokeWidth={2.2} />
                 </View>
