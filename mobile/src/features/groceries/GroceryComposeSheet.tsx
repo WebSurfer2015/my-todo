@@ -25,7 +25,7 @@ import {
 } from 'react-native'
 import { Alert } from 'react-native'
 import SheetShell from '../../ui/SheetShell'
-import { Check, Plus, Store as StoreIcon } from 'lucide-react-native'
+import { Check, Plus, Store as StoreIcon, Sparkles } from 'lucide-react-native'
 import MochiThinking from '../mochi/MochiThinking'
 import * as Haptics from 'expo-haptics'
 import {
@@ -76,6 +76,9 @@ interface Props {
    * addition to the always-on local heuristic. Mirrors the todo
    * compose flow. Off → no AI calls, just local. */
   agentEnabled?: boolean
+  /** When set, renders an "Ask Mochi instead" link that hands off to the chat
+   * (which adds groceries too). Omit to hide it. */
+  onAskMochi?: () => void
   onClose: () => void
 }
 
@@ -91,6 +94,7 @@ export default function GroceryComposeSheet({
   onOpenManageStore,
   onCreateGroup,
   agentEnabled = false,
+  onAskMochi,
   onClose,
 }: Props) {
   const { t } = useLang()
@@ -493,6 +497,18 @@ export default function GroceryComposeSheet({
                     onSubmitEditing={handleAdd}
                   />
 
+                  {onAskMochi && agentEnabled && (
+                    <TouchableOpacity
+                      style={styles.askMochiRow}
+                      onPress={onAskMochi}
+                      accessibilityRole="button"
+                      accessibilityLabel="Ask Mochi to add items in your own words"
+                    >
+                      <Sparkles size={14} color={theme.primary} strokeWidth={2.4} />
+                      <Text style={styles.askMochiText}>Ask Mochi instead</Text>
+                    </TouchableOpacity>
+                  )}
+
                   {/* Match list — known items (current + past) whose
                       label contains the typed text. Tap to re-add with
                       saved dept/stores (no AI); on-list items show a
@@ -618,6 +634,22 @@ export default function GroceryComposeSheet({
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     body: { paddingHorizontal: 16, paddingBottom: 12 },
+    askMochiRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      alignSelf: 'center',
+      gap: 6,
+      paddingVertical: 9,
+      paddingHorizontal: 18,
+      marginTop: 2,
+      marginBottom: 12,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: c.primary,
+      backgroundColor: c.primarySoft,
+    },
+    askMochiText: { fontSize: 14, fontWeight: '700', color: c.primary },
     textInput: {
       // Two visible rows at fontSize 18 / lineHeight ~24 + vertical
       // padding. Keeps the field tall enough for longer items

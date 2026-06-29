@@ -92,6 +92,14 @@ export default function GroceriesScreen() {
         onSearchClear={() => setSearchQuery('')}
         onAdd={store.addGrocery}
         agentEnabled={store.profile.agentEnabled !== false}
+        // The add FAB matches the other tabs: it opens whichever capture you
+        // used last (manual grocery sheet OR Ask Mochi — which adds groceries
+        // too). The grocery sheet's "Ask Mochi instead" link flips the mode.
+        lastComposeMode={store.profile.lastComposeMode ?? 'manual'}
+        onAskMochi={() => {
+          store.saveProfile((p) => ({ ...p, lastComposeMode: 'mochi' }))
+          sheets.openMochi()
+        }}
         onToggleChecked={store.toggleGroceryChecked}
         celebrate={
           store.profile.completionAnimation !== false &&
