@@ -19,11 +19,13 @@ import {
   currentCustomerInfo,
   tierFromCustomerInfo,
   productFromCustomerInfo,
+  checkTrialEligibility,
   manageSubscriptions as rcManageSubscriptions,
   isPurchasesEnabled,
 } from '../adapters/purchases'
 import {
   FREE_ENTITLEMENT,
+  PRODUCT_IDS,
   TIER_LIMITS,
   TIER_ORDER,
   canSendMochiRequest,
@@ -62,6 +64,8 @@ interface PurchasesValue {
   /** Current active subscription product id (tier + billing), or null on Free.
    * Drives the paywall's upgrade-only buttons. */
   currentProductId: string | null
+  /** productId → eligible for its free trial / intro offer. */
+  trialEligible: Record<string, boolean>
   purchasesEnabled: boolean
   purchase: (pkg: PurchasesPackage) => Promise<'purchased' | 'cancelled' | 'failed'>
   restore: () => Promise<'found' | 'none' | 'failed'>
@@ -85,6 +89,15 @@ function parseEnvelope<T>(raw: unknown): T | null {
   }
 }
 
+// The four auto-renewable subscription products — used to query trial / intro
+// eligibility in one call.
+const SUB_PRODUCT_IDS = [
+  PRODUCT_IDS.premiumMonthly,
+  PRODUCT_IDS.premiumAnnual,
+  PRODUCT_IDS.maxMonthly,
+  PRODUCT_IDS.maxAnnual,
+]
+
 export function PurchasesProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
   const uid = user?.uid ?? null
@@ -101,6 +114,10 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
   // The user's current active subscription product id (tier + billing), for
   // the paywall's upgrade-only logic. null = Free.
   const [currentProductId, setCurrentProductId] = useState<string | null>(null)
+  // productId → eligible for its free trial / intro offer. Apple grants the
+  // intro once per subscription group, so this flips to false for the rest
+  // once any trial is started.
+  const [trialEligible, setTrialEligible] = useState<Record<string, boolean>>({})
   const [paywall, setPaywall] = useState<{ open: boolean; reason?: string }>({ open: false })
 
   // Configure RevenueCat + load offerings once we know the user.
@@ -108,29 +125,37 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
     if (!uid) {
       setRcTier('free')
       setCurrentProductId(null)
+      setTrialEligible({})
       return
     }
     let alive = true
     setOfferingLoading(true)
     void (async () => {
       await configurePurchases(uid)
-      const [off, info] = await Promise.all([fetchCurrentOffering(), currentCustomerInfo()])
+      const [off, info, elig] = await Promise.all([
+        fetchCurrentOffering(),
+        currentCustomerInfo(),
+        checkTrialEligibility(SUB_PRODUCT_IDS),
+      ])
       if (alive) {
         setOffering(off)
         setRcTier(tierFromCustomerInfo(info))
         setCurrentProductId(productFromCustomerInfo(info))
+        setTrialEligible(elig)
         setOfferingLoading(false)
       }
     })()
     const unsub = onCustomerInfoChange((info) => {
       // A purchase/renewal/restore landed. Reflect the new tier + product
       // instantly from RevenueCat (the webhook-written Firestore doc catches up
-      // a few seconds later via the listener below), and refresh offerings.
+      // a few seconds later via the listener below), refresh offerings, and
+      // re-check trial eligibility (starting a trial consumes it for the group).
       if (alive) {
         setRcTier(tierFromCustomerInfo(info))
         setCurrentProductId(productFromCustomerInfo(info))
       }
       void fetchCurrentOffering().then((o) => alive && setOffering(o))
+      void checkTrialEligibility(SUB_PRODUCT_IDS).then((e) => alive && setTrialEligible(e))
     })
     return () => {
       alive = false
@@ -255,6 +280,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       offering,
       offeringLoading,
       currentProductId,
+      trialEligible,
       purchasesEnabled: isPurchasesEnabled(),
       purchase,
       restore,
@@ -263,7 +289,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       openPaywall,
       closePaywall,
     }),
-    [tier, entitlement, mochiRemaining, mochiPeriod, canSendMochi, offering, offeringLoading, currentProductId, purchase, restore, refreshOfferings, manageSubscriptions, openPaywall, closePaywall],
+    [tier, entitlement, mochiRemaining, mochiPeriod, canSendMochi, offering, offeringLoading, currentProductId, trialEligible, purchase, restore, refreshOfferings, manageSubscriptions, openPaywall, closePaywall],
   )
 
   return (
@@ -277,6 +303,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
         purchasesEnabled={isPurchasesEnabled()}
         currentTier={tier}
         currentProductId={currentProductId}
+        trialEligible={trialEligible}
         onPurchase={purchase}
         onRestore={restore}
         onRetry={refreshOfferings}

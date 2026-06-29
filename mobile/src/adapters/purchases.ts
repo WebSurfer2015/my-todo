@@ -132,6 +132,35 @@ export async function currentCustomerInfo(): Promise<CustomerInfo | null> {
   }
 }
 
+/**
+ * Map of productId → "is this user eligible for its free trial / intro offer".
+ *
+ * Apple grants an intro offer (the 7-day trial) once per subscription group, so
+ * after a user starts ANY trial in the group the others are no longer eligible.
+ * We only treat a product as trial-eligible on an explicit ELIGIBLE status;
+ * UNKNOWN (check pending/failed, or Android) falls back to non-trial pricing —
+ * RevenueCat's own recommendation — so we never promise a trial the user won't
+ * actually get.
+ */
+export async function checkTrialEligibility(
+  productIds: string[],
+): Promise<Record<string, boolean>> {
+  if (!isPurchasesEnabled() || productIds.length === 0) return {}
+  try {
+    const Purchases = rc()
+    const result = await Purchases.checkTrialOrIntroductoryPriceEligibility(productIds)
+    const ELIGIBLE = Purchases.INTRO_ELIGIBILITY_STATUS.INTRO_ELIGIBILITY_STATUS_ELIGIBLE
+    const out: Record<string, boolean> = {}
+    for (const [id, elig] of Object.entries(result)) {
+      out[id] = elig.status === ELIGIBLE
+    }
+    return out
+  } catch (err) {
+    console.warn('checkTrialOrIntroductoryPriceEligibility failed', err)
+    return {}
+  }
+}
+
 /** Subscribe to RC entitlement changes (purchase, renewal, restore). Returns
  * an unsubscribe fn. No-op when disabled. */
 export function onCustomerInfoChange(cb: (info: CustomerInfo) => void): () => void {

@@ -89,6 +89,8 @@ interface Props {
   currentTier: Tier
   /** Current active subscription product id (tier + billing), or null on Free. */
   currentProductId: string | null
+  /** productId → eligible for its free trial / intro offer (false once used). */
+  trialEligible: Record<string, boolean>
   onPurchase: (pkg: PurchasesPackage) => Promise<'purchased' | 'cancelled' | 'failed'>
   onRestore: () => Promise<'found' | 'none' | 'failed'>
   onRetry: () => void
@@ -105,6 +107,7 @@ export default function PaywallSheet({
   purchasesEnabled,
   currentTier,
   currentProductId,
+  trialEligible,
   onPurchase,
   onRestore,
   onRetry,
@@ -263,28 +266,36 @@ export default function PaywallSheet({
                 // and same-product re-buys are never offered (cancel to Free is
                 // the Manage-subscription link below).
                 const purchasable = !!productId && isUpgrade(currentProductId, productId) && !!pkg
-                // Trial CTA only when THIS package actually carries a free
-                // intro offer (price 0) — not just because the annual toggle
-                // is selected. Keeps the copy honest per billing option.
+                // Trial CTA only when THIS package carries a free intro offer
+                // (price 0) AND the user is still eligible for it. Apple grants
+                // the intro once per subscription group, so after any trial is
+                // started the rest stop offering one — we then fall back to the
+                // plain Upgrade/Subscribe price.
                 const intro = pkg?.product.introPrice
+                const eligibleForTrial = !!productId && trialEligible[productId] === true
                 // Apple has no "7 day" trial duration — a 7-day trial is set up
                 // as "1 week". Normalise weeks to days so the CTA reads
                 // "7-day free trial" (how the trial is described everywhere
                 // else) rather than "1-week free trial".
                 const trialUnit = String(intro?.periodUnit ?? '').toUpperCase()
                 const trialText =
-                  intro && intro.price === 0
+                  intro && intro.price === 0 && eligibleForTrial
                     ? trialUnit === 'WEEK'
                       ? `Start ${intro.periodNumberOfUnits * 7}-day free trial`
                       : `Start ${intro.periodNumberOfUnits}-${trialUnit.toLowerCase()} free trial`
                     : null
-                // "Popular" tag stays on Premium (the headline plan for new
-                // subscribers). The filled CTA, though, follows the lead
-                // upgrade — so the user's only actionable button is always the
-                // prominent one (e.g. Max for an existing Premium subscriber),
-                // never a subordinate outline. Other purchasable plans get the
-                // quieter outline.
-                const recommended = plan.tier === 'premium'
+                // Per-product highlight badge: Monthly Premium is the "Popular"
+                // pick, Yearly Max is the "Best Value". (Billing-aware, so the
+                // badge follows the toggle.)
+                const badgeLabel =
+                  plan.tier === 'premium' && billing === 'monthly'
+                    ? 'Popular'
+                    : plan.tier === 'max' && billing === 'annual'
+                      ? 'Best Value'
+                      : null
+                // The filled CTA follows the lead upgrade — so the user's only
+                // actionable button is always the prominent one (e.g. Max for an
+                // existing Premium subscriber), never a subordinate outline.
                 const filledCta = plan.tier === leadTier
                 const status = isCurrent
                   ? 'Current plan'
@@ -305,9 +316,9 @@ export default function PaywallSheet({
                           <View style={styles.currentBadge}>
                             <Text style={styles.currentBadgeText}>Current</Text>
                           </View>
-                        ) : recommended ? (
+                        ) : badgeLabel ? (
                           <View style={styles.popularBadge}>
-                            <Text style={styles.popularBadgeText}>Popular</Text>
+                            <Text style={styles.popularBadgeText}>{badgeLabel}</Text>
                           </View>
                         ) : null}
                       </View>
