@@ -62,9 +62,6 @@ export default function GroceriesScreen() {
         // section, just not from the gear icon directly anymore.
         onGearPress={sheets.openSettings}
       />
-      {/* PebbleStrip removed — completion celebration moved to the
-          Mochi avatar in AppHeader, which does a happy-dance on
-          every check-off (animation-aware). */}
       <SearchTopSheet
         visible={isFocused && searchOpen}
         placeholder="Search shopping"

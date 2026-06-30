@@ -25,7 +25,6 @@ describe("createTodoStore", () => {
   it("exposes the cross-slice coordinators", () => {
     expect(typeof store.actions.deleteCategoryCascade).toBe("function");
     expect(typeof store.actions.toggleOutcome).toBe("function");
-    expect(typeof store.actions.reconcileTodayPebbles).toBe("function");
   });
 
   it("exposes helpers spread from every transform module", () => {

@@ -7,12 +7,9 @@ import { describe, expect, it } from "vitest";
 import {
   deleteCategoryCascade,
   toggleOutcome,
-  reconcileTodayPebbles,
 } from "../../core/src/store";
 import { newTodo } from "../../core/src/logic/derive";
-import { SEED_PROFILE } from "../../core/src/data/profile";
 import type { CategoryDef } from "../../core/src/data/categories";
-import type { Profile } from "../../core/src/data/profile";
 import type { Todo } from "../../core/src/domain/types";
 
 const cat = (id: string): CategoryDef => ({
@@ -106,82 +103,17 @@ const mk = (over: Partial<Todo> = {}): Todo => ({
 });
 
 describe("toggleOutcome", () => {
-  it("completing an open todo earns +1 and records it as a reference", () => {
+  it("completing an open todo records it as a reference", () => {
     const before = mk({ id: "a", done: false });
-    const { after, delta, referenceRow } = toggleOutcome(before);
+    const { after, referenceRow } = toggleOutcome(before);
     expect(after.done).toBe(true);
-    expect(delta.task).toBe(1);
     expect(referenceRow?.id).toBe("a"); // fresh completion → recorded
   });
 
-  it("un-completing a done todo refunds -1 and records nothing", () => {
+  it("un-completing a done todo records nothing", () => {
     const before = mk({ id: "a", done: true });
-    const { after, delta, referenceRow } = toggleOutcome(before);
+    const { after, referenceRow } = toggleOutcome(before);
     expect(after.done).toBe(false);
-    expect(delta.task).toBe(-1);
     expect(referenceRow).toBeNull();
-  });
-});
-
-describe("reconcileTodayPebbles", () => {
-  const today = "2026-06-03";
-  const profile = (over: Partial<Profile> = {}): Profile => ({
-    ...SEED_PROFILE,
-    ...over,
-  });
-
-  it("bumps the stored counter up to the completed-today count when lagging", () => {
-    const todos = [
-      mk({ id: "1", done: true, completionDate: today }),
-      mk({ id: "2", done: true, completionDate: today }),
-      mk({ id: "3", done: true, completionDate: today }),
-    ];
-    const patch = reconcileTodayPebbles(
-      profile({ pebblesDate: today, todayTaskPebbles: 1, todaySubtaskPebbles: 2 }),
-      todos,
-      today,
-    );
-    expect(patch).toEqual({
-      pebblesDate: today,
-      todayTaskPebbles: 3,
-      todaySubtaskPebbles: 2, // subtask count preserved
-    });
-  });
-
-  it("returns null when the stored counter already covers today", () => {
-    const todos = [mk({ id: "1", done: true, completionDate: today })];
-    const patch = reconcileTodayPebbles(
-      profile({ pebblesDate: today, todayTaskPebbles: 5 }),
-      todos,
-      today,
-    );
-    expect(patch).toBeNull();
-  });
-
-  it("resets a stale day to today's derived count (subtasks zeroed)", () => {
-    const todos = [mk({ id: "1", done: true, completionDate: today })];
-    const patch = reconcileTodayPebbles(
-      profile({ pebblesDate: "2026-06-01", todayTaskPebbles: 9, todaySubtaskPebbles: 4 }),
-      todos,
-      today,
-    );
-    expect(patch).toEqual({
-      pebblesDate: today,
-      todayTaskPebbles: 1,
-      todaySubtaskPebbles: 0,
-    });
-  });
-
-  it("ignores trashed and not-today completions", () => {
-    const todos = [
-      mk({ id: "1", done: true, completionDate: today, trashed: true }),
-      mk({ id: "2", done: true, completionDate: "2026-06-01" }),
-    ];
-    const patch = reconcileTodayPebbles(
-      profile({ pebblesDate: today, todayTaskPebbles: 0 }),
-      todos,
-      today,
-    );
-    expect(patch).toBeNull(); // 0 qualifying → stored 0 already correct
   });
 });

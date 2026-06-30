@@ -1,7 +1,8 @@
-import React, { memo, useCallback, useRef } from "react";
-import { Dimensions, Text, TouchableOpacity, View } from "react-native";
+import React, { memo, useCallback, useState } from "react";
+import { Text, TouchableOpacity, View } from "react-native";
 import { GroceryItem } from "../../../core-bindings/groceries";
-import { useTriggerPebbleFlight } from "../../mochi/PebbleFlight";
+import CalmFirework from "../../task/CalmFirework";
+import { playCompletionChime } from "../../../adapters/completionChime";
 import type { Styles } from "./styles";
 import CheckGlyph from "../../../ui/CheckGlyph";
 
@@ -9,16 +10,15 @@ export interface RowProps {
   item: GroceryItem;
   /** Returns the (store × dept) bucket-completion delta from
    * useGroceriesSlice.toggleGroceryChecked. When > 0 the row fires
-   * the Mochi pebble-flight to celebrate. Takes the item id so the
+   * the in-row CalmFirework to celebrate. Takes the item id so the
    * parent can pass a reference-stable callback (the row supplies
    * `item.id`), keeping the React.memo wrapper effective. */
   onToggle: (id: string) => number;
   onOpenEdit: (id: string) => void;
   styles: Styles;
   futureMode?: boolean;
-  /** Department color — feeds PebbleFlight as `tint` for the
-   * default-Mochi pebble glyph, mirroring how TaskItem uses a
-   * category color. */
+  /** Department color — feeds CalmFirework as the primary particle
+   * `color`, mirroring how TaskItem uses a category color. */
   tint?: string;
   celebrate?: boolean;
   playSound?: boolean;
@@ -40,32 +40,19 @@ function Row({
   celebrate = true,
   playSound = true,
 }: RowProps) {
-  const triggerPebbleFlight = useTriggerPebbleFlight();
-  const measureRef = useRef<View>(null);
+  // In-row firework celebration — bump this counter when a fresh check-off
+  // completes a (store × dept) bucket (delta > 0).
+  const [fireworkTrigger, setFireworkTrigger] = useState(0);
   const handleOpenEdit = useCallback(() => onOpenEdit(item.id), [onOpenEdit, item.id]);
   const handleToggle = useCallback(() => {
     const delta = onToggle(item.id);
-    if (delta > 0 && (celebrate || playSound)) {
-      const fallback = {
-        x: Dimensions.get("window").width / 2,
-        y: Dimensions.get("window").height / 2,
-      };
-      const node = measureRef.current;
-      if (node) {
-        node.measureInWindow((x, y, w, h) => {
-          const from =
-            typeof x === "number" && typeof y === "number" && w > 0 && h > 0
-              ? { x: x + w / 2, y: y + h / 2 }
-              : fallback;
-          triggerPebbleFlight(from, { animate: celebrate, chime: playSound, tint });
-        });
-      } else {
-        triggerPebbleFlight(fallback, { animate: celebrate, chime: playSound, tint });
-      }
+    if (delta > 0) {
+      if (playSound) playCompletionChime();
+      setFireworkTrigger((n) => n + 1);
     }
-  }, [onToggle, item.id, celebrate, playSound, tint, triggerPebbleFlight]);
+  }, [onToggle, item.id, playSound]);
   return (
-    <View ref={measureRef} style={styles.row}>
+    <View style={styles.row}>
       <TouchableOpacity
         onPress={handleToggle}
         hitSlop={8}
@@ -75,18 +62,26 @@ function Row({
           futureMode ? `Add ${item.text} back to list` : `Check off ${item.text}`
         }
       >
-        <View
-          style={[
-            styles.checkbox,
-            item.checked && styles.checkboxChecked,
-            futureMode && styles.checkboxFuture,
-          ]}
-        >
-          {futureMode ? (
-            <Text style={styles.checkboxPlus}>+</Text>
-          ) : item.checked ? (
-            <CheckGlyph size={14} />
-          ) : null}
+        <View>
+          <View
+            style={[
+              styles.checkbox,
+              item.checked && styles.checkboxChecked,
+              futureMode && styles.checkboxFuture,
+            ]}
+          >
+            {futureMode ? (
+              <Text style={styles.checkboxPlus}>+</Text>
+            ) : item.checked ? (
+              <CheckGlyph size={14} />
+            ) : null}
+          </View>
+          {/* In-row firework, centered on the checkbox. */}
+          <CalmFirework
+            trigger={fireworkTrigger}
+            color={tint}
+            reduceMotion={!celebrate}
+          />
         </View>
       </TouchableOpacity>
       <TouchableOpacity

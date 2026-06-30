@@ -14,7 +14,6 @@ import {
   todoSetRecurrence,
   todoSkipSeriesFuture,
   todoPermanentlyDeleteSeriesFuture,
-  pebbleDelta,
   subtaskAdd,
   subtaskToggle,
   subtaskUpdateText,
@@ -717,20 +716,14 @@ describe("migrateProfile", () => {
     expect(out.lastAddedGroceryStore!.length).toBe(64);
   });
 
-  it("preserves lifetime pebbles and onboarding flag (regression: were dropped)", () => {
+  it("preserves the onboarding flag and daily check-in settings (regression: were dropped)", () => {
     const out = migrateProfile({
       name: "X",
       avatar: { kind: "preset", key: "smile" },
-      lifetimePebbles: 42,
-      todayTaskPebbles: 3,
-      pebblesDate: "2026-05-16",
       onboardingDone: true,
       dailyCheckinEnabled: true,
       dailyCheckinHour: 9,
     });
-    expect(out.lifetimePebbles).toBe(42);
-    expect(out.todayTaskPebbles).toBe(3);
-    expect(out.pebblesDate).toBe("2026-05-16");
     expect(out.onboardingDone).toBe(true);
     expect(out.dailyCheckinEnabled).toBe(true);
     expect(out.dailyCheckinHour).toBe(9);
@@ -832,89 +825,6 @@ describe("buildGroups", () => {
     );
     expect(by.week?.sort()).toEqual(["mon", "sat"]);
     expect(by.upcoming).toEqual(["nextweek"]);
-  });
-});
-
-describe("pebbleDelta", () => {
-  function mk(overrides: Partial<Parameters<typeof newTodo>[0]> = {}) {
-    return newTodo({ text: "x", priority: "medium", dueDate: "", ...overrides });
-  }
-
-  it("returns 0/0 when before or after is undefined", () => {
-    const t = mk();
-    expect(pebbleDelta(undefined, t)).toEqual({ task: 0, subtask: 0 });
-    expect(pebbleDelta(t, undefined)).toEqual({ task: 0, subtask: 0 });
-    expect(pebbleDelta(undefined, undefined)).toEqual({ task: 0, subtask: 0 });
-  });
-
-  it("returns +1 task on done false → true", () => {
-    const before = mk();
-    const after = { ...before, done: true };
-    expect(pebbleDelta(before, after)).toEqual({ task: 1, subtask: 0 });
-  });
-
-  it("returns -1 task on done true → false", () => {
-    const before = { ...mk(), done: true };
-    const after = { ...before, done: false };
-    expect(pebbleDelta(before, after)).toEqual({ task: -1, subtask: 0 });
-  });
-
-  it("returns 0 when done state is unchanged", () => {
-    const before = mk();
-    expect(pebbleDelta(before, before)).toEqual({ task: 0, subtask: 0 });
-    const doneBefore = { ...mk(), done: true };
-    expect(pebbleDelta(doneBefore, doneBefore)).toEqual({ task: 0, subtask: 0 });
-  });
-
-  it("returns +1 task on a recurring rolling completion (dueDate moved, done unchanged)", () => {
-    const recurrence = { freq: "daily" as const };
-    const before = { ...mk({ dueDate: "2026-05-15", recurrence }), recurrence };
-    const after = { ...before, dueDate: "2026-05-16" };
-    expect(pebbleDelta(before, after)).toEqual({ task: 1, subtask: 0 });
-  });
-
-  it("counts net subtask transitions", () => {
-    const before = mk();
-    let withSubs = subtaskAdd([before], before.id, "a")[0];
-    withSubs = subtaskAdd([withSubs], before.id, "b")[0];
-    const [a, b] = withSubs.subtasks!;
-    const afterAdone = {
-      ...withSubs,
-      subtasks: withSubs.subtasks!.map((s) =>
-        s.id === a.id ? { ...s, done: true } : s,
-      ),
-    };
-    expect(pebbleDelta(withSubs, afterAdone)).toEqual({ task: 0, subtask: 1 });
-    const afterBothDone = {
-      ...afterAdone,
-      subtasks: afterAdone.subtasks!.map((s) =>
-        s.id === b.id ? { ...s, done: true } : s,
-      ),
-    };
-    // Both subs done → parent.done derives true. So task: 0→1 and subtask: 0→1.
-    expect(pebbleDelta(withSubs, afterBothDone).subtask).toBe(2);
-  });
-
-  it("toggle then untoggle nets to zero pebbles", () => {
-    const before = mk();
-    const afterToggle = { ...before, done: true };
-    const a = pebbleDelta(before, afterToggle);
-    const b = pebbleDelta(afterToggle, before);
-    expect(a.task + b.task).toBe(0);
-    expect(a.subtask + b.subtask).toBe(0);
-  });
-
-  it("moveToTrash then restoreFromTrash nets to zero pebbles (the B3 invariant)", () => {
-    // The invariant locked in here: any path that puts a not-done item
-    // into the bin awards exactly the same pebbles that the inverse
-    // path refunds. Locks in B3 so the asymmetry can't return.
-    const before = [mk()];
-    const afterTrash = todoMoveToTrash(before, before[0].id);
-    const afterRestore = todoRestoreFromTrash(afterTrash, before[0].id);
-    const trashDelta = pebbleDelta(before[0], afterTrash[0]);
-    const restoreDelta = pebbleDelta(afterTrash[0], afterRestore[0]);
-    expect(trashDelta.task + restoreDelta.task).toBe(0);
-    expect(trashDelta.subtask + restoreDelta.subtask).toBe(0);
   });
 });
 

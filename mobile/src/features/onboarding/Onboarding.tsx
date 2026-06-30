@@ -13,13 +13,13 @@ import {
   StatusBar,
   Platform,
 } from 'react-native'
-import Svg, { Ellipse } from 'react-native-svg'
 import { useTheme, ThemeColors } from '../../app/theme'
+import SproutGlyph from '../../ui/SproutGlyph'
 
 /**
  * Three-screen first-launch flow:
  *   1. Meet Mochi
- *   2. How pebbles work
+ *   2. How progress works
  *   3. Add your first thing
  *
  * Soft / opt-out: every screen has a "Skip" affordance, the dots are
@@ -37,37 +37,8 @@ interface Props {
   onSkip: () => void
 }
 
-// Subtle 3-stone cairn illustration — same shape as the brand glyph.
-// cy values keep the bottom stone (with its stroke) inside the SVG box.
-function CairnLarge({ size = 100, fill, stroke }: { size?: number; fill: string; stroke: string }) {
-  // Padded SVG box so the bottom stone + its stroke never clip on the
-  // floor edge regardless of size or strokeWidth.
-  const pad = 4
-  const stones = [
-    { rx: 0.40, ry: 0.13, cy: 0.22 },
-    { rx: 0.50, ry: 0.15, cy: 0.47 },
-    { rx: 0.65, ry: 0.17, cy: 0.74 },
-  ]
-  return (
-    <Svg width={size} height={size + pad * 2}>
-      {stones.map((s, i) => (
-        <Ellipse
-          key={i}
-          cx={size / 2}
-          cy={size * s.cy + pad}
-          rx={size * s.rx}
-          ry={size * s.ry}
-          fill={fill}
-          stroke={stroke}
-          strokeWidth={2}
-        />
-      ))}
-    </Svg>
-  )
-}
-
 const SCREENS: Array<{
-  visual: 'mochi' | 'cairn' | 'mochi-small'
+  visual: 'mochi' | 'sprout' | 'mochi-small'
   title: string
   body: string
 }> = [
@@ -77,9 +48,9 @@ const SCREENS: Array<{
     body: "Your gentle planning buddy. Mochi's here to help you finish what matters — at your pace, without pressure.",
   },
   {
-    visual: 'cairn',
+    visual: 'sprout',
     title: 'Small wins, real progress',
-    body: 'Every task you finish becomes a pebble. They stack up — never reset, never punish. Just a quiet record of what you did today.',
+    body: 'Finish things at your own pace. Nothing resets, nothing punishes you — no streaks to keep. Just a quiet record of what you did today.',
   },
   {
     visual: 'mochi-small',
@@ -148,8 +119,8 @@ export default function Onboarding({ visible, onComplete, onSkip }: Props) {
                     />
                   </View>
                 )}
-                {s.visual === 'cairn' && (
-                  <CairnLarge size={140} fill={theme.card} stroke={theme.primary} />
+                {s.visual === 'sprout' && (
+                  <SproutGlyph size={140} color={theme.primary} />
                 )}
                 {s.visual === 'mochi-small' && (
                   <View style={styles.mochiCircleMed}>

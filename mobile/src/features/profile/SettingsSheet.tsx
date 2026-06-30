@@ -4,8 +4,8 @@
  * preference that's about *how the app behaves* — Background, Notifications,
  * Animations & Sound, Mochi agent toggle, Data (export + privacy), About.
  *
- * Identity (avatar, name, quote, account, sign out, lifetime pebbles)
- * lives in ProfileSheet — Settings stays purely about preferences, no
+ * Identity (avatar, name, quote, account, sign out) lives in
+ * ProfileSheet — Settings stays purely about preferences, no
  * destructive or identity actions.
  *
  * UX model: live toggles (commercial-grade pattern). Each switch saves

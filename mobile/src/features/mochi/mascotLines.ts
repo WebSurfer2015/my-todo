@@ -39,7 +39,7 @@ export const MASCOT_LINES: Record<Lang, DaySet> = {
         "Steady morning. Mochi's pacing.",
         "Nice rhythm. Keep it gentle.",
         "Mochi sees you. Carry on.",
-        "One pebble at a time.",
+        "One thing at a time.",
         "Easy does it. The day's wide open.",
         "Soft start, real progress.",
       ],
@@ -59,7 +59,7 @@ export const MASCOT_LINES: Record<Lang, DaySet> = {
         "Quiet progress. Mochi approves.",
         "Keep the pace. No need to push.",
         "Soft afternoon. You're moving fine.",
-        "One pebble more, then a breath.",
+        "One more, then a breath.",
       ],
     },
     evening: {
@@ -75,7 +75,7 @@ export const MASCOT_LINES: Record<Lang, DaySet> = {
         "Mochi's settling. Save the rest.",
         "Quiet end. Well done.",
         "One last gentle thing — or none.",
-        "Tomorrow's pebbles can wait.",
+        "Tomorrow's list can wait.",
         "Light off the day. You've earned it.",
         "Mochi's content. So can you be.",
       ],
@@ -97,7 +97,7 @@ export const MASCOT_LINES: Record<Lang, DaySet> = {
         "稳稳的早晨。Mochi 也在踱步。",
         "节奏不错。保持轻柔。",
         "Mochi 看到你了。继续。",
-        "一次一颗石子。",
+        "一次一件事。",
         "慢慢来。一天还很长。",
         "柔软的开始，真实的进展。",
       ],
@@ -117,7 +117,7 @@ export const MASCOT_LINES: Record<Lang, DaySet> = {
         "安静的进展。Mochi 满意。",
         "保持节奏。不必加速。",
         "柔和的下午。你做得很好。",
-        "再放一颗石子，再喘口气。",
+        "再做一件，再喘口气。",
       ],
     },
     evening: {
@@ -133,7 +133,7 @@ export const MASCOT_LINES: Record<Lang, DaySet> = {
         "Mochi 在安顿。其余的留到明天。",
         "安静地结束。做得好。",
         "最后一件温柔的事——或者没有也行。",
-        "明天的石子可以等。",
+        "明天的事可以等。",
         "为今天熄灯。你应得的。",
         "Mochi 满足了。你也可以。",
       ],
@@ -155,7 +155,7 @@ export const MASCOT_LINES: Record<Lang, DaySet> = {
         "Mañana firme. Mochi camina al lado.",
         "Buen ritmo. Mantenlo suave.",
         "Mochi te ve. Sigue.",
-        "Una piedra a la vez.",
+        "Una cosa a la vez.",
         "Despacio. El día es ancho.",
         "Comienzo suave, progreso real.",
       ],
@@ -175,7 +175,7 @@ export const MASCOT_LINES: Record<Lang, DaySet> = {
         "Progreso tranquilo. Mochi aprueba.",
         "Mantén el paso. Sin empujar.",
         "Tarde suave. Vas bien.",
-        "Una piedra más, luego un respiro.",
+        "Una más, luego un respiro.",
       ],
     },
     evening: {
@@ -191,7 +191,7 @@ export const MASCOT_LINES: Record<Lang, DaySet> = {
         "Mochi se acomoda. Guarda el resto.",
         "Final tranquilo. Bien hecho.",
         "Una última cosa suave — o ninguna.",
-        "Las piedras de mañana pueden esperar.",
+        "La lista de mañana puede esperar.",
         "Apaga la luz del día. Te lo has ganado.",
         "Mochi está en paz. Tú también puedes estarlo.",
       ],
@@ -213,7 +213,7 @@ export const MASCOT_LINES: Record<Lang, DaySet> = {
         "Matin posé. Mochi avance aussi.",
         "Bon rythme. Garde-le doux.",
         "Mochi te voit. Continue.",
-        "Une pierre à la fois.",
+        "Une chose à la fois.",
         "Doucement. La journée est large.",
         "Début doux, vrai progrès.",
       ],
@@ -233,7 +233,7 @@ export const MASCOT_LINES: Record<Lang, DaySet> = {
         "Progrès tranquille. Mochi approuve.",
         "Garde le rythme. Pas besoin de forcer.",
         "Après-midi doux. Tu avances bien.",
-        "Une pierre de plus, puis un souffle.",
+        "Une de plus, puis un souffle.",
       ],
     },
     evening: {
@@ -249,7 +249,7 @@ export const MASCOT_LINES: Record<Lang, DaySet> = {
         "Mochi s'installe. Garde le reste.",
         "Fin tranquille. C'est très bien.",
         "Une dernière chose douce — ou aucune.",
-        "Les pierres de demain peuvent attendre.",
+        "La liste de demain peut attendre.",
         "Éteins la journée. Tu l'as mérité.",
         "Mochi est apaisé. Tu peux l'être aussi.",
       ],
@@ -271,7 +271,7 @@ export const MASCOT_LINES: Record<Lang, DaySet> = {
         "落ち着いた朝。Mochi も歩いてる。",
         "いいリズム。やさしく保って。",
         "Mochi が見てる。そのまま。",
-        "一つずつ、石を積んで。",
+        "一つずつ、ゆっくりと。",
         "ゆっくりでいい。一日は広い。",
         "やわらかな始まり、確かな進み。",
       ],
@@ -291,7 +291,7 @@ export const MASCOT_LINES: Record<Lang, DaySet> = {
         "静かな前進。Mochi も納得。",
         "ペースは保って。押さなくていい。",
         "やわらかな午後。よく進めてる。",
-        "もう一つ石を積んで、ひと息。",
+        "もう一つ、それからひと息。",
       ],
     },
     evening: {
@@ -307,7 +307,7 @@ export const MASCOT_LINES: Record<Lang, DaySet> = {
         "Mochi が落ち着いてる。残りは置いておこう。",
         "静かな終わり。お疲れさま。",
         "最後にやさしいことひとつ — なくてもいい。",
-        "明日の石は待ってくれる。",
+        "明日のことは待ってくれる。",
         "今日の灯を消そう。よく頑張った。",
         "Mochi は満たされてる。あなたもそうなれる。",
       ],
@@ -329,7 +329,7 @@ export const MASCOT_LINES: Record<Lang, DaySet> = {
         "Ruhiger Morgen. Mochi geht mit.",
         "Schöner Rhythmus. Bleib sanft.",
         "Mochi sieht dich. Weiter so.",
-        "Ein Stein nach dem anderen.",
+        "Eins nach dem anderen.",
         "Locker. Der Tag ist weit.",
         "Sanfter Anfang, echter Fortschritt.",
       ],
@@ -349,7 +349,7 @@ export const MASCOT_LINES: Record<Lang, DaySet> = {
         "Stiller Fortschritt. Mochi nickt.",
         "Halte das Tempo. Kein Drücken nötig.",
         "Sanfter Nachmittag. Du bewegst dich gut.",
-        "Ein Stein mehr, dann Atem holen.",
+        "Eins mehr, dann Atem holen.",
       ],
     },
     evening: {
@@ -365,7 +365,7 @@ export const MASCOT_LINES: Record<Lang, DaySet> = {
         "Mochi richtet sich ein. Den Rest aufheben.",
         "Stiller Abschluss. Gut gemacht.",
         "Eine letzte sanfte Sache — oder keine.",
-        "Die Steine von morgen können warten.",
+        "Die Liste von morgen kann warten.",
         "Lass den Tag aus. Du hast es verdient.",
         "Mochi ist zufrieden. Du auch.",
       ],
@@ -383,44 +383,19 @@ export function dateSeed(isoDate: string): number {
 }
 
 /**
- * Per-language regex for the "pebble" noun(s) used in the brand mascot
- * lines. When the user has opted into theme-from-avatar with a non-
- * default preset, any line matching the language's pattern is filtered
- * out so the mascot voice no longer references pebbles. Patterns cover
- * the singular and plural forms used in the lines above.
- */
-const PEBBLE_PATTERNS: Record<Lang, RegExp> = {
-  en: /\bpebbles?\b/i,
-  zh: /石子|石/,
-  es: /\bpiedras?\b/i,
-  fr: /\bpierres?\b/i,
-  ja: /石/,
-  de: /\bSteine?\b/,
-};
-
-/**
  * Picks a mascot line for the given locale + time-of-day + plate state.
  * `today` is the local ISO date string used as the rotation seed; passed
  * in (rather than read from a clock) so this function stays pure and
  * testable. Falls back to English if the requested locale is missing
- * (shouldn't happen — all six Lang values are populated). When
- * `dethemePebbles` is true, lines that mention the language's pebble
- * token are dropped from the pool — used when the user has switched
- * to a themed avatar so the mascot voice stops referencing pebbles.
+ * (shouldn't happen — all six Lang values are populated).
  */
 export function pickMascotLine(
   lang: Lang,
   timeOfDay: TimeOfDay,
   plateCount: number,
   today: string,
-  dethemePebbles: boolean = false,
 ): string {
   const set = (MASCOT_LINES[lang] ?? MASCOT_LINES.en)[timeOfDay];
-  let variants = plateCount === 0 ? set.fresh : set.going;
-  if (dethemePebbles) {
-    const pattern = PEBBLE_PATTERNS[lang] ?? PEBBLE_PATTERNS.en;
-    const filtered = variants.filter((line) => !pattern.test(line));
-    if (filtered.length > 0) variants = filtered;
-  }
+  const variants = plateCount === 0 ? set.fresh : set.going;
   return variants[dateSeed(today) % variants.length];
 }

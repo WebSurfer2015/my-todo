@@ -109,7 +109,7 @@ export interface Todo {
    * Optional terminal state distinct from `done` and `trashed`.
    * Currently the only value is `'notDo'` — set when the user Skips a
    * past-due (recurring) instance. Skipped instances are NOT counted
-   * as completions (no pebble) and NOT counted as overdue; they sit
+   * as completions and NOT counted as overdue; they sit
    * in a Not-do filter view and can be restored.
    */
   status?: 'notDo'

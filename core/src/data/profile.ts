@@ -117,27 +117,6 @@ export interface Profile {
    */
   theme?: ThemeName
   /**
-   * Pebbles — live progress indicator with two scopes:
-   *
-   * - `todayTaskPebbles` / `todaySubtaskPebbles` mirror today's actual
-   *   completions. They go UP when a task/subtask is checked done and DOWN
-   *   when it's un-checked (min 0). At local midnight (pebblesDate change)
-   *   both reset to 0.
-   *
-   * - `lifetimePebbles` mirrors total completions over time and moves in
-   *   both directions: a check-off increments, an uncheck decrements (min
-   *   0). Trashing a completed task still removes its pebble. Shown on
-   *   the Profile sheet's YOUR JOURNEY card.
-   *
-   * Splitting today into task vs subtask lets the UI render them at
-   * different sizes (big stones for tasks, small stones for subtasks).
-   */
-  lifetimePebbles?: number
-  todayTaskPebbles?: number
-  todaySubtaskPebbles?: number
-  /** Local ISO date (yyyy-mm-dd) of the day the today counters belong to. */
-  pebblesDate?: string
-  /**
    * True once the user has seen (or skipped) the first-launch onboarding
    * flow. Defaults to undefined for legacy profiles — we treat undefined
    * as "needs onboarding" so existing users get the introduction once.
@@ -286,70 +265,6 @@ export interface BackgroundChoice {
   pairKey: string
 }
 
-export type PebbleKind = 'task' | 'subtask'
-
-interface TodayCounts {
-  task: number
-  subtask: number
-}
-
-/**
- * Returns today's task and subtask counts, but only if pebblesDate matches
- * today. Otherwise both are zero — the new day starts fresh.
- */
-export function getTodayPebbles(p: Profile, today: string): TodayCounts {
-  if (!p.pebblesDate || p.pebblesDate !== today) {
-    return { task: 0, subtask: 0 }
-  }
-  return {
-    task: p.todayTaskPebbles ?? 0,
-    subtask: p.todaySubtaskPebbles ?? 0,
-  }
-}
-
-/**
- * Increment today (for the given kind) and lifetime. On a new day, the
- * counters reset and pebblesDate advances. Lifetime only grows.
- */
-export function incrementPebble(p: Profile, today: string, kind: PebbleKind): Profile {
-  const isNewDay = p.pebblesDate !== today
-  const baseTask = isNewDay ? 0 : (p.todayTaskPebbles ?? 0)
-  const baseSub = isNewDay ? 0 : (p.todaySubtaskPebbles ?? 0)
-  return {
-    ...p,
-    lifetimePebbles: (p.lifetimePebbles ?? 0) + 1,
-    todayTaskPebbles: kind === 'task' ? baseTask + 1 : baseTask,
-    todaySubtaskPebbles: kind === 'subtask' ? baseSub + 1 : baseSub,
-    pebblesDate: today,
-  }
-}
-
-/**
- * Decrement today (for the given kind), clamped at 0. Lifetime also
- * decrements — unchecking a completion removes its pebble from the
- * lifetime count so the surface stays accurate, not aspirational. Today's
- * counters only move if pebblesDate matches today; lifetime always moves
- * (a yesterday-completion being undone still removes the pebble).
- */
-export function decrementPebble(p: Profile, today: string, kind: PebbleKind): Profile {
-  const lifetimePebbles = Math.max(0, (p.lifetimePebbles ?? 0) - 1)
-  if (p.pebblesDate !== today) {
-    return { ...p, lifetimePebbles }
-  }
-  if (kind === 'task') {
-    return {
-      ...p,
-      lifetimePebbles,
-      todayTaskPebbles: Math.max(0, (p.todayTaskPebbles ?? 0) - 1),
-    }
-  }
-  return {
-    ...p,
-    lifetimePebbles,
-    todaySubtaskPebbles: Math.max(0, (p.todaySubtaskPebbles ?? 0) - 1),
-  }
-}
-
 export const SEED_PROFILE: Profile = {
   name: 'Ying',
   avatar: { kind: 'preset', key: 'mochi' },
@@ -430,55 +345,6 @@ export const AVATAR_ICON_LIBRARY: Avatar[] = [
   { kind: 'icon', icon: 'sun',       color: '#FF9500' },
 ]
 
-/**
- * Themed collectable per preset — used by PebbleStrip to render the
- * day's check-offs as something cohesive with the user's avatar.
- * mochi (and any unlisted preset) keeps the default pebble visual,
- * so we return null for those and the caller renders its SVG
- * pebble fallback.
- */
-const COLLECTED_GLYPHS: Record<string, string> = {
-  cat: '🐟',
-  dog: '🦴',
-  bird: '🪶',
-  fish: '🫧',
-  butterfly: '🌸',
-  owl: '📚',
-  elephant: '🌱',
-  whale: '💦',
-  squirrel: '🌰',
-  rabbit: '🥕',
-}
-
-export function collectedGlyphFor(avatar: Avatar | undefined): string | null {
-  if (!avatar || avatar.kind !== 'preset') return null
-  return COLLECTED_GLYPHS[avatar.key] ?? null
-}
-
-/**
- * Stable noun token per preset, used as the lifetime-count label
- * when themeFromAvatar is on. mochi (and any unmapped key) returns
- * null so the caller can fall back to the default "pebbles placed".
- * The token is resolved to a localized phrase by i18n.lifetimeLabel.
- */
-const COLLECTED_NOUN_KEYS: Record<string, string> = {
-  cat: 'fish',
-  dog: 'bones',
-  bird: 'feathers',
-  fish: 'bubbles',
-  butterfly: 'flowers',
-  owl: 'books',
-  elephant: 'grass',
-  whale: 'spouts',
-  squirrel: 'acorns',
-  rabbit: 'carrots',
-}
-
-export function collectedNounKeyFor(avatar: Avatar | undefined): string | null {
-  if (!avatar || avatar.kind !== 'preset') return null
-  return COLLECTED_NOUN_KEYS[avatar.key] ?? null
-}
-
 export function findPreset(key: string): PresetAvatar {
   return AVATAR_PRESET_LIBRARY.find((a) => a.key === key) ?? AVATAR_PRESET_LIBRARY[0]
 }
@@ -549,22 +415,6 @@ export function migrateProfile(raw: unknown): Profile {
         : undefined,
     completionSound:
       typeof p.completionSound === 'boolean' ? p.completionSound : undefined,
-    lifetimePebbles:
-      typeof p.lifetimePebbles === 'number' && p.lifetimePebbles >= 0
-        ? Math.floor(p.lifetimePebbles)
-        : undefined,
-    todayTaskPebbles:
-      typeof p.todayTaskPebbles === 'number' && p.todayTaskPebbles >= 0
-        ? Math.floor(p.todayTaskPebbles)
-        : undefined,
-    todaySubtaskPebbles:
-      typeof p.todaySubtaskPebbles === 'number' && p.todaySubtaskPebbles >= 0
-        ? Math.floor(p.todaySubtaskPebbles)
-        : undefined,
-    pebblesDate:
-      typeof p.pebblesDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.pebblesDate)
-        ? p.pebblesDate
-        : undefined,
     onboardingDone: p.onboardingDone === true ? true : undefined,
     guidesSeen: Array.isArray(p.guidesSeen)
       ? p.guidesSeen.filter(

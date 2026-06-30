@@ -45,7 +45,6 @@ import type { Filter } from "./src/core-bindings/types";
 import { LangProvider, useLang } from "./src/app/LangContext";
 import { AuthProvider, useAuth } from "./src/app/AuthContext";
 import { NotifyProvider } from "./src/app/notify";
-import { PebbleFlightProvider } from "./src/features/mochi/PebbleFlight";
 import { ErrorBoundary } from "./src/app/ErrorBoundary";
 import { useTodoStore } from "./src/store/useTodoStore";
 import { buildDoneGroups, type TodoGroup, type DoneGroup } from "../core/src/logic/groups";
@@ -1118,15 +1117,13 @@ export default function App() {
             <LangProvider>
               <NotifyProvider>
                 <StoreProvider>
-                  <PebbleFlightProvider>
-                    <PurchasesProvider>
-                      <ThemeGate>
-                        <SheetProvider>
-                          <AppGate />
-                        </SheetProvider>
-                      </ThemeGate>
-                    </PurchasesProvider>
-                  </PebbleFlightProvider>
+                  <PurchasesProvider>
+                    <ThemeGate>
+                      <SheetProvider>
+                        <AppGate />
+                      </SheetProvider>
+                    </ThemeGate>
+                  </PurchasesProvider>
                 </StoreProvider>
               </NotifyProvider>
             </LangProvider>

@@ -199,7 +199,7 @@ export const strings = {
     emptyOpenHint: "Add one when you're ready — Mochi's nearby.",
     emptyOverdueTitle: 'Nothing carried over.',
     emptyOverdueHint: 'Anything past due will land here for triage.',
-    emptyDoneTitle: 'No pebbles placed yet today.',
+    emptyDoneTitle: 'Nothing finished yet today.',
     emptyDoneHint: "Whatever you finish today will show up here.",
     emptyTrashTitle: 'Trash is empty.',
     emptyCategoryTitle: (label: string) => `Nothing in "${label}" yet`,
@@ -231,22 +231,8 @@ export const strings = {
     suggestStepsError: "Couldn't get suggestions.",
     suggestStepsHint: 'Tap to select',
     addSelected: 'Add selected',
-    /** Label for the Home lifetime card. `nounKey` is the avatar-derived
-     * token from `collectedNounKeyFor` (e.g. "fish", "bones"); when null
-     * (default Mochi or theme-from-avatar off), returns "pebbles placed". */
-    lifetimeLabel: (nounKey: string | null) => {
-      const nouns: Record<string, string> = {
-        fish: 'fish', bones: 'bones', feathers: 'feathers', bubbles: 'bubbles',
-        petals: 'petals', books: 'books',
-        acorns: 'acorns', carrots: 'carrots',
-        grass: 'grass', flowers: 'flowers', spouts: 'spouts',
-      }
-      const noun = nounKey ? nouns[nounKey] : null
-      return noun ? `${noun} collected` : 'pebbles placed'
-    },
-    /** Caption for the daily strip when count == 0. `nounKey` follows the
-     * same convention as `lifetimeLabel`; null returns the default
-     * "One pebble. That's it." copy. */
+    /** Caption for the daily strip when count == 0. `nounKey` is the
+     * avatar-derived token; null returns the default copy. */
     oneItemCaption: (nounKey: string | null) => {
       const singulars: Record<string, string> = {
         fish: 'fish', bones: 'bone', feathers: 'feather', bubbles: 'bubble',
@@ -255,7 +241,7 @@ export const strings = {
         grass: 'blade', flowers: 'flower', spouts: 'spout',
       }
       const noun = nounKey ? singulars[nounKey] : null
-      return noun ? `One ${noun}. A good start.` : `One pebble. A good start.`
+      return noun ? `One ${noun}. A good start.` : `A good start.`
     },
     resetLifetimeAction: 'Reset lifetime count',
     resetLifetimeConfirm: 'Recalibrate your lifetime count?',
@@ -556,7 +542,7 @@ export const strings = {
     emptyOpenHint: '准备好就添加一个 — Mochi 在身边。',
     emptyOverdueTitle: '没有逾期任务',
     emptyOverdueHint: '逾期的任务会出现在这里。',
-    emptyDoneTitle: '今天还没有放置石子',
+    emptyDoneTitle: '今天还没有完成任何事',
     emptyDoneHint: '今天完成的任务会显示在这里。',
     emptyTrashTitle: '回收站为空',
     emptyCategoryTitle: (label: string) => `"${label}" 中还没有任务`,
@@ -588,16 +574,6 @@ export const strings = {
     suggestStepsError: '暂时无法获取建议。',
     suggestStepsHint: '点击选择',
     addSelected: '添加所选',
-    lifetimeLabel: (nounKey: string | null) => {
-      const nouns: Record<string, string> = {
-        fish: '鱼', bones: '骨头', feathers: '羽毛', bubbles: '泡泡',
-        petals: '花瓣', books: '书',
-        acorns: '橡子', carrots: '胡萝卜',
-        grass: '草', flowers: '花', spouts: '水花',
-      }
-      const noun = nounKey ? nouns[nounKey] : null
-      return noun ? `已收集 ${noun}` : '放置的石子'
-    },
     oneItemCaption: (nounKey: string | null) => {
       const singulars: Record<string, string> = {
         fish: '鱼', bones: '骨头', feathers: '羽毛', bubbles: '泡泡',
@@ -606,7 +582,7 @@ export const strings = {
         grass: '草', flowers: '花', spouts: '水花',
       }
       const noun = nounKey ? singulars[nounKey] : null
-      return noun ? `一颗${noun}，好的开始。` : '一颗石子，好的开始。'
+      return noun ? `一颗${noun}，好的开始。` : '好的开始。'
     },
     resetLifetimeAction: '重置累计次数',
     resetLifetimeConfirm: '重新校准你的累计次数？',
@@ -899,7 +875,7 @@ export const strings = {
     emptyOpenHint: 'Añade una cuando estés lista — Mochi está cerca.',
     emptyOverdueTitle: 'No hay tareas atrasadas',
     emptyOverdueHint: 'Las atrasadas aparecerán aquí.',
-    emptyDoneTitle: 'Aún no has colocado piedras hoy',
+    emptyDoneTitle: 'Aún nada terminado hoy',
     emptyDoneHint: 'Lo que termines hoy aparecerá aquí.',
     emptyTrashTitle: 'La papelera está vacía',
     emptyCategoryTitle: (label: string) => `Nada en "${label}" aún`,
@@ -931,16 +907,6 @@ export const strings = {
     suggestStepsError: 'No se pudieron obtener sugerencias.',
     suggestStepsHint: 'Toca para seleccionar',
     addSelected: 'Añadir seleccionados',
-    lifetimeLabel: (nounKey: string | null) => {
-      const nouns: Record<string, string> = {
-        fish: 'peces', bones: 'huesos', feathers: 'plumas', bubbles: 'burbujas',
-        petals: 'pétalos', books: 'libros',
-        acorns: 'bellotas', carrots: 'zanahorias',
-        grass: 'hierba', flowers: 'flores', spouts: 'chorros',
-      }
-      const noun = nounKey ? nouns[nounKey] : null
-      return noun ? `${noun} recogidos` : 'piedras colocadas'
-    },
     oneItemCaption: (nounKey: string | null) => {
       const singulars: Record<string, string> = {
         fish: 'pez', bones: 'hueso', feathers: 'pluma', bubbles: 'burbuja',
@@ -949,7 +915,7 @@ export const strings = {
         grass: 'brizna', flowers: 'flor', spouts: 'chorro',
       }
       const noun = nounKey ? singulars[nounKey] : null
-      return noun ? `Un ${noun}. Un buen comienzo.` : 'Una piedra. Un buen comienzo.'
+      return noun ? `Un ${noun}. Un buen comienzo.` : 'Un buen comienzo.'
     },
     resetLifetimeAction: 'Restablecer total',
     resetLifetimeConfirm: '¿Recalibrar tu total?',
@@ -1249,7 +1215,7 @@ export const strings = {
     emptyOpenHint: 'Ajoute-en une quand tu es prêt·e — Mochi est là.',
     emptyOverdueTitle: 'Aucune tâche en retard',
     emptyOverdueHint: 'Les tâches en retard apparaîtront ici.',
-    emptyDoneTitle: 'Aucune pierre posée aujourd\'hui.',
+    emptyDoneTitle: 'Rien de terminé aujourd\'hui.',
     emptyDoneHint: "Ce que tu termines aujourd'hui apparaîtra ici.",
     emptyTrashTitle: 'La corbeille est vide',
     emptyCategoryTitle: (label: string) => `Rien dans "${label}" pour l\'instant`,
@@ -1281,16 +1247,6 @@ export const strings = {
     suggestStepsError: 'Aucune suggestion pour l\'instant.',
     suggestStepsHint: 'Touchez pour sélectionner',
     addSelected: 'Ajouter la sélection',
-    lifetimeLabel: (nounKey: string | null) => {
-      const nouns: Record<string, string> = {
-        fish: 'poissons', bones: 'os', feathers: 'plumes', bubbles: 'bulles',
-        petals: 'pétales', books: 'livres',
-        acorns: 'glands', carrots: 'carottes',
-        grass: 'herbes', flowers: 'fleurs', spouts: 'jets',
-      }
-      const noun = nounKey ? nouns[nounKey] : null
-      return noun ? `${noun} collectés` : 'galets posés'
-    },
     oneItemCaption: (nounKey: string | null) => {
       const singulars: Record<string, string> = {
         fish: 'poisson', bones: 'os', feathers: 'plume', bubbles: 'bulle',
@@ -1299,7 +1255,7 @@ export const strings = {
         grass: 'herbe', flowers: 'fleur', spouts: 'jet',
       }
       const noun = nounKey ? singulars[nounKey] : null
-      return noun ? `Un(e) ${noun}. Un bon début.` : `Une pierre. Un bon début.`
+      return noun ? `Un(e) ${noun}. Un bon début.` : `Un bon début.`
     },
     resetLifetimeAction: 'Réinitialiser le total',
     resetLifetimeConfirm: 'Recalibrer votre total ?',
@@ -1599,7 +1555,7 @@ export const strings = {
     emptyOverdueTitle: '期限切れのタスクはありません',
     emptyOpenHint: '準備ができたら追加しましょう — モチがそばにいます。',
     emptyOverdueHint: '期限切れになるとここに表示されます。',
-    emptyDoneTitle: '今日はまだ石を置いていません',
+    emptyDoneTitle: '今日はまだ何も完了していません',
     emptyDoneHint: '今日完了したものがここに表示されます。',
     emptyTrashTitle: 'ゴミ箱は空です',
     emptyCategoryTitle: (label: string) => `「${label}」にはまだ何もありません`,
@@ -1631,16 +1587,6 @@ export const strings = {
     suggestStepsError: '提案を取得できませんでした。',
     suggestStepsHint: 'タップして選択',
     addSelected: '選択を追加',
-    lifetimeLabel: (nounKey: string | null) => {
-      const nouns: Record<string, string> = {
-        fish: '魚', bones: '骨', feathers: '羽', bubbles: '泡',
-        petals: '花びら', books: '本',
-        acorns: 'どんぐり', carrots: 'にんじん',
-        grass: '草', flowers: '花', spouts: '水しぶき',
-      }
-      const noun = nounKey ? nouns[nounKey] : null
-      return noun ? `集めた${noun}` : '積んだ小石'
-    },
     oneItemCaption: (nounKey: string | null) => {
       const singulars: Record<string, string> = {
         fish: '魚', bones: '骨', feathers: '羽', bubbles: '泡',
@@ -1649,7 +1595,7 @@ export const strings = {
         grass: '草', flowers: '花', spouts: '水しぶき',
       }
       const noun = nounKey ? singulars[nounKey] : null
-      return noun ? `${noun}をひとつ。よい始まり。` : '小石ひとつ。よい始まり。'
+      return noun ? `${noun}をひとつ。よい始まり。` : 'よい始まり。'
     },
     resetLifetimeAction: '累計をリセット',
     resetLifetimeConfirm: '累計を再調整しますか？',
@@ -1942,7 +1888,7 @@ export const strings = {
     emptyOverdueTitle: 'Keine überfälligen Aufgaben',
     emptyOpenHint: 'Füge eine hinzu, wenn du bereit bist — Mochi ist nah.',
     emptyOverdueHint: 'Überfällige Aufgaben tauchen hier auf.',
-    emptyDoneTitle: 'Heute noch keine Steine gelegt.',
+    emptyDoneTitle: 'Heute noch nichts erledigt.',
     emptyDoneHint: 'Was du heute erledigst, erscheint hier.',
     emptyTrashTitle: 'Papierkorb ist leer',
     emptyCategoryTitle: (label: string) => `Noch nichts in „${label}"`,
@@ -1974,16 +1920,6 @@ export const strings = {
     suggestStepsError: 'Keine Vorschläge möglich.',
     suggestStepsHint: 'Zum Auswählen tippen',
     addSelected: 'Auswahl hinzufügen',
-    lifetimeLabel: (nounKey: string | null) => {
-      const nouns: Record<string, string> = {
-        fish: 'Fische', bones: 'Knochen', feathers: 'Federn', bubbles: 'Blasen',
-        petals: 'Blütenblätter', books: 'Bücher',
-        acorns: 'Eicheln', carrots: 'Karotten',
-        grass: 'Gräser', flowers: 'Blumen', spouts: 'Fontänen',
-      }
-      const noun = nounKey ? nouns[nounKey] : null
-      return noun ? `${noun} gesammelt` : 'Steine gelegt'
-    },
     oneItemCaption: (nounKey: string | null) => {
       const singulars: Record<string, string> = {
         fish: 'Fisch', bones: 'Knochen', feathers: 'Feder', bubbles: 'Blase',
@@ -1992,7 +1928,7 @@ export const strings = {
         grass: 'Halm', flowers: 'Blume', spouts: 'Fontäne',
       }
       const noun = nounKey ? singulars[nounKey] : null
-      return noun ? `Ein ${noun}. Ein guter Anfang.` : 'Ein Stein. Ein guter Anfang.'
+      return noun ? `Ein ${noun}. Ein guter Anfang.` : 'Ein guter Anfang.'
     },
     resetLifetimeAction: 'Gesamtwert zurücksetzen',
     resetLifetimeConfirm: 'Deinen Gesamtwert neu kalibrieren?',

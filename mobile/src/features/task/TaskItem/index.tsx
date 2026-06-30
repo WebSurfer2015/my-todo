@@ -1,5 +1,5 @@
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, Platform, Modal, Alert, Pressable, ActionSheetIOS, Animated, Easing, Dimensions } from 'react-native'
+import React, { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { View, Text, TouchableOpacity, Platform, Modal, Alert, Pressable, ActionSheetIOS, Animated, Easing, Dimensions } from 'react-native'
 
 const SCREEN_WIDTH = Dimensions.get('window').width
 // Trigger-to-commit threshold for full-swipe gestures. Pairs with the
@@ -83,7 +83,8 @@ import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
 import type { Density } from '../../../core-bindings/profile'
 import { formatDisplayDate, fullDateLabel, todayLocal, isoDate } from '../../../core-bindings/utils'
 import { sortedSubs } from '../../../../../core/src/logic/derive'
-import { useTriggerPebbleFlight } from '../../mochi/PebbleFlight'
+import CalmFirework from '../CalmFirework'
+import { playCompletionChime } from '../../../adapters/completionChime'
 import { useTheme, ThemeColors } from '../../../app/theme'
 import PriorityDot from '../../../ui/PriorityDot'
 import CheckGlyph from '../../../ui/CheckGlyph'
@@ -268,77 +269,21 @@ function TaskItem({
   const checkboxScale = useRef(new Animated.Value(1)).current
   const rowFlash = useRef(new Animated.Value(0)).current
   const prevDoneRef = useRef(todo.done)
-  // Track dueDate too so rolling-recurrence completions fire the pebble
-  // flight — todoToggle preserves done=false on the rolled-forward row
-  // and only advances dueDate, so a done-only watcher misses these.
+  // Track dueDate too so rolling-recurrence completions fire the firework
+  // — todoToggle preserves done=false on the rolled-forward row and only
+  // advances dueDate, so a done-only watcher misses these.
   const prevDueDateRef = useRef(todo.dueDate)
-  // Mochi pebble-flight overlay — captures the row's screen position via
-  // onLayout (more reliable across RN versions / production bundles than
-  // measuring on a ref at trigger time) and arcs a Mochi sprite up to
-  // the PebbleStrip cairn registered at the top of the app. Skips when
-  // reduce-motion is on (handled by the provider).
-  const triggerPebbleFlight = useTriggerPebbleFlight()
-  const rowMeasureRef = useRef<View>(null)
-  // Per-sub measure refs so a checked-off step fires the pebble flight
-  // from its own screen position, not the parent row's. Cleared on
-  // unmount via the ref callback's null branch.
-  const subMeasureRefs = useRef<Map<string, View>>(new Map())
-  // Category color → fed to PebbleFlight as the `tint` for the
-  // default-Mochi pebble glyph so the celebration carries the
-  // visual identity of the thing the user just completed. Looked
-  // up lazily inside the flight callbacks so the latest category
-  // metadata is used at trigger time (categories can be edited
-  // while a row is mounted).
+  // In-row firework celebration — bump this counter to fire a calm burst
+  // anchored on the checkbox. Driven by the done-transition effect below
+  // (row + recurrence roll-forward) and by individual subtask completions.
+  const [fireworkTrigger, setFireworkTrigger] = useState(0)
+  // Category color → the firework's primary particle tint, so the
+  // celebration carries the visual identity of the thing just completed.
   const categoryTint =
     todo.category
       ? categories.find((c) => c.id === todo.category)?.color
       : undefined
 
-  const fireSubFlight = useCallback(
-    (subId: string) => {
-      if (!celebrate && !playSound) return
-      const fallback = {
-        x: Dimensions.get('window').width / 2,
-        y: Dimensions.get('window').height / 2,
-      }
-      const measure = subMeasureRefs.current.get(subId)
-      if (measure) {
-        measure.measureInWindow((x, y, w, h) => {
-          const from =
-            typeof x === 'number' && typeof y === 'number' && w > 0 && h > 0
-              ? { x: x + w / 2, y: y + h / 2 }
-              : fallback
-          triggerPebbleFlight(from, { animate: celebrate, chime: playSound, tint: categoryTint })
-        })
-      } else {
-        triggerPebbleFlight(fallback, { animate: celebrate, chime: playSound, tint: categoryTint })
-      }
-    },
-    [celebrate, playSound, triggerPebbleFlight, categoryTint],
-  )
-  // Fire the pebble flight from the row's CURRENT screen position
-  // synchronously on tap — strict Open filters unmount the row
-  // immediately when it flips done, so a post-render useEffect would
-  // miss the transition entirely.
-  const fireRowFlight = useCallback(() => {
-    if (!celebrate && !playSound) return
-    const fallback = {
-      x: Dimensions.get('window').width / 2,
-      y: Dimensions.get('window').height / 2,
-    }
-    const measure = rowMeasureRef.current
-    if (measure) {
-      measure.measureInWindow((x, y, w, h) => {
-        const from =
-          typeof x === 'number' && typeof y === 'number' && w > 0 && h > 0
-            ? { x: x + w / 2, y: y + h / 2 }
-            : fallback
-        triggerPebbleFlight(from, { animate: celebrate, chime: playSound, tint: categoryTint })
-      })
-    } else {
-      triggerPebbleFlight(fallback, { animate: celebrate, chime: playSound, tint: categoryTint })
-    }
-  }, [celebrate, playSound, triggerPebbleFlight, categoryTint])
   useEffect(() => {
     const becameDone = todo.done && !prevDoneRef.current
     const rolledForward =
@@ -348,9 +293,9 @@ function TaskItem({
       prevDueDateRef.current !== todo.dueDate &&
       !!prevDueDateRef.current
     if ((becameDone || rolledForward) && celebrate) {
-      // Row flash + checkbox bounce — both honor `celebrate`, which is
-      // false when the user has Reduce motion or Completion animation
-      // turned off in Settings. No motion at all on done in that mode.
+      // Row flash + checkbox fill + calm firework — all honor `celebrate`,
+      // which is false when the user has Reduce motion or Completion
+      // animation turned off in Settings. No motion at all in that mode.
       Animated.sequence([
         Animated.timing(rowFlash, {
           toValue: 1,
@@ -365,9 +310,11 @@ function TaskItem({
           useNativeDriver: true,
         }),
       ]).start()
+      // Softened checkbox fill — a gentle settle (no elastic overshoot)
+      // so the moment reads calm. Pairs with the in-row firework below.
       Animated.sequence([
         Animated.timing(checkboxScale, {
-          toValue: 1.35,
+          toValue: 1.12,
           duration: 140,
           easing: Easing.out(Easing.quad),
           useNativeDriver: true,
@@ -375,14 +322,13 @@ function TaskItem({
         Animated.timing(checkboxScale, {
           toValue: 1,
           duration: 220,
-          easing: Easing.elastic(1.2),
+          easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
       ]).start()
-      // Pebble flight is fired synchronously in handleToggle (so it
-      // survives a strict-Open-filter unmount). This effect now only
-      // owns the on-row visual feedback (row flash + checkbox bounce)
-      // for the brief window before the row may unmount.
+      // Fire the in-row firework. (Subtask completions bump this counter
+      // separately from their own onPress handler.)
+      setFireworkTrigger((n) => n + 1)
     }
     prevDoneRef.current = todo.done
     prevDueDateRef.current = todo.dueDate
@@ -446,47 +392,17 @@ function TaskItem({
       return
     }
     // Parent rows with subtasks: parent.done is derived from subs, so
-    // a tap-toggle is a no-op at the data layer. Skip the flight too
-    // so the user doesn't see a pebble fly for "nothing happened".
-    // Step rows still toggle individually via their own checkbox.
+    // a tap-toggle is a no-op at the data layer. Don't celebrate for
+    // "nothing happened" — step rows toggle individually via their own
+    // checkbox (which fires its own firework + chime).
     if (hasSubs) return
-    // Tap that COMPLETES (or rolls a recurring row forward) measures
-    // the row's position FIRST, then fires the pebble flight, then
-    // calls onToggle. The serialization matters because the row may
-    // unmount the moment state updates (strict Open filter), and
-    // measureInWindow's async callback never fires for an unmounted
-    // node. Doing it in this order keeps the row mounted long enough
-    // for the measurement to succeed.
-    const wantsFlight = !todo.done && (celebrate || playSound)
-    if (!wantsFlight) {
-      onToggle(todo.id)
-      return
-    }
-    const measure = rowMeasureRef.current
-    if (!measure) {
-      // No measurable view — fire from screen center and move on.
-      triggerPebbleFlight(
-        {
-          x: Dimensions.get('window').width / 2,
-          y: Dimensions.get('window').height / 2,
-        },
-        { animate: celebrate, chime: playSound },
-      )
-      onToggle(todo.id)
-      return
-    }
-    measure.measureInWindow((x, y, w, h) => {
-      const fallback = {
-        x: Dimensions.get('window').width / 2,
-        y: Dimensions.get('window').height / 2,
-      }
-      const from =
-        typeof x === 'number' && typeof y === 'number' && w > 0 && h > 0
-          ? { x: x + w / 2, y: y + h / 2 }
-          : fallback
-      triggerPebbleFlight(from, { animate: celebrate, chime: playSound })
-      onToggle(todo.id)
-    })
+    // Completing (or rolling a recurring row forward) plays the chime
+    // now, on tap. The in-row firework + checkbox fill are driven by the
+    // done-transition effect once `todo.done` flips. The chime is fired
+    // here (not in the effect) so it still plays on rows that unmount
+    // immediately under a strict Open filter.
+    if (!todo.done && playSound) playCompletionChime()
+    onToggle(todo.id)
   }
 
   function handleMoveToTrash() {
@@ -765,17 +681,6 @@ function TaskItem({
           pressed && styles.rowPressed,
         ]}
       >
-        {/* Layout-pass position capture for the Mochi pebble flight.
-            Absolute-fill so it follows the row's bounds without adding
-            layout, and pointerEvents:none so it never intercepts taps.
-            measureInWindow inside onLayout is bulletproof across RN
-            versions / production bundles, where ref-on-Pressable +
-            measure-at-trigger-time has had spotty support. */}
-        <View
-          ref={rowMeasureRef}
-          pointerEvents="none"
-          style={StyleSheet.absoluteFill}
-        />
         {/* Always-on subtle row flash on done-transition. Sits above the
             row content via absolute positioning + pointerEvents:none so it
             doesn't intercept taps. */}
@@ -786,57 +691,67 @@ function TaskItem({
             { opacity: rowFlash.interpolate({ inputRange: [0, 1], outputRange: [0, 0.45] }) },
           ]}
         />
-        {!inTrash && hasSubs ? (
-          <TouchableOpacity
-            style={styles.expandToggle}
-            onPress={() => setExpanded((v) => !v)}
-            hitSlop={10}
-            accessibilityLabel={t.subtasks}
-            accessibilityRole="button"
-            accessibilityState={{ expanded }}
-          >
-            {expanded ? (
-              <ChevronDown size={16} color={theme.label2} strokeWidth={2.5} />
-            ) : (
-              <ChevronRight size={16} color={theme.label2} strokeWidth={2.5} />
-            )}
-          </TouchableOpacity>
-        ) : (
-          <Animated.View style={{ transform: [{ scale: checkboxScale }] }}>
+        {/* Leading control + its in-row firework anchor. The firework
+            layer absolute-fills this wrapper so the burst is centered on
+            the checkbox (or the steps chevron, for parent rows). */}
+        <View>
+          {!inTrash && hasSubs ? (
             <TouchableOpacity
-              style={[
-                styles.checkbox,
-                todo.done && styles.checkboxDone,
-                inTrash && selected && styles.checkboxSelected,
-                todo.trashed && !todo.done && styles.checkboxRemoved,
-              ]}
-              onPress={inTrash && onToggleSelect ? () => onToggleSelect(todo.id) : handleToggle}
-              disabled={inTrash && !onToggleSelect}
+              style={styles.expandToggle}
+              onPress={() => setExpanded((v) => !v)}
               hitSlop={10}
-              accessibilityRole="checkbox"
-              accessibilityState={
-                inTrash && onToggleSelect
-                  ? { checked: selected }
-                  : { checked: todo.done }
-              }
-              accessibilityLabel={
-                inTrash && onToggleSelect
-                  ? `Select ${todo.text}`
-                  : todo.done
-                    ? `${todo.text}, completed. Mark as not done.`
-                    : todo.trashed
-                      ? `${todo.text}, removed.`
-                      : `${todo.text}. Mark as done.`
-              }
+              accessibilityLabel={t.subtasks}
+              accessibilityRole="button"
+              accessibilityState={{ expanded }}
             >
-              {todo.done || (inTrash && selected) ? (
-                <CheckGlyph size={14} />
-              ) : todo.trashed ? (
-                <Text style={styles.removedMark}>×</Text>
-              ) : null}
+              {expanded ? (
+                <ChevronDown size={16} color={theme.label2} strokeWidth={2.5} />
+              ) : (
+                <ChevronRight size={16} color={theme.label2} strokeWidth={2.5} />
+              )}
             </TouchableOpacity>
-          </Animated.View>
-        )}
+          ) : (
+            <Animated.View style={{ transform: [{ scale: checkboxScale }] }}>
+              <TouchableOpacity
+                style={[
+                  styles.checkbox,
+                  todo.done && styles.checkboxDone,
+                  inTrash && selected && styles.checkboxSelected,
+                  todo.trashed && !todo.done && styles.checkboxRemoved,
+                ]}
+                onPress={inTrash && onToggleSelect ? () => onToggleSelect(todo.id) : handleToggle}
+                disabled={inTrash && !onToggleSelect}
+                hitSlop={10}
+                accessibilityRole="checkbox"
+                accessibilityState={
+                  inTrash && onToggleSelect
+                    ? { checked: selected }
+                    : { checked: todo.done }
+                }
+                accessibilityLabel={
+                  inTrash && onToggleSelect
+                    ? `Select ${todo.text}`
+                    : todo.done
+                      ? `${todo.text}, completed. Mark as not done.`
+                      : todo.trashed
+                        ? `${todo.text}, removed.`
+                        : `${todo.text}. Mark as done.`
+                }
+              >
+                {todo.done || (inTrash && selected) ? (
+                  <CheckGlyph size={14} />
+                ) : todo.trashed ? (
+                  <Text style={styles.removedMark}>×</Text>
+                ) : null}
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+          <CalmFirework
+            trigger={fireworkTrigger}
+            color={categoryTint}
+            reduceMotion={!celebrate}
+          />
+        </View>
 
         <View style={styles.body}>
           <View style={styles.mainLine}>
@@ -962,20 +877,17 @@ function TaskItem({
                 return (
                   <View
                     key={s.id}
-                    ref={(r) => {
-                      if (r) subMeasureRefs.current.set(s.id, r)
-                      else subMeasureRefs.current.delete(s.id)
-                    }}
-                    collapsable={false}
                     style={styles.subRow}
                   >
                     <TouchableOpacity
                       onPress={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {})
-                        // Fire the pebble flight from this sub's screen
-                        // position when it's about to become done.
+                        // Celebrate when this step is about to become done.
                         // sub.done reflects the PRE-toggle state here.
-                        if (!s.done) fireSubFlight(s.id)
+                        if (!s.done) {
+                          if (playSound) playCompletionChime()
+                          setFireworkTrigger((n) => n + 1)
+                        }
                         onToggleSubtask!(todo.id, s.id)
                       }}
                       hitSlop={14}

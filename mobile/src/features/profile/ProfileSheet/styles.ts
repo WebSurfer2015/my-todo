@@ -93,11 +93,6 @@ export function makeStyles(c: ThemeColors) {
       lineHeight: 56,
       marginBottom: 6,
     },
-    journeyCairn: {
-      marginBottom: 6,
-      alignItems: "center",
-      justifyContent: "center",
-    },
     journeyValue: {
       fontSize: 36,
       fontWeight: "700",
@@ -345,43 +340,6 @@ export function makeStyles(c: ThemeColors) {
     },
     langBtnTextActive: {
       color: c.primaryOn,
-    },
-    pebbleHero: {
-      // Hero card — the user's "look what I built" moment. Full-width
-      // cairn glyph + large count + supporting copy, centered.
-      alignItems: "center",
-      paddingVertical: 24,
-      paddingHorizontal: 16,
-      marginTop: 16,
-      marginBottom: 8,
-      borderRadius: 16,
-      backgroundColor: c.primarySoft,
-    },
-    pebbleHeroCairn: {
-      marginBottom: 8,
-    },
-    pebbleHeroValue: {
-      fontSize: 36,
-      lineHeight: 40,
-      color: c.primary,
-      fontWeight: "700",
-      fontVariant: ["tabular-nums"],
-      letterSpacing: -0.6,
-    },
-    pebbleHeroLabel: {
-      fontSize: 13,
-      fontWeight: "600",
-      color: c.label2,
-      letterSpacing: 0.2,
-      marginTop: 2,
-    },
-    pebbleHeroHint: {
-      fontSize: 12,
-      color: c.label3,
-      fontStyle: "italic",
-      textAlign: "center",
-      marginTop: 10,
-      maxWidth: 260,
     },
     checkinTimeRow: {
       flexDirection: "row",

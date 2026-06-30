@@ -11,9 +11,8 @@
  */
 import type { CategoryDef } from '../data/categories'
 import type { Filter, Todo } from '../domain/types'
-import type { Profile } from '../data/profile'
 import { isCategoryFilter, categoryIdFromFilter } from '../domain/types'
-import { categoryDelete, todoToggle, pebbleDelta, PebbleDelta } from '../logic/derive'
+import { categoryDelete, todoToggle } from '../logic/derive'
 import { stripFilterFromPinned } from '../logic/filters'
 
 export interface DeleteCategoryInput {
@@ -69,20 +68,18 @@ export function deleteCategoryCascade(
 export interface ToggleOutcome {
   /** The toggled row after the flip (single-row view). */
   after: Todo
-  /** Pebble delta to apply for this toggle. */
-  delta: PebbleDelta
   /** Completion row to record as a "you've done this before" reference,
    * or null when this flip wasn't a fresh completion. */
   referenceRow: Todo | null
 }
 
 /**
- * Pure outcome of toggling a single todo: the after-row, the pebble
- * delta, and the reference row to record when the flip newly completes
- * it. Mirrors the single-element `todoToggle` the slice runs to read the
- * after/snapshot rows without scanning the whole list — a recurring todo
- * yields a completed snapshot (out[1]) plus its rolled-forward next
- * instance (out[0]). The glue applies the setState + side effects.
+ * Pure outcome of toggling a single todo: the after-row and the reference
+ * row to record when the flip newly completes it. Mirrors the single-element
+ * `todoToggle` the slice runs to read the after/snapshot rows without
+ * scanning the whole list — a recurring todo yields a completed snapshot
+ * (out[1]) plus its rolled-forward next instance (out[0]). The glue applies
+ * the setState + side effects.
  */
 export function toggleOutcome(before: Todo): ToggleOutcome {
   const out = todoToggle([before], before.id)
@@ -91,41 +88,5 @@ export function toggleOutcome(before: Todo): ToggleOutcome {
   const completionRow = snapshot && snapshot.done ? snapshot : after
   const referenceRow =
     completionRow && completionRow.done && !before.done ? completionRow : null
-  return { after, delta: pebbleDelta(before, after), referenceRow }
-}
-
-/** Patch merged into the profile to bring the stored "today" pebble
- * counters back in line with reality. */
-export interface TodayPebblePatch {
-  pebblesDate: string
-  todayTaskPebbles: number
-  todaySubtaskPebbles: number
-}
-
-/**
- * Reconcile the stored "today" pebble counters against the todos
- * actually completed today (by `completionDate`). Returns a patch to
- * merge into the profile, or null when the stored counters are already
- * correct. Used once per uid swap after hydrate, since sign-out/in, a
- * fresh install, or a midnight rollover can leave the counters lagging.
- * Subtask counts are preserved — there's no per-subtask completion date
- * to recompute from.
- */
-export function reconcileTodayPebbles(
-  profile: Profile,
-  todos: Todo[],
-  today: string,
-): TodayPebblePatch | null {
-  const derivedTask = todos.filter(
-    (td) => !td.trashed && td.done && td.completionDate === today,
-  ).length
-  const isToday = profile.pebblesDate === today
-  const storedTask = isToday ? profile.todayTaskPebbles ?? 0 : 0
-  const storedSub = isToday ? profile.todaySubtaskPebbles ?? 0 : 0
-  if (isToday && derivedTask <= storedTask) return null
-  return {
-    pebblesDate: today,
-    todayTaskPebbles: Math.max(storedTask, derivedTask),
-    todaySubtaskPebbles: storedSub,
-  }
+  return { after, referenceRow }
 }

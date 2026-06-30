@@ -211,10 +211,10 @@ const inlineStyles = StyleSheet.create({
   sidebarDragHandle: { fontSize: 14, color: '#8E8E93', fontWeight: '700' },
   sidebarRowLabel: { fontSize: 13, fontWeight: '500' },
 
-  pebbleWrap: { alignItems: 'center', gap: 8 },
-  pebbleLabel: { fontSize: 12, color: '#8E8E93', fontWeight: '600' },
-  pebbleRow: { flexDirection: 'row', gap: 4 },
-  pebbleGlyph: { fontSize: 24 },
+  tallyWrap: { alignItems: 'center', gap: 8 },
+  tallyLabel: { fontSize: 12, color: '#8E8E93', fontWeight: '600' },
+  tallyRow: { flexDirection: 'row', gap: 4 },
+  tallyGlyph: { fontSize: 24 },
 
   swatchRow: { flexDirection: 'row', gap: 8 },
   swatch: {
@@ -386,7 +386,7 @@ export const GUIDES: Guide[] = [
     slides: [
       {
         title: 'Add a step',
-        body: "Open a to-do → tap «+ Add a step…». Each step gets its own priority + due date, and counts toward today's pebble cairn when you check it.",
+        body: "Open a to-do → tap «+ Add a step…». Each step gets its own priority + due date, and counts toward today's tally when you check it.",
         visual: (
           <MockupSheet title="Edit to-do">
             <View style={inlineStyles.subsHeader}>
@@ -566,14 +566,14 @@ export const GUIDES: Guide[] = [
         ),
       },
       {
-        title: 'Themed pebbles',
-        body: "Pick a preset avatar (cat, dog, butterfly…) and your completion animation + cairn switch to a themed glyph: fish, bone, butterfly.",
+        title: 'Themed markers',
+        body: "Pick a preset avatar (cat, dog, butterfly…) and your completion animation + today's tally switch to a themed glyph: fish, bone, butterfly.",
         visual: (
-          <View style={inlineStyles.pebbleWrap}>
-            <Text style={inlineStyles.pebbleLabel}>3 today</Text>
-            <View style={inlineStyles.pebbleRow}>
+          <View style={inlineStyles.tallyWrap}>
+            <Text style={inlineStyles.tallyLabel}>3 today</Text>
+            <View style={inlineStyles.tallyRow}>
               {['🐟', '🐟', '🐟'].map((g, i) => (
-                <Text key={i} style={inlineStyles.pebbleGlyph}>{g}</Text>
+                <Text key={i} style={inlineStyles.tallyGlyph}>{g}</Text>
               ))}
             </View>
           </View>
@@ -618,7 +618,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: 'Calm by default',
-        body: "Toggle off the completion animation, sound, or reduce motion for accessibility. The pebble cairn still grows — just quietly.",
+        body: "Toggle off the completion animation, sound, or reduce motion for accessibility. Today's tally still grows — just quietly.",
         visual: (
           <MockupSheet title="Settings">
             <MockupRow label="Completion animation" value="On" />

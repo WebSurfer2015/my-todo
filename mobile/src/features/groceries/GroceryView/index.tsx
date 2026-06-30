@@ -22,7 +22,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import { useTriggerPebbleFlight } from '../../mochi/PebbleFlight'
 import { ChevronDown, ChevronRight, Pin } from 'lucide-react-native'
 import { ActionSheetIOS, Alert } from 'react-native'
 import { GroceryItem, GroceryGroup, frequentGroceries } from '../../../core-bindings/groceries'

@@ -8,7 +8,6 @@ import { describe, expect, it } from "vitest";
 import {
   todoToggle,
   expandSeries,
-  pebbleDelta,
 } from "../../core/src/logic/derive";
 import type { Todo } from "../../core/src/domain/types";
 
@@ -96,14 +95,6 @@ describe("todoToggle — series instance completion (R3)", () => {
     expect(out).toBe(expanded); // same reference — no mutation
     expect(out.find((t) => t.id === before.id)).toBe(before);
   });
-
-  it("pebbleDelta still reports +1 on series completion", () => {
-    const expanded = expandSeries(seed(), "2026-05-28");
-    const before = expanded[0];
-    const out = todoToggle(expanded, before.id, "2026-05-28");
-    const after = out.find((t) => t.id === before.id)!;
-    expect(pebbleDelta(before, after)).toEqual({ task: 1, subtask: 0 });
-  });
 });
 
 describe("todoToggle — series un-do (R3)", () => {
@@ -120,15 +111,6 @@ describe("todoToggle — series un-do (R3)", () => {
     expect(head.trashed).toBe(false);
     expect(head.completionDate).toBeUndefined();
     expect(head.trashedAt).toBeUndefined();
-  });
-
-  it("pebbleDelta reports -1 on series un-do", () => {
-    const expanded = expandSeries(seed(), "2026-05-28");
-    const completed = todoToggle(expanded, expanded[0].id, "2026-05-28");
-    const beforeUndo = completed.find((t) => t.id === expanded[0].id)!;
-    const reopened = todoToggle(completed, expanded[0].id, "2026-05-28");
-    const afterUndo = reopened.find((t) => t.id === expanded[0].id)!;
-    expect(pebbleDelta(beforeUndo, afterUndo)).toEqual({ task: -1, subtask: 0 });
   });
 });
 

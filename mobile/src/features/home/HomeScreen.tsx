@@ -1,8 +1,7 @@
 /**
  * Home tab — the calm landing pad. Top of the screen now surfaces the
  * "Today" bucket so a quick check-in on Home immediately answers
- * "what do I need to do right now?" without jumping to Todos. Stats
- * tiles and the lifetime cairn live below as gentler ambient context.
+ * "what do I need to do right now?" without jumping to Todos.
  *
  * "Today" includes: open todos with dueDate === today AND open todos
  * with dueDate < today (carried-over). Done-today items show in their
@@ -18,7 +17,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import { useIsFocused, useNavigation } from '@react-navigation/native'
+import { useNavigation } from '@react-navigation/native'
 import { ChevronRight } from 'lucide-react-native'
 import { useStore } from '../../app/StoreContext'
 import { useLang } from '../../app/LangContext'
@@ -290,20 +289,12 @@ export default function HomeScreen() {
     />
   )
 
-  // PebbleStrip on Home is rendered conditionally when this screen is
-  // focused — its useEffect handles flight-target registration on
-  // mount, so simply mounting/unmounting it as focus shifts gives us
-  // the correct cairn target without manual register/clear plumbing
-  // here. Todos has the same focus-gate pattern.
-  const isFocused = useIsFocused()
-
   // Day-1 / "empty workspace" mode: when there are NO non-trashed
   // todos anywhere, the Dashboard collapses to a single full-screen
-  // welcome empty state. Hides the pebble strip, TODAY band, tile
-  // row, and What's Next button — all of which have no meaning when
-  // the user has no items. Reveals each surface progressively as the
-  // user invests (adds first todo → TODAY band + tiles return; checks
-  // one off → pebble strip becomes informative). The FAB stays
+  // welcome empty state. Hides the TODAY band, tile row, and What's
+  // Next button — all of which have no meaning when the user has no
+  // items. Reveals each surface progressively as the user invests
+  // (adds first todo → TODAY band + tiles return). The FAB stays
   // visible as a secondary "add" affordance for users who'd rather
   // tap the corner than the centered card.
   if (store.activeCount === 0) {
@@ -338,9 +329,6 @@ export default function HomeScreen() {
   return (
     <View style={styles.flex}>
       <AppHeader onGearPress={sheets.openSettings} />
-      {/* No PebbleStrip on Home anymore — pebble flights now target the Mochi
-          avatar in AppHeader (it happy-dances on every check-off, motion-aware).
-          The PebbleStrip component still exists; it's just not rendered here. */}
       <ScrollView
         style={styles.flex}
         contentContainerStyle={[styles.body, { paddingBottom: 120 }]}
@@ -361,7 +349,7 @@ export default function HomeScreen() {
         {nextExpanded ? null : todayBucket.length === 0 ? (
           <>
             {/* Quiet TODAY header above the empty state. */}
-            {openCount === 0 && store.todayPebbles === 0 ? (
+            {openCount === 0 && counts.dToday === 0 ? (
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionHeader}>TODAY</Text>
               </View>
@@ -375,7 +363,7 @@ export default function HomeScreen() {
               >
                 <Text style={styles.sectionHeader}>TODAY</Text>
                 <View style={styles.sectionRight}>
-                  <Text style={styles.sectionCount}>{`${store.todayPebbles} done`}</Text>
+                  <Text style={styles.sectionCount}>{`${counts.dToday} done`}</Text>
                   <ChevronRight size={14} color={theme.label3} strokeWidth={2.5} />
                 </View>
               </TouchableOpacity>
@@ -394,11 +382,11 @@ export default function HomeScreen() {
               <EmptyStateCard
                 title="Nothing pending."
                 subline={
-                  store.todayPebbles === 0
+                  counts.dToday === 0
                     ? undefined
-                    : store.todayPebbles === 1
+                    : counts.dToday === 1
                       ? '1 done today.'
-                      : `${store.todayPebbles} done today.`
+                      : `${counts.dToday} done today.`
                 }
                 hint="Enjoy the breathing room."
                 actionLabel="Peek ahead"
@@ -737,21 +725,6 @@ function makeStyles(c: ThemeColors) {
       paddingVertical: 8,
       paddingHorizontal: 8,
       minWidth: 80,
-    },
-    homeStripRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      // Match body paddingHorizontal so the strip's left edge aligns
-      // with the TODAY section header text.
-      paddingHorizontal: 20,
-      // Pull TODAY up — PebbleStrip's own marginBottom is 14, this
-      // negative margin counters most of it for tighter spacing.
-      marginBottom: -10,
-    },
-    homeStripPebbles: {
-      // Cap the pebble row at 60% of the screen width so a high count
-      // collapses into "+N" before encroaching on the Mochi.
-      maxWidth: '60%',
     },
     todayPaginatorCenter: {
       flex: 1,

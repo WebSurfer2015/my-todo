@@ -4,7 +4,7 @@
  * series instances also get a fresh tail appended.
  */
 import { describe, expect, it } from 'vitest'
-import { todoSkip, expandSeries, pebbleDelta } from '../../core/src/logic/derive'
+import { todoSkip, expandSeries } from '../../core/src/logic/derive'
 import type { Todo } from '../../core/src/domain/types'
 
 function todo(over: Partial<Todo> = {}): Todo {
@@ -56,12 +56,6 @@ describe('todoSkip — non-recurring', () => {
     const out = todoSkip(before, 'one-off', '2026-05-29')
     expect(out).toBe(before)
     expect(out[0].status).toBeUndefined()
-  })
-
-  it('pebbleDelta reports zero — skip is pebble-neutral', () => {
-    const before = todo()
-    const after = todoSkip([before], 'one-off', '2026-05-29')[0]
-    expect(pebbleDelta(before, after)).toEqual({ task: 0, subtask: 0 })
   })
 })
 

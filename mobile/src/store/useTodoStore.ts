@@ -32,7 +32,6 @@ import { TODOS_PER_DOC_DUAL_WRITE } from "../app/featureFlags";
 import { serializeAny } from "../storage/envelope";
 import { DEFAULT_HOME_STAT_TILES } from "../../../core/src/logic/filters";
 import { todayLocal, genUuid } from "../../../core/src/logic/utils";
-import { getTodayPebbles } from "../core-bindings/profile";
 import { dailyQuoteIndex, quoteAt } from "../../../core/src/data/quotes";
 
 import { pickMascotLine } from "../features/mochi/mascotLines";
@@ -164,9 +163,9 @@ export function useTodoStore() {
   const osReduceMotion = useReducedMotion();
 
   const view: ViewMode = profile.view ?? "status";
-  // Derived bool re-exposed for screens that hide motion-bound chrome
+  // Derived bool re-exposed for screens that gate motion-bound chrome
   // when the user has opted out. Same expression the todos slice
-  // uses internally to decide whether to defer pebble flights.
+  // uses internally to gate the completion animation.
   const animationOn =
     profile.completionAnimation !== false &&
     profile.reduceMotion !== true &&
@@ -202,10 +201,7 @@ export function useTodoStore() {
   // ---- Stable callbacks ----
 
   // PR 4 todos slice — owns todos + todoReferences + selectedTrashIds
-  // state, all todo + subtask mutations, trash bulk ops, and the
-  // pebble-accounting chokepoint (applyPebbleDelta + Timed). The
-  // chokepoint is re-exposed so the grocery slice's bucket completions
-  // can route through the same path.
+  // state, all todo + subtask mutations, and trash bulk ops.
   const todosBundle = useTodosSlice(adapter, {
     onSaved,
     profile,
@@ -217,7 +213,6 @@ export function useTodoStore() {
     uid,
     t,
     notify,
-    osReduceMotion,
     actions: store.actions,
   });
   const {
@@ -228,7 +223,6 @@ export function useTodoStore() {
     setTodoReferences,
     selectedTrashIds,
     todosRef,
-    applyPebbleDeltaTimed,
     toggle,
     moveToTrash,
     skipTodo,
@@ -267,9 +261,6 @@ export function useTodoStore() {
     bulkPermanentDelete,
     clearDone,
   } = todosBundle;
-  // applyPebbleDelta is intentionally NOT destructured here — every call
-  // site lives inside useTodosSlice, and applyPebbleDeltaTimed is the
-  // public pebble-accounting chokepoint the composer threads onward.
 
   // Persistence-scale dual-write (default-OFF). Shadow-populates the
   // per-item todos collection alongside the single-doc write so a future
@@ -284,9 +275,7 @@ export function useTodoStore() {
     (td) => serializeAny(td),
   );
 
-  // Grocery slice — placed after the todos slice so its
-  // toggleGroceryChecked can route bucket-completion deltas through
-  // applyPebbleDeltaTimed (now owned by the todos slice).
+  // Grocery slice.
   const {
     groceries,
     setGroceries,
@@ -315,7 +304,6 @@ export function useTodoStore() {
     profileRef,
     notify,
     t,
-    applyPebbleDeltaTimed,
     actions: store.actions,
   });
 
@@ -419,10 +407,7 @@ export function useTodoStore() {
     (td) => !td.trashed && td.dueDate === todayDate,
   ).length;
   const plateLine = t.todayPlate(todayCount);
-  // Per-avatar theming was removed — the mascot voice always keeps its
-  // pebble vocabulary now (this flag can never be true).
-  const dethemePebbles = false;
-  const mascotLine = pickMascotLine(lang, greetingKey, todayCount, todayDate, dethemePebbles);
+  const mascotLine = pickMascotLine(lang, greetingKey, todayCount, todayDate);
   // Subtitle source. Resolution:
   //   - 'daily'  → date-seeded curated quote, stable all day, rotates at
   //                midnight; honors a per-day "show me another" shuffle.
@@ -448,11 +433,6 @@ export function useTodoStore() {
   const orderedStatuses = getOrderedStatuses(profile, t);
   const orderedPriorities = getOrderedPriorities(profile, t);
   const orderedVisibleStatuses = getOrderedVisibleStatuses(profile, t);
-  const todayPebbleCounts = getTodayPebbles(profile, todayDate);
-  const todayTaskPebbles = todayPebbleCounts.task;
-  const todaySubtaskPebbles = todayPebbleCounts.subtask;
-  const todayPebbles = todayTaskPebbles + todaySubtaskPebbles;
-  const lifetimePebbles = profile.lifetimePebbles ?? 0;
 
   return {
     todos,
@@ -499,14 +479,8 @@ export function useTodoStore() {
     mascotLine,
     identityLine,
     identityLineIsQuote,
-    todayPebbles,
-    todayTaskPebbles,
-    todaySubtaskPebbles,
-    lifetimePebbles,
     /** True when the user has both completionAnimation on AND
-     * reduceMotion off — the same check used internally for
-     * deferred pebble flights. Exposed so screens can hide the
-     * PebbleStrip entirely when the user has opted out of motion. */
+     * reduceMotion off. Gates the completion animation. */
     animationOn,
     /** Effective motion-reduction (in-app toggle OR OS Reduce Motion). For
      * prop-based animation consumers like SplashOverlay / ChatSheet. */

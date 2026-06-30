@@ -66,9 +66,6 @@ interface Props {
   /** When false, hides the Groceries pill entirely (used when the user
    * has turned the feature off in Settings). Defaults to true. */
   groceriesEnabled?: boolean
-  /** When > 0, shows a tiny cairn + count at the right end so the user
-   * keeps a sense of progress when scrolled past the full pebble strip. */
-  scrolledPebbleCount?: number
 }
 
 interface ResolvedPill {
@@ -106,7 +103,6 @@ export default function FilterBar({
   combinedCount = 0,
   groceriesActiveCount = 0,
   groceriesEnabled = true,
-  scrolledPebbleCount = 0,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
@@ -460,11 +456,6 @@ export default function FilterBar({
         )}
       </ScrollView>
 
-      {/* The trailing CairnGlyph hint was removed — the pebble strip
-          now lives inside the same sticky container as this filter row
-          (see App.tsx stickyHeaderIndices), so a duplicate mini cairn
-          here is redundant. scrolledPebbleCount kept on the props
-          shape for back-compat but no longer rendered. */}
     </View>
   )
 }
@@ -552,10 +543,5 @@ function makeStyles(c: ThemeColors) {
       marginLeft: 2,
     },
     pillCountActive: { color: 'rgba(255,255,255,0.95)' },
-    pebbleHint: {
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingLeft: 8,
-    },
   })
 }

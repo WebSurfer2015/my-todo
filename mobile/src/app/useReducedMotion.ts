@@ -7,7 +7,7 @@ import { AccessibilityInfo } from 'react-native'
  *
  * The app's motion gating used to depend ONLY on the in-app Settings toggle
  * (`profile.reduceMotion`), so a user who had turned Reduce Motion on at the
- * OS level still got the full pebble flight / checkbox bounce / avatar dance.
+ * OS level still got the full checkbox bounce / completion animations.
  * Fold this into the animation gate so the system preference is honored
  * without the user having to discover the in-app switch.
  */

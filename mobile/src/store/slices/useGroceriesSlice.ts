@@ -1,8 +1,7 @@
 // PR 3 of the useTodoStore split — see docs/USETODOSTORE-SPLIT-PLAN.md.
 // Owns groceries + groceryGroups state and every grocery mutation.
-// Cross-slice work (active store stamps on profile, snackbars,
-// pebble bookkeeping for store×department buckets) flows through
-// deps passed in from the composer.
+// Cross-slice work (active store stamps on profile, snackbars)
+// flows through deps passed in from the composer.
 
 import { useCallback, useEffect, useRef, MutableRefObject } from "react";
 import { useSyncedState } from "../useSyncedState";
@@ -21,7 +20,6 @@ import {
 import { Profile } from "../../core-bindings/profile";
 import { classifyGroceryDept } from "../../adapters/aiInfer";
 import { StorageAdapter } from "../../../../core/src/ports/persistence";
-import { PebbleDelta } from "../../../../core/src/logic/derive";
 import { TodoStoreActions } from "../../../../core/src/store";
 import { unwrap, serializeAny } from "../../storage/envelope";
 
@@ -55,9 +53,6 @@ export interface GroceriesSliceDeps {
     groceryNewDeptSuggest: (label: string) => string;
     create: string;
   };
-  /** Same pebble chokepoint as todo completions — fires when a
-   * store×dept bucket completes/uncompletes. */
-  applyPebbleDeltaTimed: (delta: PebbleDelta) => void;
   /** The createTodoStore pure-transform surface. */
   actions: TodoStoreActions;
 }
@@ -78,10 +73,8 @@ export interface GroceriesSlice {
     groupId?: string;
     stores?: string[];
   }) => string | undefined;
-  /** Returns the bucket-completion delta — > 0 when this toggle
-   * finished a (store × department) bucket, < 0 when it un-finished
-   * one, 0 otherwise. The UI uses the sign to gate the Mochi
-   * pebble-flight celebration (only on positive completions). */
+  /** Returns 1 when this toggle just checked the item off (drives the
+   * row's completion animation), 0 otherwise. */
   toggleGroceryChecked: (id: string) => number;
   editGrocery: (
     id: string,
@@ -105,14 +98,13 @@ export function useGroceriesSlice(
   adapter: StorageAdapter,
   deps: GroceriesSliceDeps,
 ): GroceriesSlice {
-  const { onSaved, setProfile, profileRef, notify, t, applyPebbleDeltaTimed, actions } = deps;
+  const { onSaved, setProfile, profileRef, notify, t, actions } = deps;
   // Pure grocery transforms via the createTodoStore surface (stable
   // across ordinary renders). Migrators + consts stay direct imports —
   // they're used at module scope / are data, not behavior.
   const {
     newGroceryItem,
     groceryToggleChecked,
-    shoppingBucketPebbleDelta,
     groceryEdit,
     groceryDelete,
     inferGroceryGroupLocal,
@@ -447,23 +439,20 @@ export function useGroceriesSlice(
 
   const toggleGroceryChecked = useCallback(
     (id: string): number => {
-      // Compute next + delta SYNCHRONOUSLY from the ref-mirrored
-      // current state. setGroceries(updater) queues its updater for
-      // the next render, so reading a closure variable set inside the
-      // updater returns the initial value at call time — that broke
-      // the Row's pebble-flight gate (no animation on bucket
-      // completions after the first one). Compute first, dispatch
-      // the result, return the real delta.
+      // Compute "became checked" SYNCHRONOUSLY from the ref-mirrored
+      // current state. setGroceries(updater) queues its updater for the
+      // next render, so reading a closure variable set inside the
+      // updater returns the initial value at call time — that broke the
+      // Row's completion-animation gate. Compute first, dispatch, return.
       const prev = groceriesRef.current;
+      const beforeItem = prev.find((x) => x.id === id);
       const next = groceryToggleChecked(prev, id);
-      const delta = shoppingBucketPebbleDelta(prev, next, id);
-      if (delta !== 0) {
-        applyPebbleDeltaTimed({ task: 0 as const, subtask: delta });
-      }
       setGroceries(next);
-      return delta;
+      // 1 when the item just transitioned to checked — the Row fires the
+      // completion animation on a positive value.
+      return beforeItem && !beforeItem.checked ? 1 : 0;
     },
-    [setGroceries, applyPebbleDeltaTimed],
+    [setGroceries],
   );
 
   const editGrocery = useCallback(
