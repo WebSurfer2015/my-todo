@@ -1,4 +1,5 @@
 import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react";
+import { AppState } from "react-native";
 import { StorageAdapter } from "../../../core/src/ports/persistence";
 
 /** Upper bound on a single entity's first hydrate read. Firestore (with the
@@ -32,6 +33,17 @@ export function useSyncedState<T>(
   parseRef.current = parse;
   serializeRef.current = serialize;
   onSavedRef.current = onSaved;
+  // Latest values mirrored into refs so the AppState background-flush
+  // listener (registered once) can read current state/adapter/key/loaded
+  // without re-subscribing on every change.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const adapterRef = useRef(adapter);
+  adapterRef.current = adapter;
+  const keyRef = useRef(key);
+  keyRef.current = key;
+  const loadedRef = useRef(loaded);
+  loadedRef.current = loaded;
 
   useEffect(() => {
     let cancelled = false;
@@ -116,6 +128,32 @@ export function useSyncedState<T>(
     }, 400);
     return () => clearTimeout(handle);
   }, [adapter, key, loaded, state]);
+
+  // Flush a pending debounced write synchronously when the app goes to the
+  // background / inactive. The trailing-debounce effect's cleanup only
+  // CANCELS its timer — so a mutation followed by a background or force-quit
+  // inside the ~400ms window would be lost to both AsyncStorage and
+  // Firestore. Writing the latest serialized value here closes that window
+  // (and advances lastSerializedRef so the normal debounce won't double-write).
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next !== "background" && next !== "inactive") return;
+      if (!loadedRef.current) return;
+      const json = serializeRef.current(stateRef.current);
+      if (json === lastSerializedRef.current) return;
+      lastSerializedRef.current = json;
+      adapterRef.current
+        .setItem(keyRef.current, json)
+        .then(() => onSavedRef.current?.(Date.now()))
+        .catch((err) => {
+          console.warn(
+            `useSyncedState[${keyRef.current}] background flush failed:`,
+            err,
+          );
+        });
+    });
+    return () => sub.remove();
+  }, []);
 
   return [state, setState, loaded];
 }

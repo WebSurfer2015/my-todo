@@ -48,6 +48,7 @@ import CategoryIcon from '../../../ui/CategoryIcon'
 import PickerModal from '../../../ui/PickerModal'
 import AddSubtaskSheet from '../AddSubtaskSheet'
 import EmptyStateCard from '../../../ui/EmptyStateCard'
+import { usePurchases } from '../../../app/PurchasesContext'
 import InlinePicker from '../../../ui/InlinePicker'
 import {
   useSuggestSteps,
@@ -344,7 +345,8 @@ export default function TaskDetailsSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible])
   const doneCount = subs.filter((s) => s.done).length
-  const ai = useSuggestSteps({ parentTitle: todo.text, parentNotes: todo.notes })
+  const { canSendMochi } = usePurchases()
+  const ai = useSuggestSteps({ parentTitle: todo.text, parentNotes: todo.notes, canSend: canSendMochi })
 
   // The sheet is a Modal — it stays mounted across close→reopen
   // cycles, so without an explicit reset the `ai.suggestions` from
