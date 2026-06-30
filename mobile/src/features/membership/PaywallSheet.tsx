@@ -67,17 +67,10 @@ const PLANS: PlanView[] = [
     product: { monthly: PRODUCT_IDS.premiumMonthly, annual: PRODUCT_IDS.premiumAnnual },
     fallbackPrice: { monthly: '$2.99/mo', annual: '$19.99/yr' },
   },
-  {
-    tier: 'max',
-    name: 'Max',
-    bullets: [
-      'Everything in Premium',
-      `${TIER_LIMITS.max.mochiMonthly} Mochi requests / month, then pay as you go`,
-      'Planning features — weekly planner, event planner with to-do generation',
-    ],
-    product: { monthly: PRODUCT_IDS.maxMonthly, annual: PRODUCT_IDS.maxAnnual },
-    fallbackPrice: { monthly: '$7.99/mo', annual: '$59.99/yr' },
-  },
+  // Max is intentionally not offered for now — the paywall sells Free +
+  // Premium only. The tier still exists in the entitlement model / webhook so a
+  // Max plan can be re-added here later without other changes. To re-offer it,
+  // restore the { tier: 'max', … } entry with PRODUCT_IDS.maxMonthly/maxAnnual.
 ]
 
 interface Props {
@@ -293,15 +286,9 @@ export default function PaywallSheet({
                       ? `Start ${intro.periodNumberOfUnits * 7}-day free trial`
                       : `Start ${intro.periodNumberOfUnits}-${trialUnit.toLowerCase()} free trial`
                     : null
-                // Per-tier highlight badge, shown on both billing options so it
-                // doesn't disappear when the toggle flips: Premium is the
-                // "Popular" pick, Max is the "Best Value".
-                const badgeLabel =
-                  plan.tier === 'premium'
-                    ? 'Popular'
-                    : plan.tier === 'max'
-                      ? 'Best Value'
-                      : null
+                // Premium is the headline paid plan, badged "Popular". (Max is
+                // not currently offered; if it returns, give it its own badge.)
+                const badgeLabel = plan.tier === 'premium' ? 'Popular' : null
                 // The filled CTA follows the lead upgrade — so the user's only
                 // actionable button is always the prominent one (e.g. Max for an
                 // existing Premium subscriber), never a subordinate outline.
