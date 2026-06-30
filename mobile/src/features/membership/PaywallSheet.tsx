@@ -53,16 +53,22 @@ const PLANS: PlanView[] = [
     bullets: [
       'Unlimited to-dos & groceries',
       'Reminders, recurring & before-due',
-      `${TIER_LIMITS.free.mochiDaily} Mochi AI requests / day, then pay as you go`,
+      'All themes, included',
+      `${TIER_LIMITS.free.mochiDaily} Mochi AI requests / day`,
     ],
   },
   {
+    // Bullets describe ONLY what Premium actually delivers: a larger pool of
+    // Mochi AI requests. (Themes are free for everyone, and there are no other
+    // gated paid features yet — don't advertise any.) NOTE: the monthly
+    // allowance is only real when MOCHI_TIER_ENFORCEMENT is on server-side; with
+    // it off, Premium gets the same AI as Free and this bullet is not yet true.
     tier: 'premium',
     name: 'Premium',
     bullets: [
       'Everything in Free',
-      `${TIER_LIMITS.premium.mochiMonthly} Mochi AI requests / month, then pay as you go`,
-      'Premium features — theme-based UI, auto-defer',
+      `${TIER_LIMITS.premium.mochiMonthly} Mochi AI requests / month`,
+      'More headroom for Ask Mochi, suggestions & breakdowns',
     ],
     product: { monthly: PRODUCT_IDS.premiumMonthly, annual: PRODUCT_IDS.premiumAnnual },
     fallbackPrice: { monthly: '$2.99/mo', annual: '$19.99/yr' },
@@ -386,8 +392,7 @@ export default function PaywallSheet({
               <Text style={styles.fine}>
                 A free trial, where offered, converts to a paid subscription unless
                 cancelled before it ends. Subscriptions renew automatically until
-                cancelled — manage in your App Store account. Pay-as-you-go requests
-                are available when your Mochi allowance runs out.
+                cancelled — manage in your App Store account.
               </Text>
               <View style={styles.legalRow}>
                 <TouchableOpacity onPress={() => openLink(TERMS_URL)} hitSlop={10}>

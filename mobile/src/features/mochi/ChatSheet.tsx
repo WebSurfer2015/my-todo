@@ -671,7 +671,7 @@ export default function ChatSheet({
                     ? 'Out of Mochi requests — tap to upgrade'
                     : mochiRemaining > 0
                       ? `${mochiRemaining} Mochi requests left ${mochiPeriod === 'today' ? 'today' : 'this month'}`
-                      : 'Allowance used — now pay as you go'}
+                      : 'Using your top-up balance'}
                 </Text>
               </TouchableOpacity>
             )}
