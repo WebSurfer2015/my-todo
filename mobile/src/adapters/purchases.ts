@@ -27,7 +27,7 @@ import type {
   PurchasesPackage,
 } from 'react-native-purchases'
 import type { Tier } from '../core-bindings/entitlements'
-import { tierForProduct, TIER_ORDER, productRank } from '../core-bindings/entitlements'
+import { tierForProduct, TIER_ORDER, productRank, TOPUP_GRANTS } from '../core-bindings/entitlements'
 
 const API_KEY: string =
   (Constants.expoConfig?.extra as { revenueCatIosKey?: string } | undefined)
@@ -236,5 +236,52 @@ export async function manageSubscriptions(): Promise<void> {
     await rc().showManageSubscriptions()
   } catch (err) {
     console.warn('showManageSubscriptions failed', err)
+  }
+}
+
+/** A purchasable pay-as-you-go top-up pack (consumable). */
+export interface TopUpProduct {
+  productId: string
+  /** Localized store price, e.g. "$1.99". */
+  priceString: string
+  /** Mochi requests this pack grants (added to topUpBalance by the webhook). */
+  grant: number
+}
+
+/** Fetch the consumable top-up packs (with live store prices), cheapest first.
+ * Empty when purchases aren't configured or the store can't resolve them. */
+export async function fetchTopUps(): Promise<TopUpProduct[]> {
+  if (!isPurchasesEnabled()) return []
+  try {
+    const ids = Object.keys(TOPUP_GRANTS)
+    const products = await rc().getProducts(ids)
+    return products
+      .map((p) => ({
+        productId: p.identifier,
+        priceString: p.priceString,
+        grant: TOPUP_GRANTS[p.identifier] ?? 0,
+      }))
+      .filter((t) => t.grant > 0)
+      .sort((a, b) => a.grant - b.grant)
+  } catch (err) {
+    console.warn('fetchTopUps failed', err)
+    return []
+  }
+}
+
+/** Buy a consumable top-up by product id. The webhook (NON_RENEWING_PURCHASE)
+ * credits the grant to the user's topUpBalance; the client reflects it via the
+ * entitlement-doc listener. Same cancel-vs-fail discrimination as a sub buy. */
+export async function purchaseTopUp(productId: string): Promise<PurchaseOutcome> {
+  if (!isPurchasesEnabled()) return { status: 'failed' }
+  try {
+    const [product] = await rc().getProducts([productId])
+    if (!product) return { status: 'failed' }
+    const { customerInfo } = await rc().purchaseStoreProduct(product)
+    return { status: 'purchased', info: customerInfo }
+  } catch (err) {
+    if ((err as { userCancelled?: boolean })?.userCancelled) return { status: 'cancelled' }
+    console.warn('purchaseTopUp failed', err)
+    return { status: 'failed' }
   }
 }

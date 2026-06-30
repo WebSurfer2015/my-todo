@@ -15,6 +15,7 @@ import {
 } from 'react-native'
 import { Check, Sparkles } from 'lucide-react-native'
 import type { PurchasesOffering, PurchasesPackage } from 'react-native-purchases'
+import type { TopUpProduct } from '../../adapters/purchases'
 import { useLang } from '../../app/LangContext'
 import { useTheme, ThemeColors } from '../../app/theme'
 import { useSheetDismiss, sheetGrabZone } from '../../ui/useSheetDismiss'
@@ -53,22 +54,22 @@ const PLANS: PlanView[] = [
     bullets: [
       'Unlimited to-dos & groceries',
       'Reminders, recurring & before-due',
-      'All themes, included',
+      'Sage & Sky themes',
       `${TIER_LIMITS.free.mochiDaily} Mochi AI requests / day`,
     ],
   },
   {
-    // Bullets describe ONLY what Premium actually delivers: a larger pool of
-    // Mochi AI requests. (Themes are free for everyone, and there are no other
-    // gated paid features yet — don't advertise any.) NOTE: the monthly
-    // allowance is only real when MOCHI_TIER_ENFORCEMENT is on server-side; with
-    // it off, Premium gets the same AI as Free and this bullet is not yet true.
+    // Two real Premium differentiators: a larger pool of Mochi AI requests and
+    // the full theme set (Free is limited to Sage + Sky). NOTE: the monthly AI
+    // allowance is only delivered when MOCHI_TIER_ENFORCEMENT is on server-side;
+    // with it off, Premium gets the same AI as Free and that bullet isn't yet
+    // true. The themes benefit is enforced client-side and live now.
     tier: 'premium',
     name: 'Premium',
     bullets: [
       'Everything in Free',
       `${TIER_LIMITS.premium.mochiMonthly} Mochi AI requests / month`,
-      'More headroom for Ask Mochi, suggestions & breakdowns',
+      'All 6 color themes',
     ],
     product: { monthly: PRODUCT_IDS.premiumMonthly, annual: PRODUCT_IDS.premiumAnnual },
     fallbackPrice: { monthly: '$2.99/mo', annual: '$19.99/yr' },
@@ -90,6 +91,11 @@ interface Props {
   currentProductId: string | null
   /** productId → eligible for its free trial / intro offer (false once used). */
   trialEligible: Record<string, boolean>
+  /** Pay-as-you-go consumable packs (live store prices), cheapest first. */
+  topUps: TopUpProduct[]
+  /** Remaining pay-as-you-go requests already on the account. */
+  topUpBalance: number
+  onBuyTopUp: (productId: string) => Promise<'purchased' | 'cancelled' | 'failed'>
   onPurchase: (pkg: PurchasesPackage) => Promise<'purchased' | 'cancelled' | 'failed'>
   onRestore: () => Promise<'found' | 'none' | 'failed'>
   onRetry: () => void
@@ -107,6 +113,9 @@ export default function PaywallSheet({
   currentTier,
   currentProductId,
   trialEligible,
+  topUps,
+  topUpBalance,
+  onBuyTopUp,
   onPurchase,
   onRestore,
   onRetry,
@@ -126,6 +135,7 @@ export default function PaywallSheet({
   // Modal, so result + error copy must live inside the sheet.
   const [notice, setNotice] = useState<{ kind: 'info' | 'error'; text: string } | null>(null)
   const [restoring, setRestoring] = useState(false)
+  const [topUpPendingId, setTopUpPendingId] = useState<string | null>(null)
   // Plans can't be shown when the offering hasn't loaded — distinguish the
   // transient load from a real "products not configured" so a network hiccup
   // doesn't mislabel shipping products "Coming soon".
@@ -159,6 +169,20 @@ export default function PaywallSheet({
     else if (res === 'failed')
       setNotice({ kind: 'error', text: "Couldn't complete the purchase. Please try again." })
     // 'cancelled' → silent, the user backed out on purpose.
+  }
+
+  async function topUp(pack: TopUpProduct) {
+    if (topUpPendingId || busy) return
+    setNotice(null)
+    setTopUpPendingId(pack.productId)
+    const res = await onBuyTopUp(pack.productId)
+    setTopUpPendingId(null)
+    // Consumable: stay on the sheet so the user sees the balance tick up
+    // (the webhook credits it; the balance line re-renders).
+    if (res === 'purchased')
+      setNotice({ kind: 'info', text: `Added ${pack.grant} Mochi requests.` })
+    else if (res === 'failed')
+      setNotice({ kind: 'error', text: "Couldn't complete the purchase. Please try again." })
   }
 
   async function restore() {
@@ -356,6 +380,36 @@ export default function PaywallSheet({
               </>
               )}
 
+              {/* Pay-as-you-go top-ups — one-time consumable packs of Mochi
+                  requests, independent of any subscription. */}
+              {topUps.length > 0 && (
+                <View style={styles.topUpSection}>
+                  <Text style={styles.topUpHeader}>Need more now?</Text>
+                  <Text style={styles.topUpSub}>
+                    One-time top-ups — extra Mochi requests that never expire.
+                    {topUpBalance > 0 ? ` You have ${topUpBalance} left.` : ''}
+                  </Text>
+                  {topUps.map((pack) => (
+                    <TouchableOpacity
+                      key={pack.productId}
+                      style={styles.topUpRow}
+                      disabled={busy || topUpPendingId !== null}
+                      onPress={() => topUp(pack)}
+                      activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Buy ${pack.grant} Mochi requests for ${pack.priceString}`}
+                    >
+                      <Text style={styles.topUpRowLabel}>{pack.grant} Mochi requests</Text>
+                      {topUpPendingId === pack.productId ? (
+                        <ActivityIndicator size="small" color={theme.primary} />
+                      ) : (
+                        <Text style={styles.topUpRowPrice}>{pack.priceString}</Text>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
               {notice && (
                 <Text style={notice.kind === 'error' ? styles.noticeError : styles.noticeInfo}>
                   {notice.text}
@@ -516,6 +570,28 @@ function makeStyles(c: ThemeColors) {
     restoreText: { fontSize: 13, fontWeight: '600', color: c.primary },
     manage: { alignSelf: 'center', paddingVertical: 6 },
     manageText: { fontSize: 12, fontWeight: '500', color: c.label3 },
+    topUpSection: {
+      marginTop: 8,
+      paddingTop: 16,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.separator,
+      gap: 8,
+    },
+    topUpHeader: { fontSize: 15, fontWeight: '700', color: c.label },
+    topUpSub: { fontSize: 12, color: c.label3, lineHeight: 17, marginBottom: 4 },
+    topUpRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      minHeight: 46,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      backgroundColor: c.card,
+    },
+    topUpRowLabel: { fontSize: 14, fontWeight: '600', color: c.label },
+    topUpRowPrice: { fontSize: 14, fontWeight: '700', color: c.primary },
     loadingBlock: { alignItems: 'center', gap: 14, paddingVertical: 48 },
     loadingText: { fontSize: 14, color: c.label2, textAlign: 'center', lineHeight: 20 },
     noticeInfo: {

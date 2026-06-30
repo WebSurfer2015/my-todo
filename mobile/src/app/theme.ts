@@ -134,6 +134,16 @@ export const THEMES: Record<ThemeName, { light: ThemeColors; dark: ThemeColors }
 
 export const DEFAULT_THEME: ThemeName = 'sage'
 
+/** Themes available on the Free tier — green (sage) + blue (sky). Every other
+ * theme is part of the Premium pack. The default is a free theme so a new/Free
+ * user always lands on something they're entitled to. */
+export const FREE_THEMES: ThemeName[] = ['sage', 'sky']
+
+/** Whether `name` is usable without a paid subscription. */
+export function isFreeTheme(name: ThemeName): boolean {
+  return FREE_THEMES.includes(name)
+}
+
 /** The two signature swatch tones for a theme's pie-chart swatch. */
 export function themeSwatch(name: ThemeName, scheme: 'light' | 'dark') {
   const h = HANDOFF[name][scheme]

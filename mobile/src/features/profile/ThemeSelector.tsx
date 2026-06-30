@@ -1,8 +1,9 @@
 /**
- * Theme picker — replaces the old Background picker. Shows the five color
+ * Theme picker — replaces the old Background picker. Shows the six color
  * themes as 3-tone pie swatches (50% brand · 25% accent · 25% accentBright);
- * tap to apply live. Sage + Sky are free; Blossom/Honey/Cream are the premium
- * pack, gated by `canUseThemes` (tapping a locked one opens the paywall).
+ * tap to apply live. Sage + Sky are free; Blossom/Honey/Cream/Lilac are the
+ * Premium pack. When `allThemesUnlocked` is false the premium ones render
+ * locked and tapping one calls `onUpgrade` (closes + opens the paywall).
  */
 
 import React, { useMemo } from 'react'
@@ -13,9 +14,9 @@ import {
   useColorScheme,
   View,
 } from 'react-native'
-import { Check } from 'lucide-react-native'
+import { Check, Lock } from 'lucide-react-native'
 import SheetShell from '../../ui/SheetShell'
-import { useTheme, ThemeColors, themeSwatch } from '../../app/theme'
+import { useTheme, ThemeColors, themeSwatch, isFreeTheme } from '../../app/theme'
 import { THEME_NAMES, type ThemeName } from '../../core-bindings/profile'
 
 const LABELS: Record<ThemeName, string> = {
@@ -30,17 +31,31 @@ const LABELS: Record<ThemeName, string> = {
 interface Props {
   visible: boolean
   value: ThemeName
+  /** True when the user may use every theme (paid). When false, only the free
+   * themes (Sage + Sky) are selectable; the rest are locked behind the paywall. */
+  allThemesUnlocked: boolean
   onChange: (next: ThemeName) => void
+  /** Tapping a locked theme routes here (close + open paywall). */
+  onUpgrade: () => void
   onClose: () => void
 }
 
-export default function ThemeSelector({ visible, value, onChange, onClose }: Props) {
+export default function ThemeSelector({
+  visible,
+  value,
+  allThemesUnlocked,
+  onChange,
+  onUpgrade,
+  onClose,
+}: Props) {
   const theme = useTheme()
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light'
   const styles = useMemo(() => makeStyles(theme), [theme])
 
-  // All themes are free for every tier.
-  const pick = (name: ThemeName) => onChange(name)
+  // Sage + Sky are free; the rest are the Premium pack. A locked tap opens the
+  // paywall instead of applying.
+  const isLocked = (name: ThemeName) => !allThemesUnlocked && !isFreeTheme(name)
+  const pick = (name: ThemeName) => (isLocked(name) ? onUpgrade() : onChange(name))
 
   return (
     <SheetShell
@@ -54,6 +69,7 @@ export default function ThemeSelector({ visible, value, onChange, onClose }: Pro
         {THEME_NAMES.map((name) => {
           const sw = themeSwatch(name, scheme)
           const selected = value === name
+          const locked = isLocked(name)
           return (
             <TouchableOpacity
               key={name}
@@ -62,7 +78,7 @@ export default function ThemeSelector({ visible, value, onChange, onClose }: Pro
               onPress={() => pick(name)}
               accessibilityRole="button"
               accessibilityState={{ selected }}
-              accessibilityLabel={`${LABELS[name]} theme${selected ? ', selected' : ''}`}
+              accessibilityLabel={`${LABELS[name]} theme${selected ? ', selected' : ''}${locked ? ', Premium — tap to upgrade' : ''}`}
             >
               <View
                 style={[
@@ -71,17 +87,22 @@ export default function ThemeSelector({ visible, value, onChange, onClose }: Pro
                 ]}
               >
                 {/* 3-tone pie: left half = brand, right half split into
-                    accent (top) + accentBright (bottom). */}
-                <View style={styles.pie}>
+                    accent (top) + accentBright (bottom). Locked themes dim. */}
+                <View style={[styles.pie, locked && styles.pieLocked]}>
                   <View style={[styles.pieHalf, { backgroundColor: sw.brand }]} />
                   <View style={styles.pieHalf}>
                     <View style={[styles.pieQuarter, { backgroundColor: sw.accent }]} />
                     <View style={[styles.pieQuarter, { backgroundColor: sw.accentBright }]} />
                   </View>
                 </View>
-                {selected && (
+                {selected && !locked && (
                   <View style={[styles.check, { backgroundColor: theme.primary }]}>
                     <Check size={14} color={theme.primaryOn} strokeWidth={3} />
+                  </View>
+                )}
+                {locked && (
+                  <View style={styles.lock}>
+                    <Lock size={11} color="#FFFFFF" strokeWidth={2.5} />
                   </View>
                 )}
               </View>
@@ -134,6 +155,7 @@ function makeStyles(c: ThemeColors) {
       overflow: 'hidden',
       flexDirection: 'row',
     },
+    pieLocked: { opacity: 0.45 },
     pieHalf: { flex: 1 },
     pieQuarter: { flex: 1 },
     check: {

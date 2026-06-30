@@ -21,6 +21,9 @@ import {
   productFromCustomerInfo,
   checkTrialEligibility,
   manageSubscriptions as rcManageSubscriptions,
+  fetchTopUps,
+  purchaseTopUp as rcPurchaseTopUp,
+  type TopUpProduct,
   isPurchasesEnabled,
 } from '../adapters/purchases'
 import {
@@ -66,6 +69,10 @@ interface PurchasesValue {
   currentProductId: string | null
   /** productId → eligible for its free trial / intro offer. */
   trialEligible: Record<string, boolean>
+  /** Pay-as-you-go consumable packs (live store prices), cheapest first. */
+  topUps: TopUpProduct[]
+  /** Buy a top-up pack by product id; webhook credits the balance. */
+  buyTopUp: (productId: string) => Promise<'purchased' | 'cancelled' | 'failed'>
   purchasesEnabled: boolean
   purchase: (pkg: PurchasesPackage) => Promise<'purchased' | 'cancelled' | 'failed'>
   restore: () => Promise<'found' | 'none' | 'failed'>
@@ -118,6 +125,8 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
   // intro once per subscription group, so this flips to false for the rest
   // once any trial is started.
   const [trialEligible, setTrialEligible] = useState<Record<string, boolean>>({})
+  // Pay-as-you-go consumable packs (with live store prices), cheapest first.
+  const [topUps, setTopUps] = useState<TopUpProduct[]>([])
   const [paywall, setPaywall] = useState<{ open: boolean; reason?: string }>({ open: false })
 
   // Configure RevenueCat + load offerings once we know the user.
@@ -126,22 +135,25 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       setRcTier('free')
       setCurrentProductId(null)
       setTrialEligible({})
+      setTopUps([])
       return
     }
     let alive = true
     setOfferingLoading(true)
     void (async () => {
       await configurePurchases(uid)
-      const [off, info, elig] = await Promise.all([
+      const [off, info, elig, packs] = await Promise.all([
         fetchCurrentOffering(),
         currentCustomerInfo(),
         checkTrialEligibility(SUB_PRODUCT_IDS),
+        fetchTopUps(),
       ])
       if (alive) {
         setOffering(off)
         setRcTier(tierFromCustomerInfo(info))
         setCurrentProductId(productFromCustomerInfo(info))
         setTrialEligible(elig)
+        setTopUps(packs)
         setOfferingLoading(false)
       }
     })()
@@ -267,6 +279,14 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
     void rcManageSubscriptions()
   }, [])
 
+  const buyTopUp = useCallback(
+    async (productId: string): Promise<'purchased' | 'cancelled' | 'failed'> => {
+      const res = await rcPurchaseTopUp(productId)
+      return res.status
+    },
+    [],
+  )
+
   const openPaywall = useCallback((reason?: string) => setPaywall({ open: true, reason }), [])
   const closePaywall = useCallback(() => setPaywall({ open: false }), [])
 
@@ -281,6 +301,8 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       offeringLoading,
       currentProductId,
       trialEligible,
+      topUps,
+      buyTopUp,
       purchasesEnabled: isPurchasesEnabled(),
       purchase,
       restore,
@@ -289,7 +311,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       openPaywall,
       closePaywall,
     }),
-    [tier, entitlement, mochiRemaining, mochiPeriod, canSendMochi, offering, offeringLoading, currentProductId, trialEligible, purchase, restore, refreshOfferings, manageSubscriptions, openPaywall, closePaywall],
+    [tier, entitlement, mochiRemaining, mochiPeriod, canSendMochi, offering, offeringLoading, currentProductId, trialEligible, topUps, buyTopUp, purchase, restore, refreshOfferings, manageSubscriptions, openPaywall, closePaywall],
   )
 
   return (
@@ -304,6 +326,9 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
         currentTier={tier}
         currentProductId={currentProductId}
         trialEligible={trialEligible}
+        topUps={topUps}
+        topUpBalance={entitlement.topUpBalance}
+        onBuyTopUp={buyTopUp}
         onPurchase={purchase}
         onRestore={restore}
         onRetry={refreshOfferings}

@@ -23,6 +23,7 @@ import { createNavigationContainerRef } from '@react-navigation/native'
 import { useStore } from './StoreContext'
 import { useAuth } from './AuthContext'
 import { useLang } from './LangContext'
+import { usePurchases } from './PurchasesContext'
 import {
   buildExportPayload,
   serializeExport,
@@ -106,6 +107,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   const store = useStore()
   const { user, deleteAccount, signOut } = useAuth()
   const { t } = useLang()
+  const { tier, openPaywall } = usePurchases()
   const [profileOpen, setProfileOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [themePickerOpen, setThemePickerOpen] = useState(false)
@@ -682,6 +684,14 @@ export function SheetProvider({ children }: { children: ReactNode }) {
       <ThemeSelector
         visible={themePickerOpen}
         value={store.profile.theme ?? 'sage'}
+        allThemesUnlocked={tier !== 'free'}
+        onUpgrade={() => {
+          // Close the picker first, then open the paywall after it dismisses
+          // (iOS can't reliably stack two Modals — same 280ms handoff used
+          // elsewhere).
+          setThemePickerOpen(false)
+          setTimeout(() => openPaywall('Unlock every theme with Premium.'), 280)
+        }}
         onChange={(next) => {
           // Close the picker FIRST, then apply the theme after it has
           // dismissed. Applying live re-themes the whole app (incl. the
