@@ -491,9 +491,7 @@ export default function GroceryComposeSheet({
                     placeholderTextColor={theme.gray3}
                     value={text}
                     onChangeText={setText}
-                    multiline
                     maxLength={200}
-                    textAlignVertical="top"
                     blurOnSubmit={false}
                     returnKeyType="done"
                     onSubmitEditing={handleAdd}
@@ -653,10 +651,11 @@ function makeStyles(c: ThemeColors) {
     },
     askMochiText: { fontSize: 14, fontWeight: '700', color: c.primary },
     textInput: {
-      // Two visible rows at fontSize 18 / lineHeight ~24 + vertical
-      // padding. Keeps the field tall enough for longer items
-      // ("vegetable oil for stir fry") without the cursor jumping.
-      minHeight: 96,
+      // Single-line field — grocery item names are short, so the input
+      // is NOT multiline (multiline breaks Return-to-add on iOS:
+      // onSubmitEditing never fires for multiline inputs). A comfortable
+      // tap target height keeps it easy to hit.
+      minHeight: 52,
       fontSize: 18,
       color: c.label,
       paddingHorizontal: 16,

@@ -39,7 +39,7 @@ export default function GuideMenuSheet({ visible, seen, onSelect, onClose }: Pro
   const seenSet = useMemo(() => new Set(seen), [seen])
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent statusBarTranslucent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

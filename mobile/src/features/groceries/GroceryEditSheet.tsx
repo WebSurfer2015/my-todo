@@ -70,10 +70,13 @@ export default function GroceryEditSheet({
 
   function handleSave() {
     if (!item) return
+    // If the name was blanked, keep the original item name rather than
+    // discarding the user's department / store edits. A grocery item
+    // can't be nameless, so we fall back to what it was called before.
     const trimmed = text.trim()
-    if (!trimmed) return
+    const finalText = trimmed || item.text
     onSave(item.id, {
-      text: trimmed,
+      text: finalText,
       groupId,
       stores: storesList,
     })
@@ -81,11 +84,13 @@ export default function GroceryEditSheet({
   }
 
   // Backdrop / swipe dismiss: auto-save edits to this existing item (calm,
-  // forgiving) when the name is still valid, instead of silently dropping
-  // the changed department / stores.
+  // forgiving) instead of silently dropping the changed department /
+  // stores. If the name was blanked, fall back to the original name so a
+  // cleared field never loses the other edits.
   function handleDismiss() {
-    if (item && text.trim()) {
-      onSave(item.id, { text: text.trim(), groupId, stores: storesList })
+    if (item) {
+      const finalText = text.trim() || item.text
+      onSave(item.id, { text: finalText, groupId, stores: storesList })
     }
     onClose()
   }

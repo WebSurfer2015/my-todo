@@ -416,6 +416,7 @@ export default function ChatSheet({
     <Modal
       visible={visible}
       transparent
+      statusBarTranslucent
       animationType="slide"
       onShow={() => inputRef.current?.focus()}
       onRequestClose={requestClose}

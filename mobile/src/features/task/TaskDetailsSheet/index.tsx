@@ -404,6 +404,21 @@ export default function TaskDetailsSheet({
   const [editReminders, setEditReminders] = useState<Reminder[]>(() =>
     getReminders(todo),
   )
+  // True-Cancel snapshot. Captured when the sheet OPENS, before any
+  // auto-save fires. closeWithoutFlush (the header "Cancel") reverts
+  // every auto-saved field back to these values via the same store
+  // callbacks they were set with. Mirrors the step-editor's
+  // editSubOriginal snapshot+revert pattern, one level up.
+  const editOriginalRef = useRef<{
+    text: string
+    notes: string
+    priority: Priority
+    category: Category | undefined
+    dueDate: string
+    recurrence: Recurrence | undefined
+    reminder: Todo['reminder'] | undefined
+    reminders: Reminder[]
+  } | null>(null)
   // (Pending pickerDate / pendingRemindAt / Interval / Until and
   // remindSubView removed — the redesigned ReminderSubView owns
   // its own chip-selection state and returns the built reminder
@@ -451,6 +466,18 @@ export default function TaskDetailsSheet({
       setEditRecurrence(todo.recurrence)
       setEditReminder(todo.reminder)
       setEditReminders(getReminders(todo))
+      // Capture the True-Cancel snapshot before any picker auto-save
+      // can mutate the live todo this session.
+      editOriginalRef.current = {
+        text: todo.text,
+        notes: todo.notes ?? '',
+        priority: todo.priority,
+        category: todo.category,
+        dueDate: todo.dueDate ?? '',
+        recurrence: todo.recurrence,
+        reminder: todo.reminder,
+        reminders: getReminders(todo),
+      }
       setParentEditView('main')
       // Honor an opener-provided "open into subtask edit" intent. If the
       // caller passed a subtask id, jump straight into its edit form.
@@ -734,11 +761,63 @@ export default function TaskDetailsSheet({
     onClose()
   }
   function closeWithoutFlush() {
-    // "Cancel" path — drop any unblurred text/notes edits and close.
-    // Picker-based fields that already auto-saved (priority, date,
-    // category, recurrence) cannot be cancelled here; that's a known
-    // tradeoff of the auto-save UX.
+    // "Cancel" path — a TRUE cancel. Every editable field on this sheet
+    // auto-saves on selection (priority, due date, category, recurrence,
+    // reminders) or on blur (title, notes); Cancel reverts all of them
+    // to the snapshot captured when the sheet opened, then closes.
+    const orig = editOriginalRef.current
+    if (orig) {
+      // Title + notes: revert unconditionally. A just-fired onBlur may
+      // have dispatched in-progress text that isn't visible in `todo`
+      // synchronously here, so a compare-guard could miss it. Empty-
+      // title guard matches applyText (never write an empty title).
+      if (orig.text.trim()) onUpdateText(todo.id, orig.text)
+      onUpdateNotes?.(todo.id, orig.notes)
+      // Picker fields commit synchronously on pick, so `todo` already
+      // reflects any change — compare and revert only what moved, via
+      // the SAME store callbacks they were set with.
+      if (orig.priority !== todo.priority) {
+        onUpdatePriority(todo.id, orig.priority)
+      }
+      // Reverting to "no category" can't be expressed (onUpdateCategory
+      // takes a Category) — restore only when the snapshot had one.
+      if (orig.category !== todo.category && orig.category !== undefined) {
+        onUpdateCategory(todo.id, orig.category)
+      }
+      if (orig.dueDate !== (todo.dueDate ?? '')) {
+        onUpdateDueDate(todo.id, orig.dueDate)
+      }
+      if (
+        JSON.stringify(orig.recurrence ?? null) !==
+        JSON.stringify(todo.recurrence ?? null)
+      ) {
+        onUpdateRecurrence(todo.id, orig.recurrence)
+      }
+      if (JSON.stringify(orig.reminders) !== JSON.stringify(getReminders(todo))) {
+        if (onUpdateReminders) onUpdateReminders(todo.id, orig.reminders)
+        else onUpdateReminder?.(todo.id, orig.reminder)
+      }
+    }
     onClose()
+  }
+  // Android hardware back. While a sub-view (step editor, repeat/date/
+  // reminder pages) is open, back pops to the previous level instead of
+  // tearing down the whole sheet. Only from the top-level edit view does
+  // back fall through to the existing save-and-close behavior.
+  function handleAndroidBack() {
+    if (editingSubtaskId) {
+      if (editSubPickerView !== 'main') {
+        setEditSubPickerView('main')
+        return
+      }
+      cancelSubtaskEdit()
+      return
+    }
+    if (parentEditView !== 'main') {
+      setParentEditView('main')
+      return
+    }
+    closeAndFlushText()
   }
 
   function openEditDatePicker() {
@@ -867,7 +946,7 @@ export default function TaskDetailsSheet({
   const parentToday = !!todo.dueDate && !todo.done && todo.dueDate === today
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={closeAndFlushText}>
+    <Modal visible={visible} transparent statusBarTranslucent animationType="slide" onRequestClose={handleAndroidBack}>
       <KeyboardAvoidingView
         style={styles.overlay}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1824,6 +1903,7 @@ export default function TaskDetailsSheet({
             <Modal
               visible
               transparent
+              statusBarTranslucent
               animationType="fade"
               onRequestClose={() => setSubDateForId(null)}
             >

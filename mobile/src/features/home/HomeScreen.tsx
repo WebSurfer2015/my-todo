@@ -455,10 +455,11 @@ export default function HomeScreen() {
           <>
             <View style={styles.sectionHeaderRow}>
               <TouchableOpacity
-                onPress={() => setNextExpanded(false)}
+                onPress={() => nextGroupKey && openTodos('open', nextGroupKey)}
+                disabled={!nextGroupKey}
                 activeOpacity={0.7}
                 accessibilityRole="button"
-                accessibilityLabel={`Collapse ${nextSectionLabel}`}
+                accessibilityLabel={`Open Todos showing ${nextSectionLabel} items`}
               >
                 <Text style={styles.sectionHeader}>
                   {nextSectionLabel.toUpperCase()}

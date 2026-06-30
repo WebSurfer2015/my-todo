@@ -90,7 +90,7 @@ export default function SheetShell({
   const leftAction: HeaderAction = left ?? { label: t.cancel, onPress: onClose }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent statusBarTranslucent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

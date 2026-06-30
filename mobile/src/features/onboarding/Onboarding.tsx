@@ -84,7 +84,7 @@ export default function Onboarding({ visible, onComplete, onSkip }: Props) {
 
   return (
     <Modal visible={visible} animationType="fade" statusBarTranslucent onRequestClose={onSkip}>
-      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
+      <StatusBar barStyle={theme.statusBar} />
       <View style={styles.root}>
         {/* Skip button — always available */}
         <View style={styles.topBar}>

@@ -26,7 +26,7 @@ export default function PickerModal({ visible, options, selectedKey, onSelect, o
   // multiplies per-row — skip the subtree entirely while closed.
   if (!visible) return null
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent statusBarTranslucent animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity style={styles.overlay} onPress={onClose} activeOpacity={1}>
         <View style={styles.sheet}>
           {options.map((opt, i) => (

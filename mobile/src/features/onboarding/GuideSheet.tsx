@@ -6,7 +6,7 @@
  * feel like one family.
  */
 
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Modal,
   NativeScrollEvent,
@@ -42,15 +42,13 @@ export default function GuideSheet({ visible, guide, onComplete, onClose }: Prop
   // Reset to first page whenever the modal opens with a different
   // guide. Without this, re-opening a guide picks up at the last
   // slide the user landed on which feels janky.
-  const lastGuideIdRef = useRef<string | null>(null)
-  if (guide && guide.id !== lastGuideIdRef.current) {
-    lastGuideIdRef.current = guide.id
-    if (page !== 0) {
-      setPage(0)
-      // Defer the scroll to the next frame so the ref is mounted.
-      setTimeout(() => scrollRef.current?.scrollTo({ x: 0, animated: false }), 0)
-    }
-  }
+  useEffect(() => {
+    if (!guide) return
+    setPage(0)
+    // Defer the scroll to the next frame so the ref is mounted.
+    const id = setTimeout(() => scrollRef.current?.scrollTo({ x: 0, animated: false }), 0)
+    return () => clearTimeout(id)
+  }, [guide?.id])
 
   if (!guide) return null
 
@@ -74,7 +72,7 @@ export default function GuideSheet({ visible, guide, onComplete, onClose }: Prop
 
   return (
     <Modal visible={visible} animationType="slide" statusBarTranslucent onRequestClose={onClose}>
-      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
+      <StatusBar barStyle={theme.statusBar} />
       <View style={styles.root}>
         <View style={styles.topBar}>
           <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.topBtn} accessibilityRole="button" accessibilityLabel="Close guide">
@@ -146,7 +144,7 @@ export default function GuideSheet({ visible, guide, onComplete, onClose }: Prop
             onPress={next}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel={isLast ? 'Done' : 'Next slide'}
+            accessibilityLabel={isLast ? 'Got it' : 'Next slide'}
           >
             <Text style={styles.primaryBtnText}>{isLast ? 'Got it' : 'Next'}</Text>
           </TouchableOpacity>

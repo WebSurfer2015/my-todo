@@ -65,30 +65,30 @@ interface HandoffPalette {
 
 const HANDOFF: Record<ThemeName, { light: HandoffPalette; dark: HandoffPalette }> = {
   sage: {
-    light: { brand: '#6FAE8A', accent: '#5C9A7A', accentBright: '#6FB890', background: '#F6FBF7', surface: '#FFFFFF', textPrimary: '#26352C', textSecondary: '#7E9488', divider: '#EAF2EC', completedBg: '#EEF8F1', completedText: '#9DB3A6', completedDot: '#CDE3D6', danger: '#E0976A' },
-    dark: { brand: '#3E6B55', accent: '#7FC4A0', accentBright: '#8AD0AC', background: '#171E1A', surface: '#212A25', textPrimary: '#E8F0EA', textSecondary: '#9DB3A6', divider: '#2C382F', completedBg: '#1C2620', completedText: '#6E847A', completedDot: '#3A4A40', danger: '#E0A07A' },
+    light: { brand: '#6FAE8A', accent: '#5C9A7A', accentBright: '#6FB890', background: '#F6FBF7', surface: '#FFFFFF', textPrimary: '#26352C', textSecondary: '#7E9488', divider: '#EAF2EC', completedBg: '#EEF8F1', completedText: '#9DB3A6', completedDot: '#CDE3D6', danger: '#CB6550' },
+    dark: { brand: '#3E6B55', accent: '#7FC4A0', accentBright: '#8AD0AC', background: '#171E1A', surface: '#212A25', textPrimary: '#E8F0EA', textSecondary: '#9DB3A6', divider: '#2C382F', completedBg: '#1C2620', completedText: '#6E847A', completedDot: '#3A4A40', danger: '#D98268' },
   },
   sky: {
-    light: { brand: '#5E9BCE', accent: '#5089BC', accentBright: '#5FA0D4', background: '#F5F9FD', surface: '#FFFFFF', textPrimary: '#243038', textSecondary: '#76889A', divider: '#E8EFF5', completedBg: '#EDF4FA', completedText: '#9BAEBE', completedDot: '#CFE0EE', danger: '#E0976A' },
-    dark: { brand: '#2F5C7E', accent: '#74B4E4', accentBright: '#82C0F0', background: '#161B20', surface: '#1F2630', textPrimary: '#E6EEF5', textSecondary: '#9BAEBE', divider: '#2A333D', completedBg: '#1A222B', completedText: '#6E808E', completedDot: '#384450', danger: '#E0A07A' },
+    light: { brand: '#5E9BCE', accent: '#5089BC', accentBright: '#5FA0D4', background: '#F5F9FD', surface: '#FFFFFF', textPrimary: '#243038', textSecondary: '#76889A', divider: '#E8EFF5', completedBg: '#EDF4FA', completedText: '#9BAEBE', completedDot: '#CFE0EE', danger: '#CB6550' },
+    dark: { brand: '#2F5C7E', accent: '#74B4E4', accentBright: '#82C0F0', background: '#161B20', surface: '#1F2630', textPrimary: '#E6EEF5', textSecondary: '#9BAEBE', divider: '#2A333D', completedBg: '#1A222B', completedText: '#6E808E', completedDot: '#384450', danger: '#D98268' },
   },
   blossom: {
-    light: { brand: '#D488A0', accent: '#C77890', accentBright: '#DA8AA2', background: '#FDF5F8', surface: '#FFFFFF', textPrimary: '#352630', textSecondary: '#9A8089', divider: '#F4E8ED', completedBg: '#FBEFF3', completedText: '#BCA4AD', completedDot: '#EED4DE', danger: '#E08F62' },
-    dark: { brand: '#7A4F5E', accent: '#E29CB2', accentBright: '#EAA8BE', background: '#1F171B', surface: '#2A2026', textPrimary: '#F2E6EB', textSecondary: '#B49BA4', divider: '#382A30', completedBg: '#251D22', completedText: '#86727B', completedDot: '#4A3A42', danger: '#E0A07A' },
+    light: { brand: '#D488A0', accent: '#C77890', accentBright: '#DA8AA2', background: '#FDF5F8', surface: '#FFFFFF', textPrimary: '#352630', textSecondary: '#9A8089', divider: '#F4E8ED', completedBg: '#FBEFF3', completedText: '#BCA4AD', completedDot: '#EED4DE', danger: '#CB6550' },
+    dark: { brand: '#7A4F5E', accent: '#E29CB2', accentBright: '#EAA8BE', background: '#1F171B', surface: '#2A2026', textPrimary: '#F2E6EB', textSecondary: '#B49BA4', divider: '#382A30', completedBg: '#251D22', completedText: '#86727B', completedDot: '#4A3A42', danger: '#D98268' },
   },
   honey: {
-    light: { brand: '#D2A748', accent: '#BC8E30', accentBright: '#D6A848', background: '#FCF8ED', surface: '#FFFFFF', textPrimary: '#322B18', textSecondary: '#928258', divider: '#F2EAD6', completedBg: '#FBF5E6', completedText: '#B6A884', completedDot: '#E8DCBC', danger: '#DD8B5A' },
-    dark: { brand: '#6E5520', accent: '#E0BC64', accentBright: '#EAC878', background: '#1E1B12', surface: '#28241A', textPrimary: '#F0EAD8', textSecondary: '#A89E80', divider: '#363020', completedBg: '#231F16', completedText: '#84785C', completedDot: '#463E2A', danger: '#E0A07A' },
+    light: { brand: '#D2A748', accent: '#BC8E30', accentBright: '#D6A848', background: '#FCF8ED', surface: '#FFFFFF', textPrimary: '#322B18', textSecondary: '#928258', divider: '#F2EAD6', completedBg: '#FBF5E6', completedText: '#B6A884', completedDot: '#E8DCBC', danger: '#CB6550' },
+    dark: { brand: '#6E5520', accent: '#E0BC64', accentBright: '#EAC878', background: '#1E1B12', surface: '#28241A', textPrimary: '#F0EAD8', textSecondary: '#A89E80', divider: '#363020', completedBg: '#231F16', completedText: '#84785C', completedDot: '#463E2A', danger: '#D98268' },
   },
   cream: {
-    light: { brand: '#B0A37C', accent: '#9A8C68', accentBright: '#B0A27E', background: '#FBF9F2', surface: '#FFFFFF', textPrimary: '#2E2A20', textSecondary: '#8A8270', divider: '#F0EBDE', completedBg: '#FAF7EF', completedText: '#B2AA96', completedDot: '#E2DAC6', danger: '#DD8B5A' },
-    dark: { brand: '#5E5640', accent: '#BEB08A', accentBright: '#CCBE98', background: '#1C1A14', surface: '#262318', textPrimary: '#EEEAE0', textSecondary: '#A8A290', divider: '#34301F', completedBg: '#211E15', completedText: '#827A68', completedDot: '#443E2C', danger: '#E0A07A' },
+    light: { brand: '#B0A37C', accent: '#9A8C68', accentBright: '#B0A27E', background: '#FBF9F2', surface: '#FFFFFF', textPrimary: '#2E2A20', textSecondary: '#8A8270', divider: '#F0EBDE', completedBg: '#FAF7EF', completedText: '#B2AA96', completedDot: '#E2DAC6', danger: '#CB6550' },
+    dark: { brand: '#5E5640', accent: '#BEB08A', accentBright: '#CCBE98', background: '#1C1A14', surface: '#262318', textPrimary: '#EEEAE0', textSecondary: '#A8A290', divider: '#34301F', completedBg: '#211E15', completedText: '#827A68', completedDot: '#443E2C', danger: '#D98268' },
   },
   // Lilac — soft lavender, airy and calm. A cool, delightful counterpart to
   // the warm cream/blossom; the one cool-purple hue not covered above.
   lilac: {
-    light: { brand: '#9A8AC6', accent: '#8676B8', accentBright: '#9E8FCC', background: '#F8F6FD', surface: '#FFFFFF', textPrimary: '#2E2A38', textSecondary: '#847C95', divider: '#EEEAF6', completedBg: '#F3EFFB', completedText: '#ABA2BE', completedDot: '#DDD4ED', danger: '#E0976A' },
-    dark: { brand: '#574B77', accent: '#B9A9E0', accentBright: '#C6B8EA', background: '#1A1720', surface: '#251F30', textPrimary: '#ECE8F2', textSecondary: '#B0A6C2', divider: '#322B40', completedBg: '#221C2B', completedText: '#80768E', completedDot: '#423A52', danger: '#E0A07A' },
+    light: { brand: '#9A8AC6', accent: '#8676B8', accentBright: '#9E8FCC', background: '#F8F6FD', surface: '#FFFFFF', textPrimary: '#2E2A38', textSecondary: '#847C95', divider: '#EEEAF6', completedBg: '#F3EFFB', completedText: '#ABA2BE', completedDot: '#DDD4ED', danger: '#CB6550' },
+    dark: { brand: '#574B77', accent: '#B9A9E0', accentBright: '#C6B8EA', background: '#1A1720', surface: '#251F30', textPrimary: '#ECE8F2', textSecondary: '#B0A6C2', divider: '#322B40', completedBg: '#221C2B', completedText: '#80768E', completedDot: '#423A52', danger: '#D98268' },
   },
 }
 

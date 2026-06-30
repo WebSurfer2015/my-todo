@@ -506,7 +506,7 @@ function TodosScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
-      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
+      <StatusBar barStyle={theme.statusBar} />
       <KeyboardAvoidingView
         style={styles.kb}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
