@@ -41,6 +41,12 @@ export function useSyncedState<T>(
       .catch((err) => {
         if (cancelled) return;
         console.warn(`useSyncedState[${key}] hydrate failed:`, err);
+        // Don't let the trailing-debounced write push our default/empty state
+        // back to cloud over data we merely failed to READ. Seed the ref with
+        // the default so the write effect treats it as already-persisted (no
+        // write fires); a later subscribe() snapshot or a real user edit
+        // recovers from here.
+        lastSerializedRef.current = serializeRef.current(initial);
         setLoaded(true);
       });
     return () => {

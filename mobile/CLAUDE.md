@@ -122,7 +122,7 @@ Mobile uses **Firebase Crashlytics** (`@react-native-firebase/crashlytics`), not
 
 - **Native crashes** are auto-collected by the Crashlytics SDK at app launch — no JS code involved.
 - **JS errors** are forwarded by `src/ErrorBoundary.tsx` via `crashlytics().log(componentStack)` + `crashlytics().recordError(error)`. Wrapped in try/catch so a crash in the crash reporter can't take down the app.
-- **Unhandled promise rejections** in production are NOT currently forwarded — RN's promiseRejectionTracking is dev-only. If you see "silent failures in prod that worked in dev," add a global handler in `App.tsx` that calls `crashlytics().recordError(reason)` from `BackgroundFetch`/`unhandledrejection` shims.
+- **Unhandled promise rejections** in production ARE forwarded — `installCrashReporters()` (`src/adapters/crashReporting.ts`, called at the top of `App.tsx`) enables `promise/setimmediate/rejection-tracking` and records to Crashlytics. The record is debounced (~2s, cancelled by `onHandled`) so a rejection handled a tick later isn't reported as a crash. That module also installs the single `ErrorUtils.setGlobalHandler` for uncaught JS errors — don't re-add a second one.
 - **Activation:** Crashlytics needs to be enabled once in the Firebase Console (Console → Crashlytics → Get started). The SDK starts collecting on first launch after that, regardless of whether this code path has run.
 
 ### Native modules & build quirks

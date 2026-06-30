@@ -59,11 +59,10 @@ const PLANS: PlanView[] = [
     ],
   },
   {
-    // Two real Premium differentiators: a larger pool of Mochi AI requests and
-    // the full theme set (Free is limited to Sage + Sky). NOTE: the monthly AI
-    // allowance is only delivered when MOCHI_TIER_ENFORCEMENT is on server-side;
-    // with it off, Premium gets the same AI as Free and that bullet isn't yet
-    // true. The themes benefit is enforced client-side and live now.
+    // Two real Premium differentiators, both delivered: a larger monthly pool
+    // of Mochi AI requests (enforced server-side — MOCHI_TIER_ENFORCEMENT is on,
+    // so Premium genuinely gets more AI than Free) and the full theme set (Free
+    // is limited to Sage + Sky; gated client-side via FREE_THEMES).
     tier: 'premium',
     name: 'Premium',
     bullets: [

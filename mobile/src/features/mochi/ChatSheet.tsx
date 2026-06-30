@@ -304,7 +304,7 @@ export default function ChatSheet({
     // Out of Mochi requests (base allowance + no top-ups) → open the paywall
     // instead of spending a call.
     if (!canSendMochi) {
-      openPaywall("You're out of Mochi requests for now.")
+      goToPaywall("You're out of Mochi requests for now.")
       return
     }
     Haptics.selectionAsync().catch(() => {})
@@ -354,6 +354,15 @@ export default function ChatSheet({
     undoFnsRef.current = {}
     capturedIdRef.current = {}
     onClose()
+  }
+
+  // The paywall is a Modal mounted above this one; iOS won't present it while
+  // the chat Modal is still up (the "already presenting" warning → the upsell
+  // silently no-ops). Dismiss the chat first, then open the paywall after it
+  // animates out — the same 280ms handoff every other paywall entry point uses.
+  function goToPaywall(reason?: string) {
+    close()
+    setTimeout(() => openPaywall(reason), 280)
   }
 
   // Backdrop / Android-back. A multi-turn conversation is higher-stakes to
@@ -662,7 +671,7 @@ export default function ChatSheet({
 
             {mochiRemaining != null && (
               <TouchableOpacity
-                onPress={() => !canSendMochi && openPaywall()}
+                onPress={() => !canSendMochi && goToPaywall()}
                 disabled={canSendMochi}
                 activeOpacity={0.7}
               >

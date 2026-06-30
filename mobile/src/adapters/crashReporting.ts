@@ -14,27 +14,40 @@ import crashlytics from '@react-native-firebase/crashlytics'
  */
 export function installCrashReporters(): void {
   // ── Promise rejections ─────────────────────────────────────────────
+  // We watch ALL rejections but DEFER the Crashlytics record: a rejection that
+  // gets a handler a tick later (extremely common with racing awaits) must not
+  // be reported as a crash. onHandled cancels the pending record; only a
+  // rejection still unhandled after the grace window is forwarded.
   try {
     const tracking = require('promise/setimmediate/rejection-tracking')
     if (tracking?.enable) {
+      const pending = new Map<number, ReturnType<typeof setTimeout>>()
       tracking.enable({
         allRejections: true,
         onUnhandled: (id: number, error: unknown) => {
-          try {
-            crashlytics().log(`unhandled promise rejection #${id}`)
-            const err =
-              error instanceof Error
-                ? error
-                : new Error(
-                    typeof error === 'string' ? error : safeStringify(error),
-                  )
-            crashlytics().recordError(err)
-          } catch {
-            // last-resort silent — never propagate from the reporter.
-          }
+          const handle = setTimeout(() => {
+            pending.delete(id)
+            try {
+              crashlytics().log(`unhandled promise rejection #${id}`)
+              const err =
+                error instanceof Error
+                  ? error
+                  : new Error(
+                      typeof error === 'string' ? error : safeStringify(error),
+                    )
+              crashlytics().recordError(err)
+            } catch {
+              // last-resort silent — never propagate from the reporter.
+            }
+          }, 2000)
+          pending.set(id, handle)
         },
-        onHandled: () => {
-          // No-op. We don't care about late-handled ones for telemetry.
+        onHandled: (id: number) => {
+          const handle = pending.get(id)
+          if (handle) {
+            clearTimeout(handle)
+            pending.delete(id)
+          }
         },
       })
     }

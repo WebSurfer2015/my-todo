@@ -35,12 +35,50 @@ const db = admin.firestore()
 
 /** RevenueCat event shape (the subset we use). */
 interface RCEvent {
+  /** Unique event id — used to make delivery idempotent (RC is at-least-once). */
+  id?: string
   type?: string
   app_user_id?: string
   product_id?: string
   /** Present on PRODUCT_CHANGE: the product the user is switching TO. */
   new_product_id?: string
   expiration_at_ms?: number
+  /** Apple billing-retry grace window end (BILLING_ISSUE). */
+  grace_period_expiration_at_ms?: number
+  /** TRANSFER: app_user_ids losing / gaining the subscription. */
+  transferred_from?: string[]
+  transferred_to?: string[]
+}
+
+/** Write a single user's entitlement tier (preserving their top-up balance). */
+async function setUserTier(
+  uid: string,
+  tier: Tier,
+  validUntil: string | null,
+): Promise<void> {
+  const ref = db.doc(`users/${uid}/state/entitlement`)
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref)
+    const current = parseEntitlement(snap.exists ? snap.data() : null)
+    tx.set(ref, writeEnvelope({ ...current, tier, validUntil }))
+  })
+}
+
+/** TRANSFER spans accounts, so it's handled outside the single-uid path:
+ * gaining accounts get the subscription, losing accounts drop to free. */
+async function handleTransfer(event: RCEvent): Promise<void> {
+  const tier = tierForProduct(event.product_id ?? '')
+  const validUntil = event.expiration_at_ms
+    ? new Date(event.expiration_at_ms).toISOString()
+    : null
+  if (tier) {
+    for (const uid of event.transferred_to ?? []) {
+      await setUserTier(uid, tier, validUntil)
+    }
+  }
+  for (const uid of event.transferred_from ?? []) {
+    await setUserTier(uid, 'free', null)
+  }
 }
 
 const TIER_RANK: Record<Tier, number> = { free: 0, premium: 1, max: 2 }
@@ -97,19 +135,42 @@ export const revenuecatWebhook = onRequest(
     }
 
     const event = (req.body?.event ?? {}) as RCEvent
-    const uid = event.app_user_id
     const type = event.type
+    const eventId = event.id
     const productId = event.product_id ?? ''
-    if (!uid || !type) {
-      res.status(400).send('Missing app_user_id or event type')
+    if (!type) {
+      res.status(400).send('Missing event type')
       return
     }
 
-    const ref = db.doc(`users/${uid}/state/entitlement`)
     try {
+      // TRANSFER moves a subscription between accounts — handled separately
+      // because it writes more than the event's own app_user_id doc.
+      if (type === 'TRANSFER') {
+        await handleTransfer(event)
+        res.status(200).send('ok')
+        return
+      }
+
+      const uid = event.app_user_id
+      if (!uid) {
+        res.status(400).send('Missing app_user_id')
+        return
+      }
+      const ref = db.doc(`users/${uid}/state/entitlement`)
+      // Per-user processed-event log so an at-least-once redelivery (RC retries
+      // on any non-2xx/timeout) can't re-credit a consumable top-up.
+      const dedupeRef = db.doc(`users/${uid}/state/rcWebhook`)
       await db.runTransaction(async (tx) => {
         const snap = await tx.get(ref)
+        const dedupeSnap = await tx.get(dedupeRef)
+        const processed: string[] =
+          (dedupeSnap.exists ? (dedupeSnap.data()?.ids as string[] | undefined) : undefined) ?? []
+        if (eventId && processed.includes(eventId)) return // already applied
         const current = parseEntitlement(snap.exists ? snap.data() : null)
+        if (eventId) {
+          tx.set(dedupeRef, { ids: [...processed, eventId].slice(-50) }, { merge: true })
+        }
 
         switch (type) {
           case 'INITIAL_PURCHASE':
@@ -150,8 +211,21 @@ export const revenuecatWebhook = onRequest(
             tx.set(ref, writeEnvelope({ ...current, tier: 'free', validUntil: null }))
             return
           }
-          // CANCELLATION = auto-renew off but still valid until expiry;
-          // BILLING_ISSUE = grace period. Neither downgrades immediately.
+          case 'BILLING_ISSUE': {
+            // Apple is retrying the charge — the user stays entitled through the
+            // grace window. Extend validUntil to the grace expiration so the
+            // server money-guard doesn't meter a still-active customer as Free.
+            const graceMs = event.grace_period_expiration_at_ms
+            if (!graceMs) return
+            const graceUntil = new Date(graceMs).toISOString()
+            const validUntil =
+              !current.validUntil || graceUntil > current.validUntil
+                ? graceUntil
+                : current.validUntil
+            tx.set(ref, writeEnvelope({ ...current, validUntil }))
+            return
+          }
+          // CANCELLATION = auto-renew off but still valid until expiry — no change.
           default:
             return
         }
