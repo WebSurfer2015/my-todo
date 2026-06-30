@@ -1,5 +1,5 @@
 import { StyleSheet } from "react-native";
-import { ThemeColors } from "../../../app/theme";
+import { ThemeColors, SPACING, RADIUS, TYPE } from "../../../app/theme";
 import { Density } from "../../../core-bindings/profile";
 
 export function makeStyles(c: ThemeColors, density: Density) {
@@ -13,13 +13,13 @@ export function makeStyles(c: ThemeColors, density: Density) {
     row: {
       flexDirection: 'row',
       alignItems: 'flex-start',
-      paddingVertical: compact ? 7 : 12,
+      paddingVertical: compact ? SPACING.sm : SPACING.md,
       // Floor at 44pt even in compact density — the row is the toggle target.
       minHeight: 44,
-      paddingLeft: 16,
-      paddingRight: 16,
+      paddingLeft: SPACING.lg,
+      paddingRight: SPACING.lg,
       backgroundColor: c.card,
-      gap: 8,
+      gap: SPACING.sm,
       overflow: 'hidden',
     },
     rowDone: {},
@@ -50,31 +50,31 @@ export function makeStyles(c: ThemeColors, density: Density) {
     },
     checkmark: {
       color: c.primaryOn,
-      fontSize: 13,
+      fontSize: TYPE.footnote,
       fontWeight: '700',
       lineHeight: 15,
     },
     removedMark: {
       color: c.label3,
-      fontSize: 14,
+      fontSize: TYPE.body,
       fontWeight: '700',
       lineHeight: 16,
     },
     body: {
       flex: 1,
-      gap: compact ? 1 : 4,
+      gap: compact ? 1 : SPACING.xs,
     },
     mainLine: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
+      gap: SPACING.sm,
     },
     text: {
       flex: 1,
       // Bumped title weight so it carries the row visually; the meta
       // chips below are intentionally smaller/dimmer so they read as
       // secondary information.
-      fontSize: compact ? 15 : 17,
+      fontSize: compact ? TYPE.body : TYPE.bodyLg,
       fontWeight: '500',
       color: c.label,
       lineHeight: compact ? 20 : 22,
@@ -90,17 +90,17 @@ export function makeStyles(c: ThemeColors, density: Density) {
     },
     textEdit: {
       flex: 1,
-      fontSize: 16,
+      fontSize: TYPE.bodyLg,
       color: c.label,
       lineHeight: 21,
       letterSpacing: -0.3,
       backgroundColor: c.bg,
-      paddingHorizontal: 6,
+      paddingHorizontal: SPACING.sm,
       paddingVertical: 2,
-      borderRadius: 4,
+      borderRadius: RADIUS.control,
     },
     priorityBtn: {
-      padding: 4,
+      padding: SPACING.xs,
     },
     metaLine: {
       flexDirection: 'row',
@@ -112,15 +112,15 @@ export function makeStyles(c: ThemeColors, density: Density) {
     chip: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 4,
-      paddingHorizontal: 4,
+      gap: SPACING.xs,
+      paddingHorizontal: SPACING.xs,
       paddingVertical: 2,
-      borderRadius: 5,
+      borderRadius: RADIUS.chip,
     },
     chipText: {
       // One step smaller than the title's secondary line so the meta
       // row reads as supporting context, not headline content.
-      fontSize: 11,
+      fontSize: TYPE.caption,
       fontWeight: '500',
     },
     chipTextMuted: {
@@ -155,30 +155,30 @@ export function makeStyles(c: ThemeColors, density: Density) {
       justifyContent: 'center',
       marginTop: 2,
     },
-    metaSep: { color: c.label3, fontSize: 11, marginHorizontal: 2 },
+    metaSep: { color: c.label3, fontSize: TYPE.caption, marginHorizontal: 2 },
     progressPill: {
       marginLeft: 'auto',
-      paddingHorizontal: 8,
+      paddingHorizontal: SPACING.sm,
       paddingVertical: 1,
-      borderRadius: 999,
+      borderRadius: RADIUS.pill,
       backgroundColor: c.primarySoft,
     },
     progressPillText: {
-      fontSize: 10,
+      fontSize: TYPE.caption,
       fontWeight: '700',
       color: c.primary,
       fontVariant: ['tabular-nums'],
       lineHeight: 13,
     },
     subList: {
-      marginTop: 4,
+      marginTop: SPACING.xs,
       gap: 2,
     },
     subRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
-      paddingVertical: 4,
+      gap: SPACING.sm,
+      paddingVertical: SPACING.xs,
       // Indented to read as nested under the parent task, not as a peer.
       paddingLeft: 28,
     },
@@ -186,12 +186,12 @@ export function makeStyles(c: ThemeColors, density: Density) {
       padding: 3,
     },
     subChip: {
-      paddingHorizontal: 4,
+      paddingHorizontal: SPACING.xs,
       paddingVertical: 1,
-      borderRadius: 4,
+      borderRadius: RADIUS.chip,
     },
     subChipText: {
-      fontSize: 11,
+      fontSize: TYPE.caption,
       fontWeight: '500',
     },
     subCheckbox: {
@@ -209,13 +209,13 @@ export function makeStyles(c: ThemeColors, density: Density) {
     },
     subCheckmark: {
       color: c.primaryOn,
-      fontSize: 11,
+      fontSize: TYPE.caption,
       fontWeight: '700',
       lineHeight: 13,
     },
     subText: {
       flex: 1,
-      fontSize: 14,
+      fontSize: TYPE.body,
       // Lighter weight than the parent (which is 500/600) so the
       // hierarchy reads correctly when expanded.
       fontWeight: '400',
@@ -228,7 +228,7 @@ export function makeStyles(c: ThemeColors, density: Density) {
     },
     swipeContainer: {
       overflow: 'hidden',
-      borderRadius: 14,
+      borderRadius: RADIUS.card,
     },
     // Soft lift + rounded edges for each card. Lives on a wrapper
     // OUTSIDE swipeContainer (which clips, so a shadow there wouldn't
@@ -236,7 +236,7 @@ export function makeStyles(c: ThemeColors, density: Density) {
     // rounded cards.
     cardShadow: {
       backgroundColor: c.card,
-      borderRadius: 14,
+      borderRadius: RADIUS.card,
       marginVertical: 3,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 1 },
@@ -248,7 +248,7 @@ export function makeStyles(c: ThemeColors, density: Density) {
       width: 86,
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 4,
+      gap: SPACING.xs,
     },
     swipeActionsRow: { flexDirection: 'row' },
     notDoIcon: {
@@ -261,7 +261,7 @@ export function makeStyles(c: ThemeColors, density: Density) {
     },
     notDoIconX: {
       color: c.gray,
-      fontSize: 14,
+      fontSize: TYPE.body,
       fontWeight: '800',
       lineHeight: 14,
     },
@@ -276,7 +276,7 @@ export function makeStyles(c: ThemeColors, density: Density) {
     swipeDelete:  { backgroundColor: c.red },
     swipeActionText: {
       color: '#fff',
-      fontSize: 13,
+      fontSize: TYPE.footnote,
       fontWeight: '600',
       letterSpacing: -0.16,
     },
@@ -285,14 +285,14 @@ export function makeStyles(c: ThemeColors, density: Density) {
       backgroundColor: 'rgba(0,0,0,0.45)',
       justifyContent: 'center',
       alignItems: 'center',
-      paddingHorizontal: 16,
+      paddingHorizontal: SPACING.lg,
     },
     dateSheet: {
       backgroundColor: c.modal,
-      borderRadius: 16,
-      paddingHorizontal: 8,
-      paddingTop: 4,
-      paddingBottom: 8,
+      borderRadius: RADIUS.card,
+      paddingHorizontal: SPACING.sm,
+      paddingTop: SPACING.xs,
+      paddingBottom: SPACING.sm,
       width: '100%',
       maxWidth: 360,
       shadowColor: '#000',
@@ -304,29 +304,29 @@ export function makeStyles(c: ThemeColors, density: Density) {
     dateBtnRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      paddingHorizontal: 12,
-      paddingTop: 8,
-      paddingBottom: 4,
+      paddingHorizontal: SPACING.md,
+      paddingTop: SPACING.sm,
+      paddingBottom: SPACING.xs,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: c.separator,
     },
     dateClear: {
       color: c.label2,
-      fontSize: 16,
+      fontSize: TYPE.bodyLg,
       fontWeight: '500',
     },
     dateDone: {
       color: c.blue,
-      fontSize: 16,
+      fontSize: TYPE.bodyLg,
       fontWeight: '600',
     },
     datePendingLabel: {
-      fontSize: 14,
+      fontSize: TYPE.body,
       fontWeight: '600',
       color: c.label2,
       textAlign: 'center',
-      paddingTop: 8,
-      paddingBottom: 4,
+      paddingTop: SPACING.sm,
+      paddingBottom: SPACING.xs,
     },
     datePendingLabelEmpty: {
       color: c.label3,
