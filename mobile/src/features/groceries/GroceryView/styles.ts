@@ -1,5 +1,5 @@
 import { StyleSheet } from "react-native";
-import { ThemeColors } from "../../../app/theme";
+import { ThemeColors, RADIUS } from "../../../app/theme";
 
 export function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
@@ -42,7 +42,7 @@ export function makeStyles(c: ThemeColors) {
       gap: 6,
       paddingHorizontal: 12,
       paddingVertical: 7,
-      borderRadius: 100,
+      borderRadius: RADIUS.pill,
       backgroundColor: c.card,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,

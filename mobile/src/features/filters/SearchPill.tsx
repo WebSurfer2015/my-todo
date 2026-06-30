@@ -14,7 +14,7 @@ import React, { useMemo } from 'react'
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { Search as SearchIcon, X } from 'lucide-react-native'
 import * as Haptics from 'expo-haptics'
-import { useTheme, ThemeColors } from '../../app/theme'
+import { useTheme, ThemeColors, RADIUS } from '../../app/theme'
 
 interface Props {
   query: string
@@ -64,7 +64,7 @@ function makeStyles(c: ThemeColors) {
       paddingLeft: 12,
       paddingRight: 4,
       paddingVertical: 6,
-      borderRadius: 100,
+      borderRadius: RADIUS.pill,
       backgroundColor: c.primary,
     },
     text: {

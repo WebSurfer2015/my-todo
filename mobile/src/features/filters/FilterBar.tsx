@@ -15,7 +15,7 @@ import CategoryIcon from '../../ui/CategoryIcon'
 import StatusIcon, { statusColor } from '../../ui/StatusIcon'
 import PriorityBars from '../../ui/PriorityBars'
 import { useLang } from '../../app/LangContext'
-import { useTheme, ThemeColors } from '../../app/theme'
+import { useTheme, ThemeColors, RADIUS } from '../../app/theme'
 
 interface Props {
   filter: Filter
@@ -478,7 +478,7 @@ function makeStyles(c: ThemeColors) {
       gap: 4,
       paddingHorizontal: 6,
       paddingVertical: 6,
-      borderRadius: 100,
+      borderRadius: RADIUS.pill,
     },
     iconLabel: {
       fontSize: 12,
@@ -500,7 +500,7 @@ function makeStyles(c: ThemeColors) {
       // ~27pt was tight for a constantly-tapped (and long-pressable) filter
       // pill with no hitSlop; 10pt vertical gives a comfortable ~34pt.
       paddingVertical: 8,
-      borderRadius: 100,
+      borderRadius: RADIUS.pill,
       backgroundColor: c.card,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,

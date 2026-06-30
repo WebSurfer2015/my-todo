@@ -40,6 +40,52 @@ export interface ThemeColors {
   statusBar: 'light-content' | 'dark-content'
 }
 
+// --- Design-system token scales ------------------------------------------
+//
+// Theme-INDEPENDENT scales (identical in light/dark) — exported as plain
+// consts rather than living on ThemeColors, since they don't change with the
+// palette. New/migrated styles should pull spacing/radius/type/icon from
+// these instead of hand-rolled magic numbers, so the visual rhythm stays
+// consistent. See docs: the cross-cutting consistency audit flagged ~22 ad-hoc
+// font sizes and 5 card radii as the root drift these tokens replace.
+
+/** 4-based spacing scale. */
+export const SPACING = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  xxl: 32,
+} as const
+
+/** Corner radii by role. `pill` is "fully round" for any normal control height. */
+export const RADIUS = {
+  chip: 8,
+  control: 10,
+  card: 14,
+  pill: 999,
+} as const
+
+/** Type ramp — a tight ~7-step scale. Bind a role to one step, not a raw px. */
+export const TYPE = {
+  caption: 12,
+  footnote: 13,
+  body: 15,
+  bodyLg: 17,
+  title: 20,
+  h2: 24,
+  h1: 32,
+} as const
+
+/** Icon sizing + default stroke weight. */
+export const ICON = {
+  sm: 14,
+  md: 16,
+  lg: 20,
+  stroke: 2,
+} as const
+
 // --- Theme palettes (from the Sagely theme handoff) ----------------------
 //
 // Each named theme is one brand + one accent + a neutral system. The handoff

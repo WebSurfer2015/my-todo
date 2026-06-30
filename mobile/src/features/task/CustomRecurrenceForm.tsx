@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native'
 import { Recurrence, RecurrenceFreq, WEEKDAY_SHORT } from '../../core-bindings/types'
 import { formatRecurrence } from '../../core-bindings/utils'
-import { useTheme, ThemeColors } from '../../app/theme'
+import { useTheme, ThemeColors, RADIUS } from '../../app/theme'
 
 interface Props {
   initial?: Recurrence
@@ -341,7 +341,7 @@ function makeStyles(c: ThemeColors) {
     pill: {
       paddingHorizontal: 12,
       paddingVertical: 8,
-      borderRadius: 100,
+      borderRadius: RADIUS.pill,
       backgroundColor: c.card,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
