@@ -71,6 +71,7 @@ import * as Haptics from "expo-haptics";
 import { StoreProvider, useStore } from "./src/app/StoreContext";
 import { PurchasesProvider } from "./src/app/PurchasesContext";
 import { SheetProvider, useSheets, sheetNavigationRef } from "./src/app/SheetContext";
+import { FireworkOverlayProvider } from "./src/app/FireworkOverlay";
 import HomeScreen from "./src/features/home/HomeScreen";
 import GroceriesScreen from "./src/features/groceries/GroceriesScreen";
 import AppHeader from "./src/app/AppHeader";
@@ -1119,9 +1120,11 @@ export default function App() {
                 <StoreProvider>
                   <PurchasesProvider>
                     <ThemeGate>
-                      <SheetProvider>
-                        <AppGate />
-                      </SheetProvider>
+                      <FireworkOverlayProvider>
+                        <SheetProvider>
+                          <AppGate />
+                        </SheetProvider>
+                      </FireworkOverlayProvider>
                     </ThemeGate>
                   </PurchasesProvider>
                 </StoreProvider>

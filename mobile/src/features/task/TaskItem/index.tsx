@@ -83,7 +83,7 @@ import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
 import type { Density } from '../../../core-bindings/profile'
 import { formatDisplayDate, fullDateLabel, todayLocal, isoDate } from '../../../core-bindings/utils'
 import { sortedSubs } from '../../../../../core/src/logic/derive'
-import CalmFirework from '../CalmFirework'
+import { useTriggerFirework } from '../../../app/FireworkOverlay'
 import { playCompletionChime } from '../../../adapters/completionChime'
 import { useTheme, ThemeColors } from '../../../app/theme'
 import PriorityDot from '../../../ui/PriorityDot'
@@ -273,10 +273,36 @@ function TaskItem({
   // — todoToggle preserves done=false on the rolled-forward row and only
   // advances dueDate, so a done-only watcher misses these.
   const prevDueDateRef = useRef(todo.dueDate)
-  // In-row firework celebration — bump this counter to fire a calm burst
-  // anchored on the checkbox. Driven by the done-transition effect below
-  // (row + recurrence roll-forward) and by individual subtask completions.
-  const [fireworkTrigger, setFireworkTrigger] = useState(0)
+  // Calm firework celebration — fired from the app-level overlay so the
+  // burst still plays when the row unmounts on completion (recurring roll-
+  // forward, or leaving under a strict filter). We measure the leading
+  // control's window position on tap and fire the burst there.
+  const triggerFirework = useTriggerFirework()
+  const leadingRef = useRef<View>(null)
+  // Per-subtask checkbox nodes, measured on tap so a step completion fires
+  // its firework from the right spot.
+  const subRefs = useRef(new Map<string, { measureInWindow: (cb: (x: number, y: number, w: number, h: number) => void) => void }>())
+  // Optimistic "just completed" state + a held commit. On a celebrating
+  // completion we show the row as done immediately and HOLD the actual
+  // toggle for the firework duration, so the burst plays on THIS row before
+  // it leaves — instead of flashing on the row that shifts up to fill its
+  // spot. Flushed on unmount so a tapped completion is never lost.
+  const [completing, setCompleting] = useState(false)
+  const pendingCompleteRef = useRef<{ timer: ReturnType<typeof setTimeout>; commit: () => void } | null>(null)
+  useEffect(
+    () => () => {
+      const p = pendingCompleteRef.current
+      if (p) {
+        clearTimeout(p.timer)
+        p.commit()
+      }
+    },
+    [],
+  )
+  useEffect(() => {
+    if (todo.done) setCompleting(false)
+  }, [todo.done])
+  const showDone = todo.done || completing
   // Category color → the firework's primary particle tint, so the
   // celebration carries the visual identity of the thing just completed.
   const categoryTint =
@@ -326,9 +352,6 @@ function TaskItem({
           useNativeDriver: true,
         }),
       ]).start()
-      // Fire the in-row firework. (Subtask completions bump this counter
-      // separately from their own onPress handler.)
-      setFireworkTrigger((n) => n + 1)
     }
     prevDoneRef.current = todo.done
     prevDueDateRef.current = todo.dueDate
@@ -396,11 +419,27 @@ function TaskItem({
     // "nothing happened" — step rows toggle individually via their own
     // checkbox (which fires its own firework + chime).
     if (hasSubs) return
-    // Completing (or rolling a recurring row forward) plays the chime
-    // now, on tap. The in-row firework + checkbox fill are driven by the
-    // done-transition effect once `todo.done` flips. The chime is fired
-    // here (not in the effect) so it still plays on rows that unmount
-    // immediately under a strict Open filter.
+    // Ignore taps while a completion is already animating/held.
+    if (pendingCompleteRef.current) return
+    // Completing a row: fire the chime + calm firework NOW (measured from the
+    // leading control, rendered by the app-level overlay so it survives the
+    // row leaving), show the row as done optimistically, and HOLD the real
+    // toggle for the burst's visible lifetime so the celebration plays on
+    // THIS row instead of the one that shifts up to take its place.
+    if (!todo.done && celebrate) {
+      if (playSound) playCompletionChime()
+      setCompleting(true)
+      leadingRef.current?.measureInWindow((x, y, w, h) => {
+        triggerFirework({ x: x + w / 2, y: y + h / 2, color: categoryTint })
+      })
+      const commit = () => {
+        pendingCompleteRef.current = null
+        onToggle(todo.id)
+      }
+      pendingCompleteRef.current = { timer: setTimeout(commit, 650), commit }
+      return
+    }
+    // Reduce-motion completion, or un-completing: act immediately.
     if (!todo.done && playSound) playCompletionChime()
     onToggle(todo.id)
   }
@@ -691,10 +730,9 @@ function TaskItem({
             { opacity: rowFlash.interpolate({ inputRange: [0, 1], outputRange: [0, 0.45] }) },
           ]}
         />
-        {/* Leading control + its in-row firework anchor. The firework
-            layer absolute-fills this wrapper so the burst is centered on
-            the checkbox (or the steps chevron, for parent rows). */}
-        <View>
+        {/* Leading control (checkbox, or steps chevron for parent rows).
+            Measured on tap to anchor the app-level firework burst. */}
+        <View ref={leadingRef}>
           {!inTrash && hasSubs ? (
             <TouchableOpacity
               style={styles.expandToggle}
@@ -715,7 +753,7 @@ function TaskItem({
               <TouchableOpacity
                 style={[
                   styles.checkbox,
-                  todo.done && styles.checkboxDone,
+                  showDone && styles.checkboxDone,
                   inTrash && selected && styles.checkboxSelected,
                   todo.trashed && !todo.done && styles.checkboxRemoved,
                 ]}
@@ -726,7 +764,7 @@ function TaskItem({
                 accessibilityState={
                   inTrash && onToggleSelect
                     ? { checked: selected }
-                    : { checked: todo.done }
+                    : { checked: showDone }
                 }
                 accessibilityLabel={
                   inTrash && onToggleSelect
@@ -738,7 +776,7 @@ function TaskItem({
                         : `${todo.text}. Mark as done.`
                 }
               >
-                {todo.done || (inTrash && selected) ? (
+                {showDone || (inTrash && selected) ? (
                   <CheckGlyph size={14} />
                 ) : todo.trashed ? (
                   <Text style={styles.removedMark}>×</Text>
@@ -746,11 +784,6 @@ function TaskItem({
               </TouchableOpacity>
             </Animated.View>
           )}
-          <CalmFirework
-            trigger={fireworkTrigger}
-            color={categoryTint}
-            reduceMotion={!celebrate}
-          />
         </View>
 
         <View style={styles.body}>
@@ -758,7 +791,7 @@ function TaskItem({
             <Text
               style={[
                 styles.text,
-                todo.done && styles.textDone,
+                showDone && styles.textDone,
                 todo.trashed && !todo.done && styles.textRemoved,
               ]}
               numberOfLines={3}
@@ -880,13 +913,21 @@ function TaskItem({
                     style={styles.subRow}
                   >
                     <TouchableOpacity
+                      ref={(node) => {
+                        if (node) subRefs.current.set(s.id, node)
+                        else subRefs.current.delete(s.id)
+                      }}
                       onPress={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {})
                         // Celebrate when this step is about to become done.
                         // sub.done reflects the PRE-toggle state here.
                         if (!s.done) {
                           if (playSound) playCompletionChime()
-                          setFireworkTrigger((n) => n + 1)
+                          if (celebrate) {
+                            subRefs.current.get(s.id)?.measureInWindow((x, y, w, h) => {
+                              triggerFirework({ x: x + w / 2, y: y + h / 2, color: categoryTint })
+                            })
+                          }
                         }
                         onToggleSubtask!(todo.id, s.id)
                       }}

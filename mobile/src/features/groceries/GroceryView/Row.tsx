@@ -1,24 +1,23 @@
-import React, { memo, useCallback, useState } from "react";
+import React, { memo, useCallback, useRef } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { GroceryItem } from "../../../core-bindings/groceries";
-import CalmFirework from "../../task/CalmFirework";
+import { useTriggerFirework } from "../../../app/FireworkOverlay";
 import { playCompletionChime } from "../../../adapters/completionChime";
 import type { Styles } from "./styles";
 import CheckGlyph from "../../../ui/CheckGlyph";
 
 export interface RowProps {
   item: GroceryItem;
-  /** Returns the (store × dept) bucket-completion delta from
-   * useGroceriesSlice.toggleGroceryChecked. When > 0 the row fires
-   * the in-row CalmFirework to celebrate. Takes the item id so the
-   * parent can pass a reference-stable callback (the row supplies
-   * `item.id`), keeping the React.memo wrapper effective. */
+  /** Returns 1 when this tap just checked the item off (from
+   * useGroceriesSlice.toggleGroceryChecked). When > 0 the row fires the
+   * calm firework. Takes the item id so the parent can pass a reference-
+   * stable callback, keeping the React.memo wrapper effective. */
   onToggle: (id: string) => number;
   onOpenEdit: (id: string) => void;
   styles: Styles;
   futureMode?: boolean;
-  /** Department color — feeds CalmFirework as the primary particle
-   * `color`, mirroring how TaskItem uses a category color. */
+  /** Department color — the firework's primary particle tint, mirroring
+   * how TaskItem uses a category color. */
   tint?: string;
   celebrate?: boolean;
   playSound?: boolean;
@@ -40,17 +39,23 @@ function Row({
   celebrate = true,
   playSound = true,
 }: RowProps) {
-  // In-row firework celebration — bump this counter when a fresh check-off
-  // completes a (store × dept) bucket (delta > 0).
-  const [fireworkTrigger, setFireworkTrigger] = useState(0);
+  // Calm firework celebration — fired from the app-level overlay (anchored
+  // on the checkbox) so the burst survives the row leaving the active list
+  // when it's checked off.
+  const triggerFirework = useTriggerFirework();
+  const checkboxRef = useRef<View>(null);
   const handleOpenEdit = useCallback(() => onOpenEdit(item.id), [onOpenEdit, item.id]);
   const handleToggle = useCallback(() => {
     const delta = onToggle(item.id);
     if (delta > 0) {
       if (playSound) playCompletionChime();
-      setFireworkTrigger((n) => n + 1);
+      if (celebrate) {
+        checkboxRef.current?.measureInWindow((x, y, w, h) => {
+          triggerFirework({ x: x + w / 2, y: y + h / 2, color: tint });
+        });
+      }
     }
-  }, [onToggle, item.id, playSound]);
+  }, [onToggle, item.id, playSound, celebrate, tint, triggerFirework]);
   return (
     <View style={styles.row}>
       <TouchableOpacity
@@ -62,26 +67,19 @@ function Row({
           futureMode ? `Add ${item.text} back to list` : `Check off ${item.text}`
         }
       >
-        <View>
-          <View
-            style={[
-              styles.checkbox,
-              item.checked && styles.checkboxChecked,
-              futureMode && styles.checkboxFuture,
-            ]}
-          >
-            {futureMode ? (
-              <Text style={styles.checkboxPlus}>+</Text>
-            ) : item.checked ? (
-              <CheckGlyph size={14} />
-            ) : null}
-          </View>
-          {/* In-row firework, centered on the checkbox. */}
-          <CalmFirework
-            trigger={fireworkTrigger}
-            color={tint}
-            reduceMotion={!celebrate}
-          />
+        <View
+          ref={checkboxRef}
+          style={[
+            styles.checkbox,
+            item.checked && styles.checkboxChecked,
+            futureMode && styles.checkboxFuture,
+          ]}
+        >
+          {futureMode ? (
+            <Text style={styles.checkboxPlus}>+</Text>
+          ) : item.checked ? (
+            <CheckGlyph size={14} />
+          ) : null}
         </View>
       </TouchableOpacity>
       <TouchableOpacity
