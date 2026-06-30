@@ -1,6 +1,12 @@
 import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react";
 import { StorageAdapter } from "../../../core/src/ports/persistence";
 
+/** Upper bound on a single entity's first hydrate read. Firestore (with the
+ * offline cache) normally resolves in ms or rejects; this only catches a
+ * pathological stall so the launch gate can never trap the user on the
+ * loading screen. */
+const HYDRATE_TIMEOUT_MS = 12000;
+
 /**
  * Async state hook backed by a StorageAdapter. Hydrates from
  * adapter.getItem(key), subscribes to remote changes if supported, writes
@@ -29,28 +35,46 @@ export function useSyncedState<T>(
 
   useEffect(() => {
     let cancelled = false;
+    let settled = false;
     setLoaded(false);
+    // Proceed-with-defaults fallback shared by the catch and the timeout: don't
+    // let the trailing-debounced write push our default/empty state back to
+    // cloud over data we merely failed to READ. Seed the ref with the default
+    // so the write effect treats it as already-persisted (no write fires); a
+    // later getItem resolution or subscribe() snapshot recovers from here.
+    const proceedWithDefaults = () => {
+      lastSerializedRef.current = serializeRef.current(initial);
+      setLoaded(true);
+    };
+    // A getItem read that STALLS (socket open but never responds — captive
+    // portal, dead connection before the cache warms) would never settle, so
+    // `loaded` would never flip and the user is trapped on the launch
+    // LoadingScreen. Bound it: after the timeout, proceed with defaults.
+    const timeout = setTimeout(() => {
+      if (cancelled || settled) return;
+      settled = true;
+      console.warn(`useSyncedState[${key}] hydrate timed out — using defaults`);
+      proceedWithDefaults();
+    }, HYDRATE_TIMEOUT_MS);
     adapter
       .getItem(key)
       .then((raw) => {
+        settled = true;
         if (cancelled) return;
         lastSerializedRef.current = raw;
         setState(parseRef.current(raw));
         setLoaded(true);
       })
       .catch((err) => {
+        settled = true;
         if (cancelled) return;
         console.warn(`useSyncedState[${key}] hydrate failed:`, err);
-        // Don't let the trailing-debounced write push our default/empty state
-        // back to cloud over data we merely failed to READ. Seed the ref with
-        // the default so the write effect treats it as already-persisted (no
-        // write fires); a later subscribe() snapshot or a real user edit
-        // recovers from here.
-        lastSerializedRef.current = serializeRef.current(initial);
-        setLoaded(true);
-      });
+        proceedWithDefaults();
+      })
+      .finally(() => clearTimeout(timeout));
     return () => {
       cancelled = true;
+      clearTimeout(timeout);
     };
   }, [adapter, key]);
 

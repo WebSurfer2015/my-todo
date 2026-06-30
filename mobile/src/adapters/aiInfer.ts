@@ -74,7 +74,10 @@ async function callAiInfer<R>(
     } | null
     throw new Error(body?.error?.message ?? `AI request failed (${res.status}).`)
   }
-  const body = (await res.json()) as { result?: InferEnvelope<R>; error?: { message?: string } }
+  const body = (await res.json().catch(() => null)) as
+    | { result?: InferEnvelope<R>; error?: { message?: string } }
+    | null
+  if (!body) throw new Error('Empty AI response.')
   if (body.error) throw new Error(body.error.message ?? 'AI request failed.')
   if (!body.result) throw new Error('Empty AI response.')
   return body.result.result

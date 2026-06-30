@@ -335,9 +335,16 @@ export function useMochiAgent() {
           setErrorKind(res.status === 429 ? 'rate' : 'fail')
           return { ok: false, error: String(res.status) }
         }
-        const body = (await res.json()) as {
+        const body = (await res.json().catch(() => null)) as {
           result?: AgentResponse
           error?: { message?: string }
+        } | null
+        if (!body) {
+          // 200 with a malformed/empty body — treat as a transient failure
+          // rather than throwing an unhandled JSON parse error.
+          setError('Something went wrong.')
+          setErrorKind('fail')
+          return { ok: false, error: 'bad-response' }
         }
         if (body.error) {
           setError(body.error.message || 'Something went wrong.')

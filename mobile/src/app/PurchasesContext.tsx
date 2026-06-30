@@ -96,14 +96,10 @@ function parseEnvelope<T>(raw: unknown): T | null {
   }
 }
 
-// The four auto-renewable subscription products — used to query trial / intro
-// eligibility in one call.
-const SUB_PRODUCT_IDS = [
-  PRODUCT_IDS.premiumMonthly,
-  PRODUCT_IDS.premiumAnnual,
-  PRODUCT_IDS.maxMonthly,
-  PRODUCT_IDS.maxAnnual,
-]
+// The auto-renewable subscription products we actually SELL — used to query
+// trial / intro eligibility in one call. Max isn't offered (see PaywallSheet),
+// so we don't query eligibility for it; re-add the max ids here if it returns.
+const SUB_PRODUCT_IDS = [PRODUCT_IDS.premiumMonthly, PRODUCT_IDS.premiumAnnual]
 
 export function PurchasesProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
