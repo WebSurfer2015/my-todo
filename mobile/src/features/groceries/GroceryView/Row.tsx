@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useRef } from "react";
+import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { GroceryItem } from "../../../core-bindings/groceries";
 import { useTriggerFirework } from "../../../app/FireworkOverlay";
@@ -41,28 +41,56 @@ function Row({
 }: RowProps) {
   // Calm firework celebration — fired from the app-level overlay (anchored
   // on the checkbox) so the burst survives the row leaving the active list
-  // when it's checked off.
+  // when it's checked off. On a fresh check-off we show the row as checked
+  // optimistically and HOLD the real toggle for the burst's lifetime, so the
+  // celebration plays on THIS row instead of the one that shifts up to take
+  // its spot. Flushed on unmount so a tapped check-off is never lost.
   const triggerFirework = useTriggerFirework();
   const checkboxRef = useRef<View>(null);
+  const [completing, setCompleting] = useState(false);
+  const pendingRef = useRef<{ timer: ReturnType<typeof setTimeout>; commit: () => void } | null>(null);
+  useEffect(
+    () => () => {
+      const p = pendingRef.current;
+      if (p) {
+        clearTimeout(p.timer);
+        p.commit();
+      }
+    },
+    [],
+  );
+  useEffect(() => {
+    if (item.checked) setCompleting(false);
+  }, [item.checked]);
+  const showChecked = item.checked || completing;
   const handleOpenEdit = useCallback(() => onOpenEdit(item.id), [onOpenEdit, item.id]);
   const handleToggle = useCallback(() => {
-    const delta = onToggle(item.id);
-    if (delta > 0) {
+    if (pendingRef.current) return;
+    // A fresh check-off (unchecked → checked) is the only celebrating case;
+    // un-checking and Future re-adds act immediately.
+    if (!item.checked && celebrate) {
+      setCompleting(true);
       if (playSound) playCompletionChime();
-      if (celebrate) {
-        checkboxRef.current?.measureInWindow((x, y, w, h) => {
-          triggerFirework({ x: x + w / 2, y: y + h / 2, color: tint });
-        });
-      }
+      checkboxRef.current?.measureInWindow((x, y, w, h) => {
+        triggerFirework({ x: x + w / 2, y: y + h / 2, color: tint });
+      });
+      const commit = () => {
+        pendingRef.current = null;
+        onToggle(item.id);
+      };
+      pendingRef.current = { timer: setTimeout(commit, 650), commit };
+      return;
     }
-  }, [onToggle, item.id, playSound, celebrate, tint, triggerFirework]);
+    const delta = onToggle(item.id);
+    if (delta > 0 && playSound) playCompletionChime();
+  }, [onToggle, item.id, item.checked, playSound, celebrate, tint, triggerFirework]);
   return (
     <View style={styles.row}>
       <TouchableOpacity
         onPress={handleToggle}
         hitSlop={8}
         accessibilityRole="checkbox"
-        accessibilityState={{ checked: item.checked }}
+        accessibilityState={{ checked: showChecked }}
         accessibilityLabel={
           futureMode ? `Add ${item.text} back to list` : `Check off ${item.text}`
         }
@@ -71,13 +99,13 @@ function Row({
           ref={checkboxRef}
           style={[
             styles.checkbox,
-            item.checked && styles.checkboxChecked,
+            showChecked && styles.checkboxChecked,
             futureMode && styles.checkboxFuture,
           ]}
         >
           {futureMode ? (
             <Text style={styles.checkboxPlus}>+</Text>
-          ) : item.checked ? (
+          ) : showChecked ? (
             <CheckGlyph size={14} />
           ) : null}
         </View>
@@ -98,7 +126,7 @@ function Row({
         }
       >
         <Text
-          style={[styles.rowText, item.checked && !futureMode && styles.rowTextChecked]}
+          style={[styles.rowText, showChecked && !futureMode && styles.rowTextChecked]}
           numberOfLines={2}
         >
           {item.text}
