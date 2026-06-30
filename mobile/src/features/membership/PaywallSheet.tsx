@@ -124,7 +124,7 @@ export default function PaywallSheet({
   const { t } = useLang()
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
-  const [billing, setBilling] = useState<Billing>('monthly')
+  const [billing, setBilling] = useState<Billing>('annual')
   // Track the product mid-purchase so its own CTA shows the spinner (and all
   // CTAs disable) — the StoreKit call can take a couple seconds and a silent
   // disabled button reads as "stuck" at the highest-stakes tap in the app.
@@ -200,7 +200,7 @@ export default function PaywallSheet({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent statusBarTranslucent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

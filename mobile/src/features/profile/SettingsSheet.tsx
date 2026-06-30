@@ -227,7 +227,7 @@ export default function SettingsSheet({
               {/* MOCHI */}
               <Text style={styles.sectionLabel}>MOCHI</Text>
               <Text style={styles.sectionSubtitle}>
-                Mochi the turtle is the brand mascot.
+                Mochi is your gentle planning buddy.
               </Text>
               <View style={styles.card}>
                 <ToggleRow

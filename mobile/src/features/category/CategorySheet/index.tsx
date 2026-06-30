@@ -396,6 +396,7 @@ export default function CategorySheet({
     <Modal
       visible={visible}
       transparent
+      statusBarTranslucent
       animationType="slide"
       onRequestClose={handleBackdrop}
     >
@@ -425,7 +426,7 @@ export default function CategorySheet({
                       <Text style={styles.headerLeft}>{t.cancel}</Text>
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>
-                      {isEditing ? "Manage Todo's Filter" : 'Select Filter'}
+                      {isEditing ? 'Manage Filters' : 'Select Filter'}
                     </Text>
                     {isEditing ? (
                       // Manage flow keeps Done in the header. Select Filter's
@@ -834,7 +835,7 @@ export default function CategorySheet({
                   <View style={styles.field}>
                     <Text style={styles.label}>{t.categoryColorLabel}</Text>
                     <View style={styles.swatchRow}>
-                      {COLOR_PALETTE.map((cl) => (
+                      {COLOR_PALETTE.map((cl, i) => (
                         <TouchableOpacity
                           key={cl}
                           onPress={() => setColor(cl)}
@@ -843,7 +844,9 @@ export default function CategorySheet({
                             { backgroundColor: cl },
                             color === cl && styles.swatchSelected,
                           ]}
-                          accessibilityLabel={cl}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: color === cl }}
+                          accessibilityLabel={`Color ${i + 1}`}
                         />
                       ))}
                     </View>
@@ -859,7 +862,9 @@ export default function CategorySheet({
                             styles.iconCell,
                             { borderColor: icon === k ? color : "transparent" },
                           ]}
-                          accessibilityLabel={k}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: icon === k }}
+                          accessibilityLabel={`${k} icon`}
                         >
                           <CategoryIcon icon={k} size={20} color={color} />
                         </TouchableOpacity>

@@ -22,33 +22,16 @@ import { defineSecret } from 'firebase-functions/params'
 import * as admin from 'firebase-admin'
 import {
   FREE_ENTITLEMENT,
-  TOPUP_GRANTS,
   tierForProduct,
   type Entitlement,
   type Tier,
 } from './entitlements'
+import { applyEntitlementEvent, type RCEvent } from './entitlementEvents'
 
 const REVENUECAT_WEBHOOK_SECRET = defineSecret('REVENUECAT_WEBHOOK_SECRET')
 
 if (admin.apps.length === 0) admin.initializeApp()
 const db = admin.firestore()
-
-/** RevenueCat event shape (the subset we use). */
-interface RCEvent {
-  /** Unique event id — used to make delivery idempotent (RC is at-least-once). */
-  id?: string
-  type?: string
-  app_user_id?: string
-  product_id?: string
-  /** Present on PRODUCT_CHANGE: the product the user is switching TO. */
-  new_product_id?: string
-  expiration_at_ms?: number
-  /** Apple billing-retry grace window end (BILLING_ISSUE). */
-  grace_period_expiration_at_ms?: number
-  /** TRANSFER: app_user_ids losing / gaining the subscription. */
-  transferred_from?: string[]
-  transferred_to?: string[]
-}
 
 /** Write a single user's entitlement tier (preserving their top-up balance). */
 async function setUserTier(
@@ -79,15 +62,6 @@ async function handleTransfer(event: RCEvent): Promise<void> {
   for (const uid of event.transferred_from ?? []) {
     await setUserTier(uid, 'free', null)
   }
-}
-
-const TIER_RANK: Record<Tier, number> = { free: 0, premium: 1, max: 2 }
-
-/** The higher-ranked of two tiers (nulls ignored), or null if both are null. */
-function higherTier(a: Tier | null, b: Tier | null): Tier | null {
-  if (!a) return b
-  if (!b) return a
-  return TIER_RANK[a] >= TIER_RANK[b] ? a : b
 }
 
 function parseEntitlement(raw: unknown): Entitlement {
@@ -137,7 +111,6 @@ export const revenuecatWebhook = onRequest(
     const event = (req.body?.event ?? {}) as RCEvent
     const type = event.type
     const eventId = event.id
-    const productId = event.product_id ?? ''
     if (!type) {
       res.status(400).send('Missing event type')
       return
@@ -171,64 +144,12 @@ export const revenuecatWebhook = onRequest(
         if (eventId) {
           tx.set(dedupeRef, { ids: [...processed, eventId].slice(-50) }, { merge: true })
         }
-
-        switch (type) {
-          case 'INITIAL_PURCHASE':
-          case 'RENEWAL':
-          case 'PRODUCT_CHANGE':
-          case 'UNCANCELLATION': {
-            // PRODUCT_CHANGE carries new_product_id (the target). An immediate
-            // upgrade is effective now; a deferred downgrade keeps the current
-            // (higher) product until period end, after which a RENEWAL fires
-            // with only the new product. Take the HIGHER of the two tiers so an
-            // upgrade reflects instantly and a downgrade is never applied early
-            // — the later RENEWAL (new_product_id absent) lands the lower tier
-            // at the right time. For the other events new_product_id is unset,
-            // so this is just tierForProduct(product_id).
-            const tier = higherTier(
-              tierForProduct(productId),
-              event.new_product_id ? tierForProduct(event.new_product_id) : null,
-            )
-            if (!tier) return // not a subscription product — ignore
-            const validUntil = event.expiration_at_ms
-              ? new Date(event.expiration_at_ms).toISOString()
-              : current.validUntil
-            tx.set(ref, writeEnvelope({ ...current, tier, validUntil }))
-            return
-          }
-          case 'NON_RENEWING_PURCHASE': {
-            // Consumable top-up pack — add its grant to the balance.
-            const grant = TOPUP_GRANTS[productId]
-            if (!grant) return
-            tx.set(
-              ref,
-              writeEnvelope({ ...current, topUpBalance: current.topUpBalance + grant }),
-            )
-            return
-          }
-          case 'EXPIRATION': {
-            // Subscription lapsed — drop to free, keep any top-up balance.
-            tx.set(ref, writeEnvelope({ ...current, tier: 'free', validUntil: null }))
-            return
-          }
-          case 'BILLING_ISSUE': {
-            // Apple is retrying the charge — the user stays entitled through the
-            // grace window. Extend validUntil to the grace expiration so the
-            // server money-guard doesn't meter a still-active customer as Free.
-            const graceMs = event.grace_period_expiration_at_ms
-            if (!graceMs) return
-            const graceUntil = new Date(graceMs).toISOString()
-            const validUntil =
-              !current.validUntil || graceUntil > current.validUntil
-                ? graceUntil
-                : current.validUntil
-            tx.set(ref, writeEnvelope({ ...current, validUntil }))
-            return
-          }
-          // CANCELLATION = auto-renew off but still valid until expiry — no change.
-          default:
-            return
-        }
+        // All single-user tier logic (upgrade/downgrade ordering, top-up
+        // credit, expiration, grace) lives in the pure applyEntitlementEvent so
+        // it's unit-tested. It returns `current` unchanged for no-op events, so
+        // we only write when something actually changed.
+        const next = applyEntitlementEvent(current, event)
+        if (next !== current) tx.set(ref, writeEnvelope(next))
       })
       res.status(200).send('ok')
     } catch (err) {

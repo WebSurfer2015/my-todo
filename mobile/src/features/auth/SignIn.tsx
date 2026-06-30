@@ -155,22 +155,34 @@ export default function SignIn() {
             {mode !== "reset" && mode === "social" && (
               <View style={styles.providers}>
                 {error && <Text style={styles.error}>{error}</Text>}
-                {appleAvailable && (
-                  <AppleAuthentication.AppleAuthenticationButton
-                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                    buttonStyle={
-                      theme.bg === "#000000"
-                        ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
-                        : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
-                    }
-                    cornerRadius={10}
-                    style={styles.appleButton}
-                    onPress={() => withProvider(signInWithApple, "apple")}
+                {busy && (
+                  <ActivityIndicator
+                    style={{ marginVertical: 8 }}
+                    color="#999"
+                    accessibilityLabel="Signing in"
                   />
+                )}
+                {appleAvailable && (
+                  <View
+                    pointerEvents={busy ? "none" : "auto"}
+                    style={busy ? { opacity: 0.5 } : undefined}
+                  >
+                    <AppleAuthentication.AppleAuthenticationButton
+                      buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                      buttonStyle={
+                        theme.bg === "#000000"
+                          ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                          : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+                      }
+                      cornerRadius={10}
+                      style={styles.appleButton}
+                      onPress={() => withProvider(signInWithApple, "apple")}
+                    />
+                  </View>
                 )}
 
                 <TouchableOpacity
-                  style={[styles.socialBtn, styles.googleBtn]}
+                  style={[styles.socialBtn, styles.googleBtn, busy && { opacity: 0.5 }]}
                   onPress={() => withProvider(signInWithGoogle, "google")}
                   disabled={busy}
                   activeOpacity={0.8}
