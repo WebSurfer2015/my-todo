@@ -40,8 +40,10 @@ const MODEL = 'claude-haiku-4-5'
 // (Phase 2) ships — otherwise every free user is throttled to the basic
 // allowance with no way to upgrade. When true, agentChat reserves against
 // the per-tier monthly + daily Mochi budget; when false, it uses the flat
-// shared daily cap (current behavior). Flip to true at monetization launch.
-const MOCHI_TIER_ENFORCEMENT = false
+// shared daily cap. ON at monetization launch: Premium/Max now get their
+// larger monthly allowance, Free is held to its per-tier cap, and exceeding
+// it draws down the pay-as-you-go top-up balance.
+const MOCHI_TIER_ENFORCEMENT = true
 
 interface ChatContext {
   /** Today as ISO yyyy-mm-dd in the user's local timezone. The client

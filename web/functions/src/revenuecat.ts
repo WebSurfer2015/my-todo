@@ -25,6 +25,7 @@ import {
   TOPUP_GRANTS,
   tierForProduct,
   type Entitlement,
+  type Tier,
 } from './entitlements'
 
 const REVENUECAT_WEBHOOK_SECRET = defineSecret('REVENUECAT_WEBHOOK_SECRET')
@@ -37,7 +38,18 @@ interface RCEvent {
   type?: string
   app_user_id?: string
   product_id?: string
+  /** Present on PRODUCT_CHANGE: the product the user is switching TO. */
+  new_product_id?: string
   expiration_at_ms?: number
+}
+
+const TIER_RANK: Record<Tier, number> = { free: 0, premium: 1, max: 2 }
+
+/** The higher-ranked of two tiers (nulls ignored), or null if both are null. */
+function higherTier(a: Tier | null, b: Tier | null): Tier | null {
+  if (!a) return b
+  if (!b) return a
+  return TIER_RANK[a] >= TIER_RANK[b] ? a : b
 }
 
 function parseEntitlement(raw: unknown): Entitlement {
@@ -104,7 +116,18 @@ export const revenuecatWebhook = onRequest(
           case 'RENEWAL':
           case 'PRODUCT_CHANGE':
           case 'UNCANCELLATION': {
-            const tier = tierForProduct(productId)
+            // PRODUCT_CHANGE carries new_product_id (the target). An immediate
+            // upgrade is effective now; a deferred downgrade keeps the current
+            // (higher) product until period end, after which a RENEWAL fires
+            // with only the new product. Take the HIGHER of the two tiers so an
+            // upgrade reflects instantly and a downgrade is never applied early
+            // — the later RENEWAL (new_product_id absent) lands the lower tier
+            // at the right time. For the other events new_product_id is unset,
+            // so this is just tierForProduct(product_id).
+            const tier = higherTier(
+              tierForProduct(productId),
+              event.new_product_id ? tierForProduct(event.new_product_id) : null,
+            )
             if (!tier) return // not a subscription product — ignore
             const validUntil = event.expiration_at_ms
               ? new Date(event.expiration_at_ms).toISOString()
