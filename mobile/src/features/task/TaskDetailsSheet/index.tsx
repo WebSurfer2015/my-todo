@@ -47,7 +47,7 @@ import CheckGlyph from '../../../ui/CheckGlyph'
 import CategoryIcon from '../../../ui/CategoryIcon'
 import PickerModal from '../../../ui/PickerModal'
 import AddSubtaskSheet from '../AddSubtaskSheet'
-import EmptyState from '../../../ui/EmptyState'
+import EmptyStateCard from '../../../ui/EmptyStateCard'
 import InlinePicker from '../../../ui/InlinePicker'
 import {
   useSuggestSteps,
@@ -1688,10 +1688,10 @@ export default function TaskDetailsSheet({
                 )}
               </View>
               {subs.length === 0 ? (
-                <EmptyState
-                  variant="compact"
+                <EmptyStateCard
                   title={t.steps.noneYet}
                   hint={t.steps.noneHint}
+                  hideGlyph
                 />
               ) : (
                 <View style={styles.editSubtasks}>

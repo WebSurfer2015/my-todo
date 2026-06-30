@@ -449,7 +449,13 @@ export default function ComposeSheet({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={requestClose}>
+    <Modal
+      visible={visible}
+      transparent
+      statusBarTranslucent
+      animationType="slide"
+      onRequestClose={() => (subView === 'main' ? requestClose() : setSubView('main'))}
+    >
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -478,10 +484,10 @@ export default function ComposeSheet({
                     hitSlop={10}
                     style={styles.headerSideBtn}
                     accessibilityRole="button"
-                    accessibilityLabel={t.done}
+                    accessibilityLabel={t.add}
                   >
                     <Text style={[styles.saveHeaderText, !canSubmit && styles.saveHeaderTextDisabled]}>
-                      {t.done}
+                      {t.add}
                     </Text>
                   </TouchableOpacity>
                 </View>

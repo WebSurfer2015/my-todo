@@ -985,7 +985,7 @@ function TaskItem({
         )}
 
         {dateOpen && Platform.OS === 'ios' && (
-          <Modal visible transparent animationType="fade" onRequestClose={() => setDateOpen(false)}>
+          <Modal visible transparent statusBarTranslucent animationType="fade" onRequestClose={() => setDateOpen(false)}>
             <TouchableOpacity
               style={styles.dateOverlay}
               onPress={() => setDateOpen(false)}
@@ -1053,6 +1053,7 @@ function TaskItem({
           <Modal
             visible
             transparent
+            statusBarTranslucent
             animationType="fade"
             onRequestClose={() => setSubDateForId(null)}
           >

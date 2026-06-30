@@ -87,7 +87,7 @@ export default function AddSubtaskSheet({ visible, onAdd, onClose, defaultDueDat
   const { translateY, panHandlers } = useSheetDismiss(visible, onClose)
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent statusBarTranslucent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
