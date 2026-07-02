@@ -116,21 +116,29 @@ function defaultEndDateFor(freq: RecurrenceFreq): Date {
   return d
 }
 
-const RECURRENCE_LABELS: Record<'none' | RecurrenceFreq, string> = {
-  none: 'Never',
-  daily: 'Daily',
-  weekly: 'Weekly',
-  monthly: 'Monthly',
-  yearly: 'Yearly',
+function recurrenceFreqLabel(
+  freq: 'none' | RecurrenceFreq,
+  t: ReturnType<typeof useLang>['t'],
+): string {
+  switch (freq) {
+    case 'daily': return t.recurrence.daily
+    case 'weekly': return t.recurrence.weekly
+    case 'monthly': return t.recurrence.monthly
+    case 'yearly': return t.recurrence.yearly
+    default: return t.recurrence.never
+  }
 }
 
-function recurrenceLabel(rec: Recurrence | undefined): string {
-  if (!rec) return 'Never'
+function recurrenceLabel(
+  rec: Recurrence | undefined,
+  t: ReturnType<typeof useLang>['t'],
+): string {
+  if (!rec) return t.recurrence.never
   let base: string
   if (rec.byWeekday && rec.byWeekday.length > 0) {
     base = formatRecurrence(rec)
   } else {
-    base = RECURRENCE_LABELS[rec.freq] ?? 'Never'
+    base = recurrenceFreqLabel(rec.freq, t)
   }
   if (rec.endDate) {
     const d = new Date(`${rec.endDate}T00:00:00`)
@@ -605,9 +613,7 @@ export default function ComposeSheet({
                                       {ref.recurrence.byWeekday &&
                                       ref.recurrence.byWeekday.length > 0
                                         ? formatRecurrence(ref.recurrence)
-                                        : RECURRENCE_LABELS[
-                                            ref.recurrence.freq
-                                          ] ?? ref.recurrence.freq}
+                                        : recurrenceFreqLabel(ref.recurrence.freq, t)}
                                     </Text>
                                   </View>
                                 )}
@@ -759,7 +765,7 @@ export default function ComposeSheet({
                       onPress={openDateView}
                       activeOpacity={0.6}
                       accessibilityRole="button"
-                      accessibilityLabel={`Completed by, ${dueDate ? formatDisplayDate(dueDate, t.locale) : t.noDate}. Tap to change.`}
+                      accessibilityLabel={`Complete by, ${dueDate ? formatDisplayDate(dueDate, t.locale) : t.noDate}. Tap to change.`}
                     >
                       <CalendarIcon size={18} color={dueDate ? theme.blue : theme.gray3} />
                       <Text style={styles.fieldLabel}>{t.composeDateLabel}</Text>
@@ -782,7 +788,7 @@ export default function ComposeSheet({
                       onPress={() => setSubView('repeat')}
                       activeOpacity={0.6}
                       accessibilityRole="button"
-                      accessibilityLabel={`Repeat, ${recurrenceLabel(recurrence)}. Tap to change.`}
+                      accessibilityLabel={`Repeat, ${recurrenceLabel(recurrence, t)}. Tap to change.`}
                     >
                       <Repeat size={18} color={recurrence ? theme.blue : theme.gray3} strokeWidth={2} />
                       <Text style={styles.fieldLabel}>Repeat</Text>
@@ -796,8 +802,8 @@ export default function ComposeSheet({
                         {recurrence
                           ? (isCustomRecurrence(recurrence)
                               ? formatRecurrence(recurrence)
-                              : RECURRENCE_LABELS[recurrence.freq])
-                          : RECURRENCE_LABELS.none}
+                              : recurrenceFreqLabel(recurrence.freq, t))
+                          : t.recurrence.never}
                       </Text>
                       <Text style={styles.chevron}>›</Text>
                     </TouchableOpacity>
@@ -1002,16 +1008,16 @@ export default function ComposeSheet({
 
             {subView === 'repeat' && (
               <InlinePicker
-                title="Repeat"
+                title={t.edit.repeat}
                 options={[
-                  { key: 'none', label: RECURRENCE_LABELS.none, color: theme.label },
+                  { key: 'none', label: t.recurrence.never, color: theme.label },
                   ...RECURRENCE_FREQS.map((f) => ({
                     key: f,
-                    label: RECURRENCE_LABELS[f],
+                    label: recurrenceFreqLabel(f, t),
                     color: theme.label,
                     icon: <Repeat size={16} color={theme.blue} strokeWidth={2} />,
                   })),
-                  { key: 'custom', label: 'Custom…', color: theme.label },
+                  { key: 'custom', label: t.recurrence.custom, color: theme.label },
                 ]}
                 selectedKey={
                   !recurrence

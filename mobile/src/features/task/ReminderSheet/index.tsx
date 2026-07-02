@@ -134,14 +134,8 @@ function repeatingPillLabel(
 ): string {
   if (minutes < 60) return t.remindPillEveryMin(minutes)
   if (minutes < 1440) return t.remindPillEveryHour(Math.round(minutes / 60))
-  // Day/week cadences (1d/3d/1w chips). Hardcoded English pending the
-  // #10 i18n pass — t.* has no every-day/week formatter yet.
-  if (minutes < 10080) {
-    const d = Math.round(minutes / 1440)
-    return `Every ${d} day${d > 1 ? 's' : ''}`
-  }
-  const w = Math.round(minutes / 10080)
-  return `Every ${w} week${w > 1 ? 's' : ''}`
+  if (minutes < 10080) return t.remindPillEveryDay(Math.round(minutes / 1440))
+  return t.remindPillEveryWeek(Math.round(minutes / 10080))
 }
 
 /** "9:00 AM" — time-of-day only. Used for a fixed reminder that lands on

@@ -22,12 +22,17 @@ import { Category, Priority, Reminder, Subtask, Todo, Recurrence, RecurrenceFreq
 import { getReminders } from '../../../../../core/src/logic/derive'
 import ReminderSheet from '../ReminderSheet'
 
-const RECURRENCE_LABELS: Record<'none' | RecurrenceFreq, string> = {
-  none: 'Never',
-  daily: 'Daily',
-  weekly: 'Weekly',
-  monthly: 'Monthly',
-  yearly: 'Yearly',
+function recurrenceFreqLabel(
+  freq: 'none' | RecurrenceFreq,
+  t: ReturnType<typeof useLang>['t'],
+): string {
+  switch (freq) {
+    case 'daily': return t.recurrence.daily
+    case 'weekly': return t.recurrence.weekly
+    case 'monthly': return t.recurrence.monthly
+    case 'yearly': return t.recurrence.yearly
+    default: return t.recurrence.never
+  }
 }
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
@@ -61,13 +66,16 @@ import { ensurePermission } from '../../../adapters/notifications'
 import CustomRecurrenceForm from '../CustomRecurrenceForm'
 import { makeStyles } from './styles';
 
-function recurrenceLabel(rec: Recurrence | undefined): string {
-  if (!rec) return RECURRENCE_LABELS.none
+function recurrenceLabel(
+  rec: Recurrence | undefined,
+  t: ReturnType<typeof useLang>['t'],
+): string {
+  if (!rec) return t.recurrence.never
   let base: string
   if (rec.byWeekday && rec.byWeekday.length > 0) {
     base = formatRecurrence(rec)
   } else {
-    base = RECURRENCE_LABELS[rec.freq] ?? RECURRENCE_LABELS.none
+    base = recurrenceFreqLabel(rec.freq, t)
   }
   if (rec.endDate) {
     const d = new Date(`${rec.endDate}T00:00:00`)
@@ -1142,14 +1150,14 @@ export default function TaskDetailsSheet({
             <InlinePicker
               title={t.edit.repeat}
               options={[
-                { key: 'none', label: RECURRENCE_LABELS.none, color: theme.label },
+                { key: 'none', label: t.recurrence.never, color: theme.label },
                 ...RECURRENCE_FREQS.map((f) => ({
                   key: f,
-                  label: RECURRENCE_LABELS[f],
+                  label: recurrenceFreqLabel(f, t),
                   color: theme.label,
                   icon: <Repeat size={16} color={theme.blue} strokeWidth={2} />,
                 })),
-                { key: 'custom', label: 'Custom…', color: theme.label },
+                { key: 'custom', label: t.recurrence.custom, color: theme.label },
               ]}
               selectedKey={
                 !editRecurrence
@@ -1563,7 +1571,7 @@ export default function TaskDetailsSheet({
                   activeOpacity={0.6}
                   accessibilityRole="button"
                   accessibilityState={{ disabled: repeatLocked }}
-                  accessibilityLabel={`Repeat, ${recurrenceLabel(editRecurrence)}. Tap to change.`}
+                  accessibilityLabel={`Repeat, ${recurrenceLabel(editRecurrence, t)}. Tap to change.`}
                 >
                   <Repeat size={18} color={editRecurrence ? theme.blue : theme.gray3} strokeWidth={2} />
                   <Text style={styles.editFieldLabel}>{t.edit.repeat}</Text>
@@ -1577,8 +1585,8 @@ export default function TaskDetailsSheet({
                     {editRecurrence
                       ? (editRecurrence.byWeekday && editRecurrence.byWeekday.length > 0
                           ? formatRecurrence(editRecurrence)
-                          : RECURRENCE_LABELS[editRecurrence.freq])
-                      : RECURRENCE_LABELS.none}
+                          : recurrenceFreqLabel(editRecurrence.freq, t))
+                      : t.recurrence.never}
                   </Text>
                   {repeatLocked ? (
                     <Text style={styles.editFieldLockHint}>Series only</Text>
