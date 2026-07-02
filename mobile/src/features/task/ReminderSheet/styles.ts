@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native'
-import type { ThemeColors } from '../../../app/theme'
+import { type ThemeColors, SPACING, RADIUS, TYPE } from '../../../app/theme'
 
 export type ReminderSheetStyles = ReturnType<typeof makeStyles>
 
@@ -10,9 +10,9 @@ export function makeStyles(c: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingTop: 8,
-      paddingBottom: 12,
+      paddingHorizontal: SPACING.lg,
+      paddingTop: SPACING.sm,
+      paddingBottom: SPACING.md,
     },
     headerSide: {
       minWidth: 72,
@@ -22,17 +22,17 @@ export function makeStyles(c: ThemeColors) {
       alignItems: 'flex-end',
     },
     backText: {
-      fontSize: 15,
+      fontSize: TYPE.body,
       fontWeight: '500',
       color: c.primary,
     },
     titleText: {
-      fontSize: 15,
+      fontSize: TYPE.body,
       fontWeight: '700',
       color: c.label,
     },
     clearAllText: {
-      fontSize: 14,
+      fontSize: TYPE.body,
       fontWeight: '500',
       color: c.primary,
     },
@@ -42,28 +42,28 @@ export function makeStyles(c: ThemeColors) {
 
     /* Body container */
     body: {
-      paddingHorizontal: 16,
-      paddingBottom: 24,
-      gap: 24,
+      paddingHorizontal: SPACING.lg,
+      paddingBottom: SPACING.xl,
+      gap: SPACING.xl,
     },
 
     /* "Your reminders" pill list */
     listHeader: {
-      fontSize: 11,
+      fontSize: TYPE.caption,
       fontWeight: '700',
       color: c.label3,
       letterSpacing: 0.8,
       textTransform: 'uppercase',
-      marginBottom: 10,
+      marginBottom: SPACING.md,
     },
     listEmpty: {
       backgroundColor: c.surfaceAlt,
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      borderRadius: RADIUS.card,
+      paddingHorizontal: SPACING.lg,
+      paddingVertical: SPACING.md,
     },
     listEmptyText: {
-      fontSize: 14,
+      fontSize: TYPE.body,
       color: c.label3,
       fontStyle: 'italic',
       textAlign: 'center',
@@ -71,20 +71,20 @@ export function makeStyles(c: ThemeColors) {
     pillsWrap: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 8,
+      gap: SPACING.sm,
     },
     pill: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
-      paddingLeft: 16,
-      paddingRight: 6,
-      paddingVertical: 8,
-      borderRadius: 999,
+      gap: SPACING.sm,
+      paddingLeft: SPACING.lg,
+      paddingRight: SPACING.sm,
+      paddingVertical: SPACING.sm,
+      borderRadius: RADIUS.pill,
       backgroundColor: c.primarySoft,
     },
     pillText: {
-      fontSize: 13,
+      fontSize: TYPE.footnote,
       fontWeight: '600',
       color: c.primary,
     },
@@ -98,58 +98,58 @@ export function makeStyles(c: ThemeColors) {
     },
     pillRemoveX: {
       color: c.primaryOn,
-      fontSize: 13,
+      fontSize: TYPE.footnote,
       fontWeight: '800',
       lineHeight: 13,
     },
 
     /* Section block — header + sub-helper + chips */
     section: {
-      gap: 12,
+      gap: SPACING.md,
     },
     fixedRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      gap: 12,
+      gap: SPACING.md,
       flexWrap: 'wrap',
     },
     fixedAddBtn: {
-      paddingVertical: 9,
-      paddingHorizontal: 18,
-      borderRadius: 999,
+      paddingVertical: SPACING.sm,
+      paddingHorizontal: SPACING.lg,
+      borderRadius: RADIUS.pill,
       backgroundColor: c.primary,
     },
-    fixedAddBtnText: { color: c.primaryOn, fontSize: 14, fontWeight: '700' },
+    fixedAddBtnText: { color: c.primaryOn, fontSize: TYPE.body, fontWeight: '700' },
     fixedAndroidField: {
       flex: 1,
-      paddingVertical: 11,
-      paddingHorizontal: 14,
-      borderRadius: 10,
+      paddingVertical: SPACING.md,
+      paddingHorizontal: SPACING.lg,
+      borderRadius: RADIUS.control,
       backgroundColor: c.surface,
     },
-    fixedAndroidFieldText: { color: c.label, fontSize: 15, fontWeight: '600' },
+    fixedAndroidFieldText: { color: c.label, fontSize: TYPE.body, fontWeight: '600' },
     sectionHeader: {
-      fontSize: 11,
+      fontSize: TYPE.caption,
       fontWeight: '700',
       color: c.label3,
       letterSpacing: 0.8,
       textTransform: 'uppercase',
     },
     sectionSubhelper: {
-      fontSize: 13,
+      fontSize: TYPE.footnote,
       color: c.label2,
       lineHeight: 18,
       marginTop: -8,
     },
     notice: {
       backgroundColor: c.surfaceAlt,
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      borderRadius: RADIUS.card,
+      paddingHorizontal: SPACING.lg,
+      paddingVertical: SPACING.md,
     },
     noticeText: {
-      fontSize: 14,
+      fontSize: TYPE.body,
       color: c.label2,
       fontStyle: 'italic',
       textAlign: 'center',
@@ -160,13 +160,13 @@ export function makeStyles(c: ThemeColors) {
     chipsWrap: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 8,
+      gap: SPACING.sm,
     },
     chip: {
       minWidth: 56,
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 999,
+      paddingHorizontal: SPACING.lg,
+      paddingVertical: SPACING.sm,
+      borderRadius: RADIUS.pill,
       backgroundColor: c.primarySoft,
       alignItems: 'center',
       justifyContent: 'center',
@@ -184,7 +184,7 @@ export function makeStyles(c: ThemeColors) {
       opacity: 0.6,
     },
     chipText: {
-      fontSize: 14,
+      fontSize: TYPE.body,
       fontWeight: '600',
       color: c.primary,
     },
@@ -197,8 +197,8 @@ export function makeStyles(c: ThemeColors) {
 
     /* Sticky bottom Done button */
     footer: {
-      paddingHorizontal: 16,
-      paddingTop: 12,
+      paddingHorizontal: SPACING.lg,
+      paddingTop: SPACING.md,
       paddingBottom: 20,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: c.gray3,
@@ -206,12 +206,12 @@ export function makeStyles(c: ThemeColors) {
     doneBtn: {
       backgroundColor: c.primary,
       borderRadius: 14,
-      paddingVertical: 12,
+      paddingVertical: SPACING.md,
       alignItems: 'center',
       justifyContent: 'center',
     },
     doneBtnText: {
-      fontSize: 16,
+      fontSize: TYPE.bodyLg,
       fontWeight: '700',
       color: c.primaryOn,
     },

@@ -1,5 +1,5 @@
 import { StyleSheet } from "react-native";
-import { ThemeColors, RADIUS } from "../../../app/theme";
+import { ThemeColors, SPACING, RADIUS, TYPE } from "../../../app/theme";
 
 export function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
@@ -11,16 +11,16 @@ export function makeStyles(c: ThemeColors) {
     pillsRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 16,
+      paddingHorizontal: SPACING.lg,
       // Extra top padding so the pills sit centered in the space below
       // the header rather than hugging the top.
-      paddingTop: 12,
-      paddingBottom: 8,
-      gap: 8,
+      paddingTop: SPACING.md,
+      paddingBottom: SPACING.sm,
+      gap: SPACING.sm,
     },
     pillsScroll: {
       flexDirection: 'row',
-      gap: 8,
+      gap: SPACING.sm,
       // Explicit paddingLeft instead of leaning on pillsRow's `gap: 8`.
       // RN's gap between a regular flex child (the All pill) and a
       // ScrollView sibling has been unreliable — the leading pill
@@ -28,7 +28,7 @@ export function makeStyles(c: ThemeColors) {
       // some renders. 8pt here matches the pillsScroll inter-pill gap
       // for a consistent visual rhythm.
       paddingRight: 0,
-      paddingLeft: 8,
+      paddingLeft: SPACING.sm,
     },
     storePill: {
       // Chrome mirrors the Todos FilterBar pill: round, slim padding,
@@ -39,8 +39,8 @@ export function makeStyles(c: ThemeColors) {
       position: 'relative',
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
-      paddingHorizontal: 12,
+      gap: SPACING.sm,
+      paddingHorizontal: SPACING.md,
       paddingVertical: 7,
       borderRadius: RADIUS.pill,
       backgroundColor: c.card,
@@ -60,7 +60,7 @@ export function makeStyles(c: ThemeColors) {
       borderWidth: 1.5,
     },
     storePillLabel: {
-      fontSize: 13,
+      fontSize: TYPE.footnote,
       fontWeight: '600',
       letterSpacing: -0.16,
       color: c.label,
@@ -68,7 +68,7 @@ export function makeStyles(c: ThemeColors) {
     },
     storePillLabelActive: { color: c.primaryOn },
     storePillCount: {
-      fontSize: 12,
+      fontSize: TYPE.caption,
       fontWeight: '700',
       color: c.label2,
       fontVariant: ['tabular-nums'],
@@ -82,7 +82,7 @@ export function makeStyles(c: ThemeColors) {
       // across tabs must look the same width. groupBlock children
       // explicitly negate this with their own marginHorizontal so
       // pre-existing list layouts aren't double-padded.
-      paddingHorizontal: 16,
+      paddingHorizontal: SPACING.lg,
       // flexGrow:1 so EmptyStateCard with `centered` can vertically
       // center within the remaining scroll space. Same shape as
       // App.tsx's container/body for the Todos tab.
@@ -94,19 +94,19 @@ export function makeStyles(c: ThemeColors) {
       // layout stays exactly where it was — group headers + cards
       // were already aligned right at the screen edge minus 16.
       marginHorizontal: -16,
-      paddingHorizontal: 16,
-      marginBottom: 16,
+      paddingHorizontal: SPACING.lg,
+      marginBottom: SPACING.lg,
     },
     groupHeaderRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
-      paddingHorizontal: 4,
-      paddingVertical: 6,
+      gap: SPACING.sm,
+      paddingHorizontal: SPACING.xs,
+      paddingVertical: SPACING.sm,
       marginBottom: 2,
     },
     groupHeader: {
-      fontSize: 12,
+      fontSize: TYPE.caption,
       fontWeight: '700',
       color: c.label3,
       letterSpacing: 0.8,
@@ -115,24 +115,24 @@ export function makeStyles(c: ThemeColors) {
     groupCount: { fontWeight: '500', color: c.gray3 },
     // Quiet sub-label inside the Saved accordion ("Often picked up" / "Past items").
     savedSubLabel: {
-      fontSize: 11,
+      fontSize: TYPE.caption,
       fontWeight: '600',
       color: c.label3,
       letterSpacing: 0.3,
-      paddingHorizontal: 4,
-      marginTop: 8,
-      marginBottom: 4,
+      paddingHorizontal: SPACING.xs,
+      marginTop: SPACING.sm,
+      marginBottom: SPACING.xs,
     },
     futureHint: {
-      fontSize: 12,
+      fontSize: TYPE.caption,
       color: c.label3,
-      paddingHorizontal: 4,
-      marginBottom: 6,
+      paddingHorizontal: SPACING.xs,
+      marginBottom: SPACING.sm,
       marginTop: -2,
     },
     groupCard: {
       backgroundColor: c.card,
-      borderRadius: 14,
+      borderRadius: RADIUS.card,
       overflow: 'hidden',
     },
     divider: {
@@ -143,19 +143,19 @@ export function makeStyles(c: ThemeColors) {
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
-      paddingVertical: 12,
-      paddingHorizontal: 16,
+      gap: SPACING.md,
+      paddingVertical: SPACING.md,
+      paddingHorizontal: SPACING.lg,
       minHeight: 48,
     },
     rowBody: {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
+      gap: SPACING.sm,
       // Pad vertically so the tap target stays at least 44pt for HIG
       // even when the text is short.
-      paddingVertical: 4,
+      paddingVertical: SPACING.xs,
     },
     checkbox: {
       width: 24,
@@ -168,11 +168,11 @@ export function makeStyles(c: ThemeColors) {
     },
     checkboxChecked: { backgroundColor: c.primary, borderColor: c.primary },
     checkboxFuture: { borderColor: c.label3, borderStyle: 'dashed' },
-    checkboxCheck: { color: c.primaryOn, fontSize: 14, fontWeight: '700', lineHeight: 16 },
-    checkboxPlus: { color: c.primaryOn, fontSize: 16, fontWeight: '700', lineHeight: 16 },
+    checkboxCheck: { color: c.primaryOn, fontSize: TYPE.body, fontWeight: '700', lineHeight: 16 },
+    checkboxPlus: { color: c.primaryOn, fontSize: TYPE.bodyLg, fontWeight: '700', lineHeight: 16 },
     rowText: {
       flex: 1,
-      fontSize: 15,
+      fontSize: TYPE.body,
       color: c.label,
     },
     rowTextChecked: {
@@ -180,7 +180,7 @@ export function makeStyles(c: ThemeColors) {
       color: c.label3,
     },
     rowStore: {
-      fontSize: 12,
+      fontSize: TYPE.caption,
       color: c.label3,
       marginLeft: 'auto',
       maxWidth: 100,
@@ -188,12 +188,12 @@ export function makeStyles(c: ThemeColors) {
     // Quiet trailing edit affordance (opens the edit sheet); the row body
     // itself toggles, so this stays low-contrast to not clutter the list.
     rowEditBtn: {
-      paddingLeft: 8,
-      paddingVertical: 8,
+      paddingLeft: SPACING.sm,
+      paddingVertical: SPACING.sm,
       alignSelf: 'center',
     },
     rowEditChevron: {
-      fontSize: 22,
+      fontSize: TYPE.h2,
       color: c.gray3,
       lineHeight: 22,
     },
