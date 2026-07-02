@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
@@ -26,6 +27,16 @@ import react from '@vitejs/plugin-react'
  */
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      // A few web tests render mobile hooks (renderHook) that import
+      // react-native primitives (e.g. AppState). Web has no react-native and
+      // rolldown can't parse its Flow source, so alias it to an inert stub.
+      'react-native': fileURLToPath(
+        new URL('./vitest-stubs/react-native.ts', import.meta.url),
+      ),
+    },
+  },
   test: {
     coverage: {
       provider: 'v8',
