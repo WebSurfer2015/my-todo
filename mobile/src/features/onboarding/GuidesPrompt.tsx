@@ -21,7 +21,7 @@ import {
 } from 'react-native'
 import { Sparkles } from 'lucide-react-native'
 import { GUIDES } from './guides'
-import { useTheme, ThemeColors } from '../../app/theme'
+import { RADIUS, SPACING, TYPE, useTheme, ThemeColors } from '../../app/theme'
 
 interface Props {
   visible: boolean
@@ -91,50 +91,50 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bg,
       borderRadius: 18,
       paddingTop: 28,
-      paddingHorizontal: 24,
-      paddingBottom: 16,
+      paddingHorizontal: SPACING.xl,
+      paddingBottom: SPACING.lg,
       alignItems: 'center',
       maxWidth: 360,
     },
     iconBubble: {
       width: 56,
       height: 56,
-      borderRadius: 14,
+      borderRadius: RADIUS.card,
       backgroundColor: c.primarySoft,
       alignItems: 'center',
       justifyContent: 'center',
-      marginBottom: 14,
+      marginBottom: SPACING.lg,
     },
     title: {
-      fontSize: 19,
+      fontSize: TYPE.title,
       fontWeight: '700',
       color: c.label,
       textAlign: 'center',
-      marginBottom: 10,
+      marginBottom: SPACING.md,
     },
     body: {
-      fontSize: 14,
+      fontSize: TYPE.body,
       lineHeight: 20,
       color: c.label2,
       textAlign: 'center',
-      marginBottom: 18,
+      marginBottom: SPACING.lg,
     },
-    actions: { flexDirection: 'row', gap: 8, alignSelf: 'stretch' },
+    actions: { flexDirection: 'row', gap: SPACING.sm, alignSelf: 'stretch' },
     secondaryBtn: {
       flex: 1,
-      paddingVertical: 12,
-      borderRadius: 12,
+      paddingVertical: SPACING.md,
+      borderRadius: RADIUS.control,
       backgroundColor: c.primarySoft,
       alignItems: 'center',
     },
-    secondaryText: { fontSize: 15, fontWeight: '600', color: c.primary },
+    secondaryText: { fontSize: TYPE.body, fontWeight: '600', color: c.primary },
     primaryBtn: {
       flex: 1,
-      paddingVertical: 12,
-      borderRadius: 12,
+      paddingVertical: SPACING.md,
+      borderRadius: RADIUS.control,
       backgroundColor: c.primary,
       alignItems: 'center',
     },
-    primaryText: { fontSize: 15, fontWeight: '600', color: c.primaryOn },
+    primaryText: { fontSize: TYPE.body, fontWeight: '600', color: c.primaryOn },
   })
 }

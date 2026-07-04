@@ -28,7 +28,7 @@ import Constants from "expo-constants";
 import { Profile, type ThemeName } from "../../core-bindings/profile";
 import { useLang } from "../../app/LangContext";
 import { usePurchases } from "../../app/PurchasesContext";
-import { useTheme, ThemeColors, themeSwatch } from "../../app/theme";
+import { useTheme, ThemeColors, themeSwatch, SPACING, RADIUS, TYPE } from "../../app/theme";
 import SheetShell from "../../ui/SheetShell";
 
 interface Props {
@@ -418,17 +418,17 @@ function ToggleRow({ label, hint, value, onChange, styles, disabled }: ToggleRow
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     sectionLabel: {
-      fontSize: 12,
+      fontSize: TYPE.caption,
       fontWeight: "700",
       color: c.label3,
       letterSpacing: 0.6,
-      paddingHorizontal: 22,
-      marginTop: 18,
-      marginBottom: 8,
+      paddingHorizontal: SPACING.xl,
+      marginTop: SPACING.lg,
+      marginBottom: SPACING.sm,
     },
     card: {
-      marginHorizontal: 16,
-      borderRadius: 12,
+      marginHorizontal: SPACING.lg,
+      borderRadius: RADIUS.card,
       backgroundColor: c.card,
       overflow: "hidden",
     },
@@ -436,61 +436,61 @@ function makeStyles(c: ThemeColors) {
       // For a card that sits without its own section label above it —
       // small breathing room, less than a full section break since the
       // row reads as a continuation of the section above.
-      marginTop: 8,
+      marginTop: SPACING.sm,
     },
     sectionSubtitle: {
       // Small explanatory text that sits between a section label and
       // its card — pulled close to the label, not floating.
-      fontSize: 12,
+      fontSize: TYPE.caption,
       color: c.label3,
       lineHeight: 16,
-      paddingHorizontal: 22,
+      paddingHorizontal: SPACING.xl,
       marginTop: -2,
-      marginBottom: 8,
+      marginBottom: SPACING.sm,
     },
     row: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 12,
-      paddingVertical: 12,
-      paddingHorizontal: 16,
+      gap: SPACING.md,
+      paddingVertical: SPACING.md,
+      paddingHorizontal: SPACING.lg,
       minHeight: 48,
     },
     rowStatic: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 12,
-      paddingVertical: 12,
-      paddingHorizontal: 16,
+      gap: SPACING.md,
+      paddingVertical: SPACING.md,
+      paddingHorizontal: SPACING.lg,
       minHeight: 48,
     },
     rowLabel: {
-      fontSize: 15,
+      fontSize: TYPE.body,
       color: c.label,
       flexShrink: 1,
     },
     rowHint: {
-      fontSize: 12,
+      fontSize: TYPE.caption,
       color: c.label3,
-      marginTop: 4,
+      marginTop: SPACING.xs,
       lineHeight: 16,
     },
     rowValue: {
-      fontSize: 14,
+      fontSize: TYPE.body,
       color: c.label3,
       marginLeft: "auto",
       maxWidth: 160,
     },
     rowChevron: {
-      fontSize: 22,
+      fontSize: TYPE.h2,
       color: c.label3,
       lineHeight: 22,
-      marginLeft: 4,
+      marginLeft: SPACING.xs,
     },
     divider: {
       height: StyleSheet.hairlineWidth,
       backgroundColor: c.separator,
-      marginLeft: 16,
+      marginLeft: SPACING.lg,
     },
     themePie: {
       width: 32,
@@ -504,8 +504,8 @@ function makeStyles(c: ThemeColors) {
     themePieHalf: { flex: 1 },
     themePieQuarter: { flex: 1 },
     timePickerWrap: {
-      paddingHorizontal: 8,
-      paddingBottom: 8,
+      paddingHorizontal: SPACING.sm,
+      paddingBottom: SPACING.sm,
     },
     toggleTrack: {
       width: 50,

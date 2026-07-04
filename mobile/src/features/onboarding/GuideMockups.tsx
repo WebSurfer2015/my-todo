@@ -12,7 +12,7 @@
 import React from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { Bell, Calendar, Plus, Repeat, ShoppingBag, Sparkles, Tag } from 'lucide-react-native'
-import { useTheme, ThemeColors } from '../../app/theme'
+import { RADIUS, SPACING, TYPE, useTheme, ThemeColors } from '../../app/theme'
 
 interface SheetProps {
   title: string
@@ -201,9 +201,9 @@ function sheetStyles(c: ThemeColors) {
   return StyleSheet.create({
     card: {
       backgroundColor: c.bg,
-      borderRadius: 14,
-      paddingTop: 4,
-      paddingBottom: 8,
+      borderRadius: RADIUS.card,
+      paddingTop: SPACING.xs,
+      paddingBottom: SPACING.sm,
       paddingHorizontal: 0,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.separator,
@@ -217,18 +217,18 @@ function sheetStyles(c: ThemeColors) {
       borderRadius: 2,
       backgroundColor: c.gray3,
       opacity: 0.5,
-      marginTop: 4,
-      marginBottom: 6,
+      marginTop: SPACING.xs,
+      marginBottom: SPACING.sm,
     },
     titleRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 16,
-      paddingBottom: 6,
+      paddingHorizontal: SPACING.lg,
+      paddingBottom: SPACING.sm,
     },
-    title: { flex: 1, textAlign: 'center', fontSize: 13, fontWeight: '600', color: c.label },
-    titleAccent: { width: 40, textAlign: 'right', fontSize: 12, color: c.primary, fontWeight: '600' },
-    body: { paddingHorizontal: 12, gap: 6 },
+    title: { flex: 1, textAlign: 'center', fontSize: TYPE.footnote, fontWeight: '600', color: c.label },
+    titleAccent: { width: 40, textAlign: 'right', fontSize: TYPE.caption, color: c.primary, fontWeight: '600' },
+    body: { paddingHorizontal: SPACING.md, gap: SPACING.sm },
   })
 }
 
@@ -237,20 +237,20 @@ function rowStyles(c: ThemeColors, highlight: boolean) {
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      gap: 8,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+      gap: SPACING.sm,
       backgroundColor: c.card,
-      borderRadius: 10,
+      borderRadius: RADIUS.control,
       borderWidth: highlight ? 2 : StyleSheet.hairlineWidth,
       borderColor: highlight ? c.primary : c.separator,
     },
     icon: { width: 18, alignItems: 'center' },
     iconSpacer: { width: 18 },
-    label: { flex: 1, fontSize: 12, color: c.label, fontWeight: '500' },
-    value: { fontSize: 12, color: c.label2, maxWidth: 130 },
+    label: { flex: 1, fontSize: TYPE.caption, color: c.label, fontWeight: '500' },
+    value: { fontSize: TYPE.caption, color: c.label2, maxWidth: 130 },
     valueMuted: { color: c.gray3 },
-    chev: { fontSize: 14, color: c.gray3, marginLeft: 2 },
+    chev: { fontSize: TYPE.body, color: c.gray3, marginLeft: 2 },
   })
 }
 
@@ -260,47 +260,47 @@ function pillsStyles(c: ThemeColors, highlight: boolean) {
       flexDirection: 'row',
       alignItems: 'center',
       flexWrap: 'wrap',
-      gap: 6,
-      paddingHorizontal: 6,
-      paddingVertical: 6,
+      gap: SPACING.sm,
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: SPACING.sm,
       backgroundColor: c.bg,
-      borderRadius: 10,
+      borderRadius: RADIUS.control,
       borderWidth: highlight ? 2 : 0,
       borderColor: highlight ? c.primary : 'transparent',
     },
     pill: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 4,
+      gap: SPACING.xs,
       backgroundColor: c.primarySoft,
-      borderRadius: 999,
-      paddingHorizontal: 8,
+      borderRadius: RADIUS.pill,
+      paddingHorizontal: SPACING.sm,
       paddingVertical: 3,
     },
-    pillText: { fontSize: 11, fontWeight: '600', color: c.primary, letterSpacing: -0.1 },
+    pillText: { fontSize: TYPE.caption, fontWeight: '600', color: c.primary, letterSpacing: -0.1 },
   })
 }
 
 function chipStyles(c: ThemeColors, highlight: boolean) {
   return StyleSheet.create({
     wrap: {
-      gap: 6,
-      paddingHorizontal: 8,
-      paddingVertical: 8,
-      borderRadius: 10,
+      gap: SPACING.sm,
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: SPACING.sm,
+      borderRadius: RADIUS.control,
       borderWidth: highlight ? 2 : 0,
       borderColor: highlight ? c.primary : 'transparent',
     },
-    label: { fontSize: 11, color: c.label2, fontWeight: '600' },
-    row: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+    label: { fontSize: TYPE.caption, color: c.label2, fontWeight: '600' },
+    row: { flexDirection: 'row', gap: SPACING.sm, flexWrap: 'wrap' },
     chip: {
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 999,
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: SPACING.xs,
+      borderRadius: RADIUS.pill,
       backgroundColor: c.primarySoft,
     },
     chipActive: { backgroundColor: c.primary },
-    chipText: { fontSize: 11, fontWeight: '600', color: c.primary },
+    chipText: { fontSize: TYPE.caption, fontWeight: '600', color: c.primary },
     chipTextActive: { color: c.primaryOn },
   })
 }
@@ -310,11 +310,11 @@ function todoStyles(c: ThemeColors, highlight: boolean) {
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 12,
-      paddingVertical: 12,
-      gap: 8,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.md,
+      gap: SPACING.sm,
       backgroundColor: c.card,
-      borderRadius: 10,
+      borderRadius: RADIUS.control,
       borderWidth: highlight ? 2 : StyleSheet.hairlineWidth,
       borderColor: highlight ? c.primary : c.separator,
     },
@@ -324,11 +324,11 @@ function todoStyles(c: ThemeColors, highlight: boolean) {
       alignItems: 'center', justifyContent: 'center',
     },
     checkDone: { backgroundColor: c.primary, borderColor: c.primary },
-    checkMark: { color: c.primaryOn, fontSize: 11, lineHeight: 13, fontWeight: '700' },
+    checkMark: { color: c.primaryOn, fontSize: TYPE.caption, lineHeight: 13, fontWeight: '700' },
     body: { flex: 1, gap: 2 },
-    text: { fontSize: 13, color: c.label, fontWeight: '500' },
+    text: { fontSize: TYPE.footnote, color: c.label, fontWeight: '500' },
     textDone: { textDecorationLine: 'line-through', color: c.label3 },
-    meta: { fontSize: 11, color: c.label3 },
+    meta: { fontSize: TYPE.caption, color: c.label3 },
   })
 }
 
@@ -336,12 +336,12 @@ function textFieldStyles(c: ThemeColors) {
   return StyleSheet.create({
     wrap: {
       backgroundColor: c.card,
-      borderRadius: 10,
-      padding: 12,
+      borderRadius: RADIUS.control,
+      padding: SPACING.md,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.separator,
     },
-    text: { fontSize: 13, color: c.label, fontWeight: '500' },
+    text: { fontSize: TYPE.footnote, color: c.label, fontWeight: '500' },
   })
 }
 
@@ -351,7 +351,7 @@ function highlightStyles(c: ThemeColors) {
       borderWidth: 2,
       borderColor: c.primary,
       borderRadius: 12,
-      padding: 4,
+      padding: SPACING.xs,
     },
   })
 }

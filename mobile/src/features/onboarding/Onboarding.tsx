@@ -13,7 +13,7 @@ import {
   StatusBar,
   Platform,
 } from 'react-native'
-import { useTheme, ThemeColors } from '../../app/theme'
+import { RADIUS, SPACING, TYPE, useTheme, ThemeColors } from '../../app/theme'
 import SproutGlyph from '../../ui/SproutGlyph'
 
 /**
@@ -197,7 +197,7 @@ function makeStyles(c: ThemeColors, _width: number) {
       flex: 1,
       backgroundColor: c.bg,
       paddingTop: Platform.OS === 'ios' ? 56 : 40,
-      paddingBottom: 32,
+      paddingBottom: SPACING.xxl,
     },
     topBar: {
       flexDirection: 'row',
@@ -206,7 +206,7 @@ function makeStyles(c: ThemeColors, _width: number) {
       height: 32,
     },
     skipText: {
-      fontSize: 15,
+      fontSize: TYPE.body,
       fontWeight: '500',
       color: c.label3,
     },
@@ -257,15 +257,15 @@ function makeStyles(c: ThemeColors, _width: number) {
       borderRadius: 60,
     },
     title: {
-      fontSize: 24,
+      fontSize: TYPE.h2,
       fontWeight: '700',
       color: c.label,
       textAlign: 'center',
       letterSpacing: -0.4,
-      marginBottom: 12,
+      marginBottom: SPACING.md,
     },
     body: {
-      fontSize: 16,
+      fontSize: TYPE.bodyLg,
       color: c.label2,
       textAlign: 'center',
       lineHeight: 23,
@@ -275,8 +275,8 @@ function makeStyles(c: ThemeColors, _width: number) {
     dots: {
       flexDirection: 'row',
       justifyContent: 'center',
-      gap: 6,
-      paddingVertical: 16,
+      gap: SPACING.sm,
+      paddingVertical: SPACING.lg,
     },
     dot: {
       width: 6,
@@ -290,30 +290,30 @@ function makeStyles(c: ThemeColors, _width: number) {
     },
     actions: {
       paddingHorizontal: 28,
-      gap: 8,
+      gap: SPACING.sm,
     },
     primaryBtn: {
       height: 50,
-      borderRadius: 12,
+      borderRadius: RADIUS.control,
       backgroundColor: c.primary,
       alignItems: 'center',
       justifyContent: 'center',
     },
     primaryBtnText: {
       color: c.primaryOn,
-      fontSize: 16,
+      fontSize: TYPE.bodyLg,
       fontWeight: '600',
       letterSpacing: -0.16,
     },
     secondaryBtn: {
       height: 44,
-      borderRadius: 12,
+      borderRadius: RADIUS.control,
       alignItems: 'center',
       justifyContent: 'center',
     },
     secondaryBtnText: {
       color: c.label2,
-      fontSize: 15,
+      fontSize: TYPE.body,
       fontWeight: '500',
     },
   })

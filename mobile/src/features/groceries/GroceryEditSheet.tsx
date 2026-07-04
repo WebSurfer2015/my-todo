@@ -19,7 +19,7 @@ import {
 } from 'react-native'
 import { GroceryItem, GroceryGroup } from '../../core-bindings/groceries'
 import { useLang } from '../../app/LangContext'
-import { useTheme, ThemeColors } from '../../app/theme'
+import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
 import SheetShell from '../../ui/SheetShell'
 
 interface Props {
@@ -211,67 +211,67 @@ export default function GroceryEditSheet({
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     card: {
-      borderRadius: 12,
+      borderRadius: RADIUS.card,
       backgroundColor: c.card,
       overflow: 'hidden',
-      marginTop: 8,
+      marginTop: SPACING.sm,
     },
-    field: { paddingVertical: 12, paddingHorizontal: 16 },
+    field: { paddingVertical: SPACING.md, paddingHorizontal: SPACING.lg },
     fieldLabel: {
-      fontSize: 11,
+      fontSize: TYPE.caption,
       fontWeight: '700',
       letterSpacing: 0.6,
       color: c.label3,
-      marginBottom: 6,
+      marginBottom: SPACING.sm,
     },
     input: {
-      fontSize: 15,
+      fontSize: TYPE.body,
       color: c.label,
-      paddingVertical: 4,
+      paddingVertical: SPACING.xs,
     },
     rowValueWrap: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
+      gap: SPACING.sm,
     },
-    rowValue: { fontSize: 15, color: c.label, flex: 1 },
+    rowValue: { fontSize: TYPE.body, color: c.label, flex: 1 },
     rowValueMuted: { color: c.label3, fontStyle: 'italic' },
-    rowChevron: { fontSize: 22, color: c.label3, lineHeight: 22 },
+    rowChevron: { fontSize: TYPE.h2, color: c.label3, lineHeight: 22 },
     divider: {
       height: StyleSheet.hairlineWidth,
       backgroundColor: c.separator,
-      marginLeft: 14,
+      marginLeft: SPACING.lg,
     },
     deleteRow: {
-      marginTop: 18,
-      paddingVertical: 12,
-      paddingHorizontal: 16,
-      borderRadius: 12,
+      marginTop: SPACING.lg,
+      paddingVertical: SPACING.md,
+      paddingHorizontal: SPACING.lg,
+      borderRadius: RADIUS.control,
       backgroundColor: c.card,
       alignItems: 'flex-start',
     },
     deleteText: {
-      fontSize: 15,
+      fontSize: TYPE.body,
       fontWeight: '600',
       color: c.red,
     },
     deleteHint: {
-      fontSize: 12,
+      fontSize: TYPE.caption,
       color: c.label3,
-      paddingHorizontal: 6,
-      marginTop: 8,
+      paddingHorizontal: SPACING.sm,
+      marginTop: SPACING.sm,
       lineHeight: 16,
     },
     storeChipRow: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 8,
-      marginTop: 8,
+      gap: SPACING.sm,
+      marginTop: SPACING.sm,
     },
     storeChip: {
-      paddingHorizontal: 12,
-      paddingVertical: 9,
-      borderRadius: 999,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+      borderRadius: RADIUS.pill,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
       backgroundColor: c.card,
@@ -281,7 +281,7 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.primary,
     },
     storeChipText: {
-      fontSize: 13,
+      fontSize: TYPE.footnote,
       fontWeight: '500',
       color: c.label,
     },

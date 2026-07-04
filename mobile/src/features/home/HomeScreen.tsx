@@ -22,7 +22,7 @@ import { ChevronRight } from 'lucide-react-native'
 import { useStore } from '../../app/StoreContext'
 import { useLang } from '../../app/LangContext'
 import { useSheets } from '../../app/SheetContext'
-import { useTheme, ThemeColors } from '../../app/theme'
+import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
 import { todayLocal } from '../../../../core/src/logic/utils'
 import { type Todo, type Filter } from '../../../../core/src/domain/types'
 import { buildGroups, type GroupKey } from '../../../../core/src/logic/groups'
@@ -602,18 +602,18 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 20,
       paddingBottom: 84,
     },
-    body: { paddingHorizontal: 20, gap: 16, paddingTop: 4 },
+    body: { paddingHorizontal: 20, gap: SPACING.lg, paddingTop: SPACING.xs },
     sectionHeaderRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      marginTop: 4,
+      marginTop: SPACING.xs,
       marginBottom: -8,
-      paddingHorizontal: 4,
-      paddingVertical: 6,
+      paddingHorizontal: SPACING.xs,
+      paddingVertical: SPACING.sm,
     },
     sectionHeader: {
-      fontSize: 11,
+      fontSize: TYPE.caption,
       fontWeight: '700',
       letterSpacing: 0.8,
       color: c.label3,
@@ -621,16 +621,16 @@ function makeStyles(c: ThemeColors) {
     sectionRight: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 4,
+      gap: SPACING.xs,
     },
     sectionCount: {
-      fontSize: 11,
+      fontSize: TYPE.caption,
       fontWeight: '600',
       color: c.label3,
       letterSpacing: 0.2,
     },
     sectionCollapse: {
-      fontSize: 18,
+      fontSize: TYPE.title,
       lineHeight: 18,
       color: c.label3,
       fontWeight: '300',
@@ -638,23 +638,23 @@ function makeStyles(c: ThemeColors) {
     },
     todayCard: {
       backgroundColor: c.card,
-      borderRadius: 14,
+      borderRadius: RADIUS.card,
       overflow: 'hidden',
-      marginTop: 8,
+      marginTop: SPACING.sm,
     },
     // Container for TaskItem rows on Home. TaskItem already supplies its
     // own row background + border; this wrapper just gives the cluster a
     // little top spacing under the section header.
     todayList: {
-      marginTop: 8,
-      gap: 4,
+      marginTop: SPACING.sm,
+      gap: SPACING.xs,
     },
     todayRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
-      paddingVertical: 12,
-      paddingHorizontal: 16,
+      gap: SPACING.md,
+      paddingVertical: SPACING.md,
+      paddingHorizontal: SPACING.lg,
       minHeight: 56,
     },
     todayCheckbox: {
@@ -672,13 +672,13 @@ function makeStyles(c: ThemeColors) {
     },
     todayCheckmark: {
       color: c.primaryOn,
-      fontSize: 13,
+      fontSize: TYPE.footnote,
       fontWeight: '700',
       lineHeight: 14,
     },
     todayBody: { flex: 1, gap: 2 },
     todayText: {
-      fontSize: 15,
+      fontSize: TYPE.body,
       color: c.label,
       lineHeight: 20,
     },
@@ -689,16 +689,16 @@ function makeStyles(c: ThemeColors) {
     todayMetaRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
+      gap: SPACING.sm,
       marginTop: 2,
     },
     todayMeta: {
-      fontSize: 12,
+      fontSize: TYPE.caption,
       color: c.label3,
       maxWidth: 120,
     },
     todayMetaSep: {
-      fontSize: 12,
+      fontSize: TYPE.caption,
       color: c.label3,
     },
     todayDivider: {
@@ -710,21 +710,21 @@ function makeStyles(c: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 4,
-      paddingVertical: 12,
+      gap: SPACING.xs,
+      paddingVertical: SPACING.md,
     },
     todayPaginator: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 8,
-      paddingTop: 4,
+      paddingHorizontal: SPACING.sm,
+      paddingTop: SPACING.xs,
     },
     todayPaginatorBtn: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 4,
-      paddingVertical: 8,
-      paddingHorizontal: 8,
+      gap: SPACING.xs,
+      paddingVertical: SPACING.sm,
+      paddingHorizontal: SPACING.sm,
       minWidth: 80,
     },
     todayPaginatorCenter: {
@@ -732,24 +732,24 @@ function makeStyles(c: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 4,
-      paddingVertical: 8,
+      gap: SPACING.xs,
+      paddingVertical: SPACING.sm,
     },
     todayMoreText: {
-      fontSize: 13,
+      fontSize: TYPE.footnote,
       fontWeight: '600',
       color: c.primary,
     },
     statsRow: {
       flexDirection: 'row',
-      gap: 8,
-      marginTop: 4,
+      gap: SPACING.sm,
+      marginTop: SPACING.xs,
     },
     footnote: {
-      fontSize: 13,
+      fontSize: TYPE.footnote,
       color: c.label2,
       textAlign: 'center',
-      marginTop: 8,
+      marginTop: SPACING.sm,
     },
   })
 }

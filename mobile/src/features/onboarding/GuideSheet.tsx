@@ -20,7 +20,7 @@ import {
   useWindowDimensions,
 } from 'react-native'
 import type { Guide } from './guides'
-import { useTheme, ThemeColors } from '../../app/theme'
+import { SPACING, TYPE, useTheme, ThemeColors } from '../../app/theme'
 
 interface Props {
   visible: boolean
@@ -180,15 +180,15 @@ function makeStyles(c: ThemeColors, _width: number) {
     topBar: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 16,
-      paddingBottom: 8,
-      gap: 8,
+      paddingHorizontal: SPACING.lg,
+      paddingBottom: SPACING.sm,
+      gap: SPACING.sm,
     },
     topBtn: { minWidth: 56 },
-    topBtnText: { fontSize: 16, color: c.primary, fontWeight: '600' },
+    topBtnText: { fontSize: TYPE.bodyLg, color: c.primary, fontWeight: '600' },
     topTitle: {
       flex: 1,
-      fontSize: 17,
+      fontSize: TYPE.bodyLg,
       color: c.label,
       fontWeight: '600',
       textAlign: 'center',
@@ -199,10 +199,10 @@ function makeStyles(c: ThemeColors, _width: number) {
       flexGrow: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      paddingHorizontal: 24,
-      paddingVertical: 16,
+      paddingHorizontal: SPACING.xl,
+      paddingVertical: SPACING.lg,
     },
-    glyph: { fontSize: 64, lineHeight: 72, marginBottom: 24, textAlign: 'center' },
+    glyph: { fontSize: 64, lineHeight: 72, marginBottom: SPACING.xl, textAlign: 'center' },
     glyphBubble: {
       width: 88,
       height: 88,
@@ -210,41 +210,41 @@ function makeStyles(c: ThemeColors, _width: number) {
       backgroundColor: c.primarySoft,
       alignItems: 'center',
       justifyContent: 'center',
-      marginBottom: 24,
+      marginBottom: SPACING.xl,
     },
     visualWrap: {
       width: '100%',
       maxWidth: 340,
       alignItems: 'center',
-      marginTop: 24,
-      paddingHorizontal: 4,
+      marginTop: SPACING.xl,
+      paddingHorizontal: SPACING.xs,
     },
     title: {
-      fontSize: 26,
+      fontSize: TYPE.h2,
       fontWeight: '700',
       color: c.label,
       textAlign: 'center',
       letterSpacing: -0.4,
-      marginBottom: 14,
+      marginBottom: SPACING.lg,
     },
     body: {
-      fontSize: 16,
+      fontSize: TYPE.bodyLg,
       lineHeight: 23,
       color: c.label2,
       textAlign: 'center',
       maxWidth: 340,
     },
     bodyAccent: { color: c.primary, fontWeight: '600' },
-    dots: { flexDirection: 'row', justifyContent: 'center', gap: 7, paddingVertical: 16 },
+    dots: { flexDirection: 'row', justifyContent: 'center', gap: SPACING.sm, paddingVertical: SPACING.lg },
     dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: c.separator },
     dotActive: { backgroundColor: c.primary, transform: [{ scale: 1.15 }] },
-    actions: { paddingHorizontal: 24, paddingBottom: 40 },
+    actions: { paddingHorizontal: SPACING.xl, paddingBottom: 40 },
     primaryBtn: {
       backgroundColor: c.primary,
       borderRadius: 14,
-      paddingVertical: 12,
+      paddingVertical: SPACING.md,
       alignItems: 'center',
     },
-    primaryBtnText: { color: c.primaryOn, fontSize: 17, fontWeight: '600' },
+    primaryBtnText: { color: c.primaryOn, fontSize: TYPE.bodyLg, fontWeight: '600' },
   })
 }

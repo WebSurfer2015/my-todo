@@ -9,7 +9,7 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import Svg, { Rect, Path } from 'react-native-svg'
 import { Priority, PRIORITY_VALUES, PRIORITY_COLORS } from '../../core-bindings/types'
 import { useLang } from '../../app/LangContext'
-import { useTheme, ThemeColors } from '../../app/theme'
+import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
 import { formatDisplayDate, fullDateLabel, isoDate } from '../../core-bindings/utils'
 import PriorityDot from '../../ui/PriorityDot'
 import InlinePicker from '../../ui/InlinePicker'
@@ -147,7 +147,7 @@ export default function AddSubtaskSheet({ visible, onAdd, onClose, defaultDueDat
                       onPress={openDateView}
                       activeOpacity={0.6}
                       accessibilityRole="button"
-                      accessibilityLabel={`Completed by, ${dueDate ? formatDisplayDate(dueDate, t.locale) : t.noDate}. Tap to change.`}
+                      accessibilityLabel={`Complete by, ${dueDate ? formatDisplayDate(dueDate, t.locale) : t.noDate}. Tap to change.`}
                     >
                       <CalendarIcon size={18} color={dueDate ? theme.blue : theme.gray3} />
                       <Text style={styles.fieldLabel}>{t.composeDateLabel}</Text>
@@ -245,9 +245,9 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.modal,
       borderTopLeftRadius: 18,
       borderTopRightRadius: 18,
-      paddingTop: 16,
-      paddingBottom: 24,
-      paddingHorizontal: 16,
+      paddingTop: SPACING.lg,
+      paddingBottom: SPACING.xl,
+      paddingHorizontal: SPACING.lg,
       minHeight: 380,
     },
     handle: {
@@ -256,49 +256,49 @@ function makeStyles(c: ThemeColors) {
       height: 4,
       borderRadius: 2,
       backgroundColor: c.gray3,
-      marginBottom: 12,
+      marginBottom: SPACING.md,
     },
     headerRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingBottom: 8,
+      paddingBottom: SPACING.sm,
     },
     cancelText: {
-      fontSize: 15,
+      fontSize: TYPE.body,
       fontWeight: '500',
       color: c.blue,
       width: 56,
     },
     title: {
-      fontSize: 20,
+      fontSize: TYPE.title,
       fontWeight: '700',
       color: c.label,
     },
     body: {
-      paddingTop: 4,
+      paddingTop: SPACING.xs,
     },
     subViewWrap: {
       flex: 1,
     },
     textInput: {
       minHeight: 96,
-      fontSize: 16,
+      fontSize: TYPE.bodyLg,
       color: c.label,
       backgroundColor: c.card,
-      borderRadius: 12,
+      borderRadius: RADIUS.control,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
-      paddingHorizontal: 16,
-      paddingTop: 12,
-      paddingBottom: 12,
+      paddingHorizontal: SPACING.lg,
+      paddingTop: SPACING.md,
+      paddingBottom: SPACING.md,
       letterSpacing: -0.16,
       lineHeight: 22,
     },
     fieldGroup: {
-      marginTop: 16,
+      marginTop: SPACING.lg,
       backgroundColor: c.card,
-      borderRadius: 12,
+      borderRadius: RADIUS.card,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
       overflow: 'hidden',
@@ -306,18 +306,18 @@ function makeStyles(c: ThemeColors) {
     fieldRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      gap: SPACING.md,
+      paddingHorizontal: SPACING.lg,
+      paddingVertical: SPACING.md,
     },
     fieldLabel: {
       flex: 1,
-      fontSize: 15,
+      fontSize: TYPE.body,
       color: c.label,
       fontWeight: '500',
     },
     fieldValue: {
-      fontSize: 15,
+      fontSize: TYPE.body,
       color: c.label2,
       maxWidth: 160,
     },
@@ -325,7 +325,7 @@ function makeStyles(c: ThemeColors) {
       color: c.gray3,
     },
     chevron: {
-      fontSize: 18,
+      fontSize: TYPE.title,
       color: c.gray3,
       fontWeight: '300',
       marginLeft: 2,
@@ -338,7 +338,7 @@ function makeStyles(c: ThemeColors) {
     addBtn: {
       marginTop: 20,
       height: 50,
-      borderRadius: 12,
+      borderRadius: RADIUS.control,
       backgroundColor: c.blue,
       alignItems: 'center',
       justifyContent: 'center',
@@ -349,19 +349,19 @@ function makeStyles(c: ThemeColors) {
     },
     addBtnText: {
       color: c.primaryOn,
-      fontSize: 16,
+      fontSize: TYPE.bodyLg,
       fontWeight: '600',
       letterSpacing: -0.16,
     },
     dateWrap: {
-      paddingTop: 8,
+      paddingTop: SPACING.sm,
       alignItems: 'center',
     },
     datePendingLabel: {
-      fontSize: 14,
+      fontSize: TYPE.body,
       fontWeight: '600',
       color: c.label2,
-      marginBottom: 8,
+      marginBottom: SPACING.sm,
     },
     datePendingLabelEmpty: {
       color: c.label3,
@@ -370,14 +370,14 @@ function makeStyles(c: ThemeColors) {
     },
     dateActions: {
       flexDirection: 'row',
-      gap: 12,
+      gap: SPACING.md,
       alignItems: 'center',
     },
     clearBtn: {
       flex: 1,
       marginTop: 20,
       height: 50,
-      borderRadius: 12,
+      borderRadius: RADIUS.control,
       backgroundColor: c.bg,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
@@ -386,14 +386,14 @@ function makeStyles(c: ThemeColors) {
     },
     clearBtnText: {
       color: c.red,
-      fontSize: 16,
+      fontSize: TYPE.bodyLg,
       fontWeight: '500',
     },
     applyBtn: {
       flex: 1.4,
     },
     doneHeaderText: {
-      fontSize: 15,
+      fontSize: TYPE.body,
       fontWeight: '600',
       color: c.blue,
       width: 56,
@@ -401,11 +401,11 @@ function makeStyles(c: ThemeColors) {
     },
     clearLink: {
       alignSelf: 'center',
-      paddingVertical: 6,
-      marginTop: 4,
+      paddingVertical: SPACING.sm,
+      marginTop: SPACING.xs,
     },
     clearLinkText: {
-      fontSize: 13,
+      fontSize: TYPE.footnote,
       fontWeight: '500',
       color: c.red,
     },

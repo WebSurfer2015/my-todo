@@ -23,7 +23,7 @@ import {
 } from 'react-native'
 import { Check } from 'lucide-react-native'
 import { GUIDES, type Guide } from './guides'
-import { useTheme, ThemeColors } from '../../app/theme'
+import { RADIUS, SPACING, TYPE, useTheme, ThemeColors } from '../../app/theme'
 
 interface Props {
   visible: boolean
@@ -113,7 +113,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bg,
       borderTopLeftRadius: 18,
       borderTopRightRadius: 18,
-      paddingTop: 6,
+      paddingTop: SPACING.sm,
       paddingBottom: 20,
       maxHeight: '90%',
     },
@@ -124,48 +124,48 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 2,
       backgroundColor: c.gray3,
       opacity: 0.45,
-      marginTop: 4,
-      marginBottom: 4,
+      marginTop: SPACING.xs,
+      marginBottom: SPACING.xs,
     },
     titleRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 16,
-      paddingTop: 6,
-      paddingBottom: 4,
+      paddingHorizontal: SPACING.lg,
+      paddingTop: SPACING.sm,
+      paddingBottom: SPACING.xs,
     },
     titleSide: { minWidth: 56, alignItems: 'flex-end' },
-    title: { flex: 1, textAlign: 'center', fontSize: 20, fontWeight: '600', color: c.label },
-    doneText: { fontSize: 16, color: c.primary, fontWeight: '600' },
+    title: { flex: 1, textAlign: 'center', fontSize: TYPE.title, fontWeight: '600', color: c.label },
+    doneText: { fontSize: TYPE.bodyLg, color: c.primary, fontWeight: '600' },
     intro: {
       paddingHorizontal: 20,
-      paddingBottom: 12,
-      fontSize: 13,
+      paddingBottom: SPACING.md,
+      fontSize: TYPE.footnote,
       color: c.label3,
       lineHeight: 18,
     },
-    scroll: { paddingHorizontal: 16 },
-    card: { backgroundColor: c.card, borderRadius: 14, overflow: 'hidden' },
+    scroll: { paddingHorizontal: SPACING.lg },
+    card: { backgroundColor: c.card, borderRadius: RADIUS.card, overflow: 'hidden' },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      gap: 12,
+      paddingHorizontal: SPACING.lg,
+      paddingVertical: SPACING.md,
+      gap: SPACING.md,
       minHeight: 64,
     },
     iconBubble: {
       width: 36,
       height: 36,
-      borderRadius: 10,
+      borderRadius: RADIUS.control,
       backgroundColor: c.primarySoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
     rowMain: { flex: 1, gap: 2 },
-    rowTitle: { fontSize: 15, color: c.label, fontWeight: '600' },
-    rowBlurb: { fontSize: 13, color: c.label3, lineHeight: 17 },
-    rowChevron: { fontSize: 18, color: c.gray3, fontWeight: '300' },
+    rowTitle: { fontSize: TYPE.body, color: c.label, fontWeight: '600' },
+    rowBlurb: { fontSize: TYPE.footnote, color: c.label3, lineHeight: 17 },
+    rowChevron: { fontSize: TYPE.title, color: c.gray3, fontWeight: '300' },
     divider: { height: StyleSheet.hairlineWidth, backgroundColor: c.separator, marginLeft: 62 },
   })
 }
