@@ -170,6 +170,22 @@ describe('nextOccurrence', () => {
     // From 2026-05-31 (Sunday). Last Sunday of June = 2026-06-28.
     expect(nextOccurrence('2026-05-31', 'monthly', 1, [0], [-1])).toBe('2026-06-28')
   })
+  // Regression: monthly/yearly must clamp the day to the target month's last
+  // day instead of overflowing. Plain setMonth rolled "Jan 31 + 1mo" to Mar 3
+  // and then advanced from the 3rd forever — permanent recurrence drift.
+  it('monthly on the 31st clamps to the last day of a short month', () => {
+    expect(nextOccurrence('2026-01-31', 'monthly')).toBe('2026-02-28') // was 2026-03-03
+  })
+  it('monthly on the 31st clamps into a 30-day month', () => {
+    expect(nextOccurrence('2026-03-31', 'monthly')).toBe('2026-04-30') // was 2026-05-01
+  })
+  it('monthly by interval clamps across a short month', () => {
+    // Dec 31 + 2 months → Feb (28 in 2027). Was 2027-03-03.
+    expect(nextOccurrence('2026-12-31', 'monthly', 2)).toBe('2027-02-28')
+  })
+  it('yearly on Feb 29 clamps to Feb 28 in a non-leap year', () => {
+    expect(nextOccurrence('2024-02-29', 'yearly')).toBe('2025-02-28') // was 2025-03-01
+  })
 })
 
 describe('expandRecurrence', () => {

@@ -113,6 +113,17 @@ export function nextOccurrence(
   const start = new Date(y, m - 1, d)
   const n = Math.max(1, interval)
 
+  // Advance from the ORIGINAL day-of-month (`d`) by whole months, clamping to
+  // the last day of the target month. Plain `setMonth` rolls "Jan 31 + 1 month"
+  // into Mar 3 (Feb has no 31st), and every later roll then advances from the
+  // 3rd — permanently corrupting a monthly-on-the-31st (or yearly Feb-29)
+  // recurrence. Clamping keeps it pinned to month-end.
+  const addMonthsClamped = (months: number): string => {
+    const first = new Date(start.getFullYear(), start.getMonth() + months, 1)
+    const lastDay = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()
+    return isoDate(new Date(first.getFullYear(), first.getMonth(), Math.min(d, lastDay)))
+  }
+
   // Weekly with specific weekdays: find next listed weekday strictly after start
   if (freq === 'weekly' && byWeekday && byWeekday.length > 0) {
     const set = new Set(byWeekday)
@@ -164,17 +175,16 @@ export function nextOccurrence(
       // Advance by interval months
       monthCursor = new Date(year, month + n, 1)
     }
-    // Fallback: simple monthly bump
-    start.setMonth(start.getMonth() + n)
-    return isoDate(start)
+    // Fallback: simple monthly bump (clamped so a short month doesn't overflow)
+    return addMonthsClamped(n)
   }
 
   // Simple frequency-based advance
   switch (freq) {
     case 'daily':   start.setDate(start.getDate() + n); break
     case 'weekly':  start.setDate(start.getDate() + 7 * n); break
-    case 'monthly': start.setMonth(start.getMonth() + n); break
-    case 'yearly':  start.setFullYear(start.getFullYear() + n); break
+    case 'monthly': return addMonthsClamped(n)
+    case 'yearly':  return addMonthsClamped(12 * n)
   }
   return isoDate(start)
 }

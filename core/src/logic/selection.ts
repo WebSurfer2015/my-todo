@@ -30,8 +30,13 @@ export function applyBulkRestore(todos: Todo[], ids: Set<string>): Todo[] {
   const now = Date.now()
   return todos.map((td) => {
     if (!ids.has(td.id)) return td
-    const { trashedAt: _trashedAt, ...rest } = td
-    return { ...rest, trashed: false, updatedAt: now }
+    // Mirror todoRestoreFromTrash (derive.ts): clear done + completionDate as
+    // well as the trash flags. Completed tasks live in the same Done/trash bin,
+    // so restoring them must return them to the ACTIVE list — otherwise they
+    // come back done:true/trashed:false, counted active but struck-through, and
+    // can never leave.
+    const { trashedAt: _trashedAt, completionDate: _completionDate, ...rest } = td
+    return { ...rest, done: false, trashed: false, updatedAt: now }
   })
 }
 

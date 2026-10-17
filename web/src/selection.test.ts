@@ -109,6 +109,21 @@ describe('applyBulkRestore', () => {
     const todos: Todo[] = [trashed('1'), trashed('2')]
     expect(applyBulkRestore(todos, new Set())).toEqual(todos)
   })
+
+  // Regression: completed tasks live in the same Done/trash bin, so bulk-
+  // restoring one must return it to the ACTIVE list — clearing done +
+  // completionDate like single-restore, not just the trash flags. Otherwise it
+  // comes back done:true/trashed:false: counted active but struck-through, and
+  // it can never leave.
+  it('clears done and completionDate when restoring a completed (done) item', () => {
+    const todos: Todo[] = [
+      trashed('1', { done: true, completionDate: '2026-07-01' }),
+    ]
+    const result = applyBulkRestore(todos, new Set(['1']))
+    expect(result[0]).toMatchObject({ id: '1', done: false, trashed: false })
+    expect(result[0].trashedAt).toBeUndefined()
+    expect(result[0].completionDate).toBeUndefined()
+  })
 })
 
 describe('applyBulkDelete', () => {

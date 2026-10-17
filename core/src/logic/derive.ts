@@ -518,6 +518,11 @@ export function subtaskToggle(
       next.completionDate = today;
       next.trashed = true;
       next.trashedAt = now;
+      // Done items don't need future reminders. The scheduler diffs on these
+      // fields and cancels every queued fire — mirror todoToggle so a task
+      // completed via its last subtask stops notifying.
+      delete next.reminder;
+      delete next.reminders;
     } else if (!nextDone && wasDone) {
       delete next.completionDate;
       next.trashed = false;

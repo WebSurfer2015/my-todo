@@ -294,6 +294,25 @@ describe("subtasks", () => {
     expect(state[0].done).toBe(false);
   });
 
+  // Regression: completing a task by checking off its last subtask must cancel
+  // its reminders, exactly as todoToggle does — otherwise the scheduler keeps
+  // firing notifications for an already-done task.
+  it("clears reminders when the last subtask completes the parent", () => {
+    let state = [
+      {
+        ...makeTodo(),
+        reminder: { id: "r0", at: "2026-07-10T09:00" },
+        reminders: [{ id: "r1", at: "2026-07-10T09:00" }],
+      },
+    ];
+    state = subtaskAdd(state, state[0].id, "only");
+    const subId = state[0].subtasks![0].id;
+    state = subtaskToggle(state, state[0].id, subId);
+    expect(state[0].done).toBe(true);
+    expect(state[0].reminder).toBeUndefined();
+    expect(state[0].reminders).toBeUndefined();
+  });
+
   it("todoToggle on a rolling recurrence rolls dueDate AND emits a Done snapshot", () => {
     const td = makeTodo();
     const withRec = {
@@ -1262,19 +1281,18 @@ describe("recurrence math", () => {
     expect(nextOccurrence("2026-05-13", "yearly", 1)).toBe("2027-05-13");
   });
 
-  it("nextOccurrence: monthly day-of-month rolls over via JS Date.setMonth (NOT clamp)", () => {
-    // Jan 31 + 1 month: JS Date.setMonth puts you at "Feb 31" which
-    // normalizes to Mar 3 (2026 is non-leap). This is the documented
-    // behavior, NOT a clamp to Feb 28. If a future refactor wants to
-    // clamp (more conventional rrule behavior), this test will tell
-    // you exactly what you'd be changing.
-    expect(nextOccurrence("2026-01-31", "monthly", 1)).toBe("2026-03-03");
+  it("nextOccurrence: monthly day-of-month CLAMPS to the target month's last day", () => {
+    // Jan 31 + 1 month: the target month (Feb, 28 days in non-leap 2026) has no
+    // 31st, so we clamp to Feb 28 — the conventional rrule behavior. Previously
+    // JS Date.setMonth overflowed "Feb 31" to Mar 3 and then advanced from the
+    // 3rd forever, permanently drifting a monthly-on-the-31st recurrence.
+    expect(nextOccurrence("2026-01-31", "monthly", 1)).toBe("2026-02-28");
   });
 
-  it("nextOccurrence: yearly Feb 29 rolls to Mar 1 in non-leap year (NOT clamp to Feb 28)", () => {
-    // Same setMonth/setFullYear semantics as the monthly case. Locks in
-    // the surprising-but-current behavior.
-    expect(nextOccurrence("2024-02-29", "yearly", 1)).toBe("2025-03-01");
+  it("nextOccurrence: yearly Feb 29 clamps to Feb 28 in a non-leap year", () => {
+    // Same clamp as the monthly case: 2025 is non-leap, so Feb 29 → Feb 28
+    // (was Mar 1 under the old setFullYear overflow).
+    expect(nextOccurrence("2024-02-29", "yearly", 1)).toBe("2025-02-28");
   });
 
   it("nextOccurrence: weekly with byWeekday picks the next matching weekday", () => {
