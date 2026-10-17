@@ -16,6 +16,10 @@
 # lockfile (package-lock.json) is, for reproducible CI installs.
 /node_modules/
 
+# Local demo-seed backups — contain REAL exported user data (Firestore
+# todos/profile/groceries for a live account). Never commit to this public repo.
+scripts/.seed-backup-*.json
+
 # Claude Code (user-local state)
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
