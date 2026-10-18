@@ -19,9 +19,9 @@ P4 Mochi-sheet a11y → P5 ASC copy + submit.** The subtraction pass (P3) is the
 biggest quality lever but is large — it can trail the first repositioned release.
 
 ## Next up (as of 2026-10-18)
-1. **Deploy functions** — one command ships `onUserDeleted` (C.1, makes the
-   policy's deletion claim true), the 1.7 server copy, and `metricsRollup`
-   (0.2c). Must precede any `dev`→`main` promote.
+1. ~~Deploy functions~~ — **done 2026-10-18** (`onUserDeleted`, `metricsRollup`,
+   1.7 copy, webhook guard; `MOCHI_TIER_ENFORCEMENT` deliberately **OFF** until
+   IAP is live — flip it in the v2.0.0 release deploy).
 2. **Device-verification checkpoint** (below) — closes the 🔶 rows in gates 1, 3
    and 4 in one session, instead of discovering them at 5.4.
 3. **P2** — the next real code work on the critical path.
@@ -39,7 +39,7 @@ event call sites in `analytics.ts` remain as a no-op seam.*
 | 0.1 | **Tier 1 — RevenueCat** as the monetization-funnel source of truth (trial→paid, churn, LTV) | already integrated; zero new tracking | S (doc only) | ⏳ `MEASUREMENT-PLAN.md` has the Tier 1 section — confirm it's sufficient and mark done |
 | 0.2a | **Tier 2 schema** — `createdAt`/`lastActiveDate`/`activatedAt` on Profile + migration + tests; `metrics/*` covered by default-deny | foundation for activation/retention | S | ✅ `448e688` |
 | 0.2b | **Tier 2 capture** — pure `stampProfileSignals` in core, called once per app open from both `useTodoStore`s | records the signals | S | 🔶 `bca8e52` |
-| 0.2c | **Tier 2 aggregation CF** — scheduled roll-up of **aggregate** counts to `metrics/{date}` (server-only) | answers activation/retention/reactivation with no behavioral logging | M | 🔶 built early (2026-10-18): `metricsRollup` scheduled CF (06:15 UTC daily, yesterday's counts) + pure `rollUpMetrics` (unit-tested). Signup cohort = Firebase Auth creation day (profile `createdAt` is lazily stamped). **NOT DEPLOYED** — ships with the next `firebase deploy --only functions` (needs the Cloud Scheduler API enabled) |
+| 0.2c | **Tier 2 aggregation CF** — scheduled roll-up of **aggregate** counts to `metrics/{date}` (server-only) | answers activation/retention/reactivation with no behavioral logging | M | 🔶 built early (2026-10-18): `metricsRollup` scheduled CF (06:15 UTC daily, yesterday's counts) + pure `rollUpMetrics` (unit-tested). Signup cohort = Firebase Auth creation day (profile `createdAt` is lazily stamped). **Deployed 2026-10-18** (scheduler job `firebase-schedule-metricsRollup-us-central1` enabled); first `metrics/{day}` doc expected 2026-10-18 06:15 UTC |
 | 0.3 | **Tier 3** — anonymous daily counters for Mochi-used / paywall-shown / CTA / **groceries-used**, by repointing the `analytics.ts` no-op seam to a `recordMetric` CF | product-signal granularity; **3.3 depends on it** | M | ⏳ optional — *unless* 3.3 is decided by data (see 3.3) |
 | 0.4 | Remove `@react-native-firebase/analytics`; honest `PRIVACY.md` note | keeps the privacy promise true | S | ✅ `fc181f5` — wrapper kept as a no-op seam, user-id attribution dropped |
 
@@ -56,7 +56,7 @@ allowances are now INVISIBLE fair-use ceilings. Typecheck + unit tests green;
 | 1.4 | Over the fair-use ceiling → **graceful local fallback** (raw text handed to manual Compose via `onReviewCreateTodo`; no wall, no paywall) | M | 🔶 |
 | 1.5 | **Paywall → aspirational** triggers only (punitive "out of requests" trigger removed; locked-theme tap + Settings→Membership remain) | S–M | 🔶 |
 | 1.6 | Reprice to **$4.99/mo · $29.99/yr**, annual-led, keep 7-day trial, **no lifetime** | S | 🔶 fallback prices in `PaywallSheet`; real prices live in ASC (5.3) |
-| 1.7 | **Server `RESOURCE_EXHAUSTED` → auto-fallback.** Chat takes the same fallback as 1.4; step suggestions show a gentle localized "Mochi's resting" note; server ceiling copy de-metered (no counts / countdown / "pay as you go") | S | 🔶 `ac5437c` — server copy needs a functions deploy (with C.1). Mid-conversation, the fallback rebuilds the open request ("call mom — Friday") via core `buildFallbackCapture` |
+| 1.7 | **Server `RESOURCE_EXHAUSTED` → auto-fallback.** Chat takes the same fallback as 1.4; step suggestions show a gentle localized "Mochi's resting" note; server ceiling copy de-metered (no counts / countdown / "pay as you go") | S | 🔶 `ac5437c` — server copy deployed 2026-10-18. Mid-conversation, the fallback rebuilds the open request ("call mom — Friday") via core `buildFallbackCapture` |
 
 ## PC — Privacy & compliance (launch gate) 🟢 not blocked
 *Added 2026-10-18. App Review 5.1.1(v) requires in-app account deletion to
@@ -66,7 +66,7 @@ match what the app actually does. The policy is served by GitHub Pages from
 must be deployed first.*
 | # | Item | Effort | Status |
 |---|---|---|---|
-| C.1 | **Account deletion erases data** — `onUserDeleted` CF recursively deletes `users/{uid}`; RC webhook ignores events for deleted uids (client deletes were always denied by rules, so nothing was ever erased) | S | 🔶 `0a8e0df` on dev — **NOT DEPLOYED**: `cd web && firebase deploy --only functions` before promoting `main` |
+| C.1 | **Account deletion erases data** — `onUserDeleted` CF recursively deletes `users/{uid}`; RC webhook ignores events for deleted uids (client deletes were always denied by rules, so nothing was ever erased) | S | 🔶 `0a8e0df` — **deployed to production 2026-10-18** (`onUserDeleted`, us-east1, gen-1). Remaining: end-to-end check with a throwaway account |
 | C.2 | **Orphan cleanup** — one-off, dry-run-first script to erase `users/{uid}` trees with no live auth user (accounts deleted before C.1) | S | ⏳ after C.1 deploy |
 | C.3 | **Privacy policy accuracy** — analytics removed, usage dates, Anthropic (Mochi), RevenueCat (subscriptions), deletion scope | S | ✅ `fc181f5`, `e7c9a70`, `0a8e0df` — live on promote |
 | C.4 | **Verify vendor claims in the policy** — Anthropic API retention period (or ZDR), RevenueCat device-data list | S | ⏳ check vendor terms/console |
