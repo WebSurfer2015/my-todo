@@ -154,7 +154,6 @@ interface Props {
   onPermanentDelete?: (id: string) => void
   onUpdatePriority: (id: string, priority: Priority) => void
   onUpdateDueDate: (id: string, dueDate: string) => void
-  onSnooze?: (id: string, daysFromToday: number) => void
   /** Long-press defer handler — opens the same bottom-sheet picker
    * the group "Defer all to" action uses, scoped to this single todo.
    * If omitted, the long-press snooze action sheet is used as
@@ -179,11 +178,6 @@ interface Props {
    * label on overdue items. Default rendering shows the full
    * formatted date for every row. */
   dateChipFormat?: 'default' | 'home-today'
-  /** Default 'toggle' — tap row toggles done. 'expandIfHasSubs' makes
-   * tap on a parent-with-subs row toggle the expand chevron instead
-   * (since the parent's done state is derived and tap-to-toggle is a
-   * no-op). Plain rows still toggle. Home uses this. */
-  tapBehavior?: 'toggle' | 'expandIfHasSubs'
   /** When 'due-today', filter the rendered subtasks to those with a
    * dueDate today or earlier, auto-expand the row so the user sees
    * those steps without tapping, and dim the row when every visible

@@ -50,7 +50,6 @@ export interface PriorityEntry {
 
 interface Props {
   visible: boolean;
-  currentFilter: Filter;
   /** Multi-select source of truth. View-mode rows render the checkmark
    * when their filter is in this array; tapping toggles in/out. Empty
    * array = "all" semantics. Keeps currentFilter as a back-compat
@@ -64,7 +63,6 @@ interface Props {
    * Each entry is a Filter[]; inline Pin buttons in Configure mode
    * pin/unpin a single-element set ([f]). */
   pinnedFilters: Filter[][];
-  onSelectFilter: (f: Filter) => void;
   /** Set-aware pin toggle. Inline row pins pass `[f]`; the FilterBar
    * uses multi-element sets for composite pinning. */
   onPinFilter: (set: Filter[]) => void;

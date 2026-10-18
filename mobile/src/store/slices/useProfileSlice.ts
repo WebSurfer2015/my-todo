@@ -1,8 +1,5 @@
-// PR 2/5 of the useTodoStore split — see docs/USETODOSTORE-SPLIT-PLAN.md.
-// Owns the profile state + the lastSavedAt "saved at" stamp + the
-// onSaved callback. Other slices receive `onSaved` from the composer
-// so any save (todos, categories, groceries, etc.) advances the
-// shared "last saved" indicator.
+// Profile slice of useTodoStore: owns the synced profile state and the
+// profile-backed mutations (pins, statuses, priorities, stat tiles, …).
 //
 // PR 5 expansion: also owns every profile-touching mutation —
 // pinFilter / keepAndClearFilter / toggleHomeStatTile /
@@ -12,7 +9,7 @@
 // callbacks. Cross-state mutations (changeView calls setFilter,
 // keepAndClearFilter calls clearFilters) thread through deps.
 
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { useSyncedState } from "../useSyncedState";
 import { Profile, SEED_PROFILE, migrateProfile } from "../../core-bindings/profile";
 import { Filter, Priority, StatusFilter, ViewMode } from "../../core-bindings/types";
@@ -44,13 +41,6 @@ export interface ProfileSlice {
   profile: Profile;
   setProfile: (next: Profile | ((prev: Profile) => Profile)) => void;
   profileLoaded: boolean;
-  /** Most recent successful persist timestamp across ALL useSyncedState
-   * keys threaded through `onSaved`. Surfaced in Settings as a quiet
-   * "saved" indicator. */
-  lastSavedAt: number | null;
-  /** Pass this into every other slice's useSyncedState so a save
-   * anywhere updates the shared indicator. */
-  onSaved: (ts: number) => void;
   // ---- Mutations (PR 5 expansion) ----
   pinFilter: (set: Filter[]) => void;
   keepAndClearFilter: (set: Filter[]) => void;
@@ -84,8 +74,6 @@ export function useProfileSlice(
     toggleStatTile,
     defaultFilterForView,
   } = actions;
-  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
-  const onSaved = useCallback((ts: number) => setLastSavedAt(ts), []);
 
   const [profile, setProfile, profileLoaded] = useSyncedState<Profile>(
     adapter,
@@ -93,7 +81,6 @@ export function useProfileSlice(
     SEED_PROFILE,
     parseProfile,
     serializeAny,
-    onSaved,
   );
 
   // ---- Pin filter (set-aware) ----
@@ -218,8 +205,6 @@ export function useProfileSlice(
     profile,
     setProfile,
     profileLoaded,
-    lastSavedAt,
-    onSaved,
     pinFilter,
     keepAndClearFilter,
     toggleHomeStatTile,

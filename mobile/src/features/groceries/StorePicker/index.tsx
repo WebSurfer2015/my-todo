@@ -31,7 +31,6 @@ import DraggableFlatList, {
 } from "react-native-draggable-flatlist";
 import {
   GroceryItem,
-  GroceryGroup,
   MAX_GROCERY_STORE_LEN,
 } from "../../../core-bindings/groceries";
 import { useLang } from "../../../app/LangContext";
@@ -50,21 +49,12 @@ interface Props {
   stores: string[];
   hiddenStores: string[];
   activeStore: string | undefined;
-  /** Active dept-id filter from profile (or undefined when no dept
-   * narrowing is active). Pick mode renders a check on the matching
-   * dept row. */
-  activeDept: string | undefined;
   onSelect: (store: string | undefined) => void;
-  /** Set the active dept filter. Tapping the active dept again
-   * clears the filter (passing undefined). */
-  onSelectDept: (deptId: string | undefined) => void;
   onAdd: (name: string) => void;
   onRename: (oldName: string, newName: string) => void;
   onDelete: (name: string) => void;
   onReorder: (next: string[]) => void;
   onToggleHidden: (name: string) => void;
-  groups: GroceryGroup[];
-  onSetGroups: (next: GroceryGroup[]) => void;
   /** When true, the sheet mounts in Manage (edit) mode. */
   defaultEditing?: boolean;
   /** When true, the sheet ALSO opens with the inline "Add store"

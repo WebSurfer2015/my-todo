@@ -264,7 +264,6 @@ export default function HomeScreen() {
       onApplySeriesSubtasks={store.applySeriesSubtasks}
       onUpdatePriority={store.updatePriority}
       onUpdateDueDate={store.updateDueDate}
-      onSnooze={store.snooze}
       onLongPressDefer={openSingleDefer}
       onUpdateCategory={store.updateTaskCategory}
       onUpdateText={store.updateText}
@@ -281,7 +280,6 @@ export default function HomeScreen() {
       onClearSubtasks={store.clearSubtasks}
       subtaskVisibility="open"
       dateChipFormat="home-today"
-      tapBehavior="expandIfHasSubs"
       subtaskDateFilter="due-today"
     />
   )
@@ -524,7 +522,6 @@ export default function HomeScreen() {
                 onApplySeriesSubtasks={store.applySeriesSubtasks}
                     onUpdatePriority={store.updatePriority}
                     onUpdateDueDate={store.updateDueDate}
-                    onSnooze={store.snooze}
                     onLongPressDefer={openSingleDefer}
                     onUpdateCategory={store.updateTaskCategory}
                     onUpdateText={store.updateText}
@@ -541,7 +538,6 @@ export default function HomeScreen() {
                     onClearSubtasks={store.clearSubtasks}
                     subtaskVisibility="open"
                     dateChipFormat="home-today"
-                    tapBehavior="expandIfHasSubs"
                   />
                 ))}
               </View>

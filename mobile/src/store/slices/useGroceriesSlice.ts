@@ -1,4 +1,4 @@
-// PR 3 of the useTodoStore split — see docs/USETODOSTORE-SPLIT-PLAN.md.
+// Slice of useTodoStore.
 // Owns groceries + groceryGroups state and every grocery mutation.
 // Cross-slice work (active store stamps on profile, snackbars)
 // flows through deps passed in from the composer.
@@ -30,7 +30,6 @@ const parseGroceryGroups = (raw: string | null): GroceryGroup[] =>
   migrateGroceryGroups(unwrap(raw));
 
 export interface GroceriesSliceDeps {
-  onSaved?: (ts: number) => void;
   setProfile: (next: Profile | ((prev: Profile) => Profile)) => void;
   /** Live profile ref so addGrocery's async AI-classify reads the
    * latest agentEnabled flag + groceryStores without taking either
@@ -59,14 +58,8 @@ export interface GroceriesSliceDeps {
 
 export interface GroceriesSlice {
   groceries: GroceryItem[];
-  setGroceries: (
-    next: GroceryItem[] | ((prev: GroceryItem[]) => GroceryItem[]),
-  ) => void;
   groceriesLoaded: boolean;
   groceryGroups: GroceryGroup[];
-  setGroceryGroups: (
-    next: GroceryGroup[] | ((prev: GroceryGroup[]) => GroceryGroup[]),
-  ) => void;
   groceryGroupsLoaded: boolean;
   addGrocery: (args: {
     text: string;
@@ -98,7 +91,7 @@ export function useGroceriesSlice(
   adapter: StorageAdapter,
   deps: GroceriesSliceDeps,
 ): GroceriesSlice {
-  const { onSaved, setProfile, profileRef, notify, t, actions } = deps;
+  const { setProfile, profileRef, notify, t, actions } = deps;
   // Pure grocery transforms via the createTodoStore surface (stable
   // across ordinary renders). Migrators + consts stay direct imports —
   // they're used at module scope / are data, not behavior.
@@ -124,7 +117,6 @@ export function useGroceriesSlice(
     [],
     parseGroceries,
     serializeAny,
-    onSaved,
   );
   const [groceryGroups, setGroceryGroups, groceryGroupsLoaded] = useSyncedState<GroceryGroup[]>(
     adapter,
@@ -132,7 +124,6 @@ export function useGroceriesSlice(
     SEED_GROCERY_GROUPS,
     parseGroceryGroups,
     serializeAny,
-    onSaved,
   );
 
   // Mirror groceryGroups so addGrocery's stable callback can read
@@ -521,10 +512,8 @@ export function useGroceriesSlice(
 
   return {
     groceries,
-    setGroceries,
     groceriesLoaded,
     groceryGroups,
-    setGroceryGroups,
     groceryGroupsLoaded,
     addGrocery,
     toggleGroceryChecked,

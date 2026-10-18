@@ -1,4 +1,4 @@
-// PR 1 of the useTodoStore split — see docs/USETODOSTORE-SPLIT-PLAN.md.
+// Slice of useTodoStore.
 // Owns the categories list + the three pure mutations (add/edit/reorder).
 // `deleteCategory` stays in the composer because it crosses into todos
 // (rewrites their category refs), filter (resets if pointing at the
@@ -46,7 +46,6 @@ export interface CategoriesSlice {
 export function useCategoriesSlice(
   adapter: StorageAdapter,
   actions: TodoStoreActions,
-  onSaved?: (ts: number) => void,
 ): CategoriesSlice {
   const [categories, setCategories, categoriesLoaded] = useSyncedState<
     CategoryDef[]
@@ -56,7 +55,6 @@ export function useCategoriesSlice(
     SEED_CATEGORIES,
     parseCategories,
     serializeAny,
-    onSaved,
   );
 
   const addCategory = useCallback(

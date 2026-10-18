@@ -137,16 +137,4 @@ describe('useSyncedState', () => {
     expect(setCalls.length).toBe(0)
   })
 
-  it('calls onSaved with a ms timestamp after a successful write', async () => {
-    const { adapter } = makeAdapter({ initial: '0' })
-    const onSaved = vi.fn()
-    const { result } = renderHook(() =>
-      useSyncedState(adapter, 'k', 0, parse, serialize, onSaved),
-    )
-    await waitFor(() => expect(result.current[2]).toBe(true))
-    act(() => result.current[1](1))
-    act(() => { vi.advanceTimersByTime(450) })
-    await waitFor(() => expect(onSaved).toHaveBeenCalled())
-    expect(typeof onSaved.mock.calls[0][0]).toBe('number')
-  })
 })

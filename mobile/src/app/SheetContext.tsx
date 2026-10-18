@@ -859,12 +859,10 @@ export function SheetProvider({ children }: { children: ReactNode }) {
       <CategorySheet
         visible={categorySheetOpen}
         defaultMode={categorySheetMode}
-        currentFilter={store.filter}
         selectedFilters={store.filters}
         onToggleFilter={store.toggleFilter}
         onClearFilters={store.clearFilters}
         pinnedFilters={(store.profile.pinnedFilters ?? []) as Filter[][]}
-        onSelectFilter={store.setFilter}
         onPinFilter={store.pinFilter}
         categories={store.categories}
         taskCounts={store.taskCountsForSheet}

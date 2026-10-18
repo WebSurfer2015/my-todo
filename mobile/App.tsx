@@ -292,7 +292,6 @@ function TodosScreen() {
         onPermanentDelete={store.permanentlyDelete} onPermanentDeleteSeries={store.permanentlyDeleteSeriesFuture}
         onUpdatePriority={store.updatePriority}
         onUpdateDueDate={store.updateDueDate}
-        onSnooze={store.snooze}
         onLongPressDefer={openSingleDefer}
         onUpdateCategory={store.updateTaskCategory}
         onUpdateText={store.updateText}
@@ -403,7 +402,6 @@ function TodosScreen() {
         onApplySeriesSubtasks={store.applySeriesSubtasks}
         onUpdatePriority={store.updatePriority}
         onUpdateDueDate={store.updateDueDate}
-        onSnooze={store.snooze}
         onLongPressDefer={openSingleDefer}
         onUpdateCategory={store.updateTaskCategory}
         onUpdateText={store.updateText}
@@ -550,13 +548,10 @@ function TodosScreen() {
               </View>
             )}
             <FilterBar
-              filter={store.filter}
               selectedFilters={store.filters}
-              onToggleFilter={store.toggleFilter}
               onSetFilters={store.setFilters}
               onClearFilters={store.clearFilters}
               pinnedFilters={(store.profile.pinnedFilters ?? []) as Filter[][]}
-              onFilter={store.setFilter}
               onPinFilter={store.pinFilter}
               onKeepAndClearFilter={store.keepAndClearFilter}
               onOpenSheet={() => sheets.openSelectFilter()}
@@ -569,7 +564,6 @@ function TodosScreen() {
               groceriesActiveCount={
                 store.groceries.filter((g) => !g.checked).length
               }
-              groceriesEnabled={store.profile.groceriesEnabled !== false}
             />
           </View>
 
@@ -658,7 +652,6 @@ function TodosScreen() {
                         onPermanentDelete={store.permanentlyDelete} onPermanentDeleteSeries={store.permanentlyDeleteSeriesFuture}
                         onUpdatePriority={store.updatePriority}
                         onUpdateDueDate={store.updateDueDate}
-                        onSnooze={store.snooze}
                         onLongPressDefer={openSingleDefer}
                         onUpdateCategory={store.updateTaskCategory}
                         onUpdateText={store.updateText}
@@ -785,7 +778,6 @@ function TodosScreen() {
                             onApplySeriesSubtasks={store.applySeriesSubtasks}
                             onUpdatePriority={store.updatePriority}
                             onUpdateDueDate={store.updateDueDate}
-                            onSnooze={store.snooze}
                         onLongPressDefer={openSingleDefer}
                             onUpdateCategory={store.updateTaskCategory}
                             onUpdateText={store.updateText}

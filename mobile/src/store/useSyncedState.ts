@@ -22,17 +22,14 @@ export function useSyncedState<T>(
   initial: T,
   parse: (raw: string | null) => T,
   serialize: (value: T) => string,
-  onSaved?: (savedAt: number) => void,
 ): [T, Dispatch<SetStateAction<T>>, boolean] {
   const [state, setState] = useState<T>(initial);
   const [loaded, setLoaded] = useState(false);
   const lastSerializedRef = useRef<string | null>(null);
   const parseRef = useRef(parse);
   const serializeRef = useRef(serialize);
-  const onSavedRef = useRef(onSaved);
   parseRef.current = parse;
   serializeRef.current = serialize;
-  onSavedRef.current = onSaved;
   // Latest values mirrored into refs so the AppState background-flush
   // listener (registered once) can read current state/adapter/key/loaded
   // without re-subscribing on every change.
@@ -121,7 +118,6 @@ export function useSyncedState<T>(
       lastSerializedRef.current = json;
       adapter
         .setItem(key, json)
-        .then(() => onSavedRef.current?.(Date.now()))
         .catch((err) => {
           console.warn(`useSyncedState[${key}] write failed:`, err);
         });
@@ -144,7 +140,6 @@ export function useSyncedState<T>(
       lastSerializedRef.current = json;
       adapterRef.current
         .setItem(keyRef.current, json)
-        .then(() => onSavedRef.current?.(Date.now()))
         .catch((err) => {
           console.warn(
             `useSyncedState[${keyRef.current}] background flush failed:`,

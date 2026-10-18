@@ -1,4 +1,4 @@
-// PR 4 of the useTodoStore split — see docs/USETODOSTORE-SPLIT-PLAN.md.
+// Slice of useTodoStore.
 // Owns todos + todoReferences + selectedTrashIds state, every todo
 // and subtask mutation, and the trash bulk ops.
 //
@@ -47,7 +47,6 @@ const parseTodoReferences = (raw: string | null): TodoReference[] =>
   migrateTodoReferences(unwrap(raw));
 
 export interface TodosSliceDeps {
-  onSaved?: (ts: number) => void;
   /** Current filter + ref. The selectedTrashIds auto-clear effect
    * watches `filter`; some snackbar logic reads `filterRef.current`
    * inside stable callbacks. */
@@ -104,7 +103,6 @@ export interface TodosSlice {
   setTodos: Dispatch<SetStateAction<Todo[]>>;
   todosLoaded: boolean;
   todoReferences: TodoReference[];
-  setTodoReferences: Dispatch<SetStateAction<TodoReference[]>>;
   // Session state
   selectedTrashIds: Set<string>;
   // Refs (exposed so the composer's deleteCategory cross-slice work
@@ -204,7 +202,6 @@ export function useTodosSlice(
   deps: TodosSliceDeps,
 ): TodosSlice {
   const {
-    onSaved,
     filter,
     filterRef,
     uid,
@@ -259,7 +256,6 @@ export function useTodosSlice(
     [],
     parseTodos,
     serializeAny,
-    onSaved,
   );
   const [todoReferences, setTodoReferences] = useSyncedState<TodoReference[]>(
     adapter,
@@ -267,7 +263,6 @@ export function useTodosSlice(
     [],
     parseTodoReferences,
     serializeAny,
-    onSaved,
   );
   const [selectedTrashIds, setSelectedTrashIds] = useState<Set<string>>(
     new Set(),
@@ -786,7 +781,6 @@ export function useTodosSlice(
     setTodos,
     todosLoaded,
     todoReferences,
-    setTodoReferences,
     selectedTrashIds,
     todosRef,
     toggle,

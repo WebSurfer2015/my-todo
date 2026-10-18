@@ -45,7 +45,7 @@ import {
   dueDateOnly,
 } from '../../../../../core/src/logic/utils'
 import { sortedSubs, snapDueDateToRecurrence } from '../../../../../core/src/logic/derive'
-import { useTheme, ThemeColors } from '../../../app/theme'
+import { useTheme } from '../../../app/theme'
 import { useLang } from '../../../app/LangContext'
 import { useNotify } from '../../../app/notify'
 import PriorityDot from '../../../ui/PriorityDot'
@@ -810,11 +810,6 @@ export default function TaskDetailsSheet({
     setPendingEditDueDate(isoLocalDateTime(selected))
   }
 
-  function openSubDate(s: Subtask) {
-    setSubPickerDate(s.dueDate ? new Date(`${s.dueDate}T00:00:00`) : new Date())
-    setPendingSubModalDate(s.dueDate ?? '')
-    setSubDateForId(s.id)
-  }
 
   function startEditSubtask(s: Subtask) {
     setEditSubText(s.text)
@@ -1671,12 +1666,8 @@ export default function TaskDetailsSheet({
                       parentId={todo.id}
                       subtask={s}
                       styles={styles}
-                      theme={theme}
                       onToggle={onToggleSubtask}
                       onUpdateText={onUpdateSubtaskText}
-                      onRemove={onRemoveSubtask}
-                      onOpenPriority={onUpdateSubtaskPriority ? () => setSubPriorityForId(s.id) : undefined}
-                      onOpenDate={onUpdateSubtaskDueDate ? () => openSubDate(s) : undefined}
                       onTap={() => startEditSubtask(s)}
                     />
                   ))}
@@ -1946,12 +1937,8 @@ function SubtaskCard({
   parentId: string
   subtask: Subtask
   styles: ReturnType<typeof makeStyles>
-  theme: ThemeColors
   onToggle: (id: string, subId: string) => void
   onUpdateText: (id: string, subId: string, text: string) => void
-  onRemove: (id: string, subId: string) => void
-  onOpenPriority?: () => void
-  onOpenDate?: () => void
   /** If provided, tapping the row's text area opens this callback instead of inline edit. */
   onTap?: () => void
 }) {

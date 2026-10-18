@@ -24,14 +24,12 @@ import {
   SCHEMA_VERSION,
 } from "../../../core/src/ports/persistence";
 import { createTodoStore, migrateLocalToCloud, refreshUsageSignals } from "../../../core/src/store";
-import { DEFAULT_HOME_STAT_TILES } from "../../../core/src/logic/filters";
 import { todayLocal, genUuid } from "../../../core/src/logic/utils";
 import { dailyQuoteIndex, quoteAt } from "../../../core/src/data/quotes";
 
-import { pickMascotLine } from "../features/mochi/mascotLines";
 
 export function useTodoStore() {
-  const { lang, t } = useLang();
+  const { t } = useLang();
   const { user } = useAuth();
   const notify = useNotify();
 
@@ -110,13 +108,8 @@ export function useTodoStore() {
     profile,
     setProfile,
     profileLoaded,
-    lastSavedAt,
-    onSaved,
     pinFilter,
     keepAndClearFilter,
-    toggleHomeStatTile,
-    clearHomeStatTiles,
-    changeView,
     renameStatus,
     toggleStatusHidden,
     reorderStatuses,
@@ -136,7 +129,7 @@ export function useTodoStore() {
     addCategory,
     editCategory,
     reorderCategories,
-  } = useCategoriesSlice(adapter, store.actions, onSaved);
+  } = useCategoriesSlice(adapter, store.actions);
 
   // OS-level Reduce Motion — folded into every animation gate below so the
   // system accessibility setting is honored, not just the in-app toggle.
@@ -183,7 +176,6 @@ export function useTodoStore() {
   // PR 4 todos slice — owns todos + todoReferences + selectedTrashIds
   // state, all todo + subtask mutations, and trash bulk ops.
   const todosBundle = useTodosSlice(adapter, {
-    onSaved,
     filter,
     filterRef,
     uid,
@@ -239,10 +231,8 @@ export function useTodoStore() {
   // Grocery slice.
   const {
     groceries,
-    setGroceries,
     groceriesLoaded,
     groceryGroups,
-    setGroceryGroups,
     groceryGroupsLoaded,
     addGrocery,
     toggleGroceryChecked,
@@ -260,7 +250,6 @@ export function useTodoStore() {
     setActiveGroceryDept,
     pinGroceryDept,
   } = useGroceriesSlice(adapter, {
-    onSaved,
     setProfile,
     profileRef,
     notify,
@@ -392,11 +381,6 @@ export function useTodoStore() {
   const trimmedQuote =
     profile.quote && profile.quote.trim() ? profile.quote.trim() : '';
   const todayDate = todayLocal();
-  const todayCount = todos.filter(
-    (td) => !td.trashed && td.dueDate === todayDate,
-  ).length;
-  const plateLine = t.todayPlate(todayCount);
-  const mascotLine = pickMascotLine(lang, greetingKey, todayCount, todayDate);
   // Subtitle source. Resolution:
   //   - 'daily'  → date-seeded curated quote, stable all day, rotates at
   //                midnight; honors a per-day "show me another" shuffle.
@@ -418,7 +402,6 @@ export function useTodoStore() {
   const identityLineIsQuote = identityLine !== '';
   // Legacy: still expose quoteLine for any caller that wants the raw
   // value, but App.tsx now reads identityLine + identityLineIsQuote.
-  const quoteLine = trimmedQuote;
   const orderedStatuses = getOrderedStatuses(profile, t);
   const orderedPriorities = getOrderedPriorities(profile, t);
   const orderedVisibleStatuses = getOrderedVisibleStatuses(profile, t);
@@ -428,7 +411,6 @@ export function useTodoStore() {
     todoReferences,
     categories,
     groceries,
-    setGroceries,
     addGrocery,
     toggleGroceryChecked,
     editGrocery,
@@ -445,12 +427,10 @@ export function useTodoStore() {
     toggleGroceryStoreHidden,
     pinGroceryStore,
     groceryGroups,
-    setGroceryGroups,
     profile,
     filter,
     view,
     loaded,
-    lastSavedAt,
     ...derived,
     // FilterBar + CategorySheet both want the full per-category count
     // (open + done, excludes trashed) — matches the user mental model
@@ -463,9 +443,6 @@ export function useTodoStore() {
     byPriority: derived.byPriorityTotal,
     activeCount: derived.active.length,
     headerLine,
-    quoteLine,
-    plateLine,
-    mascotLine,
     identityLine,
     identityLineIsQuote,
     /** True when the user has both completionAnimation on AND
@@ -486,19 +463,7 @@ export function useTodoStore() {
     clearFilters,
     pinFilter,
     keepAndClearFilter,
-    toggleHomeStatTile,
-    clearHomeStatTiles,
-    // Effective tiles for both Home rendering and Manage Filter badge
-    // display. undefined (never customized) falls through to defaults;
-    // an explicit empty array is respected as "no tiles" so the user
-    // can opt out of the stats row entirely.
-    effectiveHomeStatTiles: (
-      profile.homeStatTiles === undefined
-        ? DEFAULT_HOME_STAT_TILES
-        : profile.homeStatTiles
-    ) as Filter[],
     saveProfile: setProfile,
-    changeView,
     renameStatus,
     toggleStatusHidden,
     reorderStatuses,

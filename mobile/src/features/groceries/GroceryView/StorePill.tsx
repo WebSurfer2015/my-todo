@@ -10,9 +10,6 @@ export interface StorePillProps {
   /** Optional leading icon (used by the dept pill so the user can
    * tell it's a department filter rather than a store). */
   deptIcon?: React.ReactNode;
-  /** Tint for the pin glyph when the pill is pinned. Defaults to the
-   * label color so it matches the surrounding text. */
-  pinIconColor?: string;
   /** Reports the pill's X position within the scroll content. Parent
    * uses these to scroll the active pill into view on filter change. */
   onLayoutX?: (x: number) => void;

@@ -109,9 +109,6 @@ interface Props {
   onToggleStoreHidden: (name: string) => void
   onTogglePinnedStore: (name: string) => void
   onTogglePinnedDept: (deptId: string) => void
-  // Department management — wired through to StorePicker (manage
-  // section) and GroceryComposeSheet (pick).
-  onSetGroceryGroups: (next: GroceryGroup[]) => void
   /** Optional controlled state for the StorePicker sheet, so a parent
    * (e.g. GroceriesScreen) can open it from the AppHeader filter
    * icon. When omitted, GroceryView falls back to its internal
@@ -163,7 +160,6 @@ export default function GroceryView({
   onToggleStoreHidden,
   onTogglePinnedStore,
   onTogglePinnedDept,
-  onSetGroceryGroups,
   storePickerOpen: storePickerOpenProp,
   onStorePickerOpenChange,
   storePickerEditing,
@@ -532,7 +528,6 @@ export default function GroceryView({
                   color={theme.primaryOn}
                 />
               }
-              pinIconColor={theme.primaryOn}
               onPress={() => onSetActiveDept(undefined)}
               onLayoutX={(x) => {
                 pillXRef.current[`dept-${leadingActiveDept.id}`] = x
@@ -562,7 +557,6 @@ export default function GroceryView({
             const g = visibleGroups.find((x) => x.id === id)
             if (!g) return null
             const isActive = effectiveDept === g.id
-            const pinIconColor = isActive ? theme.primaryOn : (g.color ?? theme.label2)
             return (
               <StorePill
                 key={`dept-${g.id}`}
@@ -580,7 +574,6 @@ export default function GroceryView({
                     color={isActive ? theme.primaryOn : undefined}
                   />
                 }
-                pinIconColor={pinIconColor}
                 onPress={() => onSetActiveDept(isActive ? undefined : g.id)}
                 onLayoutX={(x) => {
                   pillXRef.current[`dept-${g.id}`] = x
@@ -768,16 +761,12 @@ export default function GroceryView({
       stores={configuredStores}
       hiddenStores={hiddenStores}
       activeStore={activeStore}
-      activeDept={activeDept}
       onSelect={onSetActiveStore}
-      onSelectDept={onSetActiveDept}
       onAdd={onAddStore}
       onRename={onRenameStore}
       onDelete={onDeleteStore}
       onReorder={onReorderStores}
       onToggleHidden={onToggleStoreHidden}
-      groups={groceryGroups}
-      onSetGroups={onSetGroceryGroups}
       agentEnabled={agentEnabled}
       onLinkItems={onLinkItemsToStore}
       onClose={() => {

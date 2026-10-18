@@ -113,7 +113,6 @@ export default function GroceriesScreen() {
         onToggleStoreHidden={store.toggleGroceryStoreHidden}
         onTogglePinnedStore={store.pinGroceryStore}
         onTogglePinnedDept={store.pinGroceryDept}
-        onSetGroceryGroups={store.setGroceryGroups}
         storePickerOpen={storePickerOpen}
         onStorePickerOpenChange={(v) => {
           setStorePickerOpen(v)

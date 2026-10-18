@@ -18,14 +18,12 @@ import { useLang } from '../../app/LangContext'
 import { useTheme, ThemeColors, RADIUS } from '../../app/theme'
 
 interface Props {
-  filter: Filter
   /** Multi-select source of truth. Each entry renders as a "selected"
    * pill — tapping removes it from the selection (calls
    * onToggleFilter). Pinned-but-not-selected filters render as
    * "extra" pills — tapping adds them. Empty array = "All"
    * semantics; the All pill becomes the only active visual. */
   selectedFilters: Filter[]
-  onToggleFilter: (f: Filter) => void
   /** Replace the entire selection in one shot. Used when activating
    * a pinned composite pill — we don't want N store updates from
    * toggling each constituent filter individually. */
@@ -37,7 +35,6 @@ interface Props {
    * for the long-pressed pill's set. Each pinned pill renders with a
    * small Pin icon next to its label. */
   pinnedFilters: Filter[][]
-  onFilter: (f: Filter) => void
   /** Set-aware pin toggle. Pass a single-element array for individual
    * filter pinning, a multi-element array for composite pinning. */
   onPinFilter: (set: Filter[]) => void
@@ -63,9 +60,6 @@ interface Props {
    * The Groceries pill is the leftmost pill in the row when the user has
    * the feature enabled (profile.groceriesEnabled !== false). */
   groceriesActiveCount?: number
-  /** When false, hides the Groceries pill entirely (used when the user
-   * has turned the feature off in Settings). Defaults to true. */
-  groceriesEnabled?: boolean
 }
 
 interface ResolvedPill {
