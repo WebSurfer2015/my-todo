@@ -69,8 +69,11 @@ lived experience:
 - ☐ Theme-from-avatar on/off: accent + background follow the avatar.
 - ☐ Empty states render centered + on-brand (Dashboard welcome, empty
   Shopping "Start shopping.", empty Todos "You're all caught up.").
-- ☐ Pebble/cairn animation on task completion (reduce-motion off) and that
-  reduce-motion ON suppresses it.
+- ☐ Completion firework on task + grocery check-off (reduce-motion off,
+  completion-animation on) and that reduce-motion ON (or the animation toggle
+  off) suppresses it; completion sound honors its toggle.
+- ☐ Profile → "YOUR JOURNEY" shows the lifetime pebble count ("N pebbles
+  placed") and it increments on completion.
 - ☐ Long content: very long todo title, many categories, many stores —
   layout holds.
 
