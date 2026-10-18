@@ -45,7 +45,13 @@ const MODEL = 'claude-haiku-4-5'
 // shared daily cap. ON at monetization launch: Premium/Max now get their
 // larger monthly allowance, Free is held to its per-tier cap, and exceeding
 // it draws down the pay-as-you-go top-up balance.
-const MOCHI_TIER_ENFORCEMENT = true
+//
+// OFF again 2026-10-18 (first deploy of the dev functions to production): IAP
+// can't be sold until the Apple org conversion + Paid Apps Agreement, so the
+// shipped app's users would be held to the free tier with no way to upgrade.
+// Everyone gets the flat fair-use cap (reserveDailyCall). Flip to true in the
+// v2.0.0 release deploy, once the IAP products are live.
+const MOCHI_TIER_ENFORCEMENT = false
 
 interface ChatContext {
   /** Today as ISO yyyy-mm-dd in the user's local timezone. The client
