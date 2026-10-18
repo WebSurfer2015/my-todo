@@ -1,0 +1,44 @@
+/**
+ * Normalize the client-sent Mochi conversation for agentChat. PURE (no
+ * firebase-admin) so it's unit-testable.
+ *
+ * The client sends the FULL alternating history ending on a user turn — an
+ * odd length. A plain `.slice(-MAX_TURNS)` of an odd-length history always
+ * starts on an ASSISTANT turn, which the Anthropic API (and our own guard)
+ * rejects — so every send after the 20th user turn used to 400. After
+ * windowing, drop leading assistant turns so the window starts on a user turn.
+ */
+
+/** One conversation turn on the wire. `assistant` turns carry only the
+ * reply text — proposed operations are re-derived per request, never
+ * replayed back to the model. */
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export const MAX_TURNS = 40
+export const MAX_TURN_CHARS = 2000
+
+function isChatMessage(m: unknown): m is ChatMessage {
+  return (
+    !!m &&
+    typeof m === 'object' &&
+    ((m as ChatMessage).role === 'user' || (m as ChatMessage).role === 'assistant') &&
+    typeof (m as ChatMessage).content === 'string'
+  )
+}
+
+/** `messages` (multi-turn) wins; `turn` is the legacy single-turn shape. */
+export function normalizeChatMessages(messages: unknown, turn: unknown): ChatMessage[] {
+  if (Array.isArray(messages)) {
+    const window = messages.filter(isChatMessage).slice(-MAX_TURNS)
+    const firstUser = window.findIndex((m) => m.role === 'user')
+    if (firstUser === -1) return []
+    return window
+      .slice(firstUser)
+      .map((m) => ({ role: m.role, content: m.content.slice(0, MAX_TURN_CHARS) }))
+  }
+  if (typeof turn === 'string') return [{ role: 'user', content: turn.slice(0, MAX_TURN_CHARS) }]
+  return []
+}

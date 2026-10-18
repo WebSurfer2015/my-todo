@@ -23,6 +23,7 @@ import {
 } from './agentTools'
 import { reserveDailyCall, reserveMochiRequest } from './quota'
 import { isAgentEnabled } from './aiInfer'
+import { normalizeChatMessages, type ChatMessage } from './chatMessages'
 
 export { aiInfer } from './aiInfer'
 export { revenuecatWebhook } from './revenuecat'
@@ -80,14 +81,6 @@ interface ChatContext {
   /** User's grocery store names, so the agent can tag items and detect when
    * a named store doesn't exist yet (→ offer to create it). */
   stores?: string[]
-}
-
-/** One conversation turn on the wire. `assistant` turns carry only the
- * reply text — proposed operations are re-derived per request, never
- * replayed back to the model. */
-interface ChatMessage {
-  role: 'user' | 'assistant'
-  content: string
 }
 
 interface ChatRequest {
@@ -226,23 +219,9 @@ export const agentChat = onCall(
     const data = request.data as Partial<ChatRequest> | undefined
     // Dual-accept: prefer the multi-turn `messages` array; fall back to the
     // legacy single `turn` so an un-updated client can't 400 mid-rollout.
-    const MAX_TURNS = 40
-    const MAX_TURN_CHARS = 2000
-    const rawMessages: ChatMessage[] = Array.isArray(data?.messages)
-      ? (data!.messages as unknown[])
-          .filter(
-            (m): m is ChatMessage =>
-              !!m &&
-              typeof m === 'object' &&
-              ((m as ChatMessage).role === 'user' ||
-                (m as ChatMessage).role === 'assistant') &&
-              typeof (m as ChatMessage).content === 'string',
-          )
-          .slice(-MAX_TURNS)
-          .map((m) => ({ role: m.role, content: m.content.slice(0, MAX_TURN_CHARS) }))
-      : typeof data?.turn === 'string'
-        ? [{ role: 'user', content: data.turn.slice(0, MAX_TURN_CHARS) }]
-        : []
+    // Windowing keeps the last 40 turns AND starts on a user turn (an odd-length
+    // history sliced to 40 used to start on an assistant turn → 400).
+    const rawMessages: ChatMessage[] = normalizeChatMessages(data?.messages, data?.turn)
 
     if (rawMessages.length === 0 || rawMessages.every((m) => m.content.trim().length === 0)) {
       throw new HttpsError('invalid-argument', 'Empty message.')
