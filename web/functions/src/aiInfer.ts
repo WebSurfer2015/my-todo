@@ -197,7 +197,8 @@ interface InferResponse {
 }
 
 export const aiInfer = onCall(
-  { secrets: [ANTHROPIC_API_KEY], region: 'us-central1' },
+  // Cost cap — same reasoning as agentChat (paid Anthropic call per request).
+  { secrets: [ANTHROPIC_API_KEY], region: 'us-central1', maxInstances: 5 },
   async (request): Promise<InferResponse> => {
     const startedAt = Date.now()
     if (!request.auth) {

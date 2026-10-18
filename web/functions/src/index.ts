@@ -214,7 +214,9 @@ Trust model — load-bearing:
   <context>…</context> and comes from the app, not the user.`
 
 export const agentChat = onCall(
-  { secrets: [ANTHROPIC_API_KEY], region: 'us-central1' },
+  // maxInstances caps runaway cost (each Mochi call is a paid Anthropic
+  // request); 5 × 80 concurrency still absorbs ~400 simultaneous requests.
+  { secrets: [ANTHROPIC_API_KEY], region: 'us-central1', maxInstances: 5 },
   async (request): Promise<ChatResponse> => {
     const startedAt = Date.now()
     if (!request.auth) {

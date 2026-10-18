@@ -103,7 +103,8 @@ function writeEnvelope(ent: Entitlement) {
 }
 
 export const revenuecatWebhook = onRequest(
-  { secrets: [REVENUECAT_WEBHOOK_SECRET], region: 'us-central1' },
+  // Low-volume lifecycle events; RC retries on 429, so a small cap is safe.
+  { secrets: [REVENUECAT_WEBHOOK_SECRET], region: 'us-central1', maxInstances: 3 },
   async (req, res) => {
     if (req.method !== 'POST') {
       res.status(405).send('Method Not Allowed')

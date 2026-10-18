@@ -41,8 +41,11 @@ export async function deleteUserTree(db: RecursiveDeleter, uid: string): Promise
 
 // Pinned to us-central1 with every other function (gen-1 otherwise picks up a
 // default region — it landed in us-east1 on first deploy).
+// maxInstances: account deletions are rare; 3 (vs the gen-1 default of 3000)
+// bounds cost from a bulk/abusive delete burst — excess events queue + retry.
 export const onUserDeleted = functions
   .region('us-central1')
+  .runWith({ maxInstances: 3 })
   .auth.user()
   .onDelete(async (user) => {
     // Throwing lets Cloud Functions log the failure; recursiveDelete is
