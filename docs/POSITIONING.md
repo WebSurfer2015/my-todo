@@ -1,11 +1,19 @@
 # Sagely — Positioning & App Store Copy
 
 This is the source of truth for Sagely's positioning. The behavioral rules in
-**Principles** below should anchor every UX, copy, and feature decision. The
-**App Store metadata** section is the current text shipped to ASC.
+**Principles** below should anchor every UX, copy, and feature decision.
 
-The strategic *why* and market sizing behind the current direction live in
-[`POSITIONING-BRIEF.md`](./POSITIONING-BRIEF.md). Read both together.
+> **2026-10 direction — "emotional safety."** The Principles below are updated to
+> the current strategy: *a warm, quiet companion (Mochi) for a busy mind;
+> emotional safety as the wedge; ADHD/overwhelm beachhead; de-metered
+> monetization.* Supporting docs: `POSITIONING-BRIEF.md` (why/sizing),
+> `COMPETITIVE-BRIEF.md` (field), `FEATURE-MAP-GAPS.md` (white space),
+> `REPOSITIONING-SPEC.md` + `REPOSITIONING-DUAL-LENS.md` (the spec + its review),
+> `MOCHI-MONETIZATION-MODEL.md` (pricing). ⚠️ The **App Store / Play / localized
+> metadata below still reflects the old v1.3.0 "hard days" framing** — the
+> English copy is updated inline; **all 5 non-English locales (zh/es/fr/de/ja)
+> and the Play Store copy still need re-writing to this direction** before the
+> next submission (do not machine-translate — the voice matters).
 
 To re-load this into Claude's memory in a future conversation, ask Claude to
 read this file and update `memory/project_marketing_positioning.md`.
@@ -16,45 +24,84 @@ read this file and update `memory/project_marketing_positioning.md`.
 
 ### One-liner
 
-**Sagely — Calm to-dos for real life.**
+**Sagely — a warm companion for a busy mind.**
+*Gentle to-dos that never make you feel behind.*
+
+*(The prior lead line, "Calm to-dos for real life," is retired; its "real life"
+wide-door idea survives in Audience.)*
 
 ### Audience
 
-People juggling real life — work, family, event planning, social, self-care —
-who want a calmer way to stay on top of it all. The ones who've found that
-scoreboard-style productivity apps add pressure instead of lifting it, and who'd
-rather make gentle, steady progress than chase streaks or a perfect score.
-"Real life" is the wide door: it welcomes anyone carrying a full load, without
-asking them to self-identify first. (Personas, market sizing, and the deeper
-audience profile live in `POSITIONING-BRIEF.md`.)
+**Lead (where the paying users and cheap growth are):** adults with ADHD / AuDHD,
+and anyone easily overwhelmed by their to-do list — the "done being optimized"
+psychographic who find scoreboard productivity apps add pressure instead of
+lifting it. **The brand front door stays universal** — "a busy mind" welcomes
+anyone carrying a lot, without asking them to self-identify — **while ASO
+keywords and community marketing lead ADHD** (the Tiimo model: universal brand,
+ADHD where discovery actually happens). Personas, sizing, and the beachhead
+evidence live in `POSITIONING-BRIEF.md` and `COMPETITIVE-BRIEF.md`.
 
 ### Need
 
 Track and finish what real life throws at you — at your own pace, with
 encouragement instead of pressure.
 
-### Promise
+### Promise — emotional safety
 
-Make gentle progress on what matters, in a space that stays calm and kind.
+A to-do app that **never makes you feel behind.** Make gentle progress on what
+matters, with a warm companion (Mochi) beside you, in a space that stays calm
+and kind. We name the *load*, never a flaw.
+
+### The wedge (the column no one else fills)
+
+The to-do field splits into *visual time-structure* (Tiimo, Structured) and
+*cold AI task-splitters* (Goblin Tools, neurolist). **Nobody owns emotional
+safety.** Sagely's defensible position is the intersection — **a warm companion
+× calm framing × real task help** — a kind companion that makes task overwhelm
+feel survivable, not another planner or utility. (Analysis: `FEATURE-MAP-GAPS.md`.)
+
+### Mochi — the heart, and a *quiet* companion
+
+Mochi is the center of the product — but a **quiet** companion, not a chatty one.
+Warmth comes through tone, microcopy, the completion moment, and day-stable
+lines (~90% local, zero AI cost); the LLM is reserved for genuine capture and
+breakdown. More words would mean more noise — the opposite of calm. (Spec:
+`REPOSITIONING-SPEC.md`; review: `REPOSITIONING-DUAL-LENS.md`.)
 
 ### Anti-positioning (the load-bearing stance)
 
 - No streaks, no quotas, no "X days in a row"
-- No exclamation marks anywhere — there's a unit test asserting this for
-  every line of mascot copy (`mobile/src/__tests__/mascotLines.test.ts`)
+- **Name the load, not a flaw** — describe the situation ("a lot on your plate"),
+  never label the person ("anxious," "behind"); pain words belong in body copy
+  that meets someone already in the moment, never in a headline
+- **Quiet companion, not chatty** — warmth is ambient; Mochi never talks more to
+  seem warmer
+- No exclamation marks anywhere — unit-tested for every line of mascot copy
+  (`mobile/src/__tests__/mascotLines.test.ts`)
 - Past-due is "Carried over," not "Late"
 - Done items "tucked away," reversible for 30 days
-- Progress = ambient stones in a cairn, not a counter that resets
-- Reduce-motion respected throughout
+- Progress = ambient (a lifetime count that only grows), not a counter that resets
+- Reduce-motion respected throughout; **accessibility is the product**, not a
+  nice-to-have — the audience is neurodivergent
 - Calm color palette — only truly irreversible actions are red
 - Every destructive action is reversible or confirmed
 
 ### Voice
 
-Mochi the mascot — soft, daily, never pushy. *"Mochi's resting. You can too."*
-Lines rotate by day-stable seed so they stay the same all session but change
-across days. When the user has set a personal quote, it alternates with
-Mochi's line so neither one disappears.
+Mochi the mascot — soft, daily, never pushy, never verbose. *"Mochi's resting.
+You can too."* Lines rotate by day-stable seed so they stay the same all session
+but change across days. When the user has set a personal quote, it alternates
+with Mochi's line so neither one disappears.
+
+### Monetization stance (never meter the companion)
+
+Monetize *capability*, never a counter. **Mochi the companion is always free and
+unlimited** (it's local); only the AI *heavy-lifting* is gated. Free = Mochi
+helps with *one thing at a time* (graceful local fallback — never a wall);
+Premium = the *zoom-out* (plan my week, bulk triage, themes). No usage meter, no
+pay-as-you-go top-ups. Free + Premium only, ~$4.99/mo · $29.99/yr, no lifetime.
+The paywall is aspirational (unlock a superpower), never punitive (you ran out).
+(Full model: `MOCHI-MONETIZATION-MODEL.md`.)
 
 ### Competitive frame
 
@@ -64,7 +111,10 @@ Mochi's line so neither one disappears.
 | Todoist / TickTick | maximize throughput | minimize harm |
 | Notion / Things | cold, dense, complex | warm, quiet, focused |
 | Apple Reminders | utilitarian, no emotional layer | emotional layer that doesn't grade |
-| Sunsama / Motion | calm/intentional, but desktop, work-only, cold, $20/mo | calm for all of real life, mobile-first, warm, affordable |
+| Sunsama / Motion | calm/intentional, but desktop, work-only, cold | calm for real life, mobile-first, warm |
+| Tiimo / Structured | visual time-blocking for ND, structure-first | warmth-first — a companion, not a timeline |
+| Goblin Tools / neurolist | free but cold AI task-splitters | the splitter *plus* a companion that remembers and reassures |
+| Amazing Marvin | maximal customization for ADHD power users | the opposite — gentle, low cognitive load, done-for-you |
 
 ### Mission-aligned features
 
@@ -100,32 +150,33 @@ When in doubt, run the dual-lens review (PM lens + UX lens) per
 
 ## App Store metadata (current — version 1.3.0)
 
-> **Pending revision.** The copy below is what's *currently shipped* to ASC
-> (v1.3.0) and still uses the prior "hard days" framing. Revising it to the
-> "Calm to-dos for real life" direction (subtitle, promo text, description,
-> keywords, and all 6 locales) is a follow-up tied to the next store
-> submission — not yet done here. The **Principles** above are the updated
-> source of truth in the meantime.
+> **Being revised to the 2026-10 "emotional safety" direction.** The English
+> subtitle/promo/description/keywords below are **updated** to the new direction.
+> The currently-*shipped* ASC text is still the old v1.3.0 "hard days" framing;
+> this becomes the submission copy at the next release. Non-English locales +
+> Play copy still need re-writing (see header).
 
 ### Subtitle (30-char limit)
 
 ```
-Calmer to-dos for hard days
+Calm ADHD to-dos & planner
 ```
+*(26 chars — ADHD-forward for ASO; the brand tagline "a warm companion for a
+busy mind" stays universal and lives in-app/on the hero, not here.)*
 
 ### Promotional text (170-char limit, editable without re-review)
 
 ```
-A calm to-do app for days you can't be a productivity person. With support of your planning buddy Mochi, Sagely makes your hard moments more productive, in a gentle way.
+Sagely is the calm to-do app for busy, easily-overwhelmed minds. Mochi, your gentle companion, breaks big things into small steps and never makes you feel behind.
 ```
-*(168 chars)*
+*(≈162 chars.)*
 
 ### Description (4000-char limit)
 
 ```
-Sagely is a calm to-do app for people who find that conventional productivity tools — with their streaks, scoreboards, and "you missed your goal" notifications — actively make their anxiety and procrastination worse.
+Most to-do apps push you — streaks, scoreboards, red "overdue" badges. Sagely steadies you. Meet Mochi, a warm little companion who helps you get what's on your mind out of your head, break the scary stuff into small steps, and gently keep today in view.
 
-Sagely makes your hard moments more productive, in a gentle way. There are no streaks. No quotas. No "X days in a row." If today was hard, today was hard. Sagely doesn't grade you on it.
+Nothing here is ever "late" — just "carried over," and always reversible. There are no streaks, no scores, no "X days in a row." If today was a lot, today was a lot. Sagely doesn't grade you on it. Built for ADHD and easily-overwhelmed minds; loved by anyone tired of feeling behind.
 
 THE BASICS, DONE GENTLY
 
@@ -186,9 +237,12 @@ English, Simplified Chinese, Spanish, French, German, and Japanese.
 ### Keywords (100-char limit, comma-separated, no spaces in some locales)
 
 ```
-calm,anxiety,procrastination,mochi,calm todo,planner,calm planner,pebble
+adhd,adhd planner,neurodivergent,gentle planner,calm todo,overwhelm,executive function,mochi
 ```
-*(72 chars — refocused on Sagely-specific terms ("mochi", "pebble", "calm todo", "calm planner") rather than generic productivity terms ("task", "productivity", "todo") that bigger apps already dominate. ASO bet: rank for niche, not compete for popular.)*
+*(≈92 chars — ADHD-forward (the beachhead + cheap organic channel) plus the
+calm/overwhelm niche terms. Bets on ranking for under-contested ND keywords
+rather than competing for generic "to do list"/"task manager" that incumbents
+own. Mochi kept as the brand term.)*
 
 ---
 
