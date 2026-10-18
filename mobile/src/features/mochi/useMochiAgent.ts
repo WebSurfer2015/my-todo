@@ -329,6 +329,18 @@ export function useMochiAgent() {
           // Transient — back off once and retry before surfacing anything.
           await new Promise((r) => setTimeout(r, COLD_START_RETRY_MS))
           res = await runFetch()
+          // The retry can itself hit the fair-use ceiling — same 'quota'
+          // classification so ChatSheet takes the graceful fallback (P1.7).
+          if (res.status === 429) {
+            const again = (await res.clone().json().catch(() => null)) as {
+              error?: { status?: string }
+            } | null
+            if (again?.error?.status === 'RESOURCE_EXHAUSTED') {
+              setError('Mochi needs a little rest — you can add this one yourself.')
+              setErrorKind('quota')
+              return { ok: false, error: 'quota' }
+            }
+          }
         }
         if (!res.ok) {
           setError(

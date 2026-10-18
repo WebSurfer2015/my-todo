@@ -36,6 +36,13 @@ const AI_INFER_URL =
 /** `Error.name` of a server fair-use-ceiling rejection (RESOURCE_EXHAUSTED). */
 export const AI_QUOTA_ERROR = 'AiQuotaError'
 
+/** Tagged so callers branch on the kind, not on server message text. */
+function quotaError(message?: string): Error {
+  const err = new Error(message ?? 'Mochi is resting.')
+  err.name = AI_QUOTA_ERROR
+  return err
+}
+
 // A stalled connection (no response, no error) would otherwise hang the
 // caller forever — bound every client fetch with a manual timeout. We use
 // setTimeout + AbortController rather than AbortSignal.timeout(), which
@@ -63,14 +70,17 @@ async function callAiInfer<R>(
     const peek = (await res.json().catch(() => null)) as {
       error?: { status?: string; message?: string }
     } | null
-    if (peek?.error?.status === 'RESOURCE_EXHAUSTED') {
-      // Tagged so callers branch on the kind, not on server message text.
-      const err = new Error(peek.error.message ?? 'Mochi is resting.')
-      err.name = AI_QUOTA_ERROR
-      throw err
-    }
+    if (peek?.error?.status === 'RESOURCE_EXHAUSTED') throw quotaError(peek.error.message)
     await new Promise((resolve) => setTimeout(resolve, COLD_START_RETRY_MS))
     res = await fetchAi(idToken, mode, input, signal)
+    // The retry can itself hit the fair-use ceiling — classify it the same way
+    // so callers get the graceful fallback, not a generic failure.
+    if (res.status === 429) {
+      const again = (await res.clone().json().catch(() => null)) as {
+        error?: { status?: string; message?: string }
+      } | null
+      if (again?.error?.status === 'RESOURCE_EXHAUSTED') throw quotaError(again.error.message)
+    }
   }
   if (!res.ok) {
     // Prefer the server's own message ("AI assistance is off in your

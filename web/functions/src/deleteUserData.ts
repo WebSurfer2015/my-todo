@@ -42,14 +42,18 @@ export async function deleteUserTree(db: RecursiveDeleter, uid: string): Promise
 // Pinned to us-central1 with every other function (gen-1 otherwise picks up a
 // default region — it landed in us-east1 on first deploy).
 // maxInstances: account deletions are rare; 3 (vs the gen-1 default of 3000)
-// bounds cost from a bulk/abusive delete burst — excess events queue + retry.
+// bounds cost from a bulk/abusive delete burst.
+// failurePolicy: gen-1 background functions do NOT retry by default — without
+// this, one transient Firestore error would leave an erased user's data behind
+// forever. recursiveDelete is idempotent, so retries are safe; Cloud Functions
+// retries for up to 7 days.
 export const onUserDeleted = functions
   .region('us-central1')
-  .runWith({ maxInstances: 3 })
+  .runWith({ maxInstances: 3, failurePolicy: true })
   .auth.user()
   .onDelete(async (user) => {
-    // Throwing lets Cloud Functions log the failure; recursiveDelete is
-    // idempotent, so a manual re-run (or retry) is safe.
+    // Throwing triggers a retry (failurePolicy above); recursiveDelete is
+    // idempotent, so a partial first attempt is completed by the next one.
     await deleteUserTree(admin.firestore() as unknown as RecursiveDeleter, user.uid)
     console.log('onUserDeleted: erased users/{uid} tree')
   })

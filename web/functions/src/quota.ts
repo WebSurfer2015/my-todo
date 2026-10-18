@@ -224,12 +224,18 @@ async function isCompUser(uid: string): Promise<boolean> {
  * base monthly allowance is spent. Two-doc transaction (usage +
  * entitlement) so the top-up decrement is atomic with the usage bump.
  *
- * Comp users (family allowlist) bypass metering entirely — full AI, no cap.
+ * Comp users (family allowlist) skip the TIER budget but still go through the
+ * flat fair-use cap: comp matching is on user-editable profile names, so an
+ * uncapped bypass would let anyone rename themselves into unlimited spend.
  */
 export async function reserveMochiRequest(uid: string): Promise<void> {
-  // Family comp: full access, no metering. Checked only on the enforcement
-  // path, so it costs nothing while MOCHI_TIER_ENFORCEMENT is off.
-  if (await isCompUser(uid)) return
+  // Family comp: no tier metering, but the same flat 150/day blast-radius cap
+  // everyone gets with enforcement off (effectively unlimited for a person).
+  // Checked only on the enforcement path. TODO: match comp by uid, not name.
+  if (await isCompUser(uid)) {
+    await reserveDailyCall(uid, 'Mochi')
+    return
+  }
   const now = new Date()
   const today = now.toISOString().slice(0, 10) // YYYY-MM-DD UTC
   const month = today.slice(0, 7) // YYYY-MM UTC
