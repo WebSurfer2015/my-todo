@@ -56,7 +56,7 @@ allowances are now INVISIBLE fair-use ceilings. Typecheck + unit tests green;
 | 1.4 | Over the fair-use ceiling → **graceful local fallback** (raw text handed to manual Compose via `onReviewCreateTodo`; no wall, no paywall) | M | 🔶 |
 | 1.5 | **Paywall → aspirational** triggers only (punitive "out of requests" trigger removed; locked-theme tap + Settings→Membership remain) | S–M | 🔶 |
 | 1.6 | Reprice to **$4.99/mo · $29.99/yr**, annual-led, keep 7-day trial, **no lifetime** | S | 🔶 fallback prices in `PaywallSheet`; real prices live in ASC (5.3) |
-| 1.7 | **Server `RESOURCE_EXHAUSTED` → auto-fallback.** Chat takes the same fallback as 1.4; step suggestions show a gentle localized "Mochi's resting" note; server ceiling copy de-metered (no counts / countdown / "pay as you go") | S | 🔶 `ac5437c` — server copy needs a functions deploy (with C.1) |
+| 1.7 | **Server `RESOURCE_EXHAUSTED` → auto-fallback.** Chat takes the same fallback as 1.4; step suggestions show a gentle localized "Mochi's resting" note; server ceiling copy de-metered (no counts / countdown / "pay as you go") | S | 🔶 `ac5437c` — server copy needs a functions deploy (with C.1). Mid-conversation, the fallback rebuilds the open request ("call mom — Friday") via core `buildFallbackCapture` |
 
 ## PC — Privacy & compliance (launch gate) 🟢 not blocked
 *Added 2026-10-18. App Review 5.1.1(v) requires in-app account deletion to

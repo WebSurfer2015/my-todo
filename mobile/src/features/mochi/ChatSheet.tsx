@@ -26,6 +26,7 @@ import MochiThinking from './MochiThinking'
 import EditableCaptureCard from './EditableCaptureCard'
 import { type Priority } from '../../core-bindings/types'
 import { snapDueDateToRecurrence } from '../../../../core/src/logic/derive'
+import { buildFallbackCapture } from '../../../../core/src/logic/mochiFallback'
 import { todayLocal, formatDisplayDate, isoDate } from '../../core-bindings/utils'
 import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 import { Analytics } from '../../adapters/analytics'
@@ -302,9 +303,12 @@ export default function ChatSheet({
   // never wall or paywall — hand the raw text to the manual compose form so
   // the task still gets added (de-metered model, docs/MOCHI-MONETIZATION-MODEL.md).
   // The companion is never metered; only the AI breakdown gracefully degrades.
+  // Mid-conversation the latest turn may be just an answer ("Friday"), so
+  // rebuild the still-open request ("call mom — Friday").
+  // `messages` here is the pre-send snapshot, so it excludes `turn`.
   function fallBackToManual(turn: string) {
     if (onReviewCreateTodo) {
-      onReviewCreateTodo({ text: turn })
+      onReviewCreateTodo(buildFallbackCapture(messages, turn))
       close()
     } else {
       onEnterManually?.()
