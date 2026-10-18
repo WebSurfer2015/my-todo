@@ -37,10 +37,14 @@ redirecting the sink, not adding tracking.*
 > top-ups (core/adapter/context/UI/webhook + tests), removed the usage meter UI,
 > removed the **Max** tier (its `aiPlanning` superpower folded into Premium),
 > repriced the fallback to $4.99/$29.99. The free 90/3 + premium 250 allowances
-> became INVISIBLE fair-use ceilings. **Still deferred (client↔CF contract, needs
-> a running app):** the graceful **local fallback** over the ceiling (the send
-> guard still routes to the paywall as an interim — P1.4) and fully aspirational
-> paywall triggers (P1.5). Verify on device before launch.
+> became INVISIBLE fair-use ceilings. **P1.4 + P1.5 now done in code:** over the
+> ceiling the Mochi send path gracefully hands the raw text to manual Compose
+> (`onReviewCreateTodo`) — no wall, no paywall; the one punitive paywall trigger
+> is gone (the other two — locked-theme tap, Settings→Membership — were already
+> aspirational). **Still runtime-unverified** (no device/StoreKit/users) — verify
+> the fallback UX + purchase flows on device before launch. Edge: if client and
+> server disagree, the server `RESOURCE_EXHAUSTED` path still shows the gentle
+> error block (which offers "Enter manually") rather than auto-falling-back.
 | # | Item | Effort |
 |---|---|---|
 | 1.1 | Remove the **usage meter** UI from ChatSheet | S |

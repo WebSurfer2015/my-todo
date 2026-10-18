@@ -238,7 +238,7 @@ export default function ChatSheet({
     confirmsClose: true,
   })
   const { send, reset, isThinking, messages, error, errorKind } = useMochiAgent()
-  const { canSendMochi, openPaywall } = usePurchases()
+  const { canSendMochi } = usePurchases()
   const [input, setInput] = useState('')
   // Rotating placeholder index (cycles while the box is empty + pre-first-turn).
   const [phIdx, setPhIdx] = useState(0)
@@ -301,10 +301,19 @@ export default function ChatSheet({
   function handleSend(raw: string = input) {
     const turn = raw.trim()
     if (!turn || isThinking) return
-    // Out of Mochi requests (base allowance + no top-ups) → open the paywall
-    // instead of spending a call.
+    // P1.4 graceful local fallback: over the INVISIBLE fair-use ceiling, never
+    // wall or paywall — hand the raw text to the manual compose form so the
+    // task still gets added (de-metered model, docs/MOCHI-MONETIZATION-MODEL.md).
+    // The companion is never metered; only the AI breakdown gracefully degrades.
     if (!canSendMochi) {
-      goToPaywall("You're out of Mochi requests for now.")
+      Haptics.selectionAsync().catch(() => {})
+      setInput('')
+      if (onReviewCreateTodo) {
+        onReviewCreateTodo({ text: turn })
+        close()
+      } else {
+        onEnterManually?.()
+      }
       return
     }
     Haptics.selectionAsync().catch(() => {})
@@ -354,15 +363,6 @@ export default function ChatSheet({
     undoFnsRef.current = {}
     capturedIdRef.current = {}
     onClose()
-  }
-
-  // The paywall is a Modal mounted above this one; iOS won't present it while
-  // the chat Modal is still up (the "already presenting" warning → the upsell
-  // silently no-ops). Dismiss the chat first, then open the paywall after it
-  // animates out — the same 280ms handoff every other paywall entry point uses.
-  function goToPaywall(reason?: string) {
-    close()
-    setTimeout(() => openPaywall(reason), 280)
   }
 
   // Backdrop / Android-back. A multi-turn conversation is higher-stakes to
