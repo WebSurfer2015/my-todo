@@ -33,12 +33,29 @@ const REVENUECAT_WEBHOOK_SECRET = defineSecret('REVENUECAT_WEBHOOK_SECRET')
 if (admin.apps.length === 0) admin.initializeApp()
 const db = admin.firestore()
 
+/** True when `uid` is a live Firebase Auth user. RevenueCat keeps sending
+ * lifecycle events (EXPIRATION, CANCELLATION, …) after a user deletes their
+ * account; writing for a deleted uid would resurrect users/{uid}/state docs
+ * that onUserDeleted just erased. Other lookup errors rethrow → 500 → RC
+ * retries, rather than silently dropping a real event. */
+async function authUserExists(uid: string): Promise<boolean> {
+  try {
+    await admin.auth().getUser(uid)
+    return true
+  } catch (err) {
+    const code = (err as { code?: string } | null)?.code
+    if (code === 'auth/user-not-found' || code === 'auth/invalid-uid') return false
+    throw err
+  }
+}
+
 /** Write a single user's entitlement tier (preserving their top-up balance). */
 async function setUserTier(
   uid: string,
   tier: Tier,
   validUntil: string | null,
 ): Promise<void> {
+  if (!(await authUserExists(uid))) return
   const ref = db.doc(`users/${uid}/state/entitlement`)
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref)
@@ -122,6 +139,11 @@ export const revenuecatWebhook = onRequest(
       const uid = event.app_user_id
       if (!uid) {
         res.status(400).send('Missing app_user_id')
+        return
+      }
+      if (!(await authUserExists(uid))) {
+        // Deleted (or never-real) account — ack so RC stops retrying.
+        res.status(200).send('ok (no such user)')
         return
       }
       const ref = db.doc(`users/${uid}/state/entitlement`)

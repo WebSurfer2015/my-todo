@@ -87,7 +87,7 @@ Two social providers (Apple, Google) + email/password, all funnel through `signI
 - **Google** — `@react-native-google-signin/google-signin` v16. Configure happens in a `useEffect` on mount. **iOS requires both `webClientId` and `iosClientId`** — v16's wrapper does NOT auto-read `GIDClientID` from `Info.plist`; omitting `iosClientId` produces `must specify |clientID| in |GIDConfiguration|`. Don't "simplify" this.
 - **Sign-in modes** — `src/components/SignIn.tsx` is a 4-mode state machine: `"social"` (landing — Apple/Google + email-link toggle + create-account toggle) → `"signin"` | `"signup"` | `"reset"`. The email page intentionally has **no** social buttons (one path per page). Mirrors web; keep them in sync.
 - `signOut()` clears `["todos","categories","profile"]` from AsyncStorage so the next signed-in user on this device can't bleed prior-user data into a brand-new Firestore doc via `migrateLocalToCloud`.
-- `deleteAccount()` deletes Firestore docs first (security rules block writes once auth is gone), then `deleteUser`. Throws `RecentLoginRequiredError` on `auth/requires-recent-login` so UI can prompt re-auth.
+- `deleteAccount()` calls `deleteUser`; the **`onUserDeleted` Cloud Function** (`web/functions/src/deleteUserData.ts`) then recursively deletes `users/{uid}` server-side. The client-side doc wipe that runs first is denied by `firestore.rules` (state docs are never client-deletable) and swallowed — don't rely on it. Throws `RecentLoginRequiredError` on `auth/requires-recent-login` so UI can prompt re-auth.
 
 ### Domain store (`src/useTodoStore.ts`)
 

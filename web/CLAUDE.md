@@ -95,7 +95,7 @@ First-time social sign-in calls `seedProfileIfMissing` — fetches `users/{uid}/
 
 `signOut()` clears `["todos","categories","profile"]` from `localStorage` so the next user signing in on this browser can't bleed prior-user data into their empty Firestore via `migrateLocalToCloud` (see below).
 
-`deleteAccount()` deletes Firestore docs first (security rules block writes once auth is gone), then `deleteUser`. Throws `RecentLoginRequiredError` on `auth/requires-recent-login` so UI can prompt re-auth.
+`deleteAccount()` calls `deleteUser`; the **`onUserDeleted` Cloud Function** (`web/functions/src/deleteUserData.ts`) then recursively deletes `users/{uid}` server-side. The client-side doc wipe that runs first is denied by `firestore.rules` (state docs are never client-deletable) and swallowed — don't rely on it. Throws `RecentLoginRequiredError` on `auth/requires-recent-login` so UI can prompt re-auth.
 
 In `useTodoStore`:
 

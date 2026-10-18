@@ -1,6 +1,13 @@
 import { StorageAdapter, USER_STATE_KEYS } from '../ports/persistence'
 
 /**
+ * NOTE (2026-10-17): the AUTHORITATIVE erasure is server-side — the
+ * `onUserDeleted` Cloud Function (web/functions/src/deleteUserData.ts)
+ * recursively deletes users/{uid} when the auth user is deleted.
+ * firestore.rules deny client deletes on state docs (`allow delete: if
+ * false`), so the client-side `wipeCloudData` below is denied and swallowed
+ * in production; it is kept only as a harmless best-effort.
+ *
  * Account deletion in the order Firestore security rules REQUIRE: wipe the
  * user's cloud data FIRST, THEN delete the auth user. The order is
  * load-bearing — once the auth user is gone, the rules reject every write,

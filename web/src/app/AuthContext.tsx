@@ -206,9 +206,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const current = auth.currentUser;
     if (!current) throw new Error("Not signed in");
     const uid = current.uid;
-    // Order (wipe cloud data → THEN delete the auth user) is required by the
-    // security rules and is enforced + unit-tested in core's runDeleteAccount.
-    // Cloud wipe is best-effort per key.
+    // The real erasure is server-side: deleting the auth user fires the
+    // onUserDeleted Cloud Function, which recursively deletes users/{uid}.
+    // The client wipe below is denied by firestore.rules (state docs are
+    // never client-deletable) and swallowed — best-effort only.
     await runDeleteAccount({
       // Wipe EVERY per-user state doc, not just the original three —
       // todoReferences / groceries / groceryGroups would otherwise be orphaned
