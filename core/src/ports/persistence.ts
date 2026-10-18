@@ -130,27 +130,3 @@ export const USER_STATE_KEYS = [
 ] as const
 
 export type UserStateKey = typeof USER_STATE_KEYS[number]
-
-/**
- * Removes every per-user state doc the app knows about. Used by the
- * "Delete data only" action — wipes the cloud + local copies but
- * leaves the Firebase Auth user intact, so the user stays signed in
- * and re-hydrates to a clean seed state.
- *
- * Best-effort: a single key failing (e.g. doc already missing) does
- * not abort the rest. `storage.clear()` is intentionally NOT used —
- * Firestore implementations no-op it because subcollection
- * enumeration is too expensive, so it would silently leave cloud
- * data behind.
- */
-export async function clearKnownUserData(
-  storage: StorageAdapter,
-): Promise<void> {
-  for (const key of USER_STATE_KEYS) {
-    try {
-      await storage.removeItem(key)
-    } catch (err) {
-      console.warn(`clearKnownUserData: failed to remove ${key}`, err)
-    }
-  }
-}

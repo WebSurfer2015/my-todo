@@ -6,7 +6,7 @@ import { resolve } from 'path'
  * Drift guard for the hand-duplicated tier limits.
  *
  * core/src/domain/entitlements.ts is the source of truth (client UI gates
- * + display). web/functions/src/entitlements.ts mirrors TIER_LIMITS for
+ * + display). functions/src/entitlements.ts mirrors TIER_LIMITS for
  * server-side AI-allowance enforcement — the functions package can't
  * import core/ (separate tsconfig, deployed standalone), so the values are
  * copied. If they drift, the webhook can write the wrong tier for a real
@@ -16,7 +16,7 @@ import { resolve } from 'path'
  */
 
 const CORE = resolve(__dirname, '../../../core/src/domain/entitlements.ts')
-const SERVER = resolve(__dirname, '../../../web/functions/src/entitlements.ts')
+const SERVER = resolve(__dirname, '../../../functions/src/entitlements.ts')
 
 /** Extract the object literal that starts at `marker` (whose last char is the
  * opening `{`), then strip comments + whitespace so formatting/comment

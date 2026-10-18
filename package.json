@@ -2,17 +2,18 @@
   "name": "my-todo",
   "version": "1.0.0",
   "private": true,
-  "description": "Root holds the cross-package gates: the Clean Architecture check (dependency-cruiser) and the gated CORE coverage run (vitest from the repo root, so v8 can attribute core/ exercised by web's tests). The apps live in web/ and mobile/; shared domain logic in core/. No workspaces/monorepo tooling beyond these gates.",
+  "description": "Root = the core/ package's test + coverage runner and the repo-wide gates (dependency-cruiser Clean Architecture check, core typecheck). The iOS app lives in mobile/, the Firebase backend in functions/, shared domain logic in core/. No workspaces/monorepo tooling.",
   "scripts": {
-    "lint:arch": "depcruise \"core/src/**/*.{ts,tsx}\" \"web/src/**/*.{ts,tsx}\" \"mobile/src/**/*.{ts,tsx}\" --config .dependency-cruiser.cjs --ignore-known .dependency-cruiser-known-violations.json",
-    "lint:arch:baseline": "depcruise \"core/src/**/*.{ts,tsx}\" \"web/src/**/*.{ts,tsx}\" \"mobile/src/**/*.{ts,tsx}\" --config .dependency-cruiser.cjs --output-type baseline > .dependency-cruiser-known-violations.json",
-    "test:coverage": "npm --prefix web run coverage"
+    "lint:arch": "depcruise \"core/src/**/*.{ts,tsx}\" \"mobile/src/**/*.{ts,tsx}\" \"functions/src/**/*.ts\" --config .dependency-cruiser.cjs --ignore-known .dependency-cruiser-known-violations.json",
+    "lint:arch:baseline": "depcruise \"core/src/**/*.{ts,tsx}\" \"mobile/src/**/*.{ts,tsx}\" \"functions/src/**/*.ts\" --config .dependency-cruiser.cjs --output-type baseline > .dependency-cruiser-known-violations.json",
+    "typecheck:core": "tsc --noEmit -p core",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.7.0",
     "@vitest/coverage-v8": "^4.1.8",
     "dependency-cruiser": "^16.10.0",
-    "happy-dom": "^20.10.1",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "typescript": "^5.5.3"
   }
 }

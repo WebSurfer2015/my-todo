@@ -1,5 +1,5 @@
-# Monorepo-wide ignores. Per-package ignores live in web/.gitignore,
-# mobile/.gitignore, etc.
+# Repo-wide ignores. Per-package ignores live in mobile/.gitignore and
+# functions/.gitignore.
 
 # OS / editor
 .DS_Store
@@ -8,12 +8,15 @@
 *.swp
 *.swo
 
-# Vite ephemeral cache (sometimes lands at repo root)
+# Vite / vitest ephemeral cache (sometimes lands at repo root)
 .vite/
 
-# Root-level deps: the root package.json holds only the cross-package
-# dependency-cruiser arch check. Its node_modules is not committed; the
-# lockfile (package-lock.json) is, for reproducible CI installs.
+# Firebase emulator logs (firebase.json lives at the repo root)
+*-debug.log
+
+# Root-level deps: the root package.json runs core's tests/coverage and the
+# repo-wide gates. Its node_modules is not committed; the lockfile is, for
+# reproducible CI installs.
 /node_modules/
 
 # Local demo-seed backups — contain REAL exported user data (Firestore

@@ -5,7 +5,7 @@ import { resolve } from 'path'
 /**
  * Drift guard for the hand-duplicated `ProposedOperation` union.
  *
- * The server type (web/functions/src/agentTools.ts) is the source of
+ * The server type (functions/src/agentTools.ts) is the source of
  * truth — the function validates + returns these ops. The mobile client
  * (src/features/mochi/useMochiAgent.ts) hand-mirrors it because the
  * functions package CANNOT import core/ or mobile/ (separate tsconfig,
@@ -20,7 +20,7 @@ import { resolve } from 'path'
  * real drift risk is an added/removed/renamed/re-optionalized field.
  */
 
-const SERVER = resolve(__dirname, '../../../web/functions/src/agentTools.ts')
+const SERVER = resolve(__dirname, '../../../functions/src/agentTools.ts')
 const CLIENT = resolve(__dirname, '../features/mochi/useMochiAgent.ts')
 
 /** Map each op `kind` → sorted list of top-level arg fields (with `?`). */

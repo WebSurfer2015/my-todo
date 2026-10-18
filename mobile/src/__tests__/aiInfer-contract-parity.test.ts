@@ -6,7 +6,7 @@ import { resolve } from 'path'
  * Drift guard for the hand-duplicated aiInfer wire contract.
  *
  * The CLIENT contract lives in core/src/ports/aiContracts.ts (shared by
- * web + mobile). The SERVER owns its own copies in web/functions/src/
+ * web + mobile). The SERVER owns its own copies in functions/src/
  * aiInfer*.ts because the functions package is deployed standalone with a
  * separate tsconfig and genuinely CANNOT import core/ — so the field shapes
  * are copied. If the server renames/adds/removes/re-optionalizes a field,
@@ -21,7 +21,7 @@ import { resolve } from 'path'
  */
 
 const CLIENT = resolve(__dirname, '../../../core/src/ports/aiContracts.ts')
-const SRV = (f: string) => resolve(__dirname, `../../../web/functions/src/${f}`)
+const SRV = (f: string) => resolve(__dirname, `../../../functions/src/${f}`)
 
 /** Extract the body of `interface <Name> { ... }` then return its sorted
  * top-level `name:` / `name?:` field set (ignoring nested braces). */

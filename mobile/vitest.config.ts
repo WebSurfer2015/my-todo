@@ -1,14 +1,22 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
 /**
- * Vitest config for mobile pure-logic tests. Node environment — no jsdom,
- * no React Native test renderer. Test files (mobile/src/__tests__/*.test.ts)
- * may only import modules that don't reach into RN's native bridge or React
- * APIs. RN component tests would need Jest + jest-expo and are out of
- * scope; if you need to test a hook that uses AccessibilityInfo, etc.,
- * add the coverage in web/ against shared core helpers instead.
+ * Mobile tests. Default environment is node (pure logic). Hook tests opt into
+ * a DOM with a `// @vitest-environment happy-dom` header and render via
+ * @testing-library/react's renderHook — they exercise the hooks' platform-
+ * agnostic logic, not native UI.
+ *
+ * `react-native` is aliased to an inert stub: RN's source is Flow-typed and
+ * can't be transformed here, and the hooks only touch a few primitives
+ * (e.g. AppState). RN component / native-bridge tests are out of scope.
  */
 export default defineConfig({
+  resolve: {
+    alias: {
+      'react-native': fileURLToPath(new URL('./vitest-stubs/react-native.ts', import.meta.url)),
+    },
+  },
   test: {
     environment: 'node',
     include: ['src/__tests__/**/*.test.ts'],

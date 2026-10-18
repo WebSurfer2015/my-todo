@@ -1,0 +1,345 @@
+/**
+ * Firestore security rules tests.
+ *
+ * Requires the Firebase emulator running:
+ *   firebase emulators:start --only firestore
+ *
+ * Or run via the convenience npm script (handles starting + stopping):
+ *   npm run test:rules
+ *
+ * The emulator needs Java 21+ on PATH (firebase-tools >=15 dropped <21).
+ * macOS: `brew install openjdk@21`.
+ */
+import { describe, it, beforeAll, afterAll, beforeEach, expect } from 'vitest'
+import {
+  initializeTestEnvironment,
+  RulesTestEnvironment,
+  assertSucceeds,
+  assertFails,
+} from '@firebase/rules-unit-testing'
+import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
+let env: RulesTestEnvironment
+
+beforeAll(async () => {
+  env = await initializeTestEnvironment({
+    projectId: 'my-todos-rules-test',
+    firestore: {
+      rules: readFileSync(resolve(__dirname, '..', '..', 'firestore.rules'), 'utf8'),
+      host: '127.0.0.1',
+      port: 8080,
+    },
+  })
+})
+
+afterAll(async () => {
+  await env.cleanup()
+})
+
+beforeEach(async () => {
+  await env.clearFirestore()
+})
+
+describe('users/{uid}/state/{key} access control', () => {
+  it('signed-in user can write their own state', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertSucceeds(
+      setDoc(doc(alice, 'users/alice/state/todos'), {
+        value: '{"version":1,"data":[]}',
+        updatedAt: Date.now(),
+      }),
+    )
+  })
+
+  it('signed-in user can read their own state', async () => {
+    // seed via admin (bypasses rules) so the read is the only thing tested
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/alice/state/todos'), {
+        value: '{"version":1,"data":[]}',
+        updatedAt: Date.now(),
+      })
+    })
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertSucceeds(getDoc(doc(alice, 'users/alice/state/todos')))
+  })
+
+  it('signed-in user CANNOT read another user\'s state', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/bob/state/todos'), {
+        value: '{"version":1,"data":[]}',
+        updatedAt: Date.now(),
+      })
+    })
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(getDoc(doc(alice, 'users/bob/state/todos')))
+  })
+
+  it('signed-in user CANNOT write to another user\'s state', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(
+      setDoc(doc(alice, 'users/bob/state/todos'), {
+        value: '{"version":1,"data":[]}',
+        updatedAt: Date.now(),
+      }),
+    )
+  })
+
+  it('unauthenticated user CANNOT read any state', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/alice/state/todos'), {
+        value: '{"version":1,"data":[]}',
+        updatedAt: Date.now(),
+      })
+    })
+    const anon = env.unauthenticatedContext().firestore()
+    await assertFails(getDoc(doc(anon, 'users/alice/state/todos')))
+  })
+
+  it('unauthenticated user CANNOT write any state', async () => {
+    const anon = env.unauthenticatedContext().firestore()
+    await assertFails(
+      setDoc(doc(anon, 'users/alice/state/todos'), {
+        value: '{"version":1,"data":[]}',
+        updatedAt: Date.now(),
+      }),
+    )
+  })
+
+  it('default-deny applies to other collections', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    // Even-segment doc path (collection/doc) so the client builds a valid
+    // DocumentReference and the request actually reaches the rules engine
+    // — an odd-segment path throws a client-side "invalid reference" error
+    // before any rule is evaluated, which wouldn't test default-deny.
+    await assertFails(
+      setDoc(doc(alice, 'random/abc'), { foo: 'bar' }),
+    )
+  })
+
+  // --- Delete is intentionally denied on state docs (allow delete: if false). ---
+  // The app clears state via setItem(empty envelope), never deleteDoc. These
+  // lock the contract so a future write-rule refactor can't expose delete —
+  // most importantly on the function-only agentUsage quota counter.
+
+  it('denies deleting a client-owned state doc (clear = setItem-empty)', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/alice/state/todos'), {
+        value: '{"version":1,"data":[]}',
+        updatedAt: Date.now(),
+      })
+    })
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(deleteDoc(doc(alice, 'users/alice/state/todos')))
+  })
+
+  it('denies deleting the function-only agentUsage counter (no quota reset)', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/alice/state/agentUsage'), {
+        count: 30,
+        date: '2026-06-05',
+      })
+    })
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(deleteDoc(doc(alice, 'users/alice/state/agentUsage')))
+  })
+
+  // --- Shape + key-whitelist hardening (added with the rate-limit work). ---
+
+  it('rejects writes to non-whitelisted state keys (e.g. agentUsage)', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(
+      setDoc(doc(alice, 'users/alice/state/agentUsage'), {
+        value: '{"version":1,"data":{}}',
+        updatedAt: Date.now(),
+      }),
+    )
+  })
+
+  it('allows writes to grocery state keys (mobile)', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertSucceeds(
+      setDoc(doc(alice, 'users/alice/state/groceries'), {
+        value: '{"version":1,"data":[]}',
+        updatedAt: Date.now(),
+      }),
+    )
+    await assertSucceeds(
+      setDoc(doc(alice, 'users/alice/state/groceryGroups'), {
+        value: '{"version":1,"data":[]}',
+        updatedAt: Date.now(),
+      }),
+    )
+  })
+
+  it('rejects writes to arbitrary state keys', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(
+      setDoc(doc(alice, 'users/alice/state/something_else'), {
+        value: '{"version":1,"data":[]}',
+        updatedAt: Date.now(),
+      }),
+    )
+  })
+
+  it('rejects writes with extra top-level fields', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(
+      setDoc(doc(alice, 'users/alice/state/todos'), {
+        value: '{"version":1,"data":[]}',
+        updatedAt: Date.now(),
+        extra: 'should-not-be-allowed',
+      }),
+    )
+  })
+
+  it('rejects writes where value is not a string', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(
+      setDoc(doc(alice, 'users/alice/state/todos'), {
+        value: { version: 1, data: [] }, // map instead of serialized string
+        updatedAt: Date.now(),
+      }),
+    )
+  })
+
+  it('rejects writes where updatedAt is not an int', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(
+      setDoc(doc(alice, 'users/alice/state/todos'), {
+        value: '{"version":1,"data":[]}',
+        updatedAt: 'now', // string instead of int
+      }),
+    )
+  })
+
+  it('rejects writes with oversized value (> 512 KiB)', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    const oversized = 'x'.repeat(524289) // 1 byte over the cap
+    await assertFails(
+      setDoc(doc(alice, 'users/alice/state/todos'), {
+        value: oversized,
+        updatedAt: Date.now(),
+      }),
+    )
+  })
+
+  it('reading agentUsage IS allowed (client surfaces quota UX)', async () => {
+    // Function-only key — admin writes it, client only reads it. The
+    // rules allow READ for any state key under the user's subtree.
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/alice/state/agentUsage'), {
+        value: '{"version":1,"data":{"date":"2026-05-18","calls":1}}',
+        updatedAt: Date.now(),
+      })
+    })
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertSucceeds(getDoc(doc(alice, 'users/alice/state/agentUsage')))
+  })
+})
+
+describe('P0 signals + paid-tier trust boundary (QA 2026-10-18)', () => {
+  const env1 = () => ({ value: '{"version":1,"data":{}}', updatedAt: Date.now() })
+
+  it('owner can write + read their own state/signals', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertSucceeds(setDoc(doc(alice, 'users/alice/state/signals'), env1()))
+    await assertSucceeds(getDoc(doc(alice, 'users/alice/state/signals')))
+  })
+
+  it("CANNOT write or read another user's state/signals", async () => {
+    const bob = env.authenticatedContext('bob').firestore()
+    await assertFails(setDoc(doc(bob, 'users/alice/state/signals'), env1()))
+    await assertFails(getDoc(doc(bob, 'users/alice/state/signals')))
+  })
+
+  it('clients CANNOT write the function-only docs (entitlement, mochiUsage, rcWebhook)', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    for (const key of ['entitlement', 'mochiUsage', 'rcWebhook', 'agentUsage']) {
+      await assertFails(setDoc(doc(alice, `users/alice/state/${key}`), env1()))
+    }
+  })
+
+  it('metrics/* is server-only: no client read or write, even signed in', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'metrics/2026-10-17'), { signups: 1 })
+    })
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(getDoc(doc(alice, 'metrics/2026-10-17')))
+    await assertFails(setDoc(doc(alice, 'metrics/2026-10-17'), { signups: 999 }))
+    const anon = env.unauthenticatedContext().firestore()
+    await assertFails(getDoc(doc(anon, 'metrics/2026-10-17')))
+  })
+})
+
+describe('users/{uid}/devices/{deviceId} access control', () => {
+  const validDevice = () => ({
+    token: 'ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]',
+    platform: 'ios',
+    updatedAt: Date.now(),
+  })
+
+  it('signed-in user can write their own device row', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertSucceeds(
+      setDoc(doc(alice, 'users/alice/devices/device-1'), validDevice()),
+    )
+  })
+
+  it('signed-in user can read their own device row', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/alice/devices/device-1'), validDevice())
+    })
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertSucceeds(getDoc(doc(alice, 'users/alice/devices/device-1')))
+  })
+
+  it("signed-in user CANNOT read another user's device row", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/bob/devices/device-1'), validDevice())
+    })
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(getDoc(doc(alice, 'users/bob/devices/device-1')))
+  })
+
+  it("signed-in user CANNOT write another user's device row", async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(
+      setDoc(doc(alice, 'users/bob/devices/device-1'), validDevice()),
+    )
+  })
+
+  it('rejects writes with extra fields beyond the allowed shape', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(
+      setDoc(doc(alice, 'users/alice/devices/device-1'), {
+        ...validDevice(),
+        // Hostile client trying to attach a server-trusted field
+        adminFlag: true,
+      }),
+    )
+  })
+
+  it('rejects writes where token is missing or wrong type', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(
+      setDoc(doc(alice, 'users/alice/devices/device-1'), {
+        token: 12345,
+        platform: 'ios',
+        updatedAt: Date.now(),
+      }),
+    )
+  })
+
+  it('rejects writes with an oversized token (> 200 chars)', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(
+      setDoc(doc(alice, 'users/alice/devices/device-1'), {
+        token: 'x'.repeat(201),
+        platform: 'ios',
+        updatedAt: Date.now(),
+      }),
+    )
+  })
+})
