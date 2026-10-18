@@ -194,9 +194,8 @@ export async function suggestTodoFields(
  * is the right behavior for an ambient assist.
  */
 export async function linkStoreToItems(input: LinkStoreInput): Promise<LinkStoreResult> {
-  try {
-    return await callAiInfer<LinkStoreResult>('link-store-to-items', input)
-  } catch {
-    return { linkedItemIds: [] }
-  }
+  // Throws on failure (network, 429, quota) — the caller distinguishes "no
+  // match" from "couldn't check". Swallowing errors into an empty result made
+  // every failure read as "No matching items" (a false negative).
+  return callAiInfer<LinkStoreResult>('link-store-to-items', input)
 }

@@ -655,7 +655,7 @@ export default function ChatSheet({
                         offer "Try again" for transient/network failures. A
                         'quota' error normally never shows here: handleSend
                         falls back to manual compose (P1.7). */}
-                    {errorKind !== 'quota' && !!lastSentRef.current && (
+                    {errorKind !== 'quota' && errorKind !== 'blocked' && !!lastSentRef.current && (
                       <TouchableOpacity
                         style={styles.errorBtn}
                         onPress={() => handleSend(lastSentRef.current)}

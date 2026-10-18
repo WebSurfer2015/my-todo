@@ -37,7 +37,7 @@ import {
 import { useLang } from "../../../app/LangContext";
 import { useTheme } from "../../../app/theme";
 import { useNotify } from "../../../app/notify";
-import { linkStoreToItems } from "../../../adapters/aiInfer";
+import { AI_QUOTA_ERROR, linkStoreToItems } from "../../../adapters/aiInfer";
 import GroceryIcon from "../GroceryIcon";
 import MochiThinking from "../../mochi/MochiThinking";
 import EmptyStateCard from "../../../ui/EmptyStateCard";
@@ -147,7 +147,13 @@ export default function StorePicker({
       setLinkingMessage(msg);
       showSnackbar({ message: msg });
       clearLinkingLater();
-    }).catch(() => {
+    }).catch((err) => {
+      // Over the fair-use ceiling: the store was added fine — just drop the
+      // optional auto-link quietly (de-metered; nothing to retry right now).
+      if (err instanceof Error && err.name === AI_QUOTA_ERROR) {
+        setLinkingMessage(null);
+        return;
+      }
       // Network / rate-limit (429) — don't leave the "thinking" banner hanging.
       setLinkingMessage(`Couldn't match items for ${name}. Try again.`);
       showSnackbar({ message: `Couldn't match items for ${name}.` });

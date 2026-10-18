@@ -795,8 +795,12 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           }
           reduceMotion={store.reduceMotion}
           categories={store.categories}
+          // Open to-dos FIRST: the server keeps only the first 100, and a pile
+          // of completed ones would otherwise push older open to-dos out of
+          // Mochi's view ("nothing matches"). Stable sort keeps the order.
           todos={store.todos
             .filter((td) => !td.trashed)
+            .sort((a, b) => Number(a.done) - Number(b.done))
             .map((td) => ({
               id: td.id,
               text: td.text,

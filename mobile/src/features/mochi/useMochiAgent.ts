@@ -243,8 +243,9 @@ function toQuestion(s: string): string {
  *  - 'rate'  → transient throttle; "Try again" can work.
  *  - 'quota' → over the invisible fair-use ceiling; retrying won't help —
  *              ChatSheet falls back to manual compose (P1.7).
- *  - 'fail'  → network / server error; "Try again" can work. */
-export type MochiErrorKind = 'rate' | 'quota' | 'fail' | null
+ *  - 'fail'  → network / server error; "Try again" can work.
+ *  - 'blocked' → non-retryable rejection (AI off in profile, bad request). */
+export type MochiErrorKind = 'rate' | 'quota' | 'fail' | 'blocked' | null
 
 export function useMochiAgent() {
   const [isThinking, setIsThinking] = useState(false)
@@ -358,6 +359,22 @@ export function useMochiAgent() {
               return { ok: false, error: 'quota' }
             }
           }
+        }
+        if (!res.ok && res.status >= 400 && res.status < 500 && res.status !== 429) {
+          // Non-retryable rejections (AI turned off in the profile → 400
+          // FAILED_PRECONDITION; malformed request → INVALID_ARGUMENT). "Try
+          // again" can't help, so show what's actually wrong, not "couldn't
+          // reach us".
+          const rejected = (await res.json().catch(() => null)) as {
+            error?: { status?: string; message?: string }
+          } | null
+          setError(
+            rejected?.error?.status === 'FAILED_PRECONDITION'
+              ? 'AI help is turned off — you can switch it back on in Settings.'
+              : 'Mochi got tangled up — try starting a new chat.',
+          )
+          setErrorKind('blocked')
+          return { ok: false, error: rejected?.error?.status ?? String(res.status) }
         }
         if (!res.ok) {
           setError(
