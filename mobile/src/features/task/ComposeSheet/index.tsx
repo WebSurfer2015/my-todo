@@ -92,7 +92,8 @@ interface Props {
   /** Opens the Mochi capture assistant — for when the user would rather
    * describe what they want in words ("every Tuesday remind me to call
    * mom") than fill the form. Optional; the affordance hides when unset. */
-  onAskMochi?: () => void
+  /** Switch to Mochi, carrying over what's been typed so far. */
+  onAskMochi?: (text: string) => void
   /** When set (opened from Ask Mochi's "Review & add"), pre-populates every
    * field from the chat's proposal and suppresses the inline AI suggestions —
    * the chat already did the thinking. Null/undefined → a normal blank
@@ -501,7 +502,7 @@ export default function ComposeSheet({
                 {onAskMochi && agentEnabled && (
                   <TouchableOpacity
                     style={styles.askMochiRow}
-                    onPress={onAskMochi}
+                    onPress={() => onAskMochi(text.trim())}
                     hitSlop={8}
                     accessibilityRole="button"
                     accessibilityLabel="Ask Mochi to add or change to-dos in your own words"

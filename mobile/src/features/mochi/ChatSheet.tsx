@@ -32,6 +32,9 @@ import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 interface Props {
   visible: boolean
   onClose: () => void
+  /** Text carried over from Compose ("Ask Mochi instead") — pre-fills the
+   * input when the sheet opens so the user's words aren't lost. */
+  initialInput?: string
   /** First name (or display name) for the greeting line. */
   greetingName: string
   /** Honor the user's reduce-motion preference — skip the entrance + breathing
@@ -227,6 +230,7 @@ export default function ChatSheet({
   onDeleteTodo,
   onPickAction,
   onReviewCreateTodo,
+  initialInput,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
@@ -256,6 +260,11 @@ export default function ChatSheet({
   const [undone, setUndone] = useState<Record<number, true>>({})
   const inputRef = useRef<TextInput>(null)
   const scrollRef = useRef<ScrollView>(null)
+
+  // Pre-fill what the user had typed in Compose (once per open).
+  useEffect(() => {
+    if (visible && initialInput) setInput(initialInput)
+  }, [visible, initialInput])
 
   // Keep the latest turn in view as the conversation grows / Mochi thinks.
   useEffect(() => {

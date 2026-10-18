@@ -4,13 +4,14 @@
 can test the paywall (trials, upgrades, intro eligibility) **on the simulator**
 without waiting for ASC approval or using a sandbox account.
 
-- One subscription group, four products ranked to match ASC
-  (`groupNumber` 1 = highest service):
-  1. Max Annual · 2. Max Monthly · 3. Premium Annual · 4. Premium Monthly
+- One subscription group, two products ranked to match ASC
+  (`groupNumber` 1 = highest service): 1. Premium Annual ($29.99) ·
+  2. Premium Monthly ($4.99). (Max and the top-ups were removed in the de-meter.)
 - Every subscription carries a **7‑day free trial** (`P1W`, free) so you can
-  verify "one trial per group" — once you start one, the others should drop the
+  verify "one trial per group" — once you start one, the other should drop the
   trial CTA and show "Upgrade".
-- The two consumable Mochi top‑ups are included so product fetches don't 404.
+- IAP is OFF in the free-only v2.0.0 (`IAP_ENABLED` in
+  `src/app/featureFlags.ts`); flip it on locally to test the paywall.
 
 Prices/levels here are for **testing only** — App Store Connect is the source of
 truth for production.

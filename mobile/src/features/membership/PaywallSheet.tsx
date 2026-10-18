@@ -71,7 +71,7 @@ const PLANS: PlanView[] = [
       'All 6 color themes',
     ],
     product: { monthly: PRODUCT_IDS.premiumMonthly, annual: PRODUCT_IDS.premiumAnnual },
-    fallbackPrice: { monthly: '$4.99/mo', annual: '$29.99/yr' },
+    fallbackPrice: { monthly: '$4.99/month', annual: '$29.99/year' },
   },
 ]
 
@@ -130,6 +130,13 @@ export default function PaywallSheet({
 
   const pkgFor = (productId: string): PurchasesPackage | null =>
     offering?.availablePackages.find((p) => p.product.identifier === productId) ?? null
+
+  // Annual savings from the LIVE store prices (any currency) — a hardcoded
+  // percentage went stale when the prices changed. Hidden without both.
+  const annualPrice = pkgFor(PRODUCT_IDS.premiumAnnual)?.product.price
+  const monthlyPrice = pkgFor(PRODUCT_IDS.premiumMonthly)?.product.price
+  const annualSavingsPct =
+    annualPrice && monthlyPrice ? Math.round((1 - annualPrice / (monthlyPrice * 12)) * 100) : null
 
   // Which plan's CTA gets the prominent filled style. Lead with Premium when
   // it's a purchasable upgrade (the "Popular" choice for new subscribers);
@@ -237,7 +244,11 @@ export default function PaywallSheet({
                     activeOpacity={0.8}
                   >
                     <Text style={[styles.toggleText, billing === b && styles.toggleTextActive]}>
-                      {b === 'annual' ? 'Annual · save ~44%' : 'Monthly'}
+                      {b === 'annual'
+                        ? annualSavingsPct && annualSavingsPct > 0
+                          ? `Annual · save ${annualSavingsPct}%`
+                          : 'Annual'
+                        : 'Monthly'}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -255,10 +266,14 @@ export default function PaywallSheet({
                   plan.tier === 'free'
                     ? !currentProductId
                     : !!productId && productId === currentProductId
+                // App Review 3.1.2: always show the billing period with the price.
+                const period = billing === 'annual' ? 'year' : 'month'
                 const price =
                   plan.tier === 'free'
                     ? 'Free'
-                    : pkg?.product.priceString ?? plan.fallbackPrice?.[billing] ?? ''
+                    : pkg
+                      ? `${pkg.product.priceString}/${period}`
+                      : plan.fallbackPrice?.[billing] ?? ''
                 // Buyable only when this product is a strict UPGRADE from the
                 // current plan (tier + billing), with a package available.
                 // Premium-monthly → premium-annual. Downgrades
@@ -282,12 +297,19 @@ export default function PaywallSheet({
                 // "7-day free trial" (how the trial is described everywhere
                 // else) rather than "1-week free trial".
                 const trialUnit = String(intro?.periodUnit ?? '').toUpperCase()
+                const trialLength =
+                  trialUnit === 'WEEK'
+                    ? `${(intro?.periodNumberOfUnits ?? 0) * 7}-day`
+                    : `${intro?.periodNumberOfUnits ?? 0}-${trialUnit.toLowerCase()}`
                 const trialText =
-                  intro && intro.price === 0 && eligibleForTrial
-                    ? trialUnit === 'WEEK'
-                      ? `Start ${intro.periodNumberOfUnits * 7}-day free trial`
-                      : `Start ${intro.periodNumberOfUnits}-${trialUnit.toLowerCase()} free trial`
-                    : null
+                  intro && intro.price === 0 && eligibleForTrial ? `Start ${trialLength} free trial` : null
+                // App Review 3.1.2: say what the trial turns into.
+                const trialUnits = intro?.periodNumberOfUnits ?? 0
+                const trialSpan =
+                  trialUnit === 'WEEK'
+                    ? `${trialUnits * 7} days`
+                    : `${trialUnits} ${trialUnit.toLowerCase()}${trialUnits === 1 ? '' : 's'}`
+                const trialTerms = trialText ? `${trialSpan} free, then ${price}. Cancel anytime.` : null
                 // Premium is the only paid plan (Free + Premium), badged "Popular".
                 const badgeLabel = plan.tier === 'premium' ? 'Popular' : null
                 // The filled CTA follows the lead upgrade — so the user's only
@@ -342,6 +364,9 @@ export default function PaywallSheet({
                           </Text>
                         )}
                       </TouchableOpacity>
+                    ) : null}
+                    {purchasable ? (
+                      trialTerms ? <Text style={styles.ctaStatus}>{trialTerms}</Text> : null
                     ) : (
                       <Text style={styles.ctaStatus}>{status}</Text>
                     )}

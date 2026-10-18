@@ -21,6 +21,7 @@ import { useAuth } from "../../app/AuthContext";
 import { useLang } from "../../app/LangContext";
 import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from "../../app/theme";
 import { Lang, LANG_NAMES, LANG_ORDER } from "../../../../core/src/data/i18n";
+import { LANGUAGE_PICKER_ENABLED } from "../../app/featureFlags";
 import { mapAuthError, AuthFlow } from "../../adapters/authErrors";
 
 type Mode = "social" | "signin" | "signup" | "reset";
@@ -138,7 +139,7 @@ export default function SignIn() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.card}>
-            <LangPicker theme={theme} />
+            {LANGUAGE_PICKER_ENABLED && <LangPicker theme={theme} />}
 
             <Image
               source={require("../../../assets/icon.png")}

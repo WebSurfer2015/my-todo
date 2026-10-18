@@ -233,7 +233,8 @@ export async function syncTodoReminders(todos: TodoForReminder[]): Promise<void>
         identifier: key,
         content: {
           title: spec.title,
-          body: 'Reminder',
+          // Calm, never a command (no "!" — brand voice). English-only launch.
+          body: 'A gentle nudge from Mochi.',
           sound: false,
           data: { todoId: spec.todoId },
         },

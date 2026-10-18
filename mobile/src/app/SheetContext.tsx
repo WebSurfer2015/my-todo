@@ -22,6 +22,7 @@ import { Alert, Share } from 'react-native'
 import { createNavigationContainerRef } from '@react-navigation/native'
 import { useStore } from './StoreContext'
 import { useAuth } from './AuthContext'
+import { useNotify } from './notify'
 import { useLang } from './LangContext'
 import { usePurchases } from './PurchasesContext'
 import {
@@ -38,7 +39,7 @@ import GuidesPrompt from '../features/onboarding/GuidesPrompt'
 import ComposeSheet, { type ComposePrefill } from '../features/task/ComposeSheet'
 import ChatSheet from '../features/mochi/ChatSheet'
 import type { ProposedOperation } from '../features/mochi/useMochiAgent'
-import { MOCHI_AGENT_ENABLED } from './featureFlags'
+import { IAP_ENABLED, MOCHI_AGENT_ENABLED } from './featureFlags'
 import ManageAnimationSoundSheet from '../features/profile/ManageAnimationSoundSheet'
 import CategorySheet from '../features/category/CategorySheet'
 import { COLOR_PALETTE } from '../core-bindings/categories'
@@ -106,6 +107,7 @@ export const sheetNavigationRef = createNavigationContainerRef<{
 export function SheetProvider({ children }: { children: ReactNode }) {
   const store = useStore()
   const { user, deleteAccount, signOut } = useAuth()
+  const { showSnackbar } = useNotify()
   const { t } = useLang()
   const { tier, openPaywall } = usePurchases()
   const [profileOpen, setProfileOpen] = useState(false)
@@ -117,6 +119,11 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   // Null for a normal blank compose (the Add FAB).
   const [composePrefill, setComposePrefill] = useState<ComposePrefill | null>(null)
   const [mochiOpen, setMochiOpen] = useState(false)
+  // Text carried from Compose into Mochi ("Ask Mochi instead").
+  const [mochiSeed, setMochiSeed] = useState('')
+  useEffect(() => {
+    if (!mochiOpen) setMochiSeed('')
+  }, [mochiOpen])
   const [animationSoundOpen, setAnimationSoundOpen] = useState(false)
   const [categorySheetOpen, setCategorySheetOpen] = useState(false)
   const [categorySheetMode, setCategorySheetMode] = useState<'view' | 'edit'>('view')
@@ -576,17 +583,23 @@ export function SheetProvider({ children }: { children: ReactNode }) {
       // race with an open modal.
       setSettingsOpen(false)
       await deleteAccount()
+      // NotifyProvider wraps the SignIn screen too, so this survives the
+      // switch to signed-out.
+      showSnackbar({ message: t.accountDeletedDone })
     } catch (err) {
       const code = (err as { name?: string } | null)?.name
-      const message =
-        code === 'RecentLoginRequiredError'
-          ? t.deleteAccountReauth
-          : err instanceof Error
-            ? err.message
-            : String(err)
-      Alert.alert(t.deleteAccount, message)
+      if (code === 'RecentLoginRequiredError') {
+        // Firebase needs a fresh sign-in to delete. Offer it directly instead
+        // of telling the user to find "Sign out" themselves.
+        Alert.alert(t.deleteAccount, t.deleteAccountReauth, [
+          { text: t.cancel, style: 'cancel' },
+          { text: t.signInAgain, onPress: () => void signOut() },
+        ])
+        return
+      }
+      Alert.alert(t.deleteAccount, err instanceof Error ? err.message : String(err))
     }
-  }, [deleteAccount, t])
+  }, [deleteAccount, signOut, showSnackbar, t])
 
   // Mount the first-run prompt the first time the user lands in
   // the app post-onboarding with the flag unset. Stamping the
@@ -653,7 +666,8 @@ export function SheetProvider({ children }: { children: ReactNode }) {
       <ThemeSelector
         visible={themePickerOpen}
         value={store.profile.theme ?? 'sage'}
-        allThemesUnlocked={tier !== 'free'}
+        // Free-only v2.0.0: every theme is free while IAP is off.
+        allThemesUnlocked={!IAP_ENABLED || tier !== 'free'}
         onUpgrade={() => {
           // Close the picker first, then open the paywall after it dismisses
           // (iOS can't reliably stack two Modals — same 280ms handoff used
@@ -743,10 +757,13 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         // compose sheet hides the "Ask Mochi instead" affordance.
         onAskMochi={
           MOCHI_AGENT_ENABLED
-            ? () => {
+            ? (text: string) => {
                 store.saveProfile((p) => ({ ...p, lastComposeMode: 'mochi' }))
+                setMochiSeed(text)
                 setComposeOpen(false)
-                setMochiOpen(true)
+                // Same 280ms handoff as the other sheet switches — iOS can't
+                // reliably stack two Modals.
+                setTimeout(() => setMochiOpen(true), 280)
               }
             : undefined
         }
@@ -759,6 +776,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
       {MOCHI_AGENT_ENABLED && (
         <ChatSheet
           visible={mochiOpen}
+          initialInput={mochiSeed}
           greetingName={
             store.profile.firstName?.trim() || store.profile.name?.trim() || ''
           }

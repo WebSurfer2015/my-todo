@@ -31,6 +31,7 @@ import {
   type Entitlement,
   type Tier,
 } from '../core-bindings/entitlements'
+import { IAP_ENABLED } from './featureFlags'
 import PaywallSheet from '../features/membership/PaywallSheet'
 
 /**
@@ -108,7 +109,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
 
   // Configure RevenueCat + load offerings once we know the user.
   useEffect(() => {
-    if (!uid) {
+    if (!uid || !IAP_ENABLED) {
       setRcTier('free')
       setCurrentProductId(null)
       setTrialEligible({})

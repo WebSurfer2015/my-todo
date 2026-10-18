@@ -1029,11 +1029,10 @@ function AppGate() {
           name="Home"
           component={HomeScreen}
           options={{
-            // Tab label is "Dashboard" so it doesn't collide with the
-            // user's Home *category*. Route name stays "Home" for
-            // stable navigation calls — navigation.navigate('Home')
-            // still works app-wide.
-            tabBarLabel: 'Dashboard',
+            // Tab label is "Today" — what the screen shows, and it doesn't
+            // collide with the user's Home *category*. Route name stays
+            // "Home" for stable navigation calls.
+            tabBarLabel: 'Today',
             tabBarIcon: ({ color, size }) => (
               <House size={size ?? 22} color={color} strokeWidth={2} />
             ),

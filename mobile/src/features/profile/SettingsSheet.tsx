@@ -29,6 +29,7 @@ import { Profile, type ThemeName } from "../../core-bindings/profile";
 import { useLang } from "../../app/LangContext";
 import { usePurchases } from "../../app/PurchasesContext";
 import { useTheme, ThemeColors, themeSwatch, SPACING, RADIUS, TYPE } from "../../app/theme";
+import { IAP_ENABLED } from '../../app/featureFlags';
 import SheetShell from "../../ui/SheetShell";
 
 interface Props {
@@ -111,7 +112,8 @@ export default function SettingsSheet({
       primary={{ label: t.done, onPress: onClose }}
       padded={false}
     >
-              {/* MEMBERSHIP */}
+              {/* MEMBERSHIP — hidden while IAP is off (free-only v2.0.0) */}
+              {IAP_ENABLED && (<>
               <Text style={styles.sectionLabel}>MEMBERSHIP</Text>
               <View style={styles.card}>
                 <TouchableOpacity
@@ -129,6 +131,7 @@ export default function SettingsSheet({
                   <Text style={styles.rowChevron}>›</Text>
                 </TouchableOpacity>
               </View>
+              </>)}
 
               {/* APPEARANCE */}
               <Text style={styles.sectionLabel}>APPEARANCE</Text>
