@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Filter, ViewMode } from "../core-bindings/types";
+import { stampProfileSignals } from "../core-bindings/profile";
 import {
   getOrderedStatuses,
   getOrderedVisibleStatuses,
@@ -313,6 +314,24 @@ export function useTodoStore() {
     profileLoaded &&
     groceriesLoaded &&
     groceryGroupsLoaded;
+
+  // P0 Tier 2 measurement (docs/MEASUREMENT-PLAN.md): on app open, stamp the
+  // privacy-preserving signals — createdAt (once), lastActiveDate (today),
+  // activatedAt (once the user has completed a todo). First-party +
+  // aggregate-only, never behavioral tracking. The helper returns the same
+  // reference when nothing changes, so this won't thrash writes.
+  useEffect(() => {
+    if (!loaded) return;
+    setProfile((p) =>
+      stampProfileSignals(p, {
+        nowISO: new Date().toISOString(),
+        today: todayLocal(),
+        hasCompletedTodo: todos.some((td) => td.done),
+      }),
+    );
+    // Run once per mount (app open); the set-once fields no-op thereafter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
 
   // "Delete data only" — clears every per-user state doc the app
   // knows about. The auth user stays intact. SheetContext follows

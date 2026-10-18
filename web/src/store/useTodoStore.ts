@@ -6,7 +6,12 @@ import {
   migrateCategory,
   categoryLabel,
 } from "../core-bindings/categories";
-import { Profile, SEED_PROFILE, migrateProfile } from "../core-bindings/profile";
+import {
+  Profile,
+  SEED_PROFILE,
+  migrateProfile,
+  stampProfileSignals,
+} from "../core-bindings/profile";
 import {
   toggleSelection,
   applyBulkRestore,
@@ -44,7 +49,7 @@ import {
 } from "../../../core/src/logic/derive";
 import { deleteCategoryCascade } from "../../../core/src/store";
 import { newCategoryId } from "../../../core/src/data/categories";
-import { vibrate } from "../../../core/src/logic/utils";
+import { todayLocal, vibrate } from "../../../core/src/logic/utils";
 
 const SCHEMA_VERSION = 1;
 
@@ -169,6 +174,24 @@ export function useTodoStore() {
   }, [filter, selectedTrashIds.size]);
 
   const loaded = categoriesLoaded && todosLoaded && profileLoaded;
+
+  // P0 Tier 2 measurement (docs/MEASUREMENT-PLAN.md): on app open, stamp the
+  // privacy-preserving signals — createdAt (once), lastActiveDate (today),
+  // activatedAt (once the user has completed a todo). First-party +
+  // aggregate-only, never behavioral tracking. The helper returns the same
+  // reference when nothing changes, so this won't thrash writes.
+  useEffect(() => {
+    if (!loaded) return;
+    setProfile((p) =>
+      stampProfileSignals(p, {
+        nowISO: new Date().toISOString(),
+        today: todayLocal(),
+        hasCompletedTodo: todosRef.current.some((td) => td.done),
+      }),
+    );
+    // Run once per mount (app open); the set-once fields no-op thereafter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
 
   // ---- Stable callbacks (passed to React.memo'd TaskItem) ----
 

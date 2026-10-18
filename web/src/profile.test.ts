@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import {
   findPreset,
   migrateProfile,
+  stampProfileSignals,
   SEED_PROFILE,
   AVATAR_PRESET_LIBRARY,
 } from '../../core/src/data/profile'
@@ -146,5 +147,37 @@ describe('migrateProfile', () => {
     expect(out.createdAt).toBeUndefined()
     expect(out.activatedAt).toBeUndefined()
     expect(out.lastActiveDate).toBeUndefined()
+  })
+})
+
+describe('stampProfileSignals', () => {
+  const NOW = '2026-10-17T08:00:00.000Z'
+  const TODAY = '2026-10-17'
+  const base = { ...SEED_PROFILE }
+
+  it('sets createdAt once + lastActiveDate on first open (no completed todo yet)', () => {
+    const out = stampProfileSignals(base, { nowISO: NOW, today: TODAY, hasCompletedTodo: false })
+    expect(out.createdAt).toBe(NOW)
+    expect(out.lastActiveDate).toBe(TODAY)
+    expect(out.activatedAt).toBeUndefined()
+  })
+
+  it('stamps activatedAt once the user has a completed todo', () => {
+    const out = stampProfileSignals(base, { nowISO: NOW, today: TODAY, hasCompletedTodo: true })
+    expect(out.activatedAt).toBe(NOW)
+  })
+
+  it('preserves an existing createdAt/activatedAt (set-once), only moves lastActiveDate', () => {
+    const prior = { ...base, createdAt: '2026-01-01T00:00:00.000Z', activatedAt: '2026-01-02T00:00:00.000Z', lastActiveDate: '2026-10-16' }
+    const out = stampProfileSignals(prior, { nowISO: NOW, today: TODAY, hasCompletedTodo: true })
+    expect(out.createdAt).toBe('2026-01-01T00:00:00.000Z')
+    expect(out.activatedAt).toBe('2026-01-02T00:00:00.000Z')
+    expect(out.lastActiveDate).toBe(TODAY)
+  })
+
+  it('returns the SAME reference when nothing changes (skips a redundant write)', () => {
+    const settled = { ...base, createdAt: NOW, lastActiveDate: TODAY }
+    const out = stampProfileSignals(settled, { nowISO: NOW, today: TODAY, hasCompletedTodo: false })
+    expect(out).toBe(settled)
   })
 })
