@@ -39,9 +39,14 @@ export async function deleteUserTree(db: RecursiveDeleter, uid: string): Promise
   await db.recursiveDelete(db.doc(`users/${uid}`) as never)
 }
 
-export const onUserDeleted = functions.auth.user().onDelete(async (user) => {
-  // Throwing lets Cloud Functions log the failure; recursiveDelete is
-  // idempotent, so a manual re-run (or retry) is safe.
-  await deleteUserTree(admin.firestore() as unknown as RecursiveDeleter, user.uid)
-  console.log('onUserDeleted: erased users/{uid} tree')
-})
+// Pinned to us-central1 with every other function (gen-1 otherwise picks up a
+// default region — it landed in us-east1 on first deploy).
+export const onUserDeleted = functions
+  .region('us-central1')
+  .auth.user()
+  .onDelete(async (user) => {
+    // Throwing lets Cloud Functions log the failure; recursiveDelete is
+    // idempotent, so a manual re-run (or retry) is safe.
+    await deleteUserTree(admin.firestore() as unknown as RecursiveDeleter, user.uid)
+    console.log('onUserDeleted: erased users/{uid} tree')
+  })
