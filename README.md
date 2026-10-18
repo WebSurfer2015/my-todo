@@ -1,29 +1,25 @@
-# my-todo
+# Sagely
 
-Cross-platform todo app. Web (Vite + React) and mobile (Expo + React Native) share business logic via a sibling `core/` package, with Firebase auth + Firestore sync.
+A calm to-do app with Mochi, a quiet AI companion — iOS-first, built with
+Expo / React Native, Firebase, and Claude.
 
 ## Layout
 
 ```
-my-todo/
-├── core/      Pure TypeScript: types, persistence, derive, i18n, profile, categories
-├── web/       Vite + React 18 + TypeScript
-└── mobile/    Expo SDK 54 + React Native 0.81 + TypeScript
+core/        Pure TypeScript domain logic (+ its tests in core/test)
+mobile/      Expo SDK 54 + React Native 0.81 app
+functions/   Firebase Cloud Functions backend (Mochi agent, AI, billing webhook, erasure, metrics)
+docs/        Architecture, privacy policy (GitHub Pages), strategy + release docs
 ```
-
-Both `web/` and `mobile/` import core via relative paths (e.g. `'../../core/src/types'`). No path aliases, no monorepo tooling — just relative imports from sibling subfolders.
 
 ## Develop
 
 ```sh
-# Web
-cd web && npm install && npm run dev
-
-# Mobile (iOS dev client)
-cd mobile && npm install && npx expo run:ios
-
-# Mobile (Android dev client)
-cd mobile && npm install && npx expo run:android
+npm install && npm test                    # core tests (repo root)
+cd mobile && npm install && npx expo run:ios   # iOS dev client
+cd functions && npm install && npm test    # backend tests
 ```
 
-See `web/CLAUDE.md` for the detailed architecture guide.
+Gates (also run in CI): `npm run lint:arch`, `npm run typecheck:core`,
+`npm run test:coverage`. Guides: `CLAUDE.md` (repo) and `mobile/CLAUDE.md`;
+architecture: `docs/ARCHITECTURE.md`.

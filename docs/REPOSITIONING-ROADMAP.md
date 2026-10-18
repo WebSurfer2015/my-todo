@@ -1,6 +1,6 @@
 # Repositioning Roadmap
 
-Turns `FEATURE-ALIGNMENT-AUDIT.md` into prioritized, concrete work. Ordering =
+Turns the feature-alignment audit (retired; see git history) into prioritized, concrete work. Ordering =
 (impact on the wedge × unblocks-other-work) ÷ effort. 2026-10-17 (status
 refreshed 2026-10-18).
 
@@ -21,7 +21,7 @@ biggest quality lever but is large — it can trail the first repositioned relea
 ## Next up (as of 2026-10-18, second refresh)
 *Done today: functions deployed (C.1, 0.2c, 1.7, webhook guard, instance caps,
 all in us-central1), orphans erased (C.2), vendor claims verified (C.4), stale
-web policy redirected (C.6). `MOCHI_TIER_ENFORCEMENT` is deliberately **OFF**
+stale web policy page retired (C.6; the web app is gone). `MOCHI_TIER_ENFORCEMENT` is deliberately **OFF**
 until v2.0.0 is live (5.6).*
 1. **Your console actions (minutes):** publish the App Store privacy label (C.5 —
    now, not at release) and set a budget alert (C.8).
@@ -79,7 +79,7 @@ must be deployed first.*
 | C.3 | **Privacy policy accuracy** — analytics removed, usage dates, Anthropic (Mochi), RevenueCat (subscriptions), deletion scope | S | ✅ `fc181f5`, `e7c9a70`, `0a8e0df` — live on promote |
 | C.4 | **Verify vendor claims in the policy** — Anthropic API retention period (or ZDR), RevenueCat device-data list | S | ✅ 2026-10-18 — Anthropic: API inputs/outputs deleted within 30 days, flagged up to 2 yrs, never used for training (privacy center + API docs; our Haiku 4.5 / Sonnet 4.6 aren't Covered Models). RevenueCat: verified in the SDK — sends app/OS version, device model, locale, storefront **and the IDFV** (no IDFA); policy + label doc updated |
 | C.5 | **App Store privacy label** — add User Content (Mochi → Anthropic), Purchases (RevenueCat), User ID (uid → RevenueCat), Usage Data / Product Interaction (the 3 profile dates, analytics purpose); "not used for tracking" | S | 🔶 answers ready in `docs/APP-PRIVACY-LABEL.md` (Device ID now **required** — RevenueCat sends the IDFV). **Publish now, not at release:** the label is app-level, and the live app (Mochi → Anthropic) is likely under-disclosing. ASC web UI only (no API) |
-| C.6 | **Stale `web/public/privacy/index.html`** — legacy "Todos for Everyone / WebSurfer" page (mentions Facebook Login) | S | ✅ 2026-10-18 — now a noindex redirect to the GitHub Pages policy; live on Amplify dev now, main on promote |
+| C.6 | **Stale web privacy page** — legacy "Todos for Everyone / WebSurfer" page (mentions Facebook Login) | S | ✅ 2026-10-18 — now a noindex redirect to the GitHub Pages policy; live on Amplify dev now, main on promote |
 | C.7 | Optional cleanup: drop the always-denied client-side wipe from `runDeleteAccount` (core + both `AuthContext`s) | S | ⏳ low priority |
 | C.8 | **Budget alert** on the Cloud billing account (e.g. $10/mo, alerts at 50/90/100%) — backstop for the instance caps (`d0df90d`: agentChat/aiInfer 5, webhook 3, rollup 1, onUserDeleted 3; min 0 everywhere) | S | ⏳ your console action: console.cloud.google.com/billing/budgets |
 
@@ -106,7 +106,7 @@ app earns "calm." Large — can phase or trail the first repositioned release.)*
 | # | Item | Effort | Status |
 |---|---|---|---|
 | 4.1 | **Mochi-sheet accessibility** — a11y flatten cured by the "#15" sibling-backdrop pattern (SheetShell + ChatSheet) + regression guard test; `accessibilityViewIsModal` for VoiceOver focus containment | S | 🔶 `185ecef` — remaining = device VoiceOver QA |
-| 4.2 | VoiceOver / Dynamic Type / reduce-motion sweep across sheets (`QA-CHECKLIST` §2,6) | M | ⏳ device |
+| 4.2 | VoiceOver / Dynamic Type / reduce-motion sweep across sheets (`RELEASE-v2.0.0-TEST-MATRIX.md` → Visual / a11y) | M | ⏳ device |
 | 4.3 | Reconsider the lifetime-count **reset/recalibrate** affordance (odd for an only-grows metric) | S | ⏳ |
 
 ## ✋ Device-verification checkpoint (before P2 lands; not blocked on Apple)
@@ -121,7 +121,7 @@ than letting it all pile up at 5.4:
       `users/{uid}` tree gone, auth user gone — then remove the throwaway account
 - [ ] *(not device)* `metrics/{yesterday}` docs appear daily with counts only (0.2c)
 
-*(The Amplify dev URL only exercises web; this checkpoint is mobile.)*
+*(There is no web staging environment — verification is on a device / TestFlight build.)*
 
 ## P5 — Store & submit 🔴 blocked on the Apple org conversion
 | # | Item | Effort | Status |

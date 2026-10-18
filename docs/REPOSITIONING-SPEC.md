@@ -1,6 +1,6 @@
 # Repositioning Spec — "Emotional Safety" (Bet #1)
 
-Turns Bet #1 from `docs/FEATURE-MAP-GAPS.md` into a concrete spec: new
+Turns Bet #1 from `docs/STRATEGY-RESEARCH.md` §2 into a concrete spec: new
 positioning, taglines, App Store copy, onboarding, and the Mochi
 utility→companion shift. **This is a design-phase artifact for sign-off**
 (per `memory/feedback_design_phase_required.md`) — not an implementation.
@@ -165,13 +165,13 @@ for routine warmth; or be metered (§6).
 
 ## 6. Hard dependency — fix the monetization contradiction first
 A companion you can **run out of** is incoherent with "emotional safety." This
-spec **requires** resolving the quota/meter problem (`PRODUCT-REVIEW-v1.7.0.md`
-#1, `COMPETITIVE-BRIEF.md`): **never meter Mochi's presence, warmth, or basic
+spec **requires** resolving the quota/meter problem (done — de-meter P1,
+`STRATEGY-RESEARCH.md` §1): **never meter Mochi's presence, warmth, or basic
 help.** Gate advanced *capability* (weekly planning, bulk AI ops) or volume via
 an *abundance* frame — not a depleting daily counter. If Mochi guilt-trips you
 toward a top-up, the entire repositioning collapses.
 
-## 7. Success metrics (requires enabling analytics — PRODUCT-REVIEW #2)
+## 7. Success metrics (first-party aggregate — `MEASUREMENT-PLAN.md`)
 - **Activation:** % completing a first Mochi interaction **and** first task in session 1.
 - **Emotional-safety proxy:** reactivation rate after a lapse (do people return
   *without* guilt?), and a drop in "deleted because it nagged me" churn.
@@ -190,8 +190,8 @@ toward a top-up, the entire repositioning collapses.
 
 ## 9. Next steps
 - ✅ §0 decision signed off (ADHD-forward).
-- ✅ PM + UX dual-lens run → `docs/REPOSITIONING-DUAL-LENS.md`; must-fixes folded
-  in (§4 speed, §5 quiet/local-first, §5a guardrails).
+- ✅ PM + UX dual-lens review run; must-fixes folded in (§4 speed, §5
+  quiet/local-first, §5a guardrails). (Review doc retired — see git history.)
 - **Three gates before any Mochi-companion build:** (1) de-meter Mochi (§6),
   (2) analytics on (§7), (3) Mochi-sheet accessibility fixed (§5a).
 - **Sequence for a solo dev:** ship the cheap/high-value parts first — copy, ASO

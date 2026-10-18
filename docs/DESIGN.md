@@ -27,7 +27,7 @@ operating rules:
 
 ## Color tokens
 
-Defined in `mobile/src/theme.ts` and `web/src/index.css`. Use the
+Defined in `mobile/src/app/theme.ts`. Use the
 token, not the literal hex.
 
 | Token | Light | Dark | Use |
@@ -142,8 +142,8 @@ The contract `SheetShell` enforces:
 
 ## Empty states
 
-Every empty state renders through `mobile/src/components/EmptyStateCard.tsx`
-(or the web equivalent when it exists). One pattern, one component.
+Every empty state renders through `mobile/src/ui/EmptyStateCard.tsx`.
+One pattern, one component.
 
 - White rounded card on the canvas, `borderRadius: 14`,
   `paddingVertical: 24`, `paddingHorizontal: 16`, `marginTop: 8`.
@@ -203,11 +203,11 @@ animations.
 
 ## Localization
 
-All user-facing strings live in `core/src/i18n.ts`. Adding a new key
+All user-facing strings live in `core/src/data/i18n.ts`. Adding a new key
 means:
 
 1. Add to `strings.en` first.
-2. The shape test (`web/src/i18n.test.ts`) will fail for every other
+2. The shape test (`core/test/i18n.test.ts`) will fail for every other
    locale until you fill them in.
 3. For plural / count formatters, write a function entry (see
    `lifetimeLabel(nounKey)` for the pattern).
@@ -239,7 +239,7 @@ Reach for an existing component:
 |---|---|
 | Empty state | `EmptyStateCard` |
 | AI activity | `MochiThinking` |
-| Confirmation | `Alert.alert` (mobile) / `useNotify().confirm` (web) |
+| Confirmation | `Alert.alert` |
 | Toast / undo | `useNotify().showSnackbar` |
 | Date picker | `DateTimePicker` from `@react-native-community/datetimepicker` |
 | Category icon | `CategoryIcon` |

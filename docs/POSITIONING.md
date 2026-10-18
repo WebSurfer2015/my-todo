@@ -6,9 +6,8 @@ This is the source of truth for Sagely's positioning. The behavioral rules in
 > **2026-10 direction — "emotional safety."** The Principles below are updated to
 > the current strategy: *a warm, quiet companion (Mochi) for a busy mind;
 > emotional safety as the wedge; ADHD/overwhelm beachhead; de-metered
-> monetization.* Supporting docs: `POSITIONING-BRIEF.md` (why/sizing),
-> `COMPETITIVE-BRIEF.md` (field), `FEATURE-MAP-GAPS.md` (white space),
-> `REPOSITIONING-SPEC.md` + `REPOSITIONING-DUAL-LENS.md` (the spec + its review),
+> monetization.* Supporting docs: `STRATEGY-RESEARCH.md` (competitive field,
+> white space, personas + sizing), `REPOSITIONING-SPEC.md` (the product spec),
 > `MOCHI-MONETIZATION-MODEL.md` (pricing). ⚠️ The **App Store / Play / localized
 > metadata below still reflects the old v1.3.0 "hard days" framing** — the
 > English copy is updated inline; **all 5 non-English locales (zh/es/fr/de/ja)
@@ -39,7 +38,7 @@ lifting it. **The brand front door stays universal** — "a busy mind" welcomes
 anyone carrying a lot, without asking them to self-identify — **while ASO
 keywords and community marketing lead ADHD** (the Tiimo model: universal brand,
 ADHD where discovery actually happens). Personas, sizing, and the beachhead
-evidence live in `POSITIONING-BRIEF.md` and `COMPETITIVE-BRIEF.md`.
+evidence live in `STRATEGY-RESEARCH.md` (§1, §3).
 
 ### Need
 
@@ -58,7 +57,7 @@ The to-do field splits into *visual time-structure* (Tiimo, Structured) and
 *cold AI task-splitters* (Goblin Tools, neurolist). **Nobody owns emotional
 safety.** Sagely's defensible position is the intersection — **a warm companion
 × calm framing × real task help** — a kind companion that makes task overwhelm
-feel survivable, not another planner or utility. (Analysis: `FEATURE-MAP-GAPS.md`.)
+feel survivable, not another planner or utility. (Analysis: `STRATEGY-RESEARCH.md` §2.)
 
 ### Mochi — the heart, and a *quiet* companion
 
@@ -66,7 +65,7 @@ Mochi is the center of the product — but a **quiet** companion, not a chatty o
 Warmth comes through tone, microcopy, the completion moment, and day-stable
 lines (~90% local, zero AI cost); the LLM is reserved for genuine capture and
 breakdown. More words would mean more noise — the opposite of calm. (Spec:
-`REPOSITIONING-SPEC.md`; review: `REPOSITIONING-DUAL-LENS.md`.)
+`REPOSITIONING-SPEC.md`.)
 
 ### Anti-positioning (the load-bearing stance)
 

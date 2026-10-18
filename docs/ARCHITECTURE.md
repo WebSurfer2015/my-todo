@@ -1,263 +1,155 @@
 # Sagely — Workflow & Architecture
 
-Reference doc for collaborators. Captures the system at **v1.4.0**.
-For deeper per-package notes, see `web/CLAUDE.md`, `mobile/CLAUDE.md`,
-and `docs/POSITIONING.md`.
+Reference doc for collaborators, current as of the v2.0.0 cycle (iOS-first;
+the web app was removed 2026-10-18). Deeper notes: root `CLAUDE.md`,
+`mobile/CLAUDE.md`. Product direction: `docs/POSITIONING.md`.
 
 ## Repo layout
 
 ```
 my-todo/
-├── core/                Pure TypeScript: types, derive, persistence, profile, categories, i18n, selection
-├── web/                 Vite + React 18 + TypeScript    →  AWS Amplify (main branch)
-│   └── functions/       Firebase Cloud Functions        →  Production GCP
-├── mobile/              Expo SDK 54 + RN 0.81 + TS      →  EAS → App Store / TestFlight
-│   └── scripts/
-│       ├── asc/         ASC release helper (Python)
-│       ├── screenshots/ capture.sh + process.py
-│       └── asc_upload_screenshots.py
-└── docs/                ARCHITECTURE.md, POSITIONING.md, PRIVACY.md, etc.
+├── core/           Pure TypeScript domain (types, derive, persistence port, profile,
+│   ├── src/        categories, groceries, i18n, entitlements, store coordinators)
+│   └── test/       core's tests — run + coverage-gated from the repo root
+├── mobile/         Expo SDK 54 + React Native 0.81 + TS  →  EAS → TestFlight / App Store
+│   └── scripts/    ASC release helper, screenshot capture + upload, Play helpers
+├── functions/      Firebase Cloud Functions (Node 22)     →  GCP us-central1
+│   ├── src/        agentChat, aiInfer, revenuecatWebhook, onUserDeleted, metricsRollup
+│   └── test/       Firestore rules tests (emulator)
+├── firebase.json   Firebase project config (functions source, rules, emulator)
+├── firestore.rules Security rules
+├── docs/           This file, PRIVACY.md (GitHub Pages), strategy + release docs
+└── package.json    Root = core's test runner + repo gates (lint:arch, typecheck:core)
 ```
 
-`core/` is the bedrock — pure TypeScript, no React, no platform. Both
-web and mobile import via relative paths (`'../../core/src/types'`).
-All shared logic (data model, derive helpers, migrators, i18n) lives
-there.
+Dependency rule (enforced by `npm run lint:arch`): `mobile/ → core/`, never
+the reverse; `core/` imports nothing external; `functions/` deploys standalone
+(no imports from `core/` or `mobile/` — it keeps its own copies, guarded by
+parity tests in `mobile/src/__tests__`).
 
 ---
 
 ## Data flow
 
 ```
-   ┌──────────┐         ┌──────────────────┐         ┌──────────────┐
-   │  React   │  state  │  useTodoStore    │  CRUD   │  Storage     │
-   │  (web /  │────────▶│  (per-platform   │────────▶│  adapter     │
-   │  mobile) │         │   thin wrapper)  │         │  (Firestore  │
-   └──────────┘         └──────────────────┘         │   or local)  │
-                              │                     └──────┬───────┘
-                              │ derives via                │
-                              ▼                            │
-                     ┌─────────────────┐                   │
-                     │  core/derive.ts │                   │
-                     │  (pure funcs)   │                   │
-                     └─────────────────┘                   │
-                                                          ▼
-                                              ┌─────────────────────────┐
-                                              │  Firestore              │
-                                              │  users/{uid}/state/...  │
-                                              │   ├ todos               │
-                                              │   ├ categories          │
-                                              │   ├ profile             │
-                                              │   ├ groceries           │
-                                              │   ├ groceryGroups       │
-                                              │   ├ todoReferences      │
-                                              │   ├ agentUsage          │
-                                              │   └ devices/{id} (push) │
-                                              └─────────────────────────┘
+   ┌────────────┐  state  ┌──────────────────┐  read/write  ┌──────────────────┐
+   │ React      │────────▶│ useTodoStore +   │─────────────▶│ StorageAdapter   │
+   │ Native UI  │         │ slices (mobile)  │              │ Firestore (uid)  │
+   └────────────┘         └────────┬─────────┘              │ or AsyncStorage  │
+                                   │ pure transforms         └────────┬─────────┘
+                                   ▼                                  │
+                          ┌──────────────────┐                        ▼
+                          │ core/ (derive,   │          Firestore users/{uid}/state/
+                          │ createTodoStore) │            todos · categories · profile
+                          └──────────────────┘            groceries · groceryGroups
+                                                          todoReferences · signals
+                                                          (+ server-only: agentUsage,
+                                                           mochiUsage, entitlement,
+                                                           rcWebhook)
 ```
 
-- **Per-uid adapter swap**: signed-in → `makeFirestoreAdapter(db, uid)`,
-  signed-out → local storage. Memoized on `uid` (not on the `User`
-  object — Firebase rotates that hourly).
-- **`useSyncedState(adapter, key, …)`**: trailing-debounced writes
-  (~400ms), live `onSnapshot` subscribe for cross-device sync,
-  short-circuit on write→subscribe round-trips.
-- **Migration**: every read passes through `migrateTodos` /
-  `migrateProfile` etc. so schema changes are forward-compatible.
-- **Two stability rules** for `TaskItem` (React.memo): callbacks come
-  from `useCallback` with setter-only deps; refs (`todosRef`,
-  `lastSelectedRef`) carry latest state into stable closures.
+- **Per-uid adapter swap**: signed in → `makeFirestoreAdapter(db, uid)`,
+  signed out → AsyncStorage. Memoized on `uid` (Firebase rotates the `User`
+  object hourly).
+- **`useSyncedState(adapter, key, …)`**: hydrate → subscribe (`onSnapshot`) →
+  ~400 ms debounced writes; a failed/stalled read never writes defaults back.
+- **Every read is validated** (`migrateTodos`, `migrateProfile`, …): storage is
+  untrusted, so shapes are checked, capped and defaulted on load.
+- **Usage signals** (`core/src/store/usageSignals.ts`): `createdAt`,
+  `lastActiveDate`, `activatedAt` in their own `signals` doc — stamped on open,
+  every foreground, and first completion; never in the profile.
+- Clients can't delete state docs (rules); account erasure is server-side.
 
 ---
 
-## AI surface (Phase 2 + 3)
+## Backend (Cloud Functions, us-central1)
 
-```
-                 mobile/web client                       Cloud Function                Anthropic
-                  ┌───────────────┐                     ┌───────────────┐            ┌─────────┐
-   user types ──▶ │ debounced     │  POST /aiInfer  ──▶ │  aiInfer      │ ── HTTP ──▶│ Claude  │
-                  │ signal-gated  │  {mode, input}      │  - validate   │            │ Haiku / │
-                  │ AI hook       │                     │  - reserve    │            │ Sonnet  │
-                  └──────┬────────┘                     │    quota      │            └─────────┘
-                         │                              │  - call model │
-                         │ pills above form             │  - parse JSON │
-                         ▼                              │  - post-proc  │
-                  ┌──────────────┐                      └───────────────┘
-                  │ tap-to-apply │                              │
-                  │ NEVER auto   │                              │ shared 30/day
-                  └──────────────┘                              ▼
-                                                      Firestore agentUsage
-```
+| Function | Trigger | Does |
+|---|---|---|
+| `agentChat` | callable | Multi-turn Mochi (Haiku + tool_use). Proposes operations; the client applies them after confirm. History windowed to 40 turns starting on a user turn. |
+| `aiInfer` | callable | One-shot modes: `suggest-todo-fields`, `classify-grocery-dept`, `breakdown-subtasks`, `link-store-to-items`. |
+| `revenuecatWebhook` | HTTPS | RevenueCat → `state/entitlement` (the client never writes it). Ignores events for deleted users. |
+| `onUserDeleted` | auth delete (gen-1) | Recursively erases `users/{uid}`; retries on failure. |
+| `metricsRollup` | daily 06:15 UTC | Aggregate counts → `metrics/{yesterday}` (no uids). |
 
-**Modes** (`web/functions/src/aiInfer.ts`):
-- `suggest-todo-fields` — Haiku, ambient, prompt-cached. Returns
-  category / priority / dueDate (with optional time) / recurrence /
-  reminder.
-- `classify-grocery-dept` — Haiku, returns dept id OR new label +
-  optional store hint.
-- `breakdown-subtasks` — Sonnet, returns 3–6 concrete substeps.
-
-**Discipline knobs**:
-- 1500ms debounce, 8-char minimum, signal-pattern fast-path
-- Per-uid 30-call/day cap shared across all modes (`quota.ts`)
-- Prompt caching (`cacheableSystemModes`) — ~90% discount on system
-  prompt for back-to-back calls
-- Categories list capped at 10 sent to model
-- All errors silent-fail in client wrapper (`suggestTodoFields`
-  returns nulls)
+**AI cost / safety knobs**: validate input before reserving quota; a flat
+150/day per-uid fair-use cap shared by both AI functions
+(`MOCHI_TIER_ENFORCEMENT` is OFF until IAP is live — then per-tier invisible
+ceilings); per-mode `max_tokens` with a cost-guard test; prompt caching on large
+system prompts; user text stripped of our envelope tags before wrapping;
+max-instance caps (5 / 5 / 3 / 1 / 3, min 0). Over the ceiling the server
+returns `RESOURCE_EXHAUSTED` and the client falls back to manual Compose — no
+wall, no meter, no paywall.
 
 ---
 
-## Reminders (Phase 3)
+## Reminders
 
-Local-only. `Todo.reminder: { at, intervalMinutes?, until? }`.
-
-```
-   user sets reminder ──▶ store mutation ──▶ Firestore sync
-                                                   │
-                                                   ▼
-                                       App.tsx useEffect(todos)
-                                                   │
-                                                   ▼
-                                   syncTodoReminders(todos):
-                                     for each todo with reminder:
-                                       compute fire schedule
-                                         (at, at+interval, … until)
-                                       cap MAX_FIRES_PER_TODO = 30
-                                       diff vs Notifications.getAllScheduledAsync
-                                         cancel mismatches
-                                         schedule new fires
-                                            id = `todo:<id>:<fireIndex>`
-                                                   │
-                                                   ▼
-                                            iOS local notification
-                                              fires at scheduled time
-```
-
-Done/trash → reminders auto-cancel via the diff. Recurrence advance
-rolls reminder forward by the dueDate delta. iOS budget is ~64
-scheduled notifications app-wide; the per-todo cap of 30 keeps a
-single noisy series from starving the rest.
+Local notifications only (no server push, no push token). `Todo.reminders[]`;
+the scheduler diffs the desired fires against `getAllScheduledAsync`, cancels
+mismatches and schedules new ones (`todo:<id>:<n>` ids, capped per todo so one
+series can't starve iOS's ~64-notification budget). Done / trashed → cancelled
+by the diff.
 
 ---
 
 ## Deploy workflow — dev first, then main
 
 ```
-   working tree
-        │
-        │  git commit
-        ▼
-   dev branch ──── push origin dev ──── Amplify deploys to dev.dhcuxhzauzw4c.amplifyapp.com
-        │                                  +  Cloud Functions deployed manually if changed
-        │
-        │  (user verifies on dev)
-        │
-        │  git checkout main && git merge --ff-only dev && git push
-        ▼
-   main branch ─── push origin main ──── Amplify deploys to main.dhcuxhzauzw4c.amplifyapp.com
-                                            +  production traffic + custom domain
+   working tree ──commit──▶ dev ──push──▶ CI (core · mobile · functions · rules)
+                                │
+                                │  verify on a dev-client build / TestFlight
+                                │  (functions + rules: `firebase deploy` from repo root)
+                                ▼
+                     git checkout main && git merge --ff-only dev && git push
+                                │
+                                ▼
+                     main ──▶ GitHub Pages republishes docs/ (privacy policy)
 ```
 
-**Hard rule (CLAUDE.md)**: every change — code, docs, scripts,
-lockfiles — lands on `dev` first. `main` is only updated after the
-user verifies on the dev Amplify URL. Use `--ff-only` so a
-non-fast-forward (parallel main work) fails loudly.
+Every change lands on `dev` first; `main` only after the owner verifies.
+`--ff-only` so parallel work on main fails loudly. There is no web staging
+environment.
 
 ---
 
 ## Mobile build + App Store submit
 
 ```
-  ┌─────────────────┐
-  │ bump version    │  mobile/app.json → 1.4.0 → 1.4.1 …
-  └────────┬────────┘  (autoIncrement handles buildNumber)
+  bump mobile/app.json version (EAS autoIncrement owns buildNumber)
            │
            ▼
-  ┌─────────────────────────────────────────────────────┐
-  │  eas build --platform ios --profile production      │
-  │            --auto-submit                            │
-  └─────────────────────────────┬───────────────────────┘
-                                │
-                ┌───────────────┴───────────────────┐
-                ▼                                   ▼
-        ┌──────────────────┐               ┌──────────────────┐
-        │ EAS cloud build  │               │ Anchored to git  │
-        │  (~10–20 min)    │               │ requireCommit:t  │
-        │  creates IPA     │               │ appVersionSource:│
-        └────────┬─────────┘               │   remote         │
-                 │                         └──────────────────┘
-                 ▼
-        ┌──────────────────┐
-        │ Auto-submit to   │
-        │ ASC via API key  │
-        │ AuthKey_QD85…p8  │
-        └────────┬─────────┘
-                 │
-                 ▼  build #N processed by Apple (~5–10 min)
-                 │
-   ┌─────────────┴─────────────────────────────────────┐
-   ▼                                                   ▼
-┌───────────────────────────┐               ┌────────────────────────┐
-│ python asc_release.py     │               │ python                 │
-│   create-version --version│               │ asc_upload_screenshots │
-│                           │               │   <processed dir>      │
-│   prepare                 │               │   --replace            │
-│   (links build + pushes   │               │ (10 slots × 7 locales) │
-│    copy + privacy + What's│               └────────────────────────┘
-│    New across 7 locales)  │
-└─────────────┬─────────────┘
-              │
-              ▼
-   click "Submit for Review" in ASC web UI
-              │
-              ▼   Apple review (~24–72h)
-              │
-              ▼
-        live on App Store
+  eas build --platform ios --profile production --auto-submit
+           │   (EAS cloud build ~10–20 min; requireCommit, appVersionSource: remote)
+           ▼
+  auto-submit to App Store Connect via the API key (AuthKey_QD85…p8)
+           │   build processed by Apple (~5–10 min)
+           ▼
+  python mobile/scripts/asc/asc_release.py prepare      (links build, copy, privacy URL, What's New)
+  python mobile/scripts/asc_upload_screenshots.py <dir> (10 slots × locales)
+           │
+           ▼
+  "Submit for Review" in App Store Connect  →  review (~24–72 h)  →  live
 ```
 
-**Screenshots pipeline**:
-
-```
-mobile/screenshots/<device>/raw/N-<name>.png     ←  capture.sh N <device> <udid>
-                          ↓ process.py
-mobile/screenshots/<device>/processed/...         →  asc_upload_screenshots.py
-```
-
-- iPhone 17 Pro Max → 1320×2868 → downscaled to 1290×2796 (ASC 6.7" slot)
-- iPad Pro 13" → 2064×2752 → downscaled to 2048×2732 (ASC 12.9" slot)
-- 10 slots per device; v1.4 slot plan in `docs/POSITIONING.md`
-- `APP_STORE_VERSION_ID` in `mobile/scripts/asc_upload_screenshots.py`
-  must be re-pointed per release (look it up via
-  `asc_release.py status`)
+Screenshots: `mobile/screenshots/<device>/raw` → `process.py` → `processed/`.
+iPhone captures are downscaled to 1290×2796 (the 6.7" slot), iPad to 2048×2732.
 
 ---
 
 ## Cross-cutting
 
-- **Auth** (`AuthContext.tsx`): Apple / Google / email-password → all
-  funnel through `signInWithCredential`. Apple sends `fullName` only
-  on first sign-in — seed profile then.
-- **Profile** (`core/profile.ts`): one synced doc per user. Holds
-  avatar, density, background, reminders + agent + onboarding +
-  guides flags, grocery store list, pebble counters.
-- **Localization** (`core/i18n.ts`): 6 langs (en, zh, es, fr, ja, de).
-  All user-facing text routes through `useLang().t`. Adding copy =
-  add 6 entries, TS enforces shape.
-- **Crash reporting**: Crashlytics on mobile (`ErrorBoundary` +
-  `crashlytics().recordError`), Sentry on web (gated on
-  `VITE_SENTRY_DSN`).
-- **Hosting split**: Amplify for web (`amplify.yml` at repo root,
-  `appRoot: web`), Firebase Hosting as fallback, GCP for Cloud
-  Functions, EAS for native binaries.
-- **In-app guides** (`mobile/src/guides.tsx` +
-  `components/Guide*.tsx`): 6 topical walkthroughs with per-slide
-  mockups built from `GuideMockups.tsx` primitives. First-run prompt
-  fires once after onboarding (including for upgraders whose profile
-  predates `guidesPromptShown`); always reachable from
-  Settings → Tips & guides.
-- **Calm-app stance** (`docs/POSITIONING.md`): no streaks, no
-  scoreboards, AI never auto-mutates, every destructive action
-  reversible or confirmed, no exclamation marks in mascot copy
-  (enforced by `mobile/src/__tests__/mascotLines.test.ts`).
+- **Auth** (`mobile/src/app/AuthContext.tsx`): Apple / Google / email → all via
+  `signInWithCredential`. Apple sends `fullName` only on first sign-in — the
+  profile is seeded then. Sign-out and account deletion both clear local data.
+- **Profile** (`core/src/data/profile.ts`): one synced doc per user — avatar,
+  themes, flags, grocery stores, pinned filters, lifetime count.
+- **Localization** (`core/src/data/i18n.ts`): 6 languages; TS enforces that every
+  locale has every key.
+- **Crash reporting**: Firebase Crashlytics (no user id attached).
+- **Privacy**: no analytics or ad SDKs (guarded by
+  `mobile/src/__tests__/privacy-guard.test.ts`); policy `docs/PRIVACY.md`,
+  App Store label answers `docs/APP-PRIVACY-LABEL.md`.
+- **Calm-app stance** (`docs/POSITIONING.md`): no streaks or scoreboards, AI
+  never auto-mutates without confirm, destructive actions reversible or
+  confirmed, no exclamation marks in mascot copy (`mascotLines.test.ts`).

@@ -45,8 +45,8 @@ in parens — that code is the source of truth for diagnosis.
 | iOS build artifact (what Xcode bundles into `.app`) | `mobile/ios/TodosforEveryone/GoogleService-Info.plist` |
 | Android source of truth | `mobile/google-services.json` |
 | Android build artifact | `mobile/android/app/google-services.json` |
-| Google OAuth web client ID (hardcoded) | `mobile/src/AuthContext.tsx:92-94` |
-| Google OAuth iOS client ID (hardcoded) | `mobile/src/AuthContext.tsx:95-96` |
+| Google OAuth web client ID (hardcoded) | `mobile/src/app/AuthContext.tsx` (`GoogleSignin.configure`) |
+| Google OAuth iOS client ID (hardcoded) | `mobile/src/app/AuthContext.tsx` (`GoogleSignin.configure`) |
 | iOS URL scheme for Google redirect | `mobile/ios/TodosforEveryone/Info.plist` → `CFBundleURLTypes` (`com.googleusercontent.apps.<REVERSED_CLIENT_ID>`) |
 | Firebase project ID, bundle ID | `mobile/app.json` → `expo.ios.bundleIdentifier`, `expo.android.package` |
 

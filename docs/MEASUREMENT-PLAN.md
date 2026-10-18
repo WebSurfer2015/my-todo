@@ -73,7 +73,7 @@ on-brand.
 1. ~~**Tier 1:** document the RevenueCat dashboard as the monetization source of
    truth (no code).~~ Done 2026-10-18 — this section is the record.
 2. **Tier 2:** ~~signals + capture~~ (done 2026-10-17; **moved 2026-10-18** from the Profile to their own `users/{uid}/state/signals` doc via core `refreshUsageSignals`, stamped on open + every foreground + first completion — stamping the profile rewrote the whole profile doc, see `core/src/store/usageSignals.ts`).
-   **Roll-up built 2026-10-18** (`web/functions/src/metricsRollup*.ts`): daily
+   **Roll-up built 2026-10-18** (`functions/src/metricsRollup*.ts`): daily
    at 06:15 UTC it writes `metrics/{yesterday}` = `{ users {total, activated},
    signups, active {d1,d7,d30}, cohorts {d1,d7,d30: cohortDay, size, returned,
    activated} }` — counts only, no uids. Signup cohort comes from Firebase Auth

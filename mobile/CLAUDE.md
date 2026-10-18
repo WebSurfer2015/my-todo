@@ -2,11 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-This is the **mobile** workspace of `my-todo` — Expo SDK 54 + React Native 0.81 + TypeScript. The web sibling lives at `../web/` and shares pure logic via `../core/` (see `../web/CLAUDE.md` for the cross-platform `core/` architecture; this file covers mobile-only concerns).
+This is the **mobile** workspace of `my-todo` — the Sagely app (Expo SDK 54 + React Native 0.81 + TypeScript), iOS-first. Pure domain logic lives in `../core/` and the backend in `../functions/` (see the root `CLAUDE.md` for layout, gates and the dependency rule; this file covers mobile concerns).
 
 ## Source layout (`src/`)
 
-Feature-folder layout (web/`src/` mirrors this shape):
+Feature-folder layout:
 
 - `app/` — bootstrap & shell: contexts/providers (`AuthContext`, `LangContext`, `notify`, `StoreContext`, `SheetContext`), `ErrorBoundary`, `theme`, and top-level chrome (`AppHeader`, `AppBackground`, `Fab`, `Footer`, `SplashOverlay`). `App.tsx` is at the workspace root.
 - `adapters/` — IO / platform edges: `firebase`, `firestoreAdapter`, `persistence`, `analytics`, `crashReporting`, `notifications`, `aiInfer`, `authErrors`.
@@ -23,7 +23,7 @@ When adding a file, place it by feature; keep shared presentational bits in `ui/
 - `npm start` — starts the Metro bundler only (use after a dev client is already installed).
 - `npm run typecheck` — `tsc --noEmit`. Strict mode is on via `expo/tsconfig.base` + `"strict": true`.
 - `npm run lint` — flat-config ESLint (`eslint.config.js`). `react-hooks` rules + `@typescript-eslint`.
-- `npm test` / `npm run test:watch` — Vitest (node env, no jsdom). Test files live under `mobile/src/__tests__/*.test.ts`. **Pure-logic tests only** — no React Native APIs (the node env can't load AccessibilityInfo, Animated, native modules, etc.). Anything platform-specific belongs in `core/` and gets exercised from `web/`'s vitest suite.
+- `npm test` / `npm run test:watch` — Vitest. Test files live under `mobile/src/__tests__/*.test.ts`. Default env is node (pure logic); **hook tests** opt into a DOM with a `// @vitest-environment happy-dom` header and use `@testing-library/react`'s `renderHook`. `react-native` is aliased to an inert stub (`vitest-stubs/react-native.ts`) — RN's Flow source can't be transformed, so native UI / bridge behavior is out of scope (device QA covers it). Mock network with `vi.stubGlobal('fetch', …)`; never call the live AI API in tests.
 
 ### EAS builds & submission
 
@@ -77,7 +77,7 @@ const adapter = useMemo<StorageAdapter>(
 2. Subscribes via `adapter.subscribe?.(key, cb)` if available (Firestore adapter supplies `onSnapshot`; local adapter doesn't).
 3. **Trailing-debounced writes (~400ms)** — bursts of mutations (typing in a task title) collapse into one `setDoc`. `lastSerializedRef` short-circuits write→subscribe→setState round-trips.
 
-The Firestore adapter writes each entity to `users/{uid}/state/{key}` as `{ value: <json envelope>, updatedAt }`. `value` is the same versioned envelope (`{version, data}`) that AsyncStorage / web localStorage use, so the cross-device data shape is byte-identical.
+The Firestore adapter writes each entity to `users/{uid}/state/{key}` as `{ value: <json envelope>, updatedAt }`. `value` is the same versioned envelope (`{version, data}`) that AsyncStorage uses, so local and cloud data share one shape.
 
 ### Auth (`src/AuthContext.tsx`)
 
@@ -85,13 +85,11 @@ Two social providers (Apple, Google) + email/password, all funnel through `signI
 
 - **Apple** — `expo-apple-authentication` + Firebase nonce flow. Generates a raw nonce (`Crypto.randomUUID`), sends SHA-256 hash to Apple, passes the raw nonce alongside the JWT to Firebase. Apple sends `fullName` only on **first** sign-in — seed the profile then or it's lost forever.
 - **Google** — `@react-native-google-signin/google-signin` v16. Configure happens in a `useEffect` on mount. **iOS requires both `webClientId` and `iosClientId`** — v16's wrapper does NOT auto-read `GIDClientID` from `Info.plist`; omitting `iosClientId` produces `must specify |clientID| in |GIDConfiguration|`. Don't "simplify" this.
-- **Sign-in modes** — `src/components/SignIn.tsx` is a 4-mode state machine: `"social"` (landing — Apple/Google + email-link toggle + create-account toggle) → `"signin"` | `"signup"` | `"reset"`. The email page intentionally has **no** social buttons (one path per page). Mirrors web; keep them in sync.
+- **Sign-in modes** — `src/features/auth/SignIn.tsx` is a 4-mode state machine: `"social"` (landing — Apple/Google + email-link toggle + create-account toggle) → `"signin"` | `"signup"` | `"reset"`. The email page intentionally has **no** social buttons (one path per page).
 - `signOut()` clears `["todos","categories","profile"]` from AsyncStorage so the next signed-in user on this device can't bleed prior-user data into a brand-new Firestore doc via `migrateLocalToCloud`.
-- `deleteAccount()` calls `deleteUser`; the **`onUserDeleted` Cloud Function** (`web/functions/src/deleteUserData.ts`) then recursively deletes `users/{uid}` server-side. The client-side doc wipe that runs first is denied by `firestore.rules` (state docs are never client-deletable) and swallowed — don't rely on it. Throws `RecentLoginRequiredError` on `auth/requires-recent-login` so UI can prompt re-auth.
+- `deleteAccount()` calls `deleteUser`, then clears local data (same as sign-out). The **`onUserDeleted` Cloud Function** (`functions/src/deleteUserData.ts`) recursively erases `users/{uid}` server-side — clients can't delete state docs (`firestore.rules`). Throws `RecentLoginRequiredError` on `auth/requires-recent-login` so UI can prompt re-auth.
 
 ### Domain store (`src/useTodoStore.ts`)
-
-> **Mobile is a superset of web's store, not a mirror** — it adds groceries, pebbles, multi-filter, view modes, status/priority customization, recurrence-v2 series edits, mascot/identity lines, and home stat tiles. Web parity is a separate, deferred task.
 
 **Functional core / imperative shell (`createTodoStore`).** All pure logic lives in `core/` and is reached through one orchestration surface, `core/src/store` → `createTodoStore({ now, genId, t })`:
 
@@ -110,7 +108,7 @@ The same TaskItem-stability rules apply: callbacks passed to `TaskItem` (`toggle
 
 ### Notifications
 
-Use `useNotify()` for snackbars (Undo on `moveToTrash`). For destructive confirms, use **`Alert.alert(...)` directly** with a `style: "destructive"` button — the store does this in `emptyTrash` and `bulkPermanentDelete`. Don't reach for the web's `confirm()` API; it doesn't exist here.
+Use `useNotify()` for snackbars (Undo on `moveToTrash`). For destructive confirms, use **`Alert.alert(...)` directly** with a `style: "destructive"` button — the store does this in `emptyTrash` and `bulkPermanentDelete`.
 
 ### Theming (`src/theme.ts`)
 
@@ -118,7 +116,7 @@ Use `useNotify()` for snackbars (Undo on `moveToTrash`). For destructive confirm
 
 ### Crash + error reporting
 
-Mobile uses **Firebase Crashlytics** (`@react-native-firebase/crashlytics`), not Sentry. Web uses Sentry; the two surfaces are deliberately split because Crashlytics' tighter integration with `@react-native-firebase` (which we already depend on for Firestore + Auth) avoids a second native SDK + sourcemap pipeline.
+The app uses **Firebase Crashlytics** (`@react-native-firebase/crashlytics`) — it shares the `@react-native-firebase` stack we already use for Auth + Firestore, so there's no second native SDK. Crashlytics never receives a user id.
 
 - **Native crashes** are auto-collected by the Crashlytics SDK at app launch — no JS code involved.
 - **JS errors** are forwarded by `src/ErrorBoundary.tsx` via `crashlytics().log(componentStack)` + `crashlytics().recordError(error)`. Wrapped in try/catch so a crash in the crash reporter can't take down the app.
@@ -135,7 +133,7 @@ Mobile uses **Firebase Crashlytics** (`@react-native-firebase/crashlytics`), not
 
 ### Things to know before bigger changes
 
-- Tests run from `core/` or `web/`, never here. Pure-logic regressions belong in core's vitest suite.
+- Pure domain logic belongs in `core/` with tests in `core/test/` (run from the repo root); mobile tests cover hooks, adapters and parity guards.
 - ESLint warns on `@typescript-eslint/no-explicit-any` but doesn't fail. CI signal is `tsc --noEmit`.
 - The mobile `src/persistence.ts` and `src/categories.ts`/`src/profile.ts`/etc. are thin re-export shims over `core/src/*`. Add new shared logic to core, not here.
 - iOS bundle id and Android package: `com.websurfer.mytodo`. EAS project id `c564f1cd-…` lives in `app.json > extra.eas.projectId`.

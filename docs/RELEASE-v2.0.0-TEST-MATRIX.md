@@ -5,8 +5,8 @@ the on-device checklist to run before submitting **v2.0.0** (the repositioning:
 planner → quiet companion, de-metered Mochi, Free + Premium only). Renamed from
 the v1.7.0 matrix and refreshed 2026-10-18 against the code on `dev`.
 
-> **Release status:** code is on `dev`, green (web 822 ✓, mobile 64 ✓,
-> functions 62 ✓, typechecks ✓, arch gate ✓). Promotion to `main` + `eas build
+> **Release status:** code is on `dev`; CI green (core, mobile, functions,
+> Firestore rules; typechecks; arch gate). Promotion to `main` + `eas build
 > --auto-submit` are **held** until the Apple account's Individual→Organization
 > conversion completes and the **Paid Applications Agreement** is re-signed
 > under the org (IAP can't be sold until then). **Also required before
@@ -21,7 +21,7 @@ smoke flow · ✋ **needs manual on-device testing**
 ---
 
 ## 0. Pre-flight (server + store) — before the device pass
-- [x] `cd web && firebase deploy --only functions` — **done 2026-10-18**:
+- [x] `firebase deploy --only functions` (repo root) — **done 2026-10-18**:
       `onUserDeleted`, `metricsRollup`, webhook deleted-user guard, de-metered
       quota copy, max-instance caps; Cloud Scheduler API enabled; all five in
       us-central1; enforcement OFF
@@ -276,7 +276,11 @@ overlay (survives row unmount) · shared EmptyStateCard.
 - [ ] Completion firework plays; reduce-motion ON (or animation toggle off) suppresses it; sound toggle
 - [ ] "YOUR JOURNEY" lifetime count increments on completion
 - [ ] VoiceOver reads each sheet's controls individually (not one blob)
+- [ ] VoiceOver: row swipe actions (Defer / Not Do / Delete) reachable + announced;
+      tab bar announces Dashboard / Todos / Shopping with selected state
 - [ ] Dynamic Type XXL → no clipping
+- [ ] Long content (very long title, many categories / stores) — layout holds
+- [ ] Empty states centered + on-brand (Dashboard welcome, Shopping, Todos)
 - [ ] "Delete all permanently" copy says it's irreversible
 - [ ] Export data → share sheet produces valid JSON
 - [ ] Avatar camera + photo library + permission prompts
@@ -284,10 +288,9 @@ overlay (survives row unmount) · shared EmptyStateCard.
 ---
 
 ## Notes
-- Firestore security-rules tests (`web/tests/firestore-rules.test.ts`) and the
-  adapter emulator tests need the Firebase emulator — run `npm run test:rules`
-  in `web/` separately; not part of the 822 default run.
-- Cloud Functions unit tests: `npm test` in `web/functions/` (62).
+- Unit tests: `npm test` at the repo root (core), in `mobile/`, and in
+  `functions/`. Firestore security-rules tests need the emulator (JDK 21+):
+  `npm run test:rules` in `functions/` — CI runs them.
 - Maestro E2E (`npm run e2e` in `mobile/`) is UI-smoke only (render + navigation),
   driven against a seeded demo account on the iOS simulator.
 - No RN component/snapshot tests exist — mobile UI is covered only by Maestro

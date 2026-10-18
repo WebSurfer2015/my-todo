@@ -119,7 +119,7 @@ Individual→Org conversion delay (`memory/project_v1_7_0_release_hold`) is the
 window: get the model right while no real money or ASC products exist yet.
 
 ## Dependencies & open decisions
-- **Analytics on** (PRODUCT-REVIEW #2) — required to tune the invisible fair-use
+- **Measurement on** (`MEASUREMENT-PLAN.md`; the daily roll-up is live) — required to tune the invisible fair-use
   ceiling to real usage; shipping a ceiling you can't observe is guessing.
 - **Confirm the Free↔Premium capability split** — is "plan my week / bulk triage"
   the right premium line, or should everyday single-task breakdown also be
