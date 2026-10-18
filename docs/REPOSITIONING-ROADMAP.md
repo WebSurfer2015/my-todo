@@ -18,14 +18,21 @@ If moving fast matters, the smallest shippable-coherent set is:
 P4 Mochi-sheet a11y → P5 ASC copy + submit.** The subtraction pass (P3) is the
 biggest quality lever but is large — it can trail the first repositioned release.
 
-## Next up (as of 2026-10-18)
-1. ~~Deploy functions~~ — **done 2026-10-18** (`onUserDeleted`, `metricsRollup`,
-   1.7 copy, webhook guard; `MOCHI_TIER_ENFORCEMENT` deliberately **OFF** until
-   IAP is live — flip it in the v2.0.0 release deploy).
-2. **Device-verification checkpoint** (below) — closes the 🔶 rows in gates 1, 3
-   and 4 in one session, instead of discovering them at 5.4.
-3. **P2** — the next real code work on the critical path.
-4. Gate-2 paperwork: confirm 0.1.
+## Next up (as of 2026-10-18, second refresh)
+*Done today: functions deployed (C.1, 0.2c, 1.7, webhook guard, instance caps,
+all in us-central1), orphans erased (C.2), vendor claims verified (C.4), stale
+web policy redirected (C.6). `MOCHI_TIER_ENFORCEMENT` is deliberately **OFF**
+until v2.0.0 is live (5.6).*
+1. **Your console actions (minutes):** publish the App Store privacy label (C.5 —
+   now, not at release) and set a budget alert (C.8).
+2. **Verify the first roll-up:** `metrics/2026-10-17` should exist after
+   06:15 UTC 2026-10-18 with counts only (0.2c).
+3. **Device-verification checkpoint** (below) — turns ~12 🔶 rows ✅ in one
+   session, incl. the throwaway-account deletion test (C.1).
+4. **P2.1 ambient Mochi presence** — design phase first. **P2 hasn't started**;
+   it's the only real code work left on the critical path.
+5. **1.8 notes field in Compose** — design phase first; fixes Mochi notes being
+   dropped.
 
 ---
 
@@ -36,10 +43,10 @@ Measure first-party + aggregate instead (`MEASUREMENT-PLAN.md`). The 14 typed
 event call sites in `analytics.ts` remain as a no-op seam.*
 | # | Item | Why | Effort | Status |
 |---|---|---|---|---|
-| 0.1 | **Tier 1 — RevenueCat** as the monetization-funnel source of truth (trial→paid, churn, LTV) | already integrated; zero new tracking | S (doc only) | ⏳ `MEASUREMENT-PLAN.md` has the Tier 1 section — confirm it's sufficient and mark done |
+| 0.1 | **Tier 1 — RevenueCat** as the monetization-funnel source of truth (trial→paid, churn, LTV) | already integrated; zero new tracking | S (doc only) | ⏳ **decision pending** — recommend ✅: `MEASUREMENT-PLAN.md` Tier 1 covers it (RevenueCat dashboard = full funnel, zero new code) |
 | 0.2a | **Tier 2 schema** — `createdAt`/`lastActiveDate`/`activatedAt` on Profile + migration + tests; `metrics/*` covered by default-deny | foundation for activation/retention | S | ✅ `448e688` |
 | 0.2b | **Tier 2 capture** — pure `stampProfileSignals` in core, called once per app open from both `useTodoStore`s | records the signals | S | 🔶 `bca8e52` |
-| 0.2c | **Tier 2 aggregation CF** — scheduled roll-up of **aggregate** counts to `metrics/{date}` (server-only) | answers activation/retention/reactivation with no behavioral logging | M | 🔶 built early (2026-10-18): `metricsRollup` scheduled CF (06:15 UTC daily, yesterday's counts) + pure `rollUpMetrics` (unit-tested). Signup cohort = Firebase Auth creation day (profile `createdAt` is lazily stamped). **Deployed 2026-10-18** (scheduler job `firebase-schedule-metricsRollup-us-central1` enabled); first `metrics/{day}` doc expected 2026-10-18 06:15 UTC |
+| 0.2c | **Tier 2 aggregation CF** — scheduled roll-up of **aggregate** counts to `metrics/{date}` (server-only) | answers activation/retention/reactivation with no behavioral logging | M | 🔶 built early (2026-10-18): `metricsRollup` scheduled CF (06:15 UTC daily, yesterday's counts) + pure `rollUpMetrics` (unit-tested). Signup cohort = Firebase Auth creation day (profile `createdAt` is lazily stamped). **Deployed 2026-10-18** (scheduler job `firebase-schedule-metricsRollup-us-central1` enabled); first `metrics/{day}` doc expected 2026-10-18 06:15 UTC — **verify it exists + holds counts only** |
 | 0.3 | **Tier 3** — anonymous daily counters for Mochi-used / paywall-shown / CTA / **groceries-used**, by repointing the `analytics.ts` no-op seam to a `recordMetric` CF | product-signal granularity; **3.3 depends on it** | M | ⏳ optional — *unless* 3.3 is decided by data (see 3.3) |
 | 0.4 | Remove `@react-native-firebase/analytics`; honest `PRIVACY.md` note | keeps the privacy promise true | S | ✅ `fc181f5` — wrapper kept as a no-op seam, user-id attribution dropped |
 
@@ -57,6 +64,7 @@ allowances are now INVISIBLE fair-use ceilings. Typecheck + unit tests green;
 | 1.5 | **Paywall → aspirational** triggers only (punitive "out of requests" trigger removed; locked-theme tap + Settings→Membership remain) | S–M | 🔶 |
 | 1.6 | Reprice to **$4.99/mo · $29.99/yr**, annual-led, keep 7-day trial, **no lifetime** | S | 🔶 fallback prices in `PaywallSheet`; real prices live in ASC (5.3) |
 | 1.7 | **Server `RESOURCE_EXHAUSTED` → auto-fallback.** Chat takes the same fallback as 1.4; step suggestions show a gentle localized "Mochi's resting" note; server ceiling copy de-metered (no counts / countdown / "pay as you go") | S | 🔶 `ac5437c` — server copy deployed 2026-10-18. Mid-conversation, the fallback rebuilds the open request ("call mom — Friday") via core `buildFallbackCapture` |
+| 1.8 | **Mochi-proposed notes are dropped on "Review & add".** `reviewCreateTodo` (SheetContext) never passes `notes`, because Compose has no notes field/state — so notes the agent proposes are silently lost (the 1.7 fallback folds answers into the title for the same reason). Fix = a notes field in Compose → **UI change, design phase first** | S–M | ⏳ bug, found 2026-10-18 |
 
 ## PC — Privacy & compliance (launch gate) 🟢 not blocked
 *Added 2026-10-18. App Review 5.1.1(v) requires in-app account deletion to
@@ -70,9 +78,10 @@ must be deployed first.*
 | C.2 | **Orphan cleanup** — one-off, dry-run-first script to erase `users/{uid}` trees with no live auth user (accounts deleted before C.1) | S | ✅ 2026-10-18 — `scripts/cleanup-orphaned-user-data.mjs` erased 1 orphaned tree (3 docs); re-check reports 0 orphans |
 | C.3 | **Privacy policy accuracy** — analytics removed, usage dates, Anthropic (Mochi), RevenueCat (subscriptions), deletion scope | S | ✅ `fc181f5`, `e7c9a70`, `0a8e0df` — live on promote |
 | C.4 | **Verify vendor claims in the policy** — Anthropic API retention period (or ZDR), RevenueCat device-data list | S | ✅ 2026-10-18 — Anthropic: API inputs/outputs deleted within 30 days, flagged up to 2 yrs, never used for training (privacy center + API docs; our Haiku 4.5 / Sonnet 4.6 aren't Covered Models). RevenueCat: verified in the SDK — sends app/OS version, device model, locale, storefront **and the IDFV** (no IDFA); policy + label doc updated |
-| C.5 | **App Store privacy label** — add User Content (Mochi → Anthropic), Purchases (RevenueCat), User ID (uid → RevenueCat), Usage Data / Product Interaction (the 3 profile dates, analytics purpose); "not used for tracking" | S | 🔶 answers drafted in `docs/APP-PRIVACY-LABEL.md` — enter + Publish in the ASC web UI (no API for App Privacy) |
+| C.5 | **App Store privacy label** — add User Content (Mochi → Anthropic), Purchases (RevenueCat), User ID (uid → RevenueCat), Usage Data / Product Interaction (the 3 profile dates, analytics purpose); "not used for tracking" | S | 🔶 answers ready in `docs/APP-PRIVACY-LABEL.md` (Device ID now **required** — RevenueCat sends the IDFV). **Publish now, not at release:** the label is app-level, and the live app (Mochi → Anthropic) is likely under-disclosing. ASC web UI only (no API) |
 | C.6 | **Stale `web/public/privacy/index.html`** — legacy "Todos for Everyone / WebSurfer" page (mentions Facebook Login) | S | ✅ 2026-10-18 — now a noindex redirect to the GitHub Pages policy; live on Amplify dev now, main on promote |
 | C.7 | Optional cleanup: drop the always-denied client-side wipe from `runDeleteAccount` (core + both `AuthContext`s) | S | ⏳ low priority |
+| C.8 | **Budget alert** on the Cloud billing account (e.g. $10/mo, alerts at 50/90/100%) — backstop for the instance caps (`d0df90d`: agentChat/aiInfer 5, webhook 3, rollup 1, onUserDeleted 3; min 0 everywhere) | S | ⏳ your console action: console.cloud.google.com/billing/budgets |
 
 ## P2 — The quiet companion (the heart) 🟢 not blocked
 *(`REPOSITIONING-SPEC.md` §5. Gate: most warmth must be local/templated.)*
@@ -108,19 +117,21 @@ than letting it all pile up at 5.4:
 - [ ] Over-ceiling fallback hands text to Compose (1.4) — and when only the *server* rejects (1.7: e.g. lower the ceiling in the emulator or use a second device)
 - [ ] VoiceOver reads each sheet's controls individually + focus is trapped (4.1)
 - [ ] Profile gets `createdAt` / `lastActiveDate` / `activatedAt` after app open (0.2b)
-- [ ] End-to-end account deletion with a **throwaway** account after C.1 deploys:
+- [ ] End-to-end account deletion with a **throwaway** account (C.1 is deployed):
       `users/{uid}` tree gone, auth user gone — then remove the throwaway account
+- [ ] *(not device)* `metrics/{yesterday}` docs appear daily with counts only (0.2c)
 
 *(The Amplify dev URL only exercises web; this checkpoint is mobile.)*
 
 ## P5 — Store & submit 🔴 blocked on the Apple org conversion
 | # | Item | Effort | Status |
 |---|---|---|---|
-| 5.1 | Rewrite **ASC metadata to the new direction, all 6 locales** (English done in `POSITIONING.md`; zh/es/fr/de/ja + Play still need it — do NOT machine-translate). Update the privacy label in the same pass (C.5) | M | 🔴 |
+| 5.1 | Rewrite **ASC metadata to the new direction, all 6 locales** (English done in `POSITIONING.md`; zh/es/fr/de/ja + Play still need it — do NOT machine-translate). Same native-review pass for the new in-app strings (e.g. `suggestStepsResting`, 2026-10-18). *(Privacy label is NOT part of this — publish it now, C.5)* | M | 🔴 |
 | 5.2 | **Screenshots lead with feeling** (Mochi, "carried over," calm palette), not feature lists | M | 🔴 |
 | 5.3 | Create final **IAP products** in ASC (`premium.monthly` / `premium.annual` only) | S | 🔴 |
 | 5.4 | Run **`RELEASE-v2.0.0-TEST-MATRIX.md`** on device (refreshed 2026-10-18: de-meter, fallback, privacy/deletion, §0 server pre-flight) incl. de-metered paywall via StoreKit config | M | 🔴 — §0 pre-flight + most device checks are runnable now |
-| 5.5 | Promote `dev`→`main` (**after C.1 is deployed**), tag **`v2.0.0`**, `eas build --auto-submit` | S | 🔴 — `mobile/app.json` already at 2.0.0 |
+| 5.5 | Promote `dev`→`main`, tag **`v2.0.0`**, `eas build --auto-submit` (C.1 is already deployed, so the policy's deletion claim is true when Pages publishes it) | S | 🔴 — `mobile/app.json` already at 2.0.0 |
+| 5.6 | **Release functions deploy:** upgrade `firebase-functions` (deploy warns it's outdated), set `MOCHI_TIER_ENFORCEMENT = true`, redeploy, verify 401/405 probes. **Order matters:** only once v2.0.0 is live in the store with IAP products active — flipping it while users are on v1.6 caps them with no upgrade path and no graceful fallback | S | 🔴 after 5.5 is approved + released |
 
 ---
 
@@ -128,9 +139,9 @@ than letting it all pile up at 5.4:
 | Gate | Covered by | Status |
 |---|---|---|
 | 1. **De-meter Mochi** | P1 | 🔶 code done (incl. 1.7); device checkpoint pending |
-| 2. **Privacy-preserving measurement on** (RevenueCat + first-party aggregate; NOT Firebase Analytics) | P0 | ⏳ 0.4 ✅, 0.2b/0.2c 🔶 (0.2c needs deploy); 0.1 unconfirmed |
+| 2. **Privacy-preserving measurement on** (RevenueCat + first-party aggregate; NOT Firebase Analytics) | P0 | 🔶 0.4 ✅; 0.2b/0.2c deployed, first `metrics` doc to verify; 0.1 decision pending (recommend ✅) |
 | 3. **Mochi-sheet accessibility** | P4.1 | 🔶 code done; device VoiceOver pending |
-| 4. **Privacy & compliance** — deletion actually erases data; policy + privacy label match reality *(added 2026-10-18)* | PC | 🔶 C.1 needs deploy; C.2, C.4–C.6 open |
+| 4. **Privacy & compliance** — deletion actually erases data; policy + privacy label match reality *(added 2026-10-18)* | PC | 🔶 C.2–C.4, C.6 ✅; C.1 deployed (throwaway-account test pending); **C.5 label to publish**; C.8 budget alert |
 
 ## Open decisions (owner: you)
 - ~~Version~~ — **decided 2026-10-18: v2.0.0** (planner → companion is a clean
@@ -147,3 +158,6 @@ than letting it all pile up at 5.4:
   only P5 waits on Apple.
 - 🔶 is accumulating faster than ✅ — the device checkpoint is the cheapest way
   to turn code-complete into actually-done.
+- As of 2026-10-18 the gates are almost entirely **verification + console
+  actions**; the remaining *build* work on the critical path is **P2** (plus
+  the 1.8 Compose notes field). Start both with a design phase.

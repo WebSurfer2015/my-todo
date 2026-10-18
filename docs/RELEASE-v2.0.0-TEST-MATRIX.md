@@ -21,22 +21,27 @@ smoke flow · ✋ **needs manual on-device testing**
 ---
 
 ## 0. Pre-flight (server + store) — before the device pass
-- [ ] `cd web && firebase deploy --only functions` — ships `onUserDeleted`
-      (account-deletion erasure), `metricsRollup` (daily aggregate counts), the
-      RevenueCat deleted-user guard, and the de-metered quota copy. Enable the
-      **Cloud Scheduler API** if the deploy asks.
-- [ ] Firebase Console → Functions lists `onUserDeleted`, `metricsRollup`,
-      `agentChat`, `aiInfer`, `revenuecatWebhook`
+- [x] `cd web && firebase deploy --only functions` — **done 2026-10-18**:
+      `onUserDeleted`, `metricsRollup`, webhook deleted-user guard, de-metered
+      quota copy, max-instance caps; Cloud Scheduler API enabled; all five in
+      us-central1; enforcement OFF
+- [x] Firebase Console → Functions lists `onUserDeleted`, `metricsRollup`,
+      `agentChat`, `aiInfer`, `revenuecatWebhook` (verified 2026-10-18)
 - [ ] Next day: Firestore → `metrics/{yesterday}` exists and holds **counts
       only** (no uids)
-- [ ] One-off orphan cleanup run for accounts deleted before `onUserDeleted`
-      (roadmap C.2) — dry run + backup first
+- [x] One-off orphan cleanup (roadmap C.2) — **done 2026-10-18**: 1 tree
+      erased, re-check 0 orphans (no backup, by design)
 - [ ] ASC: exactly **2** IAP products, Ready to Submit, attached to 2.0.0
-- [ ] ASC: App Privacy label updated — User Content (Mochi → Anthropic),
-      Purchases + User ID (RevenueCat), Usage Data / Product Interaction (the 3
-      profile dates); "not used for tracking" (roadmap C.5)
+- [ ] ASC: App Privacy label published per `docs/APP-PRIVACY-LABEL.md` —
+      **do this now**, it's app-level (roadmap C.5); Device ID is required
+      (RevenueCat sends the IDFV)
+- [ ] Budget alert set on the Cloud billing account (roadmap C.8)
 - [ ] After promote: `websurfer2015.github.io/my-todo/PRIVACY.html` shows the
       Oct 2026 policy (Pages serves `main:/docs`)
+- [ ] **After v2.0.0 is live with IAP active** (roadmap 5.6): upgrade
+      `firebase-functions`, set `MOCHI_TIER_ENFORCEMENT = true`, redeploy
+      functions, re-probe (401 / 401 / 405). Never before — v1.6 users would be
+      capped with no upgrade path
 
 ## Page-by-page
 
