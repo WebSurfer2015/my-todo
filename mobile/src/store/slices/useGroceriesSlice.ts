@@ -330,7 +330,7 @@ export function useGroceriesSlice(
       }
       return item.id;
     },
-    [setGroceries, setProfile, setGroceryGroups, profileRef, notify, t],
+    [inferGroceryGroupLocal, newGroceryItem, setGroceries, setProfile, profileRef, notify, t, newGroceryGroup, setGroceryGroups, insertGroupBeforeOthers],
   );
 
   const renameGroceryStore = useCallback(
@@ -349,7 +349,7 @@ export function useGroceriesSlice(
       });
       setGroceries((prev) => renameStoreInItems(prev, oldName, next));
     },
-    [setProfile, setGroceries],
+    [setProfile, setGroceries, renameStoreInList, renameStoreInItems],
   );
 
   const deleteGroceryStore = useCallback(
@@ -362,14 +362,14 @@ export function useGroceriesSlice(
       });
       setGroceries((prev) => removeStoreFromItems(prev, name));
     },
-    [setProfile, setGroceries],
+    [setProfile, setGroceries, removeStoreFromItems],
   );
 
   const linkItemsToStore = useCallback(
     (storeName: string, itemIds: string[]) => {
       setGroceries((prev) => linkStoreToItems(prev, storeName, itemIds));
     },
-    [setGroceries],
+    [linkStoreToItems, setGroceries],
   );
 
   const reorderGroceryStores = useCallback(
@@ -388,7 +388,7 @@ export function useGroceriesSlice(
         return { ...p, groceryStores: addStoreToList(list, trimmed) };
       });
     },
-    [setProfile],
+    [addStoreToList, setProfile],
   );
 
   const addGroceryGroup = useCallback(
@@ -399,7 +399,7 @@ export function useGroceriesSlice(
       if (res.groups !== groceryGroupsRef.current) setGroceryGroups(res.groups);
       return res.id;
     },
-    [setGroceryGroups],
+    [groceryGroupAdd, setGroceryGroups],
   );
 
   const toggleGroceryStoreHidden = useCallback(
@@ -443,21 +443,21 @@ export function useGroceriesSlice(
       // completion animation on a positive value.
       return beforeItem && !beforeItem.checked ? 1 : 0;
     },
-    [setGroceries],
+    [groceryToggleChecked, setGroceries],
   );
 
   const editGrocery = useCallback(
     (id: string, patch: { text?: string; groupId?: string; stores?: string[] }) => {
       setGroceries((prev) => groceryEdit(prev, id, patch));
     },
-    [setGroceries],
+    [groceryEdit, setGroceries],
   );
 
   const deleteGrocery = useCallback(
     (id: string) => {
       setGroceries((prev) => groceryDelete(prev, id));
     },
-    [setGroceries],
+    [groceryDelete, setGroceries],
   );
 
   // Auto-pin on activate: picking a store/dept also pins it (if it

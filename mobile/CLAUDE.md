@@ -22,7 +22,7 @@ When adding a file, place it by feature; keep shared presentational bits in `ui/
 - `npm run ios` / `npm run android` — `expo run:ios` / `expo run:android`. Builds the dev client and launches on a sim/device. **Use the dev client, not Expo Go** — the project depends on native modules (Firebase, Google Sign-In, Apple Auth) that Expo Go does not bundle. `expo-dev-client` is in deps so EAS won't print the "uses Expo Go" warning.
 - `npm start` — starts the Metro bundler only (use after a dev client is already installed).
 - `npm run typecheck` — `tsc --noEmit`. Strict mode is on via `expo/tsconfig.base` + `"strict": true`.
-- `npm run lint` — flat-config ESLint (`eslint.config.js`). `react-hooks` rules + `@typescript-eslint`.
+- `npm run lint` — flat-config ESLint (`eslint.config.js`), **zero warnings allowed** (`--max-warnings 0`, enforced in CI). `rules-of-hooks` + `exhaustive-deps` are errors; the React Compiler rules are off (the app doesn't use the compiler). The typecheck enforces `noUnusedLocals` / `noUnusedParameters`.
 - `npm test` / `npm run test:watch` — Vitest. Test files live under `mobile/src/__tests__/*.test.ts`. Default env is node (pure logic); **hook tests** opt into a DOM with a `// @vitest-environment happy-dom` header and use `@testing-library/react`'s `renderHook`. `react-native` is aliased to an inert stub (`vitest-stubs/react-native.ts`) — RN's Flow source can't be transformed, so native UI / bridge behavior is out of scope (device QA covers it). Mock network with `vi.stubGlobal('fetch', …)`; never call the live AI API in tests.
 
 ### EAS builds & submission
@@ -134,6 +134,6 @@ The app uses **Firebase Crashlytics** (`@react-native-firebase/crashlytics`) —
 ### Things to know before bigger changes
 
 - Pure domain logic belongs in `core/` with tests in `core/test/` (run from the repo root); mobile tests cover hooks, adapters and parity guards.
-- ESLint warns on `@typescript-eslint/no-explicit-any` but doesn't fail. CI signal is `tsc --noEmit`.
+- `any` is a lint error; dependency arrays must be complete — when an effect must deliberately ignore a value, mirror it in a ref (see `useSyncedState`'s `initialRef`) rather than disabling the rule.
 - The mobile `src/persistence.ts` and `src/categories.ts`/`src/profile.ts`/etc. are thin re-export shims over `core/src/*`. Add new shared logic to core, not here.
 - iOS bundle id and Android package: `com.websurfer.mytodo`. EAS project id `c564f1cd-…` lives in `app.json > extra.eas.projectId`.

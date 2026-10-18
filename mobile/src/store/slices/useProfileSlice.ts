@@ -96,7 +96,7 @@ export function useProfileSlice(
         return { ...prev, pinnedFilters: res.pinned };
       });
     },
-    [setProfile, notify, t],
+    [setProfile, togglePinnedFilter, notify, t],
   );
 
   // Atomic "stash the current selection as a pinned shortcut then
@@ -118,7 +118,7 @@ export function useProfileSlice(
       }
       clearFilters();
     },
-    [setProfile, clearFilters, notify, t],
+    [clearFilters, setProfile, addPinnedFilter, notify, t],
   );
 
   // ---- Home stat tiles ----
@@ -133,7 +133,7 @@ export function useProfileSlice(
         homeStatTiles: toggleStatTile(prev.homeStatTiles, f),
       }));
     },
-    [setProfile],
+    [setProfile, toggleStatTile],
   );
 
   // ---- View + status/priority overrides ----
@@ -142,14 +142,14 @@ export function useProfileSlice(
       setProfile((prev) => ({ ...prev, view: v }));
       setFilter(defaultFilterForView(v));
     },
-    [setProfile, setFilter],
+    [setProfile, setFilter, defaultFilterForView],
   );
 
   const renameStatus = useCallback(
     (id: StatusFilter, label: string) => {
       setProfile((prev) => statusRename(prev, id, label));
     },
-    [setProfile],
+    [setProfile, statusRename],
   );
 
   const toggleStatusHidden = useCallback(
@@ -168,14 +168,14 @@ export function useProfileSlice(
         return { ...next, pinnedFilters: pinned };
       });
     },
-    [setProfile],
+    [setProfile, statusToggleHidden, stripFilterFromPinned],
   );
 
   const reorderStatuses = useCallback(
     (newOrder: StatusFilter[]) => {
       setProfile((prev) => statusReorder(prev, newOrder));
     },
-    [setProfile],
+    [setProfile, statusReorder],
   );
 
   const togglePriorityHidden = useCallback(
@@ -191,14 +191,14 @@ export function useProfileSlice(
         return { ...next, pinnedFilters: pinned };
       });
     },
-    [setProfile],
+    [priorityToggleHidden, setProfile, stripFilterFromPinned],
   );
 
   const reorderPriorities = useCallback(
     (newOrder: Priority[]) => {
       setProfile((prev) => priorityReorder(prev, newOrder));
     },
-    [setProfile],
+    [priorityReorder, setProfile],
   );
 
   return {

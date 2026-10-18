@@ -42,13 +42,14 @@ export default function GuideSheet({ visible, guide, onComplete, onClose }: Prop
   // Reset to first page whenever the modal opens with a different
   // guide. Without this, re-opening a guide picks up at the last
   // slide the user landed on which feels janky.
+  const guideId = guide?.id
   useEffect(() => {
-    if (!guide) return
+    if (!guideId) return
     setPage(0)
     // Defer the scroll to the next frame so the ref is mounted.
     const id = setTimeout(() => scrollRef.current?.scrollTo({ x: 0, animated: false }), 0)
     return () => clearTimeout(id)
-  }, [guide?.id])
+  }, [guideId])
 
   if (!guide) return null
 

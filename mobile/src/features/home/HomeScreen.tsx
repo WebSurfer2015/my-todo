@@ -17,7 +17,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import { useNavigation } from '@react-navigation/native'
+import { useNavigation, type NavigationProp, type ParamListBase } from '@react-navigation/native'
 import { ChevronRight } from 'lucide-react-native'
 import { useStore } from '../../app/StoreContext'
 import { useLang } from '../../app/LangContext'
@@ -26,6 +26,24 @@ import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
 import { todayLocal } from '../../../../core/src/logic/utils'
 import { type Todo, type Filter } from '../../../../core/src/domain/types'
 import { buildGroups, type GroupKey } from '../../../../core/src/logic/groups'
+
+// "What's Next?" walks Todos' time buckets in this order.
+const NEXT_GROUP_SEQUENCE: GroupKey[] = ['overdue', 'week', 'upcoming', 'noDate']
+
+/** The first bucket after `current` (or the first available one when nothing
+ * is selected yet) that currently has open todos; null when none. */
+function nextGroupAfter(
+  current: GroupKey | null,
+  firstAvailable: GroupKey | null,
+  groupsByKey: Partial<Record<GroupKey, readonly unknown[]>>,
+): GroupKey | null {
+  if (!current) return firstAvailable
+  const i = NEXT_GROUP_SEQUENCE.indexOf(current)
+  for (let j = i + 1; j < NEXT_GROUP_SEQUENCE.length; j++) {
+    if ((groupsByKey[NEXT_GROUP_SEQUENCE[j]]?.length ?? 0) > 0) return NEXT_GROUP_SEQUENCE[j]
+  }
+  return null
+}
 import EmptyStateCard from '../../ui/EmptyStateCard'
 import AppHeader from '../../app/AppHeader'
 import Fab from '../../app/Fab'
@@ -52,7 +70,7 @@ export default function HomeScreen() {
   const { t } = useLang()
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
-  const navigation = useNavigation<any>()
+  const navigation = useNavigation<NavigationProp<ParamListBase>>()
   const sheets = useSheets()
 
   const today = todayLocal()
@@ -105,7 +123,7 @@ export default function HomeScreen() {
     //     leaves TODAY even if future-dated / no-date subs remain
     //     (those are tomorrow's problem).
     //   • Parents without subs: parent's own dueDate <= today.
-    const hasOpenTodaySub = (td: typeof store.todos[number]) => {
+    const hasOpenTodaySub = (td: Todo) => {
       const subs = td.subtasks ?? []
       return subs.some(
         (s) => !s.done && !!s.dueDate && s.dueDate <= today,
@@ -158,7 +176,6 @@ export default function HomeScreen() {
   //   `nextGroupKey` — which bucket is being shown (sticks even when
   //     the user empties it by completing things, so we can render
   //     an empty-state inside it and advance to the next bucket).
-  const NEXT_GROUP_SEQUENCE: GroupKey[] = ['overdue', 'week', 'upcoming', 'noDate']
   const [nextExpanded, setNextExpanded] = useState(false)
   const [nextGroupKey, setNextGroupKey] = useState<GroupKey | null>(null)
 
@@ -181,26 +198,16 @@ export default function HomeScreen() {
     () =>
       NEXT_GROUP_SEQUENCE.find((k) => (groupsByKey[k]?.length ?? 0) > 0) ??
       null,
-    [NEXT_GROUP_SEQUENCE, groupsByKey],
+    [groupsByKey],
   )
 
   // Given the currently-shown group key, find the next sequence entry
   // that has open todos. null when there's nothing left — drives the
   // "no What's Next button on the last group" rule.
-  function nextGroupAfter(current: GroupKey | null): GroupKey | null {
-    if (!current) return firstAvailableNextKey
-    const i = NEXT_GROUP_SEQUENCE.indexOf(current)
-    for (let j = i + 1; j < NEXT_GROUP_SEQUENCE.length; j++) {
-      if ((groupsByKey[NEXT_GROUP_SEQUENCE[j]]?.length ?? 0) > 0) {
-        return NEXT_GROUP_SEQUENCE[j]
-      }
-    }
-    return null
-  }
 
   const nextBucket = nextGroupKey ? groupsByKey[nextGroupKey] ?? [] : []
   const nextSectionLabel = nextGroupKey ? t.groups[nextGroupKey] : "What's next"
-  const hasNextGroupAfter = nextGroupAfter(nextGroupKey) !== null
+  const hasNextGroupAfter = nextGroupAfter(nextGroupKey, firstAvailableNextKey, groupsByKey) !== null
 
   const nextPreviewItems = nextBucket.slice(0, TODAY_PREVIEW_CAP)
 
@@ -220,10 +227,10 @@ export default function HomeScreen() {
   // Advance to the next available group (used by the in-section
   // What's Next button when the current bucket has been emptied).
   const advanceToNextGroup = useCallback(() => {
-    const next = nextGroupAfter(nextGroupKey)
+    const next = nextGroupAfter(nextGroupKey, firstAvailableNextKey, groupsByKey)
     if (!next) return
     setNextGroupKey(next)
-  }, [nextGroupKey, groupsByKey])
+  }, [nextGroupKey, firstAvailableNextKey, groupsByKey])
 
   // Effective tiles come from the store (defaults to Home/Work/Done when
   // the user hasn't customized). Computed there so the Manage Filter

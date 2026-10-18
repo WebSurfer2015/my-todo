@@ -285,7 +285,7 @@ export function useTodosSlice(
     topUpForUidRef.current = k;
     const tu = topUpAllSeries(todosRef.current, todayLocal());
     if (tu.changed) setTodos(tu.todos);
-  }, [todosLoaded, uid, setTodos]);
+  }, [todosLoaded, uid, setTodos, topUpAllSeries]);
 
   // Auto-clear trash selection when leaving trash view.
   useEffect(() => {
@@ -311,7 +311,7 @@ export function useTodosSlice(
         notify.showSnackbar({ message: "Moved back to your open list." });
       }
     },
-    [setTodos, setTodoReferences, notify, filterRef],
+    [setTodos, toggleOutcome, filterRef, todoToggle, setTodoReferences, recordTodoReference, notify],
   );
 
   const restoreFromTrash = useCallback(
@@ -323,7 +323,7 @@ export function useTodosSlice(
         notify.showSnackbar({ message: "Moved back to your open list." });
       }
     },
-    [setTodos, notify, filterRef],
+    [setTodos, filterRef, todoRestoreFromTrash, notify],
   );
 
   const moveToTrash = useCallback(
@@ -338,7 +338,7 @@ export function useTodosSlice(
         mergedActionLabel: t.undoAll,
       });
     },
-    [setTodos, notify, t, restoreFromTrash],
+    [setTodos, notify, t, todoMoveToTrash, restoreFromTrash],
   );
 
   // R5 — Skip ("Not Do"). Sends the row to the Done
@@ -354,7 +354,7 @@ export function useTodosSlice(
         onAction: () => restoreFromTrash(id),
       });
     },
-    [setTodos, notify, t, restoreFromTrash],
+    [setTodos, notify, t.skippedSnackbar, t.undo, todoSkip, restoreFromTrash],
   );
 
   // "Skip all" — skip this occurrence + every future sibling in the
@@ -364,7 +364,7 @@ export function useTodosSlice(
     (id: string) => {
       setTodos((prev) => todoSkipSeriesFuture(prev, id).next);
     },
-    [setTodos],
+    [setTodos, todoSkipSeriesFuture],
   );
 
   const applySeriesFutureEdits = useCallback(
@@ -394,7 +394,7 @@ export function useTodosSlice(
             : t.series.editsNothing,
       });
     },
-    [setTodos, notify, t],
+    [setTodos, notify, t.series, todoApplySeriesFutureEdits],
   );
 
   // R6a — flip detachedFromSeries on the row. Called by
@@ -406,7 +406,7 @@ export function useTodosSlice(
     (id: string) => {
       setTodos((prev) => todoDetachFromSeries(prev, id));
     },
-    [setTodos],
+    [setTodos, todoDetachFromSeries],
   );
 
   // R6c — propagate the target's current subtasks shape (live edits
@@ -425,7 +425,7 @@ export function useTodosSlice(
         message: t.series.subtasksApplied(affected),
       });
     },
-    [setTodos, notify, t],
+    [setTodos, notify, t.series, todoApplySeriesSubtasks],
   );
 
   // R6b — frequency-change apply for a series. Writes the new
@@ -451,7 +451,7 @@ export function useTodosSlice(
         message: t.series.recurrenceRecreated(trashedCount),
       });
     },
-    [setTodos, notify, t],
+    [setTodos, notify, t.series, todoApplyRecurrenceChange],
   );
 
   const moveSeriesFutureToTrash = useCallback(
@@ -467,14 +467,14 @@ export function useTodosSlice(
           affected > 1 ? t.series.trashedMany(affected) : t.movedToTrash,
       });
     },
-    [setTodos, notify, t],
+    [setTodos, notify, t.series, t.movedToTrash, todoMoveToTrashFutureSeries],
   );
 
   const permanentlyDelete = useCallback(
     (id: string) => {
       setTodos((prev) => todoPermanentlyDelete(prev, id));
     },
-    [setTodos],
+    [setTodos, todoPermanentlyDelete],
   );
 
   // "Delete series" — hard-remove this + all future siblings.
@@ -482,21 +482,21 @@ export function useTodosSlice(
     (id: string) => {
       setTodos((prev) => todoPermanentlyDeleteSeriesFuture(prev, id));
     },
-    [setTodos],
+    [setTodos, todoPermanentlyDeleteSeriesFuture],
   );
 
   const updatePriority = useCallback(
     (id: string, priority: Priority) => {
       setTodos((prev) => todoSet(prev, id, "priority", priority));
     },
-    [setTodos],
+    [setTodos, todoSet],
   );
 
   const updateDueDate = useCallback(
     (id: string, dueDate: string) => {
       setTodos((prev) => todoSet(prev, id, "dueDate", dueDate));
     },
-    [setTodos],
+    [setTodos, todoSet],
   );
 
   // Writes the reminders array on the row (empty input clears it). The
@@ -505,7 +505,7 @@ export function useTodosSlice(
     (id: string, reminders: Reminder[]) => {
       setTodos((prev) => todoSetReminders(prev, id, reminders));
     },
-    [setTodos],
+    [setTodos, todoSetReminders],
   );
 
   const deferOverdue = useCallback(
@@ -522,7 +522,7 @@ export function useTodosSlice(
         onAction: () => setTodos((prev) => setDueDates(prev, originals)),
       });
     },
-    [setTodos, notify, t],
+    [selectOverdue, setTodos, notify, t.defer, t.undoAll, setDueDates],
   );
 
   const bulkDeferTodos = useCallback(
@@ -545,7 +545,7 @@ export function useTodosSlice(
         onAction: () => setTodos((prev) => setDueDates(prev, originals)),
       });
     },
-    [setTodos, notify, t],
+    [setTodos, notify, t.undoAll, setDueDates],
   );
 
   const snooze = useCallback(
@@ -569,35 +569,35 @@ export function useTodosSlice(
         },
       });
     },
-    [setTodos, notify, t],
+    [setTodos, t.snooze, t.undo, notify, todoSet],
   );
 
   const updateTaskCategory = useCallback(
     (id: string, category: Category) => {
       setTodos((prev) => todoSet(prev, id, "category", category));
     },
-    [setTodos],
+    [setTodos, todoSet],
   );
 
   const updateText = useCallback(
     (id: string, text: string) => {
       setTodos((prev) => todoSet(prev, id, "text", text));
     },
-    [setTodos],
+    [setTodos, todoSet],
   );
 
   const updateNotes = useCallback(
     (id: string, notes: string) => {
       setTodos((prev) => todoSet(prev, id, "notes", notes));
     },
-    [setTodos],
+    [setTodos, todoSet],
   );
 
   const addSubtask = useCallback(
     (id: string, text: string, priority?: Priority, dueDate?: string) => {
       setTodos((prev) => subtaskAdd(prev, id, text, priority, dueDate));
     },
-    [setTodos],
+    [setTodos, subtaskAdd],
   );
 
   const toggleSubtask = useCallback(
@@ -613,42 +613,42 @@ export function useTodosSlice(
         notify.showSnackbar({ message: "Moved back to your open list." });
       }
     },
-    [setTodos, notify, filterRef],
+    [setTodos, filterRef, subtaskToggle, notify],
   );
 
   const updateSubtaskText = useCallback(
     (id: string, subId: string, text: string) => {
       setTodos((prev) => subtaskUpdateText(prev, id, subId, text));
     },
-    [setTodos],
+    [setTodos, subtaskUpdateText],
   );
 
   const updateSubtaskPriority = useCallback(
     (id: string, subId: string, priority: Priority) => {
       setTodos((prev) => subtaskUpdatePriority(prev, id, subId, priority));
     },
-    [setTodos],
+    [setTodos, subtaskUpdatePriority],
   );
 
   const updateSubtaskDueDate = useCallback(
     (id: string, subId: string, dueDate: string) => {
       setTodos((prev) => subtaskUpdateDueDate(prev, id, subId, dueDate));
     },
-    [setTodos],
+    [setTodos, subtaskUpdateDueDate],
   );
 
   const removeSubtask = useCallback(
     (id: string, subId: string) => {
       setTodos((prev) => subtaskRemove(prev, id, subId));
     },
-    [setTodos],
+    [setTodos, subtaskRemove],
   );
 
   const clearSubtasks = useCallback(
     (id: string) => {
       setTodos((prev) => subtaskClearAll(prev, id));
     },
-    [setTodos],
+    [setTodos, subtaskClearAll],
   );
 
   // ---- Non-stable mutations ----
@@ -699,14 +699,14 @@ export function useTodosSlice(
       });
       return seed.id;
     },
-    [setTodos, setTodoReferences],
+    [setTodoReferences, newTodo, setTodos, recordTodoReference, expandSeries],
   );
 
   const updateRecurrence = useCallback(
     (id: string, recurrence: Recurrence | undefined) => {
       setTodos((prev) => todoSetRecurrence(prev, id, recurrence));
     },
-    [setTodos],
+    [setTodos, todoSetRecurrence],
   );
 
   const emptyTrash = useCallback(() => {
@@ -719,7 +719,7 @@ export function useTodosSlice(
         onPress: () => setTodos(todoEmptyTrash),
       },
     ]);
-  }, [setTodos, t]);
+  }, [setTodos, t, todoEmptyTrash]);
 
   const toggleTrashSelection = useCallback((id: string) => {
     setSelectedTrashIds((prev) =>
@@ -731,7 +731,7 @@ export function useTodosSlice(
         orderedIds: [],
       }),
     );
-  }, []);
+  }, [toggleSelection]);
 
   const clearTrashSelection = useCallback(() => {
     setSelectedTrashIds(new Set());
@@ -741,7 +741,7 @@ export function useTodosSlice(
     if (selectedTrashIds.size === 0) return;
     setTodos((prev) => applyBulkRestore(prev, selectedTrashIds));
     clearTrashSelection();
-  }, [selectedTrashIds, setTodos, clearTrashSelection]);
+  }, [selectedTrashIds, setTodos, clearTrashSelection, applyBulkRestore]);
 
   const bulkPermanentDelete = useCallback(() => {
     const ids = selectedTrashIds;
@@ -757,7 +757,7 @@ export function useTodosSlice(
         },
       },
     ]);
-  }, [selectedTrashIds, setTodos, t, clearTrashSelection]);
+  }, [selectedTrashIds, t, setTodos, clearTrashSelection, applyBulkDelete]);
 
   const clearDone = useCallback(() => {
     const count = todosRef.current.filter(
@@ -774,7 +774,7 @@ export function useTodosSlice(
         },
       },
     ]);
-  }, [setTodos, t]);
+  }, [setTodos, t, todoClearDone]);
 
   return {
     todos,

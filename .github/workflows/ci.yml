@@ -40,7 +40,7 @@ jobs:
       - name: Install
         working-directory: mobile
         run: npm ci --legacy-peer-deps
-      - name: Lint (errors fail; warnings advisory)
+      - name: Lint (zero warnings)
         working-directory: mobile
         run: npm run lint
       - name: Typecheck

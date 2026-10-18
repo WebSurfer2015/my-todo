@@ -28,8 +28,12 @@ export function useSyncedState<T>(
   const lastSerializedRef = useRef<string | null>(null);
   const parseRef = useRef(parse);
   const serializeRef = useRef(serialize);
+  // Mirrored like parse/serialize: callers often pass a fresh literal (e.g.
+  // `[]`), which must not re-run the hydrate effect.
+  const initialRef = useRef(initial);
   parseRef.current = parse;
   serializeRef.current = serialize;
+  initialRef.current = initial;
   // Latest values mirrored into refs so the AppState background-flush
   // listener (registered once) can read current state/adapter/key/loaded
   // without re-subscribing on every change.
@@ -52,7 +56,7 @@ export function useSyncedState<T>(
     // so the write effect treats it as already-persisted (no write fires); a
     // later getItem resolution or subscribe() snapshot recovers from here.
     const proceedWithDefaults = () => {
-      lastSerializedRef.current = serializeRef.current(initial);
+      lastSerializedRef.current = serializeRef.current(initialRef.current);
       setLoaded(true);
     };
     // A getItem read that STALLS (socket open but never responds — captive

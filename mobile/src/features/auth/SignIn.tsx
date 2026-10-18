@@ -58,7 +58,6 @@ export default function SignIn() {
       return true;
     });
     return () => sub.remove();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
   function switchMode(next: Mode) {
