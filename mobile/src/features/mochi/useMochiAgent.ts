@@ -217,6 +217,10 @@ export interface ChatTurn {
   content: string
   operations?: ProposedOperation[]
   awaitingConfirmation?: boolean
+  /** Assistant turn that asks the user for more info (no operations, not
+   * awaiting confirmation). Tagged at receipt — the text can't be trusted to
+   * tell, since toQuestion() makes every such reply end in "?". */
+  isFollowUp?: boolean
 }
 
 interface SendResult {
@@ -272,7 +276,15 @@ export function useMochiAgent() {
 
       // Optimistically append the user turn; build the wire history from it
       // so the server sees this turn too (setState is async).
-      const history: ChatTurn[] = [...messages, { role: 'user', content: text }]
+      // "Try again" (or re-typing the same text) after a failed send would
+      // otherwise append the SAME user turn twice — the model sees the request
+      // twice and the fallback builds "call mom — call mom". Reuse the
+      // unanswered trailing turn instead.
+      const last = messages[messages.length - 1]
+      const isRetryOfLast = last?.role === 'user' && last.content.trim() === text
+      const history: ChatTurn[] = isRetryOfLast
+        ? messages
+        : [...messages, { role: 'user', content: text }]
       setMessages(history)
       setIsThinking(true)
       setError(null)
@@ -313,6 +325,9 @@ export function useMochiAgent() {
           }
         }
         let res = await runFetch()
+        // Closed / superseded while the request was in flight — nothing from
+        // this response may reach state (no reply, no quota fallback).
+        if (controller.signal.aborted) return { ok: false, error: 'aborted' }
         if (res.status === 429) {
           // Two very different 429s: a HARD daily-quota cap (the callable
           // throws resource-exhausted → body.error.status === RESOURCE_EXHAUSTED)
@@ -357,6 +372,7 @@ export function useMochiAgent() {
           result?: AgentResponse
           error?: { message?: string }
         } | null
+        if (controller.signal.aborted) return { ok: false, error: 'aborted' }
         if (!body) {
           // 200 with a malformed/empty body — treat as a transient failure
           // rather than throwing an unhandled JSON parse error.
@@ -396,6 +412,7 @@ export function useMochiAgent() {
             content: isFollowUpQuestion ? toQuestion(result.reply) : result.reply,
             operations,
             awaitingConfirmation: result.awaitingConfirmation,
+            isFollowUp: isFollowUpQuestion,
           },
         ])
         return { ok: true, data: result }
@@ -428,6 +445,13 @@ export function useMochiAgent() {
   )
 
   const reset = useCallback(() => {
+    // Closing the sheet must cancel the in-flight turn: ChatSheet stays
+    // mounted (visible prop), so the unmount abort never fires, and a late
+    // reply would otherwise auto-create a to-do or open Compose after the user
+    // left.
+    controllerRef.current?.abort()
+    controllerRef.current = null
+    setIsThinking(false)
     setMessages([])
     setError(null)
     setErrorKind(null)
@@ -441,7 +465,8 @@ export function useMochiAgent() {
     setMessages((prev) => [
       ...prev,
       { role: 'user', content: userText },
-      { role: 'assistant', content: assistantText },
+      // The canned reply is always a follow-up question ("What should I add?").
+      { role: 'assistant', content: assistantText, isFollowUp: true },
     ])
   }, [])
 

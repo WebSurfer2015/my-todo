@@ -20,6 +20,8 @@ export interface FallbackChatTurn {
   role: 'user' | 'assistant'
   content: string
   operations?: readonly unknown[]
+  /** Set by the client when it KNOWS the turn is a follow-up question. */
+  isFollowUp?: boolean
 }
 
 export interface FallbackCapture {
@@ -27,11 +29,11 @@ export interface FallbackCapture {
 }
 
 function isFollowUpQuestion(turn: FallbackChatTurn): boolean {
-  return (
-    turn.role === 'assistant' &&
-    !(turn.operations && turn.operations.length > 0) &&
-    turn.content.trimEnd().endsWith('?')
-  )
+  if (turn.role !== 'assistant') return false
+  // Prefer the explicit tag: the client's toQuestion() makes every no-op reply
+  // end in "?", so the text alone can't tell a statement from a question.
+  if (turn.isFollowUp !== undefined) return turn.isFollowUp
+  return !(turn.operations && turn.operations.length > 0) && turn.content.trimEnd().endsWith('?')
 }
 
 /** `history` = turns BEFORE `latest` (the message that couldn't be sent). */
@@ -39,8 +41,14 @@ export function buildFallbackCapture(
   history: readonly FallbackChatTurn[],
   latest: string,
 ): FallbackCapture {
-  const openTurns: string[] = [latest.trim()]
-  for (let i = history.length - 1; i >= 0; i--) {
+  const latestText = latest.trim()
+  const openTurns: string[] = [latestText]
+  // A retry of a failed send leaves the same unanswered user turn at the end
+  // of history — don't count it twice ("call mom — call mom").
+  let end = history.length
+  const tail = history[end - 1]
+  if (tail?.role === 'user' && tail.content.trim() === latestText) end--
+  for (let i = end - 1; i >= 0; i--) {
     const turn = history[i]
     if (turn.role === 'user') {
       const text = turn.content.trim()

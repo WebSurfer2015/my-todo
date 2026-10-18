@@ -43,6 +43,23 @@ describe('buildFallbackCapture', () => {
     expect(buildFallbackCapture(history, 'water the plants')).toEqual({ text: 'water the plants' })
   })
 
+  it('a retried failed send is not duplicated', () => {
+    const history = [user('call mom')] // failed attempt left unanswered
+    expect(buildFallbackCapture(history, 'call mom')).toEqual({ text: 'call mom' })
+    const midConvo = [user('call mom'), mochi('When?'), user('Friday')]
+    expect(buildFallbackCapture(midConvo, 'Friday')).toEqual({ text: 'call mom — Friday' })
+  })
+
+  it('an explicit isFollowUp tag beats the "?" heuristic', () => {
+    // toQuestion() turned a STATEMENT into "...?" — tagged false, so it closes the request.
+    const statement = { role: 'assistant' as const, content: "You've got 2 things due today?", isFollowUp: false }
+    expect(buildFallbackCapture([user("what's due today?"), statement], 'add call mom')).toEqual({
+      text: 'add call mom',
+    })
+    const question = { role: 'assistant' as const, content: 'Got it', isFollowUp: true }
+    expect(buildFallbackCapture([user('dentist'), question], 'Tuesday')).toEqual({ text: 'dentist — Tuesday' })
+  })
+
   it('skips blank turns', () => {
     const history = [user('pay rent'), mochi('Due when?'), user('   ')]
     expect(buildFallbackCapture(history, '1st')).toEqual({ text: 'pay rent — 1st' })
