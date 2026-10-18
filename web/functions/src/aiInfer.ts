@@ -27,6 +27,7 @@ import { defineSecret } from 'firebase-functions/params'
 import * as admin from 'firebase-admin'
 import Anthropic from '@anthropic-ai/sdk'
 import { reserveDailyCall } from './quota'
+import { neutralizeEnvelopeTags } from './chatMessages'
 
 import {
   BREAKDOWN_SYSTEM,
@@ -91,6 +92,9 @@ interface ModeConfig {
   validateInput: (raw: unknown) => unknown
   buildUserBlock: (input: unknown) => string
   parseOutput: (text: string) => unknown
+  /** Envelope the user block is wrapped in — MUST match the tag the mode's
+   * system prompt tells the model to treat as untrusted data. */
+  envelope?: 'todo' | 'grocery'
 }
 
 // --- Mode registry --------------------------------------------------------
@@ -116,6 +120,7 @@ export const MODES: Record<Mode, ModeConfig> = {
     maxTokens: 240,
     system: CLASSIFY_DEPT_SYSTEM,
     validateInput: validateClassifyDeptInput,
+    envelope: 'grocery',
     buildUserBlock: (input) => buildClassifyDeptUserBlock(input as ClassifyDeptInput),
     parseOutput: parseClassifyDeptOutput,
   },
@@ -140,6 +145,7 @@ export const MODES: Record<Mode, ModeConfig> = {
     maxTokens: 512, // ~25 tokens per UUID; 300 truncated at ~11 matches → parse fail → "no match". 512 = the per-mode cost guard (~19 matches). TODO: return item indexes, not UUIDs
     system: LINK_STORE_SYSTEM,
     validateInput: validateLinkStoreInput,
+    envelope: 'grocery',
     buildUserBlock: (input) => buildLinkStoreUserBlock(input as LinkStoreInput),
     parseOutput: parseLinkStoreOutput,
   },
@@ -232,6 +238,7 @@ export const aiInfer = onCall(
     await reserveDailyCall(request.auth.uid, 'AI')
 
     const userBlock = config.buildUserBlock(input as never)
+    const tag = config.envelope ?? 'todo'
     // Post-process hook: only classify-grocery-dept and
     // link-store-to-items need one today. Logic lives in the per-mode
     // files for testability.
@@ -281,7 +288,7 @@ export const aiInfer = onCall(
         messages: [
           {
             role: 'user',
-            content: `<todo>\n${userBlock}\n</todo>`,
+            content: `<${tag}>\n${neutralizeEnvelopeTags(userBlock)}\n</${tag}>`,
           },
         ],
       })

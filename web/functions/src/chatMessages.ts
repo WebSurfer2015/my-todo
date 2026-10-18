@@ -17,6 +17,16 @@ export interface ChatMessage {
   content: string
 }
 
+/** Our own prompt-envelope tags. User-written text (turns, to-do/category/
+ * store names) must never contain them, or it could close the envelope early
+ * and smuggle text outside the "untrusted data" boundary. */
+const ENVELOPE_TAG_RE = /<\/?\s*(user_request|context|todo|grocery)\s*>/gi
+
+/** Strip our envelope tags from user-supplied text before it is wrapped. */
+export function neutralizeEnvelopeTags(text: string): string {
+  return text.replace(ENVELOPE_TAG_RE, '')
+}
+
 export const MAX_TURNS = 40
 export const MAX_TURN_CHARS = 2000
 
@@ -37,8 +47,10 @@ export function normalizeChatMessages(messages: unknown, turn: unknown): ChatMes
     if (firstUser === -1) return []
     return window
       .slice(firstUser)
-      .map((m) => ({ role: m.role, content: m.content.slice(0, MAX_TURN_CHARS) }))
+      .map((m) => ({ role: m.role, content: neutralizeEnvelopeTags(m.content).slice(0, MAX_TURN_CHARS) }))
   }
-  if (typeof turn === 'string') return [{ role: 'user', content: turn.slice(0, MAX_TURN_CHARS) }]
+  if (typeof turn === 'string') {
+    return [{ role: 'user', content: neutralizeEnvelopeTags(turn).slice(0, MAX_TURN_CHARS) }]
+  }
   return []
 }

@@ -63,7 +63,15 @@ export async function collectRollupUsers(): Promise<RollupUser[]> {
 
 export const metricsRollup = onSchedule(
   // Once a day; never needs (or should have) two overlapping runs.
-  { schedule: '15 6 * * *', timeZone: 'Etc/UTC', region: 'us-central1', maxInstances: 1 },
+  // timeoutSeconds: sequential listUsers + getAll over every user — give it
+  // headroom past the 60s default as the user count grows.
+  {
+    schedule: '15 6 * * *',
+    timeZone: 'Etc/UTC',
+    region: 'us-central1',
+    maxInstances: 1,
+    timeoutSeconds: 300,
+  },
   async () => {
     const day = addDays(new Date().toISOString().slice(0, 10), -1)
     const metrics = rollUpMetrics(await collectRollupUsers(), day)
