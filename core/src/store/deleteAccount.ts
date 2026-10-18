@@ -8,10 +8,9 @@ import { StorageAdapter, USER_STATE_KEYS } from '../ports/persistence'
  * false`), so the client-side `wipeCloudData` below is denied and swallowed
  * in production; it is kept only as a harmless best-effort.
  *
- * Account deletion in the order Firestore security rules REQUIRE: wipe the
- * user's cloud data FIRST, THEN delete the auth user. The order is
- * load-bearing — once the auth user is gone, the rules reject every write,
- * so a delete-user-first ordering would orphan the user's docs forever.
+ * Order kept for the best-effort client wipe: wipe first, THEN delete the auth
+ * user (once the auth user is gone the rules reject every client request).
+ * Erasure no longer depends on it — onUserDeleted erases users/{uid} either way.
  *
  * Platform-agnostic: inject the two effects. Cloud wipe is best-effort
  * (a missing doc / transient blip must not block the auth delete). If

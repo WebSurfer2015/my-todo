@@ -39,13 +39,12 @@ const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY')
 // reasoning. Haiku does NOT accept the `effort` param — don't add it.
 const MODEL = 'claude-haiku-4-5'
 
-// Tiered-pricing allowance enforcement. OFF until the purchase flow
-// (Phase 2) ships — otherwise every free user is throttled to the basic
-// allowance with no way to upgrade. When true, agentChat reserves against
-// the per-tier monthly + daily Mochi budget; when false, it uses the flat
-// shared daily cap. ON at monetization launch: Premium/Max now get their
-// larger monthly allowance, Free is held to its per-tier cap, and exceeding
-// it draws down the pay-as-you-go top-up balance.
+// Tier-aware fair-use enforcement. When true, agentChat reserves against the
+// per-tier INVISIBLE ceiling (monthly + daily sub-cap; Premium gets the larger
+// one); over it the server returns RESOURCE_EXHAUSTED and the client falls
+// back to manual capture (no wall, no paywall, no top-ups — de-metered model,
+// docs/MOCHI-MONETIZATION-MODEL.md). When false, everyone shares the flat
+// 150/day cap (reserveDailyCall).
 //
 // OFF again 2026-10-18 (first deploy of the dev functions to production): IAP
 // can't be sold until the Apple org conversion + Paid Apps Agreement, so the

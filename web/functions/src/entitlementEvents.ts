@@ -3,7 +3,7 @@
  *
  * Extracted out of revenuecat.ts (which pulls in firebase-admin / Firestore so
  * can't be unit-tested without booting the SDK) so the money-critical
- * tier-mapping — upgrade/downgrade ordering, top-up crediting, expiration,
+ * tier-mapping — upgrade/downgrade ordering, expiration,
  * grace — is covered by tests. The webhook keeps the I/O: auth, the
  * idempotency dedupe, the Firestore transaction, and the multi-account TRANSFER
  * fan-out.

@@ -20,7 +20,6 @@ import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
 import { useSheetDismiss, sheetGrabZone } from '../../ui/useSheetDismiss'
 import {
   PRODUCT_IDS,
-  TIER_LIMITS,
   tierAtLeast,
   isUpgrade,
   type Tier,
@@ -54,19 +53,21 @@ const PLANS: PlanView[] = [
       'Unlimited to-dos & groceries',
       'Reminders, recurring & before-due',
       'Sage & Sky themes',
-      `${TIER_LIMITS.free.mochiDaily} Mochi AI requests / day`,
+      'Mochi AI help, every day',
     ],
   },
   {
-    // Two real Premium differentiators, both delivered: a larger monthly pool
-    // of Mochi AI requests (enforced server-side — MOCHI_TIER_ENFORCEMENT is on,
-    // so Premium genuinely gets more AI than Free) and the full theme set (Free
-    // is limited to Sage + Sky; gated client-side via FREE_THEMES).
+    // Two real Premium differentiators: a larger Mochi AI allowance (enforced
+    // server-side once MOCHI_TIER_ENFORCEMENT is switched on at the v2.0.0
+    // release — roadmap 5.6) and the full theme set (Free is limited to Sage +
+    // Sky; gated client-side via FREE_THEMES). De-metered copy: NO request
+    // counts on the paywall (docs/MOCHI-MONETIZATION-MODEL.md — the ceiling is
+    // invisible), and not "unlimited" either — Premium's cap is a real 250/mo.
     tier: 'premium',
     name: 'Premium',
     bullets: [
       'Everything in Free',
-      `${TIER_LIMITS.premium.mochiMonthly} Mochi AI requests / month`,
+      'More Mochi AI help for busy weeks',
       'All 6 color themes',
     ],
     product: { monthly: PRODUCT_IDS.premiumMonthly, annual: PRODUCT_IDS.premiumAnnual },
@@ -132,8 +133,8 @@ export default function PaywallSheet({
 
   // Which plan's CTA gets the prominent filled style. Lead with Premium when
   // it's a purchasable upgrade (the "Popular" choice for new subscribers);
-  // otherwise lead with the lowest available upgrade — e.g. Max for an existing
-  // Premium subscriber — so the only actionable CTA isn't styled as
+  // otherwise lead with the lowest available upgrade (e.g. annual for an
+  // existing monthly subscriber) — so the only actionable CTA isn't styled as
   // subordinate.
   const purchasableTiers = PLANS.filter((p) => {
     const pid = p.product?.[billing]
@@ -260,8 +261,7 @@ export default function PaywallSheet({
                     : pkg?.product.priceString ?? plan.fallbackPrice?.[billing] ?? ''
                 // Buyable only when this product is a strict UPGRADE from the
                 // current plan (tier + billing), with a package available.
-                // Premium-monthly → premium-annual / max-monthly / max-annual;
-                // premium-annual → max-monthly / max-annual; etc. Downgrades
+                // Premium-monthly → premium-annual. Downgrades
                 // and same-product re-buys are never offered (cancel to Free is
                 // the Manage-subscription link below).
                 const purchasable = !!productId && isUpgrade(currentProductId, productId) && !!pkg
@@ -288,12 +288,11 @@ export default function PaywallSheet({
                       ? `Start ${intro.periodNumberOfUnits * 7}-day free trial`
                       : `Start ${intro.periodNumberOfUnits}-${trialUnit.toLowerCase()} free trial`
                     : null
-                // Premium is the headline paid plan, badged "Popular". (Max is
-                // not currently offered; if it returns, give it its own badge.)
+                // Premium is the only paid plan (Free + Premium), badged "Popular".
                 const badgeLabel = plan.tier === 'premium' ? 'Popular' : null
                 // The filled CTA follows the lead upgrade — so the user's only
-                // actionable button is always the prominent one (e.g. Max for an
-                // existing Premium subscriber), never a subordinate outline.
+                // actionable button is always the prominent one (e.g. annual for
+                // an existing monthly subscriber), never a subordinate outline.
                 const filledCta = plan.tier === leadTier
                 const status = isCurrent
                   ? 'Current plan'

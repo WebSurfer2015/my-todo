@@ -1,6 +1,7 @@
 /**
- * Comp allowlist — these people get the full (Max) AI experience without
- * paying. Matched by profile FIRST + LAST name, case-insensitive.
+ * Comp allowlist — these people skip the tier allowance without paying (still
+ * under the flat fair-use cap). Matched by profile FIRST + LAST name,
+ * case-insensitive.
  *
  * Pure module (no firebase-admin), so it's unit-testable and importable
  * without quota.ts's admin side effects.

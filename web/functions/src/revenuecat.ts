@@ -49,7 +49,7 @@ async function authUserExists(uid: string): Promise<boolean> {
   }
 }
 
-/** Write a single user's entitlement tier (preserving their top-up balance). */
+/** Write a single user's entitlement tier + validity (read-modify-write in a transaction). */
 async function setUserTier(
   uid: string,
   tier: Tier,
@@ -149,7 +149,7 @@ export const revenuecatWebhook = onRequest(
       }
       const ref = db.doc(`users/${uid}/state/entitlement`)
       // Per-user processed-event log so an at-least-once redelivery (RC retries
-      // on any non-2xx/timeout) can't re-credit a consumable top-up.
+      // on any non-2xx/timeout) can't apply the same lifecycle event twice.
       const dedupeRef = db.doc(`users/${uid}/state/rcWebhook`)
       await db.runTransaction(async (tx) => {
         const snap = await tx.get(ref)
@@ -161,8 +161,8 @@ export const revenuecatWebhook = onRequest(
         if (eventId) {
           tx.set(dedupeRef, { ids: [...processed, eventId].slice(-50) }, { merge: true })
         }
-        // All single-user tier logic (upgrade/downgrade ordering, top-up
-        // credit, expiration, grace) lives in the pure applyEntitlementEvent so
+        // All single-user tier logic (upgrade/downgrade ordering,
+        // expiration, grace) lives in the pure applyEntitlementEvent so
         // it's unit-tested. It returns `current` unchanged for no-op events, so
         // we only write when something actually changed.
         const next = applyEntitlementEvent(current, event)

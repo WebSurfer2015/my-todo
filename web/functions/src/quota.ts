@@ -109,11 +109,10 @@ export async function reserveDailyCall(uid: string, label = 'AI'): Promise<void>
 // ─── Tier-aware Mochi allowance ────────────────────────────────────────
 //
 // Used by agentChat when MOCHI_TIER_ENFORCEMENT is on (see index.ts).
-// Enforces the per-tier monthly allowance (+ purchased top-ups) AND a
-// per-day sub-cap, reading the user's validated entitlement from
-// Firestore. Until the purchase flow (Phase 2) writes an entitlement, all
-// users resolve to basic — which is why enforcement ships behind a flag,
-// off until monetization launches.
+// Enforces the per-tier invisible fair-use ceiling (monthly + daily sub-cap),
+// reading the user's validated entitlement from Firestore. Until the purchase
+// flow writes an entitlement, everyone resolves to free — which is why
+// enforcement ships behind a flag, off until IAP is live (roadmap 5.6).
 
 interface MochiUsageData {
   /** UTC month, YYYY-MM. */
@@ -180,8 +179,9 @@ function parseMochiUsage(raw: unknown): MochiUsageData | null {
 
 // ─── Comp allowlist (full AI, no payment) ──────────────────────────
 //
-// A small set of people (family) get the full Max experience without paying —
-// see compUsers.ts for the list + the soft-comp caveat (names are editable).
+// A small set of people (family) skip the tier allowance without paying (still
+// under the flat fair-use cap) — see compUsers.ts for the list + the soft-comp
+// caveat (names are editable).
 
 /** Extract first/last name from a profile envelope (same {value:<json>}
  * shape as the other state docs). Empty strings on any parse failure. */
@@ -220,9 +220,9 @@ async function isCompUser(uid: string): Promise<boolean> {
 /**
  * Tier-aware reservation for ONE Mochi request. Throws
  * HttpsError('resource-exhausted') when the daily sub-cap or the monthly
- * budget (allowance + top-ups) is hit. Consumes a top-up only once the
- * base monthly allowance is spent. Two-doc transaction (usage +
- * entitlement) so the top-up decrement is atomic with the usage bump.
+ * fair-use ceiling is hit (the client then falls back gracefully). The
+ * entitlement is read in the same transaction as the usage bump so the tier
+ * and the count are consistent.
  *
  * Comp users (family allowlist) skip the TIER budget but still go through the
  * flat fair-use cap: comp matching is on user-editable profile names, so an
@@ -250,7 +250,7 @@ export async function reserveMochiRequest(uid: string): Promise<void> {
 
       // Pure decision (unit-tested in web/src/mochiReservation.test.ts) —
       // the Firestore writes/throw here are the only impure part.
-      const d = decideMochiReservation(tier, ent, usage, today, month)
+      const d = decideMochiReservation(tier, usage, today, month)
 
       if (!d.allow) {
         throw new HttpsError(
@@ -265,12 +265,6 @@ export async function reserveMochiRequest(uid: string): Promise<void> {
       if (d.nextUsage) {
         tx.set(usageRef, {
           value: JSON.stringify({ version: 1, data: d.nextUsage }),
-          updatedAt: now.getTime(),
-        })
-      }
-      if (d.nextEntitlement) {
-        tx.set(entRef, {
-          value: JSON.stringify({ version: 1, data: d.nextEntitlement }),
           updatedAt: now.getTime(),
         })
       }

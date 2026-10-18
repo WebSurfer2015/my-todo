@@ -174,10 +174,7 @@ export function onCustomerInfoChange(cb: (info: CustomerInfo) => void): () => vo
  * Derives the tier from the ACTIVE SUBSCRIPTION PRODUCT (via tierForProduct),
  * not the entitlement identifier — the purchased product id is unambiguous,
  * whereas a RevenueCat entitlement can be named anything. Falls back to a
- * tier-named entitlement identifier only if no product matches.
- *
- * (Top-up balance is NOT here — consumables aren't entitlements; it lives in
- * the Firestore entitlement doc written by the webhook.) */
+ * tier-named entitlement identifier only if no product matches. */
 export function tierFromCustomerInfo(info: CustomerInfo | null): Tier {
   if (!info) return 'free'
   let best: Tier = 'free'

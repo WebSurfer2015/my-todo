@@ -61,19 +61,17 @@ describe('subscription validity (effectiveTier)', () => {
 
 describe('Free — invisible 3/day fair-use ceiling, then graceful fallback', () => {
   it('allows the first request and counts day + month', () => {
-    const d = decideMochiReservation('free', ent(), null, TODAY, MONTH)
+    const d = decideMochiReservation('free', null, TODAY, MONTH)
     expect(d.allow).toBe(true)
     expect(d.nextUsage).toEqual({ month: MONTH, monthCalls: 1, date: TODAY, dayCalls: 1 })
-    expect(d.nextEntitlement).toBeNull()
   })
   it('signals fallback on the 4th request the same day with a "daily" reason', () => {
-    const d = decideMochiReservation('free', ent(), usage({ dayCalls: 3, monthCalls: 3 }), TODAY, MONTH)
+    const d = decideMochiReservation('free', usage({ dayCalls: 3, monthCalls: 3 }), TODAY, MONTH)
     expect(d.allow).toBe(false)
     expect(d.reason).toBe('daily')
-    expect(d.nextEntitlement).toBeNull()
   })
   it('resets the daily count on a new day (yesterday\'s usage ignored)', () => {
-    const d = decideMochiReservation('free', ent(), usage({ date: '2026-06-26', dayCalls: 3, monthCalls: 3 }), TODAY, MONTH)
+    const d = decideMochiReservation('free', usage({ date: '2026-06-26', dayCalls: 3, monthCalls: 3 }), TODAY, MONTH)
     expect(d.allow).toBe(true)
     expect(d.nextUsage).toEqual({ month: MONTH, monthCalls: 4, date: TODAY, dayCalls: 1 })
   })
@@ -81,18 +79,18 @@ describe('Free — invisible 3/day fair-use ceiling, then graceful fallback', ()
 
 describe('Premium — no daily sub-cap, invisible monthly fair-use ceiling', () => {
   it('allows a heavy single day (no daily cap binds before monthly)', () => {
-    const d = decideMochiReservation('premium', ent({ tier: 'premium' }), usage({ dayCalls: 200, monthCalls: 200 }), TODAY, MONTH)
+    const d = decideMochiReservation('premium', usage({ dayCalls: 200, monthCalls: 200 }), TODAY, MONTH)
     expect(d.allow).toBe(true)
   })
   it('signals fallback at the monthly ceiling with a "monthly" reason', () => {
     const at = TIER_LIMITS.premium.mochiMonthly
-    const d = decideMochiReservation('premium', ent({ tier: 'premium' }), usage({ dayCalls: at, monthCalls: at }), TODAY, MONTH)
+    const d = decideMochiReservation('premium', usage({ dayCalls: at, monthCalls: at }), TODAY, MONTH)
     expect(d.allow).toBe(false)
     expect(d.reason).toBe('monthly')
   })
   it('resets the monthly count on a new month', () => {
     const at = TIER_LIMITS.premium.mochiMonthly
-    const d = decideMochiReservation('premium', ent({ tier: 'premium' }), usage({ month: '2026-05', monthCalls: at, dayCalls: 0 }), TODAY, MONTH)
+    const d = decideMochiReservation('premium', usage({ month: '2026-05', monthCalls: at, dayCalls: 0 }), TODAY, MONTH)
     expect(d.allow).toBe(true)
     expect(d.nextUsage?.monthCalls).toBe(1)
   })

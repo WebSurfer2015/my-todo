@@ -43,7 +43,7 @@ import PaywallSheet from '../features/membership/PaywallSheet'
  * the server's rules). Hosts the paywall sheet so any screen can call
  * `openPaywall(reason)`.
  *
- * Everything degrades to `basic` when RevenueCat isn't configured, so the
+ * Everything degrades to `free` when RevenueCat isn't configured, so the
  * app behaves exactly as before launch.
  */
 
@@ -83,8 +83,8 @@ function parseEnvelope<T>(raw: unknown): T | null {
 }
 
 // The auto-renewable subscription products we actually SELL — used to query
-// trial / intro eligibility in one call. Max isn't offered (see PaywallSheet),
-// so we don't query eligibility for it; re-add the max ids here if it returns.
+// trial / intro eligibility in one call (Free + Premium only — the Max tier
+// was removed in the de-meter).
 const SUB_PRODUCT_IDS = [PRODUCT_IDS.premiumMonthly, PRODUCT_IDS.premiumAnnual]
 
 export function PurchasesProvider({ children }: { children: React.ReactNode }) {
