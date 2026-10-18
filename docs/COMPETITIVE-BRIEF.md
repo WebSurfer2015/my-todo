@@ -100,8 +100,67 @@ SSRN 4262991.
 
 ---
 
-## Gap-fill (pending)
-*A focused follow-up research pass is in flight covering: (1) Amazing Marvin +
-Structured positioning/pricing/reception, and (2) beachhead CAC/ASO economics —
-which of ADHD adults / anxious professionals / students is cheapest to reach via
-organic/community/ASO. Findings to be appended here.*
+## Gap-fill (round 2) — competitors + beachhead
+Second verified pass (108 agents, 25 sources, 20 confirmed / 5 refuted).
+
+### Amazing Marvin — premium ADHD power-user tool
+- **Positioning:** "The Customizable Task Manager for ADHD"; App Store title
+  "Amazing Marvin: ADHD Planner." Built by an ADHD founder; named ADHD features
+  (Procrastination Wizard, focus timers, brain dump). Maximally customizable
+  (50+/300+ strategies), steep learning curve.
+- **Pricing:** $11.99/mo, $96/yr ($8/mo annual, 33% off), 14-day trial (no
+  card), **no free plan.** A ~$300 lifetime is third-party-reported but absent
+  from the current pricing page (treat as discontinued/uncertain).
+- **Read:** proves ND power users pay a premium ($96/yr ≈ 5× Sagely) — but it's
+  the *opposite* of calm (complexity-maximalist). Not Sagely's lane; useful as a
+  price ceiling and a "what overwhelmed users flee from" contrast.
+
+### Structured — mass-market visual planner, ADHD-leaning
+- **Positioning:** "Built for ADHD minds, busy professionals, and students";
+  "ADHD-friendly daily planning that actually sticks." Visual timeline
+  day-planner selling "time-blindness" relief. ADHD is the **lead** segment
+  within a broader audience — i.e. already running Sagely's proposed dual
+  positioning, at scale.
+- **Pricing:** freemium (generous free tier) + Pro $6.99/mo, $29.99/yr, $99.99
+  lifetime (US, Sept 2026); regional variance.
+- **Traction:** 4.8/5, ~168K ratings, ~1.5M active users, Editors' Choice (iOS).
+- **Read:** strongest evidence that "lead-with-ADHD, broaden to general" works at
+  mass scale — and a direct, well-resourced competitor.
+
+### The niche is CROWDED, not open
+Beyond Tiimo/Goblin: Structured (~1.5M users), Amazing Marvin (premium),
+**neurolist** ("neurodivergent task splitter," AI planner, 100K+ downloads,
+~4.8/5 from ~910 ratings), ADHD Organizer: MindPilot. Incumbents cluster at two
+poles: **(a) visual / time-blocking** (Tiimo, Structured) and **(b) AI
+task-splitting** (neurolist, Goblin, Marvin's wizard). Sagely would enter late
+and under-resourced against Apple's App of the Year (Tiimo: 4M+ downloads), a
+1.5M-user Editors' Choice (Structured), and a free beloved tool (Goblin).
+
+### Beachhead: ADHD adults — strongest-evidenced, with a caveat
+- **Market:** ~15.5M US adults with a current ADHD diagnosis (6.0%), ~half
+  diagnosed as adults (CDC MMWR, Oct 2024).
+- **WTP:** Tiimo 50K+ paying (3-of-4 ND); Marvin sustains $96/yr; Structured
+  $29.99/yr at scale.
+- **Low-CAC organic channels (inferred, not benchmarked):** Reddit r/ADHD
+  word-of-mouth demonstrably drives app discovery (Goblin grew this way);
+  TikTok #ADHD ~10.6B views.
+- ⚠️ **Honest gap:** evidence substantiated ADHD adults heavily; "anxious
+  professionals" and "students who freeze" were NOT separately evidenced. No
+  hard CAC $ figures surfaced; ASO keyword-competition data not obtained. So
+  "ADHD adults cheapest/most reachable" rests on evidence *volume*, not
+  head-to-head data.
+
+### Sharpened recommendation: pick the UNOWNED wedge
+ADHD adults is the right beachhead, but "ADHD planner" is crowded and the
+incumbents own **visual time-structure** and **AI task-breakdown** (the two
+things Sagely is NOT distinctively better at). The **open wedge is emotional
+safety** — anti-scorekeeping, shame-free, "carried over" not "late,"
+reversibility, Mochi's warmth. Nobody is leading with *"a to-do app that doesn't
+make you feel like a failure."* That maps to the **anxious / overwhelmed slice
+of ADHD & AuDHD** (rejection-sensitivity–adjacent), not the "I need to see my
+time" slice.
+
+**Net:** beachhead = ADHD adults who feel *shame/anxiety* about their to-do
+lists; wedge = **emotional safety**, explicitly NOT visual planning or AI
+breakdown (both owned). Price toward $29.99/yr (Structured's anchor), not the
+current $19.99.
