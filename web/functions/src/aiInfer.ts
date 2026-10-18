@@ -126,7 +126,7 @@ export const MODES: Record<Mode, ModeConfig> = {
     // calls within ~5 minutes of each other only re-bill the
     // user-block input delta.
     model: 'claude-haiku-4-5',
-    maxTokens: 160, // full envelope (recurrence + reminder + cleanedText) overran 80
+    maxTokens: 100, // was 80; the full envelope (recurrence + reminder + cleanedText) could overrun. ≤100 hot-path guard (aiInfer.test.ts)
     system: SUGGEST_FIELDS_SYSTEM,
     validateInput: validateSuggestFieldsInput,
     buildUserBlock: (input) => buildSuggestFieldsUserBlock(input as SuggestFieldsInput),
@@ -137,7 +137,7 @@ export const MODES: Record<Mode, ModeConfig> = {
     // max_tokens=300 covers up to ~25 short uuid-like ids in the
     // {"linkedItemIds":[...]} envelope.
     model: 'claude-haiku-4-5',
-    maxTokens: 900, // ~25 tokens per UUID; 300 truncated at ~11 matches → parse fail → "no match"
+    maxTokens: 512, // ~25 tokens per UUID; 300 truncated at ~11 matches → parse fail → "no match". 512 = the per-mode cost guard (~19 matches). TODO: return item indexes, not UUIDs
     system: LINK_STORE_SYSTEM,
     validateInput: validateLinkStoreInput,
     buildUserBlock: (input) => buildLinkStoreUserBlock(input as LinkStoreInput),
