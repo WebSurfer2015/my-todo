@@ -65,6 +65,17 @@ export interface AuthApi {
 
 const AuthContext = createContext<AuthApi>(null!);
 
+/**
+ * Clear local persisted user state so the next user signing in on this device
+ * doesn't see leftover data, and so migrateLocalToCloud can't push prior-user
+ * data into a brand-new user's empty Firestore doc. Keyed off USER_STATE_KEYS
+ * so it can't drift from what the app persists (groceries/groceryGroups were
+ * once missing → cross-account bleed). Best-effort — never blocks auth.
+ */
+async function clearLocalUserData(): Promise<void> {
+  await AsyncStorage.multiRemove([...USER_STATE_KEYS]).catch(() => {});
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -291,22 +302,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await fbSignOut(auth);
-    // Clear local persisted state so the next user signing in on this
-    // device doesn't see leftover data, and so migrateLocalToCloud can't
-    // push prior-user data into a brand-new user's empty Firestore doc.
-    // MUST cover every key migrateLocalToCloud considers (groceries +
-    // groceryGroups were missing → grocery bleed across accounts on a
-    // shared device) plus todoReferences (autofill history).
-    await AsyncStorage.multiRemove([
-      "todos",
-      "categories",
-      "profile",
-      "groceries",
-      "groceryGroups",
-      "todoReferences",
-    ]).catch(() => {
-      // best-effort — don't block sign-out on a storage hiccup
-    });
+    await clearLocalUserData();
   }, []);
 
   const deleteAccount = useCallback(async () => {
@@ -329,7 +325,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             deleteDoc(doc(db, stateDocPath(uid, key))).catch(() => {}),
           ),
         ).then(() => {}),
-      deleteAuthUser: () => deleteUser(current),
+      // Same local cleanup as sign-out once the account is gone — otherwise the
+      // deleted user's local copy lingers and migrateLocalToCloud pushes it
+      // into the NEXT account created on this device.
+      deleteAuthUser: async () => {
+        await deleteUser(current);
+        await clearLocalUserData();
+      },
       onAuthError: (err) => {
         if ((err as { code?: string } | null)?.code === "auth/requires-recent-login") {
           throw new RecentLoginRequiredError();

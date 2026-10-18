@@ -111,6 +111,20 @@ async function signInWithOAuthProvider(provider: FbAuthProvider): Promise<void> 
   await seedProfileIfMissing(cred);
 }
 
+/**
+ * Clear local persisted user state so the next user signing in on this browser
+ * doesn't see leftover data, and so migrateLocalToCloud can't push prior-user
+ * data into a brand-new user's empty Firestore doc. Keyed off USER_STATE_KEYS
+ * so it can't drift from what the app persists. Best-effort.
+ */
+function clearLocalUserData(): void {
+  try {
+    USER_STATE_KEYS.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    // localStorage can throw in private browsing modes — best-effort.
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -190,16 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await fbSignOut(auth);
-    // Clear local persisted state so the next user signing in on this
-    // browser doesn't see leftover data, and so migrateLocalToCloud can't
-    // push prior-user todos into a brand-new user's empty Firestore doc.
-    try {
-      ["todos", "categories", "profile"].forEach((k) =>
-        localStorage.removeItem(k),
-      );
-    } catch {
-      // localStorage can throw in private browsing modes — best-effort.
-    }
+    clearLocalUserData();
   }, []);
 
   const deleteAccount = useCallback(async () => {
@@ -224,7 +229,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }),
           ),
         ).then(() => {}),
-      deleteAuthUser: () => deleteUser(current),
+      // Same local cleanup as sign-out once the account is gone, so the
+      // deleted user's local copy can't migrate into the next account.
+      deleteAuthUser: async () => {
+        await deleteUser(current);
+        clearLocalUserData();
+      },
       onAuthError: (err) => {
         if ((err as { code?: string } | null)?.code === "auth/requires-recent-login") {
           throw new RecentLoginRequiredError();
