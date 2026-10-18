@@ -40,6 +40,38 @@ devices.
 | Pebble counts (your daily completion tally) | To show your cairn progress | Firebase Firestore, your private subtree |
 | Optional avatar image you upload | To personalize the app | Firebase Firestore, your private subtree (compressed) |
 
+### When you use Mochi (the AI assistant)
+
+Mochi is optional. When you send Mochi a message, or ask it to fill in or
+break down a task, the app sends what that request needs to **Anthropic**
+(the company that makes the Claude AI model) through our server:
+
+| Data | Why | Where it goes |
+| --- | --- | --- |
+| Your message and the conversation so far | So Mochi can understand and reply | Sent to Anthropic for that request |
+| Today's date, your category names, the text of your to-dos (open and in the bin, up to 100), your shopping-list items and store names | So Mochi can find, add, or change the right items ("move the dentist to Friday") | Sent to Anthropic for that request |
+| How many Mochi requests you've made | To keep a fair-use limit on AI costs | Firebase Firestore, your private subtree |
+
+- We do **not** send your name, email, or account ID to Anthropic.
+- We do not save your Mochi conversations, on our servers or in your account.
+- Anthropic processes this data on our behalf under its commercial terms,
+  which do not allow it to train its models on this data. Anthropic may keep
+  it for a limited time for safety and abuse monitoring; see
+  [Anthropic's privacy policy](https://www.anthropic.com/legal/privacy).
+- If you never use Mochi, nothing is sent to Anthropic.
+
+### When you subscribe
+
+Purchases are handled by Apple through the App Store. **We never see your
+payment card or billing details.** We use **RevenueCat** to manage
+subscriptions:
+
+| Data | Why | Where it's stored |
+| --- | --- | --- |
+| Your account ID (a random identifier, not your email) | To link your subscription to your account across devices | RevenueCat |
+| Purchase and subscription status (plan, start/renewal/expiry dates, trial, refunds), as reported by Apple | To unlock Premium and keep it in sync | RevenueCat, plus your plan and expiry date in Firebase Firestore, your private subtree |
+| Basic device and app info (app version, OS, country/currency for pricing) | To show the correct price and handle the purchase | RevenueCat |
+
 ### Simple usage dates
 
 | Data | Why | Where it's stored |
@@ -73,7 +105,8 @@ to-dos or any text you've written.
 - We do not share, sell, or rent your data to anyone.
 - We do not have a marketing email list. You will not receive promotional
   email from us.
-- We do not use your data to train AI models.
+- We do not use your data to train AI models, and neither does Anthropic
+  (see "When you use Mochi" above).
 - We do not collect your location.
 - We do not collect contacts, photos, calendars, or anything from elsewhere
   on your device.
@@ -85,7 +118,9 @@ to-dos or any text you've written.
 Your data is stored in Google's Firebase platform (Firebase Authentication
 + Firestore + Crashlytics). Firebase is operated by Google LLC and is
 covered by [Google's privacy policy](https://policies.google.com/privacy).
-Firebase servers are located primarily in the United States.
+Firebase servers are located primarily in the United States. Mochi requests
+are processed by Anthropic and subscription records by RevenueCat, both in the
+United States.
 
 **Access is restricted to you.** Firestore security rules (visible in this
 project's source repository) enforce that only a user signed in with a
@@ -114,6 +149,11 @@ Profile → Privacy → "Delete account" wipes everything:
 
 This is irreversible. There is no 30-day grace period for account deletion
 (unlike the in-app 30-day bin for individual to-dos).
+
+**Deleting your account does not cancel a subscription.** Cancel it first in
+iOS Settings → your name → Subscriptions. Apple and RevenueCat keep records
+of past purchases as required for billing, tax, and refunds, under their own
+privacy policies.
 
 ### Sign out
 
@@ -165,10 +205,13 @@ Sagely uses these third-party services to deliver the app:
 | Firebase Authentication (Google LLC) | Verifies your sign-in | https://policies.google.com/privacy |
 | Cloud Firestore (Google LLC) | Stores your to-dos and settings | https://policies.google.com/privacy |
 | Firebase Crashlytics (Google LLC) | Collects crash reports | https://policies.google.com/privacy |
+| Cloud Functions for Firebase (Google LLC) | Runs our server code (Mochi requests, subscription updates) | https://policies.google.com/privacy |
+| Anthropic, PBC | Powers Mochi, the optional AI assistant | https://www.anthropic.com/legal/privacy |
+| RevenueCat, Inc. | Manages subscriptions and purchase status | https://www.revenuecat.com/privacy |
 | Apple Sign In (Apple Inc.) | Optional sign-in provider | https://www.apple.com/legal/privacy/en-ww/ |
 | Google Sign-In (Google LLC) | Optional sign-in provider | https://policies.google.com/privacy |
 | Expo Application Services (Expo, Inc.) | Builds the app + delivers over-the-air updates | https://expo.dev/privacy |
-| Apple App Store (Apple Inc.) | Distributes the app to you | https://www.apple.com/legal/privacy/en-ww/ |
+| Apple App Store (Apple Inc.) | Distributes the app and processes in-app purchases | https://www.apple.com/legal/privacy/en-ww/ |
 
 ---
 
