@@ -251,6 +251,23 @@ export interface Profile {
    */
   recurringV2?: boolean
   /**
+   * Privacy-preserving measurement signals (see docs/MEASUREMENT-PLAN.md).
+   * First-party, per-user, aggregate-only in use — NOT behavioral tracking and
+   * NOT sent to any third-party analytics SDK. Stored on the profile so they
+   * sync across devices and so cohorts can be computed from data we already
+   * hold, without an event stream.
+   *
+   *  - createdAt:      ISO timestamp, set ONCE by the client the first time a
+   *                    profile is written if absent (account-age / signup cohort).
+   *  - lastActiveDate: local 'YYYY-MM-DD', updated by the client on app open
+   *                    (retention / reactivation-after-lapse).
+   *  - activatedAt:    ISO timestamp, set ONCE when the user completes their
+   *                    first task (activation = created + completed something).
+   */
+  createdAt?: string
+  lastActiveDate?: string
+  activatedAt?: string
+  /**
    * Ordered, unified list of Dashboard cards spanning BOTH Todos pinned
    * filter sets and Shopping pinned stores/depts — the single source of
    * truth for the Dashboard pinned-card row and its drag order. Built once
@@ -451,7 +468,24 @@ export function migrateProfile(raw: unknown): Profile {
         : undefined,
     pinnedGroceryDepts: migrateGroceryStores(p.pinnedGroceryDepts),
     recurringV2: p.recurringV2 === true ? true : undefined,
+    createdAt: migrateTimestamp(p.createdAt),
+    activatedAt: migrateTimestamp(p.activatedAt),
+    lastActiveDate: migrateLocalDay(p.lastActiveDate),
   }
+}
+
+/** ISO-ish timestamp validator for measurement fields: a non-empty string that
+ * starts with a YYYY-MM-DD date, length-capped. Defensive against junk cloud
+ * writes; we never parse these on the client, only aggregate them server-side. */
+function migrateTimestamp(raw: unknown): string | undefined {
+  return typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(raw) && raw.length <= 40
+    ? raw
+    : undefined
+}
+
+/** Local 'YYYY-MM-DD' day validator (same shape as quoteShuffle.date). */
+function migrateLocalDay(raw: unknown): string | undefined {
+  return typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : undefined
 }
 
 const MAX_GROCERY_STORES = 30

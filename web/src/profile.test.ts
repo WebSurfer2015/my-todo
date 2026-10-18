@@ -121,4 +121,30 @@ describe('migrateProfile', () => {
       expect(out.avatar.uri).toBe('data:image/png;base64,xxx')
     }
   })
+
+  it('keeps valid measurement signals (createdAt / activatedAt / lastActiveDate)', () => {
+    const out = migrateProfile({
+      name: 'Ying',
+      avatar: { kind: 'preset', key: 'mochi' },
+      createdAt: '2026-10-17T08:00:00.000Z',
+      activatedAt: '2026-10-17T09:30:00.000Z',
+      lastActiveDate: '2026-10-17',
+    })
+    expect(out.createdAt).toBe('2026-10-17T08:00:00.000Z')
+    expect(out.activatedAt).toBe('2026-10-17T09:30:00.000Z')
+    expect(out.lastActiveDate).toBe('2026-10-17')
+  })
+
+  it('drops malformed measurement signals (defensive against junk cloud writes)', () => {
+    const out = migrateProfile({
+      name: 'Ying',
+      avatar: { kind: 'preset', key: 'mochi' },
+      createdAt: 'not-a-date',
+      activatedAt: 123,
+      lastActiveDate: '10/17/2026',
+    })
+    expect(out.createdAt).toBeUndefined()
+    expect(out.activatedAt).toBeUndefined()
+    expect(out.lastActiveDate).toBeUndefined()
+  })
 })
