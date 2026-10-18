@@ -15,7 +15,7 @@ import { genUuid } from '../../../../../core/src/logic/utils'
 import { snapDueDateToRecurrence } from '../../../../../core/src/logic/derive'
 import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
 import { useLang } from '../../../app/LangContext'
-import { useTheme, ThemeColors } from '../../../app/theme'
+import { useTheme } from '../../../app/theme'
 import { formatDisplayDate, formatRecurrence, fullDateLabel, isoDate } from '../../../core-bindings/utils'
 import {
   todayLocal,
@@ -33,7 +33,6 @@ import { useTodoFieldSuggestions, TodoFieldSuggestPills } from '../TodoFieldSugg
 import { ensurePermission } from '../../../adapters/notifications'
 import ReminderSheet from '../ReminderSheet'
 import type { Reminder } from '../../../core-bindings/types'
-import { getReminders } from '../../../../../core/src/logic/derive'
 import {
   useSuggestSteps,
   SuggestStepsTrigger,

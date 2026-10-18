@@ -3,8 +3,6 @@ import {
   REMINDER_ID_PREFIX,
   MAX_FIRES_PER_TODO,
   reminderIdFor,
-  todoIdFromReminderId,
-  fireIndexFromReminderId,
 } from './reminderId'
 
 /**

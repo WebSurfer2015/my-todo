@@ -96,9 +96,6 @@ export default function SettingsSheet({
   const themeLabel = themeName.charAt(0).toUpperCase() + themeName.slice(1);
   const sw = themeSwatch(themeName, scheme);
 
-  const animationOn = profile.completionAnimation !== false;
-  const soundOn = profile.completionSound !== false;
-  const reduceMotionOn = profile.reduceMotion === true;
   // Tri-state with on-by-default: undefined or true → on; only false is off.
   const agentOn = profile.agentEnabled !== false;
 

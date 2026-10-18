@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Animated, Image, StyleSheet, Easing, View } from 'react-native'
+import { Animated, Image, StyleSheet, Easing } from 'react-native'
 import { useTheme } from './theme'
 
 /**

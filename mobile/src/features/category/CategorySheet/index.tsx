@@ -28,17 +28,13 @@ import {
   Priority,
   StatusFilter,
   categoryFilter,
-  categoryIdFromFilter,
-  isCategoryFilter,
-  isPriorityFilter,
   priorityFilter,
-  priorityFromFilter,
 } from "../../../core-bindings/types";
 import CategoryIcon from "../../../ui/CategoryIcon";
 import StatusIcon, { statusColor } from "../../../ui/StatusIcon";
 import PriorityBars from "../../../ui/PriorityBars";
 import { useLang } from "../../../app/LangContext";
-import { useTheme, ThemeColors } from "../../../app/theme";
+import { useTheme } from "../../../app/theme";
 
 export interface StatusEntry {
   id: StatusFilter;
@@ -124,12 +120,10 @@ type Mode =
  */
 export default function CategorySheet({
   visible,
-  currentFilter,
   selectedFilters,
   onToggleFilter,
   onClearFilters,
   pinnedFilters,
-  onSelectFilter,
   onPinFilter,
   categories,
   taskCounts,
@@ -240,12 +234,6 @@ export default function CategorySheet({
     setMode({ kind: "editCategory", id: null });
   }
 
-  function startEditCategory(c: CategoryDef) {
-    setName(categoryLabel(c, t));
-    setColor(c.color);
-    setIcon(c.icon);
-    setMode({ kind: "editCategory", id: c.id });
-  }
 
   // Backdrop / Android-back. From the add/edit FORM, return to the list
   // instead of tearing down the whole sheet (which silently dropped the

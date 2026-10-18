@@ -7,13 +7,12 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  StyleSheet,
   Platform,
   KeyboardAvoidingView,
   Alert,
 } from 'react-native'
 import { useSheetDismiss, sheetGrabZone } from '../../../ui/useSheetDismiss'
-import Svg, { Path, Line, Polyline, Rect } from 'react-native-svg'
+import Svg, { Path, Rect } from 'react-native-svg'
 import { Bell, Repeat } from 'lucide-react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import AndroidDateFlow from '../../../ui/AndroidDateFlow'
@@ -195,17 +194,6 @@ function PlusIcon({ size = 18, color = '#fff' }: { size?: number; color?: string
   )
 }
 
-function TrashIcon({ size = 16, color = '#999' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Polyline points="3,6 5,6 21,6" />
-      <Path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
-      <Line x1="10" y1="11" x2="10" y2="17" />
-      <Line x1="14" y1="11" x2="14" y2="17" />
-      <Path d="M9 6V4a2 2 0 012-2h2a2 2 0 012 2v2" />
-    </Svg>
-  )
-}
 
 function CalendarIcon({ size = 18, color = '#8E8E93' }: { size?: number; color?: string }) {
   return (
@@ -352,7 +340,6 @@ export default function TaskDetailsSheet({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible])
-  const doneCount = subs.filter((s) => s.done).length
   const ai = useSuggestSteps({ parentTitle: todo.text, parentNotes: todo.notes })
 
   // The sheet is a Modal — it stays mounted across close→reopen
@@ -927,10 +914,6 @@ export default function TaskDetailsSheet({
     }
   }
 
-  const cat = todo.category ? categories.find((c) => c.id === todo.category) : undefined
-  const today = todayLocal()
-  const parentOverdue = !!todo.dueDate && !todo.done && todo.dueDate < today
-  const parentToday = !!todo.dueDate && !todo.done && todo.dueDate === today
 
   return (
     <Modal visible={visible} transparent statusBarTranslucent animationType="slide" onRequestClose={handleAndroidBack}>
@@ -1957,8 +1940,8 @@ export default function TaskDetailsSheet({
 // picker now lives in ../ReminderSheet/index.tsx.)
 
 function SubtaskCard({
-  parentId, subtask, styles, theme,
-  onToggle, onUpdateText, onRemove, onOpenPriority, onOpenDate, onTap,
+  parentId, subtask, styles, 
+  onToggle, onUpdateText, onTap,
 }: {
   parentId: string
   subtask: Subtask

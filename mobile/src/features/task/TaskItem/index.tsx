@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react'
-import { View, Text, TouchableOpacity, Platform, Modal, Alert, Pressable, ActionSheetIOS, Animated, Easing, Dimensions } from 'react-native'
+import { View, Text, TouchableOpacity, Platform, Modal, Alert, Pressable, Animated, Easing, Dimensions } from 'react-native'
 
 const SCREEN_WIDTH = Dimensions.get('window').width
 // Trigger-to-commit threshold for full-swipe gestures. Pairs with the
@@ -84,7 +84,7 @@ import { formatDisplayDate, fullDateLabel, todayLocal, isoDate } from '../../../
 import { sortedSubs } from '../../../../../core/src/logic/derive'
 import { useTriggerFirework } from '../../../app/FireworkOverlay'
 import { playCompletionChime } from '../../../adapters/completionChime'
-import { useTheme, ThemeColors } from '../../../app/theme'
+import { useTheme } from '../../../app/theme'
 import PriorityDot from '../../../ui/PriorityDot'
 import CheckGlyph from '../../../ui/CheckGlyph'
 import CategoryIcon from '../../../ui/CategoryIcon'
@@ -200,10 +200,10 @@ function TaskItem({
   categories, celebrate = true, playSound = true,
   subtaskVisibility = 'all',
   onToggle, onMoveToTrash, onSkip, onSkipSeries, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange, onApplySeriesSubtasks, onRestore, onPermanentDelete, onPermanentDeleteSeries,
-  onUpdatePriority, onUpdateDueDate, onSnooze, onLongPressDefer, onUpdateCategory, onUpdateText, onUpdateNotes, onUpdateRecurrence, onUpdateReminders,
+  onUpdatePriority, onUpdateDueDate, onLongPressDefer, onUpdateCategory, onUpdateText, onUpdateNotes, onUpdateRecurrence, onUpdateReminders,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
-  dateChipFormat = 'default', tapBehavior = 'toggle', subtaskDateFilter,
+  dateChipFormat = 'default', subtaskDateFilter,
   agentEnabled,
 }: Props) {
   const { t } = useLang()
@@ -226,7 +226,6 @@ function TaskItem({
   // Pending values while iOS date pickers are open. Commit happens on
   // Done; Clear empties the pending value but keeps the modal open.
   const [pendingDate, setPendingDate] = useState<string>('')
-  const [pendingSubDate, setPendingSubDate] = useState<string>('')
   const subs = todo.subtasks ?? []
   const hasSubs = subs.length > 0
   const subsDoneCount = subs.filter((s) => s.done).length
@@ -248,12 +247,6 @@ function TaskItem({
   // done, but at least one future sub remains open. Distinct from the
   // fully-done parent state. Drives a dimmed row on Home so the user
   // can tell at a glance which rows still have actionable steps today.
-  const partiallyDoneToday =
-    subtaskDateFilter === 'due-today' &&
-    hasSubs &&
-    visibleSubs.length > 0 &&
-    visibleSubs.every((s) => s.done) &&
-    !todo.done
   const [pickerDate, setPickerDate] = useState<Date>(() =>
     todo.dueDate ? new Date(`${todo.dueDate}T00:00:00`) : new Date()
   )
@@ -480,57 +473,6 @@ function TaskItem({
   // rows open the same bottom-sheet defer picker the group "Defer all
   // to" action uses (scoped to this single todo). Completed todos no-op
   // — they don't need to be deferred.
-  function handleLongPress() {
-    const cancel = t.cancel
-    if (inTrash || binFilterView) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {})
-      const opts = [t.restoreTask, t.deletePermanently, cancel]
-      if (Platform.OS === 'ios') {
-        ActionSheetIOS.showActionSheetWithOptions(
-          { options: opts, cancelButtonIndex: 2, destructiveButtonIndex: 1 },
-          (i) => { if (i === 0) handleRestore(); else if (i === 1) confirmPermanentDelete() },
-        )
-      } else {
-        Alert.alert(todo.text, undefined, [
-          { text: t.restoreTask, onPress: handleRestore },
-          { text: t.deletePermanently, style: 'destructive', onPress: confirmPermanentDelete },
-          { text: cancel, style: 'cancel' },
-        ])
-      }
-      return
-    }
-    // Already-completed todos don't need to be deferred — silent no-op.
-    if (todo.done) return
-    if (onLongPressDefer) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {})
-      onLongPressDefer(todo)
-      return
-    }
-    if (!onSnooze) return
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {})
-    const opts = [t.snooze.tomorrow, t.snooze.nextWeek, t.snooze.pickDate, cancel]
-    if (Platform.OS === 'ios') {
-      // iOS 17+ ActionSheetIOS sometimes hides the dedicated Cancel
-      // (cancelButtonIndex) row, expecting tap-outside-to-dismiss. We want
-      // an explicit, visible Cancel pill, so render it as a regular option
-      // and ignore the tap.
-      ActionSheetIOS.showActionSheetWithOptions(
-        { options: opts, title: t.snooze.title },
-        (i) => {
-          if (i === 0) onSnooze(todo.id, 1)
-          else if (i === 1) onSnooze(todo.id, 7)
-          else if (i === 2) openDatePicker()
-        },
-      )
-    } else {
-      Alert.alert(t.snooze.title, undefined, [
-        { text: t.snooze.tomorrow, onPress: () => onSnooze(todo.id, 1) },
-        { text: t.snooze.nextWeek, onPress: () => onSnooze(todo.id, 7) },
-        { text: t.snooze.pickDate, onPress: openDatePicker },
-        { text: cancel, style: 'cancel' },
-      ])
-    }
-  }
 
   // iOS conventions: leading swipe (rightward, reveals leftActions) → non-destructive.
   // Trailing swipe (leftward, reveals rightActions) → destructive.
@@ -630,12 +572,6 @@ function TaskItem({
     )
   }
 
-  function openDatePicker() {
-    if (inTrash) return
-    setPickerDate(todo.dueDate ? new Date(`${todo.dueDate}T00:00:00`) : new Date())
-    setPendingDate(todo.dueDate ?? '')
-    setDateOpen(true)
-  }
 
   function commitDate() {
     onUpdateDueDate(todo.id, pendingDate)

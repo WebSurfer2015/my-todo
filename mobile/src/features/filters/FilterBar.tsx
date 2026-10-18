@@ -85,13 +85,10 @@ interface ResolvedPill {
  * nor in the pinned list. Long-press any pill to pin/unpin.
  */
 export default function FilterBar({
-  filter,
   selectedFilters,
-  onToggleFilter,
   onSetFilters,
   onClearFilters,
   pinnedFilters,
-  onFilter,
   onPinFilter,
   onKeepAndClearFilter,
   onOpenSheet,
@@ -102,7 +99,6 @@ export default function FilterBar({
   byPriority,
   combinedCount = 0,
   groceriesActiveCount = 0,
-  groceriesEnabled = true,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()

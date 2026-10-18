@@ -14,7 +14,7 @@ import {
   Alert,
   useColorScheme,
 } from "react-native";
-import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ChevronRight, ChevronDown } from "lucide-react-native";
 import {
@@ -36,17 +36,14 @@ import Fab from "./src/app/Fab";
 import TaskItem from "./src/features/task/TaskItem";
 import Footer from "./src/app/Footer";
 import Avatar from "./src/ui/Avatar";
-import GroceryView from "./src/features/groceries/GroceryView";
 import SearchTopSheet from "./src/features/filters/SearchTopSheet";
 import SearchPill from "./src/features/filters/SearchPill";
 import DeferModal from "./src/features/task/DeferModal";
-import { SEED_GROCERY_STORES } from "./src/core-bindings/groceries";
 import type { Filter } from "./src/core-bindings/types";
 import { LangProvider, useLang } from "./src/app/LangContext";
 import { AuthProvider, useAuth } from "./src/app/AuthContext";
 import { NotifyProvider } from "./src/app/notify";
 import { ErrorBoundary } from "./src/app/ErrorBoundary";
-import { useTodoStore } from "./src/store/useTodoStore";
 import { buildDoneGroups, type TodoGroup, type DoneGroup } from "../core/src/logic/groups";
 import { useLinger } from "./src/features/task/useLinger";
 import { fullDateLabel } from "./src/core-bindings/utils";
@@ -83,11 +80,9 @@ type DoneSection = { key: string; group: DoneGroup; data: Todo[] };
 
 function TodosScreen() {
   const { t } = useLang();
-  const { user, loading: authLoading } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const store = useStore();
-  const safeArea = useSafeAreaInsets();
   // True only while the Todos tab is the active tab in the bottom
   // navigator. Used to gate the search top-sheet's <Modal> visibility
   // so it doesn't leak above Home / Groceries when the user switches
@@ -641,7 +636,7 @@ function TodosScreen() {
                 />
               ) : (
                 <View style={styles.groupCard}>
-                  {displayFiltered.map((td, i) => (
+                  {displayFiltered.map((td) => (
                     <View key={td.id} style={styles.taskCard}>
                       <TaskItem
                         todo={td}
@@ -771,7 +766,7 @@ function TodosScreen() {
                         if (!b.dueDate) return -1;
                         return a.dueDate.localeCompare(b.dueDate);
                       })
-                      .map((td, i) => (
+                      .map((td) => (
                         <View key={td.id} style={styles.taskCard}>
                           <TaskItem
                             todo={td}

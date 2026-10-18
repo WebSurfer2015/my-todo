@@ -26,7 +26,6 @@ import {
 import {
   FREE_ENTITLEMENT,
   PRODUCT_IDS,
-  TIER_LIMITS,
   TIER_ORDER,
   effectiveTier,
   type Entitlement,

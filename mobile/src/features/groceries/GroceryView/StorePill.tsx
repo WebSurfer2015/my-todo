@@ -30,7 +30,6 @@ export default function StorePill({
   active,
   pinned,
   deptIcon,
-  pinIconColor,
   onLayoutX,
   onPress,
   onLongPress,

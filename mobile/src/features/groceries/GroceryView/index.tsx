@@ -11,21 +11,19 @@
  * - Permanent delete is manual-only via the edit sheet.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Dimensions,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native'
-import { ChevronDown, ChevronRight, Pin } from 'lucide-react-native'
+import { ChevronDown, ChevronRight } from 'lucide-react-native'
 import { ActionSheetIOS, Alert } from 'react-native'
 import { GroceryItem, GroceryGroup, frequentGroceries } from '../../../core-bindings/groceries'
-import { useTheme, ThemeColors } from '../../../app/theme'
+import { useTheme } from '../../../app/theme'
 import GroceryEditSheet from '../GroceryEditSheet'
 import GroceryComposeSheet from '../GroceryComposeSheet'
 import StorePicker from '../StorePicker'
@@ -296,13 +294,6 @@ export default function GroceryView({
     return m
   }, [groceries])
 
-  const activeDeptGroup = effectiveDept
-    ? visibleGroups.find((g) => g.id === effectiveDept) ?? null
-    : null
-  const activeDeptCount = useMemo(() => {
-    if (!effectiveDept) return 0
-    return groceries.filter((g) => !g.checked && g.groupId === effectiveDept).length
-  }, [groceries, effectiveDept])
 
   // Group items by group id. Future bucket = checked items, regardless of group.
   const { byGroup, future } = useMemo(() => {
@@ -340,7 +331,6 @@ export default function GroceryView({
   )
 
 
-  const openStoreSwitcher = () => setStorePickerOpen(true)
 
   // Auto-scroll the pill row so the just-chosen filter is in view.
   // Mirrors the behavior in FilterBar: each pill reports its layout X

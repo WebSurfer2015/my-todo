@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, AppState } from "react-native";
+import { AppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Filter, ViewMode } from "../core-bindings/types";
 import {
@@ -24,7 +24,6 @@ import {
   SCHEMA_VERSION,
 } from "../../../core/src/ports/persistence";
 import { createTodoStore, migrateLocalToCloud, refreshUsageSignals } from "../../../core/src/store";
-import { serializeAny } from "../storage/envelope";
 import { DEFAULT_HOME_STAT_TILES } from "../../../core/src/logic/filters";
 import { todayLocal, genUuid } from "../../../core/src/logic/utils";
 import { dailyQuoteIndex, quoteAt } from "../../../core/src/data/quotes";
@@ -197,7 +196,6 @@ export function useTodoStore() {
     setTodos,
     todosLoaded,
     todoReferences,
-    setTodoReferences,
     selectedTrashIds,
     todosRef,
     toggle,

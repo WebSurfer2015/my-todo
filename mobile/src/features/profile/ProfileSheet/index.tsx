@@ -39,7 +39,7 @@ function normalizeAvatar(a: AvatarT | undefined | null): AvatarT {
 import Avatar from "../../../ui/Avatar";
 import { useLang } from "../../../app/LangContext";
 import { useAuth } from "../../../app/AuthContext";
-import { useTheme, ThemeColors } from "../../../app/theme";
+import { useTheme } from "../../../app/theme";
 
 import { makeStyles } from "./styles";
 

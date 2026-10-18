@@ -23,25 +23,20 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import { Alert } from 'react-native'
 import SheetShell from '../../ui/SheetShell'
-import { Check, Plus, Store as StoreIcon, Sparkles } from 'lucide-react-native'
+import { Plus, Store as StoreIcon, Sparkles } from 'lucide-react-native'
 import MochiThinking from '../mochi/MochiThinking'
 import * as Haptics from 'expo-haptics'
 import {
   GroceryGroup,
   GroceryItem,
   OTHERS_GROUP_ID,
-  resolveGroup,
   inferGroceryGroupLocal,
   groceryMatches,
 } from '../../core-bindings/groceries'
 import { classifyGroceryDept } from '../../adapters/aiInfer'
 import { useLang } from '../../app/LangContext'
 import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
-import GroceryIcon from './GroceryIcon'
-
-type SubView = 'main' | 'department' | 'store'
 
 interface Props {
   visible: boolean
@@ -103,7 +98,6 @@ export default function GroceryComposeSheet({
 
   const inputRef = useRef<TextInput>(null)
 
-  const [subView, setSubView] = useState<SubView>('main')
   const [text, setText] = useState('')
   const [groupId, setGroupId] = useState<string>(
     initialDepartmentId ?? OTHERS_GROUP_ID,
@@ -129,27 +123,18 @@ export default function GroceryComposeSheet({
   // Same idea for the store field: once the user picks one manually,
   // stop overriding it from AI/text inference.
   const userPickedStoreRef = useRef(false)
-  // AI-only suggestion surfaced as a pill above the field group.
-  // Today only used for NEW store proposals — new dept proposals are
-  // auto-created silently since the dept row is hidden in the UI.
-  const [newStoreProposal, setNewStoreProposal] = useState<string | null>(null)
   // True while a classify-grocery-dept call is in flight. Drives the
   // "Mochi is working…" status text in the input-accessory row so the
   // user knows why chips/dept might shift a moment after they finish
   // typing. Reset whenever the call settles, the sheet closes, or
   // the text falls below AI_MIN_CHARS.
   const [aiBusy, setAiBusy] = useState(false)
-  // Search/create text for the Store sub-view. Drives both the
-  // filter and the conditional "+ Create '<name>'" row at the
-  // bottom of the list. Cleared whenever we leave the sub-view.
-  const [storeSearch, setStoreSearch] = useState('')
 
   // Reset on open so the next launch starts clean. Preserve the
   // current group + store so a serial-add flow ("Add another") keeps
   // the user's working context.
   useEffect(() => {
     if (visible) {
-      setSubView('main')
       setText('')
       setGroupId(initialDepartmentId ?? OTHERS_GROUP_ID)
       // Seed the active store filter so adding from a filtered list keeps
@@ -157,30 +142,11 @@ export default function GroceryComposeSheet({
       setSelectedStores(initialStore ? [initialStore] : [])
       userPickedDeptRef.current = false
       userPickedStoreRef.current = false
-      setNewStoreProposal(null)
       setAiBusy(false)
-      setStoreSearch('')
       // Slight delay so the modal animation finishes before focusing.
       setTimeout(() => inputRef.current?.focus(), 120)
     }
   }, [visible, initialDepartmentId, initialStore])
-
-  // Clear the store search whenever we leave the store sub-view, so
-  // the next open starts at the full list rather than a stale filter.
-  useEffect(() => {
-    if (subView !== 'store') setStoreSearch('')
-  }, [subView])
-
-  // Auto-focus the store search input when the sub-view opens so the
-  // affordance is immediately obvious. Without this, users may not
-  // notice the inline search/create input above the list.
-  const storeSearchRef = useRef<TextInput>(null)
-  useEffect(() => {
-    if (subView === 'store') {
-      const t2 = setTimeout(() => storeSearchRef.current?.focus(), 150)
-      return () => clearTimeout(t2)
-    }
-  }, [subView])
 
   // Live local dept inference while typing — mirrors the local
   // heuristic that runs at add-time in useTodoStore.addGrocery, but
@@ -227,7 +193,7 @@ export default function GroceryComposeSheet({
     // from a deleted store doesn't sneak back in as a phantom chip.
     const valid = Array.from(matchedStores).filter((s) => stores.includes(s))
     if (valid.length === 0) return
-    setSelectedStores((prev) => {
+    setSelectedStores(() => {
       // Replace, so the chips reflect the historical truth rather
       // than appending to whatever the seeded initialStore left.
       // Order: keep the configured-stores order for visual stability.
@@ -270,7 +236,6 @@ export default function GroceryComposeSheet({
     const trimmed = text.trim()
     if (!agentEnabled || trimmed.length < AI_MIN_CHARS) {
       aiSeqRef.current += 1
-      setNewStoreProposal(null)
       setAiBusy(false)
       aiLastQueriedRef.current = ''
       return
@@ -320,7 +285,7 @@ export default function GroceryComposeSheet({
             if (newId) setGroupId(newId)
           }
         }
-        // Store hint: existing → silent setStore, new → pill.
+        // Store hint: if the AI matched one of the user's stores, select it.
         if (res.storeHint && !userPickedStoreRef.current) {
           const liveStores = storesRef.current
           const matching = liveStores.find(
@@ -331,14 +296,7 @@ export default function GroceryComposeSheet({
             setSelectedStores((prev) =>
               prev.includes(matching) ? prev : [...prev, matching],
             )
-            setNewStoreProposal(null)
-          } else if (res.storeHint.isNew && onCreateStore) {
-            setNewStoreProposal(res.storeHint.name)
-          } else {
-            setNewStoreProposal(null)
           }
-        } else {
-          setNewStoreProposal(null)
         }
         // Multi-store recommendation: MERGE recs into the current
         // selection (deduped) so AI can augment whatever the
@@ -374,33 +332,7 @@ export default function GroceryComposeSheet({
     }
   }, [text, agentEnabled, onCreateGroup, onCreateStore])
 
-  function confirmCreateStore(name: string) {
-    if (!onCreateStore) return
-    Alert.alert(
-      `Create new store '${name}'?`,
-      '',
-      [
-        { text: t.cancel, style: 'cancel', onPress: () => setNewStoreProposal(null) },
-        {
-          text: t.create,
-          onPress: () => {
-            onCreateStore(name)
-            setSelectedStores((prev) =>
-              prev.includes(name) ? prev : [...prev, name],
-            )
-            setNewStoreProposal(null)
-            Haptics.selectionAsync().catch(() => {})
-          },
-        },
-      ],
-    )
-  }
 
-  const activeGroup = resolveGroup(groupId, groups)
-  const visibleGroups = useMemo(
-    () => groups.filter((g) => !g.hidden),
-    [groups],
-  )
 
   // Partial-label match list. As the user types, surface grocery items
   // (current + past) whose LABEL contains the typed text so a known
@@ -831,21 +763,6 @@ function makeStyles(c: ThemeColors) {
       minHeight: 48,
     },
     subRowLabel: { flex: 1, fontSize: TYPE.bodyLg, color: c.label, fontWeight: '500' },
-    // Inline search input pinned at the top of the Store sub-view.
-    // Doubles as the buffer for the conditional "+ Create '<name>'"
-    // row that appears when no existing store matches.
-    storeSearchWrap: {
-      paddingHorizontal: SPACING.lg,
-      paddingVertical: SPACING.sm,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: c.gray3,
-      backgroundColor: c.surface,
-    },
-    storeSearchInput: {
-      fontSize: TYPE.bodyLg,
-      color: c.label,
-      paddingVertical: SPACING.sm,
-    },
     subRowCheckSpacer: { width: 18 },
   })
 }
