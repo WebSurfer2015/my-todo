@@ -11,7 +11,6 @@ export const BUILTIN_CATEGORY_IDS = new Set(['home', 'school', 'work', 'other'])
 
 /** Hard caps applied at hydration. Defensive against malicious cloud writes. */
 export const MAX_CATEGORY_LABEL_LEN = 64
-export const MAX_CATEGORIES_PER_USER = 200
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/
 
 /**

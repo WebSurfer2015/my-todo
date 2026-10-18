@@ -78,14 +78,6 @@ export const TYPE = {
   h1: 32,
 } as const
 
-/** Icon sizing + default stroke weight. */
-export const ICON = {
-  sm: 14,
-  md: 16,
-  lg: 20,
-  stroke: 2,
-} as const
-
 // --- Theme palettes (from the Sagely theme handoff) ----------------------
 //
 // Each named theme is one brand + one accent + a neutral system. The handoff

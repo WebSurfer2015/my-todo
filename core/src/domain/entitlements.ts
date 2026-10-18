@@ -11,9 +11,9 @@
  *   - free    — Mochi helps with one thing at a time (capture, break down a
  *               task). Backed by an INVISIBLE fair-use ceiling (below) with
  *               graceful local fallback — never a wall, never a meter.
- *   - premium — $4.99/mo · $29.99/yr. The "zoom-out": plan-my-week, bulk
- *               triage, proactive review (aiPlanning), plus all themes.
- *               Effectively unlimited everyday AI (high invisible ceiling).
+ *   - premium — $4.99/mo · $29.99/yr: a larger invisible AI ceiling plus all
+ *               themes. (Planned capability gates — plan-my-week, bulk
+ *               triage — aren't built; add a TIER_LIMITS flag when they are.)
  *
  * No top-ups, no usage meter, no "Max" tier (all removed in the de-meter).
  * The allowance NUMBERS below are the invisible fair-use ceilings — tune them
@@ -43,9 +43,6 @@ export interface TierLimits {
   mochiDaily: number
   /** Themes / icon customization. */
   themes: boolean
-  /** AI superpowers (proactive weekly planning, "review my week", bulk AI
-   * edits) — the Premium "zoom-out". */
-  aiPlanning: boolean
 }
 
 /**
@@ -65,7 +62,6 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     // Themes are free for everyone — every color theme is available on every
     // tier (no paywall gate on the theme picker).
     themes: true,
-    aiPlanning: false,
   },
   premium: {
     // Daily == monthly so the daily sub-cap never binds before the monthly
@@ -73,7 +69,6 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     mochiMonthly: 250,
     mochiDaily: 250,
     themes: true,
-    aiPlanning: true,
   },
 }
 
@@ -162,11 +157,6 @@ export function tierAtLeast(tier: Tier, min: Tier): boolean {
 // through it without first reconciling it with FREE_THEMES.
 export function canUseThemes(tier: Tier): boolean {
   return TIER_LIMITS[tier].themes
-}
-
-/** Premium "zoom-out" AI superpowers (plan-my-week, bulk triage, review). */
-export function canUseAiPlanning(tier: Tier): boolean {
-  return TIER_LIMITS[tier].aiPlanning
 }
 
 // AI allowance accounting is SERVER-ONLY (web/functions/src/quota.ts +

@@ -1,21 +1,6 @@
-/**
- * Tests for mobile/src/backgrounds.ts — hex math + lookups + Pair
- * builder used by the avatar-themed canvas.
- *
- * All pure functions; safe under the node-env Vitest runner mobile
- * uses (no React Native APIs touched).
- */
+/** Tests for mobile/src/ui/color.ts — the hex darken/lighten helpers. */
 import { describe, expect, it } from 'vitest'
-import {
-  lookupPair,
-  lookupPattern,
-  tonesFor,
-  pairFromAvatarBg,
-  darkenHex,
-  lightenHex,
-  PAIRS,
-  PATTERNS,
-} from '../ui/backgrounds'
+import { darkenHex, lightenHex } from '../ui/color'
 
 describe('darkenHex', () => {
   it('darkens white toward black proportionally', () => {
@@ -76,58 +61,5 @@ describe('lightenHex / darkenHex roundtrip stays in same hue family', () => {
     expect(Math.abs(r1 - r2)).toBeLessThan(10)
     expect(Math.abs(g1 - g2)).toBeLessThan(10)
     expect(Math.abs(b1 - b2)).toBeLessThan(10)
-  })
-})
-
-describe('lookupPair', () => {
-  it('returns the first pair when key is undefined', () => {
-    expect(lookupPair(undefined)).toBe(PAIRS[0])
-  })
-  it('returns the matching pair when key exists', () => {
-    const known = PAIRS[1]?.key
-    if (known) expect(lookupPair(known)).toBe(PAIRS[1])
-  })
-  it('falls back to the first pair for an unknown key', () => {
-    expect(lookupPair('does-not-exist')).toBe(PAIRS[0])
-  })
-})
-
-describe('lookupPattern', () => {
-  it('returns the first pattern when key is undefined', () => {
-    expect(lookupPattern(undefined)).toBe(PATTERNS[0])
-  })
-  it('falls back to the first pattern for an unknown key', () => {
-    expect(lookupPattern('does-not-exist')).toBe(PATTERNS[0])
-  })
-})
-
-describe('tonesFor', () => {
-  it('returns light tones for light scheme', () => {
-    const p = PAIRS[0]
-    expect(tonesFor(p, 'light')).toEqual(p.light)
-  })
-  it('returns dark tones for dark scheme', () => {
-    const p = PAIRS[0]
-    expect(tonesFor(p, 'dark')).toEqual(p.dark)
-  })
-})
-
-describe('pairFromAvatarBg', () => {
-  it('produces a Pair keyed by the avatar bg', () => {
-    const p = pairFromAvatarBg('#B3C4CC')
-    expect(p.key).toBe('avatar:#B3C4CC')
-    expect(p.label).toBe('Avatar')
-  })
-  it('light-mode light is a lightened variant of bg, deep is darker', () => {
-    const bg = '#B3C4CC'
-    const p = pairFromAvatarBg(bg)
-    expect(p.light.light).toBe(lightenHex(bg, 0.4))
-    expect(p.light.deep).toBe(darkenHex(bg, 0.12))
-  })
-  it('dark-mode light is a near-black darkened variant of bg', () => {
-    const bg = '#B3C4CC'
-    const p = pairFromAvatarBg(bg)
-    expect(p.dark.light).toBe(darkenHex(bg, 0.78))
-    expect(p.dark.deep).toBe(darkenHex(bg, 0.6))
   })
 })

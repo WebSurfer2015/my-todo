@@ -257,9 +257,3 @@ export function usePurchases(): PurchasesValue {
   if (!ctx) throw new Error('usePurchases must be used within PurchasesProvider')
   return ctx
 }
-
-/** Convenience: the live feature limits for the current tier. */
-export function useTierLimits() {
-  const { tier } = usePurchases()
-  return TIER_LIMITS[tier]
-}

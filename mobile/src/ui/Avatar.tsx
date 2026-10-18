@@ -2,7 +2,7 @@ import React from 'react'
 import { Image, Text, View, StyleSheet } from 'react-native'
 import { Avatar as AvatarT, findPreset } from '../core-bindings/profile'
 import { useTheme } from '../app/theme'
-import { darkenHex } from './backgrounds'
+import { darkenHex } from './color'
 
 /**
  * Platform-resolved bundled images for presets with `imageKey`. Use the

@@ -1,8 +1,6 @@
 import { StyleSheet } from 'react-native'
 import { type ThemeColors, SPACING, RADIUS, TYPE } from '../../../app/theme'
 
-export type ReminderSheetStyles = ReturnType<typeof makeStyles>
-
 export function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     /* Header: ‹ Back   Remind me   Clear all */

@@ -147,8 +147,8 @@ Profile → Privacy → "Delete account" wipes everything:
 
 - Your Firebase Authentication account
 - Everything stored under your account in Firestore: to-dos, categories,
-  shopping list, profile, Mochi usage counts, your subscription status, and
-  the device tokens used for notifications
+  shopping list, profile, usage dates, Mochi usage counts, and your
+  subscription status
 
 This is irreversible. There is no 30-day grace period for account deletion
 (unlike the in-app 30-day bin for individual to-dos).

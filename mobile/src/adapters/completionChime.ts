@@ -42,15 +42,6 @@ function ensureSound() {
   }
 }
 
-/** Warm the player up ahead of the first completion so it doesn't lag. */
-export function primeCompletionChime() {
-  try {
-    ensureSound()
-  } catch {
-    // ignore — playback path retries ensureSound() anyway.
-  }
-}
-
 /** Play the completion chime. Silent no-op if audio isn't available. */
 export function playCompletionChime() {
   try {

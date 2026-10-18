@@ -11,7 +11,7 @@ import {
   type Entitlement,
   type Tier,
 } from './entitlements'
-import { canUseThemes, canUseAiPlanning } from '../../core/src/domain/entitlements'
+import { canUseThemes } from '../../core/src/domain/entitlements'
 
 /**
  * End-to-end-ish verification of the de-metered money logic, with no
@@ -100,9 +100,6 @@ describe('feature gates match the offerings', () => {
   const tiers: Tier[] = ['free', 'premium']
   it('themes are free for everyone', () => {
     expect(tiers.map(canUseThemes)).toEqual([true, true])
-  })
-  it('AI planning (the Premium "zoom-out") is premium-only', () => {
-    expect(tiers.map(canUseAiPlanning)).toEqual([false, true])
   })
 })
 

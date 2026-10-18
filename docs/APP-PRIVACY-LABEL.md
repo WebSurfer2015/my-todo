@@ -35,7 +35,7 @@ Privacy Policy URL on the same page: `https://websurfer2015.github.io/my-todo/PR
 | **User Content → Photos or Videos** | Optional avatar, picked from the library or camera, compressed and stored in Firestore | **Yes** | No | App Functionality |
 | **User Content → Other User Content** | To-dos, steps, categories, shopping list, stores, and Mochi messages (sent to **Anthropic** to process each Mochi request) | **Yes** | No | App Functionality |
 | **Identifiers → User ID** | Firebase uid; also sent to **RevenueCat** as the subscriber id | **Yes** | No | App Functionality |
-| **Identifiers → Device ID** | **RevenueCat sends the IDFV** (identifier for vendor) on every request — verified in the SDK (`HTTPClient.swift`: `X-Apple-Device-Identifier`); also the Expo push token stored at `users/{uid}/devices/*`. No IDFA (no AdSupport / ATT) | **Yes** | No | App Functionality |
+| **Identifiers → Device ID** | **RevenueCat sends the IDFV** (identifier for vendor) on every request — verified in the SDK (`HTTPClient.swift`: `X-Apple-Device-Identifier`). No IDFA (no AdSupport / ATT). No push token is collected — all notifications are local | **Yes** | No | App Functionality |
 | **Purchases → Purchase History** | Subscription status/plan/expiry via **RevenueCat** (Apple processes payment — we never see card details) | **Yes** | No | App Functionality |
 | **Usage Data → Product Interaction** | Three dates — first use, last app open/foreground, first completed to-do — in `users/{uid}/state/signals`, counted **in aggregate only** by `metricsRollup` | **Yes** (stored under the account) | No | **Analytics** |
 | **Diagnostics → Crash Data** | Firebase Crashlytics native crashes | **No** (Crashlytics never gets a user id) | No | App Functionality |
@@ -56,8 +56,8 @@ Credit Info · Other Financial Info.
   the honest answer even though only aggregate counts are ever read
   (`metrics/{day}`, no uids). Don't tick "Product Personalization".
 - **Device ID is required, not optional:** RevenueCat's iOS SDK sends the IDFV
-  with every request (verified 2026-10-18 in `Pods/RevenueCat`). The push
-  token is covered by the same row. Keep it ticked.
+  with every request (verified 2026-10-18 in `Pods/RevenueCat`). Keep it
+  ticked. (No push token is collected — notifications are all local.)
 - **Third-party SDKs count as "you":** Anthropic (via our Cloud Function),
   RevenueCat, Firebase (Auth/Firestore/Crashlytics), Google Sign-In, Sign in
   with Apple — all covered by the rows above.

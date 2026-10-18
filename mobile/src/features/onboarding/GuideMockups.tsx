@@ -190,10 +190,6 @@ export function IconStore() {
   const theme = useTheme()
   return <ShoppingBag size={11} color={theme.primary} strokeWidth={2.2} />
 }
-export function IconSparkles() {
-  const theme = useTheme()
-  return <Sparkles size={11} color={theme.primary} strokeWidth={2.4} />
-}
 
 // ── Styles ─────────────────────────────────────────────────────────────
 

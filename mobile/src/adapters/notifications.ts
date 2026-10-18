@@ -1,9 +1,4 @@
 import * as Notifications from 'expo-notifications'
-import * as Crypto from 'expo-crypto'
-import { Platform } from 'react-native'
-import AsyncStorage from '@react-native-async-storage/async-storage'
-import { doc, setDoc, deleteDoc } from '@react-native-firebase/firestore'
-import { db } from './firebase'
 import {
   REMINDER_ID_PREFIX,
   MAX_FIRES_PER_TODO,
@@ -21,19 +16,11 @@ import {
  *   - One persistent identifier so re-scheduling cleanly replaces the old one
  *     instead of stacking duplicates
  *
- * Remote push foundation (Phase 0): registerForRemotePushAsync grabs an
- * Expo push token for this device and writes it to users/{uid}/devices/{id}.
- * Cloud Functions read those rows to address pushes per-uid. Caller is
- * responsible for the pre-prompt UX and ensurePermission flow.
+ * All notifications are LOCAL (scheduled on-device). There is no server push:
+ * no push token is requested or stored.
  */
 
 const NOTIFICATION_ID = 'sagely-daily-checkin'
-const DEVICE_ID_KEY = 'sagely-device-id'
-
-// EAS project id, also in app.json > extra.eas.projectId. Hardcoded
-// here so push-token acquisition doesn't depend on expo-constants
-// (which isn't installed) — the value is already committed to source.
-const EAS_PROJECT_ID = 'c564f1cd-f80d-49e5-9520-fc5191f74c09'
 
 // Configure the foreground-notification handler at module load. Without
 // this, a push arriving while the app is open is silently dropped on
@@ -113,70 +100,6 @@ export async function cancelDailyCheckin(): Promise<void> {
   await Notifications.cancelScheduledNotificationAsync(NOTIFICATION_ID).catch(() => {})
 }
 
-/**
- * Stable per-install device identifier. Generated once on first access
- * and persisted to AsyncStorage; a reinstall produces a new id (which
- * is the correct behavior — the OS reissues the push token too).
- */
-async function getDeviceId(): Promise<string> {
-  const existing = await AsyncStorage.getItem(DEVICE_ID_KEY)
-  if (existing) return existing
-  const id = Crypto.randomUUID()
-  await AsyncStorage.setItem(DEVICE_ID_KEY, id)
-  return id
-}
-
-/**
- * Acquires an Expo push token for this device and writes it to
- * users/{uid}/devices/{deviceId}. Requires that notification permission
- * has already been granted (caller owns the pre-prompt + ensurePermission
- * flow). Returns the token on success or null when registration can't
- * complete — no permission, simulator without push support, or the
- * Expo Push relay being unreachable.
- *
- * Safe to call repeatedly: overwriting the same doc is a cheap
- * Firestore update and refreshes updatedAt so the server can tell
- * which devices are stale.
- */
-export async function registerForRemotePushAsync(uid: string): Promise<string | null> {
-  const settings = await Notifications.getPermissionsAsync()
-  if (settings.status !== 'granted') return null
-  try {
-    const result = await Notifications.getExpoPushTokenAsync({ projectId: EAS_PROJECT_ID })
-    const token = result.data
-    const deviceId = await getDeviceId()
-    const ref = doc(db, `users/${uid}/devices/${deviceId}`)
-    await setDoc(ref, {
-      token,
-      platform: Platform.OS,
-      updatedAt: Date.now(),
-    })
-    return token
-  } catch (err) {
-    // Token acquisition fails on the simulator and during Expo Push
-    // outages. Swallow so the local-notification path still works;
-    // caller can retry on next sign-in.
-    console.warn('registerForRemotePushAsync failed', err)
-    return null
-  }
-}
-
-/**
- * Deletes this device's row from users/{uid}/devices on sign-out so
- * server-driven pushes don't land on a device that's now signed in
- * as someone else. The push token itself isn't revoked with Expo —
- * but without the Firestore mapping the server has no way to address it.
- */
-export async function unregisterDevice(uid: string): Promise<void> {
-  try {
-    const deviceId = await getDeviceId()
-    const ref = doc(db, `users/${uid}/devices/${deviceId}`)
-    await deleteDoc(ref)
-  } catch (err) {
-    console.warn('unregisterDevice failed', err)
-  }
-}
-
 // ── Per-todo local reminders ───────────────────────────────────────────────
 //
 // Each todo carries `reminders[]` — an array of independent
@@ -201,15 +124,6 @@ export async function unregisterDevice(uid: string): Promise<void> {
 interface ScheduledFire {
   index: number
   at: Date
-}
-
-/** Parse an ISO datetime to a Date. Returns null if unparseable or
- * already past — past-dated fires are dropped silently. */
-function parseFutureDate(at: string): Date | null {
-  const d = new Date(at)
-  if (Number.isNaN(d.valueOf())) return null
-  if (d.valueOf() <= Date.now() + 500) return null
-  return d
 }
 
 /** Compute the fire schedule for one reminder. One-shot → [at] when
@@ -366,28 +280,4 @@ export async function syncTodoReminders(todos: TodoForReminder[]): Promise<void>
     )
   }
   await Promise.all(schedules)
-}
-
-/** Best-effort cancel for every fire scheduled under a single todo
- * id. Useful for paths that delete a todo permanently and want
- * immediate feedback without waiting for the next syncTodoReminders
- * diff. Reads the OS schedule and cancels each `todo:<id>:N`. */
-export async function cancelTodoReminder(todoId: string): Promise<void> {
-  let scheduled: Notifications.NotificationRequest[]
-  try {
-    scheduled = await Notifications.getAllScheduledNotificationsAsync()
-  } catch {
-    return
-  }
-  const targets = scheduled.filter(
-    (req) => todoIdFromReminderId(req.identifier) === todoId,
-  )
-  await Promise.all(
-    targets.map((req) =>
-      Notifications.cancelScheduledNotificationAsync(req.identifier).catch(() => {}),
-    ),
-  )
-  // Silence unused-warning for fireIndex helper — kept exported for
-  // future test/debug paths that introspect the schedule.
-  void fireIndexFromReminderId
 }

@@ -19,7 +19,6 @@ export interface TierLimits {
   mochiMonthly: number
   mochiDaily: number
   themes: boolean
-  aiPlanning: boolean
 }
 
 /** KEEP IN SYNC with core/src/domain/entitlements.ts → TIER_LIMITS. */
@@ -30,13 +29,11 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     // Themes are free for everyone — every color theme is available on every
     // tier (no paywall gate on the theme picker). Mirrors core.
     themes: true,
-    aiPlanning: false,
   },
   premium: {
     mochiMonthly: 250,
     mochiDaily: 250,
     themes: true,
-    aiPlanning: true,
   },
 }
 
@@ -70,9 +67,4 @@ export const FREE_ENTITLEMENT: Entitlement = {
 export function effectiveTier(ent: Entitlement, nowMs: number): Tier {
   if (ent.tier === 'free' || !ent.validUntil) return 'free'
   return Date.parse(ent.validUntil) > nowMs ? ent.tier : 'free'
-}
-
-/** Monthly budget = the tier's invisible fair-use ceiling. */
-export function mochiMonthlyBudget(tier: Tier): number {
-  return TIER_LIMITS[tier].mochiMonthly
 }

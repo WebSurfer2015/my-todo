@@ -42,7 +42,6 @@ import { buildGroups } from "../src/logic/groups";
 import {
   migrateCategory,
   MAX_CATEGORY_LABEL_LEN,
-  MAX_CATEGORIES_PER_USER,
 } from "../src/data/categories";
 import {
   migrateProfile,

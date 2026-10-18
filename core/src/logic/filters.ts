@@ -15,7 +15,6 @@
  * (Filter is a string subtype, so callers can pass `Filter[]` directly).
  */
 import type { Filter, ViewMode } from '../domain/types'
-import type { DashboardTile } from '../data/profile'
 
 /** Soft cap on pinned filter pills in the FilterBar quick-access row. */
 export const PIN_LIMIT = 12
@@ -119,12 +118,5 @@ export function toggleStatTile(
  * "all", status view on "open". */
 export function defaultFilterForView(v: ViewMode): Filter {
   return v === 'category' ? 'all' : 'open'
-}
-
-/** Stable key for a dashboard tile (order-insensitive for filter sets). */
-export function dashboardTileKey(t: DashboardTile): string {
-  if (t.kind === 'todoFilter') return `f:${filterSetKey(t.set)}`
-  if (t.kind === 'groceryStore') return `s:${t.store}`
-  return `d:${t.dept}`
 }
 

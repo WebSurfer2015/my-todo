@@ -264,7 +264,7 @@ overlay (survives row unmount) · shared EmptyStateCard.
       `RNFBAnalytics` pod after `expo prebuild`)
 - [ ] Delete account with a **throwaway** account → Firestore `users/{uid}`
       tree fully gone (todos, profile, groceries, `entitlement`, `mochiUsage`,
-      `agentUsage`, `devices/*`), auth user gone, can't sign back in — then
+      `agentUsage`, `signals`), auth user gone, can't sign back in — then
       confirm nothing is left behind (always remove test data)
 - [ ] Subscribed throwaway account: delete account → a later RevenueCat event
       does **not** recreate `users/{uid}`; deleting doesn't cancel the sub
