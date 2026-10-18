@@ -12,7 +12,11 @@ Own the empty column: **a warm companion that makes task overwhelm feel
 survivable.** Nobody in the to-do field sells *emotional safety* — Sagely's
 anti-scorekeeping DNA + Mochi are the assets to do it with.
 
-## ⚠️ The one decision only you can make (sign-off needed)
+## ✅ DECIDED (2026-10-17): ADHD-forward (stance A)
+Subtitle locked to **`Calm ADHD to-dos & planner`**; keywords and community
+marketing lead ADHD; the brand tagline stays universal/warm ("a busy mind"). The
+two stances below are kept for the record.
+
 **How explicitly do we name ADHD?** Two coherent stances:
 - **(A) ADHD-forward (recommended):** say "ADHD" in the App Store subtitle,
   keywords, and community marketing — but keep *in-app* language universal
@@ -73,7 +77,7 @@ Alternates if "busy" ever reads too productivity-flavored: `…for a full plate`
 line verbatim):** the tagline has no functional keywords, and the subtitle is
 prime ASO real estate, so echo the warmth but carry keywords + the ADHD magnet
 (per §0-A):
-- `Calm ADHD to-dos & planner` (26) — max ASO (adhd / to-dos / planner) ← recommended if ADHD-forward
+- `Calm ADHD to-dos & planner` (26) — max ASO (adhd / to-dos / planner) ← **CHOSEN**
 - `Gentle to-dos for a busy mind` (29) — echoes the tagline; "to-dos" keyword, no ADHD
 - `Gentle to-dos for ADHD minds` (28) — middle
 
