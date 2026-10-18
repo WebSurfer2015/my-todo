@@ -119,7 +119,7 @@ than letting it all pile up at 5.4:
 | 5.1 | Rewrite **ASC metadata to the new direction, all 6 locales** (English done in `POSITIONING.md`; zh/es/fr/de/ja + Play still need it — do NOT machine-translate). Update the privacy label in the same pass (C.5) | M | 🔴 |
 | 5.2 | **Screenshots lead with feeling** (Mochi, "carried over," calm palette), not feature lists | M | 🔴 |
 | 5.3 | Create final **IAP products** in ASC (`premium.monthly` / `premium.annual` only) | S | 🔴 |
-| 5.4 | Run the release test matrix on device (`RELEASE-v1.7.0-TEST-MATRIX.md` — carries over to **v2.0.0**; refresh it for the de-meter: no top-ups/Max) incl. de-metered paywall via StoreKit config | M | 🔴 |
+| 5.4 | Run **`RELEASE-v2.0.0-TEST-MATRIX.md`** on device (refreshed 2026-10-18: de-meter, fallback, privacy/deletion, §0 server pre-flight) incl. de-metered paywall via StoreKit config | M | 🔴 — §0 pre-flight + most device checks are runnable now |
 | 5.5 | Promote `dev`→`main` (**after C.1 is deployed**), tag **`v2.0.0`**, `eas build --auto-submit` | S | 🔴 — `mobile/app.json` already at 2.0.0 |
 
 ---

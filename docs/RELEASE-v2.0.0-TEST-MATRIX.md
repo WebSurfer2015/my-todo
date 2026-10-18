@@ -1,20 +1,42 @@
-# Release v1.7.0 — Feature & Test Matrix
+# Release v2.0.0 — Feature & Test Matrix
 
 Page-by-page inventory of supported features, what automated tests cover, and
-the on-device checklist to run before submitting v1.7.0. Built from the code on
-`dev` as of the 1.7.0 version bump.
+the on-device checklist to run before submitting **v2.0.0** (the repositioning:
+planner → quiet companion, de-metered Mochi, Free + Premium only). Renamed from
+the v1.7.0 matrix and refreshed 2026-10-18 against the code on `dev`.
 
-> **Release status:** code is on `dev`, green (web 805 ✓, mobile 65 ✓, core
-> typecheck ✓). Promotion to `main` + `eas build --auto-submit` are **held**
-> until the Apple account's Individual→Organization conversion completes and the
-> **Paid Applications Agreement** is re-signed under the org (IAP can't be sold
-> until then). Everything below can be tested on-device in the meantime —
-> the paywall via the local StoreKit config (`fb94490f`).
+> **Release status:** code is on `dev`, green (web 822 ✓, mobile 64 ✓,
+> functions 62 ✓, typechecks ✓, arch gate ✓). Promotion to `main` + `eas build
+> --auto-submit` are **held** until the Apple account's Individual→Organization
+> conversion completes and the **Paid Applications Agreement** is re-signed
+> under the org (IAP can't be sold until then). **Also required before
+> promoting:** deploy Cloud Functions (see §0) — the privacy policy goes live
+> on promote and describes server behavior that ships only with that deploy.
+> Everything below can be tested on-device in the meantime — the paywall via
+> the local StoreKit config (`mobile/storekit/Sagely.storekit`).
 
 **Legend:** ✅ logic covered by automated unit tests · 🤖 also has a Maestro E2E
 smoke flow · ✋ **needs manual on-device testing**
 
 ---
+
+## 0. Pre-flight (server + store) — before the device pass
+- [ ] `cd web && firebase deploy --only functions` — ships `onUserDeleted`
+      (account-deletion erasure), `metricsRollup` (daily aggregate counts), the
+      RevenueCat deleted-user guard, and the de-metered quota copy. Enable the
+      **Cloud Scheduler API** if the deploy asks.
+- [ ] Firebase Console → Functions lists `onUserDeleted`, `metricsRollup`,
+      `agentChat`, `aiInfer`, `revenuecatWebhook`
+- [ ] Next day: Firestore → `metrics/{yesterday}` exists and holds **counts
+      only** (no uids)
+- [ ] One-off orphan cleanup run for accounts deleted before `onUserDeleted`
+      (roadmap C.2) — dry run + backup first
+- [ ] ASC: exactly **2** IAP products, Ready to Submit, attached to 2.0.0
+- [ ] ASC: App Privacy label updated — User Content (Mochi → Anthropic),
+      Purchases + User ID (RevenueCat), Usage Data / Product Interaction (the 3
+      profile dates); "not used for tracking" (roadmap C.5)
+- [ ] After promote: `websurfer2015.github.io/my-todo/PRIVACY.html` shows the
+      Oct 2026 policy (Pages serves `main:/docs`)
 
 ## Page-by-page
 
@@ -63,7 +85,8 @@ this before" auto-fill · AI field-suggest pills (category/new-category/
 priority/date/recurrence/reminder) · Category/Priority/Complete-by/Repeat/
 Repeat-ends/Remind-me rows · Suggest-steps AI · manual add step.
 - ✅ newTodo, field-suggestion hook (hasExtractableSignal, debounce, stale
-  guard), suggest-steps hook, AI op validation
+  guard), suggest-steps hook (incl. the gentle "Mochi's resting" note over the
+  fair-use ceiling — never the server text), AI op validation
 - 🤖 FAB → Compose → add → row appears
 - ✋ AI pill round-trip (live Cloud Function), date + notification-permission prompts
 
@@ -112,26 +135,31 @@ color+icon grid).
   last), reference migration, priority/status reorder/hide
 - ✋ drag-reorder gesture, color/icon grid, delete-reassign Alert
 
-### 11. Ask Mochi (AI chatbot)
-Multi-turn chat · example/frequent chips · usage meter (→ paywall when out) ·
-proposal cards (Confirm/Review&add/Delete, optimistic add + Undo, editable
+### 11. Ask Mochi (AI chatbot) — de-metered
+Multi-turn chat · example/frequent chips · **no usage meter, never a paywall**:
+over the invisible fair-use ceiling (client check OR server
+`RESOURCE_EXHAUSTED`) the words go to manual Compose — mid-conversation the open
+request is rebuilt ("call mom — Friday") · proposal cards (Confirm/Review&add/Delete, optimistic add + Undo, editable
 capture chips, PickTodos checklist with Skip/Defer/Delete, series-delete fork) ·
 all writes via store mutations + destructive confirms.
 - ✅ agent tool registry + validateOperation (every op), server parsers
-  (breakdown/classify-dept/suggest-fields/link-store), client↔server parity, AI cost guards
+  (breakdown/classify-dept/suggest-fields/link-store), client↔server parity, AI
+  cost guards, fallback-capture rebuild (`buildFallbackCapture`)
 - ✋ entire live chat UX (CF latency, "thinking"), proposal-card apply flows,
-  quota-exhaustion → paywall
+  over-ceiling fallback → Compose (client + server paths)
 
 ### 12. Paywall / Membership ⚠️ *(IAP blocked until org conversion; test locally via StoreKit config)*
-Annual/Monthly toggle · Free/Premium cards · Subscribe/Upgrade/Start-trial →
-StoreKit sheet · top-up packs · Restore purchases · Manage/cancel subscription ·
-Terms/Privacy links.
+Annual/Monthly toggle ($29.99/yr annual-led · $4.99/mo) · Free/Premium cards ·
+Subscribe/Start-trial (7-day) → StoreKit sheet · Restore purchases ·
+Manage/cancel subscription · Terms/Privacy links. **No top-ups, no Max, no
+lifetime** (removed in the de-meter). Reached only aspirationally (locked
+theme, Settings → Membership) — never from a Mochi wall.
 Products the paywall expects (must exist in ASC, Ready-to-Submit, attached to version):
-`com.websurfer.mytodo.premium.monthly`, `.premium.annual`, `.topup.150`, `.topup.500`.
-(`.max.monthly` / `.max.annual` exist in code but Max is **not** offered this release.)
+`com.websurfer.mytodo.premium.monthly`, `.premium.annual` — **only these two**.
 - ✅ entitlement math (RevenueCat webhook events, tier mapping, lapsed
-  downgrade, free 3/day + premium caps, top-up pay-as-you-go, feature gates,
-  revenue loss-safety), upgrade/product ranking, core↔server parity
+  downgrade, invisible fair-use ceilings, feature gates, revenue loss-safety),
+  upgrade/product ranking, core↔server parity; webhook ignores events for
+  deleted accounts
 - ✋ purchase / restore / trial / upgrade / cancel against StoreKit — the whole SDK/UI integration
 
 ### 13. Profile / Settings / Theme / Animation&Sound
@@ -141,8 +169,10 @@ sign out · Settings (membership, theme, manage todos/store, animation&sound
 toggles, Mochi toggle, tips/intro, export data → share sheet, delete-data-only,
 delete-account) · ThemeSelector (locked themes → paywall) · reduce-motion /
 completion-animation / completion-sound toggles.
-- ✅ profile migrate (avatar/name/quote caps, density, guides), export payload,
-  delete-account order invariant (wipe cloud before auth), comp-allowlist, avatar color math
+- ✅ profile migrate (avatar/name/quote caps, density, guides, the 3 usage
+  dates), `stampProfileSignals`, export payload, server-side account erasure
+  (`deleteUserTree`: exact `users/{uid}` subtree, unsafe uids refused),
+  comp-allowlist, avatar color math
 - 🤖 sign-out; ProfileSheet lifetime count renders
 - ✋ camera/photo-library + permissions, export share sheet, delete-account
   re-auth path, theme live apply, reduce-motion suppressing firework, recalibrate confirm dialog
@@ -154,6 +184,14 @@ overlay (survives row unmount) · shared EmptyStateCard.
   a11y sheet-guard (no backdrop Pressable)
 - 🤖 todos/shopping empty states, tab navigation, relaunch persists
 - ✋ onboarding flow, guides carousel, firework visual + reduce-motion, VoiceOver per sheet
+
+### 15. Server / Cloud Functions (new in 2.0.0)
+`onUserDeleted` (auth delete → recursive delete of `users/{uid}`) ·
+`metricsRollup` (06:15 UTC daily → `metrics/{yesterday}`, counts only) ·
+`revenuecatWebhook` deleted-user guard · de-metered `resource-exhausted` copy.
+- ✅ `deleteUserTree` (7 tests), `rollUpMetrics`/`addDays`/`toDay` (7 tests:
+  month/year/DST, Auth date format, future-signup exclusion, counts-only output)
+- ✋ the triggers firing in production (see §0 and the Privacy checklist)
 
 ---
 
@@ -176,11 +214,12 @@ overlay (survives row unmount) · shared EmptyStateCard.
 
 ### Paywall / IAP (locally via StoreKit now; against ASC after org conversion)
 - [ ] Subscribe Premium monthly + annual → entitlement applies
-- [ ] Start 7-day trial (eligibility correct)
-- [ ] Buy a top-up pack → balance increments, Mochi requests restored
+- [ ] Start 7-day trial (eligibility correct); prices show $4.99 / $29.99
+- [ ] Paywall shows **no** top-up packs, **no** Max, no lifetime
 - [ ] Restore purchases (found / none / failed)
-- [ ] Upgrade/downgrade; Manage/cancel opens OS screen
-- [ ] Out-of-requests in Mochi → paywall; locked theme → paywall
+- [ ] Manage/cancel opens OS screen
+- [ ] Locked theme → paywall (aspirational); Mochi over the ceiling → **no**
+      paywall (see AI / Mochi)
 
 ### Cross-device sync (2 devices)
 - [ ] Add on A → appears on B in ~seconds; toggle on B → reflects on A
@@ -203,6 +242,29 @@ overlay (survives row unmount) · shared EmptyStateCard.
 - [ ] PickTodos bulk delete / mark-done / defer; editable capture chips
 - [ ] Field-suggest pills in Compose/Details apply correctly
 - [ ] Suggest-steps + grocery department/store AI inference
+- [ ] No usage meter anywhere in the chat
+- [ ] Over the fair-use ceiling (client): message → Compose prefilled, task saves
+- [ ] Over the ceiling **server-only** (client count stale — e.g. second
+      device, or lower the ceiling in the emulator): same Compose fallback, no
+      "resets after midnight" / "pay as you go" copy
+- [ ] Mid-conversation fallback: "call mom" → (Mochi asks when) → "Friday" →
+      Compose opens with "call mom — Friday"
+- [ ] Suggest-steps over the ceiling → "Mochi's resting — you can add steps
+      yourself." (localized), manual add still works
+
+### Privacy / measurement / deletion (after §0 deploy)
+- [ ] Fresh account → open app → profile has `createdAt`, `lastActiveDate`
+      (today), and `activatedAt` after completing a to-do + reopening
+- [ ] iOS build contains no Firebase Analytics (no `FirebaseAnalytics` /
+      `RNFBAnalytics` pod after `expo prebuild`)
+- [ ] Delete account with a **throwaway** account → Firestore `users/{uid}`
+      tree fully gone (todos, profile, groceries, `entitlement`, `mochiUsage`,
+      `agentUsage`, `devices/*`), auth user gone, can't sign back in — then
+      confirm nothing is left behind (always remove test data)
+- [ ] Subscribed throwaway account: delete account → a later RevenueCat event
+      does **not** recreate `users/{uid}`; deleting doesn't cancel the sub
+      (policy says cancel in iOS Settings)
+- [ ] Paywall Privacy link opens the updated policy
 
 ### Visual / a11y / destructive
 - [ ] Light + dark mode every screen & sheet; theme-from-avatar
@@ -210,7 +272,6 @@ overlay (survives row unmount) · shared EmptyStateCard.
 - [ ] "YOUR JOURNEY" lifetime count increments on completion
 - [ ] VoiceOver reads each sheet's controls individually (not one blob)
 - [ ] Dynamic Type XXL → no clipping
-- [ ] Delete account → docs gone, can't log back in
 - [ ] "Delete all permanently" copy says it's irreversible
 - [ ] Export data → share sheet produces valid JSON
 - [ ] Avatar camera + photo library + permission prompts
@@ -220,7 +281,8 @@ overlay (survives row unmount) · shared EmptyStateCard.
 ## Notes
 - Firestore security-rules tests (`web/tests/firestore-rules.test.ts`) and the
   adapter emulator tests need the Firebase emulator — run `npm run test:rules`
-  in `web/` separately; not part of the 805 default run.
+  in `web/` separately; not part of the 822 default run.
+- Cloud Functions unit tests: `npm test` in `web/functions/` (62).
 - Maestro E2E (`npm run e2e` in `mobile/`) is UI-smoke only (render + navigation),
   driven against a seeded demo account on the iOS simulator.
 - No RN component/snapshot tests exist — mobile UI is covered only by Maestro
