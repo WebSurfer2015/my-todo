@@ -13,6 +13,13 @@ This is the source of truth for Sagely's positioning. The behavioral rules in
 > English copy is updated inline; **all 5 non-English locales (zh/es/fr/de/ja)
 > and the Play Store copy still need re-writing to this direction** before the
 > next submission (do not machine-translate — the voice matters).
+>
+> **v2.0.0 launch scope (owner decisions 2026-10-18):** English-only and
+> free-only (Premium returns in 2.1 with a real "zoom-out" capability). The
+> English description below was corrected for accuracy (Today tab, no cairn,
+> no daily check-in, English only); its full rewrite to the companion
+> positioning is roadmap 5.1. The zh/es/fr/de/ja metadata is NOT shipped in
+> 2.0.0.
 
 To re-load this into Claude's memory in a future conversation, ask Claude to
 read this file and update `memory/project_marketing_positioning.md`.
@@ -191,14 +198,14 @@ Past-due is "Carried over," not "Late." A soft re-entry, not a failure.
 
 Done items get tucked away into a 30-day bin — reversible for a month. Change your mind? They're still there.
 
-Progress shows up as ambient stones in a cairn, not a counter that resets when life happens.
+Finishing something gets a small, quiet celebration — no streaks, no scores, no counter that resets when life happens.
 
 Mochi, your steady mascot, shows up with a soft daily line. Never pushy. Never hyped. Just there.
 
 
-HOME, FOR TODAY ONLY
+TODAY, AND ONLY TODAY
 
-Open Sagely and you land on Home — a quiet view of just today and whatever carried over from yesterday. The whole backlog isn't shouting at you the moment you open the app. Stats and your lifetime cairn sit gently below — ambient context, not a scoreboard. Tap a done row to un-check it; the "I changed my mind" gesture lives on the same target as the check-off.
+Open Sagely and you land on Today — a quiet view of just today and whatever carried over from yesterday. The whole backlog isn't shouting at you the moment you open the app. Changed your mind about a check-off? Tap it again to undo.
 
 
 GROCERIES, BY AISLE
@@ -212,7 +219,7 @@ DESIGNED FOR THE HARD MOMENTS
 • Snooze (Tomorrow / Next week / Pick a date) for the days you can't face an item yet.
 • "Defer all to a future date" for when Carried over feels heavy. One tap. Undoable.
 • Steps for breaking the scary into the doable. Each step has its own priority and date.
-• 30-day bin — every "delete" is reversible.
+• 30-day bin — deleted to-dos are reversible for a month.
 
 GENTLE ON YOUR SENSES
 
@@ -220,7 +227,6 @@ GENTLE ON YOUR SENSES
 • Reduce Motion respected throughout: splash animation, completion bounces, row flashes — all skipped when iOS Reduce Motion is on.
 • Optional completion sound and animation, both togglable.
 • Quiet typography. No exclamation marks anywhere.
-• Optional daily check-in at a time you choose — not a streak, just a soft reminder if you want one.
 
 PRIVACY-RESPECTING BY DEFAULT
 
@@ -230,7 +236,7 @@ PRIVACY-RESPECTING BY DEFAULT
 
 AVAILABLE IN
 
-English, Simplified Chinese, Spanish, French, German, and Japanese.
+English. (More languages once they're written in the same calm voice.)
 ```
 
 ### Keywords (100-char limit, comma-separated, no spaces in some locales)

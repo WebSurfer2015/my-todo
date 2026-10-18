@@ -18,6 +18,34 @@ If moving fast matters, the smallest shippable-coherent set is:
 P4 Mochi-sheet a11y → P5 ASC copy + submit.** The subtraction pass (P3) is the
 biggest quality lever but is large — it can trail the first repositioned release.
 
+## PM + UX review decisions (2026-10-18) — owner agreed to all
+1. **v2.0.0 ships free-only.** `IAP_ENABLED = false` (RevenueCat never
+   initialized, paywall entry points hidden, all themes free). Premium returns
+   in **2.1** together with one real "zoom-out" capability. **5.6 is moot for
+   2.0.0** (tier enforcement stays OFF; the flat fair-use cap applies).
+2. **Fair use counts conversations, not turns** — shipped + deployed: free
+   15/day · 300/month (2.1), premium 1000/1000 as an abuse cap, 100 turns/day
+   backstop, budget alert (C.8) as the last line.
+3. **English-only launch.** `LANGUAGE_PICKER_ENABLED = false`; 5.1 shrinks to
+   the English listing (corrected in `POSITIONING.md`); other locales wait for
+   a native re-voice.
+4. **Mochi is the front door** with a 1-screen onboarding — design phase.
+5. **Row tap opens, circle completes, every completion has Undo** — design phase.
+6. **New to-dos default to no date** — design phase (two-line Compose).
+7. **Groceries: keep, frozen, de-marketed.** Closes 3.3; **0.3 is replaced by
+   the server-side Mochi counts in the daily roll-up** (users, conversations,
+   turns, ceiling hits).
+
+Shipped from the review (dev): date-only pickers no longer store midnight
+(reminders fired the night before), Mochi deletes go to Trash with Undo, Mochi
+"Mark done N" CTA, no forced "?" on statements, honest delete-data copy,
+"Ask Mochi instead" keeps your text, delete-account confirmation + "Sign in
+again", tab "Today", warm reminder body, paywall 3.1.2 copy for 2.1.
+
+Still open: **Apple token revocation on account deletion** (App Review 5.1.1(v)
+for Sign in with Apple) needs a Sign in with Apple key (.p8 + Key ID + Team
+ID) from you before the Cloud Function can be written.
+
 ## Next up (as of 2026-10-18, second refresh)
 *Done today: functions deployed (C.1, 0.2c, 1.7, webhook guard, instance caps,
 all in us-central1), orphans erased (C.2), vendor claims verified (C.4), stale
@@ -146,8 +174,8 @@ than letting it all pile up at 5.4:
 ## Open decisions (owner: you)
 - ~~Version~~ — **decided 2026-10-18: v2.0.0** (planner → companion is a clean
   version break). `mobile/app.json` bumped.
-- **Is 0.3 optional?** Only if 3.3 (groceries) is decided by interviews rather
-  than usage data.
+- ~~Is 0.3 optional?~~ — **decided 2026-10-18:** groceries kept + frozen (3.3
+  closed); 0.3 replaced by server-side Mochi counts in the roll-up.
 
 ## Honest notes for a solo dev
 - This is a large body of work; **P3 (subtraction) is the highest-quality lever
