@@ -283,7 +283,11 @@ export interface BackgroundChoice {
 }
 
 export const SEED_PROFILE: Profile = {
-  name: 'Ying',
+  // Blank, NOT a real name: the seed is what a signed-out user, a failed
+  // profile read, or a sign-in without a display name falls back to — it used
+  // to be the developer's name ("Good morning, Ying" to strangers). Every
+  // display path falls back to its neutral default when the name is empty.
+  name: '',
   avatar: { kind: 'preset', key: 'mochi' },
   density: 'comfortable',
   completionSound: true,
@@ -374,7 +378,10 @@ export function findPreset(key: string): PresetAvatar {
 export function migrateProfile(raw: unknown): Profile {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return SEED_PROFILE
   const p = raw as Record<string, unknown>
-  if (typeof p.name !== 'string' || p.name.length === 0 || !p.avatar) return SEED_PROFILE
+  // An EMPTY name is valid (the seed itself is blank) — only a missing/non-
+  // string name or avatar means the doc is unusable. Rejecting '' here would
+  // replace a whole saved profile with the seed on every load.
+  if (typeof p.name !== 'string' || !p.avatar) return SEED_PROFILE
   const avatar = migrateAvatar(p.avatar)
   if (!avatar) return SEED_PROFILE
   return {

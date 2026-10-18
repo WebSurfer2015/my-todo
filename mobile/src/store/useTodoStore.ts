@@ -423,7 +423,10 @@ export function useTodoStore() {
     hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
   const greetingName =
     profile.firstName?.trim() || profile.name.trim();
-  const headerLine = `${t.greeting[greetingKey]}, ${greetingName}`;
+  // No name yet → just the greeting (not "Good morning, ").
+  const headerLine = greetingName
+    ? `${t.greeting[greetingKey]}, ${greetingName}`
+    : t.greeting[greetingKey];
   const trimmedQuote =
     profile.quote && profile.quote.trim() ? profile.quote.trim() : '';
   const todayDate = todayLocal();
