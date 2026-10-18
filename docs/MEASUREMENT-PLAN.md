@@ -26,7 +26,7 @@ RevenueCat's dashboard already gives the **entire monetization funnel** with no
 added tracking: trial starts, trial→paid conversion, churn, MRR/LTV, renewal
 cohorts, by product. This covers "does the companion (not a quota) drive
 upgrades" at the subscription layer. **Action: just use it** — it's live the
-moment IAP ships.
+moment IAP ships. **Adopted 2026-10-18 (roadmap 0.1 ✅).**
 
 ### Tier 2 — Derive activation & retention from data we ALREADY store 🟢
 No new behavioral logging — compute cohorts from existing Firestore state:
@@ -70,8 +70,8 @@ toggle strictly required for aggregate/anonymous data, though a Settings note is
 on-brand.
 
 ## Build steps (after sign-off)
-1. **Tier 1:** document the RevenueCat dashboard as the monetization source of
-   truth (no code).
+1. ~~**Tier 1:** document the RevenueCat dashboard as the monetization source of
+   truth (no code).~~ Done 2026-10-18 — this section is the record.
 2. **Tier 2:** ~~signals on Profile + capture at app open~~ (done 2026-10-17).
    **Roll-up built 2026-10-18** (`web/functions/src/metricsRollup*.ts`): daily
    at 06:15 UTC it writes `metrics/{yesterday}` = `{ users {total, activated},

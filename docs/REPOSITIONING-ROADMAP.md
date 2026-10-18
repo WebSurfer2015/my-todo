@@ -43,7 +43,7 @@ Measure first-party + aggregate instead (`MEASUREMENT-PLAN.md`). The 14 typed
 event call sites in `analytics.ts` remain as a no-op seam.*
 | # | Item | Why | Effort | Status |
 |---|---|---|---|---|
-| 0.1 | **Tier 1 — RevenueCat** as the monetization-funnel source of truth (trial→paid, churn, LTV) | already integrated; zero new tracking | S (doc only) | ⏳ **decision pending** — recommend ✅: `MEASUREMENT-PLAN.md` Tier 1 covers it (RevenueCat dashboard = full funnel, zero new code) |
+| 0.1 | **Tier 1 — RevenueCat** as the monetization-funnel source of truth (trial→paid, churn, LTV) | already integrated; zero new tracking | S (doc only) | ✅ 2026-10-18 — `MEASUREMENT-PLAN.md` Tier 1 is the record: the RevenueCat dashboard is the monetization-funnel source of truth (trial→paid, churn, MRR/LTV, renewals), live once IAP ships; zero new tracking |
 | 0.2a | **Tier 2 schema** — `createdAt`/`lastActiveDate`/`activatedAt` on Profile + migration + tests; `metrics/*` covered by default-deny | foundation for activation/retention | S | ✅ `448e688` |
 | 0.2b | **Tier 2 capture** — pure `stampProfileSignals` in core, called once per app open from both `useTodoStore`s | records the signals | S | 🔶 `bca8e52` |
 | 0.2c | **Tier 2 aggregation CF** — scheduled roll-up of **aggregate** counts to `metrics/{date}` (server-only) | answers activation/retention/reactivation with no behavioral logging | M | 🔶 built early (2026-10-18): `metricsRollup` scheduled CF (06:15 UTC daily, yesterday's counts) + pure `rollUpMetrics` (unit-tested). Signup cohort = Firebase Auth creation day (profile `createdAt` is lazily stamped). **Deployed 2026-10-18** (scheduler job `firebase-schedule-metricsRollup-us-central1` enabled); first `metrics/{day}` doc expected 2026-10-18 06:15 UTC — **verify it exists + holds counts only** |
@@ -139,7 +139,7 @@ than letting it all pile up at 5.4:
 | Gate | Covered by | Status |
 |---|---|---|
 | 1. **De-meter Mochi** | P1 | 🔶 code done (incl. 1.7); device checkpoint pending |
-| 2. **Privacy-preserving measurement on** (RevenueCat + first-party aggregate; NOT Firebase Analytics) | P0 | 🔶 0.4 ✅; 0.2b/0.2c deployed, first `metrics` doc to verify; 0.1 decision pending (recommend ✅) |
+| 2. **Privacy-preserving measurement on** (RevenueCat + first-party aggregate; NOT Firebase Analytics) | P0 | 🔶 0.1 ✅, 0.4 ✅; 0.2b/0.2c deployed — first `metrics` doc to verify |
 | 3. **Mochi-sheet accessibility** | P4.1 | 🔶 code done; device VoiceOver pending |
 | 4. **Privacy & compliance** — deletion actually erases data; policy + privacy label match reality *(added 2026-10-18)* | PC | 🔶 C.2–C.4, C.6 ✅; C.1 deployed (throwaway-account test pending); **C.5 label to publish**; C.8 budget alert |
 
