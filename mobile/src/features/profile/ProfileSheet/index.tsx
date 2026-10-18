@@ -176,7 +176,7 @@ export default function ProfileSheet({
     }
   }
 
-  function useMochiAvatar() {
+  function applyMochiAvatar() {
     setAvatar({ kind: "preset", key: "mochi" });
   }
 
@@ -197,14 +197,14 @@ export default function ProfileSheet({
         (i) => {
           if (i === 0) takePhoto();
           else if (i === 1) pickFromLibrary();
-          else if (hasPhoto && i === 2) useMochiAvatar();
+          else if (hasPhoto && i === 2) applyMochiAvatar();
         },
       );
     } else {
       Alert.alert(t.profileChangePhoto, undefined, [
         { text: t.profileTakePhoto, onPress: takePhoto },
         { text: t.profileChooseLibrary, onPress: pickFromLibrary },
-        ...(hasPhoto ? [{ text: "Use Mochi", onPress: useMochiAvatar }] : []),
+        ...(hasPhoto ? [{ text: "Use Mochi", onPress: applyMochiAvatar }] : []),
         { text: cancelLabel, style: "cancel" as const },
       ]);
     }
