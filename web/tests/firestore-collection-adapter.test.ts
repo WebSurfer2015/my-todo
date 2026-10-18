@@ -67,7 +67,11 @@ describe('makeFirestoreCollectionAdapter', () => {
     expect((await getDoc(doc(db, 'users/alice/todos/t1'))).exists()).toBe(false)
   })
 
-  it('subscribe delivers the full set when another client upserts (per-item sync)', async () => {
+  // Emulator snapshot listeners are occasionally slow / flaky in CI (one run
+  // timed out at 5s after an emulator "message larger than max" error, then
+  // passed on the next 4) — give it headroom and one retry rather than let a
+  // flake turn the gate red.
+  it('subscribe delivers the full set when another client upserts (per-item sync)', { timeout: 15_000, retry: 1 }, async () => {
     const reader = makeFirestoreCollectionAdapter(
       env.authenticatedContext('alice').firestore() as never, 'alice', 'todos',
     )
