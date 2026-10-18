@@ -10,16 +10,24 @@ on `dev`. Only Phase 5 is actually blocked. Effort: S ≈ hours, M ≈ days, L �
 
 ## Critical path (minimum coherent repositioning)
 If moving fast matters, the smallest shippable-coherent set is:
-**P0 analytics → P1 de-meter → P2 quiet-Mochi presence → P4 Mochi-sheet a11y →
+**P0 measurement → P1 de-meter → P2 quiet-Mochi presence → P4 Mochi-sheet a11y →
 P5 ASC copy + submit.** The subtraction pass (P3) is the biggest quality lever
 but is large — it can trail the first repositioned release.
 
 ---
 
-## P0 — Enablers (do first; unblock everything) 🟢 not blocked
+## P0 — Measurement (privacy-preserving; do first) 🟢 not blocked
+*Re-scoped 2026-10-17: Firebase Analytics stays OFF — it's a third-party
+behavioral SDK that contradicts `PRIVACY.md` and the not-surveilled brand.
+Measure first-party + aggregate instead (`MEASUREMENT-PLAN.md`). Note: the event
+instrumentation already exists (14 call sites in `analytics.ts`) — the work is
+redirecting the sink, not adding tracking.*
 | # | Item | Why | Effort |
 |---|---|---|---|
-| 0.1 | **Enable analytics** (`IS_ANALYTICS_ENABLED` in plist; re-download `GoogleService-Info.plist`) + instrument the funnel (onboarding_complete, first_task_created/completed, mochi_used, paywall_shown[reason], trial_started, subscribed) | can't tune the fair-use ceiling or verify *any* repositioning claim without it | S–M |
+| 0.1 | **Tier 1 — RevenueCat** as the monetization-funnel source of truth (trial→paid, churn, LTV) | already integrated; zero new tracking | S (doc only) |
+| 0.2 | **Tier 2 — derive activation & retention** from stored Firestore data: add `lastActiveDate`; a scheduled CF rolls up **aggregate** counts to `metrics/{date}` (server-only) | answers activation/retention/reactivation with no behavioral logging | M |
+| 0.3 | **Tier 3 (optional)** — anonymous daily counters for Mochi-used / paywall-shown / CTA, by repurposing the `analytics.ts` wrapper to a `recordMetric` CF | product-signal granularity | M |
+| 0.4 | Remove `@react-native-firebase/analytics`; one-line honest `PRIVACY.md` transparency note | keeps the privacy promise true | S |
 
 ## P1 — De-meter Mochi (brand-coherence prerequisite) 🟢 not blocked
 *(Resolves the ❌ conflicts. `MOCHI-MONETIZATION-MODEL.md`.)*
@@ -71,7 +79,7 @@ app earns "calm." Large — can phase or trail the first repositioned release.)*
 
 ## The three hard gates (from the spec) — must be true before the monetized launch
 1. **De-meter Mochi** → P1
-2. **Analytics on** → P0
+2. **Privacy-preserving measurement on** → P0 (RevenueCat + first-party aggregate; NOT Firebase Analytics)
 3. **Mochi-sheet accessibility** → P4.1
 
 ## Honest notes for a solo dev
