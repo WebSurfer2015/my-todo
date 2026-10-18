@@ -16,7 +16,9 @@
 export type Tier = 'free' | 'premium'
 
 export interface TierLimits {
+  /** Mochi CONVERSATIONS per UTC month (follow-up turns don't count). */
   mochiMonthly: number
+  /** Mochi CONVERSATIONS per UTC day (follow-up turns don't count). */
   mochiDaily: number
   themes: boolean
 }
@@ -24,15 +26,15 @@ export interface TierLimits {
 /** KEEP IN SYNC with core/src/domain/entitlements.ts → TIER_LIMITS. */
 export const TIER_LIMITS: Record<Tier, TierLimits> = {
   free: {
-    mochiMonthly: 90,
-    mochiDaily: 3,
+    mochiMonthly: 300,
+    mochiDaily: 15,
     // Themes are free for everyone — every color theme is available on every
     // tier (no paywall gate on the theme picker). Mirrors core.
     themes: true,
   },
   premium: {
-    mochiMonthly: 250,
-    mochiDaily: 250,
+    mochiMonthly: 1000,
+    mochiDaily: 1000,
     themes: true,
   },
 }

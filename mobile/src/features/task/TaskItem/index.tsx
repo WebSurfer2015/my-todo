@@ -80,7 +80,7 @@ import { getReminders } from '../../../../../core/src/logic/derive'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Category, Priority, Recurrence, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../../../core-bindings/types'
 import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
-import { formatDisplayDate, fullDateLabel, todayLocal, isoDate } from '../../../core-bindings/utils'
+import { dueDateToDate, formatDisplayDate, fullDateLabel, todayLocal, isoDate } from '../../../core-bindings/utils'
 import { sortedSubs } from '../../../../../core/src/logic/derive'
 import { useTriggerFirework } from '../../../app/FireworkOverlay'
 import { playCompletionChime } from '../../../adapters/completionChime'
@@ -242,7 +242,7 @@ function TaskItem({
   // fully-done parent state. Drives a dimmed row on Home so the user
   // can tell at a glance which rows still have actionable steps today.
   const [pickerDate, setPickerDate] = useState<Date>(() =>
-    todo.dueDate ? new Date(`${todo.dueDate}T00:00:00`) : new Date()
+    todo.dueDate ? dueDateToDate(todo.dueDate) : new Date()
   )
 
   // Calm completion animation + sound — fires when a task transitions to done.

@@ -131,6 +131,33 @@ describe('useMochiAgent', () => {
     expect(result.current.error).toMatch(/turned off/)
   })
 
+  it('sends conversationStart until the server has replied (intent-chip exchange is local)', async () => {
+    fetchMock.mockResolvedValueOnce(reply({ reply: 'When should I set it for' })).mockResolvedValueOnce(reply({}))
+    const { result } = renderHook(() => useMochiAgent())
+    act(() => result.current.pushLocalExchange('Add a to-do', 'What should I add?'))
+    await act(async () => {
+      await result.current.send('call mom', CTX as never)
+    })
+    const body = (n: number) => JSON.parse((fetchMock.mock.calls[n][1] as RequestInit).body as string).data
+    expect(body(0).conversationStart).toBe(true)
+    await act(async () => {
+      await result.current.send('Friday', CTX as never)
+    })
+    expect(body(1).conversationStart).toBe(false)
+  })
+
+  it('a no-op STATEMENT keeps its period and is not a follow-up', async () => {
+    fetchMock.mockResolvedValueOnce(reply({ reply: "I couldn't find that to-do." }))
+    const { result } = renderHook(() => useMochiAgent())
+    await act(async () => {
+      await result.current.send('delete the dentist one', CTX as never)
+    })
+    expect(result.current.messages[1]).toMatchObject({
+      content: "I couldn't find that to-do.",
+      isFollowUp: false,
+    })
+  })
+
   it('a follow-up question reply is tagged isFollowUp; a proposal is not', async () => {
     fetchMock
       .mockResolvedValueOnce(reply({ reply: 'When should I set it for' }))

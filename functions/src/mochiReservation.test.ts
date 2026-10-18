@@ -11,6 +11,7 @@ import {
   type Entitlement,
   type Tier,
 } from './entitlements'
+import { MAX_CHAT_TURNS_PER_DAY } from './chatQuota'
 import { canUseThemes } from '../../core/src/domain/entitlements'
 
 /**
@@ -59,27 +60,29 @@ describe('subscription validity (effectiveTier)', () => {
   })
 })
 
-describe('Free — invisible 3/day fair-use ceiling, then graceful fallback', () => {
+const FREE_DAY = TIER_LIMITS.free.mochiDaily
+
+describe('Free — invisible daily conversation ceiling, then graceful fallback', () => {
   it('allows the first request and counts day + month', () => {
     const d = decideMochiReservation('free', null, TODAY, MONTH)
     expect(d.allow).toBe(true)
     expect(d.nextUsage).toEqual({ month: MONTH, monthCalls: 1, date: TODAY, dayCalls: 1 })
   })
-  it('signals fallback on the 4th request the same day with a "daily" reason', () => {
-    const d = decideMochiReservation('free', usage({ dayCalls: 3, monthCalls: 3 }), TODAY, MONTH)
+  it('signals fallback on the conversation past the daily ceiling with a "daily" reason', () => {
+    const d = decideMochiReservation('free', usage({ dayCalls: FREE_DAY, monthCalls: FREE_DAY }), TODAY, MONTH)
     expect(d.allow).toBe(false)
     expect(d.reason).toBe('daily')
   })
   it('resets the daily count on a new day (yesterday\'s usage ignored)', () => {
-    const d = decideMochiReservation('free', usage({ date: '2026-06-26', dayCalls: 3, monthCalls: 3 }), TODAY, MONTH)
+    const d = decideMochiReservation('free', usage({ date: '2026-06-26', dayCalls: FREE_DAY, monthCalls: FREE_DAY }), TODAY, MONTH)
     expect(d.allow).toBe(true)
-    expect(d.nextUsage).toEqual({ month: MONTH, monthCalls: 4, date: TODAY, dayCalls: 1 })
+    expect(d.nextUsage).toEqual({ month: MONTH, monthCalls: FREE_DAY + 1, date: TODAY, dayCalls: 1 })
   })
 })
 
 describe('Premium — no daily sub-cap, invisible monthly fair-use ceiling', () => {
   it('allows a heavy single day (no daily cap binds before monthly)', () => {
-    const d = decideMochiReservation('premium', usage({ dayCalls: 200, monthCalls: 200 }), TODAY, MONTH)
+    const d = decideMochiReservation('premium', usage({ dayCalls: 900, monthCalls: 900 }), TODAY, MONTH)
     expect(d.allow).toBe(true)
   })
   it('signals fallback at the monthly ceiling with a "monthly" reason', () => {
@@ -103,16 +106,22 @@ describe('feature gates match the offerings', () => {
   })
 })
 
-describe('loss-safety invariant — AI cost can never exceed revenue', () => {
-  // ~$0.005 / Mochi request at current Haiku pricing (no caching). Local-first
-  // warmth keeps ~90% of Mochi off the model entirely, so real spend is far
-  // below this server ceiling.
-  const COST = 0.005
-  // Premium $29.99/yr → ~$2.12/mo net after Apple Small Business 15%.
-  it('a fully-maxed monthly allowance stays under post-Apple net revenue', () => {
-    expect(TIER_LIMITS.premium.mochiMonthly * COST).toBeLessThan(2.12)
+describe('tier limits (v2.0.0 owner decision: counted in CONVERSATIONS)', () => {
+  it('free 15/day + 300/month; premium 1000/1000 (no daily sub-cap binds first)', () => {
+    expect(TIER_LIMITS.free).toMatchObject({ mochiDaily: 15, mochiMonthly: 300 })
+    expect(TIER_LIMITS.premium).toMatchObject({ mochiDaily: 1000, mochiMonthly: 1000 })
+    expect(TIER_LIMITS.premium.mochiDaily).toBeGreaterThanOrEqual(TIER_LIMITS.premium.mochiMonthly)
   })
-  it('the free tier daily allowance is a bounded acquisition cost', () => {
-    expect(TIER_LIMITS.free.mochiDaily * 31 * COST).toBeLessThan(0.5)
+})
+
+describe('cost blast radius — bounded per user per day', () => {
+  // ~$0.005 / Mochi model call (turn) at current Haiku pricing (no caching).
+  // NOTE: the old "maxed allowance < post-Apple net revenue" invariant no
+  // longer holds once the allowance counts conversations (multi-turn) and
+  // premium is 1000/month — that's an accepted owner decision; the hard
+  // guarantee is now the per-day turn backstop below.
+  const COST = 0.005
+  it('the turn backstop caps worst-case daily spend per uid', () => {
+    expect(MAX_CHAT_TURNS_PER_DAY * COST).toBeLessThanOrEqual(0.5)
   })
 })

@@ -61,8 +61,40 @@ describe('rollUpMetrics', () => {
     expect(m.cohorts.d30).toEqual({ cohortDay: '2026-09-17', size: 1, returned: 0, activated: 0 })
   })
 
+  it('mochi defaults to zeros when no one used it', () => {
+    expect(m.mochi).toEqual({ users: 0, conversations: 0, turns: 0, ceilingHits: 0 })
+  })
+
   it('output carries counts only — no per-user data', () => {
     const json = JSON.stringify(m)
-    expect(json).not.toMatch(/uid|lastActiveDate|activatedDay/)
+    expect(json).not.toMatch(/uid|lastActiveDate|activatedDay|mochiDays/)
+  })
+})
+
+describe('rollUpMetrics — mochi', () => {
+  const md = (date: string, conversations: number, turns: number, ceilingHit = false) => ({
+    date,
+    conversations,
+    turns,
+    ceilingHit,
+  })
+  const users: RollupUser[] = [
+    // used Mochi on DAY (2 convos, 5 turns) and the day before
+    { signupDay: '2026-10-01', mochiDays: [md('2026-10-18', 1, 1), md(DAY, 2, 5)] },
+    // hit the ceiling on DAY after some use
+    { signupDay: '2026-10-01', mochiDays: [md(DAY, 15, 20, true)] },
+    // rejected on first try on DAY (no allowed turn) — ceiling hit, not a user
+    { signupDay: '2026-10-01', mochiDays: [md(DAY, 0, 0, true)] },
+    // used Mochi only on another day
+    { signupDay: '2026-10-01', mochiDays: [md('2026-10-16', 3, 3, true)] },
+    // never used Mochi
+    { signupDay: '2026-10-01' },
+    // future signup — excluded
+    { signupDay: '2026-10-18', mochiDays: [md(DAY, 9, 9, true)] },
+  ]
+  const m = rollUpMetrics(users, DAY)
+
+  it('counts users, conversations, turns and ceiling hits for the day only', () => {
+    expect(m.mochi).toEqual({ users: 2, conversations: 17, turns: 25, ceilingHits: 2 })
   })
 })

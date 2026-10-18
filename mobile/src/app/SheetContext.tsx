@@ -253,42 +253,23 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         const a = op.args
         store.addGrocery({ text: a.text, groupId: a.groupId, stores: a.stores })
       } else if (op.kind === 'deleteTodo') {
-        // Permanent delete, gated by an explicit confirm that SPELLS OUT the
-        // permanence — same semantics as the manual TaskDetails "Delete to-do".
-        // For a recurring series, ask scope first (this one vs this + future).
+        // Mochi deletes go to the 30-day Trash (Undo snackbar from the store),
+        // never permanent — an AI misreading must always be recoverable. For a
+        // series, ask the scope (this one vs this + future).
         const td = store.todos.find((t) => t.id === op.args.todoId)
         if (!td) return
         if (td.seriesId) {
           Alert.alert(
-            'Delete repeating to-do?',
-            `Permanently delete "${td.text}" — just this one, or this and all future? This can't be undone.`,
+            'Move repeating to-do to Trash?',
+            `"${td.text}" — just this one, or this and all future? You can restore from Trash for 30 days.`,
             [
               { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'Just this one',
-                style: 'destructive',
-                onPress: () => store.permanentlyDelete(td.id),
-              },
-              {
-                text: 'This & future',
-                style: 'destructive',
-                onPress: () => store.permanentlyDeleteSeriesFuture(td.id),
-              },
+              { text: 'Just this one', onPress: () => store.moveToTrash(td.id) },
+              { text: 'This & future', onPress: () => store.moveSeriesFutureToTrash(td.id) },
             ],
           )
         } else {
-          Alert.alert(
-            'Delete to-do?',
-            `Permanently delete "${td.text}". This can't be undone.`,
-            [
-              { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'Delete',
-                style: 'destructive',
-                onPress: () => store.permanentlyDelete(td.id),
-              },
-            ],
-          )
+          store.moveToTrash(td.id)
         }
       } else if (op.kind === 'editGroceryItem') {
         const a = op.args
@@ -453,25 +434,14 @@ export function SheetProvider({ children }: { children: ReactNode }) {
 
   // Apply a pick-list proposal to the user's chosen subset of ids. Each action
   // runs through the SAME store mutations a manual edit / applyMochiOp uses, so
-  // the agent has no privileged write path — delete still warns it's permanent.
+  // the agent has no privileged write path; deletes go to the Trash.
   const applyPickedTodos = useCallback(
     (op: Extract<ProposedOperation, { kind: 'pickTodos' }>, ids: string[]) => {
       if (ids.length === 0) return
       const { action } = op.args
       if (action === 'delete') {
-        const n = ids.length
-        Alert.alert(
-          n === 1 ? 'Delete to-do?' : `Delete ${n} to-dos?`,
-          `Permanently delete ${n === 1 ? 'this to-do' : `these ${n} to-dos`}. This can't be undone.`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Delete',
-              style: 'destructive',
-              onPress: () => ids.forEach((id) => store.permanentlyDelete(id)),
-            },
-          ],
-        )
+        // To the 30-day Trash with a merged "Moved N to Trash · Undo all".
+        ids.forEach((id) => store.moveToTrash(id))
       } else if (action === 'markDone') {
         // Idempotent — only flip ones that aren't already done.
         ids.forEach((id) => {
@@ -507,25 +477,24 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     [store],
   )
 
-  // Raw scoped delete for the Mochi delete card — the card owns the permanence
-  // confirm, so this just performs the removal: one instance, or this + every
-  // future occurrence in the series.
+  // Scoped delete for the Mochi delete card — to the Trash: one instance, or
+  // this + every future occurrence in the series.
   const deleteTodoScoped = useCallback(
     (id: string, scope: 'one' | 'series') => {
-      if (scope === 'series') store.permanentlyDeleteSeriesFuture(id)
-      else store.permanentlyDelete(id)
+      if (scope === 'series') store.moveSeriesFutureToTrash(id)
+      else store.moveToTrash(id)
     },
     [store],
   )
 
-  // Bulk action on the pick-list's chosen ids — the card owns the date picker +
-  // delete confirm, so these just perform the mutation per id.
+  // Bulk action on the pick-list's chosen ids (the card owns the date picker);
+  // delete goes to the Trash.
   const applyPickAction = useCallback(
     (action: 'skip' | 'defer' | 'delete', ids: string[], dueDate?: string) => {
       if (action === 'skip') ids.forEach((id) => store.skipTodo(id))
       else if (action === 'defer' && dueDate)
         ids.forEach((id) => store.updateDueDate(id, dueDate))
-      else if (action === 'delete') ids.forEach((id) => store.permanentlyDelete(id))
+      else if (action === 'delete') ids.forEach((id) => store.moveToTrash(id))
     },
     [store],
   )

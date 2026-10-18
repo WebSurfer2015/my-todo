@@ -416,6 +416,28 @@ export function dueDateOnly(dueDate: string | undefined): string {
   return t === -1 ? dueDate : dueDate.slice(0, t);
 }
 
+/**
+ * A stored dueDate (`yyyy-mm-dd` or `yyyy-mm-ddTHH:MM`) as a local Date at the
+ * start of that day — for seeding date pickers. Appending `T00:00:00` to a
+ * value that already has a time produced an Invalid Date.
+ */
+export function dueDateToDate(dueDate: string): Date {
+  return new Date(`${dueDateOnly(dueDate)}T00:00:00`);
+}
+
+/**
+ * A date-only picker changed the day: replace just the date part of `prev`,
+ * keeping a time-of-day the user already set. With no prior time the result
+ * is date-only — reminders then anchor on their 9:00 default instead of
+ * midnight (writing `T00:00` made "1 hour before" fire at 11 PM the night
+ * before).
+ */
+export function dueDateWithDay(prev: string | undefined, day: Date): string {
+  const datePart = isoDate(day);
+  const t = prev ? prev.indexOf("T") : -1;
+  return t === -1 ? datePart : `${datePart}${prev!.slice(t)}`;
+}
+
 /** Last day of the current month as yyyy-mm-dd (local). Day 0 of next
  * month = last day of this one. The "this month" due-date preset. */
 export function endOfMonthLocal(from: Date = new Date()): string {

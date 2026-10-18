@@ -1,8 +1,9 @@
 /**
- * Shared per-uid daily call quota for Sagely's AI endpoints. Both the
- * conversational agentChat and the ambient aiInfer reserve a slot
- * through reserveDailyCall — one counter, one cap, so a user can't
- * burn through the day on one endpoint and starve the other.
+ * Shared per-uid daily call quota for Sagely's AI endpoints. aiInfer reserves
+ * one slot per call (reserveDailyCall); agentChat reserves one slot per
+ * CONVERSATION (reserveChatTurn — follow-up turns are free, bounded by a
+ * per-day turn backstop). One counter, one cap, so a user can't burn through
+ * the day on one endpoint and starve the other.
  *
  * Implementation: read-modify-write transaction against
  * users/{uid}/state/agentUsage, using the same versioned envelope
@@ -19,56 +20,48 @@ import {
   type Entitlement,
   type Tier,
 } from './entitlements'
-import { decideMochiReservation } from './mochiReservation'
+import {
+  decideChatTurnFlat,
+  decideChatTurnTier,
+  decideFlatCall,
+  parseAgentUsage,
+  type AgentUsageData,
+  type ChatTurnDecision,
+} from './chatQuota'
 import { isCompName } from './compUsers'
 
 // Per-user daily ceiling, shared across every AI endpoint (ambient
-// suggestions, breakdowns, and Mochi turns). Raised 30 → 150 to give active
+// suggestions, breakdowns, and Mochi conversations). Raised 30 → 150 to give active
 // development/testing comfortable headroom while pre-monetization
 // (MOCHI_TIER_ENFORCEMENT off). Revisit at monetization launch — the per-tier
 // TIER_LIMITS become the real gate then and this flat ceiling reverts to a
 // blast-radius safety bound.
 export const DAILY_CALL_LIMIT = 150
 
-interface AgentUsageData {
-  date: string
-  calls: number
-}
-
 if (admin.apps.length === 0) admin.initializeApp()
 const adminDb = admin.firestore()
 
-/**
- * Decode the serialized `{version,data}` envelope stored at
- * users/{uid}/state/agentUsage. Returns null on any parse failure so
- * callers can degrade gracefully (they treat null as "first call
- * today"). Matches the shape produced by core's writeVersioned.
- */
-function parseAgentUsage(raw: unknown): AgentUsageData | null {
-  if (!raw || typeof raw !== 'object') return null
-  const val = (raw as { value?: unknown }).value
-  if (typeof val !== 'string') return null
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(val)
-  } catch {
-    return null
-  }
-  if (!parsed || typeof parsed !== 'object') return null
-  const data = (parsed as { data?: unknown }).data
-  if (!data || typeof data !== 'object') return null
-  const { date, calls } = data as { date?: unknown; calls?: unknown }
-  if (typeof date !== 'string' || typeof calls !== 'number' || !Number.isFinite(calls)) {
-    return null
-  }
-  return { date, calls: Math.max(0, Math.floor(calls)) }
+/** De-metered copy (no counts, no countdown) — clients normally replace this
+ * with a local fallback (P1.7). Same text on every endpoint and path. */
+const RESTING_MESSAGE = `Mochi's resting for now — you can still add this yourself.`
+
+function writeAgentUsage(
+  tx: FirebaseFirestore.Transaction,
+  ref: FirebaseFirestore.DocumentReference,
+  next: AgentUsageData,
+): void {
+  tx.set(ref, {
+    value: JSON.stringify({ version: 1, data: next }),
+    updatedAt: Date.now(),
+  })
 }
 
 /**
- * Server-side daily-call reservation: caps per uid per UTC day. We use
- * server UTC instead of any client-supplied date because the client
- * could otherwise rotate that value to grant itself fresh quota.
- * Throws HttpsError('resource-exhausted') when the cap is hit.
+ * Server-side daily-call reservation for ONE-SHOT AI calls (aiInfer): caps
+ * per uid per UTC day, one slot per call. We use server UTC instead of any
+ * client-supplied date because the client could otherwise rotate that value
+ * to grant itself fresh quota. Throws HttpsError('resource-exhausted') when
+ * the cap is hit. Mochi stats on the same doc are preserved.
  *
  * `label` names the endpoint in server logs only; the user-facing
  * message is the same de-metered copy everywhere (P1.7).
@@ -80,21 +73,12 @@ export async function reserveDailyCall(uid: string, label = 'AI'): Promise<void>
     await adminDb.runTransaction(async (tx) => {
       const snap = await tx.get(ref)
       const usage = snap.exists ? parseAgentUsage(snap.data()) : null
-      const callsToday = usage && usage.date === today ? usage.calls : 0
-      if (callsToday >= DAILY_CALL_LIMIT) {
+      const d = decideFlatCall(usage, today, DAILY_CALL_LIMIT)
+      if (!d.allow) {
         console.info(`reserveDailyCall: ${label} fair-use ceiling hit`)
-        throw new HttpsError(
-          'resource-exhausted',
-          // De-metered copy (no counts, no countdown) — clients normally
-          // replace this with a local fallback (P1.7).
-          `Mochi's resting for now — you can still add this yourself.`,
-        )
+        throw new HttpsError('resource-exhausted', RESTING_MESSAGE)
       }
-      const next: AgentUsageData = { date: today, calls: callsToday + 1 }
-      tx.set(ref, {
-        value: JSON.stringify({ version: 1, data: next }),
-        updatedAt: Date.now(),
-      })
+      writeAgentUsage(tx, ref, d.next)
     })
   } catch (err) {
     if (err instanceof HttpsError) throw err
@@ -218,9 +202,66 @@ async function isCompUser(uid: string): Promise<boolean> {
 }
 
 /**
- * Tier-aware reservation for ONE Mochi request. Throws
- * HttpsError('resource-exhausted') when the daily sub-cap or the monthly
- * fair-use ceiling is hit (the client then falls back gracefully). The
+ * Run one agentChat reservation transaction. `decide` is the pure decision
+ * (chatQuota.ts); this wrapper persists its writes and, on a reject, throws
+ * RESOURCE_EXHAUSTED AFTER the transaction commits — throwing inside would
+ * roll back the ceilingHit marker the metrics roll-up counts.
+ */
+async function runChatReservation(
+  uid: string,
+  label: string,
+  decide: (
+    tx: FirebaseFirestore.Transaction,
+    agentUsage: AgentUsageData | null,
+  ) => Promise<ChatTurnDecision>,
+  extraWrite?: (tx: FirebaseFirestore.Transaction, d: ChatTurnDecision) => void,
+): Promise<void> {
+  const ref = adminDb.doc(`users/${uid}/state/agentUsage`)
+  let decision: ChatTurnDecision
+  try {
+    decision = await adminDb.runTransaction(async (tx) => {
+      const snap = await tx.get(ref)
+      const usage = snap.exists ? parseAgentUsage(snap.data()) : null
+      const d = await decide(tx, usage)
+      // Skip the write when rejecting an already-marked day (no state change).
+      const alreadyMarked = !d.allow && usage?.date === d.nextAgentUsage.date && usage.ceilingHit
+      if (!alreadyMarked) writeAgentUsage(tx, ref, d.nextAgentUsage)
+      if (d.allow) extraWrite?.(tx, d)
+      return d
+    })
+  } catch (err) {
+    // Fail-closed on transaction errors: a Firestore outage briefly disables
+    // Mochi rather than silently letting the cap leak.
+    console.error(`${label} reservation failed`, err)
+    throw new HttpsError('internal', "Couldn't reach the quota check.")
+  }
+  if (!decision.allow) {
+    console.info(`${label}: fair-use ceiling hit (${decision.reason})`)
+    // De-metered (docs/MOCHI-MONETIZATION-MODEL.md): the fair-use ceiling is
+    // INVISIBLE — no counts, no reset countdown, no top-ups. Clients fall back
+    // to manual capture on RESOURCE_EXHAUSTED (P1.7); this text is a last resort.
+    throw new HttpsError('resource-exhausted', RESTING_MESSAGE)
+  }
+}
+
+/**
+ * Flat-path reservation for ONE agentChat turn (MOCHI_TIER_ENFORCEMENT off,
+ * and comp users). Only a turn that STARTS a conversation takes a slot of the
+ * shared flat daily cap (DAILY_CALL_LIMIT, shared with aiInfer); follow-ups
+ * are free, bounded by the 40-turn window and MAX_CHAT_TURNS_PER_DAY.
+ */
+export async function reserveChatTurn(uid: string, startsConversation: boolean): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10) // YYYY-MM-DD UTC
+  await runChatReservation(uid, 'Mochi', async (_tx, usage) =>
+    decideChatTurnFlat(usage, today, startsConversation, DAILY_CALL_LIMIT),
+  )
+}
+
+/**
+ * Tier-aware reservation for ONE agentChat turn (MOCHI_TIER_ENFORCEMENT on).
+ * Same conversation semantics as reserveChatTurn: only a conversation start
+ * reserves against the tier's daily/monthly CONVERSATION ceiling
+ * (TIER_LIMITS); every turn counts toward MAX_CHAT_TURNS_PER_DAY. The
  * entitlement is read in the same transaction as the usage bump so the tier
  * and the count are consistent.
  *
@@ -228,12 +269,11 @@ async function isCompUser(uid: string): Promise<boolean> {
  * flat fair-use cap: comp matching is on user-editable profile names, so an
  * uncapped bypass would let anyone rename themselves into unlimited spend.
  */
-export async function reserveMochiRequest(uid: string): Promise<void> {
-  // Family comp: no tier metering, but the same flat 150/day blast-radius cap
-  // everyone gets with enforcement off (effectively unlimited for a person).
-  // Checked only on the enforcement path. TODO: match comp by uid, not name.
+export async function reserveMochiRequest(uid: string, startsConversation: boolean): Promise<void> {
+  // Family comp: no tier metering, but the same flat blast-radius cap everyone
+  // gets with enforcement off. TODO: match comp by uid, not name.
   if (await isCompUser(uid)) {
-    await reserveDailyCall(uid, 'Mochi')
+    await reserveChatTurn(uid, startsConversation)
     return
   }
   const now = new Date()
@@ -241,37 +281,24 @@ export async function reserveMochiRequest(uid: string): Promise<void> {
   const month = today.slice(0, 7) // YYYY-MM UTC
   const usageRef = adminDb.doc(`users/${uid}/state/mochiUsage`)
   const entRef = adminDb.doc(`users/${uid}/state/entitlement`)
-  try {
-    await adminDb.runTransaction(async (tx) => {
+  await runChatReservation(
+    uid,
+    'Mochi(tier)',
+    async (tx, agentUsage) => {
       const [usageSnap, entSnap] = await Promise.all([tx.get(usageRef), tx.get(entRef)])
       const ent = parseEntitlement(entSnap.exists ? entSnap.data() : null)
       const tier = effectiveTier(ent, now.getTime())
       const usage = usageSnap.exists ? parseMochiUsage(usageSnap.data()) : null
-
-      // Pure decision (unit-tested in web/src/mochiReservation.test.ts) —
-      // the Firestore writes/throw here are the only impure part.
-      const d = decideMochiReservation(tier, usage, today, month)
-
-      if (!d.allow) {
-        throw new HttpsError(
-          'resource-exhausted',
-          // De-metered (docs/MOCHI-MONETIZATION-MODEL.md): the fair-use
-          // ceiling is INVISIBLE — no counts, no reset countdown, and no "pay
-          // as you go" (top-ups were removed). Clients fall back to manual
-          // capture on RESOURCE_EXHAUSTED (P1.7); this text is a last resort.
-          `Mochi's resting for now — you can still add this yourself.`,
-        )
-      }
-      if (d.nextUsage) {
+      // Pure decision (unit-tested in chatQuota.test.ts / mochiReservation.test.ts).
+      return decideChatTurnTier(tier, usage, agentUsage, today, month, startsConversation)
+    },
+    (tx, d) => {
+      if (d.nextMochiUsage) {
         tx.set(usageRef, {
-          value: JSON.stringify({ version: 1, data: d.nextUsage }),
+          value: JSON.stringify({ version: 1, data: d.nextMochiUsage }),
           updatedAt: now.getTime(),
         })
       }
-    })
-  } catch (err) {
-    if (err instanceof HttpsError) throw err
-    console.error('reserveMochiRequest failed', err)
-    throw new HttpsError('internal', "Couldn't reach the quota check.")
-  }
+    },
+  )
 }

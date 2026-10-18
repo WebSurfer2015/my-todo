@@ -13,7 +13,7 @@ import { useTheme, ThemeColors } from '../../app/theme'
 import { useLang } from '../../app/LangContext'
 import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 import { Priority, PRIORITY_VALUES } from '../../core-bindings/types'
-import { formatDisplayDate, isoDate } from '../../core-bindings/utils'
+import { dueDateToDate, formatDisplayDate, isoDate } from '../../core-bindings/utils'
 
 interface CreateTodoArgs {
   text: string
@@ -62,7 +62,7 @@ export default function EditableCaptureCard({
   // Guard against a malformed dueDate → Invalid Date would crash the picker.
   const pickerValue = (() => {
     if (dueDate) {
-      const d = new Date(`${dueDate}T00:00:00`)
+      const d = dueDateToDate(dueDate)
       if (!isNaN(d.getTime())) return d
     }
     return new Date()

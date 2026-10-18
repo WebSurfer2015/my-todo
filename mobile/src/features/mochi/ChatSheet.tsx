@@ -91,8 +91,8 @@ interface Props {
     op: Extract<ProposedOperation, { kind: 'pickTodos' }>,
     selectedIds: string[],
   ) => void
-  /** Permanently delete one to-do — `scope:'series'` removes this + all future
-   * occurrences. The card owns the permanence confirm; this just deletes. */
+  /** Move one to-do to the Trash — `scope:'series'` also moves all future
+   * occurrences. Reversible, so the cards don't confirm. */
   onDeleteTodo: (id: string, scope: 'one' | 'series') => void
   /** Bulk-act on the pick-list's ticked items: skip / defer (to dueDate) /
    * delete. The card owns the date picker + delete confirm. */
@@ -748,7 +748,7 @@ const PICK_CTA: Record<'delete' | 'markDone' | 'edit' | 'addSteps', string> = {
   addSteps: 'Add steps to',
 }
 const PICK_DONE: Record<'delete' | 'markDone' | 'edit' | 'addSteps', string> = {
-  delete: 'Deleted',
+  delete: 'Moved to Trash',
   markDone: 'Completed',
   edit: 'Updated',
   addSteps: 'Updated',
@@ -820,9 +820,11 @@ function PickTodosCard({
   const [done, setDone] = useState<{ verb: string; n: number } | null>(null)
   const [seriesDeleted, setSeriesDeleted] = useState(false)
   const [deferOpen, setDeferOpen] = useState(false)
-  // delete/markDone lists let the user choose Skip / Defer / Delete on the
-  // ticked items; edit/addSteps keep their single agent-payload button.
-  const simpleActions = action === 'delete' || action === 'markDone'
+  // delete lists let the user choose Skip / Defer / Delete on the ticked
+  // items; markDone / edit / addSteps get one primary button for what the user
+  // actually asked ("Mark done 3") — markDone used to land in the delete row
+  // with no Mark-done button at all.
+  const simpleActions = action === 'delete'
 
   // When a delete search lands entirely inside ONE generated series, offer to
   // drop the whole series instead of ticking every instance. `mode` starts on
@@ -864,22 +866,9 @@ function PickTodosCard({
   const doDelete = () => {
     if (selected.size === 0) return
     const ids = selectedIds()
-    const n = ids.length
-    Alert.alert(
-      n === 1 ? 'Delete to-do?' : `Delete ${n} to-dos?`,
-      `Permanently delete ${n === 1 ? 'this to-do' : `these ${n} to-dos`}. This can't be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            onPickAction('delete', ids)
-            setDone({ verb: 'Deleted', n })
-          },
-        },
-      ],
-    )
+    // Reversible (30-day Trash + Undo), so no confirm dialog.
+    onPickAction('delete', ids)
+    setDone({ verb: 'Moved to Trash', n: ids.length })
   }
   const onDeferDate = (e: DateTimePickerEvent, d?: Date) => {
     setDeferOpen(false)
@@ -892,25 +881,13 @@ function PickTodosCard({
 
   const deleteSeries = () => {
     if (!seriesId) return
-    Alert.alert(
-      'Delete series?',
-      `Permanently delete "${candidates[0].text}" and all its future occurrences. This can't be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete series',
-          style: 'destructive',
-          onPress: () => {
-            onDeleteTodo(candidates[0].id, 'series')
-            setSeriesDeleted(true)
-          },
-        },
-      ],
-    )
+    // Reversible (30-day Trash), so no confirm dialog.
+    onDeleteTodo(candidates[0].id, 'series')
+    setSeriesDeleted(true)
   }
 
   if (seriesDeleted) {
-    return <Text style={styles.appliedNote}>✓ Series deleted</Text>
+    return <Text style={styles.appliedNote}>✓ Series moved to Trash</Text>
   }
   if (done) {
     return (
@@ -1061,8 +1038,8 @@ function PickTodosCard({
 /**
  * The delete-an-existing-to-do card. Owns its own action row so the title can
  * be frozen (survives the delete) and so a SERIES instance gets an explicit
- * "Delete series" choice instead of burying it in a post-confirm dialog. Each
- * button raises the permanent-delete warning before anything is removed.
+ * "Delete series" choice instead of burying it in a post-confirm dialog.
+ * Deletes go to the 30-day Trash, so there's no extra confirm.
  */
 function DeleteTodoCard({
   text: textProp,
@@ -1080,28 +1057,14 @@ function DeleteTodoCard({
   const [done, setDone] = useState<null | 'one' | 'series'>(null)
 
   const confirmDelete = (scope: 'one' | 'series') => {
-    Alert.alert(
-      scope === 'series' ? 'Delete series?' : 'Delete to-do?',
-      scope === 'series'
-        ? `Permanently delete "${text}" and all its future occurrences. This can't be undone.`
-        : `Permanently delete "${text}". This can't be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: scope === 'series' ? 'Delete series' : 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            onDelete(scope)
-            setDone(scope)
-          },
-        },
-      ],
-    )
+    // Reversible (30-day Trash + Undo), so no confirm dialog.
+    onDelete(scope)
+    setDone(scope)
   }
 
   if (done) {
     return (
-      <Text style={styles.appliedNote}>✓ {done === 'series' ? 'Series deleted' : 'Deleted'}</Text>
+      <Text style={styles.appliedNote}>✓ {done === 'series' ? 'Series moved to Trash' : 'Moved to Trash'}</Text>
     )
   }
 

@@ -14,6 +14,9 @@
  *  - activatedDay:   day of state/signals activatedAt (first open with a completed
  *                    to-do — so activation lands on the next open, not the
  *                    exact completion moment).
+ *  - mochiDays:      per-UTC-day Mochi stats from the server-owned
+ *                    state/agentUsage doc (current day + the previous active
+ *                    day; see chatQuota.ts). Counts only.
  * Mixed UTC/local days make each boundary fuzzy by ±1 day; fine for trends.
  *
  * Retention is "returned on or after day N" (unbounded retention): with a
@@ -21,10 +24,29 @@
  * after signup, not every day they were active.
  */
 
+/** One user's Mochi usage on one UTC day. */
+export interface MochiDay {
+  date: string // YYYY-MM-DD (UTC)
+  conversations: number
+  turns: number
+  /** A Mochi reservation was rejected at the fair-use ceiling that day. */
+  ceilingHit: boolean
+}
+
 export interface RollupUser {
   signupDay: string // YYYY-MM-DD
   lastActiveDate?: string // YYYY-MM-DD
   activatedDay?: string // YYYY-MM-DD
+  mochiDays?: MochiDay[]
+}
+
+export interface MochiMetrics {
+  /** Users with at least one allowed Mochi turn on the day. */
+  users: number
+  conversations: number
+  turns: number
+  /** Users who hit the Mochi fair-use ceiling at least once on the day. */
+  ceilingHits: number
 }
 
 export interface CohortMetrics {
@@ -44,6 +66,8 @@ export interface DailyMetrics {
   /** Users whose last open is on/after the start of each window ending `day`. */
   active: { d1: number; d7: number; d30: number }
   cohorts: { d1: CohortMetrics; d7: CohortMetrics; d30: CohortMetrics }
+  /** Mochi usage on `day` (UTC). */
+  mochi: MochiMetrics
 }
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -74,6 +98,20 @@ function cohort(users: RollupUser[], cohortDay: string, n: number): CohortMetric
   }
 }
 
+function mochiOn(users: RollupUser[], day: string): MochiMetrics {
+  const out: MochiMetrics = { users: 0, conversations: 0, turns: 0, ceilingHits: 0 }
+  for (const u of users) {
+    // At most one entry per day per user; take the first match defensively.
+    const d = u.mochiDays?.find((m) => m.date === day)
+    if (!d) continue
+    if (d.turns > 0) out.users += 1
+    out.conversations += d.conversations
+    out.turns += d.turns
+    if (d.ceilingHit) out.ceilingHits += 1
+  }
+  return out
+}
+
 /** Aggregate counts for `day` (normally yesterday, UTC). Users who signed up
  * after `day` are excluded so a late run can't leak tomorrow into today. */
 export function rollUpMetrics(all: RollupUser[], day: string): DailyMetrics {
@@ -97,5 +135,6 @@ export function rollUpMetrics(all: RollupUser[], day: string): DailyMetrics {
       d7: cohort(users, addDays(day, -7), 7),
       d30: cohort(users, addDays(day, -30), 30),
     },
+    mochi: mochiOn(users, day),
   }
 }

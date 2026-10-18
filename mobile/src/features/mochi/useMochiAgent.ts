@@ -221,6 +221,8 @@ export interface ChatTurn {
    * awaiting confirmation). Tagged at receipt — the text can't be trusted to
    * tell, since toQuestion() makes every such reply end in "?". */
   isFollowUp?: boolean
+  /** Canned reply added on-device by an intent chip (no server call). */
+  isLocal?: boolean
 }
 
 interface SendResult {
@@ -229,14 +231,22 @@ interface SendResult {
   error?: string
 }
 
-/** Ensure a follow-up turn reads as a question. Mochi (Haiku) doesn't
- * reliably honor "end questions with ?" from the system prompt, so we
- * normalize deterministically on the client: strip a trailing calm period
- * and add a question mark. */
-function toQuestion(s: string): string {
-  const trimmed = s.trimEnd()
-  if (trimmed.endsWith('?')) return trimmed
-  return trimmed.replace(/[.!。\s]+$/, '') + '?'
+/** Starts like a question (English — the v2.0.0 launch language). */
+const QUESTION_START =
+  /^(what|when|which|where|who|whom|whose|how|why|do|does|did|is|are|was|were|can|could|would|should|shall|will|any|want|anything)\b/i
+
+/** Normalize a no-operation Mochi reply. Haiku doesn't reliably end its
+ * follow-up questions with "?", so a reply that STARTS like a question gets
+ * one. Anything else is a statement ("I couldn't find that to-do.") and is
+ * left alone — the old version appended "?" to every no-op reply, which
+ * turned statements into questions and mis-tagged them as follow-ups. */
+function normalizeNoOpReply(reply: string): { text: string; isQuestion: boolean } {
+  const trimmed = reply.trimEnd()
+  if (trimmed.endsWith('?')) return { text: trimmed, isQuestion: true }
+  if (QUESTION_START.test(trimmed.trimStart())) {
+    return { text: trimmed.replace(/[.!。\s]+$/, '') + '?', isQuestion: true }
+  }
+  return { text: trimmed, isQuestion: false }
 }
 
 /** What kind of failure the last send hit — drives the recovery UI.
@@ -307,6 +317,11 @@ export function useMochiAgent() {
           body: JSON.stringify({
             data: {
               messages: history.map((m) => ({ role: m.role, content: m.content })),
+              // Fair use counts conversations: tell the server this request
+              // starts one when no SERVER reply exists yet (an intent chip's
+              // canned local exchange would otherwise make it look like a
+              // follow-up).
+              conversationStart: !history.some((m) => m.role === 'assistant' && !m.isLocal),
               context,
             },
           }),
@@ -420,16 +435,18 @@ export function useMochiAgent() {
         )
         // A follow-up turn (Mochi needs more info: no operations, not
         // awaiting confirmation) is a question — make it read like one.
-        const isFollowUpQuestion =
+        const noOps =
           !result.awaitingConfirmation && (!operations || operations.length === 0)
+        const reply = noOps ? normalizeNoOpReply(result.reply) : { text: result.reply, isQuestion: false }
         setMessages((prev) => [
           ...prev,
           {
             role: 'assistant',
-            content: isFollowUpQuestion ? toQuestion(result.reply) : result.reply,
+            content: reply.text,
             operations,
             awaitingConfirmation: result.awaitingConfirmation,
-            isFollowUp: isFollowUpQuestion,
+            // Only a real question asks the user for more of the same request.
+            isFollowUp: reply.isQuestion,
           },
         ])
         return { ok: true, data: result }
@@ -483,7 +500,7 @@ export function useMochiAgent() {
       ...prev,
       { role: 'user', content: userText },
       // The canned reply is always a follow-up question ("What should I add?").
-      { role: 'assistant', content: assistantText, isFollowUp: true },
+      { role: 'assistant', content: assistantText, isFollowUp: true, isLocal: true },
     ])
   }, [])
 

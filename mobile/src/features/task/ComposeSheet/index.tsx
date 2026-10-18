@@ -16,7 +16,7 @@ import { snapDueDateToRecurrence } from '../../../../../core/src/logic/derive'
 import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
 import { useLang } from '../../../app/LangContext'
 import { useTheme } from '../../../app/theme'
-import { formatDisplayDate, formatRecurrence, fullDateLabel, isoDate } from '../../../core-bindings/utils'
+import { dueDateToDate, formatDisplayDate, formatRecurrence, fullDateLabel, isoDate } from '../../../core-bindings/utils'
 import {
   todayLocal,
   endOfWeekLocal,
@@ -443,7 +443,7 @@ export default function ComposeSheet({
   }
 
   function openDateView() {
-    setPickerDate(dueDate ? new Date(`${dueDate}T00:00:00`) : new Date())
+    setPickerDate(dueDate ? dueDateToDate(dueDate) : new Date())
     setPendingDueDate(dueDate)
     setSubView('date')
   }

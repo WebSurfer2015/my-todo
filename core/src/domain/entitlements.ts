@@ -57,8 +57,10 @@ export interface TierLimits {
  */
 export const TIER_LIMITS: Record<Tier, TierLimits> = {
   free: {
-    mochiMonthly: 90,
-    mochiDaily: 3,
+    // Counted in CONVERSATIONS (a capture), not turns — follow-up questions
+    // are free (server: functions/src/chatQuota.ts).
+    mochiMonthly: 300,
+    mochiDaily: 15,
     // Themes are free for everyone — every color theme is available on every
     // tier (no paywall gate on the theme picker).
     themes: true,
@@ -66,8 +68,8 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
   premium: {
     // Daily == monthly so the daily sub-cap never binds before the monthly
     // ceiling; the monthly ceiling is the invisible anti-abuse backstop.
-    mochiMonthly: 250,
-    mochiDaily: 250,
+    mochiMonthly: 1000,
+    mochiDaily: 1000,
     themes: true,
   },
 }

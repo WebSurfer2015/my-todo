@@ -37,7 +37,7 @@ function recurrenceFreqLabel(
 }
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
-import { formatDisplayDate, formatRecurrence, fullDateLabel, isoDate, todayLocal } from '../../../core-bindings/utils'
+import { dueDateToDate, dueDateWithDay, formatDisplayDate, formatRecurrence, fullDateLabel, isoDate, todayLocal } from '../../../core-bindings/utils'
 import {
   endOfWeekLocal,
   endOfMonthLocal,
@@ -119,18 +119,6 @@ function absoluteDateLabel(iso: string): string {
 
 function isCustomRecurrence(rec: Recurrence | undefined): boolean {
   return !!rec && Array.isArray(rec.byWeekday) && rec.byWeekday.length > 0
-}
-
-/** ISO-8601 local datetime without timezone suffix — what we store for
- * remindAt. Matches the format the AI is asked to return so the
- * scheduler can read either source identically. */
-function isoLocalDateTime(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mm = String(d.getMinutes()).padStart(2, '0')
-  return `${y}-${m}-${day}T${hh}:${mm}`
 }
 
 /** Friendly label for a datetime: short date + local time. */
@@ -795,7 +783,7 @@ export default function TaskDetailsSheet({
   }
 
   function openEditDatePicker() {
-    setEditPickerDate(editDueDate ? new Date(`${editDueDate}T00:00:00`) : new Date())
+    setEditPickerDate(editDueDate ? dueDateToDate(editDueDate) : new Date())
     setPendingEditDueDate(editDueDate)
     setParentEditView('date')
   }
@@ -804,10 +792,9 @@ export default function TaskDetailsSheet({
   function handleEditDateChange(_event: DateTimePickerEvent, selected?: Date) {
     if (!selected) return
     setEditPickerDate(selected)
-    // Completed by now stores full local datetime. AI-extracted
-    // times also flow through this field. The grouping helpers in
-    // core (dueDateOnly) strip the time when bucketing.
-    setPendingEditDueDate(isoLocalDateTime(selected))
+    // Date-only picker: change the day, keep any time already set (a bare
+    // date anchors reminders at 9:00, not midnight).
+    setPendingEditDueDate(dueDateWithDay(pendingEditDueDate || editDueDate, selected))
   }
 
 
@@ -1204,7 +1191,7 @@ export default function TaskDetailsSheet({
                   <AndroidDateFlow
                     value={editPickerDate}
                     mode="date"
-                    onCommit={(d) => applyDueDate(isoLocalDateTime(d))}
+                    onCommit={(d) => applyDueDate(dueDateWithDay(editDueDate, d))}
                     onDone={() => setParentEditView('main')}
                   />
                 )}

@@ -19,6 +19,8 @@ import {
   formatDisplayDate,
   fullDateLabel,
   MAX_RECURRENCE_INSTANCES,
+  dueDateWithDay,
+  dueDateToDate,
 } from '../src/logic/utils'
 
 describe('genUuid', () => {
@@ -303,5 +305,23 @@ describe('fullDateLabel', () => {
   })
   it('drops malformed time and returns date-only', () => {
     expect(fullDateLabel('2026-05-17Tnope', 'en-US')).toBe('May 17, 2026')
+  })
+})
+
+describe('dueDateWithDay / dueDateToDate (date-only pickers)', () => {
+  const oct19 = new Date(2026, 9, 19)
+  it('keeps an existing time-of-day', () => {
+    expect(dueDateWithDay('2026-10-18T15:30', oct19)).toBe('2026-10-19T15:30')
+  })
+  it('stays date-only when there was no time (reminders then anchor at 9:00, not midnight)', () => {
+    expect(dueDateWithDay('2026-10-18', oct19)).toBe('2026-10-19')
+    expect(dueDateWithDay('', oct19)).toBe('2026-10-19')
+    expect(dueDateWithDay(undefined, oct19)).toBe('2026-10-19')
+  })
+  it('dueDateToDate never yields an Invalid Date for a value with a time', () => {
+    const d = dueDateToDate('2026-10-19T15:00')
+    expect(Number.isNaN(d.getTime())).toBe(false)
+    expect([d.getFullYear(), d.getMonth(), d.getDate(), d.getHours()]).toEqual([2026, 9, 19, 0])
+    expect(dueDateToDate('2026-10-19').getDate()).toBe(19)
   })
 })

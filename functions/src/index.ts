@@ -21,7 +21,8 @@ import {
   validateOperation,
   type ProposedOperation,
 } from './agentTools'
-import { reserveDailyCall, reserveMochiRequest } from './quota'
+import { reserveChatTurn, reserveMochiRequest } from './quota'
+import { isConversationStart } from './chatQuota'
 import { isAgentEnabled } from './aiInfer'
 import { neutralizeEnvelopeTags, normalizeChatMessages, type ChatMessage } from './chatMessages'
 
@@ -44,12 +45,12 @@ const MODEL = 'claude-haiku-4-5'
 // one); over it the server returns RESOURCE_EXHAUSTED and the client falls
 // back to manual capture (no wall, no paywall, no top-ups — de-metered model,
 // docs/MOCHI-MONETIZATION-MODEL.md). When false, everyone shares the flat
-// 150/day cap (reserveDailyCall).
+// 150/day cap (reserveChatTurn: one slot per conversation).
 //
 // OFF again 2026-10-18 (first deploy of the dev functions to production): IAP
 // can't be sold until the Apple org conversion + Paid Apps Agreement, so the
 // shipped app's users would be held to the free tier with no way to upgrade.
-// Everyone gets the flat fair-use cap (reserveDailyCall). Flip to true in the
+// Everyone gets the flat fair-use cap (reserveChatTurn). Flip to true in the
 // v2.0.0 release deploy, once the IAP products are live.
 const MOCHI_TIER_ENFORCEMENT = false
 
@@ -85,6 +86,10 @@ interface ChatContext {
 interface ChatRequest {
   /** Multi-turn: the running conversation. First message must be `user`. */
   messages?: ChatMessage[]
+  /** Client hint: no SERVER reply exists yet in this chat. Needed because an
+   * intent chip prepends a canned local user+assistant exchange, so the first
+   * real request has two user turns and would look like a follow-up. */
+  conversationStart?: boolean
   context?: ChatContext
 }
 
@@ -237,15 +242,18 @@ export const agentChat = onCall(
       )
     }
 
-    // Reserve a daily-quota slot before doing any expensive work. Order
-    // matters: we count the call as soon as auth + input pass so a
-    // hammered model endpoint can't drain the user's quota past the cap
-    // (each slot is committed in a transaction before the Anthropic
-    // request runs).
+    // Reserve before doing any expensive work. Order matters: we count the
+    // turn as soon as auth + input pass so a hammered model endpoint can't
+    // drain the user's quota past the cap (committed in a transaction before
+    // the Anthropic request runs). Fair use counts CONVERSATIONS: only the
+    // request that starts one (exactly one user turn in the window) takes a
+    // slot; follow-ups are free, bounded by the 40-turn window and the
+    // per-day turn backstop (chatQuota.ts MAX_CHAT_TURNS_PER_DAY).
+    const startsConversation = data?.conversationStart === true || isConversationStart(rawMessages)
     if (MOCHI_TIER_ENFORCEMENT) {
-      await reserveMochiRequest(request.auth.uid)
+      await reserveMochiRequest(request.auth.uid, startsConversation)
     } else {
-      await reserveDailyCall(request.auth.uid, 'Mochi')
+      await reserveChatTurn(request.auth.uid, startsConversation)
     }
 
     const ctx = data?.context ?? {}
