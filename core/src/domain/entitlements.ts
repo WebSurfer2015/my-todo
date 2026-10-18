@@ -53,7 +53,7 @@ export interface TierLimits {
  * ceiling is set high enough to read as "unlimited" for any real human and
  * exists only as an anti-abuse backstop. Tune with analytics; never surface.
  *
- * KEEP IN SYNC with the server mirror (web/functions/src/entitlements.ts).
+ * KEEP IN SYNC with the server mirror (functions/src/entitlements.ts).
  */
 export const TIER_LIMITS: Record<Tier, TierLimits> = {
   free: {
@@ -159,7 +159,7 @@ export function canUseThemes(tier: Tier): boolean {
   return TIER_LIMITS[tier].themes
 }
 
-// AI allowance accounting is SERVER-ONLY (web/functions/src/quota.ts +
+// AI allowance accounting is SERVER-ONLY (functions/src/quota.ts +
 // mochiReservation.ts). The client has no copy: a duplicate counter drifted
 // (stale across UTC midnight) and the server's RESOURCE_EXHAUSTED already takes
 // the graceful fallback.

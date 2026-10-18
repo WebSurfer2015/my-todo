@@ -38,8 +38,7 @@ export interface Recurrence {
    * Inclusive ISO yyyy-mm-dd end date. When set, the recurrence is expanded
    * into discrete Todo instances at creation time — one Todo per occurrence
    * between dueDate and endDate. todoToggle treats each instance as a normal
-   * completion (no rolling). Legacy tasks without endDate keep the rolling
-   * behavior: dueDate advances forward on completion.
+   * completion.
    */
   endDate?: string
 }
@@ -63,9 +62,8 @@ export interface Subtask {
 
 export interface Todo {
   /**
-   * Stable, globally-unique id. Strings (UUID v4) since v1; older v0 stores
-   * used millisecond timestamps which collide on rapid bursts and across
-   * devices. `migrateTodos` rewrites legacy numeric ids on read.
+   * Stable, globally-unique id (UUID v4). `migrateTodos` assigns a fresh
+   * one to any stored row with a missing / non-string id.
    */
   id: string
   text: string
@@ -83,17 +81,17 @@ export interface Todo {
    */
   subtasks?: Subtask[]
   /**
-   * Optional recurrence. When set, marking the task done rolls dueDate forward
-   * by the recurrence period instead of completing it — same row keeps moving
-   * through time.
+   * Optional recurrence. A recurring todo is always one instance of a
+   * series (`seriesId`); completing it marks this row done and appends the
+   * next occurrence to the series tail.
    */
   recurrence?: Recurrence
   /**
    * Marks this Todo as one instance of a multi-instance recurring series.
    * All instances generated together share the same seriesId, so "delete
-   * this and all future" can find siblings without text matching. Legacy
-   * recurring tasks (rolling, or pre-feature multi-instance) won't have
-   * a seriesId — they fall back to single-task delete.
+   * this and all future" can find siblings without text matching. Every
+   * recurring todo carries one (newTodo/expandSeries, todoSetRecurrence, and
+   * migrateTodo all assign it); a one-off has none.
    */
   seriesId?: string
   /**
@@ -123,23 +121,9 @@ export interface Todo {
    * ISO yyyy-mm-dd local date set on the user-visible transition into the
    * Done bin (toggle to done, or Mark done). Cleared on restore. Used to
    * group the Done view by day. Distinct from `trashedAt` (ms timestamp,
-   * sync-layer concern); items predating this field stay legacy with no
-   * completionDate and surface in the "Earlier" group.
+   * sync-layer concern); items without one surface in the "Earlier" group.
    */
   completionDate?: string
-  /**
-   * Legacy single-reminder field (pre-multi-reminder schema). Still
-   * honored on READ via `getReminders(td)` — old docs / cross-device
-   * data may carry this. New writes use `reminders` exclusively.
-   * Keep the field in the type for migration symmetry; remove once
-   * every persisted doc has been written through a multi-reminder
-   * client.
-   */
-  reminder?: {
-    at: string
-    intervalMinutes?: number
-    until?: string
-  }
   /**
    * Multi-reminder list. Each entry fires independently; the
    * scheduler (`syncTodoReminders`) walks all of them and dedupes

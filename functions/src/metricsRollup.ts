@@ -8,11 +8,10 @@
  *
  * Inputs per user:
  *  - signupDay:      Firebase Auth account creation (UTC day). Authoritative —
- *                    profile.createdAt is stamped lazily at the first open after
- *                    the signals shipped, so it would bunch every pre-existing
- *                    user into one fake "signup" day.
- *  - lastActiveDate: profile.lastActiveDate (user-LOCAL day, stamped at open).
- *  - activatedDay:   day of profile.activatedAt (first open with a completed
+ *                    signals.createdAt is stamped lazily at the first open, so
+ *                    it isn't a reliable signup day.
+ *  - lastActiveDate: state/signals lastActiveDate (user-LOCAL day, stamped at open).
+ *  - activatedDay:   day of state/signals activatedAt (first open with a completed
  *                    to-do — so activation lands on the next open, not the
  *                    exact completion moment).
  * Mixed UTC/local days make each boundary fuzzy by ±1 day; fine for trends.

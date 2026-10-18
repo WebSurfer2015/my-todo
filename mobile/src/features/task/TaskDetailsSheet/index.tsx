@@ -19,7 +19,9 @@ import DateTimePicker from '@react-native-community/datetimepicker'
 import AndroidDateFlow from '../../../ui/AndroidDateFlow'
 import * as Haptics from 'expo-haptics'
 import { Category, Priority, Reminder, Subtask, Todo, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, PRIORITY_VALUES, PRIORITY_COLORS } from '../../../core-bindings/types'
-import { getReminders } from '../../../../../core/src/logic/derive'
+import { getReminders, dedupeReminders } from '../../../../../core/src/logic/derive'
+import { genUuid } from '../../../../../core/src/logic/utils'
+import type { SuggestedReminder } from '../../../../../core/src/logic/suggestFields'
 import ReminderSheet from '../ReminderSheet'
 
 function recurrenceFreqLabel(
@@ -159,7 +161,7 @@ function formatInterval(minutes: number): string {
 
 /** Compose the user-visible label for a reminder. One-shot → just
  * the datetime. Recurring → "every Xh until Wed 3pm". */
-function formatReminder(reminder: Todo["reminder"] | undefined): string {
+function formatReminder(reminder: Reminder | undefined): string {
   if (!reminder?.at) return ''
   if (!reminder.intervalMinutes) return formatDateTime(reminder.at)
   const cadence = formatInterval(reminder.intervalMinutes)
@@ -234,7 +236,6 @@ interface Props {
    * reminder object for one-shot (`{at}`) or recurring (`{at,
    * intervalMinutes, until}`). The OS-level schedule is reconciled
    * separately by App.tsx's syncTodoReminders effect. */
-  onUpdateReminder?: (id: string, reminder: Todo["reminder"] | undefined) => void
   /** Multi-reminder write — replaces the entire `reminders[]` on a
    * todo. Used by the new ReminderSheet (multi-select chips, "Your
    * reminders" pill list, Clear all). */
@@ -303,7 +304,7 @@ interface Props {
 
 export default function TaskDetailsSheet({
   visible, todo, categories, initialSubtaskEditId, onClose, onUpdateText, onUpdateNotes,
-  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminder, onUpdateReminders, onMoveToTrash, onPermanentDelete, onMoveSeriesFutureToTrash, onSkip, onSkipSeries, onPermanentDeleteSeries, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange, onApplySeriesSubtasks,
+  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminders, onMoveToTrash, onPermanentDelete, onMoveSeriesFutureToTrash, onSkip, onSkipSeries, onPermanentDeleteSeries, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange, onApplySeriesSubtasks,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
   agentEnabled,
@@ -402,13 +403,7 @@ export default function TaskDetailsSheet({
   const [pendingEditDueDate, setPendingEditDueDate] = useState<string>('')
   const [editRecurrence, setEditRecurrence] = useState<Recurrence | undefined>(undefined)
   const [parentEditView, setParentEditView] = useState<'main' | 'repeat' | 'customRepeat' | 'date' | 'recurEndDate' | 'remindAt'>('main')
-  // Reminder state — editor tracks the pending object (or null when
-  // cleared); on Save we commit + sync. Mirrors the existing
-  // pending-date pattern.
-  const [editReminder, setEditReminder] = useState<Todo["reminder"] | undefined>(todo.reminder)
-  // Multi-reminder shadow state — what the ReminderSheet writes back.
-  // Initialized from `getReminders(todo)` so legacy single-reminder
-  // docs read in cleanly.
+  // Reminder shadow state — what the ReminderSheet writes back.
   const [editReminders, setEditReminders] = useState<Reminder[]>(() =>
     getReminders(todo),
   )
@@ -424,7 +419,6 @@ export default function TaskDetailsSheet({
     category: Category | undefined
     dueDate: string
     recurrence: Recurrence | undefined
-    reminder: Todo['reminder'] | undefined
     reminders: Reminder[]
   } | null>(null)
   // (Pending pickerDate / pendingRemindAt / Interval / Until and
@@ -472,7 +466,6 @@ export default function TaskDetailsSheet({
       setEditCategory(todo.category)
       setEditDueDate(todo.dueDate ?? '')
       setEditRecurrence(todo.recurrence)
-      setEditReminder(todo.reminder)
       setEditReminders(getReminders(todo))
       // Capture the True-Cancel snapshot before any picker auto-save
       // can mutate the live todo this session.
@@ -483,7 +476,6 @@ export default function TaskDetailsSheet({
         category: todo.category,
         dueDate: todo.dueDate ?? '',
         recurrence: todo.recurrence,
-        reminder: todo.reminder,
         reminders: getReminders(todo),
       }
       setParentEditView('main')
@@ -618,26 +610,14 @@ export default function TaskDetailsSheet({
       }
     }
   }
-  async function applyReminder(reminder: Todo["reminder"] | undefined) {
-    setEditReminder(reminder)
-    const sameAsStored =
-      JSON.stringify(reminder ?? null) === JSON.stringify(todo.reminder ?? null)
-    if (sameAsStored) return
-    if (reminder?.at && !(await ensurePermission())) {
-      Alert.alert(
-        t.remindPermissionDeniedTitle,
-        t.remindPermissionDeniedBody,
-      )
-      // Bail without committing — the OS won't fire the notification
-      // and saving the field would lie to the user. Reset the local
-      // editor so the row reflects the actual stored value.
-      setEditReminder(todo.reminder)
-      return
-    }
-    onUpdateReminder?.(todo.id, reminder)
+  // AI-suggested reminder: added as one more `reminders[]` entry (deduped,
+  // so re-applying the same suggestion is a no-op) via applyReminders.
+  function applySuggestedReminder(rem: SuggestedReminder) {
+    void applyReminders(dedupeReminders([...editReminders, { ...rem, id: genUuid() }]))
   }
-  // Multi-reminder commit — called from the redesigned ReminderSheet.
-  // Same permission-denied revert pattern as applyReminder.
+  // Reminder commit — called from the ReminderSheet and the AI pill. If
+  // notification permission is denied, bail without committing (the OS
+  // won't fire it, so saving would lie) and reset the local editor.
   async function applyReminders(next: Reminder[]) {
     setEditReminders(next)
     const sameAsStored =
@@ -802,8 +782,7 @@ export default function TaskDetailsSheet({
         onUpdateRecurrence(todo.id, orig.recurrence)
       }
       if (JSON.stringify(orig.reminders) !== JSON.stringify(getReminders(todo))) {
-        if (onUpdateReminders) onUpdateReminders(todo.id, orig.reminders)
-        else onUpdateReminder?.(todo.id, orig.reminder)
+        onUpdateReminders?.(todo.id, orig.reminders)
       }
     }
     onClose()
@@ -1474,7 +1453,7 @@ export default function TaskDetailsSheet({
                   currentRecurrenceFreq={editRecurrence?.freq}
                   currentRecurrenceEndDate={editRecurrence?.endDate}
                   currentRecurrenceByWeekday={editRecurrence?.byWeekday}
-                  currentReminder={editReminder}
+                  currentReminder={editReminders[0]}
                   onApplyCategory={(id) => {
                     applyCategory(id)
                     Haptics.selectionAsync().catch(() => {})
@@ -1491,8 +1470,8 @@ export default function TaskDetailsSheet({
                     applyRecurrence(rec)
                     Haptics.selectionAsync().catch(() => {})
                   }}
-                  onApplyReminder={onUpdateReminder ? (rem) => {
-                    void applyReminder(rem)
+                  onApplyReminder={onUpdateReminders ? (rem) => {
+                    applySuggestedReminder(rem)
                     Haptics.selectionAsync().catch(() => {})
                   } : undefined}
                   onDismissField={fieldAi.dismissField}
@@ -1592,7 +1571,7 @@ export default function TaskDetailsSheet({
                     <Text style={styles.editChevron}>›</Text>
                   )}
                 </TouchableOpacity>
-                {(onUpdateReminders || onUpdateReminder) && (
+                {onUpdateReminders && (
                   <>
                     <View style={styles.editGroupDivider} />
                     <TouchableOpacity

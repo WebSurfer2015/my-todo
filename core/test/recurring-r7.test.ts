@@ -29,7 +29,7 @@ function seedWithReminder(over: Partial<Todo> = {}): Todo {
     trashed: false,
     updatedAt: 1,
     recurrence: { freq: 'daily' },
-    reminder: { at: '2026-05-28T09:00' },
+    reminders: [{ id: 'r1', at: '2026-05-28T09:00' }],
     ...over,
   }
 }
@@ -94,7 +94,7 @@ describe('todoToggle — series reminder transfer (R7)', () => {
     const expanded = expandSeries(seedWithReminder(), '2026-05-28')
     const headId = expanded[0].id
     const out = todoToggle(expanded, headId, '2026-05-28')
-    // Head no longer has reminders (both legacy + array cleared).
+    // Head no longer has reminders.
     const head = out.find((t) => t.id === headId)!
     expect(getReminders(head)).toEqual([])
     // Next-upcoming (5/29) now carries the rolled reminder at 09:00.
@@ -111,7 +111,7 @@ describe('todoToggle — series reminder transfer (R7)', () => {
   it('preserves time-of-day across the roll', () => {
     const seed = seedWithReminder({
       dueDate: '2026-05-28',
-      reminder: { at: '2026-05-28T15:42' },
+      reminders: [{ id: 'r1', at: '2026-05-28T15:42' }],
     })
     const expanded = expandSeries(seed, '2026-05-28')
     const out = todoToggle(expanded, expanded[0].id, '2026-05-28')
@@ -127,11 +127,12 @@ describe('todoToggle — series reminder transfer (R7)', () => {
 
   it('preserves intervalMinutes and rolls until', () => {
     const seed = seedWithReminder({
-      reminder: {
+      reminders: [{
+        id: 'r1',
         at: '2026-05-28T09:00',
         intervalMinutes: 60,
         until: '2026-05-28T17:00',
-      },
+      }],
     })
     const expanded = expandSeries(seed, '2026-05-28')
     const out = todoToggle(expanded, expanded[0].id, '2026-05-28')
@@ -206,6 +207,6 @@ describe('todoSkip — series reminder transfer (R7)', () => {
       updatedAt: 1,
     }
     const out = todoSkip([oneOff], 'plain', '2026-05-28')
-    expect(out[0].reminder).toBeUndefined()
+    expect(out[0].reminders).toBeUndefined()
   })
 })

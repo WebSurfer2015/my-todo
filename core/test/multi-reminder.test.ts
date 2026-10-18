@@ -1,8 +1,7 @@
 /**
  * PR-A of the multi-reminder feature — schema + scheduler + R7
  * transfer. Covers:
- *  - getReminders normalizes legacy `reminder` to a singleton array
- *    with a stable `legacy:<at>` id.
+ *  - getReminders returns the (deduped) reminders array.
  *  - todoToggle / todoSkip transfer EVERY reminder on a completing
  *    series instance to the next-upcoming sibling.
  *  - The transfer preserves intervalMinutes + until + time-of-day,
@@ -43,24 +42,7 @@ describe('getReminders — normalization', () => {
     expect(r.map((x) => x.id)).toEqual(['r-1d', 'r-1h'])
   })
 
-  it('wraps a legacy single reminder into a singleton array', () => {
-    const legacy: Todo = {
-      id: 'leg',
-      text: 'x',
-      done: false,
-      priority: 'medium',
-      dueDate: '2026-06-10',
-      trashed: false,
-      updatedAt: 1,
-      reminder: { at: '2026-06-09T09:00' },
-    }
-    const r = getReminders(legacy)
-    expect(r).toHaveLength(1)
-    expect(r[0].at).toBe('2026-06-09T09:00')
-    expect(r[0].id).toBe('legacy:2026-06-09T09:00')
-  })
-
-  it('returns an empty array when neither field is set', () => {
+  it('returns an empty array when no reminders are set', () => {
     const bare: Todo = {
       id: 'b',
       text: 'x',
@@ -73,20 +55,6 @@ describe('getReminders — normalization', () => {
     expect(getReminders(bare)).toEqual([])
   })
 
-  it('prefers the array even when both are set', () => {
-    const both: Todo = {
-      id: 'both',
-      text: 'x',
-      done: false,
-      priority: 'medium',
-      dueDate: '2026-06-10',
-      trashed: false,
-      updatedAt: 1,
-      reminder: { at: '2026-06-09T09:00' },
-      reminders: [{ id: 'a', at: '2026-06-08T09:00' }],
-    }
-    expect(getReminders(both).map((r) => r.id)).toEqual(['a'])
-  })
 })
 
 describe('todoToggle — multi-reminder transfer on series completion', () => {
@@ -152,33 +120,5 @@ describe('todoSkip — multi-reminder transfer on series skip', () => {
         t.dueDate.startsWith('2026-06-11'),
     )!
     expect(getReminders(next)).toHaveLength(2)
-  })
-})
-
-describe('legacy single-reminder series flow', () => {
-  it('still transfers correctly when the seed used the old field', () => {
-    const legacy: Todo = {
-      id: 'head',
-      text: 'x',
-      done: false,
-      priority: 'medium',
-      dueDate: '2026-06-10',
-      trashed: false,
-      updatedAt: 1,
-      recurrence: { freq: 'daily' },
-      reminder: { at: '2026-06-10T09:00' },
-    }
-    const expanded = expandSeries(legacy, '2026-06-10')
-    const out = todoToggle(expanded, expanded[0].id, '2026-06-10')
-    const next = out.find(
-      (t) =>
-        t.seriesId === expanded[0].seriesId &&
-        !t.trashed &&
-        !t.done &&
-        t.dueDate.startsWith('2026-06-11'),
-    )!
-    const rolled = getReminders(next)
-    expect(rolled).toHaveLength(1)
-    expect(rolled[0].at).toBe('2026-06-11T09:00')
   })
 })

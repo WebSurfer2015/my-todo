@@ -20,8 +20,8 @@ describe('reminder id scheme', () => {
   })
 
   it('extracts todoId as the FIRST segment even when reminderId contains colons', () => {
-    // legacy synthesized reminderId form: `legacy:<at>`
-    const id = reminderIdFor(UUID, 'legacy:2026-06-05T09:00', 2)
+    // stored reminder ids are untrusted strings and may contain colons
+    const id = reminderIdFor(UUID, 'r:2026-06-05T09:00', 2)
     expect(todoIdFromReminderId(id)).toBe(UUID)
     // fireIndex is the LAST segment, unaffected by colons in reminderId
     expect(fireIndexFromReminderId(id)).toBe(2)

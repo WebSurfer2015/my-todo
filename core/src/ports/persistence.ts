@@ -38,7 +38,11 @@ export function stateDocPath(uid: string, key: string): string {
   return `users/${uid}/state/${key}`;
 }
 
-
+/**
+ * Read a `{version, data}` envelope and run `migrate` on its `data`.
+ * Anything that isn't a well-formed envelope (missing key, bad JSON, bare
+ * value) is treated as empty: `migrate(null)`.
+ */
 export async function readVersioned<T>(
   storage: StorageAdapter,
   key: string,
@@ -51,8 +55,7 @@ export async function readVersioned<T>(
   } catch {
     raw = null;
   }
-  if (isVersioned(raw)) return migrate(raw.data);
-  return migrate(raw);
+  return migrate(isVersioned(raw) ? raw.data : null);
 }
 
 export async function writeVersioned(

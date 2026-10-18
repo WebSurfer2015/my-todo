@@ -25,8 +25,8 @@ import { DAILY_QUOTES, dailyQuoteIndex, quoteAt } from "../../../../../core/src/
 
 /**
  * Defensive avatar normalizer — guarantees we render Mochi when the saved
- * avatar is missing, malformed, or points to a preset that no longer exists
- * (e.g. legacy 'turtle' emoji preset before the brand consolidated on Mochi).
+ * avatar is missing, malformed, or points to a preset key that isn't in the
+ * library (stored data is untrusted).
  */
 function normalizeAvatar(a: AvatarT | undefined | null): AvatarT {
   const fallback: AvatarT = { kind: "preset", key: "mochi" };
@@ -60,10 +60,10 @@ export default function ProfileSheet({
   const { user, signOut } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
-  // Backfill from `name` for legacy profiles that have a single
-  // `name` set but no `firstName`/`lastName` split. Without this,
-  // an existing user opens Edit profile and sees Save grayed out
-  // (canSave checks firstName.trim()) because the field starts empty.
+  // Backfill from `name` when the profile has no `firstName` (e.g. an
+  // email signup that only supplied a display name). Without this, the
+  // user opens Edit profile and sees Save grayed out (canSave checks
+  // firstName.trim()) because the field starts empty.
   const [firstName, setFirstName] = useState(profile.firstName ?? profile.name ?? "");
   const [lastName, setLastName] = useState(profile.lastName ?? "");
   const [quote, setQuote] = useState(profile.quote ?? "");
@@ -222,8 +222,6 @@ export default function ProfileSheet({
       quoteMode,
       quoteShuffle: quoteMode === "daily" ? quoteShuffle : undefined,
       avatar,
-      density: "comfortable",
-      title: profile.title,
       // Preserve whatever reduceMotion the user has set in Settings.
       // The previous `reduceMotion: true` here was a bug — saving
       // the profile silently forced motion off for everyone, which

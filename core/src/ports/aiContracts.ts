@@ -2,7 +2,7 @@
  * Platform-pure wire contract for the `aiInfer` Cloud Function.
  *
  * These are the CLIENT-side request/response shapes shared by web + mobile.
- * The server owns its own copies (web/functions/src/aiInfer*.ts) because the
+ * The server owns its own copies (functions/src/aiInfer*.ts) because the
  * functions package is deployed standalone with its own tsconfig and cannot
  * import core/. A text-parity test (mobile/src/__tests__/aiInfer-contract-
  * parity.test.ts) guards these against drift with the server output types —

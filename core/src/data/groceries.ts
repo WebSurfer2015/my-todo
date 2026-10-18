@@ -193,18 +193,11 @@ export function migrateGroceries(raw: unknown): GroceryItem[] {
     if (typeof o.groupId !== 'string' || o.groupId.length === 0) continue
     if (seen.has(o.id)) continue
     seen.add(o.id)
-    // Migration: legacy items carried `store: string`. Promote to the
-    // new `stores: string[]` shape on read — single value becomes a
-    // one-element array; existing arrays come through normalized.
-    const legacyStore = typeof o.store === 'string' && o.store.length > 0
-      ? [o.store]
-      : []
-    const rawStores = Array.isArray(o.stores) ? o.stores : legacyStore
     const item: GroceryItem = {
       id: o.id.slice(0, 64),
       text: o.text.slice(0, MAX_GROCERY_TEXT_LEN),
       groupId: o.groupId.slice(0, MAX_GROCERY_GROUP_ID_LEN),
-      stores: normalizeStores(rawStores),
+      stores: normalizeStores(o.stores as unknown[] | undefined),
       checked: o.checked === true,
       addedAt:
         typeof o.addedAt === 'number' && o.addedAt > 0
@@ -221,10 +214,6 @@ export function migrateGroceries(raw: unknown): GroceryItem[] {
       }
       ps.sort((a, b) => b - a)
       if (ps.length > 0) item.purchases = ps.slice(0, MAX_GROCERY_PURCHASES)
-    } else if (typeof o.checkedAt === 'number' && o.checkedAt > 0) {
-      // Legacy item with no purchase log — seed from the one checkedAt
-      // we have so the user keeps a single data point of history.
-      item.purchases = [Math.floor(o.checkedAt)]
     }
     out.push(item)
     if (out.length >= MAX_GROCERY_ITEMS) break
@@ -265,18 +254,9 @@ export function migrateGroceryGroups(raw: unknown): GroceryGroup[] {
     if (out.length >= MAX_GROCERY_GROUPS) break
   }
   // Guarantee the reserved catch-all exists, and that it sits last.
-  // Upgrade legacy default labels ("Others", then "Uncategorized") to
-  // the current "Miscellaneous" so existing users see the new name;
-  // user-renamed labels are preserved untouched.
-  const LEGACY_OTHERS_LABELS = new Set(['Others', 'Uncategorized'])
   const withoutOthers = out.filter((g) => g.id !== OTHERS_GROUP_ID)
-  const othersFromInput = out.find((g) => g.id === OTHERS_GROUP_ID)
   const others =
-    othersFromInput
-      ? LEGACY_OTHERS_LABELS.has(othersFromInput.label)
-        ? { ...othersFromInput, label: 'Miscellaneous' }
-        : othersFromInput
-      : { id: OTHERS_GROUP_ID, label: 'Miscellaneous' }
+    out.find((g) => g.id === OTHERS_GROUP_ID) ?? { id: OTHERS_GROUP_ID, label: 'Miscellaneous' }
   withoutOthers.push(others)
   return withoutOthers
 }

@@ -102,7 +102,7 @@ export async function refreshUsageSignals(
     const data =
       parsed && typeof parsed === 'object' && 'data' in parsed
         ? (parsed as { data: unknown }).data
-        : parsed
+        : null
     current = migrateUsageSignals(data)
   } catch {
     return 'skipped'

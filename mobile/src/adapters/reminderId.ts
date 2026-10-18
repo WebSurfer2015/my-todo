@@ -6,7 +6,7 @@
  *
  * Identifier: `todo:<todoId>:<reminderId>:<fireIndex>`.
  *   • todoId    — UUID, no colons
- *   • reminderId — per-entry id; MAY contain colons (legacy `legacy:<at>`)
+ *   • reminderId — per-entry id; stored data is untrusted, so it MAY contain colons
  *   • fireIndex  — integer, always the last segment
  *
  * Each fire cancels independently, so a reshape/edit only needs to cancel
@@ -26,7 +26,7 @@ export function reminderIdFor(
 }
 
 /** todoId is the FIRST segment after the prefix (reminderId may contain
- * colons via the legacy `legacy:<at>` form, so we can't split naively). */
+ * colons, so we can't split naively). */
 export function todoIdFromReminderId(id: string): string | null {
   if (!id.startsWith(REMINDER_ID_PREFIX)) return null
   const rest = id.slice(REMINDER_ID_PREFIX.length)

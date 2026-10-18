@@ -1,7 +1,7 @@
 // Versioned envelope shared by every slice's `useSyncedState` call.
 // The same `{version, data}` shape is written by AsyncStorage (local)
 // and by Firestore (cloud) so the cross-device payload stays
-// byte-identical.
+// byte-identical. Anything that isn't an envelope reads as null (empty).
 
 const SCHEMA_VERSION = 1;
 
@@ -18,7 +18,7 @@ export function unwrap(raw: string | null): unknown {
     ) {
       return (parsed as { data: unknown }).data;
     }
-    return parsed;
+    return null;
   } catch {
     return null;
   }

@@ -75,9 +75,9 @@ describe('readVersioned', () => {
     expect(await readVersioned(adapter, 'todos', migrate)).toEqual({ count: 7 })
   })
 
-  it('passes raw value to migrate when stored data is unversioned (legacy)', async () => {
+  it('treats an un-enveloped value as empty (migrate(null))', async () => {
     await adapter.setItem('todos', JSON.stringify({ count: 3 }))
-    expect(await readVersioned(adapter, 'todos', migrate)).toEqual({ count: 3 })
+    expect(await readVersioned(adapter, 'todos', migrate)).toEqual({ count: 0 })
   })
 
   it('returns migrate(null) when JSON parse fails', async () => {

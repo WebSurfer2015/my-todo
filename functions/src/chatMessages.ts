@@ -39,18 +39,13 @@ function isChatMessage(m: unknown): m is ChatMessage {
   )
 }
 
-/** `messages` (multi-turn) wins; `turn` is the legacy single-turn shape. */
-export function normalizeChatMessages(messages: unknown, turn: unknown): ChatMessage[] {
-  if (Array.isArray(messages)) {
-    const window = messages.filter(isChatMessage).slice(-MAX_TURNS)
-    const firstUser = window.findIndex((m) => m.role === 'user')
-    if (firstUser === -1) return []
-    return window
-      .slice(firstUser)
-      .map((m) => ({ role: m.role, content: neutralizeEnvelopeTags(m.content).slice(0, MAX_TURN_CHARS) }))
-  }
-  if (typeof turn === 'string') {
-    return [{ role: 'user', content: neutralizeEnvelopeTags(turn).slice(0, MAX_TURN_CHARS) }]
-  }
-  return []
+/** Validate + window the client's `messages` history. Non-array → []. */
+export function normalizeChatMessages(messages: unknown): ChatMessage[] {
+  if (!Array.isArray(messages)) return []
+  const window = messages.filter(isChatMessage).slice(-MAX_TURNS)
+  const firstUser = window.findIndex((m) => m.role === 'user')
+  if (firstUser === -1) return []
+  return window
+    .slice(firstUser)
+    .map((m) => ({ role: m.role, content: neutralizeEnvelopeTags(m.content).slice(0, MAX_TURN_CHARS) }))
 }

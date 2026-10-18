@@ -9,7 +9,7 @@ This is the **mobile** workspace of `my-todo` — the Sagely app (Expo SDK 54 + 
 Feature-folder layout:
 
 - `app/` — bootstrap & shell: contexts/providers (`AuthContext`, `LangContext`, `notify`, `StoreContext`, `SheetContext`), `ErrorBoundary`, `theme`, and top-level chrome (`AppHeader`, `AppBackground`, `Fab`, `Footer`, `SplashOverlay`). `App.tsx` is at the workspace root.
-- `adapters/` — IO / platform edges: `firebase`, `firestoreAdapter`, `persistence`, `analytics`, `crashReporting`, `notifications`, `aiInfer`, `authErrors`.
+- `adapters/` — IO / platform edges: `firebase`, `firestoreAdapter`, `persistence`, `crashReporting`, `notifications`, `aiInfer`, `authErrors`.
 - `store/` — domain store: `useTodoStore`, `useSyncedState`, `slices/`.
 - `core-bindings/` — thin re-export shims over `../../core/src/*` (`types`, `groups`, `categories`, `i18n`, `profile`, `utils`, `groceries`). Import core through these (or core directly), not by reaching across.
 - `ui/` — shared, feature-agnostic presentational components (`Avatar`, `CategoryIcon`, `EmptyState`, `InlinePicker`, …).

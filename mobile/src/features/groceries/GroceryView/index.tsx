@@ -32,7 +32,6 @@ import StorePicker from '../StorePicker'
 import GroceryIcon from '../GroceryIcon'
 import Fab from '../../../app/Fab'
 import EmptyStateCard from '../../../ui/EmptyStateCard'
-import { Analytics } from '../../../adapters/analytics'
 import SearchPill from '../../filters/SearchPill'
 import { makeStyles } from './styles';
 import StorePill from './StorePill';
@@ -626,7 +625,6 @@ export default function GroceryView({
             actionLabel="Add Store"
             actionAccessibilityLabel="Add a store"
             onAction={() => {
-              void Analytics.emptyStateCtaTapped('shopping-no-store')
               // Open StorePicker straight into the inline-add row
               // so the user lands on the name input — saves a
               // redundant tap on "+ Add store" inside the picker.
@@ -641,7 +639,6 @@ export default function GroceryView({
             hint="Add an item to get started."
             actionLabel="Add your first item"
             onAction={() => {
-              void Analytics.emptyStateCtaTapped('shopping-no-item')
               setComposeOpen(true)
             }}
             centered
@@ -829,7 +826,6 @@ export default function GroceryView({
     />
     <Fab
       onPress={() => {
-        void Analytics.fabTapped('shopping')
         // Match the other tabs: respect the last-used capture mode.
         if (agentEnabled && lastComposeMode === 'mochi' && onAskMochi) onAskMochi()
         else setComposeOpen(true)

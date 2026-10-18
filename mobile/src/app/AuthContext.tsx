@@ -27,7 +27,6 @@ import * as Crypto from "expo-crypto";
 import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
 import { auth, db } from "../adapters/firebase";
 import { stateDocPath, USER_STATE_KEYS, SCHEMA_VERSION } from "../../../core/src/ports/persistence";
-import { Analytics } from "../adapters/analytics";
 import { Profile, SEED_PROFILE, MAX_PROFILE_NAME_LEN } from "../../../core/src/data/profile";
 
 type User = FirebaseAuthTypes.User;
@@ -172,7 +171,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         value: JSON.stringify({ version: SCHEMA_VERSION, data: profile }),
         updatedAt: Date.now(),
       });
-      void Analytics.signupCompleted("email");
     },
     [],
   );
@@ -259,7 +257,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         value: JSON.stringify({ version: SCHEMA_VERSION, data: profile }),
         updatedAt: Date.now(),
       });
-      void Analytics.signupCompleted("apple");
     }
     // Profile is persisted (or pre-existed) — safe to clear the stash.
     // If the setDoc above threw, we keep the stash for the next attempt.
@@ -280,8 +277,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const cred = await signInWithCredential(auth, fbCredential);
       const givenName = result.data?.user?.givenName ?? undefined;
       const familyName = result.data?.user?.familyName ?? undefined;
-      const isFreshSignup = await seedProfileFromCred(cred, { firstName: givenName, lastName: familyName });
-      if (isFreshSignup) void Analytics.signupCompleted("google");
+      await seedProfileFromCred(cred, { firstName: givenName, lastName: familyName });
     } catch (err) {
       const code = (err as { code?: string } | null)?.code;
       // Cancelled or "in progress" are benign; let UI suppress.

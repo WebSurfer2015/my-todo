@@ -44,9 +44,7 @@ export default function Avatar({ avatar, size = 36 }: { avatar: AvatarT; size?: 
   const ringColor =
     avatar.kind === 'preset'
       ? darkenHex(findPreset(avatar.key).bg, RING_DARKEN)
-      : avatar.kind === 'icon'
-        ? darkenHex(avatar.color, RING_DARKEN)
-        : theme.primary
+      : theme.primary
   const ring = {
     borderRadius: size / 2,
     borderWidth: 1.5,
@@ -61,33 +59,15 @@ export default function Avatar({ avatar, size = 36 }: { avatar: AvatarT; size?: 
       />
     )
   }
-  if (avatar.kind === 'preset') {
-    const preset = findPreset(avatar.key)
-    const bundled = preset.imageKey ? PRESET_IMAGES[preset.imageKey] : undefined
-    if (bundled) {
-      // mochi-mascot.png is square-ish with a centered turtle on a
-      // transparent background. Contain-fit at slightly less than full
-      // size so the turtle's outermost details (head, tail, accent
-      // bubble) sit comfortably inside the circular crop instead of
-      // pressing against the ring border.
-      const inset = Math.max(2, size * 0.08)
-      return (
-        <View
-          style={[
-            styles.preset,
-            { width: size, height: size, backgroundColor: preset.bg, overflow: 'hidden' },
-            ring,
-          ]}
-        >
-          <Image
-            source={bundled}
-            style={{ width: size - inset * 2, height: size - inset * 2 }}
-            resizeMode="contain"
-          />
-        </View>
-      )
-    }
-    const emojiSize = size * 0.6
+  const preset = findPreset(avatar.key)
+  const bundled = preset.imageKey ? PRESET_IMAGES[preset.imageKey] : undefined
+  if (bundled) {
+    // mochi-mascot.png is square-ish with a centered turtle on a
+    // transparent background. Contain-fit at slightly less than full
+    // size so the turtle's outermost details (head, tail, accent
+    // bubble) sit comfortably inside the circular crop instead of
+    // pressing against the ring border.
+    const inset = Math.max(2, size * 0.08)
     return (
       <View
         style={[
@@ -96,44 +76,47 @@ export default function Avatar({ avatar, size = 36 }: { avatar: AvatarT; size?: 
           ring,
         ]}
       >
-        <Text
-          style={{
-            fontSize: emojiSize,
-            // lineHeight == fontSize so the glyph's line box hugs it and
-            // the parent's center alignment truly centers the animal.
-            lineHeight: emojiSize,
-            textAlign: 'center',
-            textAlignVertical: 'center',
-            includeFontPadding: false,
-            // Emoji glyphs sit a little high in their box — nudge down
-            // so the animal reads visually centered in the circle.
-            // Butterfly + fish render higher than the rest, so they get
-            // a touch more.
-            transform: [
-              {
-                translateY:
-                  emojiSize *
-                  (preset.key === 'butterfly' || preset.key === 'fish' ? 0.13 : 0.08),
-              },
-            ],
-          }}
-        >
-          {preset.emoji}
-        </Text>
+        <Image
+          source={bundled}
+          style={{ width: size - inset * 2, height: size - inset * 2 }}
+          resizeMode="contain"
+        />
       </View>
     )
   }
-  // 'icon' kind comes from the web app's lucide library — mobile doesn't render those natively.
-  // Fall back to a colored circle with a generic glyph.
+  const emojiSize = size * 0.6
   return (
     <View
       style={[
         styles.preset,
-        { width: size, height: size, backgroundColor: avatar.color, overflow: 'hidden' },
+        { width: size, height: size, backgroundColor: preset.bg, overflow: 'hidden' },
         ring,
       ]}
     >
-      <Text style={{ fontSize: size * 0.55, color: '#fff' }}>★</Text>
+      <Text
+        style={{
+          fontSize: emojiSize,
+          // lineHeight == fontSize so the glyph's line box hugs it and
+          // the parent's center alignment truly centers the animal.
+          lineHeight: emojiSize,
+          textAlign: 'center',
+          textAlignVertical: 'center',
+          includeFontPadding: false,
+          // Emoji glyphs sit a little high in their box — nudge down
+          // so the animal reads visually centered in the circle.
+          // Butterfly + fish render higher than the rest, so they get
+          // a touch more.
+          transform: [
+            {
+              translateY:
+                emojiSize *
+                (preset.key === 'butterfly' || preset.key === 'fish' ? 0.13 : 0.08),
+            },
+          ],
+        }}
+      >
+        {preset.emoji}
+      </Text>
     </View>
   )
 }

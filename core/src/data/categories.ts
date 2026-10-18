@@ -15,8 +15,7 @@ const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/
 
 /**
  * Apple system colors (iOS HIG). Hex form so the same value works in DOM
- * inline styles and React Native StyleSheet, and so cross-platform sync
- * doesn't choke on CSS-variable tokens.
+ * inline styles and React Native StyleSheet.
  */
 export const COLOR_PALETTE: string[] = [
   '#FF3B30', // red
@@ -36,38 +35,15 @@ export const SEED_CATEGORIES: CategoryDef[] = [
   { id: 'other',  color: '#FF9500', icon: 'more-horizontal' },
 ]
 
-const ICON_RENAMES: Record<string, string> = {
-  work: 'briefcase',
-  dots: 'more-horizontal',
-  school: 'graduation-cap', // mobile's old key
-}
-
-/** Legacy CSS-variable colors (web's original palette) → hex. */
-const COLOR_RENAMES: Record<string, string> = {
-  'var(--red)':    '#FF3B30',
-  'var(--orange)': '#FF9500',
-  'var(--yellow)': '#FFCC00',
-  'var(--green)':  '#34C759',
-  'var(--teal)':   '#30B0C7',
-  'var(--blue)':   '#007AFF',
-  'var(--purple)': '#AF52DE',
-  'var(--pink)':   '#FF2D92',
-}
-
-const LEGACY_ICON_FOR_BUILTIN: Record<string, string> = {
-  home:   'home',
-  school: 'graduation-cap',
-  work:   'briefcase',
-  other:  'more-horizontal',
-}
+/** Default icon for a built-in category whose stored row lacks one. */
+const BUILTIN_ICON: Record<string, string> = Object.fromEntries(
+  SEED_CATEGORIES.map((c) => [c.id, c.icon]),
+)
 
 export function migrateCategory(c: Partial<CategoryDef> & { id: string }): CategoryDef {
-  const rawIcon = c.icon ?? LEGACY_ICON_FOR_BUILTIN[c.id] ?? 'tag'
-  const icon = ICON_RENAMES[rawIcon] ?? rawIcon
-  const rawColor = c.color ?? '#8E8E93'
-  let color = COLOR_RENAMES[rawColor] ?? rawColor
+  const icon = c.icon ?? BUILTIN_ICON[c.id] ?? 'tag'
   // Reject malformed colors (anything not a 6-digit hex) — fall back to gray.
-  if (!HEX_COLOR_RE.test(color)) color = '#8E8E93'
+  const color = typeof c.color === 'string' && HEX_COLOR_RE.test(c.color) ? c.color : '#8E8E93'
   const label =
     typeof c.label === 'string' && c.label.length > 0
       ? c.label.slice(0, MAX_CATEGORY_LABEL_LEN)

@@ -40,15 +40,15 @@ until v2.0.0 is live (5.6).*
 *Re-scoped 2026-10-17: Firebase Analytics stays OFF — it's a third-party
 behavioral SDK that contradicts `PRIVACY.md` and the not-surveilled brand.
 Measure first-party + aggregate instead (`MEASUREMENT-PLAN.md`). The 14 typed
-event call sites in `analytics.ts` remain as a no-op seam.*
+event no-op seam was deleted 2026-10-18 — Tier 3 would add a fresh counter module.*
 | # | Item | Why | Effort | Status |
 |---|---|---|---|---|
 | 0.1 | **Tier 1 — RevenueCat** as the monetization-funnel source of truth (trial→paid, churn, LTV) | already integrated; zero new tracking | S (doc only) | ✅ 2026-10-18 — `MEASUREMENT-PLAN.md` Tier 1 is the record: the RevenueCat dashboard is the monetization-funnel source of truth (trial→paid, churn, MRR/LTV, renewals), live once IAP ships; zero new tracking |
 | 0.2a | **Tier 2 schema** — `createdAt`/`lastActiveDate`/`activatedAt` on Profile + migration + tests; `metrics/*` covered by default-deny | foundation for activation/retention | S | ✅ `448e688` |
 | 0.2b | **Tier 2 capture** — core `refreshUsageSignals` writes a separate `state/signals` doc (never the profile) on open, every foreground, and first completion; a failed read writes nothing | records the signals | S | 🔶 `bca8e52` → reworked 2026-10-18 after QA (3 passes: profile overwrite / stale-cache / v1.6 strip). Needs the rules deploy (`signals` key) |
 | 0.2c | **Tier 2 aggregation CF** — scheduled roll-up of **aggregate** counts to `metrics/{date}` (server-only) | answers activation/retention/reactivation with no behavioral logging | M | 🔶 built early (2026-10-18): `metricsRollup` scheduled CF (06:15 UTC daily, yesterday's counts) + pure `rollUpMetrics` (unit-tested). Signup cohort = Firebase Auth creation day (profile `createdAt` is lazily stamped). **Deployed 2026-10-18** (scheduler job `firebase-schedule-metricsRollup-us-central1` enabled); first `metrics/{day}` doc expected 2026-10-18 06:15 UTC — **verify it exists + holds counts only** |
-| 0.3 | **Tier 3** — anonymous daily counters for Mochi-used / paywall-shown / CTA / **groceries-used**, by repointing the `analytics.ts` no-op seam to a `recordMetric` CF | product-signal granularity; **3.3 depends on it** | M | ⏳ optional — *unless* 3.3 is decided by data (see 3.3) |
-| 0.4 | Remove `@react-native-firebase/analytics`; honest `PRIVACY.md` note | keeps the privacy promise true | S | ✅ `fc181f5` — wrapper kept as a no-op seam, user-id attribution dropped |
+| 0.3 | **Tier 3** — anonymous daily counters for Mochi-used / paywall-shown / CTA / **groceries-used**, via a new client counter module + a `recordMetric` CF | product-signal granularity; **3.3 depends on it** | M | ⏳ optional — *unless* 3.3 is decided by data (see 3.3) |
+| 0.4 | Remove `@react-native-firebase/analytics`; honest `PRIVACY.md` note | keeps the privacy promise true | S | ✅ `fc181f5` — the no-op seam was later deleted too (2026-10-18) |
 
 ## P1 — De-meter Mochi (brand-coherence prerequisite) 🟢 not blocked
 *(Resolves the ❌ conflicts. `MOCHI-MONETIZATION-MODEL.md`.)* Shipped the whole

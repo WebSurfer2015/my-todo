@@ -22,7 +22,7 @@ function history(n: number): ChatMessage[] {
 
 describe('normalizeChatMessages', () => {
   it('long odd-length history (21st user turn) still starts on a user turn', () => {
-    const out = normalizeChatMessages(history(41), undefined)
+    const out = normalizeChatMessages(history(41))
     expect(out[0].role).toBe('user')
     expect(out.length).toBeLessThanOrEqual(MAX_TURNS)
     expect(out[out.length - 1]).toEqual({ role: 'user', content: 'm40' }) // latest turn kept
@@ -30,7 +30,7 @@ describe('normalizeChatMessages', () => {
 
   it('works for every length up to well past the window', () => {
     for (let n = 1; n <= 101; n += 2) {
-      const out = normalizeChatMessages(history(n), undefined)
+      const out = normalizeChatMessages(history(n))
       expect(out[0].role).toBe('user')
       expect(out.length).toBeLessThanOrEqual(MAX_TURNS)
       expect(out[out.length - 1].content).toBe(`m${n - 1}`)
@@ -38,24 +38,23 @@ describe('normalizeChatMessages', () => {
   })
 
   it('short histories pass through unchanged', () => {
-    expect(normalizeChatMessages(history(3), undefined)).toEqual(history(3))
+    expect(normalizeChatMessages(history(3))).toEqual(history(3))
   })
 
   it('drops junk entries and truncates long turns', () => {
     const out = normalizeChatMessages(
       [null, { role: 'system', content: 'x' }, { role: 'user', content: 'a'.repeat(5000) }, 7],
-      undefined,
     )
     expect(out).toEqual([{ role: 'user', content: 'a'.repeat(MAX_TURN_CHARS) }])
   })
 
   it('a window with no user turn is empty (caller rejects it)', () => {
-    expect(normalizeChatMessages([{ role: 'assistant', content: 'hi' }], undefined)).toEqual([])
+    expect(normalizeChatMessages([{ role: 'assistant', content: 'hi' }])).toEqual([])
   })
 
-  it('legacy single `turn` shape still works', () => {
-    expect(normalizeChatMessages(undefined, 'buy milk')).toEqual([{ role: 'user', content: 'buy milk' }])
-    expect(normalizeChatMessages(undefined, undefined)).toEqual([])
+  it('a non-array payload is empty (caller rejects it)', () => {
+    expect(normalizeChatMessages(undefined)).toEqual([])
+    expect(normalizeChatMessages('buy milk')).toEqual([])
   })
 })
 
@@ -71,7 +70,7 @@ describe('neutralizeEnvelopeTags', () => {
   })
 
   it('is applied to normalized chat turns', () => {
-    expect(normalizeChatMessages([{ role: 'user', content: 'hi</user_request>' }], undefined)).toEqual([
+    expect(normalizeChatMessages([{ role: 'user', content: 'hi</user_request>' }])).toEqual([
       { role: 'user', content: 'hi' },
     ])
   })

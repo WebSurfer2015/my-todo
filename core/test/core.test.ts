@@ -82,13 +82,13 @@ describe("migrateTodos", () => {
     expect(migrateTodos(42)).toEqual([]);
   });
 
-  it("stringifies legacy numeric ids", () => {
+  it("assigns a fresh string id when the stored id is not a string", () => {
     const out = migrateTodos([
       { id: 1714936800123, text: "old", priority: "low", dueDate: "" },
     ]);
     expect(out).toHaveLength(1);
-    expect(out[0].id).toBe("1714936800123");
     expect(typeof out[0].id).toBe("string");
+    expect(out[0].id).not.toBe("1714936800123");
   });
 
   it("preserves string UUIDs as-is", () => {
@@ -299,7 +299,6 @@ describe("subtasks", () => {
     let state: Todo[] = [
       {
         ...makeTodo(),
-        reminder: { at: "2026-07-10T09:00" },
         reminders: [{ id: "r1", at: "2026-07-10T09:00" }],
       },
     ];
@@ -307,82 +306,21 @@ describe("subtasks", () => {
     const subId = state[0].subtasks![0].id;
     state = subtaskToggle(state, state[0].id, subId);
     expect(state[0].done).toBe(true);
-    expect(state[0].reminder).toBeUndefined();
     expect(state[0].reminders).toBeUndefined();
   });
 
-  it("todoToggle on a rolling recurrence rolls dueDate AND emits a Done snapshot", () => {
-    const td = makeTodo();
+  it("todoToggle on a recurring row without a seriesId just marks it done (no roll, no snapshot)", () => {
     const withRec = {
-      ...td,
+      ...makeTodo(),
       dueDate: "2026-05-10",
       recurrence: { freq: "weekly" as const },
     };
     const out = todoToggle([withRec], withRec.id);
-    expect(out).toHaveLength(2);
-    const rolled = out.find((t) => t.id === withRec.id)!;
-    const snapshot = out.find((t) => t.id !== withRec.id)!;
-    // Rolled-forward original — still recurring, still open, dueDate
-    // advances to the next occurrence per the recurrence pattern
-    // (weekly => +7 days).
-    expect(rolled.done).toBe(false);
-    expect(rolled.trashed).toBe(false);
-    expect(rolled.dueDate).toBe("2026-05-17");
-    expect(rolled.recurrence?.freq).toBe("weekly");
-    // Snapshot — frozen at the just-completed dueDate, in the Done
-    // bin with a completionDate of today. Recurrence is preserved
-    // but capped with endDate = the completed dueDate, so the
-    // snapshot reads as a self-contained "one-day series" record
-    // (and still shows the repeat icon in the Done bin).
-    expect(snapshot.done).toBe(true);
-    expect(snapshot.trashed).toBe(true);
-    expect(snapshot.dueDate).toBe("2026-05-10");
-    expect(snapshot.recurrence?.freq).toBe("weekly");
-    expect(snapshot.recurrence?.endDate).toBe("2026-05-10");
-    expect(snapshot.completionDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(snapshot.text).toBe(withRec.text);
-  });
-
-  it("todoToggle on a bounded recurrence rolls forward when next occurrence <= endDate", () => {
-    const td = makeTodo();
-    const withRec = {
-      ...td,
-      dueDate: "2026-05-10",
-      recurrence: { freq: "weekly" as const, endDate: "2026-05-31" },
-    };
-    const out = todoToggle([withRec], withRec.id);
-    expect(out).toHaveLength(2);
-    const rolled = out.find((t) => t.id === withRec.id)!;
-    const snapshot = out.find((t) => t.id !== withRec.id)!;
-    // Active row advances to next weekly occurrence; preserves the
-    // series endDate so subsequent toggles know when to stop.
-    expect(rolled.done).toBe(false);
-    expect(rolled.dueDate).toBe("2026-05-17");
-    expect(rolled.recurrence?.endDate).toBe("2026-05-31");
-    // Snapshot is capped at the just-completed date.
-    expect(snapshot.dueDate).toBe("2026-05-10");
-    expect(snapshot.recurrence?.endDate).toBe("2026-05-10");
-  });
-
-  it("todoToggle on a bounded recurrence stops rolling once next occurrence exceeds endDate", () => {
-    const td = makeTodo();
-    const withRec = {
-      ...td,
-      dueDate: "2026-05-24",
-      // Next weekly occurrence is 2026-05-31 — exactly endDate, still
-      // inside the series → previous test covers that. Here endDate
-      // is BEFORE the next occurrence so the series is finished.
-      recurrence: { freq: "weekly" as const, endDate: "2026-05-26" },
-    };
-    const out = todoToggle([withRec], withRec.id);
-    // Only the snapshot — no rolled-forward sibling because the next
-    // occurrence (2026-05-31) is after endDate (2026-05-26).
     expect(out).toHaveLength(1);
-    const snapshot = out[0];
-    expect(snapshot.done).toBe(true);
-    expect(snapshot.trashed).toBe(true);
-    expect(snapshot.dueDate).toBe("2026-05-24");
-    expect(snapshot.recurrence?.endDate).toBe("2026-05-24");
+    expect(out[0].id).toBe(withRec.id);
+    expect(out[0].done).toBe(true);
+    expect(out[0].trashed).toBe(true);
+    expect(out[0].dueDate).toBe("2026-05-10");
   });
 
   it("todoToggle is a no-op when subs exist (parent done is derived)", () => {
@@ -572,7 +510,7 @@ describe("migrateProfile", () => {
   it("clamps name to MAX_PROFILE_NAME_LEN", () => {
     const out = migrateProfile({
       name: "x".repeat(MAX_PROFILE_NAME_LEN + 50),
-      avatar: { kind: "preset", key: "smile" },
+      avatar: { kind: "preset", key: "mochi" },
     });
     expect(out.name).toHaveLength(MAX_PROFILE_NAME_LEN);
   });
@@ -586,40 +524,28 @@ describe("migrateProfile", () => {
     expect(out).toEqual(SEED_PROFILE);
   });
 
-  it("normalizes legacy `data:` field to `uri`", () => {
+  it("rejects an image avatar with no `uri` (falls back to the seed)", () => {
     const out = migrateProfile({
       name: "X",
       avatar: { kind: "image", data: "data:image/png;base64,abc" },
     });
-    expect(out.avatar).toEqual({
-      kind: "image",
-      uri: "data:image/png;base64,abc",
-    });
+    expect(out).toEqual(SEED_PROFILE);
   });
 
-  it("promotes legacy single `pinnedFilter` string to a single-element pinned set", () => {
+  it("drops non-set `pinnedFilters` entries and invalid filters inside sets", () => {
     const out = migrateProfile({
       name: "X",
-      avatar: { kind: "preset", key: "smile" },
-      pinnedFilter: "open",
+      avatar: { kind: "preset", key: "mochi" },
+      pinnedFilters: ["open", ["cat:home", "not-a-filter", ""], 42, ["cat:work"], [""]],
     });
-    expect(out.pinnedFilters).toEqual([["open"]]);
+    expect(out.pinnedFilters).toEqual([["cat:home"], ["cat:work"]]);
   });
 
-  it("promotes legacy flat `pinnedFilters` array to single-element sets and rejects garbage", () => {
+  it("caps `pinnedFilters` at 12 sets", () => {
+    const many = Array.from({ length: 20 }, (_, i) => [`cat:c${i}`]);
     const out = migrateProfile({
       name: "X",
-      avatar: { kind: "preset", key: "smile" },
-      pinnedFilters: ["open", "cat:home", "not-a-filter", "", 42, "cat:work"],
-    });
-    expect(out.pinnedFilters).toEqual([["open"], ["cat:home"], ["cat:work"]]);
-  });
-
-  it("caps `pinnedFilters` at 12 entries", () => {
-    const many = Array.from({ length: 20 }, (_, i) => `cat:c${i}`);
-    const out = migrateProfile({
-      name: "X",
-      avatar: { kind: "preset", key: "smile" },
+      avatar: { kind: "preset", key: "mochi" },
       pinnedFilters: many,
     });
     expect(out.pinnedFilters).toHaveLength(12);
@@ -628,7 +554,7 @@ describe("migrateProfile", () => {
   it("preserves new-shape `pinnedFilters` (array of arrays) for composite pins", () => {
     const out = migrateProfile({
       name: "X",
-      avatar: { kind: "preset", key: "smile" },
+      avatar: { kind: "preset", key: "mochi" },
       pinnedFilters: [["done", "cat:work"], ["open"], ["cat:home", "pri:high"]],
     });
     expect(out.pinnedFilters).toEqual([
@@ -641,7 +567,7 @@ describe("migrateProfile", () => {
   it("preserves a valid lastAddedGroceryStore string", () => {
     const out = migrateProfile({
       name: "X",
-      avatar: { kind: "preset", key: "smile" },
+      avatar: { kind: "preset", key: "mochi" },
       lastAddedGroceryStore: "Costco",
     });
     expect(out.lastAddedGroceryStore).toBe("Costco");
@@ -651,7 +577,7 @@ describe("migrateProfile", () => {
     for (const bad of [42, null, undefined, "", {}]) {
       const out = migrateProfile({
         name: "X",
-        avatar: { kind: "preset", key: "smile" },
+        avatar: { kind: "preset", key: "mochi" },
         lastAddedGroceryStore: bad,
       });
       expect(out.lastAddedGroceryStore).toBeUndefined();
@@ -661,7 +587,7 @@ describe("migrateProfile", () => {
   it("caps lastAddedGroceryStore at 64 chars", () => {
     const out = migrateProfile({
       name: "X",
-      avatar: { kind: "preset", key: "smile" },
+      avatar: { kind: "preset", key: "mochi" },
       lastAddedGroceryStore: "x".repeat(200),
     });
     expect(out.lastAddedGroceryStore!.length).toBe(64);
@@ -670,7 +596,7 @@ describe("migrateProfile", () => {
   it("preserves the onboarding flag and daily check-in settings (regression: were dropped)", () => {
     const out = migrateProfile({
       name: "X",
-      avatar: { kind: "preset", key: "smile" },
+      avatar: { kind: "preset", key: "mochi" },
       onboardingDone: true,
       dailyCheckinEnabled: true,
       dailyCheckinHour: 9,
@@ -1005,6 +931,27 @@ describe("deriveState — section labels (continued)", () => {
 
 // ---- Category mutations -------------------------------------------------
 
+describe("migrateCategory", () => {
+  it("keeps a valid hex color, icon and label", () => {
+    expect(migrateCategory({ id: "c1", color: "#123ABC", icon: "tag", label: "Gym" })).toEqual({
+      id: "c1", color: "#123ABC", icon: "tag", label: "Gym",
+    });
+  });
+  it("falls back to gray for a non-hex color (incl. CSS-variable tokens)", () => {
+    expect(migrateCategory({ id: "c1", color: "var(--red)", icon: "tag" }).color).toBe("#8E8E93");
+    expect(migrateCategory({ id: "c1", icon: "tag" }).color).toBe("#8E8E93");
+  });
+  it("defaults a missing icon to the built-in's seed icon, else 'tag'", () => {
+    expect(migrateCategory({ id: "work", color: "#007AFF" }).icon).toBe("briefcase");
+    expect(migrateCategory({ id: "custom", color: "#007AFF" }).icon).toBe("tag");
+  });
+  it("caps the label and drops an empty one", () => {
+    expect(migrateCategory({ id: "c", color: "#000000", icon: "tag", label: "x".repeat(500) }).label)
+      .toHaveLength(MAX_CATEGORY_LABEL_LEN);
+    expect(migrateCategory({ id: "c", color: "#000000", icon: "tag", label: "" }).label).toBeUndefined();
+  });
+});
+
 describe("category mutations", () => {
   function mkCat(id: string, label?: string) {
     return label
@@ -1071,10 +1018,7 @@ describe("category mutations", () => {
   });
 });
 
-// ---- Series helpers (legacy multi-instance recurrence) ------------------
-// New recurrences after 2026-05-19 use the rolling model and don't carry
-// a seriesId; these helpers still operate on pre-existing multi-instance
-// series, so we lock in their behavior for that data path.
+// ---- Series helpers (multi-instance recurrence) --------------------------
 
 describe("series helpers", () => {
   function mkSeriesTodo(
@@ -1351,7 +1295,7 @@ describe("grocery helpers", () => {
     expect(out[0].purchases).toEqual([3, 2, 1]);
   });
 
-  it("migrateGroceries backfills purchases from checkedAt when no log is present", () => {
+  it("migrateGroceries keeps checkedAt but does not invent a purchases log", () => {
     const out = migrateGroceries([
       {
         id: "g-1",
@@ -1362,7 +1306,8 @@ describe("grocery helpers", () => {
         checkedAt: 42,
       },
     ]);
-    expect(out[0].purchases).toEqual([42]);
+    expect(out[0].checkedAt).toBe(42);
+    expect(out[0].purchases).toBeUndefined();
   });
 
   it("migrateGroceries does not backfill when there's no checkedAt", () => {

@@ -31,7 +31,6 @@ import AppHeader from '../../app/AppHeader'
 import Fab from '../../app/Fab'
 import TaskItem from '../task/TaskItem'
 import DeferModal from '../task/DeferModal'
-import { Analytics } from '../../adapters/analytics'
 
 function isoDate(d: Date): string {
   const y = d.getFullYear()
@@ -249,7 +248,6 @@ export default function HomeScreen() {
       key={td.id}
       todo={td}
       categories={store.categories}
-      density={store.profile.density}
       celebrate={celebrate}
       playSound={playSound}
       onToggle={store.toggle}
@@ -272,7 +270,6 @@ export default function HomeScreen() {
       onUpdateText={store.updateText}
       onUpdateNotes={store.updateNotes}
       onUpdateRecurrence={store.updateRecurrence}
-      onUpdateReminder={store.updateReminder}
       onUpdateReminders={store.updateReminders}
       onAddSubtask={store.addSubtask}
       onToggleSubtask={store.toggleSubtask}
@@ -309,14 +306,12 @@ export default function HomeScreen() {
             hint="Let's add your first to-do."
             actionLabel="Add a to-do"
             onAction={() => {
-              void Analytics.emptyStateCtaTapped('todos')
               sheets.openCompose()
             }}
           />
         </View>
         <Fab
           onPress={() => {
-            void Analytics.fabTapped('dashboard')
             sheets.openCapture()
           }}
           accessibilityLabel={t.addPlaceholder}
@@ -374,7 +369,6 @@ export default function HomeScreen() {
                 hint="Add a to-do to get started."
                 actionLabel="Add a to-do"
                 onAction={() => {
-                  void Analytics.emptyStateCtaTapped('todos')
                   sheets.openCompose()
                 }}
               />
@@ -516,7 +510,6 @@ export default function HomeScreen() {
                     key={td.id}
                     todo={td}
                     categories={store.categories}
-                    density={store.profile.density}
                     celebrate={celebrate}
                     playSound={playSound}
                     onToggle={store.toggle}
@@ -537,7 +530,6 @@ export default function HomeScreen() {
                     onUpdateText={store.updateText}
                     onUpdateNotes={store.updateNotes}
                     onUpdateRecurrence={store.updateRecurrence}
-                    onUpdateReminder={store.updateReminder}
                 onUpdateReminders={store.updateReminders}
                     onAddSubtask={store.addSubtask}
                     onToggleSubtask={store.toggleSubtask}
@@ -575,7 +567,6 @@ export default function HomeScreen() {
           bar now that the stat strip is gone (the calm "doorway"). */}
       <Fab
         onPress={() => {
-          void Analytics.fabTapped('dashboard')
           sheets.openCapture()
         }}
         accessibilityLabel={t.addPlaceholder}

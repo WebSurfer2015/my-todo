@@ -103,9 +103,7 @@ export async function cancelDailyCheckin(): Promise<void> {
 // ── Per-todo local reminders ───────────────────────────────────────────────
 //
 // Each todo carries `reminders[]` — an array of independent
-// reminder entries (multi-reminder schema). Legacy single-reminder
-// docs that still have the old `reminder` field are normalized via
-// `getReminders` in core. Each entry expands to one OR MANY
+// reminder entries. Each entry expands to one OR MANY
 // scheduled OS notifications. One-shot reminders schedule a single
 // fire. Recurring reminders schedule fires from `at`, stepping by
 // `intervalMinutes`, up to `until` (inclusive), capped at
@@ -153,7 +151,6 @@ function computeFires(reminder: { at: string; intervalMinutes?: number; until?: 
 interface TodoForReminder {
   id: string
   text: string
-  reminder?: { at: string; intervalMinutes?: number; until?: string }
   reminders?: Array<{
     id: string
     at: string
@@ -164,46 +161,16 @@ interface TodoForReminder {
   trashed: boolean
 }
 
-/** Read-time normalization mirrored from core's getReminders so
- * notifications.ts doesn't need to import all of derive. Returns
- * the multi-reminder array, falling back to wrapping a legacy
- * single `reminder` field as a synthesized singleton with a
- * stable `legacy:<at>` id. */
-function readReminders(td: TodoForReminder): Array<{
-  id: string
-  at: string
-  intervalMinutes?: number
-  until?: string
-}> {
-  if (td.reminders && td.reminders.length > 0) return td.reminders
-  if (td.reminder?.at) {
-    return [
-      {
-        id: `legacy:${td.reminder.at}`,
-        at: td.reminder.at,
-        ...(td.reminder.intervalMinutes
-          ? { intervalMinutes: td.reminder.intervalMinutes }
-          : {}),
-        ...(td.reminder.until ? { until: td.reminder.until } : {}),
-      },
-    ]
-  }
-  return []
-}
-
 export async function syncTodoReminders(todos: TodoForReminder[]): Promise<void> {
   const settings = await Notifications.getPermissionsAsync().catch(() => null)
   if (!settings || settings.status !== 'granted') return
 
   // Desired schedule, keyed by (todoId, reminderId, fireIndex) so the diff can
-  // be done in one pass. Walks the multi-reminder array;
-  // readReminders folds the legacy single-reminder field in
-  // transparently so old docs still schedule.
+  // be done in one pass. Walks each todo's reminders array.
   const desired = new Map<string, { todoId: string; title: string; at: Date }>()
   for (const td of todos) {
     if (td.trashed || td.done) continue
-    const reminders = readReminders(td)
-    for (const r of reminders) {
+    for (const r of td.reminders ?? []) {
       if (!r.at) continue
       const fires = computeFires(r)
       for (const fire of fires) {

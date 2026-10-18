@@ -1,5 +1,5 @@
 /**
- * Tests for web/functions/src/agentTools.ts — the Mochi agent's tool
+ * Tests for functions/src/agentTools.ts — the Mochi agent's tool
  * registry + the server-side validateOperation guard, THE EXACT FILE the
  * agentChat Cloud Function executes (index.ts imports it). The validator
  * is the security boundary between Anthropic's tool_use response and the

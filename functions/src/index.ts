@@ -85,9 +85,6 @@ interface ChatContext {
 interface ChatRequest {
   /** Multi-turn: the running conversation. First message must be `user`. */
   messages?: ChatMessage[]
-  /** Legacy single-turn shape — still accepted and wrapped into a
-   * one-message array so an un-updated client can't 400. */
-  turn?: string
   context?: ChatContext
 }
 
@@ -218,11 +215,9 @@ export const agentChat = onCall(
     }
 
     const data = request.data as Partial<ChatRequest> | undefined
-    // Dual-accept: prefer the multi-turn `messages` array; fall back to the
-    // legacy single `turn` so an un-updated client can't 400 mid-rollout.
     // Windowing keeps the last 40 turns AND starts on a user turn (an odd-length
     // history sliced to 40 used to start on an assistant turn → 400).
-    const rawMessages: ChatMessage[] = normalizeChatMessages(data?.messages, data?.turn)
+    const rawMessages: ChatMessage[] = normalizeChatMessages(data?.messages)
 
     if (rawMessages.length === 0 || rawMessages.every((m) => m.content.trim().length === 0)) {
       throw new HttpsError('invalid-argument', 'Empty message.')

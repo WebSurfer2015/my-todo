@@ -17,7 +17,7 @@ import { COLD_START_RETRY_MS } from '../../../../core/src/ports/aiContracts'
  * with a short question (operations:[] ⇒ still gathering) OR a final
  * proposal (operations.length>0, awaitingConfirmation true ⇒ render a
  * Confirm/Try again row). The ProposedOperation union below mirrors the
- * server's (web/functions/src/agentTools.ts) — a parity test guards them
+ * server's (functions/src/agentTools.ts) — a parity test guards them
  * against drift.
  */
 
@@ -50,7 +50,7 @@ export interface AgentReminder {
 }
 
 /**
- * Mirrors the server's ProposedOperation union (web/functions/src/
+ * Mirrors the server's ProposedOperation union (functions/src/
  * agentTools.ts). Keep in lockstep — the server validates + returns these,
  * the client applies them after the user confirms.
  */

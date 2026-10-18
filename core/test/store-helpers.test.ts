@@ -32,12 +32,10 @@ describe("addDaysISO", () => {
 describe("todoSetReminders", () => {
   const r = (id: string): Reminder => ({ id, at: "2026-06-03T09:00" });
 
-  it("sets the reminders array and drops the legacy single reminder", () => {
-    const todos = [mk({ id: "a", reminder: { at: "2026-01-01T08:00" } as Todo["reminder"] })];
+  it("replaces the reminders array", () => {
+    const todos = [mk({ id: "a", reminders: [r("old")] })];
     const out = todoSetReminders(todos, "a", [r("r1")]);
     expect(out[0].reminders).toEqual([r("r1")]);
-    expect(out[0].reminder).toBeUndefined();
-    expect("reminder" in out[0]).toBe(false);
     expect(out[0].updatedAt).toBeGreaterThan(0);
   });
 

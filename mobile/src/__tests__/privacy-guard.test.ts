@@ -53,9 +53,4 @@ describe('privacy guard: no analytics / ad SDKs', () => {
     })
     expect(offenders).toEqual([])
   })
-
-  it('the analytics seam stays a dependency-free no-op', () => {
-    const seam = readFileSync(join(srcRoot, 'adapters', 'analytics.ts'), 'utf8')
-    expect(seam).not.toMatch(/^\s*import\s/m)
-  })
 })

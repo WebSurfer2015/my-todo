@@ -52,7 +52,7 @@ export function newTodo(input: {
   recurrence?: Recurrence;
   subtasks?: Subtask[];
   notes?: string;
-  reminder?: Todo["reminder"];
+  reminders?: Reminder[];
 }): Todo {
   const notes =
     typeof input.notes === "string" && input.notes.length > 0
@@ -83,7 +83,7 @@ export function newTodo(input: {
     ...(input.recurrence ? { recurrence: input.recurrence } : {}),
     ...(input.subtasks && input.subtasks.length > 0 ? { subtasks: input.subtasks } : {}),
     ...(notes ? { notes } : {}),
-    ...(input.reminder?.at ? { reminder: input.reminder } : {}),
+    ...(input.reminders && input.reminders.length > 0 ? { reminders: input.reminders } : {}),
   };
 }
 
@@ -200,16 +200,11 @@ function rebaseReminders(
  * core.test.ts ("todoToggle is a no-op when subs exist").
  *
  * Series instances (R3 — `seriesId` + `recurrence`) take a different
- * path: completing the row marks it done in place (no snapshot, no
- * dueDate roll — the next instance is already materialized) and
- * appends one fresh tail via `topUpSeries` so the user always has the
- * next occurrence queued. Un-doing simply clears the flags and leaves
- * the tail alone.
- *
- * Legacy rolling recurrences (no `seriesId` — should be unreachable
- * after the R2 migration) still hit the original snapshot+roll path
- * as a defensive fallback. When `recurrence.endDate` is set and the
- * next occurrence would exceed it, only the snapshot is emitted.
+ * path: completing the row marks it done in place (the next instance is
+ * already materialized), appends one fresh tail via
+ * `appendNextSeriesInstance` so the user always has the next occurrence
+ * queued, and transfers its reminders forward. Un-doing simply clears the
+ * flags and leaves the tail alone.
  *
  * `todayISO` defaults to `todayLocal()` so existing callers stay the
  * same; tests pass an explicit value for determinism.
@@ -229,8 +224,7 @@ export function todoToggle(prev: Todo[], id: string, todayISO?: string): Todo[] 
     const nextDone = !target.done;
     // R7 — capture the about-to-be-cleared reminders so they can
     // be rolled onto the next-upcoming sibling after the tail
-    // extends. Multi-reminder schema: walk the array via
-    // getReminders so legacy single-reminder docs still transfer.
+    // extends.
     const oldReminders = getReminders(target);
     const oldDueDate = target.dueDate;
     let result = prev.map((td) => {
@@ -246,7 +240,6 @@ export function todoToggle(prev: Todo[], id: string, todayISO?: string): Todo[] 
         upd.completionDate = today;
         // Done items don't need future reminders. The scheduler
         // diffs on these fields and cancels every queued fire.
-        delete upd.reminder;
         delete upd.reminders;
       } else {
         delete upd.trashedAt;
@@ -273,65 +266,6 @@ export function todoToggle(prev: Todo[], id: string, todayISO?: string): Todo[] 
 
   return prev.flatMap((td) => {
     if (td.id !== id) return [td];
-    if (
-      !td.done &&
-      td.recurrence &&
-      td.dueDate
-    ) {
-      const rolled = nextOccurrence(
-        td.dueDate,
-        td.recurrence.freq,
-        td.recurrence.interval ?? 1,
-        td.recurrence.byWeekday,
-        td.recurrence.bySetPos,
-      );
-      // Snapshot of the just-completed occurrence — frozen at the
-      // completed dueDate, in the Done bin, with the recurrence capped
-      // at that date so the snapshot still shows the repeat icon as a
-      // self-contained "series of one" record.
-      const snapshot: Todo = {
-        id: genUuid(),
-        text: td.text,
-        done: true,
-        priority: td.priority,
-        dueDate: td.dueDate,
-        category: td.category,
-        trashed: true,
-        trashedAt: now,
-        updatedAt: now,
-        completionDate: today,
-        recurrence: { ...td.recurrence, endDate: td.dueDate },
-      };
-      if (td.notes) snapshot.notes = td.notes;
-      // If endDate caps the series and the next occurrence is past it,
-      // we're done — emit only the snapshot. Otherwise roll forward as
-      // a fresh open instance.
-      if (td.recurrence.endDate && rolled > td.recurrence.endDate) {
-        return [snapshot];
-      }
-      const rolledNext: Todo = {
-        ...td,
-        dueDate: rolled,
-        done: false,
-        updatedAt: now,
-        subtasks: td.subtasks?.map((s) =>
-          s.done ? { ...s, done: false } : s,
-        ),
-      };
-      // Reminder rolls forward by the same day-delta as dueDate.
-      // The snapshot stays reminder-free — a past occurrence's
-      // reminder firing would be noise, and Notifications.cancel
-      // for the original id covers the existing scheduled ones.
-      if (td.reminder?.at) {
-        rolledNext.reminder = {
-          at: rollDateTime(td.reminder.at, td.dueDate, rolled),
-          ...(td.reminder.intervalMinutes ? { intervalMinutes: td.reminder.intervalMinutes } : {}),
-          ...(td.reminder.until ? { until: rollDateTime(td.reminder.until, td.dueDate, rolled) } : {}),
-        };
-      }
-      delete (snapshot as Todo).reminder;
-      return [rolledNext, snapshot];
-    }
     // Parent.done is derived from subs — toggling the parent directly is
     // a no-op. The user expands the row and toggles subs to mark progress.
     if (td.subtasks && td.subtasks.length > 0) return [td];
@@ -345,9 +279,6 @@ export function todoToggle(prev: Todo[], id: string, todayISO?: string): Todo[] 
     if (nextDone) {
       next.trashedAt = now;
       next.completionDate = today;
-      // Done items don't need a future reminder. The scheduler
-      // diffs on this field and cancels every queued fire.
-      delete next.reminder;
     } else {
       delete next.trashedAt;
       delete next.completionDate;
@@ -486,7 +417,6 @@ export function subtaskToggle(
       // Done items don't need future reminders. The scheduler diffs on these
       // fields and cancels every queued fire — mirror todoToggle so a task
       // completed via its last subtask stops notifying.
-      delete next.reminder;
       delete next.reminders;
     } else if (!nextDone && wasDone) {
       delete next.completionDate;
@@ -767,8 +697,8 @@ export function todoDetachFromSeries(prev: Todo[], id: string): Todo[] {
  * are intentionally left alone — the user is removing "this and the rest
  * of the series", not rewriting history.
  *
- * Falls back to a single-todo trash when the target has no seriesId (e.g.
- * legacy rolling recurrences or non-series todos).
+ * Falls back to a single-todo trash when the target has no seriesId (a
+ * one-off).
  */
 export function todoMoveToTrashFutureSeries(prev: Todo[], id: string): { next: Todo[]; affected: number } {
   const target = prev.find((t) => t.id === id);
@@ -826,7 +756,6 @@ export function todoSkipSeriesFuture(
       completionDate: today,
       updatedAt: now,
     };
-    delete out.reminder;
     delete out.reminders;
     return out;
   });
@@ -835,9 +764,9 @@ export function todoSkipSeriesFuture(
 
 // ---- Recurring series: horizon/window helpers ---------------------------
 //
-// R1 of the recurring redesign (see docs/RECURRING-REDESIGN-PLAN.md).
-// Pure functions only — no callers in this PR. Wired into todoToggle
-// (R3), migration (R2), and edit dialogs (R6) by later PRs.
+// Pure functions backing the pre-materialized series model: compose
+// (expandSeries), completion / skip (appendNextSeriesInstance), app-open
+// horizon top-up (topUpAllSeries), and the series edit dialogs.
 
 /**
  * Per-frequency materialization window (calendar-aware).
@@ -878,8 +807,8 @@ export function windowCutoffFor(freq: RecurrenceFreq, todayISO: string): string 
  * Returns the seed as the head plus one Todo per subsequent occurrence.
  *
  * Behavior:
- *  - Seed retains its existing `id`, `reminder`, `subtasks`, `notes`.
- *    Reminder lives on the head only — top-ups don't carry it forward.
+ *  - Seed retains its existing `id`, `reminders`, `subtasks`, `notes`;
+ *    each generated instance gets the seed's reminders rebased onto it.
  *  - Generated instances get fresh UUIDs, the shared `seriesId`
  *    (assigned if seed lacks one), and `cloneSubtasksFresh(seed.subtasks)`.
  *  - Any time-suffix on the seed's dueDate is preserved on each instance.
@@ -899,7 +828,7 @@ export function expandSeries(seed: Todo, todayISO: string): Todo[] {
   const dates = expandRecurrence(seedDateOnly, hardEnd, rec);
   if (dates.length <= 1) return [head];
   const now = Date.now();
-  // Seed reminders (normalized) rebased onto each instance below, so every
+  // Seed reminders rebased onto each instance below, so every
   // occurrence reminds at the same time-of-day / before-due offset — the
   // "9:30 on each occurrence" behavior. Without this, only the seed kept
   // its reminders and future instances had none.
@@ -1125,14 +1054,6 @@ export function nextUpcomingSeriesInstance(
   return future ?? candidates[0];
 }
 
-/**
- * Read-time normalization of a todo's reminders. Prefers the new
- * `reminders[]` array; falls back to wrapping the legacy `reminder`
- * field as a singleton with a synthesized id. Returns an empty
- * array when neither is set. Callers should NEVER index `.reminder`
- * or `.reminders` directly — always go through this so legacy docs
- * keep working until they're rewritten via a multi-reminder write.
- */
 /** Stable identity for a reminder, ignoring its id — two entries with
  * the same at/offset/interval are the same reminder to the user (and to
  * the OS scheduler). Used to drop accidental duplicates. */
@@ -1141,7 +1062,7 @@ export function reminderKey(r: Reminder): string {
 }
 
 /** Drop duplicate reminders (same at/offset/interval), keeping the first.
- * Guards against mixed legacy/array writes or double-applies stacking
+ * Guards against double-applies stacking
  * identical reminders (which would double-fire notifications). */
 export function dedupeReminders(rs: Reminder[]): Reminder[] {
   const seen = new Set<string>();
@@ -1155,24 +1076,9 @@ export function dedupeReminders(rs: Reminder[]): Reminder[] {
   return out;
 }
 
+/** A todo's reminders, deduped (same at/offset/interval). Empty when unset. */
 export function getReminders(td: Todo): Reminder[] {
-  if (td.reminders && td.reminders.length > 0) return dedupeReminders(td.reminders);
-  if (td.reminder?.at) {
-    // Synthesize a stable-ish id from the at-string so the same
-    // legacy doc produces the same id across reads — avoids the
-    // scheduler churning on every render with a fresh UUID.
-    return [
-      {
-        id: `legacy:${td.reminder.at}`,
-        at: td.reminder.at,
-        ...(td.reminder.intervalMinutes
-          ? { intervalMinutes: td.reminder.intervalMinutes }
-          : {}),
-        ...(td.reminder.until ? { until: td.reminder.until } : {}),
-      },
-    ];
-  }
-  return [];
+  return td.reminders && td.reminders.length > 0 ? dedupeReminders(td.reminders) : [];
 }
 
 /**
@@ -1225,21 +1131,16 @@ function transferSeriesReminders(
     // Merge into any reminders the candidate already has — the
     // candidate's own reminders take precedence on id clashes (so
     // a user-set reminder isn't clobbered by a transfer from a
-    // sibling). In practice the legacy invariant was "only the
-    // head carries reminders" so collisions are rare.
-    const existing = t.reminders ?? (t.reminder?.at ? getReminders(t) : []);
+    // sibling).
+    const existing = t.reminders ?? [];
     const byId = new Map<string, Reminder>();
     for (const r of rolled) byId.set(r.id, r);
     for (const r of existing) byId.set(r.id, r); // existing wins on conflict
-    const next: Todo = {
+    return {
       ...t,
       reminders: Array.from(byId.values()),
       updatedAt: now,
     };
-    // Drop the legacy field on write so we converge on the new
-    // schema.
-    delete next.reminder;
-    return next;
   });
 }
 
@@ -1252,16 +1153,15 @@ function transferSeriesReminders(
  *     show a "Not Do" tag instead of a "Done <date>" tag)
  *   - done: false (key difference from completion — skipping is
  *     not a pebble-earning event)
- *   - reminder: cleared (no more notifications for this occurrence)
+ *   - reminders: cleared (no more notifications for this occurrence)
  *
  * For series instances (those with `seriesId`), Skip also appends
  * one fresh tail via `appendNextSeriesInstance` so the user always
  * has the next occurrence queued — the same horizon-stability
  * promise R3 made for completion.
  *
- * Pebble-neutral: `pebbleDelta` only fires on `done` flipping (or
- * recurring dueDate rolling for legacy rows), neither of which Skip
- * causes.
+ * Pebble-neutral: `pebbleDelta` only fires on `done` flipping, which
+ * Skip doesn't cause.
  */
 export function todoSkip(prev: Todo[], id: string, todayISO?: string): Todo[] {
   const now = Date.now();
@@ -1274,8 +1174,6 @@ export function todoSkip(prev: Todo[], id: string, todayISO?: string): Todo[] {
   if (target.subtasks && target.subtasks.length > 0) return prev;
   // R7 — capture the reminders so they can be transferred forward
   // to the next-upcoming open sibling after the tail extends.
-  // getReminders normalizes legacy single-reminder docs into the
-  // new array shape.
   const oldReminders = getReminders(target);
   const oldDueDate = target.dueDate;
   let result = prev.map((td) => {
@@ -1288,7 +1186,6 @@ export function todoSkip(prev: Todo[], id: string, todayISO?: string): Todo[] {
       completionDate: today,
       updatedAt: now,
     };
-    delete next.reminder;
     delete next.reminders;
     return next;
   });
@@ -1304,86 +1201,9 @@ export function todoSkip(prev: Todo[], id: string, todayISO?: string): Todo[] {
 }
 
 /**
- * R2 migration. Promotes legacy rolling recurring todos to the
- * pre-expanded horizon model:
- *
- *  - Active (non-trashed, non-done) recurring todos without a
- *    `seriesId` get one assigned and a tail materialized through
- *    `windowCutoffFor(rec.freq, today)`.
- *  - When the seed's `dueDate` is in the past, the head keeps its
- *    original overdue date (so the user still sees the "carried
- *    over" cue) and the tail starts at today's first valid
- *    occurrence. No retroactive instances are generated between the
- *    overdue date and today.
- *  - Trashed / done recurring todos (rolling snapshots, history) are
- *    left untouched — they're not part of any active series.
- *  - Todos already carrying a `seriesId` are left alone here; the
- *    `topUpAllSeries` pass that follows extends their tails to the
- *    current horizon if needed.
- *
- * Idempotent at the "changed" level: a second call on the same input
- * is a no-op because every active recurring todo will now have a
- * `seriesId`.
- */
-export function migrateToRecurringV2(
-  todos: Todo[],
-  todayISO: string,
-): { todos: Todo[]; changed: boolean } {
-  let changed = false;
-  const additions: Todo[] = [];
-  const next = todos.map((td) => {
-    if (!td.recurrence) return td;
-    if (td.trashed || td.done) return td;
-    if (td.seriesId) return td;
-    const seriesId = genUuid();
-    changed = true;
-    const seedDateOnly = dueDateOnly(td.dueDate);
-    if (seedDateOnly >= todayISO) {
-      // Future- or today-dated head: normal forward expansion.
-      const expanded = expandSeries({ ...td, seriesId }, todayISO);
-      const [head, ...rest] = expanded;
-      additions.push(...rest);
-      return head;
-    }
-    // Past-dated head: keep the overdue dueDate on the head; build a
-    // fresh tail starting at the first valid occurrence >= today.
-    const head: Todo = { ...td, seriesId };
-    const rec = td.recurrence;
-    const cutoff = windowCutoffFor(rec.freq, todayISO);
-    const hardEnd = rec.endDate && rec.endDate < cutoff ? rec.endDate : cutoff;
-    if (todayISO > hardEnd) return head;
-    const tIdx = td.dueDate.indexOf("T");
-    const timeSuffix = tIdx === -1 ? "" : td.dueDate.slice(tIdx);
-    const futureDates = expandRecurrence(todayISO, hardEnd, rec);
-    const now = Date.now();
-    for (const d of futureDates) {
-      const subs = cloneSubtasksFresh(td.subtasks);
-      const inst: Todo = {
-        id: genUuid(),
-        text: td.text,
-        done: false,
-        priority: td.priority,
-        dueDate: d + timeSuffix,
-        trashed: false,
-        updatedAt: now,
-        seriesId,
-        recurrence: rec,
-      };
-      if (td.category) inst.category = td.category;
-      if (subs) inst.subtasks = subs;
-      if (td.notes) inst.notes = td.notes;
-      additions.push(inst);
-    }
-    return head;
-  });
-  return { todos: changed ? [...next, ...additions] : todos, changed };
-}
-
-/**
  * Walk every distinct `seriesId` in the list and apply `topUpSeries`
- * to each. Idempotent. Called after migration on first launch and on
- * every subsequent launch so a long-idle device catches up its series
- * tails to the live horizon.
+ * to each. Idempotent. Called once per launch (after hydrate) so a
+ * long-idle device catches up its series tails to the live horizon.
  */
 export function topUpAllSeries(
   todos: Todo[],
@@ -1482,9 +1302,8 @@ export function todoSet<K extends keyof Todo>(
   });
 }
 
-/** Replace a todo's `reminders` array, dropping the legacy single
- * `reminder` field. An empty array clears reminders entirely (the field
- * is removed rather than persisted as []). */
+/** Replace a todo's `reminders` array. An empty array clears reminders
+ * entirely (the field is removed rather than persisted as []). */
 export function todoSetReminders(
   prev: Todo[],
   id: string,
@@ -1494,7 +1313,6 @@ export function todoSetReminders(
   return prev.map((td) => {
     if (td.id !== id) return td;
     const next: Todo = { ...td, updatedAt: now };
-    delete next.reminder;
     if (reminders.length > 0) next.reminders = reminders;
     else delete next.reminders;
     return next;
@@ -1616,7 +1434,7 @@ export function categoryReorder(
  * trash-retention purge, and hard caps always run.
  *
  * Hardening:
- * - Numeric legacy ids → stringified (one-time conversion to UUID-shaped strings).
+ * - Missing / non-string ids → fresh UUID.
  * - text > MAX_TODO_TEXT_LEN truncated.
  * - Array length capped at MAX_TODOS_PER_USER (defends against malicious cloud push).
  * - Type-narrowing: non-string ids/text/dueDate, non-Priority priorities all rejected.
@@ -1651,12 +1469,7 @@ export function makeMigrateTodoCtx(categories: CategoryDef[] = []): MigrateTodoC
  * for todo shape validation. Returns null when the input isn't a usable
  * object, or when it's a trashed item past the 30-day retention cutoff.
  *
- * `migrateTodos` runs this per array element (single-doc model); the
- * per-item persistence read-cutover (docs/SPIKE-persistence-scale.md)
- * runs it per Firestore doc — so BOTH paths enforce identical id /
- * text / priority / category / subtask / recurrence / reminder / trash
- * rules. Dedup-by-updatedAt stays in the array caller (a per-item read
- * has no duplicates to merge).
+ * `migrateTodos` runs this per array element and dedups by updatedAt.
  */
 export function migrateTodo(raw: unknown, ctx: MigrateTodoCtx): Todo | null {
   const { validate, validCatIds, now, cutoff } = ctx;
@@ -1665,15 +1478,8 @@ export function migrateTodo(raw: unknown, ctx: MigrateTodoCtx): Todo | null {
     if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
     const item = raw as Partial<Todo> & { id?: unknown };
 
-    let id: string;
-    if (typeof item.id === "string" && item.id.length > 0) {
-      id = item.id;
-    } else if (typeof item.id === "number" && Number.isFinite(item.id)) {
-      // Legacy v0 numeric id — keep stable across migrations.
-      id = String(item.id);
-    } else {
-      id = genUuid();
-    }
+    const id =
+      typeof item.id === "string" && item.id.length > 0 ? item.id : genUuid();
 
     const text =
       typeof item.text === "string"
@@ -1791,11 +1597,9 @@ export function migrateTodo(raw: unknown, ctx: MigrateTodoCtx): Todo | null {
     if (recurrence) merged.recurrence = recurrence;
     if (notes && notes.length > 0) merged.notes = notes;
     if (completionDate) merged.completionDate = completionDate;
-    // seriesId / detachedFromSeries / status were previously NOT copied
-    // here, so they were silently dropped on every load + cloud round-trip
-    // — which made the "Edit series" control vanish and lost custom status.
-    // Preserve them; also assign a seriesId to any recurring todo that
-    // lacks one so the series UI + ops always work.
+    // Preserve seriesId / detachedFromSeries / status; assign a seriesId to
+    // any recurring todo that lacks one so the series UI + ops (and
+    // todoToggle's series path) always apply.
     if (typeof item.seriesId === "string" && item.seriesId.length > 0) {
       merged.seriesId = item.seriesId;
     } else if (recurrence) {
@@ -1803,33 +1607,9 @@ export function migrateTodo(raw: unknown, ctx: MigrateTodoCtx): Todo | null {
     }
     if (item.detachedFromSeries === true) merged.detachedFromSeries = true;
     if (item.status === "notDo") merged.status = "notDo";
-    // Reminder: validate the shape. `at` is required, must be a
-    // datetime string. interval/until are optional. Past-dated
-    // `at` still passes through; the scheduler filters at schedule
-    // time. Legacy `remindAt` (a single string) from a previous
-    // build is migrated into `reminder.at`.
-    const rawRem = (item as { reminder?: unknown; remindAt?: unknown }).reminder
-      ?? ((item as { remindAt?: unknown }).remindAt
-        ? { at: (item as { remindAt?: unknown }).remindAt }
-        : undefined);
-    if (rawRem && typeof rawRem === "object") {
-      const r = rawRem as { at?: unknown; intervalMinutes?: unknown; until?: unknown };
-      if (typeof r.at === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(r.at)) {
-        const reminder: NonNullable<Todo["reminder"]> = { at: r.at };
-        if (typeof r.intervalMinutes === "number" && Number.isFinite(r.intervalMinutes) && r.intervalMinutes >= 1) {
-          reminder.intervalMinutes = Math.floor(r.intervalMinutes);
-        }
-        if (typeof r.until === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(r.until)) {
-          reminder.until = r.until;
-        }
-        merged.reminder = reminder;
-      }
-    }
-
-    // Multi-reminder array (the preferred schema). Previously dropped here
-    // too — every reminder the user set vanished on the next load/sync.
-    // Validate + dedupe each entry; when present it supersedes the legacy
-    // singular `reminder`.
+    // Reminders: validate + dedupe each entry. `at` is required and must be
+    // a local datetime string; past-dated entries pass through (the
+    // scheduler filters at schedule time).
     const rawReminders = (item as { reminders?: unknown }).reminders;
     if (Array.isArray(rawReminders)) {
       const cleanedRems: Reminder[] = [];
@@ -1853,11 +1633,7 @@ export function migrateTodo(raw: unknown, ctx: MigrateTodoCtx): Todo | null {
         }
         cleanedRems.push(rem);
       }
-      if (cleanedRems.length > 0) {
-        merged.reminders = dedupeReminders(cleanedRems);
-        // Converge on the array schema so getReminders has a single source.
-        delete merged.reminder;
-      }
+      if (cleanedRems.length > 0) merged.reminders = dedupeReminders(cleanedRems);
     }
 
     return merged;

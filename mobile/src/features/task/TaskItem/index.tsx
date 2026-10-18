@@ -80,7 +80,6 @@ import { getReminders } from '../../../../../core/src/logic/derive'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Category, Priority, Recurrence, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../../../core-bindings/types'
 import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
-import type { Density } from '../../../core-bindings/profile'
 import { formatDisplayDate, fullDateLabel, todayLocal, isoDate } from '../../../core-bindings/utils'
 import { sortedSubs } from '../../../../../core/src/logic/derive'
 import { useTriggerFirework } from '../../../app/FireworkOverlay'
@@ -109,7 +108,6 @@ interface Props {
   selected?: boolean
   onToggleSelect?: (id: string) => void
   categories: CategoryDef[]
-  density?: Density
   /** When true, animate the checkbox on done-transition. Defaults to true. */
   celebrate?: boolean
   /** When true, play a chime on done-transition. Defaults to true. */
@@ -166,11 +164,8 @@ interface Props {
   onUpdateText: (id: string, text: string) => void
   onUpdateNotes?: (id: string, notes: string) => void
   onUpdateRecurrence?: (id: string, recurrence: Recurrence | undefined) => void
-  onUpdateReminder?: (id: string, reminder: Todo["reminder"] | undefined) => void
-  /** Multi-reminder write — wired through to the new ReminderSheet
-   * in TaskDetailsSheet. The single-reminder onUpdateReminder is
-   * kept for AI-suggest panels that still produce a single
-   * Todo["reminder"]. */
+  /** Reminder write — wired through to the ReminderSheet + AI pill in
+   * TaskDetailsSheet. */
   onUpdateReminders?: (id: string, reminders: import('../../../core-bindings/types').Reminder[]) => void
   onAddSubtask?: (id: string, text: string, priority?: Priority, dueDate?: string) => void
   onToggleSubtask?: (id: string, subId: string) => void
@@ -202,10 +197,10 @@ interface Props {
 
 function TaskItem({
   todo, inTrash = false, binFilterView = false, selected = false, onToggleSelect,
-  categories, density = 'comfortable', celebrate = true, playSound = true,
+  categories, celebrate = true, playSound = true,
   subtaskVisibility = 'all',
   onToggle, onMoveToTrash, onSkip, onSkipSeries, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange, onApplySeriesSubtasks, onRestore, onPermanentDelete, onPermanentDeleteSeries,
-  onUpdatePriority, onUpdateDueDate, onSnooze, onLongPressDefer, onUpdateCategory, onUpdateText, onUpdateNotes, onUpdateRecurrence, onUpdateReminder, onUpdateReminders,
+  onUpdatePriority, onUpdateDueDate, onSnooze, onLongPressDefer, onUpdateCategory, onUpdateText, onUpdateNotes, onUpdateRecurrence, onUpdateReminders,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
   dateChipFormat = 'default', tapBehavior = 'toggle', subtaskDateFilter,
@@ -213,7 +208,7 @@ function TaskItem({
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
-  const styles = useMemo(() => makeStyles(theme, density), [theme, density])
+  const styles = useMemo(() => makeStyles(theme), [theme])
   const [priorityOpen, setPriorityOpen] = useState(false)
   const [categoryOpen, setCategoryOpen] = useState(false)
   const [dateOpen, setDateOpen] = useState(false)
@@ -1165,7 +1160,6 @@ function TaskItem({
             onUpdateDueDate={onUpdateDueDate}
             onUpdateCategory={onUpdateCategory}
             onUpdateRecurrence={onUpdateRecurrence ?? (() => {})}
-            onUpdateReminder={onUpdateReminder}
             onUpdateReminders={onUpdateReminders}
             onMoveToTrash={onMoveToTrash}
             onPermanentDelete={onPermanentDelete}

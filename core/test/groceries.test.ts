@@ -97,17 +97,13 @@ describe('migrateGroceries', () => {
     expect(out.length).toBe(1)
     expect(out[0].text).toBe('Milk')
   })
-  it('promotes legacy single store field to stores[]', () => {
+  it('normalizes stores[] (trim, case-insensitive dedupe, drop non-strings); missing → []', () => {
     const out = migrateGroceries([
-      { id: 'a', text: 'Milk', groupId: 'x', store: 'Costco' },
-    ])
-    expect(out[0].stores).toEqual(['Costco'])
-  })
-  it('preserves new stores[] over legacy store field', () => {
-    const out = migrateGroceries([
-      { id: 'a', text: 'Milk', groupId: 'x', stores: ['CVS', 'Target'], store: 'Old' },
+      { id: 'a', text: 'Milk', groupId: 'x', stores: [' CVS ', 'cvs', 7, '', 'Target'] },
+      { id: 'b', text: 'Eggs', groupId: 'x' },
     ])
     expect(out[0].stores).toEqual(['CVS', 'Target'])
+    expect(out[1].stores).toEqual([])
   })
   it('caps purchase log size and sorts descending', () => {
     const ps = Array.from({ length: 50 }, (_, i) => 1000 + i)
@@ -117,11 +113,11 @@ describe('migrateGroceries', () => {
     expect(out[0].purchases?.length).toBe(30)
     expect(out[0].purchases?.[0]).toBeGreaterThan(out[0].purchases![1])
   })
-  it('seeds purchases from checkedAt when log is missing', () => {
+  it('leaves purchases undefined when the log is missing', () => {
     const out = migrateGroceries([
       { id: 'a', text: 'Milk', groupId: 'x', checkedAt: 12345 },
     ])
-    expect(out[0].purchases).toEqual([12345])
+    expect(out[0].purchases).toBeUndefined()
   })
 })
 

@@ -1,9 +1,7 @@
 import { StyleSheet } from "react-native";
 import { ThemeColors, SPACING, RADIUS, TYPE } from "../../../app/theme";
-import { Density } from "../../../core-bindings/profile";
 
-export function makeStyles(c: ThemeColors, density: Density) {
-  const compact = density === 'compact'
+export function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     rowFlash: {
       ...StyleSheet.absoluteFillObject,
@@ -13,8 +11,8 @@ export function makeStyles(c: ThemeColors, density: Density) {
     row: {
       flexDirection: 'row',
       alignItems: 'flex-start',
-      paddingVertical: compact ? SPACING.sm : SPACING.md,
-      // Floor at 44pt even in compact density — the row is the toggle target.
+      paddingVertical: SPACING.md,
+      // Floor at 44pt — the row is the toggle target.
       minHeight: 44,
       paddingLeft: SPACING.lg,
       paddingRight: SPACING.lg,
@@ -62,7 +60,7 @@ export function makeStyles(c: ThemeColors, density: Density) {
     },
     body: {
       flex: 1,
-      gap: compact ? 1 : SPACING.xs,
+      gap: SPACING.xs,
     },
     mainLine: {
       flexDirection: 'row',
@@ -74,10 +72,10 @@ export function makeStyles(c: ThemeColors, density: Density) {
       // Bumped title weight so it carries the row visually; the meta
       // chips below are intentionally smaller/dimmer so they read as
       // secondary information.
-      fontSize: compact ? TYPE.body : TYPE.bodyLg,
+      fontSize: TYPE.bodyLg,
       fontWeight: '500',
       color: c.label,
-      lineHeight: compact ? 20 : 22,
+      lineHeight: 22,
       letterSpacing: -0.3,
     },
     textDone: {
@@ -150,7 +148,7 @@ export function makeStyles(c: ThemeColors, density: Density) {
     },
     expandToggle: {
       width: 22,
-      height: compact ? 19 : 21,
+      height: 21,
       alignItems: 'center',
       justifyContent: 'center',
       marginTop: 2,

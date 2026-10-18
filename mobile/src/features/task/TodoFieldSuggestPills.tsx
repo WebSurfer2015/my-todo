@@ -23,7 +23,7 @@ import { useTodoFieldSuggestions } from './useTodoFieldSuggestions'
  * Token discipline: 800ms debounce, 3-char minimum, dedupe by
  * trimmed-text, profile.agentEnabled gate, single in-flight via
  * sequence number. With aggressive prompt caching (configured
- * server-side via cacheableSystemModes in web/functions/src/aiInfer.ts),
+ * server-side via cacheableSystemModes in functions/src/aiInfer.ts),
  * a typical session is ~$0.005/user.
  */
 

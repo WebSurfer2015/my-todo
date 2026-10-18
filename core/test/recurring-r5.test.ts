@@ -33,11 +33,11 @@ describe('todoSkip — non-recurring', () => {
 
   it('clears any pending reminder', () => {
     const out = todoSkip(
-      [todo({ reminder: { at: '2026-05-28T09:00' } })],
+      [todo({ reminders: [{ id: 'r1', at: '2026-05-28T09:00' }] })],
       'one-off',
       '2026-05-29',
     )
-    expect(out[0].reminder).toBeUndefined()
+    expect(out[0].reminders).toBeUndefined()
   })
 
   it('does NOT generate a new instance for a non-series row', () => {

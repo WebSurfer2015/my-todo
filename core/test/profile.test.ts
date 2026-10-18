@@ -69,23 +69,6 @@ describe('migrateProfile', () => {
     })
     expect(out.quote).toBe('be kind')
   })
-  it('drops invalid density values', () => {
-    const out = migrateProfile({
-      name: 'Ying',
-      avatar: { kind: 'preset', key: 'mochi' },
-      density: 'spacious',
-    })
-    expect(out.density).toBeUndefined()
-  })
-  it('preserves valid density values', () => {
-    expect(
-      migrateProfile({
-        name: 'Ying',
-        avatar: { kind: 'preset', key: 'mochi' },
-        density: 'compact',
-      }).density,
-    ).toBe('compact')
-  })
   it('only accepts explicit boolean onboardingDone === true', () => {
     expect(
       migrateProfile({
@@ -123,41 +106,5 @@ describe('migrateProfile', () => {
       dailyCheckinHour: 9.6,
     })
     expect(ok.dailyCheckinHour).toBe(9)
-  })
-  it('migrates web-style avatar { kind: image, data } → uri', () => {
-    const out = migrateProfile({
-      name: 'Ying',
-      avatar: { kind: 'image', data: 'data:image/png;base64,xxx' },
-    })
-    expect(out.avatar.kind).toBe('image')
-    if (out.avatar.kind === 'image') {
-      expect(out.avatar.uri).toBe('data:image/png;base64,xxx')
-    }
-  })
-
-  it('keeps valid measurement signals (createdAt / activatedAt / lastActiveDate)', () => {
-    const out = migrateProfile({
-      name: 'Ying',
-      avatar: { kind: 'preset', key: 'mochi' },
-      createdAt: '2026-10-17T08:00:00.000Z',
-      activatedAt: '2026-10-17T09:30:00.000Z',
-      lastActiveDate: '2026-10-17',
-    })
-    expect(out.createdAt).toBe('2026-10-17T08:00:00.000Z')
-    expect(out.activatedAt).toBe('2026-10-17T09:30:00.000Z')
-    expect(out.lastActiveDate).toBe('2026-10-17')
-  })
-
-  it('drops malformed measurement signals (defensive against junk cloud writes)', () => {
-    const out = migrateProfile({
-      name: 'Ying',
-      avatar: { kind: 'preset', key: 'mochi' },
-      createdAt: 'not-a-date',
-      activatedAt: 123,
-      lastActiveDate: '10/17/2026',
-    })
-    expect(out.createdAt).toBeUndefined()
-    expect(out.activatedAt).toBeUndefined()
-    expect(out.lastActiveDate).toBeUndefined()
   })
 })

@@ -15,7 +15,8 @@ brand and the existing privacy policy. Design for anonymity by construction.
 
 ## Keep Firebase Analytics OFF
 **DONE 2026-10-17:** `@react-native-firebase/analytics` is removed; the
-`mobile/src/adapters/analytics.ts` wrapper is now a dependency-free no-op
+`mobile/src/adapters/analytics.ts` wrapper (a no-op since then) was deleted
+2026-10-18 with its call sites
 (user-id attribution dropped) that Tier 3 can repurpose. No console action, no
 plist re-download, no privacy-policy contradiction.
 
@@ -44,11 +45,10 @@ No new behavioral logging — compute cohorts from existing Firestore state:
 ### Tier 3 — A few product-signal tallies (optional) 🟡
 For signals not derivable from stored data (Mochi used, paywall shown + reason,
 empty-state CTA), keep anonymous **daily counters**, not per-user events:
-- **Repurpose the existing wrapper** — `analytics.ts` already has a clean
-  taxonomy and 14 call sites. Swap its implementation from RNFB `logEvent` to an
-  **increment of an aggregate counter** (via a Cloud Function, so clients can't
-  write arbitrary shared docs — avoids the abuse surface). The 14 call sites and
-  the event names don't change; only the sink does.
+- **Add a small client module that increments an aggregate counter** via a
+  Cloud Function (so clients can't write arbitrary shared docs — avoids the
+  abuse surface). The old no-op `analytics.ts` seam was deleted 2026-10-18; its
+  event list is in git history if useful.
 - Store as `metrics/{date}.counts.{event}` — a tally, never a row-per-user.
 
 ## What this answers (vs. the original funnel goals)
@@ -83,8 +83,8 @@ on-brand.
    is NOT derivable from a single date — needs a `previousActiveDate` if
    wanted. `metrics/*` is server-only via the default-deny rule. Read it in the
    Firebase Console → Firestore → `metrics`.
-3. **Tier 3 (if chosen):** add a `recordMetric` callable CF; repurpose
-   `analytics.ts` to call it; keep the 14 call sites.
+3. **Tier 3 (if chosen):** add a `recordMetric` callable CF and a small client
+   counter module that calls it.
 4. ~~Remove `@react-native-firebase/analytics` dep in cleanup.~~ Done 2026-10-17.
 5. ~~`PRIVACY.md` transparency note.~~ Done 2026-10-17 (usage-dates section + no-analytics-SDK statement).
 

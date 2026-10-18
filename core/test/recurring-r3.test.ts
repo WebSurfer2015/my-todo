@@ -1,8 +1,7 @@
 /**
  * R3 of the recurring-todo redesign — todoToggle rewire for series
  * instances. Verifies the new "mark done in place + top-up tail"
- * path, the un-do behavior, and the preserved legacy rolling
- * fallback for orphaned recurrences without a seriesId.
+ * path and the un-do behavior.
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -60,14 +59,14 @@ describe("todoToggle — series instance completion (R3)", () => {
     }
   });
 
-  it("clears reminder on completion", () => {
+  it("clears reminders on completion", () => {
     const withReminder = seed({
-      reminder: { at: "2026-05-28T09:00" },
+      reminders: [{ id: 'r1', at: "2026-05-28T09:00" }],
     });
     const expanded = expandSeries(withReminder, "2026-05-28");
     const out = todoToggle(expanded, expanded[0].id, "2026-05-28");
     const head = out.find((t) => t.id === expanded[0].id)!;
-    expect(head.reminder).toBeUndefined();
+    expect(head.reminders).toBeUndefined();
   });
 
   it("does NOT append a new tail when recurrence.endDate caps the series", () => {
@@ -111,29 +110,5 @@ describe("todoToggle — series un-do (R3)", () => {
     expect(head.trashed).toBe(false);
     expect(head.completionDate).toBeUndefined();
     expect(head.trashedAt).toBeUndefined();
-  });
-});
-
-describe("todoToggle — legacy rolling fallback (no seriesId)", () => {
-  it("a recurring todo without seriesId still hits the snapshot+roll path", () => {
-    const legacy: Todo = {
-      id: "legacy-1",
-      text: "Take medicine",
-      done: false,
-      priority: "medium",
-      dueDate: "2026-05-10",
-      trashed: false,
-      updatedAt: 1,
-      recurrence: { freq: "weekly" },
-      // intentionally no seriesId
-    };
-    const out = todoToggle([legacy], legacy.id);
-    expect(out).toHaveLength(2);
-    const rolled = out.find((t) => t.id === legacy.id)!;
-    const snapshot = out.find((t) => t.id !== legacy.id)!;
-    expect(rolled.done).toBe(false);
-    expect(rolled.dueDate).toBe("2026-05-17");
-    expect(snapshot.done).toBe(true);
-    expect(snapshot.trashed).toBe(true);
   });
 });

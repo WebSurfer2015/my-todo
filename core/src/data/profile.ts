@@ -1,16 +1,7 @@
-/**
- * Avatar is a discriminated union with three kinds. Web traditionally uses
- * `image` (data URL) and `icon` (lucide); mobile uses `image` (file/remote URI)
- * and `preset` (emoji preset). To keep cross-device data interchangeable, the
- * union admits all three kinds and each platform's <Avatar> falls back
- * gracefully when it encounters a kind it doesn't natively render.
- */
+/** Avatar: a user photo (file/remote URI) or a bundled preset. */
 export type Avatar =
-  | { kind: 'image';  uri: string }                       // web data URL or mobile file/remote URI
-  | { kind: 'icon';   icon: string; color: string }       // web's lucide-style icon
-  | { kind: 'preset'; key: string }                       // mobile's emoji preset key
-
-export type Density = 'comfortable' | 'compact'
+  | { kind: 'image';  uri: string }
+  | { kind: 'preset'; key: string }
 
 /** Source for the home-screen subtitle quote. See Profile.quoteMode. */
 export type QuoteMode = 'daily' | 'custom' | 'off'
@@ -43,16 +34,6 @@ export interface PriorityOverride {
   hidden?: boolean
 }
 
-/**
- * One card in the unified Dashboard pinned-card row. Spans both Todos
- * pinned filter SETS and Shopping pinned stores/depts so they share a
- * single drag-reorderable order. Stored raw on the Profile.
- */
-export type DashboardTile =
-  | { kind: 'todoFilter'; set: string[] }
-  | { kind: 'groceryStore'; store: string }
-  | { kind: 'groceryDept'; dept: string }
-
 export interface Profile {
   name: string
   firstName?: string
@@ -64,8 +45,8 @@ export interface Profile {
    *  - 'daily'  → an auto-rotating curated quote (date-seeded, see quotes.ts)
    *  - 'custom' → the user's own `quote` text
    *  - 'off'    → no subtitle
-   * Undefined (legacy) resolves to 'custom' when `quote` is set, else 'daily'
-   * (the calm default — a fresh quote each day with no effort).
+   * Undefined is treated as 'custom' by the store (the subtitle shows the
+   * `quote` text, or nothing when it's empty).
    */
   quoteMode?: QuoteMode
   /**
@@ -81,12 +62,9 @@ export interface Profile {
    */
   lastComposeMode?: 'manual' | 'mochi'
   avatar: Avatar
-  density?: Density
-  title?: string
   /**
    * Anxiety-friendly setting: when true, the app suppresses non-essential
-   * motion (slide-ins, hover transitions) regardless of the OS prefers-reduced-
-   * motion setting. Honored on web via [data-reduce-motion] on .app-shell.
+   * motion regardless of the OS Reduce Motion setting.
    */
   reduceMotion?: boolean
   /** Last selected grouping (category vs status). Persisted across launches. */
@@ -100,27 +78,15 @@ export interface Profile {
   /** Play a sound when a task is marked done. Defaults to true. (Sound playback NYI.) */
   completionSound?: boolean
   /**
-   * When true, the app's accent (FAB color, pill backgrounds, etc.)
-   * is derived from the current avatar so the chrome quietly
-   * matches the user's chosen identity. Off by default — the
-   * static sage-teal palette is calm and brand-consistent for
-   * users who don't opt in.
-   *
-   * v1: preset avatars only (uses preset.bg directly).
-   * Photo/icon avatars fall back to the static palette.
-   */
-  themeFromAvatar?: boolean
-  /**
    * Selected color theme — drives the full app palette (background, cards,
    * header, text, accent). See the mobile client's `theme.ts` THEMES table.
-   * Defaults to 'sage'. Replaces the older background/themeFromAvatar chrome.
+   * Defaults to 'sage'.
    */
   theme?: ThemeName
   /**
    * True once the user has seen (or skipped) the first-launch onboarding
-   * flow. Defaults to undefined for legacy profiles — we treat undefined
-   * as "needs onboarding" so existing users get the introduction once.
-   * Set to true the first time they finish or skip.
+   * flow. Undefined means "needs onboarding"; set to true the first time
+   * they finish or skip.
    */
   onboardingDone?: boolean
   /**
@@ -162,9 +128,7 @@ export interface Profile {
    * Each entry is a SET — single-filter pills are stored as
    * single-element arrays (`['done']`), composite pills as multi-
    * element arrays (`['done','cat:work']`). Tapping a pinned set
-   * activates that whole multi-filter selection. Legacy flat
-   * `string[]` values from older builds are migrated to one
-   * single-element set per entry on load.
+   * activates that whole multi-filter selection.
    */
   pinnedFilters?: string[][]
   /**
@@ -175,14 +139,6 @@ export interface Profile {
    * undefined the effective tiles default to ['cat:home','cat:work','done'];
    * an explicit empty array hides the row entirely. */
   homeStatTiles?: string[]
-  /**
-   * App background choice — pairs a pattern key (e.g. 'solid', 'gradient',
-   * 'blob') with a color-pair key (e.g. 'cream', 'mochi-shell'). Rendering
-   * lives in the mobile workspace; core stores raw strings and lets the
-   * renderer fall back to the default when a key is unknown. Missing field
-   * = the default cream-solid look (zero diff from v1.0.x).
-   */
-  background?: BackgroundChoice
   /**
    * Show the Groceries view toggle at the top of the home screen.
    * Defaults to true (the feature is discoverable on first launch).
@@ -242,44 +198,6 @@ export interface Profile {
    * Toggled via long-press on any visible dept pill.
    */
   pinnedGroceryDepts?: string[]
-  /**
-   * One-shot device flag set true after the R2 recurring-redesign
-   * migration runs. Gates `migrateToRecurringV2` so it only walks the
-   * todo list on the first launch after the v2 client. Persisted in
-   * the profile so it syncs across devices — once any device migrates,
-   * others see the result and skip re-running.
-   */
-  recurringV2?: boolean
-  /**
-   * Privacy-preserving measurement signals (see docs/MEASUREMENT-PLAN.md).
-   * First-party, per-user, aggregate-only in use — NOT behavioral tracking and
-   * NOT sent to any third-party analytics SDK. Stored on the profile so they
-   * sync across devices and so cohorts can be computed from data we already
-   * hold, without an event stream.
-   *
-   *  - createdAt:      ISO timestamp, set ONCE by the client the first time a
-   *                    profile is written if absent (account-age / signup cohort).
-   *  - lastActiveDate: local 'YYYY-MM-DD', updated by the client on app open
-   *                    (retention / reactivation-after-lapse).
-   *  - activatedAt:    ISO timestamp, set ONCE when the user completes their
-   *                    first task (activation = created + completed something).
-   */
-  createdAt?: string
-  lastActiveDate?: string
-  activatedAt?: string
-  /**
-   * Ordered, unified list of Dashboard cards spanning BOTH Todos pinned
-   * filter sets and Shopping pinned stores/depts — the single source of
-   * truth for the Dashboard pinned-card row and its drag order. Built once
-   * by migrateProfile from pinnedFilters + pinnedGroceryStores/Depts when
-   * absent; thereafter the user reorders it directly.
-   */
-  dashboardTiles?: DashboardTile[]
-}
-
-export interface BackgroundChoice {
-  pattern: string
-  pairKey: string
 }
 
 export const SEED_PROFILE: Profile = {
@@ -289,7 +207,6 @@ export const SEED_PROFILE: Profile = {
   // display path falls back to its neutral default when the name is empty.
   name: '',
   avatar: { kind: 'preset', key: 'mochi' },
-  density: 'comfortable',
   completionSound: true,
   completionAnimation: true,
   reduceMotion: false,
@@ -298,11 +215,9 @@ export const SEED_PROFILE: Profile = {
 /** Hard caps applied at hydration. Defensive against malicious cloud writes. */
 export const MAX_PROFILE_NAME_LEN = 64
 export const MAX_PROFILE_QUOTE_LEN = 240
-export const MAX_PROFILE_TITLE_LEN = 64
 /**
- * Avatar URI cap. Base64 data URLs typically run ~50-200 KB after web
- * compression to 256px. Reject anything > 1 MB as a defense against bad
- * data — also keeps profile docs under Firestore's 1 MB doc limit.
+ * Avatar URI cap. Reject anything > 1 MB as a defense against bad data —
+ * also keeps profile docs under Firestore's 1 MB doc limit.
  */
 export const MAX_AVATAR_URI_LEN = 1_000_000
 
@@ -311,9 +226,8 @@ export interface PresetAvatar {
   emoji: string
   bg: string
   /**
-   * Optional bundled-image key. When set, Avatar components render a platform-
-   * resolved image source (mobile: require'd asset; web: public URL) instead
-   * of the emoji. The emoji is kept as a fallback for environments where the
+   * Optional bundled-image key. When set, the Avatar component renders the
+   * bundled (require'd) image instead of the emoji. The emoji is kept as a fallback for environments where the
    * image can't load.
    */
   imageKey?: string
@@ -324,10 +238,6 @@ export interface PresetAvatar {
  * Backgrounds are drawn from the Sagely pair palette (sage, mint, peach,
  * sea-glass, lavender, honey, misty rose) so avatars match the rest of the
  * UI instead of fighting it with bright system colors.
- *
- * Loud original presets (smile, rabbit, star, heart, sparkles, rocket) were
- * dropped — they read as high-energy / achievement-y. Users who selected a
- * dropped preset get migrated to a calmer equivalent in migrateAvatar.
  *
  * Stable keys so cross-device sync works.
  */
@@ -356,9 +266,9 @@ export function findPreset(key: string): PresetAvatar {
 }
 
 /**
- * Migration: web's original Avatar shape used `data` for image kind. Map it
- * to `uri` so cloud-stored avatars are interchangeable. All string fields
- * are length-capped to defend against malicious cloud pushes.
+ * Read-time sanitizer for a stored profile. All string fields are
+ * length-capped and every field is type-checked, to defend against
+ * malicious cloud pushes; invalid fields drop to undefined.
  */
 export function migrateProfile(raw: unknown): Profile {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return SEED_PROFILE
@@ -384,24 +294,12 @@ export function migrateProfile(raw: unknown): Profile {
         ? p.quote.slice(0, MAX_PROFILE_QUOTE_LEN)
         : undefined,
     avatar,
-    density:
-      p.density === 'compact'
-        ? 'compact'
-        : p.density === 'comfortable'
-          ? 'comfortable'
-          : undefined,
-    title:
-      typeof p.title === 'string' && p.title.length > 0
-        ? p.title.slice(0, MAX_PROFILE_TITLE_LEN)
-        : undefined,
     reduceMotion: typeof p.reduceMotion === 'boolean' ? p.reduceMotion : undefined,
     view: p.view === 'category' || p.view === 'status' ? p.view : undefined,
     statuses: migrateStatuses(p.statuses),
     priorities: migratePriorities(p.priorities),
     completionAnimation:
       typeof p.completionAnimation === 'boolean' ? p.completionAnimation : undefined,
-    themeFromAvatar:
-      typeof p.themeFromAvatar === 'boolean' ? p.themeFromAvatar : undefined,
     theme: isThemeName(p.theme) ? p.theme : undefined,
     quoteMode:
       p.quoteMode === 'daily' || p.quoteMode === 'custom' || p.quoteMode === 'off'
@@ -439,9 +337,8 @@ export function migrateProfile(raw: unknown): Profile {
       p.dailyCheckinHour <= 23
         ? Math.floor(p.dailyCheckinHour)
         : undefined,
-    pinnedFilters: migratePinnedFilters(p.pinnedFilters ?? p.pinnedFilter),
+    pinnedFilters: migratePinnedFilters(p.pinnedFilters),
     homeStatTiles: migrateHomeStatTiles(p.homeStatTiles),
-    background: migrateBackground(p.background),
     groceriesEnabled: p.groceriesEnabled === false ? false : undefined,
     activeGroceryStore:
       typeof p.activeGroceryStore === 'string' && p.activeGroceryStore.length > 0
@@ -459,25 +356,7 @@ export function migrateProfile(raw: unknown): Profile {
         ? p.activeGroceryDept.slice(0, 64)
         : undefined,
     pinnedGroceryDepts: migrateGroceryStores(p.pinnedGroceryDepts),
-    recurringV2: p.recurringV2 === true ? true : undefined,
-    createdAt: migrateTimestamp(p.createdAt),
-    activatedAt: migrateTimestamp(p.activatedAt),
-    lastActiveDate: migrateLocalDay(p.lastActiveDate),
   }
-}
-
-/** ISO-ish timestamp validator for measurement fields: a non-empty string that
- * starts with a YYYY-MM-DD date, length-capped. Defensive against junk cloud
- * writes; we never parse these on the client, only aggregate them server-side. */
-function migrateTimestamp(raw: unknown): string | undefined {
-  return typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(raw) && raw.length <= 40
-    ? raw
-    : undefined
-}
-
-/** Local 'YYYY-MM-DD' day validator (same shape as quoteShuffle.date). */
-function migrateLocalDay(raw: unknown): string | undefined {
-  return typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : undefined
 }
 
 const MAX_GROCERY_STORES = 30
@@ -498,24 +377,6 @@ function migrateGroceryStores(raw: unknown): string[] | undefined {
   return out.length > 0 ? out : undefined
 }
 
-const MAX_BG_KEY_LEN = 48
-
-function migrateBackground(raw: unknown): BackgroundChoice | undefined {
-  if (!raw || typeof raw !== 'object') return undefined
-  const b = raw as Record<string, unknown>
-  if (typeof b.pattern !== 'string' || b.pattern.length === 0) return undefined
-  if (typeof b.pairKey !== 'string' || b.pairKey.length === 0) return undefined
-  return {
-    pattern: b.pattern.slice(0, MAX_BG_KEY_LEN),
-    pairKey: b.pairKey.slice(0, MAX_BG_KEY_LEN),
-  }
-}
-
-/** Filter validator for the persisted `pinnedFilters` list. Accepts the
- * canonical system filters and `cat:<non-empty-id>`. Dedupes by first
- * occurrence and caps at 12 (sane upper bound — the FilterBar row would
- * scroll past viewport long before then). Falls back to a single-string
- * legacy value (the field used to be `pinnedFilter`) for backward compat. */
 /** Same shape as `migratePinnedFilters`. No hard cap on count — the
  * Dashboard scrolls horizontally — but we still apply the same 12-item
  * safety ceiling that pinned filters use, to defend against malformed
@@ -537,6 +398,10 @@ function migrateHomeStatTiles(raw: unknown): string[] | undefined {
   return items.length > 0 ? items : undefined
 }
 
+/** Validator for the persisted `pinnedFilters` list of filter SETS. Accepts
+ * the canonical system filters, `cat:<non-empty-id>` and `pri:<priority>`.
+ * Dedupes (order-insensitively) and caps at 12 sets (sane upper bound — the
+ * FilterBar row would scroll past viewport long before then). */
 function migratePinnedFilters(raw: unknown): string[][] | undefined {
   const valid = (s: unknown): s is string => {
     if (typeof s !== 'string' || s.length === 0) return false
@@ -564,20 +429,10 @@ function migratePinnedFilters(raw: unknown): string[][] | undefined {
     seen.add(key)
     sets.push(cleaned)
   }
-  if (Array.isArray(raw)) {
-    for (const item of raw) {
-      if (Array.isArray(item)) {
-        // New shape: array of arrays.
-        pushSet(item as unknown[] as string[])
-      } else if (valid(item)) {
-        // Legacy shape: flat array of filter strings. Wrap each as
-        // a single-element set.
-        pushSet([item])
-      }
-      if (sets.length >= 12) break
-    }
-  } else if (valid(raw)) {
-    pushSet([raw])
+  if (!Array.isArray(raw)) return undefined
+  for (const item of raw) {
+    if (Array.isArray(item)) pushSet(item as unknown[] as string[])
+    if (sets.length >= 12) break
   }
   return sets.length > 0 ? sets : undefined
 }
@@ -632,41 +487,14 @@ function migrateAvatar(raw: unknown): Avatar | null {
   if (!raw || typeof raw !== 'object') return null
   const a = raw as Record<string, unknown>
   if (a.kind === 'image') {
-    const uri = typeof a.uri === 'string' ? a.uri : typeof a.data === 'string' ? a.data : null
-    if (!uri) return null
-    if (uri.length > MAX_AVATAR_URI_LEN) return null
-    return { kind: 'image', uri }
-  }
-  if (a.kind === 'icon' && typeof a.icon === 'string' && typeof a.color === 'string') {
-    return { kind: 'icon', icon: a.icon.slice(0, 64), color: a.color.slice(0, 32) }
+    if (typeof a.uri !== 'string' || a.uri.length === 0) return null
+    if (a.uri.length > MAX_AVATAR_URI_LEN) return null
+    return { kind: 'image', uri: a.uri }
   }
   if (a.kind === 'preset' && typeof a.key === 'string') {
-    const key = a.key.slice(0, 64)
-    // Dropped-preset migration: the v1.2.x curation removed loud preset
-    // keys. Map each to a calmer cousin so an existing user doesn't
-    // silently flip to the global mochi fallback when their old choice
-    // disappears.
-    const mapped = DROPPED_PRESET_MIGRATIONS[key] ?? key
-    return { kind: 'preset', key: mapped }
+    // Unknown keys pass through; renderers fall back to the mochi preset
+    // (findPreset / ProfileSheet's normalizeAvatar).
+    return { kind: 'preset', key: a.key.slice(0, 64) }
   }
   return null
-}
-
-const DROPPED_PRESET_MIGRATIONS: Record<string, string> = {
-  // Original v1.2.x dropped loud presets.
-  smile:    'cat',     // sun was the old fallback; sun is gone too, route warm presets to cat
-  star:     'cat',     // ditto
-  heart:    'rabbit',  // rose blush bg — closest warm/delicate cousin (flower was dropped in v1.5)
-  sparkles: 'butterfly',
-  rocket:   'bird',
-  // v1.5 curation removed cloud/moon/sun/leaf/tree. Map each to a
-  // calmer animal/object cousin so existing users don't silently flip
-  // to the brand mochi fallback when they re-open the app.
-  cloud: 'whale',     // both calm + blue/sea-tone
-  moon:  'owl',       // nocturnal companions
-  sun:   'cat',       // warm/contented vibe
-  leaf:  'rabbit',    // soft nature pairing
-  tree:  'squirrel',  // squirrel lives in tree
-  // v1.5.x removed flower — route to butterfly (both gentle/floral).
-  flower: 'butterfly',
 }

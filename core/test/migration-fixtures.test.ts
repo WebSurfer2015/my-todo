@@ -1,9 +1,8 @@
 /**
  * Golden-fixture tests for the schema migrators. A bad migrator corrupts
  * EVERY user's data on the next version bump / read, so these pin the
- * load-bearing behaviors: legacy-shape promotion, dedup, hardening caps,
- * seed-on-garbage, and garbage-in → safe-default. Pure functions, run
- * under web's vitest.
+ * load-bearing behaviors: dedup, hardening caps, seed-on-garbage, and
+ * garbage-in → safe-default. Pure functions.
  */
 import { describe, it, expect } from 'vitest'
 import {
@@ -20,13 +19,6 @@ import { migrateTodoReferences } from '../src/logic/derive'
 const validBase = { name: 'Tester', avatar: SEED_PROFILE.avatar }
 
 describe('migrateGroceries', () => {
-  it('promotes legacy `store: string` to the new `stores: string[]` shape', () => {
-    const [item] = migrateGroceries([
-      { id: 'g1', text: 'Milk', groupId: 'dairy', store: 'Costco' },
-    ])
-    expect(item.stores).toContain('Costco')
-    expect(Array.isArray(item.stores)).toBe(true)
-  })
   it('drops rows missing id/text/groupId and dedups by id', () => {
     const out = migrateGroceries([
       { id: 'g1', text: 'Milk', groupId: 'dairy' },
@@ -65,10 +57,11 @@ describe('migrateGroceryGroups', () => {
     ])
     expect(out.map((g) => g.id)).toEqual(['produce', OTHERS_GROUP_ID])
   })
-  it('upgrades a legacy "Others"/"Uncategorized" catch-all label to "Miscellaneous"', () => {
-    const out = migrateGroceryGroups([{ id: OTHERS_GROUP_ID, label: 'Others' }])
-    const others = out.find((g) => g.id === OTHERS_GROUP_ID)
-    expect(others?.label).toBe('Miscellaneous')
+  it('keeps a stored catch-all label as-is; seeds "Miscellaneous" when absent', () => {
+    const kept = migrateGroceryGroups([{ id: OTHERS_GROUP_ID, label: 'Others' }])
+    expect(kept.find((g) => g.id === OTHERS_GROUP_ID)?.label).toBe('Others')
+    const seeded = migrateGroceryGroups([{ id: 'produce', label: 'Produce' }])
+    expect(seeded.find((g) => g.id === OTHERS_GROUP_ID)?.label).toBe('Miscellaneous')
   })
 })
 

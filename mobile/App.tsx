@@ -54,7 +54,6 @@ import { todayLocal } from "../core/src/logic/utils";
 import type { Todo } from "./src/core-bindings/types";
 import SignIn from "./src/features/auth/SignIn";
 import EmptyStateCard from "./src/ui/EmptyStateCard";
-import { Analytics } from "./src/adapters/analytics";
 import Onboarding from "./src/features/onboarding/Onboarding";
 import SplashOverlay from "./src/app/SplashOverlay";
 import { cancelDailyCheckin, syncTodoReminders } from "./src/adapters/notifications";
@@ -285,7 +284,6 @@ function TodosScreen() {
       <TaskItem
         todo={td}
         categories={store.categories}
-        density={store.profile.density}
         celebrate={store.animationOn}
         playSound={store.profile.completionSound !== false}
         onToggle={store.toggle}
@@ -305,7 +303,6 @@ function TodosScreen() {
         onUpdateText={store.updateText}
         onUpdateNotes={store.updateNotes}
         onUpdateRecurrence={store.updateRecurrence}
-        onUpdateReminder={store.updateReminder}
         onUpdateReminders={store.updateReminders}
         onAddSubtask={store.addSubtask}
         onToggleSubtask={store.toggleSubtask}
@@ -396,7 +393,6 @@ function TodosScreen() {
       <TaskItem
         todo={td}
         categories={store.categories}
-        density={store.profile.density}
         celebrate={store.animationOn}
         playSound={store.profile.completionSound !== false}
         binFilterView
@@ -418,7 +414,6 @@ function TodosScreen() {
         onUpdateText={store.updateText}
         onUpdateNotes={store.updateNotes}
         onUpdateRecurrence={store.updateRecurrence}
-        onUpdateReminder={store.updateReminder}
         onUpdateReminders={store.updateReminders}
         onAddSubtask={store.addSubtask}
         onToggleSubtask={store.toggleSubtask}
@@ -651,7 +646,6 @@ function TodosScreen() {
                       <TaskItem
                         todo={td}
                         categories={store.categories}
-                        density={store.profile.density}
                         celebrate={store.animationOn}
                         playSound={store.profile.completionSound !== false}
                         inTrash
@@ -675,7 +669,6 @@ function TodosScreen() {
                         onUpdateText={store.updateText}
                               onUpdateNotes={store.updateNotes}
                         onUpdateRecurrence={store.updateRecurrence}
-                        onUpdateReminder={store.updateReminder}
                         onUpdateReminders={store.updateReminders}
                       />
                     </View>
@@ -730,7 +723,6 @@ function TodosScreen() {
                       }
                       actionLabel={targetLabel}
                       onAction={() => {
-                        void Analytics.emptyStateCtaTapped('todos')
                         store.setFilter(targetFilter)
                       }}
                       centered
@@ -743,7 +735,6 @@ function TodosScreen() {
                     hint={store.emptyState.hint}
                     actionLabel={store.emptyState.ctaLabel}
                     onAction={() => {
-                      void Analytics.emptyStateCtaTapped('todos')
                       sheets.openCompose()
                     }}
                     centered
@@ -785,7 +776,6 @@ function TodosScreen() {
                           <TaskItem
                             todo={td}
                             categories={store.categories}
-                            density={store.profile.density}
                             celebrate={store.animationOn}
                             playSound={store.profile.completionSound !== false}
                             onToggle={store.toggle}
@@ -806,7 +796,6 @@ function TodosScreen() {
                             onUpdateText={store.updateText}
                             onUpdateNotes={store.updateNotes}
                             onUpdateRecurrence={store.updateRecurrence}
-                        onUpdateReminder={store.updateReminder}
                         onUpdateReminders={store.updateReminders}
                             onAddSubtask={store.addSubtask}
                             onToggleSubtask={store.toggleSubtask}
@@ -923,7 +912,6 @@ function TodosScreen() {
         store.filter !== "groceries" && (
           <Fab
             onPress={() => {
-              void Analytics.fabTapped('todos')
               sheets.openCapture()
             }}
             accessibilityLabel={t.addPlaceholder}

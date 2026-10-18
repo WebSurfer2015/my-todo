@@ -185,10 +185,6 @@ export function useTodoStore() {
   // state, all todo + subtask mutations, and trash bulk ops.
   const todosBundle = useTodosSlice(adapter, {
     onSaved,
-    profile,
-    setProfile,
-    profileRef,
-    profileLoaded,
     filter,
     filterRef,
     uid,
@@ -216,7 +212,6 @@ export function useTodoStore() {
     permanentlyDeleteSeriesFuture,
     updatePriority,
     updateDueDate,
-    updateReminder,
     updateReminders,
     updateTaskCategory,
     updateText,
@@ -525,7 +520,6 @@ export function useTodoStore() {
     permanentlyDeleteSeriesFuture,
     updatePriority,
     updateDueDate,
-    updateReminder,
     updateReminders,
     bulkDeferTodos,
     snooze,

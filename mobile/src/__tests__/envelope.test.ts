@@ -5,7 +5,7 @@ import { wrap, unwrap, serializeAny } from '../storage/envelope'
  * The versioned envelope is the cross-device persistence contract — the
  * SAME { version, data } shape is written by AsyncStorage (local) and
  * Firestore (cloud), so a drift here silently breaks sync. These pin the
- * byte shape + the round-trip + the legacy/garbage fallbacks.
+ * byte shape + the round-trip + the non-envelope/garbage fallbacks.
  */
 describe('storage envelope', () => {
   it('wraps as {"version":1,"data":...} (byte shape shared with cloud)', () => {
@@ -30,15 +30,12 @@ describe('storage envelope', () => {
     expect(unwrap('{"version":1,"data":[1,2]}')).toEqual([1, 2])
   })
 
-  it('unwrap passes through a bare (legacy, un-enveloped) JSON value', () => {
-    // Pre-envelope data was stored as the raw array/object — unwrap must
-    // return it as-is so old installs still hydrate.
-    expect(unwrap('[1,2,3]')).toEqual([1, 2, 3])
-    expect(unwrap('{"foo":"bar"}')).toEqual({ foo: 'bar' })
+  it('unwrap treats a bare (un-enveloped) JSON value as empty', () => {
+    expect(unwrap('[1,2,3]')).toBeNull()
+    expect(unwrap('{"foo":"bar"}')).toBeNull()
   })
 
-  it('treats an array as bare even though it is an object (not an envelope)', () => {
-    // Arrays have no "version"/"data" keys → returned as-is, not unwrapped.
-    expect(unwrap('[{"version":1,"data":9}]')).toEqual([{ version: 1, data: 9 }])
+  it('does not treat an array as an envelope', () => {
+    expect(unwrap('[{"version":1,"data":9}]')).toBeNull()
   })
 })

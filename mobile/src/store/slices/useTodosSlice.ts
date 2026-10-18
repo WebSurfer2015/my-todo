@@ -29,7 +29,6 @@ import {
   Todo,
   TodoReference,
 } from "../../core-bindings/types";
-import { Profile } from "../../core-bindings/profile";
 // Module-scope migrators (used by the parsers below) stay direct
 // imports; every in-hook transform now comes from the createTodoStore
 // actions surface (destructured inside the hook).
@@ -41,7 +40,6 @@ import { TodoStoreActions } from "../../../../core/src/store";
 import { todayLocal, addDaysISO } from "../../../../core/src/logic/utils";
 import { useSyncedState } from "../useSyncedState";
 import { StorageAdapter } from "../../../../core/src/ports/persistence";
-import { Analytics } from "../../adapters/analytics";
 import { unwrap, serializeAny } from "../../storage/envelope";
 
 const parseTodos = (raw: string | null): Todo[] => migrateTodos(unwrap(raw));
@@ -50,17 +48,12 @@ const parseTodoReferences = (raw: string | null): TodoReference[] =>
 
 export interface TodosSliceDeps {
   onSaved?: (ts: number) => void;
-  /** Live profile state. */
-  profile: Profile;
-  setProfile: Dispatch<SetStateAction<Profile>>;
-  profileRef: MutableRefObject<Profile>;
-  profileLoaded: boolean;
   /** Current filter + ref. The selectedTrashIds auto-clear effect
    * watches `filter`; some snackbar logic reads `filterRef.current`
    * inside stable callbacks. */
   filter: Filter;
   filterRef: MutableRefObject<Filter>;
-  /** uid — passed through for the post-hydrate migration/top-up effect. */
+  /** uid — passed through for the post-hydrate series top-up effect. */
   uid: string | null;
   t: {
     movedToTrash: string;
@@ -130,10 +123,7 @@ export interface TodosSlice {
   permanentlyDeleteSeriesFuture: (id: string) => void;
   updatePriority: (id: string, priority: Priority) => void;
   updateDueDate: (id: string, dueDate: string) => void;
-  updateReminder: (id: string, reminder: Todo["reminder"] | undefined) => void;
-  /** Multi-reminder write — replaces the entire `reminders[]` on a
-   * todo. Pass `[]` to clear. Also drops the legacy `reminder` field
-   * so the row converges on the new schema. */
+  /** Replaces the entire `reminders[]` on a todo. Pass `[]` to clear. */
   updateReminders: (id: string, reminders: Reminder[]) => void;
   updateTaskCategory: (id: string, category: Category) => void;
   updateText: (id: string, text: string) => void;
@@ -199,8 +189,7 @@ export interface TodosSlice {
     extras?: {
       notes?: string;
       subtasks?: Subtask[];
-      reminder?: Todo["reminder"]; // legacy
-      reminders?: Reminder[]; // multi-reminder (preferred)
+      reminders?: Reminder[];
     },
   ) => string;
   emptyTrash: () => void;
@@ -216,10 +205,6 @@ export function useTodosSlice(
 ): TodosSlice {
   const {
     onSaved,
-    profile,
-    setProfile,
-    profileRef,
-    profileLoaded,
     filter,
     filterRef,
     uid,
@@ -251,7 +236,6 @@ export function useTodosSlice(
     subtaskUpdateDueDate,
     subtaskRemove,
     subtaskClearAll,
-    migrateToRecurringV2,
     topUpAllSeries,
     todoSkip,
     todoSkipSeriesFuture,
@@ -294,51 +278,19 @@ export function useTodosSlice(
     todosRef.current = todos;
   }, [todos]);
 
-  // R2 recurring-redesign migration + horizon top-up. Runs once per
-  // uid swap, after both profile and todos have loaded. The ref
-  // guard prevents re-entry within a session even though the effect
-  // would otherwise re-fire when profile.recurringV2 flips true.
-  //
-  // Top-up always runs (even on second-launch where migration is a
-  // no-op) so a long-idle device extends its series tails to today's
-  // window before the user sees the list.
-  const recurringV2ForUidRef = useRef<string | null | undefined>(undefined);
+  // Series horizon top-up. Runs once per uid swap, after todos have
+  // loaded, so a long-idle device extends its series tails to today's
+  // window before the user sees the list. The ref guard prevents
+  // re-entry within a session.
+  const topUpForUidRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
-    if (!profileLoaded || !todosLoaded) return;
+    if (!todosLoaded) return;
     const k = uid ?? "(local)";
-    if (recurringV2ForUidRef.current === k) return;
-    recurringV2ForUidRef.current = k;
-
-    const today = todayLocal();
-    let working = todosRef.current;
-    let mutated = false;
-
-    if (!profile.recurringV2) {
-      const mig = migrateToRecurringV2(working, today);
-      if (mig.changed) {
-        working = mig.todos;
-        mutated = true;
-      }
-      // Mark the migration done even when no recurring todos were
-      // found — there's nothing to re-do next launch either way.
-      setProfile((p) => ({ ...p, recurringV2: true }));
-    }
-
-    const tu = topUpAllSeries(working, today);
-    if (tu.changed) {
-      working = tu.todos;
-      mutated = true;
-    }
-
-    if (mutated) setTodos(working);
-  }, [
-    profileLoaded,
-    todosLoaded,
-    uid,
-    profile.recurringV2,
-    setProfile,
-    setTodos,
-  ]);
+    if (topUpForUidRef.current === k) return;
+    topUpForUidRef.current = k;
+    const tu = topUpAllSeries(todosRef.current, todayLocal());
+    if (tu.changed) setTodos(tu.todos);
+  }, [todosLoaded, uid, setTodos]);
 
   // Auto-clear trash selection when leaving trash view.
   useEffect(() => {
@@ -552,16 +504,8 @@ export function useTodosSlice(
     [setTodos],
   );
 
-  const updateReminder = useCallback(
-    (id: string, reminder: Todo["reminder"] | undefined) => {
-      setTodos((prev) => todoSet(prev, id, "reminder", reminder));
-    },
-    [setTodos],
-  );
-
-  // Multi-reminder write. Writes the array on the row, drops the
-  // legacy `reminder` field. Empty input clears both. The scheduler
-  // diffs and reconciles via the existing syncTodoReminders effect.
+  // Writes the reminders array on the row (empty input clears it). The
+  // scheduler diffs and reconciles via the existing syncTodoReminders effect.
   const updateReminders = useCallback(
     (id: string, reminders: Reminder[]) => {
       setTodos((prev) => todoSetReminders(prev, id, reminders));
@@ -724,13 +668,11 @@ export function useTodosSlice(
       extras?: {
         notes?: string;
         subtasks?: Subtask[];
-        reminder?: Todo["reminder"]; // legacy single-reminder support
-        reminders?: Reminder[]; // multi-reminder (preferred)
+        reminders?: Reminder[];
       },
     ) => {
       const notes = extras?.notes;
       const subtasks = extras?.subtasks;
-      const reminder = extras?.reminder;
       const reminders = extras?.reminders;
       setTodoReferences((prev) =>
         recordTodoReference(prev, { text, priority, category, recurrence }),
@@ -747,21 +689,9 @@ export function useTodosSlice(
         recurrence,
         subtasks,
         notes,
-        // Prefer the new multi-reminder array when supplied; the
-        // legacy `reminder` input stays for any caller that hasn't
-        // migrated yet.
-        reminder,
+        reminders,
       });
-      // Attach reminders[] post-newTodo (newTodo's input shape
-      // doesn't have the array yet — keep it narrow).
-      if (reminders && reminders.length > 0) {
-        seed.reminders = reminders;
-        // If both inputs were given, the array wins; drop the
-        // legacy field so the persisted doc converges on the new schema.
-        delete seed.reminder;
-      }
       setTodos((prev) => {
-        if (prev.length === 0) void Analytics.firstTodoCreated();
         // R1 — pre-expand the recurring series so the user
         // immediately sees their daily/weekly/monthly/yearly window
         // populated (head + tail). For one-offs, fall through to the
@@ -851,10 +781,6 @@ export function useTodosSlice(
     ]);
   }, [setTodos, t]);
 
-  // Quiet down the linter for refs we expose but never read in the
-  // slice body itself (the composer reads them through the return).
-  void profileRef;
-
   return {
     todos,
     setTodos,
@@ -872,7 +798,6 @@ export function useTodosSlice(
     permanentlyDeleteSeriesFuture,
     updatePriority,
     updateDueDate,
-    updateReminder,
     updateReminders,
     updateTaskCategory,
     updateText,

@@ -10,8 +10,7 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import AndroidDateFlow from '../../../ui/AndroidDateFlow'
 import Svg, { Rect, Path } from 'react-native-svg'
 import { Bell, Repeat, Sparkles } from 'lucide-react-native'
-import { Analytics } from '../../../adapters/analytics'
-import { Category, Priority, PRIORITY_VALUES, PRIORITY_COLORS, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, Subtask, Todo, TodoReference } from '../../../core-bindings/types'
+import { Category, Priority, PRIORITY_VALUES, PRIORITY_COLORS, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, Subtask, TodoReference } from '../../../core-bindings/types'
 import { genUuid } from '../../../../../core/src/logic/utils'
 import { snapDueDateToRecurrence } from '../../../../../core/src/logic/derive'
 import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
@@ -88,7 +87,7 @@ interface Props {
     dueDate: string,
     category?: Category,
     recurrence?: Recurrence,
-    extras?: { notes?: string; subtasks?: Subtask[]; reminder?: Todo["reminder"]; reminders?: Reminder[] },
+    extras?: { notes?: string; subtasks?: Subtask[]; reminders?: Reminder[] },
   ) => void
   onClose: () => void
   /** Opens the Mochi capture assistant — for when the user would rather
@@ -187,7 +186,7 @@ function formatDateTime(at: string): string {
 
 /** Reminder label used in the manual Remind me row. One-shot shows
  * the datetime; recurring shows "every Xh until ...". */
-function formatReminder(reminder: NonNullable<Todo["reminder"]> | Reminder): string {
+function formatReminder(reminder: Reminder): string {
   if (!reminder.intervalMinutes) return formatDateTime(reminder.at)
   const cadence = reminder.intervalMinutes < 60
     ? `${reminder.intervalMinutes}m`
@@ -648,7 +647,6 @@ export default function ComposeSheet({
                     currentRecurrenceByWeekday={recurrence?.byWeekday}
                     currentReminder={reminders[0]}
                     onApplyCategory={(id) => {
-                      void Analytics.aiSuggestionApplied('suggest-todo-fields')
                       setCategory(id)
                       Haptics.selectionAsync().catch(() => {})
                     }}

@@ -28,7 +28,6 @@ import { snapDueDateToRecurrence } from '../../../../core/src/logic/derive'
 import { buildFallbackCapture } from '../../../../core/src/logic/mochiFallback'
 import { todayLocal, formatDisplayDate, isoDate } from '../../core-bindings/utils'
 import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
-import { Analytics } from '../../adapters/analytics'
 
 interface Props {
   visible: boolean
@@ -257,12 +256,6 @@ export default function ChatSheet({
   const [undone, setUndone] = useState<Record<number, true>>({})
   const inputRef = useRef<TextInput>(null)
   const scrollRef = useRef<ScrollView>(null)
-
-  // Fire once per open. visible flips true → false → true counts as
-  // two separate "opened" events, which matches the analytics intent.
-  useEffect(() => {
-    if (visible) void Analytics.mochiChatOpened()
-  }, [visible])
 
   // Keep the latest turn in view as the conversation grows / Mochi thinks.
   useEffect(() => {
