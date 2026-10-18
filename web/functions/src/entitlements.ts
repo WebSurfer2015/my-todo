@@ -9,14 +9,15 @@
  * The server is the source of truth for the AI-request ALLOWANCE — it spends
  * real Anthropic tokens, so it never trusts a client-reported tier or usage.
  * Reminders + recurring are free on every tier and aren't represented here.
+ * De-metered model: no top-ups, no "Max" tier; the allowances are invisible
+ * fair-use ceilings (see core for the rationale).
  */
 
-export type Tier = 'free' | 'premium' | 'max'
+export type Tier = 'free' | 'premium'
 
 export interface TierLimits {
   mochiMonthly: number
   mochiDaily: number
-  topUps: boolean
   themes: boolean
   aiPlanning: boolean
 }
@@ -26,7 +27,6 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
   free: {
     mochiMonthly: 90,
     mochiDaily: 3,
-    topUps: true,
     // Themes are free for everyone — every color theme is available on every
     // tier (no paywall gate on the theme picker). Mirrors core.
     themes: true,
@@ -35,14 +35,6 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
   premium: {
     mochiMonthly: 250,
     mochiDaily: 250,
-    topUps: true,
-    themes: true,
-    aiPlanning: false,
-  },
-  max: {
-    mochiMonthly: 750,
-    mochiDaily: 750,
-    topUps: true,
     themes: true,
     aiPlanning: true,
   },
@@ -52,23 +44,12 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
 export const PRODUCT_IDS = {
   premiumMonthly: 'com.websurfer.mytodo.premium.monthly',
   premiumAnnual: 'com.websurfer.mytodo.premium.annual',
-  maxMonthly: 'com.websurfer.mytodo.max.monthly',
-  maxAnnual: 'com.websurfer.mytodo.max.annual',
-  topup150: 'com.websurfer.mytodo.topup.150',
-  topup500: 'com.websurfer.mytodo.topup.500',
 } as const
-
-/** Mochi requests granted by each consumable top-up pack. */
-export const TOPUP_GRANTS: Record<string, number> = {
-  [PRODUCT_IDS.topup150]: 150,
-  [PRODUCT_IDS.topup500]: 500,
-}
 
 export function tierForProduct(productId: string): Tier | null {
   if (productId === PRODUCT_IDS.premiumMonthly || productId === PRODUCT_IDS.premiumAnnual) {
     return 'premium'
   }
-  if (productId === PRODUCT_IDS.maxMonthly || productId === PRODUCT_IDS.maxAnnual) return 'max'
   return null
 }
 
@@ -77,13 +58,11 @@ export function tierForProduct(productId: string): Tier | null {
 export interface Entitlement {
   tier: Tier
   validUntil: string | null
-  topUpBalance: number
 }
 
 export const FREE_ENTITLEMENT: Entitlement = {
   tier: 'free',
   validUntil: null,
-  topUpBalance: 0,
 }
 
 /** Effective tier right now — a lapsed subscription falls back to free.
@@ -93,7 +72,7 @@ export function effectiveTier(ent: Entitlement, nowMs: number): Tier {
   return Date.parse(ent.validUntil) > nowMs ? ent.tier : 'free'
 }
 
-/** Total monthly budget = tier allowance + any top-up balance. */
-export function mochiMonthlyBudget(tier: Tier, topUpBalance: number): number {
-  return TIER_LIMITS[tier].mochiMonthly + Math.max(0, topUpBalance)
+/** Monthly budget = the tier's invisible fair-use ceiling. */
+export function mochiMonthlyBudget(tier: Tier): number {
+  return TIER_LIMITS[tier].mochiMonthly
 }

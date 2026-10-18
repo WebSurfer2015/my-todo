@@ -238,7 +238,7 @@ export default function ChatSheet({
     confirmsClose: true,
   })
   const { send, reset, isThinking, messages, error, errorKind } = useMochiAgent()
-  const { mochiRemaining, mochiPeriod, canSendMochi, openPaywall } = usePurchases()
+  const { canSendMochi, openPaywall } = usePurchases()
   const [input, setInput] = useState('')
   // Rotating placeholder index (cycles while the box is empty + pre-first-turn).
   const [phIdx, setPhIdx] = useState(0)
@@ -670,22 +670,11 @@ export default function ChatSheet({
               )}
             </ScrollView>
 
-            {mochiRemaining != null && (
-              <TouchableOpacity
-                onPress={() => !canSendMochi && goToPaywall()}
-                disabled={canSendMochi}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.meter}>
-                  {!canSendMochi
-                    ? 'Out of Mochi requests — tap to upgrade'
-                    : mochiRemaining > 0
-                      ? `${mochiRemaining} Mochi requests left ${mochiPeriod === 'today' ? 'today' : 'this month'}`
-                      : 'Using your top-up balance'}
-                </Text>
-              </TouchableOpacity>
-            )}
-
+            {/* The depleting usage meter was removed in the de-meter — the
+                companion is never metered (docs/MOCHI-MONETIZATION-MODEL.md).
+                Over the invisible fair-use ceiling the client should fall back
+                to local capture (graceful fallback — see the send guard; full
+                behavior tracked in docs/REPOSITIONING-ROADMAP.md P1.4). */}
             <View style={styles.inputRow}>
               <TextInput
                 ref={inputRef}

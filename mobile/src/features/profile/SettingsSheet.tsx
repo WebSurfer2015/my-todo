@@ -90,8 +90,7 @@ export default function SettingsSheet({
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
   const { tier, openPaywall } = usePurchases();
-  const membershipLabel =
-    tier === "premium" ? "Premium" : tier === "max" ? "Max" : "Free";
+  const membershipLabel = tier === "premium" ? "Premium" : "Free";
 
   const themeName: ThemeName = profile.theme ?? "sage";
   const themeLabel = themeName.charAt(0).toUpperCase() + themeName.slice(1);

@@ -17,7 +17,7 @@
  * Fully GUARDED: with no API key configured (extra.revenueCatIosKey), every
  * call is an inert no-op and tier stays 'free', so the app runs unchanged
  * until you wire RevenueCat + rebuild the dev client. RC entitlement
- * identifiers expected in the dashboard: "premium" and "max".
+ * identifier expected in the dashboard: "premium".
  */
 
 import Constants from 'expo-constants'
@@ -27,7 +27,7 @@ import type {
   PurchasesPackage,
 } from 'react-native-purchases'
 import type { Tier } from '../core-bindings/entitlements'
-import { tierForProduct, TIER_ORDER, productRank, TOPUP_GRANTS } from '../core-bindings/entitlements'
+import { tierForProduct, TIER_ORDER, productRank } from '../core-bindings/entitlements'
 
 const API_KEY: string =
   (Constants.expoConfig?.extra as { revenueCatIosKey?: string } | undefined)
@@ -169,15 +169,12 @@ export function onCustomerInfoChange(cb: (info: CustomerInfo) => void): () => vo
   return () => rc().removeCustomerInfoUpdateListener(cb)
 }
 
-/** Map RC CustomerInfo → effective Tier for instant UI. Max wins over Premium.
+/** Map RC CustomerInfo → effective Tier for instant UI.
  *
  * Derives the tier from the ACTIVE SUBSCRIPTION PRODUCT (via tierForProduct),
- * not the entitlement identifier. A tiered RevenueCat dashboard commonly unlocks
- * a single shared entitlement (or one not literally named "max") for both the
- * Premium and Max products — so keying off `active['max']` mis-reads a Max
- * subscription (or its free trial) as Premium, which is exactly the bug this
- * fixes. The purchased product id is unambiguous. Falls back to tier-named
- * entitlement identifiers only if no product matches.
+ * not the entitlement identifier — the purchased product id is unambiguous,
+ * whereas a RevenueCat entitlement can be named anything. Falls back to a
+ * tier-named entitlement identifier only if no product matches.
  *
  * (Top-up balance is NOT here — consumables aren't entitlements; it lives in
  * the Firestore entitlement doc written by the webhook.) */
@@ -200,7 +197,6 @@ export function tierFromCustomerInfo(info: CustomerInfo | null): Tier {
   if (best !== 'free') return best
   // Last resort: entitlement identifiers literally named after the tier.
   const active = info.entitlements.active ?? {}
-  if (active['max']) return 'max'
   if (active['premium']) return 'premium'
   return 'free'
 }
@@ -239,49 +235,7 @@ export async function manageSubscriptions(): Promise<void> {
   }
 }
 
-/** A purchasable pay-as-you-go top-up pack (consumable). */
-export interface TopUpProduct {
-  productId: string
-  /** Localized store price, e.g. "$1.99". */
-  priceString: string
-  /** Mochi requests this pack grants (added to topUpBalance by the webhook). */
-  grant: number
-}
-
-/** Fetch the consumable top-up packs (with live store prices), cheapest first.
- * Empty when purchases aren't configured or the store can't resolve them. */
-export async function fetchTopUps(): Promise<TopUpProduct[]> {
-  if (!isPurchasesEnabled()) return []
-  try {
-    const ids = Object.keys(TOPUP_GRANTS)
-    const products = await rc().getProducts(ids)
-    return products
-      .map((p) => ({
-        productId: p.identifier,
-        priceString: p.priceString,
-        grant: TOPUP_GRANTS[p.identifier] ?? 0,
-      }))
-      .filter((t) => t.grant > 0)
-      .sort((a, b) => a.grant - b.grant)
-  } catch (err) {
-    console.warn('fetchTopUps failed', err)
-    return []
-  }
-}
-
-/** Buy a consumable top-up by product id. The webhook (NON_RENEWING_PURCHASE)
- * credits the grant to the user's topUpBalance; the client reflects it via the
- * entitlement-doc listener. Same cancel-vs-fail discrimination as a sub buy. */
-export async function purchaseTopUp(productId: string): Promise<PurchaseOutcome> {
-  if (!isPurchasesEnabled()) return { status: 'failed' }
-  try {
-    const [product] = await rc().getProducts([productId])
-    if (!product) return { status: 'failed' }
-    const { customerInfo } = await rc().purchaseStoreProduct(product)
-    return { status: 'purchased', info: customerInfo }
-  } catch (err) {
-    if ((err as { userCancelled?: boolean })?.userCancelled) return { status: 'cancelled' }
-    console.warn('purchaseTopUp failed', err)
-    return { status: 'failed' }
-  }
-}
+// Pay-as-you-go top-up packs were removed in the de-meter (see
+// docs/MOCHI-MONETIZATION-MODEL.md): the companion is never metered, so there
+// is nothing to "top up." Over the invisible fair-use ceiling the client falls
+// back to local capture instead.

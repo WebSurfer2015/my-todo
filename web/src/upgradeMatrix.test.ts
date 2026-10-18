@@ -7,50 +7,37 @@ import {
   tierForProduct,
 } from '../../core/src/domain/entitlements'
 
-const { premiumMonthly, premiumAnnual, maxMonthly, maxAnnual } = PRODUCT_IDS
+const { premiumMonthly, premiumAnnual } = PRODUCT_IDS
 
 describe('subscription upgrade ordering', () => {
-  it('ranks products premium-monthly < premium-annual < max-monthly < max-annual', () => {
+  it('ranks products premium-monthly < premium-annual; non-subs are -1', () => {
     expect(productRank(premiumMonthly)).toBe(0)
     expect(productRank(premiumAnnual)).toBe(1)
-    expect(productRank(maxMonthly)).toBe(2)
-    expect(productRank(maxAnnual)).toBe(3)
     expect(productRank(null)).toBe(-1)
+    // Removed products (top-ups, Max) are not subscriptions → -1.
     expect(productRank('com.websurfer.mytodo.topup.150')).toBe(-1)
+    expect(productRank('com.websurfer.mytodo.max.annual')).toBe(-1)
   })
 
-  it('lets a Premium-Monthly user upgrade to premium-annual, max-monthly, or max-annual', () => {
+  it('lets a Premium-Monthly user upgrade to premium-annual, but not re-buy', () => {
     expect(isUpgrade(premiumMonthly, premiumAnnual)).toBe(true)
-    expect(isUpgrade(premiumMonthly, maxMonthly)).toBe(true)
-    expect(isUpgrade(premiumMonthly, maxAnnual)).toBe(true)
-    // …but not re-buy the same product
     expect(isUpgrade(premiumMonthly, premiumMonthly)).toBe(false)
   })
 
-  it('lets a Premium-Annual user upgrade only to max-monthly or max-annual', () => {
-    expect(isUpgrade(premiumAnnual, maxMonthly)).toBe(true)
-    expect(isUpgrade(premiumAnnual, maxAnnual)).toBe(true)
-    // not a downgrade back to premium-monthly
+  it('does not let a Premium-Annual user "upgrade" back to monthly', () => {
     expect(isUpgrade(premiumAnnual, premiumMonthly)).toBe(false)
     expect(isUpgrade(premiumAnnual, premiumAnnual)).toBe(false)
   })
 
-  it('lets a Max-Monthly user upgrade only to max-annual; Max-Annual is the top', () => {
-    expect(isUpgrade(maxMonthly, maxAnnual)).toBe(true)
-    expect(isUpgrade(maxMonthly, premiumAnnual)).toBe(false)
-    expect(isUpgrade(maxAnnual, maxMonthly)).toBe(false)
-    expect(isUpgrade(maxAnnual, premiumAnnual)).toBe(false)
-  })
-
   it('lets a Free user (null) buy any paid product', () => {
     expect(isUpgrade(null, premiumMonthly)).toBe(true)
-    expect(isUpgrade(null, maxAnnual)).toBe(true)
+    expect(isUpgrade(null, premiumAnnual)).toBe(true)
   })
 
   it('maps billing period + tier per product', () => {
     expect(billingForProduct(premiumMonthly)).toBe('monthly')
-    expect(billingForProduct(maxAnnual)).toBe('annual')
-    expect(tierForProduct(maxMonthly)).toBe('max')
+    expect(billingForProduct(premiumAnnual)).toBe('annual')
     expect(tierForProduct(premiumAnnual)).toBe('premium')
+    expect(tierForProduct('com.websurfer.mytodo.max.monthly')).toBe(null)
   })
 })

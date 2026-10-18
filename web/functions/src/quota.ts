@@ -137,20 +137,14 @@ function parseEntitlement(raw: unknown): Entitlement {
   }
   const data = (parsed as { data?: unknown })?.data
   if (!data || typeof data !== 'object') return FREE_ENTITLEMENT
-  const { tier, validUntil, topUpBalance } = data as {
+  const { tier, validUntil } = data as {
     tier?: unknown
     validUntil?: unknown
-    topUpBalance?: unknown
   }
-  const safeTier: Tier =
-    tier === 'premium' || tier === 'max' || tier === 'free' ? tier : 'free'
+  const safeTier: Tier = tier === 'premium' || tier === 'free' ? tier : 'free'
   return {
     tier: safeTier,
     validUntil: typeof validUntil === 'string' ? validUntil : null,
-    topUpBalance:
-      typeof topUpBalance === 'number' && Number.isFinite(topUpBalance)
-        ? Math.max(0, Math.floor(topUpBalance))
-        : 0,
   }
 }
 

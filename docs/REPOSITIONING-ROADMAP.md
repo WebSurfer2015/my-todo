@@ -32,6 +32,15 @@ redirecting the sink, not adding tracking.*
 
 ## P1 — De-meter Mochi (brand-coherence prerequisite) 🟢 not blocked
 *(Resolves the ❌ conflicts. `MOCHI-MONETIZATION-MODEL.md`.)*
+> **Mostly DONE (typecheck + unit-tests green; NOT runtime-verified — no device/
+> StoreKit/CF runtime, no users).** Shipped the whole vertical atomically: removed
+> top-ups (core/adapter/context/UI/webhook + tests), removed the usage meter UI,
+> removed the **Max** tier (its `aiPlanning` superpower folded into Premium),
+> repriced the fallback to $4.99/$29.99. The free 90/3 + premium 250 allowances
+> became INVISIBLE fair-use ceilings. **Still deferred (client↔CF contract, needs
+> a running app):** the graceful **local fallback** over the ceiling (the send
+> guard still routes to the paywall as an interim — P1.4) and fully aspirational
+> paywall triggers (P1.5). Verify on device before launch.
 | # | Item | Effort |
 |---|---|---|
 | 1.1 | Remove the **usage meter** UI from ChatSheet | S |

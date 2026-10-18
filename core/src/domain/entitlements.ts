@@ -2,20 +2,22 @@
  * Monetization model — tiers, per-tier limits, and the pure gate helpers
  * the UI and server use to enforce them.
  *
- * AI-led pricing: the productivity basics (reminders incl. recurring /
- * before-due / multiple, and recurring tasks) are FREE on every tier — they
- * cost us nothing and are table stakes for a calm to-do app. The tiers gate
- * on what's actually differentiated and costly: Mochi AI allowance, plus a
- * few power/cosmetic extras.
+ * De-metered model (see docs/MOCHI-MONETIZATION-MODEL.md): the productivity
+ * basics (reminders incl. recurring / before-due / multiple, recurring tasks)
+ * are FREE on every tier. Mochi the *companion* is free + unlimited (it's
+ * local). Only Mochi's AI *heavy-lifting* is gated — by CAPABILITY, not a
+ * visible counter:
  *
- *   - free    — all productivity features + a daily AI taste (3/day). The
- *               daily reset builds the habit and the gentle "hit the wall"
- *               upgrade moment.
- *   - premium — $2.99/mo · $19.99/yr. A generous monthly AI pool + top-ups
- *               + themes.
- *   - max     — $7.99/mo · $59.99/yr ("Mochi Max"). Abundant AI + AI
- *               superpowers (proactive weekly planning / review) + all
- *               customization.
+ *   - free    — Mochi helps with one thing at a time (capture, break down a
+ *               task). Backed by an INVISIBLE fair-use ceiling (below) with
+ *               graceful local fallback — never a wall, never a meter.
+ *   - premium — $4.99/mo · $29.99/yr. The "zoom-out": plan-my-week, bulk
+ *               triage, proactive review (aiPlanning), plus all themes.
+ *               Effectively unlimited everyday AI (high invisible ceiling).
+ *
+ * No top-ups, no usage meter, no "Max" tier (all removed in the de-meter).
+ * The allowance NUMBERS below are the invisible fair-use ceilings — tune them
+ * against real usage once analytics exist; do not surface them to users.
  *
  * PURE (core has no platform deps): owns the limits + gate functions.
  * Enforcement splits by trust level —
@@ -27,62 +29,49 @@
  *     RevenueCat webhook; `effectiveTier` downgrades to free on lapse.
  */
 
-export type Tier = 'free' | 'premium' | 'max'
+export type Tier = 'free' | 'premium'
 
 /** Ordered low → high so "at least premium" is an index comparison. */
-export const TIER_ORDER: readonly Tier[] = ['free', 'premium', 'max'] as const
+export const TIER_ORDER: readonly Tier[] = ['free', 'premium'] as const
 
 export interface TierLimits {
-  /** Monthly Mochi-request (one message = one turn) allowance. */
+  /** Monthly Mochi-request allowance — the INVISIBLE fair-use ceiling (one
+   * message = one turn). Not shown to users; backs graceful fallback. */
   mochiMonthly: number
-  /** Per-day sub-cap. For free this is the binding constraint (the daily
-   * taste); for paid it's anti-blowout. */
+  /** Per-day sub-cap. For free this is the binding fair-use constraint; for
+   * premium it equals the monthly ceiling (no daily sub-cap). */
   mochiDaily: number
-  /** Whether consumable AI top-up packs can be purchased + applied. */
-  topUps: boolean
-  /** Themes / icon customization — premium and up. */
+  /** Themes / icon customization. */
   themes: boolean
   /** AI superpowers (proactive weekly planning, "review my week", bulk AI
-   * edits) — max only. The headline reason Max exists. */
+   * edits) — the Premium "zoom-out". */
   aiPlanning: boolean
 }
 
 /**
- * Source of truth for what each tier gets. Allowances are sized so worst-
- * case AI spend stays below post-Apple revenue even on the deepest annual
- * discount (at ~$0.005/request): premium maxes at ~$1.25 vs ~$1.42/mo net,
- * max at ~$3.75 vs ~$4.25/mo net; free maxes at ~$0.45/mo (acquisition
- * cost). AI cost can never exceed revenue.
+ * Source of truth for what each tier gets. The allowances are INVISIBLE
+ * fair-use ceilings sized so AI cost stays well under post-Apple revenue —
+ * local-first warmth (docs/REPOSITIONING-SPEC.md §5) keeps ~90% of Mochi off
+ * the model entirely, so only genuine capture/breakdown counts here. Premium's
+ * ceiling is set high enough to read as "unlimited" for any real human and
+ * exists only as an anti-abuse backstop. Tune with analytics; never surface.
  *
  * KEEP IN SYNC with the server mirror (web/functions/src/entitlements.ts).
  */
 export const TIER_LIMITS: Record<Tier, TierLimits> = {
-  // Free's topUps:true lets it pay as you go beyond the 3/day taste —
-  // top-ups bypass the daily + monthly caps (see canSendMochiRequest /
-  // reserveMochiRequest).
   free: {
     mochiMonthly: 90,
     mochiDaily: 3,
-    topUps: true,
     // Themes are free for everyone — every color theme is available on every
     // tier (no paywall gate on the theme picker).
     themes: true,
     aiPlanning: false,
   },
-  // Paid tiers have "no daily limit": mochiDaily == mochiMonthly, so the
-  // daily sub-cap can never bind before the monthly cap. The monthly cap
-  // still bounds total cost; top-ups then go uncapped (pay as you go).
   premium: {
+    // Daily == monthly so the daily sub-cap never binds before the monthly
+    // ceiling; the monthly ceiling is the invisible anti-abuse backstop.
     mochiMonthly: 250,
     mochiDaily: 250,
-    topUps: true,
-    themes: true,
-    aiPlanning: false,
-  },
-  max: {
-    mochiMonthly: 750,
-    mochiDaily: 750,
-    topUps: true,
     themes: true,
     aiPlanning: true,
   },
@@ -90,31 +79,21 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
 
 /**
  * App Store Connect product identifiers. Auto-renewable subs live in ONE
- * subscription group ("Sagely Membership"); top-ups are consumables.
+ * subscription group ("Sagely Membership"). (Top-up consumables and the Max
+ * products were removed in the de-meter.)
  */
 export const PRODUCT_IDS = {
   premiumMonthly: 'com.websurfer.mytodo.premium.monthly',
   premiumAnnual: 'com.websurfer.mytodo.premium.annual',
-  maxMonthly: 'com.websurfer.mytodo.max.monthly',
-  maxAnnual: 'com.websurfer.mytodo.max.annual',
-  topup150: 'com.websurfer.mytodo.topup.150',
-  topup500: 'com.websurfer.mytodo.topup.500',
 } as const
 
 export type ProductId = (typeof PRODUCT_IDS)[keyof typeof PRODUCT_IDS]
-
-/** Mochi requests granted by each consumable top-up pack. */
-export const TOPUP_GRANTS: Record<string, number> = {
-  [PRODUCT_IDS.topup150]: 150,
-  [PRODUCT_IDS.topup500]: 500,
-}
 
 /** Map a purchased subscription product to the tier it grants. */
 export function tierForProduct(productId: string): Tier | null {
   if (productId === PRODUCT_IDS.premiumMonthly || productId === PRODUCT_IDS.premiumAnnual) {
     return 'premium'
   }
-  if (productId === PRODUCT_IDS.maxMonthly || productId === PRODUCT_IDS.maxAnnual) return 'max'
   return null
 }
 
@@ -122,12 +101,8 @@ export type BillingPeriod = 'monthly' | 'annual'
 
 /** The billing period of a subscription product, or null if it isn't one. */
 export function billingForProduct(productId: string): BillingPeriod | null {
-  if (productId === PRODUCT_IDS.premiumMonthly || productId === PRODUCT_IDS.maxMonthly) {
-    return 'monthly'
-  }
-  if (productId === PRODUCT_IDS.premiumAnnual || productId === PRODUCT_IDS.maxAnnual) {
-    return 'annual'
-  }
+  if (productId === PRODUCT_IDS.premiumMonthly) return 'monthly'
+  if (productId === PRODUCT_IDS.premiumAnnual) return 'annual'
   return null
 }
 
@@ -135,19 +110,14 @@ export function billingForProduct(productId: string): BillingPeriod | null {
  * Ordering rank for subscription products, so the paywall can offer ONLY
  * upgrades. Higher = better. Free / non-subscription = -1.
  *
- * Encodes the allowed-upgrade matrix:
- *   premium-monthly(0) → premium-annual(1) → max-monthly(2) → max-annual(3)
- * A target is purchasable from a current plan iff its rank is strictly higher
- * (so premium-annual → max-monthly is an upgrade, but max-monthly →
- * premium-annual is not).
+ * With a single paid tier the matrix is just:
+ *   premium-monthly(0) → premium-annual(1)
+ * A target is purchasable from a current plan iff its rank is strictly higher.
  */
 export function productRank(productId: string | null): number {
-  if (!productId) return -1
-  const tier = tierForProduct(productId)
-  const billing = billingForProduct(productId)
-  if (!tier || !billing) return -1
-  const tierRank = tier === 'max' ? 1 : 0
-  return tierRank * 2 + (billing === 'annual' ? 1 : 0)
+  const billing = productId ? billingForProduct(productId) : null
+  if (!billing) return -1
+  return billing === 'annual' ? 1 : 0
 }
 
 /** Whether buying `to` while subscribed to `from` is a strict upgrade. A free
@@ -164,14 +134,11 @@ export interface Entitlement {
   tier: Tier
   /** ISO datetime the paid tier is valid through; null for free. */
   validUntil: string | null
-  /** Remaining consumable top-up requests (carry month to month). */
-  topUpBalance: number
 }
 
 export const FREE_ENTITLEMENT: Entitlement = {
   tier: 'free',
   validUntil: null,
-  topUpBalance: 0,
 }
 
 /** The effective tier right now: paid tiers fall back to free once the
@@ -199,13 +166,9 @@ export function canUseThemes(tier: Tier): boolean {
   return TIER_LIMITS[tier].themes
 }
 
-/** Max-only AI superpowers. */
+/** Premium "zoom-out" AI superpowers (plan-my-week, bulk triage, review). */
 export function canUseAiPlanning(tier: Tier): boolean {
   return TIER_LIMITS[tier].aiPlanning
-}
-
-export function canBuyTopUp(tier: Tier): boolean {
-  return TIER_LIMITS[tier].topUps
 }
 
 // ─── AI allowance accounting (model only; ENFORCE server-side) ─────────
@@ -218,31 +181,26 @@ export interface MochiUsage {
   dayUsed: number
 }
 
-/** Total monthly budget = the tier allowance plus any top-up balance. */
-export function mochiMonthlyBudget(tier: Tier, topUpBalance: number): number {
-  return TIER_LIMITS[tier].mochiMonthly + Math.max(0, topUpBalance)
+/** Monthly budget = the tier's invisible fair-use ceiling. */
+export function mochiMonthlyBudget(tier: Tier): number {
+  return TIER_LIMITS[tier].mochiMonthly
 }
 
-/** Requests left this month (tier + top-ups), floored at 0. */
-export function mochiRemaining(
-  tier: Tier,
-  usage: MochiUsage,
-  topUpBalance: number,
-): number {
-  return Math.max(0, mochiMonthlyBudget(tier, topUpBalance) - usage.monthUsed)
+/** Requests left this month before the invisible fair-use ceiling, floored at
+ * 0. When this hits 0 the server signals graceful local fallback (never a
+ * user-facing wall). */
+export function mochiRemaining(tier: Tier, usage: MochiUsage): number {
+  return Math.max(0, mochiMonthlyBudget(tier) - usage.monthUsed)
 }
 
-/** Whether the user may send one more Mochi request right now. The tier
- * allowance is gated by BOTH the daily sub-cap and the monthly cap; once
- * the base allowance is unavailable (either cap hit), a purchased top-up
- * balance lets the user keep going (pay as you go) with no cap. */
-export function canSendMochiRequest(
-  tier: Tier,
-  usage: MochiUsage,
-  topUpBalance: number,
-): boolean {
-  const baseAvailable =
+/** Whether the user is within their invisible fair-use ceiling for one more
+ * AI-backed Mochi request (gated by BOTH the daily sub-cap and the monthly
+ * ceiling). When this returns false the server does NOT wall the user — the
+ * client falls back to local capture (graceful fallback; no top-ups, no
+ * meter). */
+export function canSendMochiRequest(tier: Tier, usage: MochiUsage): boolean {
+  return (
     usage.dayUsed < TIER_LIMITS[tier].mochiDaily &&
     usage.monthUsed < TIER_LIMITS[tier].mochiMonthly
-  return baseAvailable || topUpBalance > 0
+  )
 }

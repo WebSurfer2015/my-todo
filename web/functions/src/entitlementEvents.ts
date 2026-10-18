@@ -9,7 +9,6 @@
  * fan-out.
  */
 import {
-  TOPUP_GRANTS,
   tierForProduct,
   type Entitlement,
   type Tier,
@@ -32,7 +31,7 @@ export interface RCEvent {
   transferred_to?: string[]
 }
 
-const TIER_RANK: Record<Tier, number> = { free: 0, premium: 1, max: 2 }
+const TIER_RANK: Record<Tier, number> = { free: 0, premium: 1 }
 
 /** The higher-ranked of two tiers (nulls ignored), or null if both are null. */
 export function higherTier(a: Tier | null, b: Tier | null): Tier | null {
@@ -73,14 +72,8 @@ export function applyEntitlementEvent(current: Entitlement, event: RCEvent): Ent
         : current.validUntil
       return { ...current, tier, validUntil }
     }
-    case 'NON_RENEWING_PURCHASE': {
-      // Consumable top-up pack — add its grant to the balance.
-      const grant = TOPUP_GRANTS[productId]
-      if (!grant) return current
-      return { ...current, topUpBalance: current.topUpBalance + grant }
-    }
     case 'EXPIRATION':
-      // Subscription lapsed — drop to free, keep any top-up balance.
+      // Subscription lapsed — drop to free.
       return { ...current, tier: 'free', validUntil: null }
     case 'BILLING_ISSUE': {
       // Apple is retrying the charge — keep the user entitled through the grace

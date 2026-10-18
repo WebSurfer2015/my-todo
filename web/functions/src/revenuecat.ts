@@ -73,14 +73,8 @@ function parseEntitlement(raw: unknown): Entitlement {
     if (!data) return FREE_ENTITLEMENT
     return {
       tier:
-        data.tier === 'premium' || data.tier === 'max' || data.tier === 'free'
-          ? data.tier
-          : 'free',
+        data.tier === 'premium' || data.tier === 'free' ? data.tier : 'free',
       validUntil: typeof data.validUntil === 'string' ? data.validUntil : null,
-      topUpBalance:
-        typeof data.topUpBalance === 'number' && Number.isFinite(data.topUpBalance)
-          ? Math.max(0, Math.floor(data.topUpBalance))
-          : 0,
     }
   } catch {
     return FREE_ENTITLEMENT

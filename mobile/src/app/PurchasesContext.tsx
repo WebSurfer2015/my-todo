@@ -21,9 +21,6 @@ import {
   productFromCustomerInfo,
   checkTrialEligibility,
   manageSubscriptions as rcManageSubscriptions,
-  fetchTopUps,
-  purchaseTopUp as rcPurchaseTopUp,
-  type TopUpProduct,
   isPurchasesEnabled,
 } from '../adapters/purchases'
 import {
@@ -57,8 +54,8 @@ interface PurchasesValue {
   mochiRemaining: number | null
   /** Which period `mochiRemaining` counts. */
   mochiPeriod: 'today' | 'month'
-  /** Whether one more request is allowed right now (base allowance OR a
-   * top-up balance). */
+  /** Whether one more AI-backed request is within the invisible fair-use
+   * ceiling. Beyond it the client falls back to local capture (no wall). */
   canSendMochi: boolean
   offering: PurchasesOffering | null
   /** True while the first offerings fetch is in flight — lets the paywall show
@@ -69,10 +66,6 @@ interface PurchasesValue {
   currentProductId: string | null
   /** productId → eligible for its free trial / intro offer. */
   trialEligible: Record<string, boolean>
-  /** Pay-as-you-go consumable packs (live store prices), cheapest first. */
-  topUps: TopUpProduct[]
-  /** Buy a top-up pack by product id; webhook credits the balance. */
-  buyTopUp: (productId: string) => Promise<'purchased' | 'cancelled' | 'failed'>
   purchasesEnabled: boolean
   purchase: (pkg: PurchasesPackage) => Promise<'purchased' | 'cancelled' | 'failed'>
   restore: () => Promise<'found' | 'none' | 'failed'>
@@ -121,8 +114,6 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
   // intro once per subscription group, so this flips to false for the rest
   // once any trial is started.
   const [trialEligible, setTrialEligible] = useState<Record<string, boolean>>({})
-  // Pay-as-you-go consumable packs (with live store prices), cheapest first.
-  const [topUps, setTopUps] = useState<TopUpProduct[]>([])
   const [paywall, setPaywall] = useState<{ open: boolean; reason?: string }>({ open: false })
 
   // Configure RevenueCat + load offerings once we know the user.
@@ -131,25 +122,22 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       setRcTier('free')
       setCurrentProductId(null)
       setTrialEligible({})
-      setTopUps([])
       return
     }
     let alive = true
     setOfferingLoading(true)
     void (async () => {
       await configurePurchases(uid)
-      const [off, info, elig, packs] = await Promise.all([
+      const [off, info, elig] = await Promise.all([
         fetchCurrentOffering(),
         currentCustomerInfo(),
         checkTrialEligibility(SUB_PRODUCT_IDS),
-        fetchTopUps(),
       ])
       if (alive) {
         setOffering(off)
         setRcTier(tierFromCustomerInfo(info))
         setCurrentProductId(productFromCustomerInfo(info))
         setTrialEligible(elig)
-        setTopUps(packs)
         setOfferingLoading(false)
       }
     })()
@@ -185,11 +173,8 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
         setEntitlement(
           data
             ? {
-                tier:
-                  data.tier === 'premium' || data.tier === 'max' ? data.tier : 'free',
+                tier: data.tier === 'premium' ? 'premium' : 'free',
                 validUntil: typeof data.validUntil === 'string' ? data.validUntil : null,
-                topUpBalance:
-                  typeof data.topUpBalance === 'number' ? Math.max(0, data.topUpBalance) : 0,
               }
             : FREE_ENTITLEMENT,
         )
@@ -248,7 +233,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
   const canSendMochi =
     monthUsed == null
       ? true
-      : canSendMochiRequest(tier, { dayUsed, monthUsed }, entitlement.topUpBalance)
+      : canSendMochiRequest(tier, { dayUsed, monthUsed })
 
   const purchase = useCallback(
     async (pkg: PurchasesPackage): Promise<'purchased' | 'cancelled' | 'failed'> => {
@@ -275,14 +260,6 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
     void rcManageSubscriptions()
   }, [])
 
-  const buyTopUp = useCallback(
-    async (productId: string): Promise<'purchased' | 'cancelled' | 'failed'> => {
-      const res = await rcPurchaseTopUp(productId)
-      return res.status
-    },
-    [],
-  )
-
   const openPaywall = useCallback((reason?: string) => setPaywall({ open: true, reason }), [])
   const closePaywall = useCallback(() => setPaywall({ open: false }), [])
 
@@ -297,8 +274,6 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       offeringLoading,
       currentProductId,
       trialEligible,
-      topUps,
-      buyTopUp,
       purchasesEnabled: isPurchasesEnabled(),
       purchase,
       restore,
@@ -307,7 +282,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       openPaywall,
       closePaywall,
     }),
-    [tier, entitlement, mochiRemaining, mochiPeriod, canSendMochi, offering, offeringLoading, currentProductId, trialEligible, topUps, buyTopUp, purchase, restore, refreshOfferings, manageSubscriptions, openPaywall, closePaywall],
+    [tier, entitlement, mochiRemaining, mochiPeriod, canSendMochi, offering, offeringLoading, currentProductId, trialEligible, purchase, restore, refreshOfferings, manageSubscriptions, openPaywall, closePaywall],
   )
 
   return (
@@ -322,9 +297,6 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
         currentTier={tier}
         currentProductId={currentProductId}
         trialEligible={trialEligible}
-        topUps={topUps}
-        topUpBalance={entitlement.topUpBalance}
-        onBuyTopUp={buyTopUp}
         onPurchase={purchase}
         onRestore={restore}
         onRetry={refreshOfferings}

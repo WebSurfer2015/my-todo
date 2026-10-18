@@ -42,7 +42,7 @@ export interface ReservationDecision {
  * `today`/`month` are the server clock as YYYY-MM-DD / YYYY-MM. */
 export function decideMochiReservation(
   tier: Tier,
-  ent: Entitlement,
+  _ent: Entitlement,
   usage: MochiUsageDoc | null,
   today: string,
   month: string,
@@ -61,15 +61,9 @@ export function decideMochiReservation(
     }
   }
 
-  if (ent.topUpBalance > 0) {
-    return {
-      allow: true,
-      reason: 'ok',
-      nextUsage: null,
-      nextEntitlement: { ...ent, topUpBalance: ent.topUpBalance - 1 },
-    }
-  }
-
+  // Over the invisible fair-use ceiling: the server does NOT wall the user —
+  // it returns allow:false so the client falls back to local capture (no
+  // top-ups, no meter). `reason` distinguishes the daily vs monthly ceiling.
   const dailyHit = dayCalls >= limits.mochiDaily && monthCalls < limits.mochiMonthly
   return {
     allow: false,

@@ -10,10 +10,9 @@ import { resolve } from 'path'
  * server-side AI-allowance enforcement — the functions package can't
  * import core/ (separate tsconfig, deployed standalone), so the values are
  * copied. If they drift, the webhook can write the wrong tier for a real
- * purchase (product-id mismatch → tierForProduct null → 'free'), fail to
- * credit a top-up (TOPUP_GRANTS miss), or a user's displayed vs enforced AI
- * allowance can disagree. This reads both files and asserts the TIER_LIMITS,
- * PRODUCT_IDS, and TOPUP_GRANTS literals are identical.
+ * purchase (product-id mismatch → tierForProduct null → 'free'), or a user's
+ * displayed vs enforced AI allowance can disagree. This reads both files and
+ * asserts the TIER_LIMITS and PRODUCT_IDS literals are identical.
  */
 
 const CORE = resolve(__dirname, '../../../core/src/domain/entitlements.ts')
@@ -51,7 +50,6 @@ describe('entitlements core↔server parity', () => {
   it.each([
     ['TIER_LIMITS', 'TIER_LIMITS: Record<Tier, TierLimits> = {'],
     ['PRODUCT_IDS', 'PRODUCT_IDS = {'],
-    ['TOPUP_GRANTS', 'TOPUP_GRANTS: Record<string, number> = {'],
   ])('%s literal is identical in core and the Cloud Function', (_name, marker) => {
     expect(extractLiteral(server, marker)).toEqual(extractLiteral(core, marker))
   })
