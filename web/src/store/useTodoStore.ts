@@ -10,7 +10,6 @@ import {
   Profile,
   SEED_PROFILE,
   migrateProfile,
-  stampProfileSignals,
 } from "../core-bindings/profile";
 import {
   toggleSelection,
@@ -47,7 +46,7 @@ import {
   categoryReorder,
   deriveState,
 } from "../../../core/src/logic/derive";
-import { deleteCategoryCascade } from "../../../core/src/store";
+import { deleteCategoryCascade, refreshUsageSignals } from "../../../core/src/store";
 import { newCategoryId } from "../../../core/src/data/categories";
 import { todayLocal, vibrate } from "../../../core/src/logic/utils";
 
@@ -175,23 +174,31 @@ export function useTodoStore() {
 
   const loaded = categoriesLoaded && todosLoaded && profileLoaded;
 
-  // P0 Tier 2 measurement (docs/MEASUREMENT-PLAN.md): on app open, stamp the
+  // P0 Tier 2 measurement (docs/MEASUREMENT-PLAN.md): stamp the
   // privacy-preserving signals — createdAt (once), lastActiveDate (today),
-  // activatedAt (once the user has completed a todo). First-party +
-  // aggregate-only, never behavioral tracking. The helper returns the same
-  // reference when nothing changes, so this won't thrash writes.
+  // activatedAt (once a to-do is completed) — in their OWN `state/signals`
+  // doc, never the profile (rewriting the whole profile could push defaults or
+  // a stale cache over real data). Runs on open, on every return to the
+  // foreground (a tab left open for days still counts as active), and when the
+  // first to-do gets completed. A failed read writes nothing. First-party +
+  // aggregate-only, never behavioral tracking.
+  const hasCompletedTodo = todos.some((td) => td.done);
   useEffect(() => {
-    if (!loaded) return;
-    setProfile((p) =>
-      stampProfileSignals(p, {
+    if (!loaded || !uid) return;
+    const run = () => {
+      void refreshUsageSignals(adapter, {
         nowISO: new Date().toISOString(),
         today: todayLocal(),
         hasCompletedTodo: todosRef.current.some((td) => td.done),
-      }),
-    );
-    // Run once per mount (app open); the set-once fields no-op thereafter.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded]);
+      });
+    };
+    run();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") run();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [loaded, uid, adapter, hasCompletedTodo]);
 
   // ---- Stable callbacks (passed to React.memo'd TaskItem) ----
 

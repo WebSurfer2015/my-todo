@@ -78,9 +78,9 @@ subscriptions:
 
 | Data | Why | Where it's stored |
 | --- | --- | --- |
-| The date your account was first used, the date you last opened the app, and the date you first completed a to-do | So we can count, **in aggregate only**, how many people keep using Sagely (e.g. "how many people opened the app this week") | Firebase Firestore, your private profile |
+| The date your account was first used, the date you last opened the app, and the date you first completed a to-do | So we can count, **in aggregate only**, how many people keep using Sagely (e.g. "how many people opened the app this week") | Firebase Firestore, your private subtree (a small separate record, not your profile) |
 
-That's the whole list: three dates on your own profile. They are never sold,
+That's the whole list: three dates stored with your account. They are never sold,
 shared, or used for ads, and we never look at one person's dates to study how
 they use the app. We do **not** record which screens you visit or what you
 tap.

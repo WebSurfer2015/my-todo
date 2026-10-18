@@ -175,7 +175,7 @@ toggles, Mochi toggle, tips/intro, export data → share sheet, delete-data-only
 delete-account) · ThemeSelector (locked themes → paywall) · reduce-motion /
 completion-animation / completion-sound toggles.
 - ✅ profile migrate (avatar/name/quote caps, density, guides, the 3 usage
-  dates), `stampProfileSignals`, export payload, server-side account erasure
+  dates), `refreshUsageSignals` (own `state/signals` doc; failed read never writes), export payload, server-side account erasure
   (`deleteUserTree`: exact `users/{uid}` subtree, unsafe uids refused),
   comp-allowlist, avatar color math
 - 🤖 sign-out; ProfileSheet lifetime count renders

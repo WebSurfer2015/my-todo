@@ -488,40 +488,6 @@ function migrateLocalDay(raw: unknown): string | undefined {
   return typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : undefined
 }
 
-/**
- * Stamp the privacy-preserving measurement signals on a profile at app open
- * (docs/MEASUREMENT-PLAN.md). PURE — the caller supplies the clock + whether
- * the user has ever completed a todo. Returns the SAME reference when nothing
- * changes so the caller can skip a redundant write (useSyncedState bails on an
- * identical value). First-party, aggregate-only — never behavioral tracking.
- *
- *  - createdAt:      set once (account-age / signup cohort).
- *  - lastActiveDate: updated to today (retention / reactivation).
- *  - activatedAt:    set once the user has any completed todo (activation =
- *                    created + completed something). Stamped lazily at open.
- */
-export function stampProfileSignals(
-  profile: Profile,
-  opts: { nowISO: string; today: string; hasCompletedTodo: boolean },
-): Profile {
-  const createdAt = profile.createdAt ?? opts.nowISO
-  const activatedAt =
-    profile.activatedAt ?? (opts.hasCompletedTodo ? opts.nowISO : undefined)
-  if (
-    profile.createdAt === createdAt &&
-    profile.activatedAt === activatedAt &&
-    profile.lastActiveDate === opts.today
-  ) {
-    return profile
-  }
-  return {
-    ...profile,
-    createdAt,
-    lastActiveDate: opts.today,
-    ...(activatedAt ? { activatedAt } : {}),
-  }
-}
-
 const MAX_GROCERY_STORES = 30
 const MAX_GROCERY_STORE_NAME_LEN = 64
 

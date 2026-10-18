@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert } from "react-native";
+import { Alert, AppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Filter, ViewMode } from "../core-bindings/types";
-import { stampProfileSignals } from "../core-bindings/profile";
 import {
   getOrderedStatuses,
   getOrderedVisibleStatuses,
@@ -27,7 +26,7 @@ import {
   USER_STATE_KEYS,
   SCHEMA_VERSION,
 } from "../../../core/src/ports/persistence";
-import { createTodoStore, migrateLocalToCloud } from "../../../core/src/store";
+import { createTodoStore, migrateLocalToCloud, refreshUsageSignals } from "../../../core/src/store";
 import { useCollectionDualWrite } from "./useCollectionDualWrite";
 import { TODOS_PER_DOC_DUAL_WRITE } from "../app/featureFlags";
 import { serializeAny } from "../storage/envelope";
@@ -314,23 +313,30 @@ export function useTodoStore() {
     groceriesLoaded &&
     groceryGroupsLoaded;
 
-  // P0 Tier 2 measurement (docs/MEASUREMENT-PLAN.md): on app open, stamp the
+  // P0 Tier 2 measurement (docs/MEASUREMENT-PLAN.md): stamp the
   // privacy-preserving signals — createdAt (once), lastActiveDate (today),
-  // activatedAt (once the user has completed a todo). First-party +
-  // aggregate-only, never behavioral tracking. The helper returns the same
-  // reference when nothing changes, so this won't thrash writes.
+  // activatedAt (once a to-do is completed) — in their OWN `state/signals`
+  // doc, never the profile (rewriting the whole profile could push defaults or
+  // a stale cache over real data). Runs on open, on every return to the
+  // foreground (an app resumed days later still counts as active), and when the
+  // first to-do gets completed. A failed read writes nothing. First-party +
+  // aggregate-only, never behavioral tracking.
+  const hasCompletedTodo = todos.some((td) => td.done);
   useEffect(() => {
-    if (!loaded) return;
-    setProfile((p) =>
-      stampProfileSignals(p, {
+    if (!loaded || !uid) return;
+    const run = () => {
+      void refreshUsageSignals(adapter, {
         nowISO: new Date().toISOString(),
         today: todayLocal(),
-        hasCompletedTodo: todos.some((td) => td.done),
-      }),
-    );
-    // Run once per mount (app open); the set-once fields no-op thereafter.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded]);
+        hasCompletedTodo: todosRef.current.some((td) => td.done),
+      });
+    };
+    run();
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") run();
+    });
+    return () => sub.remove();
+  }, [loaded, uid, adapter, hasCompletedTodo, todosRef]);
 
   // "Delete data only" — clears every per-user state doc the app
   // knows about. The auth user stays intact. SheetContext follows

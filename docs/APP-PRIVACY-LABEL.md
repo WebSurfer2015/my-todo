@@ -37,7 +37,7 @@ Privacy Policy URL on the same page: `https://websurfer2015.github.io/my-todo/PR
 | **Identifiers → User ID** | Firebase uid; also sent to **RevenueCat** as the subscriber id | **Yes** | No | App Functionality |
 | **Identifiers → Device ID** | **RevenueCat sends the IDFV** (identifier for vendor) on every request — verified in the SDK (`HTTPClient.swift`: `X-Apple-Device-Identifier`); also the Expo push token stored at `users/{uid}/devices/*`. No IDFA (no AdSupport / ATT) | **Yes** | No | App Functionality |
 | **Purchases → Purchase History** | Subscription status/plan/expiry via **RevenueCat** (Apple processes payment — we never see card details) | **Yes** | No | App Functionality |
-| **Usage Data → Product Interaction** | Three dates on the profile — first use, last app open, first completed to-do — counted **in aggregate only** by `metricsRollup` | **Yes** (stored on the user's profile) | No | **Analytics** |
+| **Usage Data → Product Interaction** | Three dates — first use, last app open/foreground, first completed to-do — in `users/{uid}/state/signals`, counted **in aggregate only** by `metricsRollup` | **Yes** (stored under the account) | No | **Analytics** |
 | **Diagnostics → Crash Data** | Firebase Crashlytics native crashes | **No** (Crashlytics never gets a user id) | No | App Functionality |
 | **Diagnostics → Other Diagnostic Data** | JS errors / unhandled rejections forwarded to Crashlytics (stack traces, device model, OS) | **No** | No | App Functionality |
 
@@ -52,7 +52,7 @@ Credit Info · Other Financial Info.
 ## Notes / judgment calls
 - **Linked vs not linked:** anything stored under `users/{uid}` is linked
   (it's tied to the account). Crashlytics reports carry no user id → not linked.
-- **Usage Data → Analytics:** the dates are stored per profile, so "linked" is
+- **Usage Data → Analytics:** the dates are stored per account, so "linked" is
   the honest answer even though only aggregate counts are ever read
   (`metrics/{day}`, no uids). Don't tick "Product Personalization".
 - **Device ID is required, not optional:** RevenueCat's iOS SDK sends the IDFV

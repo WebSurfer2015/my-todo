@@ -239,6 +239,40 @@ describe('users/{uid}/state/{key} access control', () => {
   })
 })
 
+describe('P0 signals + paid-tier trust boundary (QA 2026-10-18)', () => {
+  const env1 = () => ({ value: '{"version":1,"data":{}}', updatedAt: Date.now() })
+
+  it('owner can write + read their own state/signals', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertSucceeds(setDoc(doc(alice, 'users/alice/state/signals'), env1()))
+    await assertSucceeds(getDoc(doc(alice, 'users/alice/state/signals')))
+  })
+
+  it("CANNOT write or read another user's state/signals", async () => {
+    const bob = env.authenticatedContext('bob').firestore()
+    await assertFails(setDoc(doc(bob, 'users/alice/state/signals'), env1()))
+    await assertFails(getDoc(doc(bob, 'users/alice/state/signals')))
+  })
+
+  it('clients CANNOT write the function-only docs (entitlement, mochiUsage, rcWebhook)', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    for (const key of ['entitlement', 'mochiUsage', 'rcWebhook', 'agentUsage']) {
+      await assertFails(setDoc(doc(alice, `users/alice/state/${key}`), env1()))
+    }
+  })
+
+  it('metrics/* is server-only: no client read or write, even signed in', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'metrics/2026-10-17'), { signups: 1 })
+    })
+    const alice = env.authenticatedContext('alice').firestore()
+    await assertFails(getDoc(doc(alice, 'metrics/2026-10-17')))
+    await assertFails(setDoc(doc(alice, 'metrics/2026-10-17'), { signups: 999 }))
+    const anon = env.unauthenticatedContext().firestore()
+    await assertFails(getDoc(doc(anon, 'metrics/2026-10-17')))
+  })
+})
+
 describe('users/{uid}/devices/{deviceId} access control', () => {
   const validDevice = () => ({
     token: 'ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]',

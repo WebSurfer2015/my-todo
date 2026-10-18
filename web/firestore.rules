@@ -5,7 +5,8 @@ rules_version = '2';
 // Schema (see core/src/persistence.ts → stateDocPath):
 //   users/{uid}/state/{key}
 //     • Client-writable keys:  todos, categories, profile,
-//                              groceries, groceryGroups (mobile-only)
+//                              groceries, groceryGroups (mobile-only),
+//                              todoReferences, signals (P0 measurement dates)
 //     • Function-only keys:    agentUsage, mochiUsage (AI quota counters),
 //                              entitlement (written ONLY by the RevenueCat
 //                              webhook) — clients may READ them (quota/tier
@@ -58,7 +59,7 @@ service cloud.firestore {
       allow create, update:
         if request.auth != null
         && request.auth.uid == uid
-        && key in ['todos', 'categories', 'profile', 'groceries', 'groceryGroups', 'todoReferences']
+        && key in ['todos', 'categories', 'profile', 'groceries', 'groceryGroups', 'todoReferences', 'signals']
         && request.resource.data.keys().hasOnly(['value', 'updatedAt'])
         && request.resource.data.value is string
         && request.resource.data.value.size() <= 524288

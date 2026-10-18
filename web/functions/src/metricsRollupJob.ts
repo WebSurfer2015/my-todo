@@ -8,7 +8,7 @@
  *
  * Users are enumerated from Firebase Auth (not the users/ collection), so
  * orphaned data from deleted accounts is never counted. Cost: one Auth page
- * per 1,000 users + one profile read per user per day — fine at launch scale;
+ * per 1,000 users + one `state/signals` read per user per day — fine at launch scale;
  * if it grows, mirror the three signals into a queryable field instead.
  *
  * Idempotent: re-running for the same day overwrites the same doc.
@@ -22,7 +22,7 @@ if (admin.apps.length === 0) admin.initializeApp()
 
 const GET_ALL_CHUNK = 300
 
-/** Profile doc → the two profile-side signals (envelope: {value: '{"version","data"}'}). */
+/** state/signals doc → the two client-stamped signals (envelope: {value: '{"version","data"}'}). */
 function parseSignals(raw: unknown): Pick<RollupUser, 'lastActiveDate' | 'activatedDay'> {
   const val = (raw as { value?: unknown } | null)?.value
   if (typeof val !== 'string') return {}
@@ -50,7 +50,7 @@ export async function collectRollupUsers(): Promise<RollupUser[]> {
   const rows: RollupUser[] = []
   for (let i = 0; i < accounts.length; i += GET_ALL_CHUNK) {
     const chunk = accounts.slice(i, i + GET_ALL_CHUNK)
-    const snaps = await db.getAll(...chunk.map((a) => db.doc(`users/${a.uid}/state/profile`)))
+    const snaps = await db.getAll(...chunk.map((a) => db.doc(`users/${a.uid}/state/signals`)))
     snaps.forEach((snap, j) => {
       rows.push({
         signupDay: chunk[j].signupDay,
