@@ -55,8 +55,9 @@ break down a task, the app sends what that request needs to **Anthropic**
 - We do **not** send your name, email, or account ID to Anthropic.
 - We do not save your Mochi conversations, on our servers or in your account.
 - Anthropic processes this data on our behalf under its commercial terms,
-  which do not allow it to train its models on this data. Anthropic may keep
-  it for a limited time for safety and abuse monitoring; see
+  which do not allow it to train its models on this data. Anthropic deletes
+  it within 30 days; if a request is flagged under Anthropic's Usage Policy, it
+  may be kept for up to 2 years for safety review. See
   [Anthropic's privacy policy](https://www.anthropic.com/legal/privacy).
 - If you never use Mochi, nothing is sent to Anthropic.
 
@@ -70,7 +71,8 @@ subscriptions:
 | --- | --- | --- |
 | Your account ID (a random identifier, not your email) | To link your subscription to your account across devices | RevenueCat |
 | Purchase and subscription status (plan, start/renewal/expiry dates, trial, refunds), as reported by Apple | To unlock Premium and keep it in sync | RevenueCat, plus your plan and expiry date in Firebase Firestore, your private subtree |
-| Basic device and app info (app version, OS, country/currency for pricing) | To show the correct price and handle the purchase | RevenueCat |
+| Basic device and app info (app version, OS version, device model, language, App Store country and currency) | To show the correct price and handle the purchase | RevenueCat |
+| A device identifier Apple assigns per app developer ("identifier for vendor"). **Not** the advertising identifier — Sagely doesn't use that | To recognize your device when restoring or syncing purchases | RevenueCat |
 
 ### Simple usage dates
 
