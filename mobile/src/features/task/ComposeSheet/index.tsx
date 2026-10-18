@@ -40,7 +40,6 @@ import {
   SuggestStepsTrigger,
   SuggestStepsReview,
 } from '../SuggestStepsPanel'
-import { usePurchases } from '../../../app/PurchasesContext'
 import { makeStyles } from './styles';
 
 function CalendarIcon({ size = 18, color = '#8E8E93' }: { size?: number; color?: string }) {
@@ -287,8 +286,7 @@ export default function ComposeSheet({
   // TaskDetailsSheet, scoped to (text, notes) of what the user is
   // typing. On apply we push to pendingSubtasks (the local queue
   // attached when the user taps Add).
-  const { canSendMochi } = usePurchases()
-  const stepsAi = useSuggestSteps({ parentTitle: text, parentNotes: '', canSend: canSendMochi })
+  const stepsAi = useSuggestSteps({ parentTitle: text, parentNotes: '' })
 
   // Reset stepsAi state when the sheet opens so suggestions from a
   // prior compose session don't bleed into the new one.

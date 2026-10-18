@@ -18,7 +18,6 @@ import * as Haptics from 'expo-haptics'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Sparkles, Bell, Check } from 'lucide-react-native'
 import { useLang } from '../../app/LangContext'
-import { usePurchases } from '../../app/PurchasesContext'
 import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
 import { useSheetDismiss, sheetGrabZone } from '../../ui/useSheetDismiss'
 import { useMochiAgent, type ProposedOperation } from './useMochiAgent'
@@ -239,7 +238,6 @@ export default function ChatSheet({
     confirmsClose: true,
   })
   const { send, reset, isThinking, messages, error, errorKind } = useMochiAgent()
-  const { canSendMochi } = usePurchases()
   const [input, setInput] = useState('')
   // Rotating placeholder index (cycles while the box is empty + pre-first-turn).
   const [phIdx, setPhIdx] = useState(0)
@@ -320,15 +318,9 @@ export default function ChatSheet({
     if (!turn || isThinking) return
     Haptics.selectionAsync().catch(() => {})
     setInput('')
-    // Client-side ceiling check (P1.4).
-    if (!canSendMochi) {
-      fallBackToManual(turn)
-      return
-    }
     lastSentRef.current = turn
-    // Server-side ceiling (P1.7): the client's usage view can be stale (another
-    // device, a missed snapshot), so the server's RESOURCE_EXHAUSTED takes the
-    // same fallback instead of surfacing a quota wall.
+    // The server is the only fair-use gate: its RESOURCE_EXHAUSTED takes the
+    // graceful fallback (P1.4/P1.7) instead of surfacing a quota wall.
     void send(turn, {
       today: todayLocal(),
       // Strip to id + label only — no need to leak counts/colors to the model.

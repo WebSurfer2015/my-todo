@@ -16,13 +16,9 @@ import { useLang } from '../../app/LangContext'
 export function useSuggestSteps({
   parentTitle,
   parentNotes,
-  canSend = true,
 }: {
   parentTitle: string
   parentNotes?: string
-  /** When false, the user is out of AI requests — the trigger shows a
-   * quota message instead of spending a (doomed) request. */
-  canSend?: boolean
 }) {
   const { t } = useLang()
   const [thinking, setThinking] = useState(false)
@@ -35,13 +31,6 @@ export function useSuggestSteps({
   useEffect(() => () => controllerRef.current?.abort(), [])
 
   async function request() {
-    // Over the fair-use ceiling — don't burn a call the server will reject;
-    // show the same gentle, localized note as the server path (de-metered).
-    if (!canSend) {
-      setSuggestions(null)
-      setError(t.suggestStepsResting)
-      return
-    }
     controllerRef.current?.abort()
     const controller = new AbortController()
     controllerRef.current = controller

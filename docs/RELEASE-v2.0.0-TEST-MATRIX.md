@@ -142,8 +142,8 @@ color+icon grid).
 
 ### 11. Ask Mochi (AI chatbot) — de-metered
 Multi-turn chat · example/frequent chips · **no usage meter, never a paywall**:
-over the invisible fair-use ceiling (client check OR server
-`RESOURCE_EXHAUSTED`) the words go to manual Compose — mid-conversation the open
+over the invisible fair-use ceiling (server `RESOURCE_EXHAUSTED` — the only
+gate) the words go to manual Compose — mid-conversation the open
 request is rebuilt ("call mom — Friday") · proposal cards (Confirm/Review&add/Delete, optimistic add + Undo, editable
 capture chips, PickTodos checklist with Skip/Defer/Delete, series-delete fork) ·
 all writes via store mutations + destructive confirms.
@@ -248,10 +248,10 @@ overlay (survives row unmount) · shared EmptyStateCard.
 - [ ] Field-suggest pills in Compose/Details apply correctly
 - [ ] Suggest-steps + grocery department/store AI inference
 - [ ] No usage meter anywhere in the chat
-- [ ] Over the fair-use ceiling (client): message → Compose prefilled, task saves
-- [ ] Over the ceiling **server-only** (client count stale — e.g. second
-      device, or lower the ceiling in the emulator): same Compose fallback, no
-      "resets after midnight" / "pay as you go" copy
+- [ ] Over the fair-use ceiling (the **server** is the only gate — no client
+      counter since 2026-10-18; lower the ceiling in the emulator to test):
+      message → Compose prefilled, task saves, no "resets after midnight" /
+      "pay as you go" copy
 - [ ] Mid-conversation fallback: "call mom" → (Mochi asks when) → "Friday" →
       Compose opens with "call mom — Friday"
 - [ ] Suggest-steps over the ceiling → "Mochi's resting — you can add steps

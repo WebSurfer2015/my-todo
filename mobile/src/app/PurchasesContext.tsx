@@ -28,7 +28,6 @@ import {
   PRODUCT_IDS,
   TIER_LIMITS,
   TIER_ORDER,
-  canSendMochiRequest,
   effectiveTier,
   type Entitlement,
   type Tier,
@@ -37,8 +36,11 @@ import PaywallSheet from '../features/membership/PaywallSheet'
 
 /**
  * Owns the user's effective entitlement (read-only from the webhook-written
- * Firestore doc — the client never writes it), the Mochi usage meter, and
- * the purchase/restore flow. Hosts the paywall sheet so any screen can call
+ * Firestore doc — the client never writes it) and the purchase/restore flow.
+ * There is NO client-side Mochi quota gate: the server is the only gate, and a
+ * RESOURCE_EXHAUSTED rejection takes the graceful local fallback (P1.4/P1.7) —
+ * a client copy of the counter drifted (stale across UTC midnight, duplicated
+ * the server's rules). Hosts the paywall sheet so any screen can call
  * `openPaywall(reason)`.
  *
  * Everything degrades to `basic` when RevenueCat isn't configured, so the
@@ -48,15 +50,6 @@ import PaywallSheet from '../features/membership/PaywallSheet'
 interface PurchasesValue {
   tier: Tier
   entitlement: Entitlement
-  /** Base allowance left in the current period (the day for Free, the
-   * month for paid) — null until the usage doc loads. Beyond this it's
-   * pay as you go. */
-  mochiRemaining: number | null
-  /** Which period `mochiRemaining` counts. */
-  mochiPeriod: 'today' | 'month'
-  /** Whether one more AI-backed request is within the invisible fair-use
-   * ceiling. Beyond it the client falls back to local capture (no wall). */
-  canSendMochi: boolean
   offering: PurchasesOffering | null
   /** True while the first offerings fetch is in flight — lets the paywall show
    * a loading state instead of mislabeling real products "Coming soon". */
@@ -98,8 +91,6 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
   const uid = user?.uid ?? null
   const [entitlement, setEntitlement] = useState<Entitlement>(FREE_ENTITLEMENT)
-  const [monthUsed, setMonthUsed] = useState<number | null>(null)
-  const [dayUsed, setDayUsed] = useState<number>(0)
   const [offering, setOffering] = useState<PurchasesOffering | null>(null)
   const [offeringLoading, setOfferingLoading] = useState(false)
   // Instant client-side tier from RevenueCat CustomerInfo. The authoritative
@@ -183,36 +174,6 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
     )
   }, [uid])
 
-  // Live-read the Mochi usage counter for the meter (server-written; absent
-  // until enforcement is on, in which case the meter shows the full budget).
-  useEffect(() => {
-    if (!uid) {
-      setMonthUsed(null)
-      return
-    }
-    const ref = doc(db, `users/${uid}/state/mochiUsage`)
-    return onSnapshot(
-      ref,
-      (snap) => {
-        const data = parseEnvelope<{
-          month?: string
-          monthCalls?: number
-          date?: string
-          dayCalls?: number
-        }>(snap.data())
-        const now = new Date()
-        const month = now.toISOString().slice(0, 7)
-        const today = now.toISOString().slice(0, 10)
-        setMonthUsed(data && data.month === month ? Math.max(0, data.monthCalls ?? 0) : 0)
-        setDayUsed(data && data.date === today ? Math.max(0, data.dayCalls ?? 0) : 0)
-      },
-      () => {
-        setMonthUsed(0)
-        setDayUsed(0)
-      },
-    )
-  }, [uid])
-
   const tier = useMemo(() => {
     const fsTier = effectiveTier(entitlement, new Date().toISOString())
     // Show whichever is higher: the authoritative (but lagging) Firestore tier
@@ -221,19 +182,6 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
     // by a momentarily-stale CustomerInfo.
     return TIER_ORDER.indexOf(rcTier) > TIER_ORDER.indexOf(fsTier) ? rcTier : fsTier
   }, [entitlement, rcTier])
-  // Period-appropriate base allowance: Free is gated per-day, paid per-month.
-  const limits = TIER_LIMITS[tier]
-  const mochiPeriod: 'today' | 'month' = tier === 'free' ? 'today' : 'month'
-  const mochiRemaining =
-    monthUsed == null
-      ? null
-      : tier === 'free'
-        ? Math.max(0, limits.mochiDaily - dayUsed)
-        : Math.max(0, limits.mochiMonthly - monthUsed)
-  const canSendMochi =
-    monthUsed == null
-      ? true
-      : canSendMochiRequest(tier, { dayUsed, monthUsed })
 
   const purchase = useCallback(
     async (pkg: PurchasesPackage): Promise<'purchased' | 'cancelled' | 'failed'> => {
@@ -267,9 +215,6 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
     () => ({
       tier,
       entitlement,
-      mochiRemaining,
-      mochiPeriod,
-      canSendMochi,
       offering,
       offeringLoading,
       currentProductId,
@@ -282,7 +227,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       openPaywall,
       closePaywall,
     }),
-    [tier, entitlement, mochiRemaining, mochiPeriod, canSendMochi, offering, offeringLoading, currentProductId, trialEligible, purchase, restore, refreshOfferings, manageSubscriptions, openPaywall, closePaywall],
+    [tier, entitlement, offering, offeringLoading, currentProductId, trialEligible, purchase, restore, refreshOfferings, manageSubscriptions, openPaywall, closePaywall],
   )
 
   return (

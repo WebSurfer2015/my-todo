@@ -60,7 +60,7 @@ allowances are now INVISIBLE fair-use ceilings. Typecheck + unit tests green;
 | 1.1 | Remove the **usage meter** UI from ChatSheet | S | 🔶 |
 | 1.2 | Remove **top-up** packs/flows; retire `topup.*` (and `max.*`) from the plan/paywall | S–M | 🔶 core/adapter/context/UI/webhook + tests |
 | 1.3 | Collapse tiers to **Free + Premium** (fold Max's `aiPlanning` into Premium) | M | 🔶 |
-| 1.4 | Over the fair-use ceiling → **graceful local fallback** (raw text handed to manual Compose via `onReviewCreateTodo`; no wall, no paywall) | M | 🔶 |
+| 1.4 | Over the fair-use ceiling → **graceful local fallback** (raw text handed to manual Compose via `onReviewCreateTodo`; no wall, no paywall) | M | 🔶 — since 2026-10-18 the server is the only gate (client counter removed: it went stale across UTC midnight and duplicated server rules) |
 | 1.5 | **Paywall → aspirational** triggers only (punitive "out of requests" trigger removed; locked-theme tap + Settings→Membership remain) | S–M | 🔶 |
 | 1.6 | Reprice to **$4.99/mo · $29.99/yr**, annual-led, keep 7-day trial, **no lifetime** | S | 🔶 fallback prices in `PaywallSheet`; real prices live in ASC (5.3) |
 | 1.7 | **Server `RESOURCE_EXHAUSTED` → auto-fallback.** Chat takes the same fallback as 1.4; step suggestions show a gentle localized "Mochi's resting" note; server ceiling copy de-metered (no counts / countdown / "pay as you go") | S | 🔶 `ac5437c` — server copy deployed 2026-10-18. Mid-conversation, the fallback rebuilds the open request ("call mom — Friday") via core `buildFallbackCapture` |

@@ -171,36 +171,7 @@ export function canUseAiPlanning(tier: Tier): boolean {
   return TIER_LIMITS[tier].aiPlanning
 }
 
-// ─── AI allowance accounting (model only; ENFORCE server-side) ─────────
-
-/** Rolling usage the server tracks per user. */
-export interface MochiUsage {
-  /** Requests used in the current calendar month (yyyy-mm). */
-  monthUsed: number
-  /** Requests used so far today (yyyy-mm-dd). */
-  dayUsed: number
-}
-
-/** Monthly budget = the tier's invisible fair-use ceiling. */
-export function mochiMonthlyBudget(tier: Tier): number {
-  return TIER_LIMITS[tier].mochiMonthly
-}
-
-/** Requests left this month before the invisible fair-use ceiling, floored at
- * 0. When this hits 0 the server signals graceful local fallback (never a
- * user-facing wall). */
-export function mochiRemaining(tier: Tier, usage: MochiUsage): number {
-  return Math.max(0, mochiMonthlyBudget(tier) - usage.monthUsed)
-}
-
-/** Whether the user is within their invisible fair-use ceiling for one more
- * AI-backed Mochi request (gated by BOTH the daily sub-cap and the monthly
- * ceiling). When this returns false the server does NOT wall the user — the
- * client falls back to local capture (graceful fallback; no top-ups, no
- * meter). */
-export function canSendMochiRequest(tier: Tier, usage: MochiUsage): boolean {
-  return (
-    usage.dayUsed < TIER_LIMITS[tier].mochiDaily &&
-    usage.monthUsed < TIER_LIMITS[tier].mochiMonthly
-  )
-}
+// AI allowance accounting is SERVER-ONLY (web/functions/src/quota.ts +
+// mochiReservation.ts). The client has no copy: a duplicate counter drifted
+// (stale across UTC midnight) and the server's RESOURCE_EXHAUSTED already takes
+// the graceful fallback.
