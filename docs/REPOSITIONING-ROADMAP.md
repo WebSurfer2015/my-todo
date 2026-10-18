@@ -76,7 +76,7 @@ app earns "calm." Large — can phase or trail the first repositioned release.)*
 ## P4 — Accessibility & polish (gate for the ND audience) 🟢 not blocked
 | # | Item | Effort |
 |---|---|---|
-| 4.1 | **Mochi-sheet accessibility** — fix the RN `<Modal>` a11y flatten so VoiceOver reads it (`memory/project_rn_modal_a11y_flatten`) | M |
+| 4.1 | **Mochi-sheet accessibility** — ✅ **structural fix already in code**: the a11y flatten was cured by the shipped "#15" sibling-backdrop pattern (SheetShell + ChatSheet) + a regression guard test; added `accessibilityViewIsModal` for VoiceOver focus containment (2026-10-17). **Remaining = device VoiceOver QA only** (QA-CHECKLIST §2/§6 — not code). | S |
 | 4.2 | VoiceOver / Dynamic Type / reduce-motion sweep across sheets (`QA-CHECKLIST` §2,6) | M |
 | 4.3 | Reconsider the lifetime-count **reset/recalibrate** affordance (odd for an only-grows metric) | S |
 

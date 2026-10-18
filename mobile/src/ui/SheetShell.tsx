@@ -99,6 +99,10 @@ export default function SheetShell({
       <View style={styles.backdrop}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
         <Animated.View
+          // iOS: trap VoiceOver inside the sheet so focus can't wander to the
+          // (accessible=false) backdrop or anything behind the modal. Pairs
+          // with the sibling-backdrop #15 fix (which prevents the a11y flatten).
+          accessibilityViewIsModal
           style={[
             styles.sheet,
             {

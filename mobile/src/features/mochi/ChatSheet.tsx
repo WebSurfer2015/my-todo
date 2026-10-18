@@ -429,7 +429,9 @@ export default function ChatSheet({
             collapses the sheet into one iOS a11y leaf (breaks VoiceOver/Maestro). */}
         <View style={styles.backdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={requestClose} accessible={false} />
-          <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
+          {/* accessibilityViewIsModal: trap VoiceOver inside the sheet (iOS);
+              pairs with the sibling-backdrop #15 fix that prevents a11y flatten. */}
+          <Animated.View accessibilityViewIsModal style={[styles.sheet, { transform: [{ translateY }] }]}>
             <View style={sheetGrabZone} {...panHandlers}>
               <View style={styles.handle} />
             </View>
