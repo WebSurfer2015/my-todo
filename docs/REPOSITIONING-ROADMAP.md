@@ -66,7 +66,7 @@ match what the app actually does. The policy is served by GitHub Pages from
 must be deployed first.*
 | # | Item | Effort | Status |
 |---|---|---|---|
-| C.1 | **Account deletion erases data** — `onUserDeleted` CF recursively deletes `users/{uid}`; RC webhook ignores events for deleted uids (client deletes were always denied by rules, so nothing was ever erased) | S | 🔶 `0a8e0df` — **deployed to production 2026-10-18** (`onUserDeleted`, us-east1, gen-1). Remaining: end-to-end check with a throwaway account |
+| C.1 | **Account deletion erases data** — `onUserDeleted` CF recursively deletes `users/{uid}`; RC webhook ignores events for deleted uids (client deletes were always denied by rules, so nothing was ever erased) | S | 🔶 `0a8e0df` — **deployed to production 2026-10-18** (`onUserDeleted`, gen-1; moved to us-central1 in `5c746ff`). Remaining: end-to-end check with a throwaway account |
 | C.2 | **Orphan cleanup** — one-off, dry-run-first script to erase `users/{uid}` trees with no live auth user (accounts deleted before C.1) | S | ⏳ after C.1 deploy |
 | C.3 | **Privacy policy accuracy** — analytics removed, usage dates, Anthropic (Mochi), RevenueCat (subscriptions), deletion scope | S | ✅ `fc181f5`, `e7c9a70`, `0a8e0df` — live on promote |
 | C.4 | **Verify vendor claims in the policy** — Anthropic API retention period (or ZDR), RevenueCat device-data list | S | ⏳ check vendor terms/console |
