@@ -128,5 +128,3 @@ export const USER_STATE_KEYS = [
   // P0 measurement signals (core/src/store/usageSignals.ts) — own doc, never the profile.
   'signals',
 ] as const
-
-export type UserStateKey = typeof USER_STATE_KEYS[number]

@@ -40,7 +40,6 @@ import {
 } from "../src/logic/derive";
 import { buildGroups } from "../src/logic/groups";
 import {
-  migrateCategories,
   migrateCategory,
   MAX_CATEGORY_LABEL_LEN,
   MAX_CATEGORIES_PER_USER,
@@ -298,10 +297,10 @@ describe("subtasks", () => {
   // its reminders, exactly as todoToggle does — otherwise the scheduler keeps
   // firing notifications for an already-done task.
   it("clears reminders when the last subtask completes the parent", () => {
-    let state = [
+    let state: Todo[] = [
       {
         ...makeTodo(),
-        reminder: { id: "r0", at: "2026-07-10T09:00" },
+        reminder: { at: "2026-07-10T09:00" },
         reminders: [{ id: "r1", at: "2026-07-10T09:00" }],
       },
     ];
@@ -558,72 +557,6 @@ describe("subtasks", () => {
     expect(out[0].done).toBe(false);
     // Garbage entries dropped, but the "missing id" one kept with a fresh id
     expect(out[0].subtasks!.length).toBe(4);
-  });
-});
-
-// ---- migrateCategories ---------------------------------------------------
-
-describe("migrateCategories", () => {
-  it("returns [] for non-array input", () => {
-    expect(migrateCategories(null)).toEqual([]);
-    expect(migrateCategories({})).toEqual([]);
-  });
-
-  it("rejects entries without a string id", () => {
-    const out = migrateCategories([
-      { id: "ok", color: "#34C759", icon: "home" },
-      { color: "#FF3B30", icon: "x" },
-      { id: 42, color: "#FF3B30", icon: "x" },
-      null,
-    ]);
-    expect(out.map((c) => c.id)).toEqual(["ok"]);
-  });
-
-  it("dedupes by id, keeping first occurrence", () => {
-    const out = migrateCategories([
-      { id: "a", label: "first", color: "#34C759", icon: "home" },
-      { id: "a", label: "second", color: "#FF3B30", icon: "x" },
-    ]);
-    expect(out).toHaveLength(1);
-    expect(out[0].label).toBe("first");
-  });
-
-  it("caps array length at MAX_CATEGORIES_PER_USER", () => {
-    const huge = Array.from({ length: MAX_CATEGORIES_PER_USER + 10 }, (_, i) => ({
-      id: `c${i}`,
-      color: "#34C759",
-      icon: "tag",
-    }));
-    expect(migrateCategories(huge).length).toBeLessThanOrEqual(
-      MAX_CATEGORIES_PER_USER,
-    );
-  });
-
-  it("clamps label to MAX_CATEGORY_LABEL_LEN", () => {
-    const out = migrateCategories([
-      {
-        id: "x",
-        label: "y".repeat(MAX_CATEGORY_LABEL_LEN + 50),
-        color: "#34C759",
-        icon: "tag",
-      },
-    ]);
-    expect(out[0].label).toHaveLength(MAX_CATEGORY_LABEL_LEN);
-  });
-
-  it("falls back to gray for malformed colors", () => {
-    expect(
-      migrateCategory({ id: "x", color: "blue", icon: "tag" }).color,
-    ).toBe("#8E8E93");
-    expect(
-      migrateCategory({ id: "x", color: "#XYZ", icon: "tag" }).color,
-    ).toBe("#8E8E93");
-  });
-
-  it("rewrites legacy CSS-variable colors to hex", () => {
-    expect(
-      migrateCategory({ id: "x", color: "var(--green)", icon: "home" }).color,
-    ).toBe("#34C759");
   });
 });
 

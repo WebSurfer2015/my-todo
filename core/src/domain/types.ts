@@ -46,7 +46,6 @@ export interface Recurrence {
 export const RECURRENCE_FREQS: RecurrenceFreq[] = ['daily', 'weekly', 'monthly', 'yearly']
 /** Weekday short labels — Sun=0. */
 export const WEEKDAY_SHORT: readonly string[] = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-export const WEEKDAY_LONG: readonly string[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 export interface Subtask {
   id: string
@@ -221,14 +220,6 @@ export const PRIORITY_COLORS: Record<Priority, string> = {
   high:   '#E07878',  // soft coral red
   medium: '#E8A964',  // soft amber
   low:    '#7AA4D4',  // soft slate blue
-}
-
-export function isStatusFilter(f: Filter): f is StatusFilter {
-  return f === 'overdue' || f === 'open' || f === 'done' || f === 'trash' || f === 'notDo'
-}
-
-export function isGroceryFilter(f: Filter): f is 'groceries' {
-  return f === 'groceries'
 }
 
 export function isCategoryFilter(f: Filter): f is `cat:${string}` {

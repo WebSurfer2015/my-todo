@@ -87,8 +87,6 @@ export const PRODUCT_IDS = {
   premiumAnnual: 'com.websurfer.mytodo.premium.annual',
 } as const
 
-export type ProductId = (typeof PRODUCT_IDS)[keyof typeof PRODUCT_IDS]
-
 /** Map a purchased subscription product to the tier it grants. */
 export function tierForProduct(productId: string): Tier | null {
   if (productId === PRODUCT_IDS.premiumMonthly || productId === PRODUCT_IDS.premiumAnnual) {

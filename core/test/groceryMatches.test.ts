@@ -18,7 +18,6 @@ let idc = 0
 function mk(over: Partial<GroceryItem> & { text: string }): GroceryItem {
   return {
     id: `g${idc++}`,
-    text: over.text,
     groupId: over.groupId ?? OTHERS_GROUP_ID,
     stores: over.stores ?? [],
     checked: over.checked ?? false,

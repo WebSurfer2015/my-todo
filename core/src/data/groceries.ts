@@ -296,25 +296,6 @@ export function resolveGroup(
   )
 }
 
-/** Stable list of stores the user has typed at least once, sorted by
- * most-recent-use first. Drawn from the items list (no separate stored
- * config — store names are emergent). A multi-store item bumps the
- * recency of EVERY store in its list. */
-export function deriveStores(items: GroceryItem[]): string[] {
-  const seen = new Map<string, number>() // store → most-recent ms
-  for (const it of items) {
-    if (!it.stores || it.stores.length === 0) continue
-    const ts = Math.max(it.checkedAt ?? 0, it.addedAt)
-    for (const s of it.stores) {
-      const prev = seen.get(s) ?? 0
-      if (ts > prev) seen.set(s, ts)
-    }
-  }
-  return [...seen.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([s]) => s)
-}
-
 // ── Mutation helpers (pure) ─────────────────────────────────────────
 
 /** Toggle an item's checked state. Sets checkedAt on flip-to-checked,

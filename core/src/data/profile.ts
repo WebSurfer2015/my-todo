@@ -351,21 +351,6 @@ export const AVATAR_PRESET_LIBRARY: PresetAvatar[] = [
   { key: 'rabbit',    emoji: '🐰',  bg: '#E1C8C8', imageKey: 'rabbit' },    // rose blush
 ]
 
-/** Web's lucide-style icon avatars. Hex colors so they're cross-platform safe. */
-export const AVATAR_ICON_LIBRARY: Avatar[] = [
-  { kind: 'icon', icon: 'smile',     color: '#FF9500' },
-  { kind: 'icon', icon: 'cat',       color: '#34C759' },
-  { kind: 'icon', icon: 'dog',       color: '#007AFF' },
-  { kind: 'icon', icon: 'bird',      color: '#30B0C7' },
-  { kind: 'icon', icon: 'rabbit',    color: '#FF2D92' },
-  { kind: 'icon', icon: 'fish',      color: '#007AFF' },
-  { kind: 'icon', icon: 'star',      color: '#FFCC00' },
-  { kind: 'icon', icon: 'heart',     color: '#FF3B30' },
-  { kind: 'icon', icon: 'sparkles',  color: '#AF52DE' },
-  { kind: 'icon', icon: 'rocket',    color: '#007AFF' },
-  { kind: 'icon', icon: 'sun',       color: '#FF9500' },
-]
-
 export function findPreset(key: string): PresetAvatar {
   return AVATAR_PRESET_LIBRARY.find((a) => a.key === key) ?? AVATAR_PRESET_LIBRARY[0]
 }

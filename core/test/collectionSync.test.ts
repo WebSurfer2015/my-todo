@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { syncCollection, backfillCollection } from '../src/store/collectionSync'
+import { syncCollection } from '../src/store/collectionSync'
 import type { CollectionAdapter, CollectionEntry } from '../src/ports/persistence'
 
 /** In-memory CollectionAdapter that records every write. */
@@ -52,24 +52,5 @@ describe('syncCollection (per-item diff)', () => {
     const res = await syncCollection(adapter, m({ a: '1' }), m({ a: '1' }))
     expect(res).toEqual({ upserted: [], removed: [] })
     expect(calls).toEqual([])
-  })
-})
-
-describe('backfillCollection (idempotent, forward-only)', () => {
-  it('writes only items missing from the collection', async () => {
-    const { adapter, calls } = fakeColl([{ id: 'a', value: 'cloud-a' }])
-    const wrote = await backfillCollection(adapter, [
-      { id: 'a', value: 'local-a' }, // already present → skipped (no clobber)
-      { id: 'b', value: 'local-b' }, // missing → written
-    ])
-    expect(wrote).toEqual(['b'])
-    expect(calls).toEqual(['upsert:b'])
-  })
-
-  it('is idempotent — a second run writes nothing', async () => {
-    const { adapter } = fakeColl()
-    await backfillCollection(adapter, [{ id: 'a', value: '1' }])
-    const second = await backfillCollection(adapter, [{ id: 'a', value: '1' }])
-    expect(second).toEqual([])
   })
 })

@@ -16,7 +16,6 @@ import {
   nextOccurrence,
   expandRecurrence,
   formatRecurrence,
-  formatSavedAt,
   formatDisplayDate,
   fullDateLabel,
   MAX_RECURRENCE_INSTANCES,
@@ -243,32 +242,6 @@ describe('formatRecurrence', () => {
     expect(
       formatRecurrence({ freq: 'monthly', byWeekday: [5], bySetPos: [-1] }),
     ).toBe('Monthly · Last Fri')
-  })
-})
-
-describe('formatSavedAt', () => {
-  it('says "just now" within 30s', () => {
-    const now = Date.now()
-    expect(formatSavedAt(now - 5_000, 'en-US', now)).toBe('just now')
-  })
-  it('uses seconds between 30s and 60s', () => {
-    const now = Date.now()
-    expect(formatSavedAt(now - 45_000, 'en-US', now)).toBe('45s ago')
-  })
-  it('uses "1 min ago" for exactly 1 minute', () => {
-    const now = Date.now()
-    expect(formatSavedAt(now - 60_000, 'en-US', now)).toBe('1 min ago')
-  })
-  it('uses minutes between 1 and 60', () => {
-    const now = Date.now()
-    expect(formatSavedAt(now - 5 * 60_000, 'en-US', now)).toBe('5 min ago')
-  })
-  it('falls back to localized time for older timestamps', () => {
-    const past = new Date(2026, 4, 20, 14, 30).getTime()
-    const now = past + 2 * 60 * 60 * 1000 // 2h later
-    const out = formatSavedAt(past, 'en-US', now)
-    // Locale-string format varies, but it should contain a digit + AM/PM
-    expect(out).toMatch(/\d/)
   })
 })
 

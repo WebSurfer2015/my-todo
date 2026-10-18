@@ -321,21 +321,6 @@ export interface DateLabels {
 const MS_PER_DAY = 86_400_000
 
 /**
- * Renders "just now" / "2 min ago" / "12:14 PM" depending on how stale the
- * timestamp is. Used by the auto-save indicator — anxiety-friendly, gives the
- * user a clear, gentle confirmation that work was saved.
- */
-export function formatSavedAt(ms: number, locale = 'default', now = Date.now()): string {
-  const diffSec = Math.max(0, Math.floor((now - ms) / 1000))
-  if (diffSec < 30) return 'just now'
-  if (diffSec < 60) return `${diffSec}s ago`
-  const diffMin = Math.floor(diffSec / 60)
-  if (diffMin === 1) return '1 min ago'
-  if (diffMin < 60) return `${diffMin} min ago`
-  return new Date(ms).toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' })
-}
-
-/**
  * Relative-time date label: "Today" / "Tomorrow" / "Yesterday" / "in 3 days" /
  * "5 days ago" / "in 2 months" / "1 month ago" / "in 1 year" / "2 years ago".
  * `labels` overrides for the today/tomorrow/yesterday cases when provided.
@@ -429,31 +414,6 @@ export function dueDateOnly(dueDate: string | undefined): string {
   if (!dueDate) return "";
   const t = dueDate.indexOf("T");
   return t === -1 ? dueDate : dueDate.slice(0, t);
-}
-
-/**
- * Resolve a dueDate string to a concrete LOCAL deadline moment (epoch ms),
- * or null when unset / unparseable. The "full datetime" model:
- *   - date-only `yyyy-mm-dd`        → END of that day (23:59:59.999 local),
- *     i.e. the "due by midnight" deadline semantics. No stored migration
- *     needed — a bare date keeps meaning "due that day".
- *   - timed `yyyy-mm-ddTHH:mm`      → that exact local minute.
- * Used by reminders (before-due offset reference) + any deadline math.
- * Grouping + the overdue BUCKET keep using the date part (dueDateOnly),
- * so a timed task still sits in its day's group.
- */
-export function dueDateTimeMs(dueDate: string | undefined): number | null {
-  if (!dueDate) return null;
-  const tIdx = dueDate.indexOf("T");
-  if (tIdx === -1) {
-    const [y, m, d] = dueDate.split("-").map(Number);
-    if (!y || !m || !d) return null;
-    return new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
-  }
-  const [y, m, d] = dueDate.slice(0, tIdx).split("-").map(Number);
-  const [hh, mm] = dueDate.slice(tIdx + 1).split(":").map(Number);
-  if (!y || !m || !d || Number.isNaN(hh) || Number.isNaN(mm)) return null;
-  return new Date(y, m - 1, d, hh, mm, 0, 0).getTime();
 }
 
 /** Last day of the current month as yyyy-mm-dd (local). Day 0 of next

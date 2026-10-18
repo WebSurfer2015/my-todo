@@ -6,7 +6,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   getOrderedPriorities,
-  getOrderedVisiblePriorities,
   priorityToggleHidden,
   priorityReorder,
 } from '../src/domain/priorities'
@@ -41,15 +40,6 @@ describe('getOrderedPriorities', () => {
   it('carries the hidden flag through', () => {
     const p: Profile = { ...SEED_PROFILE, priorities: [{ id: 'medium', hidden: true }] }
     expect(getOrderedPriorities(p, t).find((x) => x.id === 'medium')?.hidden).toBe(true)
-  })
-})
-
-describe('getOrderedVisiblePriorities', () => {
-  it('filters out hidden entries', () => {
-    const p: Profile = { ...SEED_PROFILE, priorities: [{ id: 'low', hidden: true }] }
-    const ids = getOrderedVisiblePriorities(p, t).map((x) => x.id)
-    expect(ids).not.toContain('low')
-    expect(ids).toContain('high')
   })
 })
 

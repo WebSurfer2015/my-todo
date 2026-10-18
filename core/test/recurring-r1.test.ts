@@ -11,7 +11,6 @@ import {
   windowCutoffFor,
   expandSeries,
   topUpSeries,
-  seriesFutureFrom,
 } from "../src/logic/derive";
 import type { Todo, Recurrence } from "../src/domain/types";
 
@@ -220,38 +219,6 @@ describe("topUpSeries", () => {
     const next = topUpSeries(first, first[0].seriesId!, "2026-05-30");
     // Should still grow — just inheriting from the detached tail.
     expect(next.length).toBeGreaterThan(first.length);
-  });
-});
-
-describe("seriesFutureFrom", () => {
-  it("returns non-trashed members with dueDate >= anchor", () => {
-    const seed = makeSeed();
-    const expanded = expandSeries(seed, "2026-05-28");
-    const sid = expanded[0].seriesId!;
-    const future = seriesFutureFrom(expanded, sid, "2026-05-31");
-    expect(future.map((t) => t.dueDate)).toEqual([
-      "2026-05-31",
-      "2026-06-01",
-      "2026-06-02",
-      "2026-06-03",
-      "2026-06-04",
-    ]);
-  });
-
-  it("skips trashed members even when their date matches", () => {
-    const seed = makeSeed();
-    const expanded = expandSeries(seed, "2026-05-28");
-    const sid = expanded[0].seriesId!;
-    const trashed = expanded.map((t, i) =>
-      i === 3 ? { ...t, trashed: true, trashedAt: 1 } : t,
-    );
-    const future = seriesFutureFrom(trashed, sid, "2026-05-28");
-    expect(future.find((t) => t.dueDate === "2026-05-31")).toBeUndefined();
-    expect(future.length).toBe(expanded.length - 1);
-  });
-
-  it("returns [] when seriesId is unknown", () => {
-    expect(seriesFutureFrom([], "missing", "2026-05-28")).toEqual([]);
   });
 });
 

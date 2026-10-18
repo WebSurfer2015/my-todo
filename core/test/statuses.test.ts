@@ -4,7 +4,6 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
-  getStatusLabel,
   getOrderedStatuses,
   getOrderedVisibleStatuses,
   statusRename,
@@ -15,26 +14,6 @@ import { SEED_PROFILE, type Profile } from '../src/data/profile'
 import { strings } from '../src/data/i18n'
 
 const t = strings.en
-
-describe('getStatusLabel', () => {
-  it('returns the user override when set', () => {
-    const p: Profile = {
-      ...SEED_PROFILE,
-      statuses: [{ id: 'open', label: 'In progress' }],
-    }
-    expect(getStatusLabel('open', p, t)).toBe('In progress')
-  })
-  it('falls back to i18n default when no override', () => {
-    expect(getStatusLabel('open', SEED_PROFILE, t)).toBe(t.filters.open)
-  })
-  it('treats whitespace-only override as no override', () => {
-    const p: Profile = {
-      ...SEED_PROFILE,
-      statuses: [{ id: 'done', label: '   ' }],
-    }
-    expect(getStatusLabel('done', p, t)).toBe(t.filters.done)
-  })
-})
 
 describe('getOrderedStatuses', () => {
   it('returns the STATUS_FILTERS list when profile has no overrides', () => {

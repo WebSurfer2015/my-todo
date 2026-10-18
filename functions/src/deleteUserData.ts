@@ -9,8 +9,8 @@
  *
  * Why server-side: firestore.rules denies client deletes on state docs
  * (`allow delete: if false`) and never lets clients touch the function-only
- * keys, so the client-side "wipe then delete auth user" in runDeleteAccount
- * cannot erase anything on its own. The admin SDK bypasses rules.
+ * keys, so the client cannot erase anything itself — it only deletes the auth
+ * user, which fires this. The admin SDK bypasses rules.
  *
  * Gen-1 trigger on purpose: v2 has no auth-onDelete event (only blocking
  * functions, which don't fire on delete).

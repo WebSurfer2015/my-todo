@@ -21,13 +21,12 @@ import {
   signInWithEmailAndPassword,
   signOut as fbSignOut,
 } from "@react-native-firebase/auth";
-import { deleteDoc, doc, getDoc, setDoc } from "@react-native-firebase/firestore";
+import { doc, getDoc, setDoc } from "@react-native-firebase/firestore";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
 import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
 import { auth, db } from "../adapters/firebase";
 import { stateDocPath, USER_STATE_KEYS, SCHEMA_VERSION } from "../../../core/src/ports/persistence";
-import { runDeleteAccount } from "../../../core/src/store";
 import { Analytics } from "../adapters/analytics";
 import { Profile, SEED_PROFILE, MAX_PROFILE_NAME_LEN } from "../../../core/src/data/profile";
 
@@ -308,36 +307,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const deleteAccount = useCallback(async () => {
     const current = auth.currentUser;
     if (!current) throw new Error("Not signed in");
-    const uid = current.uid;
-    // The real erasure is server-side: deleting the auth user fires the
-    // onUserDeleted Cloud Function, which recursively deletes users/{uid}.
-    // The client wipe below is denied by firestore.rules (state docs are
-    // never client-deletable) and swallowed — best-effort only.
-    await runDeleteAccount({
-      // Wipe EVERY per-user state doc, not just the original three —
-      // groceries / groceryGroups / todoReferences would otherwise be
-      // orphaned in Firestore after the auth user is gone (unreachable but
-      // never deleted: an erasure/cost gap). USER_STATE_KEYS is the
-      // canonical list the export + "delete data" features also use.
-      wipeCloudData: () =>
-        Promise.all(
-          USER_STATE_KEYS.map((key) =>
-            deleteDoc(doc(db, stateDocPath(uid, key))).catch(() => {}),
-          ),
-        ).then(() => {}),
-      // Same local cleanup as sign-out once the account is gone — otherwise the
-      // deleted user's local copy lingers and migrateLocalToCloud pushes it
-      // into the NEXT account created on this device.
-      deleteAuthUser: async () => {
-        await deleteUser(current);
-        await clearLocalUserData();
-      },
-      onAuthError: (err) => {
-        if ((err as { code?: string } | null)?.code === "auth/requires-recent-login") {
-          throw new RecentLoginRequiredError();
-        }
-      },
-    });
+    // Erasure is server-side: deleting the auth user fires the onUserDeleted
+    // Cloud Function, which recursively deletes users/{uid} (clients can't
+    // delete state docs — firestore.rules). Then clear the device's local copy
+    // so it can't migrate into the next account created here.
+    try {
+      await deleteUser(current);
+    } catch (err) {
+      if ((err as { code?: string } | null)?.code === "auth/requires-recent-login") {
+        throw new RecentLoginRequiredError();
+      }
+      throw err;
+    }
+    await clearLocalUserData();
   }, []);
 
   const value = useMemo<AuthApi>(

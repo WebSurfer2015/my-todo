@@ -65,11 +65,6 @@ export function dailyQuoteIndex(iso: string): number {
   return hashDate(iso) % DAILY_QUOTES.length
 }
 
-/** The auto-rotating quote for a given local ISO day. */
-export function quoteForDay(iso: string): string {
-  return DAILY_QUOTES[dailyQuoteIndex(iso)]
-}
-
 /** Resolve a stored index safely into a quote (wraps / clamps). */
 export function quoteAt(index: number): string {
   const len = DAILY_QUOTES.length

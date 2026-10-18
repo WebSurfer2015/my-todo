@@ -29,11 +29,6 @@ export function getOrderedPriorities(profile: Profile, t: Strings): PriorityEntr
   return result
 }
 
-/** Same as getOrderedPriorities, but excluding hidden entries. */
-export function getOrderedVisiblePriorities(profile: Profile, t: Strings): PriorityEntry[] {
-  return getOrderedPriorities(profile, t).filter((p) => !p.hidden)
-}
-
 function setPriorityOverride(
   profile: Profile,
   id: Priority,

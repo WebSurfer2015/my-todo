@@ -14,15 +14,8 @@
  * These helpers operate on the raw `string[]` shapes the Profile stores
  * (Filter is a string subtype, so callers can pass `Filter[]` directly).
  */
-import type { Filter, ViewMode, Todo } from '../domain/types'
+import type { Filter, ViewMode } from '../domain/types'
 import type { DashboardTile } from '../data/profile'
-import {
-  isCategoryFilter,
-  isPriorityFilter,
-  categoryIdFromFilter,
-  priorityFromFilter,
-} from '../domain/types'
-import { todayLocal, dueDateOnly } from './utils'
 
 /** Soft cap on pinned filter pills in the FilterBar quick-access row. */
 export const PIN_LIMIT = 12
@@ -135,89 +128,3 @@ export function dashboardTileKey(t: DashboardTile): string {
   return `d:${t.dept}`
 }
 
-/**
- * The Dashboard pinned-card row, unifying Todos pinned filter sets +
- * Shopping pinned stores/depts. `profile.dashboardTiles` stores the user's
- * drag ORDER; this reconciles it against the CURRENT pins each read — keeps
- * the stored order, drops tiles whose pin was removed, and appends pins not
- * yet ordered. When no order is stored yet, returns the pins in their
- * natural order (Todos, then stores, then depts).
- */
-export function effectiveDashboardTiles(p: {
-  dashboardTiles?: DashboardTile[]
-  pinnedFilters?: string[][]
-  pinnedGroceryStores?: string[]
-  pinnedGroceryDepts?: string[]
-}): DashboardTile[] {
-  const current: DashboardTile[] = [
-    ...(p.pinnedFilters ?? []).map((set) => ({ kind: 'todoFilter', set }) as DashboardTile),
-    ...(p.pinnedGroceryStores ?? []).map((store) => ({ kind: 'groceryStore', store }) as DashboardTile),
-    ...(p.pinnedGroceryDepts ?? []).map((dept) => ({ kind: 'groceryDept', dept }) as DashboardTile),
-  ]
-  if (!p.dashboardTiles || p.dashboardTiles.length === 0) return current
-  const byKey = new Map(current.map((t) => [dashboardTileKey(t), t]))
-  const ordered: DashboardTile[] = []
-  const seen = new Set<string>()
-  for (const t of p.dashboardTiles) {
-    const k = dashboardTileKey(t)
-    const live = byKey.get(k)
-    if (live && !seen.has(k)) {
-      ordered.push(live)
-      seen.add(k)
-    }
-  }
-  for (const t of current) {
-    const k = dashboardTileKey(t)
-    if (!seen.has(k)) {
-      ordered.push(t)
-      seen.add(k)
-    }
-  }
-  return ordered
-}
-
-const STATUS_FILTER_KEYS = new Set(['overdue', 'open', 'done', 'trash', 'groceries'])
-
-/**
- * Count todos matching a pinned filter SET, using the SAME predicate as
- * deriveState — OR within each type group (status / category / priority),
- * AND across groups, with the trashed/completed-today grace rule. Powers
- * the Dashboard pinned-filter cards' stat counts (each pinned set has no
- * precomputed count, unlike single-filter tiles). Pure + testable.
- */
-export function countTodosForFilterSet(
-  todos: readonly Todo[],
-  set: readonly string[],
-  today: string = todayLocal(),
-): number {
-  const statuses = set.filter((f) => STATUS_FILTER_KEYS.has(f))
-  const catIds = set
-    .filter((f) => isCategoryFilter(f as Filter))
-    .map((f) => categoryIdFromFilter(f as `cat:${string}`))
-  const pris = set
-    .filter((f) => isPriorityFilter(f as Filter))
-    .map((f) => priorityFromFilter(f as `pri:${'high' | 'medium' | 'low'}`))
-
-  const completedToday = (td: Todo) => !!td.done && td.completionDate === today
-  const isOverdue = (td: Todo) => !!td.dueDate && dueDateOnly(td.dueDate) < today
-  const matchesStatus = (td: Todo, s: string): boolean => {
-    if (s === 'done' || s === 'trash') return !!td.done || !!td.trashed
-    if (td.trashed && !completedToday(td)) return false
-    if (s === 'overdue') return isOverdue(td)
-    if (s === 'open') return !td.done && !td.trashed
-    return false // 'groceries' is not a todo predicate
-  }
-
-  let n = 0
-  for (const td of todos) {
-    if (statuses.length > 0) {
-      if (!statuses.some((s) => matchesStatus(td, s))) continue
-    } else if (td.trashed && !completedToday(td)) {
-      continue
-    }
-    if (catIds.length > 0 && !catIds.some((id) => td.category === id)) continue
-    if (pris.length > 0 && !pris.some((p) => td.priority === p)) continue
-    n++
-  }
-  return n
-}

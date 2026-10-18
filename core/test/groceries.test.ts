@@ -11,7 +11,6 @@ import {
   migrateGroceries,
   migrateGroceryGroups,
   resolveGroup,
-  deriveStores,
   groceryToggleChecked,
   groceryEdit,
   groceryDelete,
@@ -158,38 +157,6 @@ describe('resolveGroup', () => {
     expect(g.id).toBe(
       SEED_GROCERY_GROUPS[SEED_GROCERY_GROUPS.length - 1].id,
     )
-  })
-})
-
-describe('deriveStores', () => {
-  it('returns sorted-by-recency unique stores from item lists', () => {
-    const items: GroceryItem[] = [
-      { id: '1', text: 'A', groupId: 'x', stores: ['Costco'], checked: false, addedAt: 1000 },
-      { id: '2', text: 'B', groupId: 'x', stores: ['CVS', 'Costco'], checked: false, addedAt: 2000 },
-      { id: '3', text: 'C', groupId: 'x', stores: ['Target'], checked: false, addedAt: 500 },
-    ]
-    // Costco was inserted first (item 1) and ties with CVS at 2000ms;
-    // stable sort preserves insertion order on ties.
-    expect(deriveStores(items)).toEqual(['Costco', 'CVS', 'Target'])
-  })
-  it('uses checkedAt as recency when available', () => {
-    const items: GroceryItem[] = [
-      {
-        id: '1', text: 'A', groupId: 'x', stores: ['Old'],
-        checked: true, addedAt: 1, checkedAt: 5000,
-      },
-      {
-        id: '2', text: 'B', groupId: 'x', stores: ['Newer'],
-        checked: false, addedAt: 2000,
-      },
-    ]
-    expect(deriveStores(items)).toEqual(['Old', 'Newer'])
-  })
-  it('ignores items with no stores', () => {
-    const items: GroceryItem[] = [
-      { id: '1', text: 'A', groupId: 'x', stores: [], checked: false, addedAt: 1 },
-    ]
-    expect(deriveStores(items)).toEqual([])
   })
 })
 

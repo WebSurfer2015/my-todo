@@ -76,25 +76,6 @@ export function migrateCategory(c: Partial<CategoryDef> & { id: string }): Categ
   return { ...c, label, color, icon } as CategoryDef
 }
 
-/**
- * Sanitize a freshly-loaded categories array. Rejects non-objects, missing
- * ids, malformed entries; caps array length and per-field sizes.
- */
-export function migrateCategories(raw: unknown): CategoryDef[] {
-  if (!Array.isArray(raw)) return []
-  const out: CategoryDef[] = []
-  const seen = new Set<string>()
-  for (const c of raw.slice(0, MAX_CATEGORIES_PER_USER)) {
-    if (typeof c !== 'object' || c === null) continue
-    const item = c as Partial<CategoryDef>
-    if (typeof item.id !== 'string' || item.id.length === 0) continue
-    if (seen.has(item.id)) continue
-    seen.add(item.id)
-    out.push(migrateCategory(item as Partial<CategoryDef> & { id: string }))
-  }
-  return out
-}
-
 export function newCategoryId(): string {
   return 'cat_' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36)
 }

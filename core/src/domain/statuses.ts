@@ -8,13 +8,6 @@ export interface StatusEntry {
   hidden: boolean
 }
 
-/** Resolve a status's display label — user override if set, else the i18n default. */
-export function getStatusLabel(id: StatusFilter, profile: Profile, t: Strings): string {
-  const override = profile.statuses?.find((s) => s.id === id)
-  if (override?.label && override.label.trim()) return override.label
-  return t.filters[id]
-}
-
 /** Return all statuses in user-defined order, with resolved labels. Defaults fill any missing ids. */
 export function getOrderedStatuses(profile: Profile, t: Strings): StatusEntry[] {
   const overrides = profile.statuses ?? []

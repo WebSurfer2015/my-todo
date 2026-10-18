@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import {
   newTodo,
   snapDueDateToRecurrence,
-  generateRecurringInstances,
   subtaskClearAll,
   todoClearDone,
   selectOverdue,
@@ -46,47 +45,6 @@ describe('snapDueDateToRecurrence', () => {
 
   it('returns the original value when the date is unparseable', () => {
     expect(snapDueDateToRecurrence('not-a-date', { byWeekday: [1] })).toBe('not-a-date')
-  })
-})
-
-describe('generateRecurringInstances', () => {
-  it('seeds exactly one rolling instance carrying the recurrence', () => {
-    const out = generateRecurringInstances({
-      text: 'Water plants',
-      priority: 'medium',
-      dueDate: '2026-06-10',
-      recurrence: { freq: 'weekly', interval: 2 },
-    })
-    expect(out).toHaveLength(1)
-    expect(out[0].text).toBe('Water plants')
-    expect(out[0].dueDate).toBe('2026-06-10')
-    expect(out[0].recurrence?.freq).toBe('weekly')
-    expect(out[0].recurrence?.interval).toBe(2)
-  })
-
-  it('clones subtasks fresh — new ids, all reset to not-done', () => {
-    const out = generateRecurringInstances({
-      text: 'Chores',
-      priority: 'low',
-      dueDate: '2026-06-10',
-      recurrence: { freq: 'daily' },
-      subtasks: [{ id: 'orig-1', text: 'Sweep', done: true }],
-    })
-    const subs = out[0].subtasks!
-    expect(subs).toHaveLength(1)
-    expect(subs[0].text).toBe('Sweep')
-    expect(subs[0].done).toBe(false) // reset
-    expect(subs[0].id).not.toBe('orig-1') // fresh id
-  })
-
-  it('omits the subtasks field entirely when none are given', () => {
-    const out = generateRecurringInstances({
-      text: 'Solo',
-      priority: 'medium',
-      dueDate: '2026-06-10',
-      recurrence: { freq: 'daily' },
-    })
-    expect(out[0].subtasks).toBeUndefined()
   })
 })
 

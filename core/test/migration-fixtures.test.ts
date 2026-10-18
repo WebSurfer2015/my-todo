@@ -12,7 +12,6 @@ import {
   SEED_GROCERY_GROUPS,
   OTHERS_GROUP_ID,
 } from '../src/data/groceries'
-import { migrateCategories } from '../src/data/categories'
 import { migrateProfile, SEED_PROFILE } from '../src/data/profile'
 import { migrateTodoReferences } from '../src/logic/derive'
 
@@ -70,22 +69,6 @@ describe('migrateGroceryGroups', () => {
     const out = migrateGroceryGroups([{ id: OTHERS_GROUP_ID, label: 'Others' }])
     const others = out.find((g) => g.id === OTHERS_GROUP_ID)
     expect(others?.label).toBe('Miscellaneous')
-  })
-})
-
-describe('migrateCategories', () => {
-  it('returns [] for non-array input', () => {
-    expect(migrateCategories(null)).toEqual([])
-  })
-  it('drops non-objects / id-less entries and dedups by id', () => {
-    const out = migrateCategories([
-      { id: 'home', color: '#34C759', icon: 'home' },
-      { id: 'home', color: '#000', icon: 'x' }, // dup → dropped
-      { color: '#fff', icon: 'y' }, // no id → dropped
-      'garbage',
-      null,
-    ])
-    expect(out.map((c) => c.id)).toEqual(['home'])
   })
 })
 

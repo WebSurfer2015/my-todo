@@ -1,4 +1,4 @@
-import { CollectionAdapter, CollectionEntry } from '../ports/persistence'
+import { CollectionAdapter } from '../ports/persistence'
 
 /**
  * The brain of per-item persistence (docs/SPIKE-persistence-scale.md). A
@@ -31,25 +31,4 @@ export async function syncCollection(
     }
   }
   return { upserted, removed }
-}
-
-/**
- * One-time forward-only backfill: copy every item from the single-doc array
- * into the per-item collection that isn't already there. NEVER deletes — the
- * single doc stays the source of truth until the flagged cutover, so a
- * backfill can run repeatedly (idempotent) during the dual-write phase.
- */
-export async function backfillCollection(
-  adapter: CollectionAdapter,
-  items: readonly CollectionEntry[],
-): Promise<string[]> {
-  const existing = new Set((await adapter.getAll()).map((e) => e.id))
-  const wrote: string[] = []
-  for (const it of items) {
-    if (!existing.has(it.id)) {
-      await adapter.upsert(it.id, it.value)
-      wrote.push(it.id)
-    }
-  }
-  return wrote
 }

@@ -188,41 +188,6 @@ function rebaseReminders(
 }
 
 /**
- * Build the initial Todo for a recurring series. Always one rolling
- * instance, regardless of whether the recurrence has an endDate —
- * todoToggle advances dueDate to the next occurrence on each completion
- * and caps the series when the next occurrence would exceed endDate.
- *
- * Previously (before 2026-05-19) endDate triggered a full expansion at
- * creation time, dumping every future instance into the list at once.
- * That overwhelmed the active view for any non-trivial series and made
- * "I finished one" feel indistinguishable from "I finished none". The
- * rolling model surfaces exactly one actionable row, with the Done bin
- * showing one capped snapshot per completed occurrence.
- */
-export function generateRecurringInstances(input: {
-  text: string;
-  priority: Priority;
-  dueDate: string;
-  category?: Category;
-  recurrence: Recurrence;
-  subtasks?: Subtask[];
-  notes?: string;
-}): Todo[] {
-  return [
-    newTodo({
-      text: input.text,
-      priority: input.priority,
-      dueDate: input.dueDate,
-      category: input.category,
-      recurrence: input.recurrence,
-      subtasks: cloneSubtasksFresh(input.subtasks),
-      notes: input.notes,
-    }),
-  ];
-}
-
-/**
  * Marks a Todo as done (or un-marks it). Done items also flip the
  * `trashed` flag with a `trashedAt` stamp — they sit in the 30-day
  * Done bin until either the user un-checks them (restored to open)
@@ -1439,26 +1404,6 @@ export function topUpAllSeries(
     }
   }
   return { todos: current, changed };
-}
-
-/**
- * Non-trashed series members with `dueDate >= anchor`. Used by R6's
- * "Apply to all future events" path to find the rows a series-wide
- * edit should touch.
- */
-export function seriesFutureFrom(
-  todos: Todo[],
-  seriesId: string,
-  anchorISO: string,
-): Todo[] {
-  if (!seriesId) return [];
-  const anchor = dueDateOnly(anchorISO);
-  return todos.filter((t) => {
-    if (t.seriesId !== seriesId) return false;
-    if (t.trashed) return false;
-    const d = dueDateOnly(t.dueDate);
-    return d >= anchor;
-  });
 }
 
 export function todoRestoreFromTrash(prev: Todo[], id: string): Todo[] {

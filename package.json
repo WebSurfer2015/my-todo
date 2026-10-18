@@ -6,14 +6,15 @@
   "scripts": {
     "lint:arch": "depcruise \"core/src/**/*.{ts,tsx}\" \"mobile/src/**/*.{ts,tsx}\" \"functions/src/**/*.ts\" --config .dependency-cruiser.cjs --ignore-known .dependency-cruiser-known-violations.json",
     "lint:arch:baseline": "depcruise \"core/src/**/*.{ts,tsx}\" \"mobile/src/**/*.{ts,tsx}\" \"functions/src/**/*.ts\" --config .dependency-cruiser.cjs --output-type baseline > .dependency-cruiser-known-violations.json",
-    "typecheck:core": "tsc --noEmit -p core",
+    "typecheck:core": "tsc --noEmit -p core && tsc --noEmit -p core/tsconfig.test.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
+    "@types/node": "^22.20.5",
     "@vitest/coverage-v8": "^4.1.8",
     "dependency-cruiser": "^16.10.0",
-    "vitest": "^4.1.8",
-    "typescript": "^5.5.3"
+    "typescript": "^5.5.3",
+    "vitest": "^4.1.8"
   }
 }

@@ -47,7 +47,7 @@ describe('derive-path performance', () => {
 
   it(`buildGroups on ${N} todos stays well under budget`, () => {
     const start = performance.now()
-    const groups = buildGroups(todos, { separateDone: true })
+    const groups = buildGroups(todos)
     const ms = performance.now() - start
     expect(groups.length).toBeGreaterThan(0)
     expect(ms, `buildGroups took ${ms.toFixed(1)}ms for ${N} todos`).toBeLessThan(1000)
