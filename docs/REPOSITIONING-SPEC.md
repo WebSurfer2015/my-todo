@@ -51,17 +51,36 @@ scores; no exclamation marks (unit-tested); "carried over," not "late"; done is
 reversible for 30 days; progress is ambient; reduce-motion respected; only
 irreversible actions are red.
 
-## 2. Taglines
-**One-liner (brand), recommended:**
-> **"The to-do app that doesn't make you feel behind."**
+## 2. Taglines & subtitle
 
-Alternates: "A kinder way to get things done, for minds that get overwhelmed." ·
-"Your calm companion for the days your list feels like too much."
+**Lead tagline (brand line — website hero, onboarding, marketing):**
+> **Sagely — a warm companion for a busy mind.**
+> *Gentle to-dos that never make you feel behind.*
 
-**App Store subtitle (≤30 chars):**
-- (A) `Calm to-dos for ADHD minds` (26) ← recommended
-- (A-alt) `A gentler to-do, built for ADHD` → trim to `Gentle to-dos for ADHD minds` (28)
-- (B soft) `Calm to-dos for busy minds` (26)
+Rationale: **"warm companion"** claims the empty column (a companion, not another
+planner or AI splitter). **"a busy mind"** frames a full mind as *abundance* —
+positive, dignifying, and already affectionate ADHD-community language ("busy
+brain") — rather than labeling a *deficit*. The negative-but-precise words
+("overwhelmed," "anxious," "behind") are reserved for **body copy**, where
+empathy meets the reader already in the moment — never in the headline that
+labels them on first contact. The supporting line carries the emotional-safety
+promise.
+
+Alternates if "busy" ever reads too productivity-flavored: `…for a full plate` ·
+`…for all you're carrying`.
+
+**App Store subtitle (≤30 chars) — keep it keyword-bearing (do NOT use the brand
+line verbatim):** the tagline has no functional keywords, and the subtitle is
+prime ASO real estate, so echo the warmth but carry keywords + the ADHD magnet
+(per §0-A):
+- `Calm ADHD to-dos & planner` (26) — max ASO (adhd / to-dos / planner) ← recommended if ADHD-forward
+- `Gentle to-dos for a busy mind` (29) — echoes the tagline; "to-dos" keyword, no ADHD
+- `Gentle to-dos for ADHD minds` (28) — middle
+
+**The split is deliberate (Tiimo model):** the brand tagline goes
+**universal + warm** ("a busy mind"); the ASO subtitle, keywords, and community
+marketing still lead **ADHD** — universal front door, ADHD where discovery
+actually happens.
 
 ## 3. App Store copy (replaces the stale v1.3.0 metadata)
 **Promotional text (≤170, editable without review):**
