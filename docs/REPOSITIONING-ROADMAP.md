@@ -71,7 +71,7 @@ must be deployed first.*
 | C.3 | **Privacy policy accuracy** — analytics removed, usage dates, Anthropic (Mochi), RevenueCat (subscriptions), deletion scope | S | ✅ `fc181f5`, `e7c9a70`, `0a8e0df` — live on promote |
 | C.4 | **Verify vendor claims in the policy** — Anthropic API retention period (or ZDR), RevenueCat device-data list | S | ⏳ check vendor terms/console |
 | C.5 | **App Store privacy label** — add User Content (Mochi → Anthropic), Purchases (RevenueCat), User ID (uid → RevenueCat), Usage Data / Product Interaction (the 3 profile dates, analytics purpose); "not used for tracking" | S | ⏳ ASC — do alongside 5.1 |
-| C.6 | **Stale `web/public/privacy/index.html`** — legacy "Todos for Everyone / WebSurfer" page (mentions Facebook Login); remove or redirect to the real policy | S | ⏳ |
+| C.6 | **Stale `web/public/privacy/index.html`** — legacy "Todos for Everyone / WebSurfer" page (mentions Facebook Login) | S | ✅ 2026-10-18 — now a noindex redirect to the GitHub Pages policy; live on Amplify dev now, main on promote |
 | C.7 | Optional cleanup: drop the always-denied client-side wipe from `runDeleteAccount` (core + both `AuthContext`s) | S | ⏳ low priority |
 
 ## P2 — The quiet companion (the heart) 🟢 not blocked
