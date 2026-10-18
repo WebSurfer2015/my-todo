@@ -28,7 +28,7 @@ redirecting the sink, not adding tracking.*
 | 0.2 | **Tier 2 — derive activation & retention** from stored Firestore data: add `lastActiveDate`; a scheduled CF rolls up **aggregate** counts to `metrics/{date}` (server-only) | answers activation/retention/reactivation with no behavioral logging | M |
 | | &nbsp;&nbsp;↳ **Schema foundation: DONE** (commit `448e688`) — `createdAt`/`lastActiveDate`/`activatedAt` on Profile + migration + tests; `metrics/*` already covered by default-deny (no rule change). **Client capture-wiring: DONE** — pure `stampProfileSignals` in core (unit-tested) called once per app open from both `useTodoStore`s (mobile+web); not yet runtime-verified. **Deferred to near-launch:** the aggregation CF — nothing to roll up until there are users. | | — |
 | 0.3 | **Tier 3 (optional)** — anonymous daily counters for Mochi-used / paywall-shown / CTA, by repurposing the `analytics.ts` wrapper to a `recordMetric` CF | product-signal granularity | M |
-| 0.4 | Remove `@react-native-firebase/analytics`; one-line honest `PRIVACY.md` transparency note | keeps the privacy promise true | S |
+| 0.4 | ✅ **DONE** — removed `@react-native-firebase/analytics` (wrapper kept as a no-op seam for 0.3, user-id attribution dropped); `PRIVACY.md` updated (usage-dates disclosure + no-analytics-SDK statement). Policy goes live on promote (Pages serves `main:/docs`). | keeps the privacy promise true | S |
 
 ## P1 — De-meter Mochi (brand-coherence prerequisite) 🟢 not blocked
 *(Resolves the ❌ conflicts. `MOCHI-MONETIZATION-MODEL.md`.)*

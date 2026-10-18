@@ -1,19 +1,14 @@
 /**
- * Thin wrapper around @react-native-firebase/analytics (v22 modular
- * API). Single source of truth for the event taxonomy so adding a
- * new event means adding one method here, not free-form logEvent
- * calls scattered across components.
+ * Product-event seam — currently a NO-OP. No third-party analytics SDK
+ * ships in the app: Firebase Analytics was removed 2026-10-17 (it's a
+ * behavioral SDK that contradicts docs/PRIVACY.md and the not-surveilled
+ * brand — see docs/MEASUREMENT-PLAN.md).
  *
- * Defensive: every call goes through try/catch so a misconfigured
- * Analytics setup (Firebase Console toggle off, native init not
- * complete) can never crash the app. Analytics is a "nice to know",
- * not a load-bearing dependency.
- *
- * Why modular: the v8 namespace API (`analytics().logEvent(...)`)
- * is deprecated in RNFB v22 and the runtime errors out with
- * "firebase.analytics() not installed natively" even when the pod
- * IS installed. The modular form (`getAnalytics(getApp())`) is the
- * blessed v22 path and works correctly with autolinking.
+ * The typed call sites are kept so a future first-party, ANONYMOUS
+ * aggregate sink (daily counters via a `recordMetric` Cloud Function —
+ * docs/REPOSITIONING-ROADMAP.md 0.3) can be wired here in one place.
+ * Any sink added here must stay aggregate-only: no user id, no event
+ * stream, no third-party SDK. Update PRIVACY.md before shipping one.
  *
  * Event taxonomy (Sagely baseline, approved 2026-05-27):
  *   - signup_completed              { provider: 'apple' | 'google' | 'email' }
@@ -25,18 +20,7 @@
  *   - fab_tapped                    { tab: 'dashboard' | 'todos' | 'shopping' }
  *   - empty_state_cta_tapped        { surface: 'todos' | 'shopping-no-store' | 'shopping-no-item' }
  *   - theme_from_avatar_toggled     { value: boolean }
- *
- * Firebase Analytics event names: lowercase + underscores, ≤40 chars,
- * params ≤25 per event. Reserved prefixes (firebase_, google_,
- * ga_) are off-limits.
  */
-
-import { getApp } from '@react-native-firebase/app'
-import {
-  getAnalytics,
-  logEvent,
-  setUserId as setAnalyticsUserId,
-} from '@react-native-firebase/analytics'
 
 export type AuthProvider = 'apple' | 'google' | 'email'
 export type AiMode =
@@ -48,47 +32,30 @@ export type AiMode =
 export type TabName = 'dashboard' | 'todos' | 'shopping'
 export type EmptySurface = 'todos' | 'shopping-no-store' | 'shopping-no-item'
 
-async function safeLog(name: string, params?: Record<string, unknown>): Promise<void> {
-  try {
-    const analytics = getAnalytics(getApp())
-    await logEvent(analytics, name, params ?? {})
-  } catch (err) {
-    // Never surface analytics failures to the user. Crashlytics
-    // catches the underlying issue if it's a real misconfiguration.
-    console.warn(`[analytics] ${name} failed:`, err)
-  }
-}
+// Intentionally discards the event. Swap for the first-party aggregate
+// sink (roadmap 0.3) when/if it exists.
+async function record(_name: string, _params?: Record<string, unknown>): Promise<void> {}
 
 export const Analytics = {
   signupCompleted(provider: AuthProvider): Promise<void> {
-    return safeLog('signup_completed', { provider })
+    return record('signup_completed', { provider })
   },
   firstTodoCreated(): Promise<void> {
-    return safeLog('first_todo_created')
+    return record('first_todo_created')
   },
   aiSuggestionApplied(mode: AiMode): Promise<void> {
-    return safeLog('ai_suggestion_applied', { mode })
+    return record('ai_suggestion_applied', { mode })
   },
   mochiChatOpened(): Promise<void> {
-    return safeLog('mochi_chat_opened')
+    return record('mochi_chat_opened')
   },
   dailyCheckinToggled(enabled: boolean): Promise<void> {
-    return safeLog(enabled ? 'daily_checkin_enabled' : 'daily_checkin_disabled')
+    return record(enabled ? 'daily_checkin_enabled' : 'daily_checkin_disabled')
   },
   fabTapped(tab: TabName): Promise<void> {
-    return safeLog('fab_tapped', { tab })
+    return record('fab_tapped', { tab })
   },
   emptyStateCtaTapped(surface: EmptySurface): Promise<void> {
-    return safeLog('empty_state_cta_tapped', { surface })
-  },
-  /** Set the signed-in user id for cross-event attribution. Called
-   * from AuthContext when auth state resolves. */
-  async setUserId(uid: string | null): Promise<void> {
-    try {
-      const analytics = getAnalytics(getApp())
-      await setAnalyticsUserId(analytics, uid)
-    } catch (err) {
-      console.warn('[analytics] setUserId failed:', err)
-    }
+    return record('empty_state_cta_tapped', { surface })
   },
 }

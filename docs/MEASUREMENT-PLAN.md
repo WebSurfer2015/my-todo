@@ -14,9 +14,9 @@ Firestore — never "who did what," only "how many" — are compatible** with th
 brand and the existing privacy policy. Design for anonymity by construction.
 
 ## Keep Firebase Analytics OFF
-`IS_ANALYTICS_ENABLED=false` stays. Plan to **remove
-`@react-native-firebase/analytics`** in cleanup (and repurpose the existing
-`mobile/src/adapters/analytics.ts` wrapper — see Tier 3). No console action, no
+**DONE 2026-10-17:** `@react-native-firebase/analytics` is removed; the
+`mobile/src/adapters/analytics.ts` wrapper is now a dependency-free no-op
+(user-id attribution dropped) that Tier 3 can repurpose. No console action, no
 plist re-download, no privacy-policy contradiction.
 
 ## Three tiers (do the cheap, high-value ones first)
@@ -78,8 +78,8 @@ on-brand.
    (server-only).
 3. **Tier 3 (if chosen):** add a `recordMetric` callable CF; repurpose
    `analytics.ts` to call it; keep the 14 call sites.
-4. Remove `@react-native-firebase/analytics` dep in cleanup.
-5. One-line `PRIVACY.md` transparency note.
+4. ~~Remove `@react-native-firebase/analytics` dep in cleanup.~~ Done 2026-10-17.
+5. ~~`PRIVACY.md` transparency note.~~ Done 2026-10-17 (usage-dates section + no-analytics-SDK statement).
 
 ## Open decision (scope)
 How far to build now: **Tier 1+2** (RevenueCat + derive-from-data — covers

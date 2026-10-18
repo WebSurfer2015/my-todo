@@ -1,6 +1,6 @@
 # Sagely — Privacy Policy
 
-**Last updated**: May 16, 2026
+**Last updated**: October 17, 2026
 
 This policy describes what Sagely does with your data, who has access to it,
 and what choices you have. We've tried to keep it short and plain.
@@ -40,6 +40,17 @@ devices.
 | Pebble counts (your daily completion tally) | To show your cairn progress | Firebase Firestore, your private subtree |
 | Optional avatar image you upload | To personalize the app | Firebase Firestore, your private subtree (compressed) |
 
+### Simple usage dates
+
+| Data | Why | Where it's stored |
+| --- | --- | --- |
+| The date your account was first used, the date you last opened the app, and the date you first completed a to-do | So we can count, **in aggregate only**, how many people keep using Sagely (e.g. "how many people opened the app this week") | Firebase Firestore, your private profile |
+
+That's the whole list: three dates on your own profile. They are never sold,
+shared, or used for ads, and we never look at one person's dates to study how
+they use the app. We do **not** record which screens you visit or what you
+tap.
+
 ### Diagnostics
 
 | Data | Why | Where it's stored |
@@ -55,8 +66,9 @@ to-dos or any text you've written.
 
 ## What we do NOT collect
 
-- We do not run any third-party analytics SDKs that track your behavior
-  across apps.
+- We do not use any analytics or advertising SDKs (no Google Analytics /
+  Firebase Analytics, no ad trackers). We don't log what you tap or which
+  screens you visit, and we don't track you across apps or websites.
 - We do not run ads.
 - We do not share, sell, or rent your data to anyone.
 - We do not have a marketing email list. You will not receive promotional

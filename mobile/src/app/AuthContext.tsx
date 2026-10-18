@@ -74,10 +74,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(auth, (u) => {
       setUser(u);
       setLoading(false);
-      // Attribute subsequent analytics events to this uid (or unset
-      // when signed out). Fire-and-forget — never block auth on
-      // an analytics SDK hiccup.
-      void Analytics.setUserId(u?.uid ?? null);
     });
   }, []);
 

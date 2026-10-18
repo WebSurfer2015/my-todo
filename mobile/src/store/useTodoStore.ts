@@ -36,7 +36,6 @@ import { todayLocal, genUuid } from "../../../core/src/logic/utils";
 import { dailyQuoteIndex, quoteAt } from "../../../core/src/data/quotes";
 
 import { pickMascotLine } from "../features/mochi/mascotLines";
-import { Analytics } from "../adapters/analytics";
 
 export function useTodoStore() {
   const { lang, t } = useLang();
