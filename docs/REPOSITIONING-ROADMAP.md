@@ -55,7 +55,7 @@ allowances are now INVISIBLE fair-use ceilings. Typecheck + unit tests green;
 | 1.4 | Over the fair-use ceiling → **graceful local fallback** (raw text handed to manual Compose via `onReviewCreateTodo`; no wall, no paywall) | M | 🔶 |
 | 1.5 | **Paywall → aspirational** triggers only (punitive "out of requests" trigger removed; locked-theme tap + Settings→Membership remain) | S–M | 🔶 |
 | 1.6 | Reprice to **$4.99/mo · $29.99/yr**, annual-led, keep 7-day trial, **no lifetime** | S | 🔶 fallback prices in `PaywallSheet`; real prices live in ASC (5.3) |
-| 1.7 | **Server `RESOURCE_EXHAUSTED` → auto-fallback.** If client and server disagree on the ceiling, the server path still shows the gentle error block ("Enter manually") instead of auto-falling-back like 1.4 | S | ⏳ |
+| 1.7 | **Server `RESOURCE_EXHAUSTED` → auto-fallback.** Chat takes the same fallback as 1.4; step suggestions show a gentle localized "Mochi's resting" note; server ceiling copy de-metered (no counts / countdown / "pay as you go") | S | 🔶 `ac5437c` — server copy needs a functions deploy (with C.1) |
 
 ## PC — Privacy & compliance (launch gate) 🟢 not blocked
 *Added 2026-10-18. App Review 5.1.1(v) requires in-app account deletion to
@@ -104,7 +104,7 @@ Everything 🔶 above is verified only by typecheck + unit tests. Run ONE sessio
 on a **dev client build with the StoreKit config** (`mobile/storekit/`) rather
 than letting it all pile up at 5.4:
 - [ ] De-metered paywall: purchase, restore, trial copy, fallback prices (1.1–1.6)
-- [ ] Over-ceiling fallback hands text to Compose (1.4); server-ceiling edge (1.7)
+- [ ] Over-ceiling fallback hands text to Compose (1.4) — and when only the *server* rejects (1.7: e.g. lower the ceiling in the emulator or use a second device)
 - [ ] VoiceOver reads each sheet's controls individually + focus is trapped (4.1)
 - [ ] Profile gets `createdAt` / `lastActiveDate` / `activatedAt` after app open (0.2b)
 - [ ] End-to-end account deletion with a **throwaway** account after C.1 deploys:
@@ -118,31 +118,30 @@ than letting it all pile up at 5.4:
 | 5.1 | Rewrite **ASC metadata to the new direction, all 6 locales** (English done in `POSITIONING.md`; zh/es/fr/de/ja + Play still need it — do NOT machine-translate). Update the privacy label in the same pass (C.5) | M | 🔴 |
 | 5.2 | **Screenshots lead with feeling** (Mochi, "carried over," calm palette), not feature lists | M | 🔴 |
 | 5.3 | Create final **IAP products** in ASC (`premium.monthly` / `premium.annual` only) | S | 🔴 |
-| 5.4 | Run **`RELEASE-v1.7.0-TEST-MATRIX.md`** on device (incl. de-metered paywall via StoreKit config) | M | 🔴 |
-| 5.5 | Promote `dev`→`main` (**after C.1 is deployed**), tag the release, `eas build --auto-submit` | S | 🔴 — **version undecided: v1.7.0 vs v2.0.0** (see notes) |
+| 5.4 | Run the release test matrix on device (`RELEASE-v1.7.0-TEST-MATRIX.md` — carries over to **v2.0.0**; refresh it for the de-meter: no top-ups/Max) incl. de-metered paywall via StoreKit config | M | 🔴 |
+| 5.5 | Promote `dev`→`main` (**after C.1 is deployed**), tag **`v2.0.0`**, `eas build --auto-submit` | S | 🔴 — `mobile/app.json` already at 2.0.0 |
 
 ---
 
 ## The four hard gates — must be true before the monetized launch
 | Gate | Covered by | Status |
 |---|---|---|
-| 1. **De-meter Mochi** | P1 | 🔶 code done; device checkpoint pending; 1.7 open |
+| 1. **De-meter Mochi** | P1 | 🔶 code done (incl. 1.7); device checkpoint pending |
 | 2. **Privacy-preserving measurement on** (RevenueCat + first-party aggregate; NOT Firebase Analytics) | P0 | ⏳ 0.4 ✅, 0.2b 🔶; 0.1 unconfirmed; 0.2c deferred to TestFlight |
 | 3. **Mochi-sheet accessibility** | P4.1 | 🔶 code done; device VoiceOver pending |
 | 4. **Privacy & compliance** — deletion actually erases data; policy + privacy label match reality *(added 2026-10-18)* | PC | 🔶 C.1 needs deploy; C.2, C.4–C.6 open |
 
 ## Open decisions (owner: you)
-- **Version: v1.7.0 or v2.0.0?** Drives the tag, ASC metadata, screenshots, and
-  the test-matrix filename. Decide before 5.1.
+- ~~Version~~ — **decided 2026-10-18: v2.0.0** (planner → companion is a clean
+  version break). `mobile/app.json` bumped.
 - **Is 0.3 optional?** Only if 3.3 (groceries) is decided by interviews rather
   than usage data.
 
 ## Honest notes for a solo dev
 - This is a large body of work; **P3 (subtraction) is the highest-quality lever
   but the heaviest** — don't let it block the coherent core (P0–P2, PC, P4.1, P5).
-- The version is arguably a **v2.0.0**, not v1.7.0 — the product's self-concept
-  changes (planner → companion), monetization changes, and copy changes. Worth a
-  clean version break.
+- The release is **v2.0.0** (decided 2026-10-18) — the product's self-concept
+  changes (planner → companion), monetization changes, and copy changes.
 - Sequence respects the hold: **P0–P4 and PC can all happen now on `dev`**;
   only P5 waits on Apple.
 - 🔶 is accumulating faster than ✅ — the device checkpoint is the cheapest way
