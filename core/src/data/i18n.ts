@@ -229,6 +229,7 @@ export const strings = {
     suggestSteps: 'Suggest steps',
     suggestStepsThinking: "Mochi's thinking…",
     suggestStepsError: "Couldn't get suggestions.",
+    suggestStepsResting: "Mochi's resting — you can add steps yourself.",
     suggestStepsHint: 'Tap to select',
     addSelected: 'Add selected',
     /** Caption for the daily strip when count == 0. `nounKey` is the
@@ -575,6 +576,7 @@ export const strings = {
     suggestSteps: '建议步骤',
     suggestStepsThinking: 'Mochi 在思考…',
     suggestStepsError: '暂时无法获取建议。',
+    suggestStepsResting: 'Mochi 在休息——你可以自己添加步骤。',
     suggestStepsHint: '点击选择',
     addSelected: '添加所选',
     oneItemCaption: (nounKey: string | null) => {
@@ -911,6 +913,7 @@ export const strings = {
     suggestSteps: 'Sugerir pasos',
     suggestStepsThinking: 'Mochi está pensando…',
     suggestStepsError: 'No se pudieron obtener sugerencias.',
+    suggestStepsResting: 'Mochi está descansando: puedes añadir los pasos tú.',
     suggestStepsHint: 'Toca para seleccionar',
     addSelected: 'Añadir seleccionados',
     oneItemCaption: (nounKey: string | null) => {
@@ -1254,6 +1257,7 @@ export const strings = {
     suggestSteps: 'Suggérer des étapes',
     suggestStepsThinking: 'Mochi réfléchit…',
     suggestStepsError: 'Aucune suggestion pour l\'instant.',
+    suggestStepsResting: 'Mochi se repose — vous pouvez ajouter les étapes vous-même.',
     suggestStepsHint: 'Touchez pour sélectionner',
     addSelected: 'Ajouter la sélection',
     oneItemCaption: (nounKey: string | null) => {
@@ -1597,6 +1601,7 @@ export const strings = {
     suggestSteps: 'ステップを提案',
     suggestStepsThinking: 'Mochi が考えています…',
     suggestStepsError: '提案を取得できませんでした。',
+    suggestStepsResting: 'Mochi はひと休み中です。ステップはご自分で追加できます。',
     suggestStepsHint: 'タップして選択',
     addSelected: '選択を追加',
     oneItemCaption: (nounKey: string | null) => {
@@ -1933,6 +1938,7 @@ export const strings = {
     suggestSteps: 'Schritte vorschlagen',
     suggestStepsThinking: 'Mochi denkt nach…',
     suggestStepsError: 'Keine Vorschläge möglich.',
+    suggestStepsResting: 'Mochi ruht sich aus – du kannst die Schritte selbst hinzufügen.',
     suggestStepsHint: 'Zum Auswählen tippen',
     addSelected: 'Auswahl hinzufügen',
     oneItemCaption: (nounKey: string | null) => {

@@ -14,7 +14,6 @@
 import { HttpsError } from 'firebase-functions/v2/https'
 import * as admin from 'firebase-admin'
 import {
-  TIER_LIMITS,
   FREE_ENTITLEMENT,
   effectiveTier,
   type Entitlement,
@@ -71,9 +70,8 @@ function parseAgentUsage(raw: unknown): AgentUsageData | null {
  * could otherwise rotate that value to grant itself fresh quota.
  * Throws HttpsError('resource-exhausted') when the cap is hit.
  *
- * `label` is folded into the error message so the user sees which
- * endpoint hit the cap — useful UX when ambient calls compete with
- * conversational ones under one quota.
+ * `label` names the endpoint in server logs only; the user-facing
+ * message is the same de-metered copy everywhere (P1.7).
  */
 export async function reserveDailyCall(uid: string, label = 'AI'): Promise<void> {
   const today = new Date().toISOString().slice(0, 10) // YYYY-MM-DD UTC
@@ -84,9 +82,12 @@ export async function reserveDailyCall(uid: string, label = 'AI'): Promise<void>
       const usage = snap.exists ? parseAgentUsage(snap.data()) : null
       const callsToday = usage && usage.date === today ? usage.calls : 0
       if (callsToday >= DAILY_CALL_LIMIT) {
+        console.info(`reserveDailyCall: ${label} fair-use ceiling hit`)
         throw new HttpsError(
           'resource-exhausted',
-          `Daily ${label} limit reached (${DAILY_CALL_LIMIT} per day). It resets after midnight UTC.`,
+          // De-metered copy (no counts, no countdown) — clients normally
+          // replace this with a local fallback (P1.7).
+          `Mochi's resting for now — you can still add this yourself.`,
         )
       }
       const next: AgentUsageData = { date: today, calls: callsToday + 1 }
@@ -246,16 +247,13 @@ export async function reserveMochiRequest(uid: string): Promise<void> {
       const d = decideMochiReservation(tier, ent, usage, today, month)
 
       if (!d.allow) {
-        const limits = TIER_LIMITS[tier]
         throw new HttpsError(
           'resource-exhausted',
-          d.reason === 'daily'
-            ? tier === 'free'
-              ? `That's your ${limits.mochiDaily} free Mochi requests for today. Pay as you go, or they reset tomorrow.`
-              : `Daily Mochi limit reached (${limits.mochiDaily}/day). Pay as you go, or it resets after midnight UTC.`
-            : tier === 'free'
-              ? `You've used your free Mochi requests. Pay as you go, or upgrade for more.`
-              : `Monthly Mochi allowance reached. Pay as you go, or wait for next month.`,
+          // De-metered (docs/MOCHI-MONETIZATION-MODEL.md): the fair-use
+          // ceiling is INVISIBLE — no counts, no reset countdown, and no "pay
+          // as you go" (top-ups were removed). Clients fall back to manual
+          // capture on RESOURCE_EXHAUSTED (P1.7); this text is a last resort.
+          `Mochi's resting for now — you can still add this yourself.`,
         )
       }
       if (d.nextUsage) {

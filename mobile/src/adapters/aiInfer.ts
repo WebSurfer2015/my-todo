@@ -33,6 +33,9 @@ export type { SuggestFieldsResult } from '../../../core/src/ports/aiContracts'
 const AI_INFER_URL =
   'https://us-central1-my-todos-1b079.cloudfunctions.net/aiInfer'
 
+/** `Error.name` of a server fair-use-ceiling rejection (RESOURCE_EXHAUSTED). */
+export const AI_QUOTA_ERROR = 'AiQuotaError'
+
 // A stalled connection (no response, no error) would otherwise hang the
 // caller forever — bound every client fetch with a manual timeout. We use
 // setTimeout + AbortController rather than AbortSignal.timeout(), which
@@ -61,7 +64,10 @@ async function callAiInfer<R>(
       error?: { status?: string; message?: string }
     } | null
     if (peek?.error?.status === 'RESOURCE_EXHAUSTED') {
-      throw new Error(peek.error.message ?? 'AI daily limit reached.')
+      // Tagged so callers branch on the kind, not on server message text.
+      const err = new Error(peek.error.message ?? 'Mochi is resting.')
+      err.name = AI_QUOTA_ERROR
+      throw err
     }
     await new Promise((resolve) => setTimeout(resolve, COLD_START_RETRY_MS))
     res = await fetchAi(idToken, mode, input, signal)

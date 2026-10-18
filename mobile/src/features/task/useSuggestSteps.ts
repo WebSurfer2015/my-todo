@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { suggestSubtasks } from '../../adapters/aiInfer'
+import { AI_QUOTA_ERROR, suggestSubtasks } from '../../adapters/aiInfer'
 import { useLang } from '../../app/LangContext'
 
 export function useSuggestSteps({
@@ -66,11 +66,14 @@ export function useSuggestSteps({
       // A cancelled request (unmount / new request) is not a failure —
       // stay silent rather than flashing an error as the panel closes.
       if (e instanceof Error && e.name === 'AbortError') return
-      // Surface the server's hard-cap message (e.g. "AI daily limit
-      // reached.") instead of the generic error so a quota wall reads as
-      // a quota wall, not a glitch.
-      const msg = e instanceof Error ? e.message : ''
-      setError(/limit|reached|quota/i.test(msg) ? msg : t.suggestStepsError)
+      // Over the invisible fair-use ceiling (P1.7): a gentle, localized
+      // "Mochi's resting" note — never the server's text, never a wall.
+      // Typing steps by hand still works.
+      setError(
+        e instanceof Error && e.name === AI_QUOTA_ERROR
+          ? t.suggestStepsResting
+          : t.suggestStepsError,
+      )
     } finally {
       setThinking(false)
     }

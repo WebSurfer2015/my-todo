@@ -19,10 +19,14 @@ const { suggestSubtasksMock } = vi.hoisted(() => ({
 }))
 vi.mock('../../mobile/src/adapters/aiInfer', () => ({
   suggestSubtasks: suggestSubtasksMock,
+  AI_QUOTA_ERROR: 'AiQuotaError',
 }))
 vi.mock('../../mobile/src/app/LangContext', () => ({
   useLang: () => ({
-    t: { suggestStepsError: 'Could not suggest steps.' },
+    t: {
+      suggestStepsError: 'Could not suggest steps.',
+      suggestStepsResting: 'Mochi is resting.',
+    },
     lang: 'en',
     toggle: vi.fn(),
   }),
@@ -92,6 +96,17 @@ describe('useSuggestSteps', () => {
     expect(result.current.suggestions).toBeNull()
     expect(result.current.error).toBe('Could not suggest steps.')
     expect(result.current.thinking).toBe(false)
+  })
+
+  it('shows the gentle localized note (never the server text) over the fair-use ceiling', async () => {
+    const quota = new Error('Daily AI limit reached (150 per day).')
+    quota.name = 'AiQuotaError'
+    suggestSubtasksMock.mockRejectedValueOnce(quota)
+    const { result } = renderHook(() => useSuggestSteps({ parentTitle: 'X' }))
+    await act(async () => {
+      await result.current.request()
+    })
+    expect(result.current.error).toBe('Mochi is resting.')
   })
 
   it('reset() clears suggestions + error without firing a new request', async () => {

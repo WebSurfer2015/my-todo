@@ -298,28 +298,34 @@ export default function ChatSheet({
     })
   }, [messages, onCaptureWithUndo])
 
+  // P1.4/P1.7 graceful local fallback: over the INVISIBLE fair-use ceiling,
+  // never wall or paywall — hand the raw text to the manual compose form so
+  // the task still gets added (de-metered model, docs/MOCHI-MONETIZATION-MODEL.md).
+  // The companion is never metered; only the AI breakdown gracefully degrades.
+  function fallBackToManual(turn: string) {
+    if (onReviewCreateTodo) {
+      onReviewCreateTodo({ text: turn })
+      close()
+    } else {
+      onEnterManually?.()
+    }
+  }
+
   function handleSend(raw: string = input) {
     const turn = raw.trim()
     if (!turn || isThinking) return
-    // P1.4 graceful local fallback: over the INVISIBLE fair-use ceiling, never
-    // wall or paywall — hand the raw text to the manual compose form so the
-    // task still gets added (de-metered model, docs/MOCHI-MONETIZATION-MODEL.md).
-    // The companion is never metered; only the AI breakdown gracefully degrades.
-    if (!canSendMochi) {
-      Haptics.selectionAsync().catch(() => {})
-      setInput('')
-      if (onReviewCreateTodo) {
-        onReviewCreateTodo({ text: turn })
-        close()
-      } else {
-        onEnterManually?.()
-      }
-      return
-    }
     Haptics.selectionAsync().catch(() => {})
     setInput('')
+    // Client-side ceiling check (P1.4).
+    if (!canSendMochi) {
+      fallBackToManual(turn)
+      return
+    }
     lastSentRef.current = turn
-    send(turn, {
+    // Server-side ceiling (P1.7): the client's usage view can be stale (another
+    // device, a missed snapshot), so the server's RESOURCE_EXHAUSTED takes the
+    // same fallback instead of surfacing a quota wall.
+    void send(turn, {
       today: todayLocal(),
       // Strip to id + label only — no need to leak counts/colors to the model.
       categories: categories.map((c) => ({ id: c.id, label: categoryLabel(c, t) })),
@@ -334,6 +340,8 @@ export default function ChatSheet({
       groceryGroups,
       groceries: groceries.map((g) => ({ id: g.id, text: g.text })),
       stores,
+    }).then((res) => {
+      if (res.error === 'quota') fallBackToManual(turn)
     })
   }
 
@@ -647,8 +655,10 @@ export default function ChatSheet({
                 <View style={styles.errorBlock}>
                   <Text style={styles.errorLine}>{error}</Text>
                   <View style={styles.errorActions}>
-                    {/* A hard daily cap ('quota') can't be retried — only
-                        offer "Try again" for transient/network failures. */}
+                    {/* The fair-use ceiling ('quota') can't be retried — only
+                        offer "Try again" for transient/network failures. A
+                        'quota' error normally never shows here: handleSend
+                        falls back to manual compose (P1.7). */}
                     {errorKind !== 'quota' && !!lastSentRef.current && (
                       <TouchableOpacity
                         style={styles.errorBtn}

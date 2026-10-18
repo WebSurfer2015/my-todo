@@ -235,7 +235,8 @@ function toQuestion(s: string): string {
 
 /** What kind of failure the last send hit — drives the recovery UI.
  *  - 'rate'  → transient throttle; "Try again" can work.
- *  - 'quota' → hard daily cap; retrying won't help (resets after midnight).
+ *  - 'quota' → over the invisible fair-use ceiling; retrying won't help —
+ *              ChatSheet falls back to manual compose (P1.7).
  *  - 'fail'  → network / server error; "Try again" can work. */
 export type MochiErrorKind = 'rate' | 'quota' | 'fail' | null
 
@@ -318,7 +319,10 @@ export function useMochiAgent() {
             error?: { status?: string; message?: string }
           } | null
           if (peek?.error?.status === 'RESOURCE_EXHAUSTED') {
-            setError("That's all your Mochi for today — it resets after midnight.")
+            // De-metered: no "you're out" wall or reset countdown. ChatSheet
+            // normally falls back to manual compose on 'quota' (P1.7); this
+            // copy only shows when no fallback is wired.
+            setError('Mochi needs a little rest — you can add this one yourself.')
             setErrorKind('quota')
             return { ok: false, error: 'quota' }
           }
