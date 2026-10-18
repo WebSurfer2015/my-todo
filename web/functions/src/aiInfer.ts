@@ -126,7 +126,7 @@ export const MODES: Record<Mode, ModeConfig> = {
     // calls within ~5 minutes of each other only re-bill the
     // user-block input delta.
     model: 'claude-haiku-4-5',
-    maxTokens: 80,
+    maxTokens: 160, // full envelope (recurrence + reminder + cleanedText) overran 80
     system: SUGGEST_FIELDS_SYSTEM,
     validateInput: validateSuggestFieldsInput,
     buildUserBlock: (input) => buildSuggestFieldsUserBlock(input as SuggestFieldsInput),
@@ -137,7 +137,7 @@ export const MODES: Record<Mode, ModeConfig> = {
     // max_tokens=300 covers up to ~25 short uuid-like ids in the
     // {"linkedItemIds":[...]} envelope.
     model: 'claude-haiku-4-5',
-    maxTokens: 300,
+    maxTokens: 900, // ~25 tokens per UUID; 300 truncated at ~11 matches → parse fail → "no match"
     system: LINK_STORE_SYSTEM,
     validateInput: validateLinkStoreInput,
     buildUserBlock: (input) => buildLinkStoreUserBlock(input as LinkStoreInput),
@@ -222,12 +222,15 @@ export const aiInfer = onCall(
       )
     }
 
+    // Validate FIRST so a rejected input (e.g. suggest-fields text > 200
+    // chars) can't burn a slot of the shared daily cap without a model call.
+    const input = config.validateInput(data?.input)
+
     // Reserve a quota slot before doing any expensive work. Shared
     // counter with agentChat so a user can't game the cap by spreading
     // calls across endpoints.
     await reserveDailyCall(request.auth.uid, 'AI')
 
-    const input = config.validateInput(data?.input)
     const userBlock = config.buildUserBlock(input as never)
     // Post-process hook: only classify-grocery-dept and
     // link-store-to-items need one today. Logic lives in the per-mode
@@ -296,6 +299,10 @@ export const aiInfer = onCall(
     }
 
     let text = ''
+    // A truncated reply parses as nothing — make it visible in the logs.
+    if (response.stop_reason === 'max_tokens') {
+      console.warn('aiInfer: hit max_tokens', { mode, maxTokens: config.maxTokens })
+    }
     for (const block of response.content) {
       if (block.type === 'text') text += block.text
     }

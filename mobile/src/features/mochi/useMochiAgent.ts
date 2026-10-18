@@ -27,7 +27,9 @@ const AGENT_CHAT_URL =
 // Bound every turn's fetch — a stalled connection would otherwise leave
 // the "thinking…" spinner stuck forever. Manual setTimeout + AbortController
 // (AbortSignal.timeout() isn't reliable in Hermes/RN 0.81).
-const AGENT_FETCH_TIMEOUT_MS = 25000
+// Longer than the server's 25s Anthropic timeout (+ auth/quota/cold start) so
+// a slow-but-successful turn isn't shown as a failure and charged twice.
+const AGENT_FETCH_TIMEOUT_MS = 35000
 
 export type AgentPriority = 'high' | 'medium' | 'low'
 

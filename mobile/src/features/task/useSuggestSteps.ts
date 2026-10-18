@@ -35,11 +35,11 @@ export function useSuggestSteps({
   useEffect(() => () => controllerRef.current?.abort(), [])
 
   async function request() {
-    // Out of AI requests — don't burn a call that the server will reject;
-    // surface the quota wall directly so it isn't a vague failure.
+    // Over the fair-use ceiling — don't burn a call the server will reject;
+    // show the same gentle, localized note as the server path (de-metered).
     if (!canSend) {
       setSuggestions(null)
-      setError("You're out of AI requests right now.")
+      setError(t.suggestStepsResting)
       return
     }
     controllerRef.current?.abort()

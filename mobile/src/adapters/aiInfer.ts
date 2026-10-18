@@ -47,7 +47,10 @@ function quotaError(message?: string): Error {
 // caller forever — bound every client fetch with a manual timeout. We use
 // setTimeout + AbortController rather than AbortSignal.timeout(), which
 // isn't reliably present in Hermes/RN 0.81.
-const AI_FETCH_TIMEOUT_MS = 25000
+// Longer than the server's 25s Anthropic timeout (+ auth/quota/cold start) so
+// a slow-but-successful call isn't shown as a failure and paid for twice on
+// "Try again".
+const AI_FETCH_TIMEOUT_MS = 35000
 
 async function callAiInfer<R>(
   mode: string,

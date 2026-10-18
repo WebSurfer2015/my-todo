@@ -434,7 +434,8 @@ export const agentChat = onCall(
         model: MODEL,
         // Replies are one short sentence + small tool args, so a tight cap
         // keeps latency + cost down across the many turns of a conversation.
-        max_tokens: 512,
+        // One tool_use per grocery item — 512 truncated multi-item adds.
+        max_tokens: 1024,
         // Cache the large, invariant system prompt so multi-turn chats
         // don't re-bill it every turn (~5min ephemeral window). Cast: the
         // pinned SDK types don't expose cache_control on TextBlockParam.
@@ -480,6 +481,10 @@ export const agentChat = onCall(
     // Walk the response: gather text reply + every validated tool call.
     const operations: ProposedOperation[] = []
     let reply = ''
+    // Truncated tool calls are silently dropped — make it visible.
+    if (response.stop_reason === 'max_tokens') {
+      console.warn('agentChat: hit max_tokens')
+    }
     for (const block of response.content) {
       if (block.type === 'text') {
         reply += block.text
