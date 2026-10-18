@@ -108,36 +108,60 @@ real life.")*
 **Screenshots** should lead with *feeling* (Mochi, the gentle "carried over,"
 the calm palette), not feature lists — the brief's growth note.
 
-## 4. Onboarding redesign (3 screens → companion + safety from first open)
-Goal: the aha is **"this app is kind and won't judge me,"** reached before any
-task UI. Keep it 3 screens, skippable.
-1. **Meet Mochi (the companion).** Mochi waves. *"Hi, I'm Mochi. I'll help you
-   keep track of life — gently. No streaks, no scores, no guilt."* Establishes
-   companion + emotional safety in one line.
-2. **How it feels different.** Show "carried over" (not "late") and a reversible
-   done-tap, calm palette. *"Fall behind? We just carry it over. Change your
-   mind? Everything's reversible."* Establishes safety as a mechanic, not a slogan.
-3. **Mochi helps with the hard part.** *"Something too big to start? Tell Mochi —
-   we'll break it into tiny steps, together."* CTA: **"Add my first thing"**
-   (→ Mochi capture) / "I'll explore first."
+## 4. Onboarding — warmth inside the first capture (speed first)
+*(Revised per dual-lens UX #2: three preamble screens delay time-to-value, and
+ADHD/overwhelmed users have the highest drop-off. The aha — "this app is kind
+and won't judge me" — must arrive **with** the first task, not before it.)*
 
-## 5. Mochi: utility → companion (the core product shift)
-Today Mochi is a **summoned tool** that performs operations (capture, breakdown)
-and is largely stateless and functional. The repositioning makes Mochi a
-**character with continuity and warmth.** Concretely:
+**Minimize preamble — first task in under ~15s.**
+1. **One warm screen, skippable.** Mochi waves: *"Hi, I'm Mochi. I'll help you
+   keep track of life — gently. No streaks, no scores, no guilt."* Then straight
+   to capture — a prominent **"Add my first thing"** and a quiet "Skip."
+2. **Teach safety by doing, not by slides.** The "carried over," "reversible,"
+   and "break-it-down" lessons land as gentle *inline* moments the first time
+   each is relevant (first completion → firework + warm line; first overdue →
+   "carried over, no worries"; first big task → "want to break this down?").
+3. Keep the deeper tour in **Guides** for anyone who wants it (already built).
 
-| Dimension | From (utility) | To (companion) |
+## 5. Mochi: utility → **quiet companion** (the core product shift)
+**Reframe (dual-lens #1, both lenses): a *quiet* companion, not a chatty one.**
+Warmth is delivered through tone, microcopy, the completion firework, and the
+existing day-stable mascot lines — **ambient, not talkative.** "Companion" must
+never mean "a bot that says more": for an overwhelmed mind, more words = more
+noise, which breaks the calm promise (`memory/feedback_lower_cognitive_load.md`).
+
+**Local-first rule (this is also the AI-cost guardrail):** ~90% of the
+companion's warmth runs on **device logic + templated / day-stable lines — zero
+model calls.** Reserve the LLM (Haiku) for genuine *capture and breakdown* only.
+This is what keeps a de-metered Mochi (§6) economically sane and honors
+`memory/feedback_ai_token_efficiency.md`.
+
+| Dimension | From (utility) | To (quiet companion) — LOCAL unless noted |
 |---|---|---|
-| Memory | per-session, stateless | greets by name + context ("Morning, Ying — a few things carried over; want to peek?"); remembers recent context |
-| Opening tone | functional prompt | warm, soft, consistent personality (extend the day-stable mascot voice into chat) |
-| Overwhelm | performs a breakdown | acknowledges *first*, helps *second* ("that's a lot — want to start with one tiny piece?") |
-| Presence | only when summoned | optional gentle daily check-in (max 1/day, opt-in), framed as care: "No pressure — here if you want to plan today" |
-| Setbacks | neutral | reframes kindly: overdue → "carried over, no worries"; stalled task → offers to shrink/defer, never scolds |
-| Completion | firework | firework + a warm Mochi line that honors *showing up*, not throughput |
-| Depth | — | ambient: stays out of the way for plain-list users; warmth is opt-in, never forced |
+| Memory | per-session, stateless | **local** context only: greet by name + a glanceable "a few carried over" line; no server round-trip |
+| Tone | functional prompt | warm, soft, consistent — **templated** day-stable mascot voice |
+| Overwhelm | performs a breakdown | acknowledge *first* (**templated**), then offer help; the breakdown itself is the one LLM call |
+| Presence | only when summoned | **default OFF**; any check-in is user-scheduled, framed as *availability* not a prompt; never streak/guilt language |
+| Setbacks | neutral | **templated** kind reframes: overdue → "carried over, no worries"; stalled → offer to shrink/defer |
+| Completion | firework | firework + a **templated** warm line honoring *showing up* |
+| Depth | — | ambient; invisible for plain-list users; warmth never forced |
 
-**Mochi must NOT:** be verbose or interrupt; pretend to be human or a therapist;
-give mental-health/medical advice; or **be metered** (see §6).
+**Mochi must NOT:** be verbose or interrupt; talk more to seem "warmer"; pretend
+to be human or a therapist; give mental-health/medical advice; make an LLM call
+for routine warmth; or be metered (§6).
+
+### 5a. Guardrails (gates — non-negotiable for this positioning)
+1. **Accessibility is the product.** The audience is neurodivergent, so the app
+   must be exemplary on VoiceOver, Dynamic Type, reduce-motion, and low sensory
+   load. ⚠️ Known issue: RN `<Modal>` sheets flatten the a11y tree on iOS
+   (`memory/project_rn_modal_a11y_flatten.md`) — and Mochi lives in a sheet.
+   **Fixing Mochi-sheet accessibility is a gate before the companion ships;** a
+   companion ND users can't navigate with VoiceOver fails the brand at its core.
+2. **AI-cost ceiling:** warmth is local; LLM only for capture/breakdown; Haiku +
+   minimal context + tight max_tokens. De-metering (§6) is only safe because
+   routine warmth costs nothing.
+3. **Privacy framing:** "remembers you" must feel safe, not surveilled — keep
+   memory local and visible; never imply hidden tracking.
 
 ## 6. Hard dependency — fix the monetization contradiction first
 A companion you can **run out of** is incoherent with "emotional safety." This
@@ -165,8 +189,15 @@ toward a top-up, the entire repositioning collapses.
   companion); monetization (de-meter Mochi, §6).
 
 ## 9. Next steps
-1. **Sign off the §0 decision** (ADHD-forward vs soft-overwhelm).
-2. Run the **PM + UX dual-lens** (`memory/feedback_dual_lens_review.md`) on this spec.
-3. Sequence **after** the monetization de-metering (§6 is a prerequisite, not a follow-up).
-4. On approval, fold this into `POSITIONING.md` as the new source of truth and
-   rewrite all 6 locales of the ASC metadata.
+- ✅ §0 decision signed off (ADHD-forward).
+- ✅ PM + UX dual-lens run → `docs/REPOSITIONING-DUAL-LENS.md`; must-fixes folded
+  in (§4 speed, §5 quiet/local-first, §5a guardrails).
+- **Three gates before any Mochi-companion build:** (1) de-meter Mochi (§6),
+  (2) analytics on (§7), (3) Mochi-sheet accessibility fixed (§5a).
+- **Sequence for a solo dev:** ship the cheap/high-value parts first — copy, ASO
+  subtitle/keywords, onboarding microcopy; phase the Mochi-companion rebuild
+  behind the three gates.
+- On approval, fold this into `POSITIONING.md` as the new source of truth and
+  rewrite all 6 locales of the ASC metadata.
+- Everything remains parked behind the Apple Individual→Org conversion
+  (`memory/project_v1_7_0_release_hold`).
