@@ -19,12 +19,13 @@ P4 Mochi-sheet a11y → P5 ASC copy + submit.** The subtraction pass (P3) is the
 biggest quality lever but is large — it can trail the first repositioned release.
 
 ## Next up (as of 2026-10-18)
-1. **Deploy `onUserDeleted`** (C.1) — one command; makes the policy's deletion
-   claim true. Must precede any `dev`→`main` promote.
+1. **Deploy functions** — one command ships `onUserDeleted` (C.1, makes the
+   policy's deletion claim true), the 1.7 server copy, and `metricsRollup`
+   (0.2c). Must precede any `dev`→`main` promote.
 2. **Device-verification checkpoint** (below) — closes the 🔶 rows in gates 1, 3
    and 4 in one session, instead of discovering them at 5.4.
 3. **P2** — the next real code work on the critical path.
-4. Gate-2 paperwork: confirm 0.1, set the 0.2 aggregation-CF trigger.
+4. Gate-2 paperwork: confirm 0.1.
 
 ---
 
@@ -38,7 +39,7 @@ event call sites in `analytics.ts` remain as a no-op seam.*
 | 0.1 | **Tier 1 — RevenueCat** as the monetization-funnel source of truth (trial→paid, churn, LTV) | already integrated; zero new tracking | S (doc only) | ⏳ `MEASUREMENT-PLAN.md` has the Tier 1 section — confirm it's sufficient and mark done |
 | 0.2a | **Tier 2 schema** — `createdAt`/`lastActiveDate`/`activatedAt` on Profile + migration + tests; `metrics/*` covered by default-deny | foundation for activation/retention | S | ✅ `448e688` |
 | 0.2b | **Tier 2 capture** — pure `stampProfileSignals` in core, called once per app open from both `useTodoStore`s | records the signals | S | 🔶 `bca8e52` |
-| 0.2c | **Tier 2 aggregation CF** — scheduled roll-up of **aggregate** counts to `metrics/{date}` (server-only) | answers activation/retention/reactivation with no behavioral logging | M | ⏸ **build when TestFlight external testing starts** (first real users) — must exist before the monetized launch |
+| 0.2c | **Tier 2 aggregation CF** — scheduled roll-up of **aggregate** counts to `metrics/{date}` (server-only) | answers activation/retention/reactivation with no behavioral logging | M | 🔶 built early (2026-10-18): `metricsRollup` scheduled CF (06:15 UTC daily, yesterday's counts) + pure `rollUpMetrics` (unit-tested). Signup cohort = Firebase Auth creation day (profile `createdAt` is lazily stamped). **NOT DEPLOYED** — ships with the next `firebase deploy --only functions` (needs the Cloud Scheduler API enabled) |
 | 0.3 | **Tier 3** — anonymous daily counters for Mochi-used / paywall-shown / CTA / **groceries-used**, by repointing the `analytics.ts` no-op seam to a `recordMetric` CF | product-signal granularity; **3.3 depends on it** | M | ⏳ optional — *unless* 3.3 is decided by data (see 3.3) |
 | 0.4 | Remove `@react-native-firebase/analytics`; honest `PRIVACY.md` note | keeps the privacy promise true | S | ✅ `fc181f5` — wrapper kept as a no-op seam, user-id attribution dropped |
 
@@ -127,7 +128,7 @@ than letting it all pile up at 5.4:
 | Gate | Covered by | Status |
 |---|---|---|
 | 1. **De-meter Mochi** | P1 | 🔶 code done (incl. 1.7); device checkpoint pending |
-| 2. **Privacy-preserving measurement on** (RevenueCat + first-party aggregate; NOT Firebase Analytics) | P0 | ⏳ 0.4 ✅, 0.2b 🔶; 0.1 unconfirmed; 0.2c deferred to TestFlight |
+| 2. **Privacy-preserving measurement on** (RevenueCat + first-party aggregate; NOT Firebase Analytics) | P0 | ⏳ 0.4 ✅, 0.2b/0.2c 🔶 (0.2c needs deploy); 0.1 unconfirmed |
 | 3. **Mochi-sheet accessibility** | P4.1 | 🔶 code done; device VoiceOver pending |
 | 4. **Privacy & compliance** — deletion actually erases data; policy + privacy label match reality *(added 2026-10-18)* | PC | 🔶 C.1 needs deploy; C.2, C.4–C.6 open |
 

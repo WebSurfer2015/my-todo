@@ -27,6 +27,7 @@ import { isAgentEnabled } from './aiInfer'
 export { aiInfer } from './aiInfer'
 export { revenuecatWebhook } from './revenuecat'
 export { onUserDeleted } from './deleteUserData'
+export { metricsRollup } from './metricsRollupJob'
 
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY')
 

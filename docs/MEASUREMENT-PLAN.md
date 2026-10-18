@@ -72,10 +72,17 @@ on-brand.
 ## Build steps (after sign-off)
 1. **Tier 1:** document the RevenueCat dashboard as the monetization source of
    truth (no code).
-2. **Tier 2:** add `lastActiveDate` to user state if missing; write a scheduled
-   Cloud Function that rolls up **aggregate** activation/retention counts to
-   `metrics/{date}`; Firestore rules deny client reads/writes to `metrics/*`
-   (server-only).
+2. **Tier 2:** ~~signals on Profile + capture at app open~~ (done 2026-10-17).
+   **Roll-up built 2026-10-18** (`web/functions/src/metricsRollup*.ts`): daily
+   at 06:15 UTC it writes `metrics/{yesterday}` = `{ users {total, activated},
+   signups, active {d1,d7,d30}, cohorts {d1,d7,d30: cohortDay, size, returned,
+   activated} }` — counts only, no uids. Signup cohort comes from Firebase Auth
+   creation time (profile `createdAt` is stamped lazily, so it would bunch all
+   pre-existing users into one day). Retention is "returned on/after day N"
+   (one `lastActiveDate` can't show every active day); reactivation-after-lapse
+   is NOT derivable from a single date — needs a `previousActiveDate` if
+   wanted. `metrics/*` is server-only via the default-deny rule. Read it in the
+   Firebase Console → Firestore → `metrics`.
 3. **Tier 3 (if chosen):** add a `recordMetric` callable CF; repurpose
    `analytics.ts` to call it; keep the 14 call sites.
 4. ~~Remove `@react-native-firebase/analytics` dep in cleanup.~~ Done 2026-10-17.
