@@ -117,9 +117,10 @@ interface Props {
   /** Optimistically apply a single new to-do / grocery item. Returns the live
    * id (for inline chip-editing; null for groceries), the to-do's resolved
    * category id, and an `undo` the card renders inline. The no-Confirm
-   * capture path. `undo` may ask first (a repeating to-do's "just this one /
-   * whole series" Alert): it then returns a Promise that resolves false on
-   * Cancel, so the card only reads "Removed" once something was removed. */
+   * capture path. `undo` is exact and silent (a repeating capture removes the
+   * whole created series + any category it created); it returns false when
+   * nothing was undone (e.g. a newer turn retired this Undo), so the card only
+   * reads "Removed" once something was removed. */
   onCaptureWithUndo: (op: ProposedOperation) => { id: string | null; category?: string; undo: UndoFn }
   /** Edit a field on a just-captured to-do straight from its card. */
   onEditCapturedTodo: (

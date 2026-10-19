@@ -262,8 +262,6 @@ export const strings = {
       editsApplied: (n: number): string => `Applied to ${n} future to-do${n !== 1 ? 's' : ''} in this series.`,
       editsNothing: 'Nothing to apply.',
       applyToFutureA11y: "Apply this to-do's text, priority, and category to every future to-do in this series",
-      recurrenceRecreated: (n: number): string =>
-        n === 0 ? 'Repeat updated' : `Repeat updated · ${n} upcoming to-do${n !== 1 ? 's' : ''} replaced`,
       subtasksApplied: (n: number): string =>
         n === 0 ? 'Nothing to apply.' : `Steps applied to ${n} upcoming to-do${n !== 1 ? 's' : ''}.`,
     },
@@ -530,8 +528,6 @@ export const strings = {
     series: {
       trashedMany: (n: number): string => `已将此系列中的 ${n} 项任务收起。`,
       editsApplied: (n: number): string => `已应用到此系列中未来的 ${n} 项任务。`,
-      recurrenceRecreated: (n: number): string =>
-        n === 0 ? '已更新重复设置。' : `已更新重复设置。已替换 ${n} 项未来事件。`,
       subtasksApplied: (n: number): string =>
         n === 0 ? '没有可应用的内容。' : `已将步骤应用到 ${n} 项未来事件。`,
       editsNothing: '没有要应用的。',
@@ -792,8 +788,6 @@ export const strings = {
     series: {
       trashedMany: (n: number): string => `${n} tareas de esta serie guardadas.`,
       editsApplied: (n: number): string => `Aplicado a ${n} ${n === 1 ? 'tarea futura' : 'tareas futuras'} de esta serie.`,
-      recurrenceRecreated: (n: number): string =>
-        n === 0 ? 'Programación actualizada.' : `Programación actualizada. ${n} ${n === 1 ? 'evento futuro reemplazado' : 'eventos futuros reemplazados'}.`,
       subtasksApplied: (n: number): string =>
         n === 0 ? 'Nada que aplicar.' : `Pasos aplicados a ${n} ${n === 1 ? 'evento futuro' : 'eventos futuros'}.`,
       editsNothing: 'Nada que aplicar.',
@@ -1054,8 +1048,6 @@ export const strings = {
     series: {
       trashedMany: (n: number): string => `${n} tâches de cette série mises de côté.`,
       editsApplied: (n: number): string => `Appliqué à ${n} ${n === 1 ? 'tâche future' : 'tâches futures'} de cette série.`,
-      recurrenceRecreated: (n: number): string =>
-        n === 0 ? 'Planification mise à jour.' : `Planification mise à jour. ${n} ${n === 1 ? 'événement futur remplacé' : 'événements futurs remplacés'}.`,
       subtasksApplied: (n: number): string =>
         n === 0 ? 'Rien à appliquer.' : `Étapes appliquées à ${n} ${n === 1 ? 'événement futur' : 'événements futurs'}.`,
       editsNothing: 'Rien à appliquer.',
@@ -1316,8 +1308,6 @@ export const strings = {
     series: {
       trashedMany: (n: number): string => `${n}件のシリーズタスクをしまいました。`,
       editsApplied: (n: number): string => `このシリーズの今後${n}件のタスクに適用しました。`,
-      recurrenceRecreated: (n: number): string =>
-        n === 0 ? 'スケジュールを更新しました。' : `スケジュールを更新しました。${n}件の今後のイベントを置き換えました。`,
       subtasksApplied: (n: number): string =>
         n === 0 ? '反映する内容はありません。' : `今後${n}件のイベントにステップを反映しました。`,
       editsNothing: '適用するものはありません。',
@@ -1578,8 +1568,6 @@ export const strings = {
     series: {
       trashedMany: (n: number): string => `${n} Aufgaben dieser Serie weggeräumt.`,
       editsApplied: (n: number): string => `Auf ${n} ${n === 1 ? 'zukünftige Aufgabe' : 'zukünftige Aufgaben'} dieser Serie angewendet.`,
-      recurrenceRecreated: (n: number): string =>
-        n === 0 ? 'Zeitplan aktualisiert.' : `Zeitplan aktualisiert. ${n} ${n === 1 ? 'zukünftiges Ereignis ersetzt' : 'zukünftige Ereignisse ersetzt'}.`,
       subtasksApplied: (n: number): string =>
         n === 0 ? 'Nichts anzuwenden.' : `Schritte auf ${n} ${n === 1 ? 'zukünftiges Ereignis' : 'zukünftige Ereignisse'} angewendet.`,
       editsNothing: 'Nichts anzuwenden.',

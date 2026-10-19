@@ -510,23 +510,6 @@ export function makeStyles(c: ThemeColors) {
       fontWeight: "500",
       paddingVertical: SPACING.sm,
     },
-    signOutInlineText: {
-      fontSize: TYPE.body,
-      color: c.label2,
-      fontWeight: "500",
-      paddingVertical: SPACING.sm,
-      paddingHorizontal: SPACING.xs,
-    },
-    // Destructive Sign Out row at the bottom of the sheet (red on a card,
-    // mirrors the grocery/edit delete-row pattern).
-    signOutRow: {
-      marginTop: SPACING.lg,
-      paddingVertical: SPACING.md,
-      borderRadius: RADIUS.card,
-      backgroundColor: c.card,
-      alignItems: "center",
-    },
-    signOutRowText: { fontSize: TYPE.body, fontWeight: "600", color: c.red },
     deleteInlineText: {
       fontSize: TYPE.body,
       color: c.label3,
