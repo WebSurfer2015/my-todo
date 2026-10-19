@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Filter, ViewMode } from "../core-bindings/types";
 import {
   getOrderedStatuses,
@@ -15,7 +14,6 @@ import { useLang } from "../app/LangContext";
 import { useAuth } from "../app/AuthContext";
 import { useNotify } from "../app/notify";
 import { useReducedMotion } from "../app/useReducedMotion";
-import { storage as localAdapter } from "../adapters/persistence";
 import { db } from "../adapters/firebase";
 import { makeFirestoreAdapter } from "../adapters/firestoreAdapter";
 import {
@@ -23,10 +21,19 @@ import {
   USER_STATE_KEYS,
   SCHEMA_VERSION,
 } from "../../../core/src/ports/persistence";
-import { createTodoStore, migrateLocalToCloud, refreshUsageSignals } from "../../../core/src/store";
-import { todayLocal, genUuid } from "../../../core/src/logic/utils";
+import { createTodoStore, refreshUsageSignals } from "../../../core/src/store";
+import { todayLocal } from "../../../core/src/logic/utils";
 import { dailyQuoteIndex, quoteAt } from "../../../core/src/data/quotes";
 
+/** Signed out there is no account to sync with: reads are empty and writes
+ * go nowhere. (The old AsyncStorage "local mode" and its local→cloud
+ * migration were removed once sign-in became mandatory.) */
+const SIGNED_OUT_ADAPTER: StorageAdapter = {
+  getItem: async () => null,
+  setItem: async () => {},
+  removeItem: async () => {},
+  clear: async () => {},
+};
 
 export function useTodoStore() {
   const { t } = useLang();
@@ -39,39 +46,17 @@ export function useTodoStore() {
   // state to store.derive. Memoized on `t` (the only deps member that
   // varies); actions are pure so this keeps useCallback identities
   // stable across ordinary renders.
-  const store = useMemo(
-    () => createTodoStore({ now: Date.now, genId: genUuid, t }),
-    [t],
-  );
+  const store = useMemo(() => createTodoStore({ t }), [t]);
 
   // Memoize on uid (not the User object) so token refresh — which replaces
-  // the User reference ~hourly — doesn't recreate the adapter, tear down
-  // Firestore listeners, and re-fire migrateLocalToCloud.
+  // the User reference ~hourly — doesn't recreate the adapter and tear down
+  // Firestore listeners. Sign-in is mandatory (AppGate renders <SignIn>
+  // until there's a user), so signed out there is nothing to persist.
   const uid = user?.uid ?? null;
   const adapter = useMemo<StorageAdapter>(
-    () => (uid ? makeFirestoreAdapter(db, uid) : localAdapter),
+    () => (uid ? makeFirestoreAdapter(db, uid) : SIGNED_OUT_ADAPTER),
     [uid],
   );
-
-  useEffect(() => {
-    if (!uid) return;
-    let cancelled = false;
-    // Mobile migrates its grocery superset too (web ships the shared
-    // three). localAdapter reads this device's AsyncStorage; the core
-    // helper's per-key gating prevents stomping any populated cloud key.
-    migrateLocalToCloud(adapter, localAdapter, [
-      "todos",
-      "categories",
-      "profile",
-      "groceries",
-      "groceryGroups",
-    ]).catch((err) => {
-      if (!cancelled) console.warn("Local→cloud migration failed:", err);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [uid, adapter]);
 
 
   // ---- Filter state (session — not persisted) ----
@@ -312,14 +297,6 @@ export function useTodoStore() {
   // SEED_CATEGORIES / SEED_PROFILE for the seeded slices), so the
   // next hydrate is clean.
   //
-  // Local strategy: AsyncStorage.removeItem every known key in
-  // parallel. Without this, migrateLocalToCloud on next sign-in
-  // would push the still-present local copy back to the freshly-
-  // cleared cloud (the inverse race that brought back the data the
-  // user just deleted). signOut() ITSELF only multiRemove's the
-  // legacy ['todos','categories','profile'] subset; we own
-  // todoReferences / groceries / groceryGroups too.
-  //
   // No setX calls: those triggered useSyncedState write-debounces
   // that raced everything else. Letting signOut re-hydrate is the
   // calmer guarantee.
@@ -333,13 +310,6 @@ export function useTodoStore() {
         console.warn(`clearAllData: cloud overwrite failed for ${key}`, err);
       });
     });
-    await Promise.all(
-      USER_STATE_KEYS.map((key) =>
-        AsyncStorage.removeItem(key).catch(() => {
-          // best-effort — already absent or storage hiccup
-        }),
-      ),
-    );
   }, [adapter]);
 
 

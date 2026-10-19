@@ -39,6 +39,38 @@ export interface StorageAdapter {
   ): () => void;
 }
 
+/**
+ * Largest serialized value the shell will try to sync. firestore.rules caps a
+ * state doc's `value` at 512 KiB and rejects anything bigger — the write then
+ * silently reverts. Stop short of that (with headroom for the envelope) so
+ * the shell can tell the user instead of losing the edit.
+ */
+export const MAX_SYNCED_VALUE_BYTES = 480 * 1024;
+
+/** UTF-8 byte length of `s` (≥ its UTF-16 length, so a safe bound for the
+ * rules' `size()` check too). Pure — no TextEncoder dependency. */
+export function utf8ByteLength(s: string): number {
+  let bytes = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0x80) bytes += 1;
+    else if (c < 0x800) bytes += 2;
+    else if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length) {
+      // surrogate pair → one 4-byte code point
+      bytes += 4;
+      i++;
+    } else bytes += 3;
+  }
+  return bytes;
+}
+
+/** True when a serialized value is too big to sync (see MAX_SYNCED_VALUE_BYTES). */
+export function exceedsSyncedValueCap(serialized: string): boolean {
+  // Fast path: even at 3 bytes/char it fits — skip the scan.
+  if (serialized.length * 3 <= MAX_SYNCED_VALUE_BYTES) return false;
+  return utf8ByteLength(serialized) > MAX_SYNCED_VALUE_BYTES;
+}
+
 /** Per-user state document path used by FirestoreAdapter implementations. */
 export function stateDocPath(uid: string, key: string): string {
   return `users/${uid}/state/${key}`;

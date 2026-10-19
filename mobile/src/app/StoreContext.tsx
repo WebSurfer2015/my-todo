@@ -2,7 +2,7 @@
  * Single-source-of-truth provider for the domain store. Each tab screen
  * needs to read the same `todos` / `categories` / `groceries` / `profile`
  * state; calling `useTodoStore()` once per screen would spin up parallel
- * Firestore listeners and re-run `migrateLocalToCloud` per mount. This
+ * Firestore listeners per mount. This
  * context calls the store hook exactly once at the app shell and hands
  * the value down to every screen.
  */

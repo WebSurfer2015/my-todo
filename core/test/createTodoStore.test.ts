@@ -10,7 +10,7 @@ import { strings } from "../src/data/i18n";
 import { newTodo } from "../src/logic/derive";
 import type { StoreDeps } from "../src/store";
 
-const deps: StoreDeps = { now: () => 0, genId: () => "fixed-id", t: strings.en };
+const deps: StoreDeps = { t: strings.en };
 const store = createTodoStore(deps);
 
 describe("createTodoStore", () => {
@@ -42,7 +42,6 @@ describe("createTodoStore", () => {
   });
 
   it("carries the injected deps", () => {
-    expect(store.deps.now()).toBe(0);
-    expect(store.deps.genId()).toBe("fixed-id");
+    expect(store.deps.t).toBe(strings.en);
   });
 });
