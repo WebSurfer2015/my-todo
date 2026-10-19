@@ -11,6 +11,7 @@ import {
   decideFlatCall,
   refundAgentUsage,
   refundMochiUsage,
+  refundableCharge,
   type AgentUsageData,
   type ConvRecord,
   type UsageCharge,
@@ -113,15 +114,42 @@ describe('refundAgentUsage', () => {
     // Nothing to forget and nothing to refund after a rollover → no write.
     expect(refundAgentUsage(usage({ date: TOMORROW, convs: [other] }), charge)).toBeNull()
   })
-  it('a start some RETRY reused (r > 0) is NOT forgotten — the reuse count drops instead', () => {
+  it('a failed start some RETRY is riding on (r > 0) keeps its record AND its slot — only the turn is refunded', () => {
     // Request A minted M; its client timed out and retry B reused M (r=1) and
     // may hold a signed reply; then A's upstream call failed → A refunds.
+    // B's conversation continues on A's slot, so the slot is NOT given back.
     const reused = conv('MMMMMMMMMMMMMMMM', 2, { r: 1 })
-    const charge: UsageCharge = { date: TODAY, calls: 1, chatTurns: 1, chatConversations: 1, mochi: null, convId: reused.id }
-    const out = refundAgentUsage(usage({ calls: 1, chatTurns: 2, chatConversations: 1, convs: [reused] }), charge)
-    expect(out).toEqual(usage({ chatTurns: 1, convs: [{ ...reused, r: 0 }] }))
-    // B's follow-up then still continues M.
-    expect(out?.convs?.map((c) => c.id)).toEqual([reused.id])
+    const charge: UsageCharge = { date: TODAY, calls: 1, chatTurns: 1, chatConversations: 1, mochi: { date: TODAY, month: MONTH }, convId: reused.id }
+    const before = usage({ calls: 1, chatTurns: 2, chatConversations: 1, convs: [reused] })
+    const out = refundAgentUsage(before, charge)
+    expect(out).toEqual(usage({ calls: 1, chatTurns: 1, chatConversations: 1, convs: [reused] }))
+    expect(refundableCharge(before, charge)).toEqual({ ...charge, calls: 0, chatConversations: 0, mochi: null })
+    // No retry riding on it (r=0) or record gone → the charge as recorded.
+    expect(refundableCharge(usage({ convs: [{ ...reused, r: 0 }] }), charge)).toBe(charge)
+    expect(refundableCharge(usage(), charge)).toBe(charge)
+    expect(refundableCharge(null, charge)).toBe(charge)
+  })
+  it('a START RETRY refund gives back its reuse (r − 1, never below 0), never a slot', () => {
+    const rec = conv('MMMMMMMMMMMMMMMM', 2, { r: 2, n: 3 })
+    const charge: UsageCharge = { date: TODAY, calls: 0, chatTurns: 1, chatConversations: 0, mochi: null, reusedConvId: rec.id }
+    expect(refundAgentUsage(usage({ calls: 1, chatTurns: 3, chatConversations: 1, convs: [rec] }), charge)).toEqual(
+      usage({ calls: 1, chatTurns: 2, chatConversations: 1, convs: [{ ...rec, r: 1 }] }),
+    )
+    const zero = conv('MMMMMMMMMMMMMMMM', 2)
+    expect(refundAgentUsage(usage({ chatTurns: 1, convs: [zero] }), charge)?.convs).toEqual([zero])
+    // Across a rollover the record still gets its reuse back.
+    expect(refundAgentUsage(usage({ date: TOMORROW, convs: [rec] }), charge)).toEqual(
+      usage({ date: TOMORROW, convs: [{ ...rec, r: 1 }] }),
+    )
+  })
+  it('each conversation field refunds ITS OWN record (precedence: minted, then reused, then follow-up)', () => {
+    const a = conv('AAAAAAAAAAAAAAAA', 1, { r: 0 })
+    const b = conv('BBBBBBBBBBBBBBBB', 2, { n: 3 })
+    const minted: UsageCharge = { date: TODAY, calls: 1, chatTurns: 1, chatConversations: 1, mochi: null, convId: a.id, followUpConvId: b.id }
+    expect(refundAgentUsage(usage({ calls: 1, chatTurns: 2, chatConversations: 1, convs: [a, b] }), minted)?.convs).toEqual([b])
+    const ar = { ...a, r: 1 }
+    const reused: UsageCharge = { date: TODAY, calls: 0, chatTurns: 1, chatConversations: 0, mochi: null, reusedConvId: ar.id, followUpConvId: b.id }
+    expect(refundAgentUsage(usage({ chatTurns: 2, convs: [ar, b] }), reused)?.convs).toEqual([{ ...ar, r: 0 }, b])
   })
   it('a FOLLOW-UP refund gives back its per-conversation turn (never below 0)', () => {
     const live = conv('LLLLLLLLLLLLLLLL', 2, { n: 5 })

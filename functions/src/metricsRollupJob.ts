@@ -12,12 +12,24 @@
  * if it grows, mirror the three signals into a queryable field instead.
  *
  * Idempotent: re-running for the same day overwrites the same doc.
+ *
+ * The same pass is also the DAILY CLEAN-UP of Mochi conversation records
+ * (agentUsage `convs`, chatQuota.ts): a record expires 24h after its last
+ * use, but reservations only drop expired ones lazily on the user's next
+ * Mochi request — so the job removes them for users who don't come back
+ * (docs/PRIVACY.md promises this). It reuses the agentUsage snapshot it
+ * already read, so it costs one write per user with something expired and no
+ * extra reads or index. Each write is conditional on the doc's update time
+ * (precondition): if a live reservation/refund wrote it since the read, the
+ * write fails and is skipped — never clobbering a live write — and the next
+ * run retries (that live write's own transaction already filters expired
+ * records on reserve). Re-running is a no-op.
  */
 
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import * as admin from 'firebase-admin'
 import { addDays, rollUpMetrics, toDay, type MochiDay, type RollupUser } from './metricsRollup'
-import { chatDaysFromUsage, parseAgentUsage } from './chatQuota'
+import { chatDaysFromUsage, parseAgentUsage, pruneExpiredConvs } from './chatQuota'
 
 if (admin.apps.length === 0) admin.initializeApp()
 
@@ -46,7 +58,38 @@ function parseMochiDays(raw: unknown): MochiDay[] {
   }))
 }
 
-export async function collectRollupUsers(): Promise<RollupUser[]> {
+/** Conditional writes of pruned agentUsage docs, collected during the scan. */
+export interface PruneStats {
+  /** Docs that had expired conversation records. */
+  candidates: number
+  /** Docs actually rewritten (the rest lost a precondition race or failed). */
+  pruned: number
+}
+
+/**
+ * Remove expired conversation records from ONE agentUsage snapshot (see the
+ * header). Resolves true when the doc was rewritten; false when nothing had
+ * expired. Rejects when the write failed (incl. a lost precondition race).
+ */
+export async function pruneUsageSnapshot(
+  snap: FirebaseFirestore.DocumentSnapshot,
+  nowMs: number,
+): Promise<boolean> {
+  if (!snap.exists) return false
+  const next = pruneExpiredConvs(parseAgentUsage(snap.data()), nowMs)
+  if (!next) return false
+  await snap.ref.update(
+    { value: JSON.stringify({ version: 1, data: next }), updatedAt: nowMs },
+    // Only if nobody wrote the doc since we read it (no lost update).
+    { lastUpdateTime: snap.updateTime },
+  )
+  return true
+}
+
+export async function collectRollupUsers(
+  prune: PruneStats = { candidates: 0, pruned: 0 },
+  nowMs: number = Date.now(),
+): Promise<RollupUser[]> {
   const db = admin.firestore()
   const accounts: { uid: string; signupDay: string }[] = []
   let pageToken: string | undefined
@@ -70,6 +113,21 @@ export async function collectRollupUsers(): Promise<RollupUser[]> {
         db.doc(`users/${a.uid}/state/agentUsage`),
       ]),
     )
+    // Daily conversation-record clean-up on the snapshots just read; bounded
+    // by the chunk size, and a failure here never fails the roll-up.
+    const results = await Promise.allSettled(
+      chunk.map((_a, j) => pruneUsageSnapshot(snaps[2 * j + 1], nowMs)),
+    )
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        if (r.value) {
+          prune.candidates++
+          prune.pruned++
+        }
+      } else {
+        prune.candidates++ // lost a race with a live write, or failed: next run retries
+      }
+    }
     chunk.forEach((a, j) => {
       const signals = snaps[2 * j]
       const usage = snaps[2 * j + 1]
@@ -97,11 +155,15 @@ export const metricsRollup = onSchedule(
   },
   async () => {
     const day = addDays(new Date().toISOString().slice(0, 10), -1)
-    const metrics = rollUpMetrics(await collectRollupUsers(), day)
+    const prune: PruneStats = { candidates: 0, pruned: 0 }
+    const metrics = rollUpMetrics(await collectRollupUsers(prune), day)
     await admin
       .firestore()
       .doc(`metrics/${day}`)
       .set({ ...metrics, computedAt: Date.now(), version: 2 }) // v2: + mochi
-    console.log(`metricsRollup: wrote metrics/${day} (${metrics.users.total} users)`)
+    console.log(
+      `metricsRollup: wrote metrics/${day} (${metrics.users.total} users); ` +
+        `pruned expired conversation records on ${prune.pruned}/${prune.candidates} docs`,
+    )
   },
 )
