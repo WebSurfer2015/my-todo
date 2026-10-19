@@ -1180,7 +1180,7 @@ export default function ComposeSheet({
                           setPickerDate(new Date(`${p.value}T00:00:00`))
                         }}
                         accessibilityRole="button"
-                        accessibilityLabel={`Due ${p.label}`}
+                        accessibilityLabel={`Complete by ${p.label}`}
                       >
                         <Text style={[styles.datePresetChipText, active && styles.datePresetChipTextActive]}>
                           {p.label}

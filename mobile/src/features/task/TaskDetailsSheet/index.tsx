@@ -27,7 +27,7 @@ import ReminderSheet from '../ReminderSheet'
 
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
-import { dueDateToDate, dueDateWithDay, formatDisplayDate, fullDateLabel, isoDate, todayLocal } from '../../../core-bindings/utils'
+import { dueDateToDate, dueDateWithDay, fullDateLabel, isoDate, todayLocal } from '../../../core-bindings/utils'
 import {
   endOfWeekLocal,
   endOfMonthLocal,
@@ -64,6 +64,8 @@ import {
 } from '../../../../../core/src/logic/labels'
 import { makeStyles } from './styles';
 import { planStepDoneFooter, stepDoneUndoAfterToggle } from './stepDoneFooter'
+import { buildSeriesCommit } from './seriesCommit'
+import { rowDateLabel } from '../rowDateLabel'
 import { absoluteDateLabel } from '../absoluteDateLabel'
 
 function isCustomRecurrence(rec: Recurrence | undefined): boolean {
@@ -105,6 +107,9 @@ interface Props {
    * sub-view for this subtask id (skipping the parent edit view). */
   initialSubtaskEditId?: string | null
   onClose: () => void
+  /** The sheet mounted — starts the host's ghost-guard clock (timed from
+   * mount, so a slow cold-launch / resume present isn't cut off). */
+  onMounted?: () => void
   /** The Modal presented (onShow) — the host's ghost guard clears a request
    * whose sheet iOS refused to present. */
   onShown?: () => void
@@ -168,7 +173,7 @@ function todoContentDiffers(a: Todo, b: Todo): boolean {
 }
 
 export default function TaskDetailsSheet({
-  visible, todo, categories, initialSubtaskEditId, onClose, onShown, registerClose, onUpdateText, onUpdateNotes,
+  visible, todo, categories, initialSubtaskEditId, onClose, onMounted, onShown, registerClose, onUpdateText, onUpdateNotes,
   onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminders, onMoveToTrash, onToggle, onPermanentDelete, onMoveSeriesFutureToTrash, onSkip, onSkipSeries, onPermanentDeleteSeries, onCommitSeriesEdits, onDetachFromSeries,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
@@ -522,29 +527,29 @@ export default function TaskDetailsSheet({
     const trimmedText = editText.trim()
     const textChanged = !!trimmedText && trimmedText !== todo.text
     const notesChanged = editNotes !== (todo.notes ?? '')
-    const priorityChanged = editPriority !== todo.priority
-    const categoryChanged = editCategory !== todo.category
     const recurrenceChanged =
       JSON.stringify(editRecurrence ?? null) !== JSON.stringify(todo.recurrence ?? null)
     const dueDateChanged = editDueDate !== (todo.dueDate ?? '')
     const remindersChanged = JSON.stringify(editReminders) !== JSON.stringify(getReminders(todo))
 
-    // The buffered text/notes/priority/category, committed (to this row +
-    // future siblings) together with whatever the dialogs below add — as
-    // one change with one Undo.
-    const fields: SeriesCommit['fields'] = {}
-    if (textChanged) fields.text = trimmedText
-    if (notesChanged) fields.notes = editNotes
-    if (priorityChanged) fields.priority = editPriority
-    if (categoryChanged) fields.category = editCategory
-    // This occurrence's own date / reminders, buffered in series mode.
-    const thisRow: NonNullable<SeriesCommit['thisRow']> = {}
-    if (dueDateChanged) thisRow.dueDate = editDueDate
-    if (remindersChanged) thisRow.reminders = editReminders
-    const hasThisRow = dueDateChanged || remindersChanged
+    // The buffered text/notes/priority/category (to this row + future
+    // siblings) and this occurrence's own date / reminders, committed
+    // together with whatever the dialogs below add — as one change with one
+    // Undo (built by the pure buildSeriesCommit).
     function commitSeries(extra: Omit<SeriesCommit, 'fields' | 'thisRow'> = {}) {
-      if (Object.keys(fields).length === 0 && !hasThisRow && !extra.recurrence && !extra.subtasks) return
-      onCommitSeriesEdits(todo.id, { fields, ...(hasThisRow ? { thisRow } : {}), ...extra })
+      const commit = buildSeriesCommit(
+        todo,
+        {
+          text: editText,
+          notes: editNotes,
+          priority: editPriority,
+          category: editCategory,
+          dueDate: editDueDate,
+          reminders: editReminders,
+        },
+        extra,
+      )
+      if (commit) onCommitSeriesEdits(todo.id, commit)
     }
 
     const subtasksChanged =
@@ -773,6 +778,11 @@ export default function TaskDetailsSheet({
   // Expose the save-and-close path to the host (latest closure via a ref).
   const closeAndFlushRef = useRef(closeAndFlushText)
   closeAndFlushRef.current = closeAndFlushText
+  // Mounted: the host's ghost guard starts its clock now (not at the
+  // request — a slow cold-launch / resume present must not be cut off).
+  useEffect(() => {
+    onMounted?.()
+  }, [onMounted])
   useEffect(() => {
     if (!registerClose) return
     registerClose(() => closeAndFlushRef.current())
@@ -897,9 +907,11 @@ export default function TaskDetailsSheet({
                         'Delete this step?',
                         [
                           { text: t.cancel, style: 'cancel' },
+                          // Not styled destructive: a step delete is undoable
+                          // ("Changes saved · Undo" on close) — red is for
+                          // permanent deletes.
                           {
                             text: t.deleteSubtask,
-                            style: 'destructive',
                             onPress: () => {
                               onRemoveSubtask(todo.id, subId)
                               setEditingSubtaskId(null)
@@ -1052,7 +1064,7 @@ export default function TaskDetailsSheet({
                         setEditPickerDate(new Date(`${p.value}T00:00:00`))
                       }}
                       accessibilityRole="button"
-                      accessibilityLabel={`Due ${p.label}`}
+                      accessibilityLabel={`Complete by ${p.label}`}
                     >
                       <Text style={[styles.datePresetChipText, active && styles.datePresetChipTextActive]}>
                         {p.label}
@@ -1504,9 +1516,9 @@ export default function TaskDetailsSheet({
                         t.clearAllStepsConfirm,
                         [
                           { text: t.cancel, style: 'cancel' },
+                          // Reversible (Undo / series Undo): no red.
                           {
                             text: t.clearAllSteps,
-                            style: 'destructive',
                             onPress: () => onClearSubtasks(todo.id),
                           },
                         ],
@@ -1944,7 +1956,7 @@ function SubtaskCard({
                   ? styles.subDateChipMuted
                   : styles.subDateChipPlain,
           ]}>
-            {dueDate ? formatDisplayDate(dueDate, t.locale) : t.noDate}
+            {dueDate ? rowDateLabel(dueDate, t.locale) : t.noDate}
           </Text>
         </TouchableOpacity>
       )}

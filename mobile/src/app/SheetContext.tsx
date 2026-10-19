@@ -203,6 +203,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   const {
     detailsReq,
     openTaskDetails,
+    detailsMounted,
     detailsShown,
     closeTaskDetails,
     registerDetailsClose,
@@ -757,6 +758,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           categories={store.categories}
           initialSubtaskEditId={detailsReq.subtaskId}
           onClose={closeTaskDetails}
+          onMounted={detailsMounted}
           onShown={detailsShown}
           registerClose={registerDetailsClose}
           onUpdateText={store.updateText}

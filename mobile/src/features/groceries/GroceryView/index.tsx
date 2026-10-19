@@ -416,12 +416,13 @@ export default function GroceryView({
     return g ?? null
   }, [effectiveDept, visibleGroups])
 
+  const togglePin = (name: string, kind: 'store' | 'dept') =>
+    kind === 'store' ? onTogglePinnedStore(name) : onTogglePinnedDept(name)
   function promptPin(name: string, kind: 'store' | 'dept', label: string) {
     const isPinned =
       kind === 'store' ? pinnedStores.includes(name) : pinnedDepts.includes(name)
     const actionLabel = isPinned ? 'Unpin' : 'Pin'
-    const toggle = () =>
-      kind === 'store' ? onTogglePinnedStore(name) : onTogglePinnedDept(name)
+    const toggle = () => togglePin(name, kind)
     if (Platform.OS === 'ios') {
       actionSheetWithPresence(
         { options: [actionLabel, 'Cancel'], title: label, cancelButtonIndex: 1 },
@@ -505,6 +506,7 @@ export default function GroceryView({
               onLongPress={() =>
                 promptPin(leadingActiveStore, 'store', leadingActiveStore)
               }
+              onTogglePin={() => togglePin(leadingActiveStore, 'store')}
               onLayoutX={(x) => {
                 pillXRef.current[`store-${leadingActiveStore}`] = x
               }}
@@ -535,6 +537,7 @@ export default function GroceryView({
               onLongPress={() =>
                 promptPin(leadingActiveDept.id, 'dept', leadingActiveDept.label)
               }
+              onTogglePin={() => togglePin(leadingActiveDept.id, 'dept')}
               styles={styles}
             />
           )}
@@ -547,6 +550,7 @@ export default function GroceryView({
               pinned={pinnedStores.includes(s)}
               onPress={() => onSetActiveStore(s)}
               onLongPress={() => promptPin(s, 'store', s)}
+              onTogglePin={() => togglePin(s, 'store')}
               onLayoutX={(x) => {
                 pillXRef.current[`store-${s}`] = x
               }}
@@ -579,6 +583,7 @@ export default function GroceryView({
                   pillXRef.current[`dept-${g.id}`] = x
                 }}
                 onLongPress={() => promptPin(g.id, 'dept', g.label)}
+                onTogglePin={() => togglePin(g.id, 'dept')}
                 styles={styles}
               />
             )

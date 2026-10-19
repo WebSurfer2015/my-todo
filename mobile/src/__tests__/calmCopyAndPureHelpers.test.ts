@@ -12,7 +12,7 @@ import { categoryDeletedMessage, EXPORT_FAILED_MESSAGE } from '../app/sheetMessa
 import { undoOutcome } from '../features/mochi/undoOutcome'
 import { isCaptureCardEditable } from '../features/mochi/captureCardEditable'
 import { planStepDoneFooter, stepDoneUndoAfterToggle } from '../features/task/TaskDetailsSheet/stepDoneFooter'
-import { actionSheetWithPresence, alertWithPresence, isAnyModalPresented, __resetModalPresenceForTests } from '../app/modalPresence'
+import { ACTION_SHEET_MAX_PRESENCE_MS, actionSheetWithPresence, alertWithPresence, isAnyModalPresented, __resetModalPresenceForTests } from '../app/modalPresence'
 import { MODAL_DISMISS_GRACE_MS } from '../app/modalTiming'
 
 describe('store snackbar copy', () => {
@@ -192,6 +192,32 @@ describe('actionSheetWithPresence', () => {
     calls[1].cb(1)
     vi.advanceTimersByTime(MODAL_DISMISS_GRACE_MS)
     expect(isAnyModalPresented()).toBe(false)
+  })
+
+  it('a callback that never fires (sheet never presented) auto-releases after the max lifetime', () => {
+    const calls = capture()
+    const cb = vi.fn()
+    actionSheetWithPresence({ options: ['Pin', 'Cancel'], cancelButtonIndex: 1 }, cb)
+    vi.advanceTimersByTime(ACTION_SHEET_MAX_PRESENCE_MS - 1)
+    expect(isAnyModalPresented()).toBe(true)
+    vi.advanceTimersByTime(1 + MODAL_DISMISS_GRACE_MS)
+    // Not leaked: details can open again.
+    expect(isAnyModalPresented()).toBe(false)
+    expect(cb).not.toHaveBeenCalled()
+    // A very late callback still runs, and can't uncount another sheet.
+    actionSheetWithPresence({ options: ['Pin', 'Cancel'], cancelButtonIndex: 1 }, () => {})
+    calls[0].cb(1)
+    expect(cb).toHaveBeenCalledWith(1)
+    vi.advanceTimersByTime(MODAL_DISMISS_GRACE_MS)
+    expect(isAnyModalPresented()).toBe(true)
+  })
+
+  it('an answered sheet cancels its max-lifetime timer', () => {
+    const calls = capture()
+    actionSheetWithPresence({ options: ['Pin', 'Cancel'], cancelButtonIndex: 1 }, () => {})
+    calls[0].cb(0)
+    vi.advanceTimersByTime(MODAL_DISMISS_GRACE_MS)
+    expect(vi.getTimerCount()).toBe(0)
   })
 })
 

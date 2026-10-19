@@ -64,9 +64,6 @@ function isoMinutesBeforeDue(dueDate: string, minutes: number): string {
   return isoLocalDateTime(base)
 }
 
-/** "Thu 6:00 PM" for another day, "9:00 AM" for today (core labels). */
-const presetTimeLabel = (at: string): string => weekdayTime(at)
-
 /** Render text for a "before due" pill. */
 function beforeDuePillLabel(
   minutes: number,
@@ -315,10 +312,10 @@ export default function ReminderSheet({
                   onPress={() => togglePreset(p.at)}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: active }}
-                  accessibilityLabel={`${label}, ${presetTimeLabel(p.at)}`}
+                  accessibilityLabel={`${label}, ${weekdayTime(p.at)}`}
                 >
                   <Text style={styles.presetRowLabel}>{label}</Text>
-                  <Text style={styles.presetRowTime}>{presetTimeLabel(p.at)}</Text>
+                  <Text style={styles.presetRowTime}>{weekdayTime(p.at)}</Text>
                   <Text style={[styles.presetRowCheck, !active && styles.presetRowCheckOff]}>✓</Text>
                 </TouchableOpacity>
               )

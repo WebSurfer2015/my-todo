@@ -15,6 +15,9 @@ export interface StorePillProps {
   onLayoutX?: (x: number) => void;
   onPress: () => void;
   onLongPress: (() => void) | undefined;
+  /** Pin / unpin directly — the long-press menu's choice, offered to
+   * VoiceOver as a custom action. */
+  onTogglePin?: () => void;
   styles: Styles;
   /** When true and `active` is false, render the mint-outline
    * "candidate" style — mirrors Todos FilterBar's `pillExtra`. */
@@ -30,6 +33,7 @@ export default function StorePill({
   onLayoutX,
   onPress,
   onLongPress,
+  onTogglePin,
   styles,
   inactiveOutline,
 }: StorePillProps) {
@@ -48,7 +52,16 @@ export default function StorePill({
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
       accessibilityLabel={`${label}, ${count}${active ? ", selected" : ""}${pinned ? ", pinned" : ""}`}
-      accessibilityHint={onLongPress ? "Long-press to pin or unpin" : undefined}
+      // The long-press menu's choice as a VoiceOver custom action
+      // (discoverable by swiping up / down — no gesture hint needed).
+      accessibilityActions={onTogglePin ? [{ name: "pin", label: pinned ? "Unpin" : "Pin" }] : undefined}
+      onAccessibilityAction={
+        onTogglePin
+          ? (e) => {
+              if (e.nativeEvent.actionName === "pin") onTogglePin();
+            }
+          : undefined
+      }
     >
       {/* Pin glyph removed for calm — a pinned pill persists in the row, which
           is the signal; long-press still pins/unpins. */}

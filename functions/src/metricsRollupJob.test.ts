@@ -173,3 +173,27 @@ describe('metricsRollup schedule', () => {
     expect(h.store.get('users/u1/state/agentUsage')?.data.updatedAt).toBe(NOW)
   })
 })
+
+describe('collectRollupUsers — several users in one getAll batch', () => {
+  it("each row pairs that user's own signals + usage (interleaved snapshots)", async () => {
+    h.state.users = [user('u1'), user('u2')]
+    h.put('users/u1/state/signals', envelope({ lastActiveDate: '2026-10-17' }))
+    h.put(
+      'users/u1/state/agentUsage',
+      envelope({ date: '2026-10-18', calls: 1, chatTurns: 4, chatConversations: 1, ceilingHit: false, convs: [] }),
+    )
+    h.put('users/u2/state/signals', envelope({ lastActiveDate: '2026-10-18' }))
+    h.put(
+      'users/u2/state/agentUsage',
+      envelope({ date: '2026-10-18', calls: 2, chatTurns: 7, chatConversations: 3, ceilingHit: true, convs: [] }),
+    )
+    const rows = await collectRollupUsers(undefined, NOW)
+    expect(rows).toHaveLength(2)
+    expect(rows[0].mochiDays).toBeDefined()
+    expect(rows[1].mochiDays).toBeDefined()
+    expect(rows[0].mochiDays).toEqual([{ date: '2026-10-18', conversations: 1, turns: 4, ceilingHit: false }])
+    expect(rows[1].mochiDays).toEqual([{ date: '2026-10-18', conversations: 3, turns: 7, ceilingHit: true }])
+    expect(rows[0]).toMatchObject({ lastActiveDate: '2026-10-17' })
+    expect(rows[1]).toMatchObject({ lastActiveDate: '2026-10-18' })
+  })
+})

@@ -105,3 +105,18 @@ function safeStringify(v: unknown): string {
     return String(v)
   }
 }
+
+/**
+ * Record a NON-fatal, self-healed oddity (e.g. a user tap the app had to
+ * drop) so a recurring one shows up in Crashlytics instead of staying
+ * invisible. Never throws; carries no user data — callers pass a fixed
+ * message, not to-do text.
+ */
+export function reportNonFatal(message: string): void {
+  try {
+    crashlytics().log(message)
+    crashlytics().recordError(new Error(message))
+  } catch {
+    // never propagate from the reporter
+  }
+}

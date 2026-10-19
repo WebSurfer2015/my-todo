@@ -10,7 +10,8 @@ import Svg, { Rect, Path } from 'react-native-svg'
 import { Priority, PRIORITY_VALUES, PRIORITY_COLORS } from '../../core-bindings/types'
 import { useLang } from '../../app/LangContext'
 import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
-import { dueDateToDate, formatDisplayDate, fullDateLabel, isoDate } from '../../core-bindings/utils'
+import { dueDateToDate, fullDateLabel, isoDate } from '../../core-bindings/utils'
+import { rowDateLabel } from './rowDateLabel'
 import PriorityDot from '../../ui/PriorityDot'
 import InlinePicker from '../../ui/InlinePicker'
 import { useModalPresence } from '../../app/modalPresence'
@@ -151,7 +152,7 @@ export default function AddSubtaskSheet({ visible, onAdd, onClose, defaultDueDat
                       onPress={openDateView}
                       activeOpacity={0.6}
                       accessibilityRole="button"
-                      accessibilityLabel={`Complete by, ${dueDate ? formatDisplayDate(dueDate, t.locale) : t.noDate}. Tap to change.`}
+                      accessibilityLabel={`Complete by, ${dueDate ? rowDateLabel(dueDate, t.locale) : t.noDate}. Tap to change.`}
                     >
                       <CalendarIcon size={18} color={dueDate ? theme.blue : theme.gray3} />
                       <Text style={styles.fieldLabel}>{t.composeDateLabel}</Text>
@@ -162,7 +163,7 @@ export default function AddSubtaskSheet({ visible, onAdd, onClose, defaultDueDat
                         ]}
                         numberOfLines={1}
                       >
-                        {dueDate ? formatDisplayDate(dueDate, t.locale) : t.noDate}
+                        {dueDate ? rowDateLabel(dueDate, t.locale) : t.noDate}
                       </Text>
                       <Text style={styles.chevron}>›</Text>
                     </TouchableOpacity>

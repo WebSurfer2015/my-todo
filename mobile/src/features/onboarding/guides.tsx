@@ -255,7 +255,7 @@ export const GUIDES: Guide[] = [
     slides: [
       {
         title: 'Say it however you like',
-        body: "Tap + and say it however you like. Every to-do change Mochi makes can be undone.",
+        body: "Tap + and say it however you like. Mochi's latest change always comes with an Undo.",
         visual: (
           <MockupSheet title="Ask Mochi">
             <MockupTextField text="Dentist Friday, and pick up milk" />
@@ -327,7 +327,6 @@ export const GUIDES: Guide[] = [
         body: "Turn AI help off entirely in Settings → AI assistance.",
         visual: (
           <MockupSheet title="Settings">
-            <MockupRow label="Completion animation" value="On" />
             <MockupRow label="AI assistance" value="On" highlight />
             <MockupRow label="Theme" value="Sage" muted />
           </MockupSheet>
@@ -398,7 +397,7 @@ export const GUIDES: Guide[] = [
     slides: [
       {
         title: 'Add a step',
-        body: "Open a to-do → tap «+ Add a step…». Each step gets its own priority + due date. Checking the to-do's circle completes every step at once.",
+        body: "Open a to-do → tap «+ Add a step…». Each step gets its own priority and Complete by date. Checking the to-do's circle completes every step at once.",
         visual: (
           <MockupSheet title="Edit to-do">
             <View style={inlineStyles.subsHeader}>

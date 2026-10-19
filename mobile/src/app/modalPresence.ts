@@ -26,18 +26,30 @@ export function isAnyModalPresented(): boolean {
   return presented > 0
 }
 
+/** An action sheet counts as presented for at most this long. Its callback
+ * should always fire, but if iOS never presents it (no presented view
+ * controller, present refused) a leaked count would block every details
+ * open forever — so it auto-releases. No one leaves a long-press menu up
+ * this long. */
+export const ACTION_SHEET_MAX_PRESENCE_MS = 60_000
+
 /** Count one presentation; the returned release (idempotent) uncounts it
- * after the dismiss grace. */
-function present(): () => void {
+ * after the dismiss grace. `maxLifetimeMs` = release by itself after that
+ * long (a self-heal for a callback that never comes). */
+function present(maxLifetimeMs?: number): () => void {
   presented += 1
   let released = false
-  return () => {
+  let lifetime: ReturnType<typeof setTimeout> | null = null
+  const release = () => {
     if (released) return
     released = true
+    if (lifetime) clearTimeout(lifetime)
     setTimeout(() => {
       presented = Math.max(0, presented - 1)
     }, MODAL_DISMISS_GRACE_MS)
   }
+  if (maxLifetimeMs !== undefined) lifetime = setTimeout(release, maxLifetimeMs)
+  return release
 }
 
 /** Count this Modal as presented while `visible`. Call unconditionally (before
@@ -76,13 +88,15 @@ export function alertWithPresence(
 }
 
 /** `ActionSheetIOS.showActionSheetWithOptions` that counts as presented until
- * its callback fires. iOS always calls it — with the cancel index on Cancel or
- * an outside tap — so the release can't leak; it's idempotent regardless. */
+ * its callback fires (iOS calls it with the cancel index on Cancel or an
+ * outside tap) — or, if it never fires because the sheet was never
+ * presented, for at most ACTION_SHEET_MAX_PRESENCE_MS. Release is
+ * idempotent. */
 export function actionSheetWithPresence(
   options: Parameters<typeof ActionSheetIOS.showActionSheetWithOptions>[0],
   callback: (buttonIndex: number) => void,
 ): void {
-  const release = present()
+  const release = present(ACTION_SHEET_MAX_PRESENCE_MS)
   ActionSheetIOS.showActionSheetWithOptions(options, (i) => {
     release()
     callback(i)
