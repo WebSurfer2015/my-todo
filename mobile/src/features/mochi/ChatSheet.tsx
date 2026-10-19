@@ -27,6 +27,7 @@ import { pickMatchHeader, supersededProposalTurns } from './chatTurns'
 import MochiThinking from './MochiThinking'
 import EditableCaptureCard, { type CapturedTodoPatch } from './EditableCaptureCard'
 import { undoOutcome, type UndoFn } from './undoOutcome'
+import { useInlineUndo } from './useInlineUndo'
 import { snapDueDateToRecurrence } from '../../../../core/src/logic/derive'
 import { buildFallbackCapture } from '../../../../core/src/logic/mochiFallback'
 import { markMochiResting, mochiRestLabel, mochiRestUntil, type MochiRestScope } from './mochiRest'
@@ -42,8 +43,8 @@ import { formatCalendarDate, recurrenceShortLabel, type RecurrenceFreqStrings } 
  * it resolves once they're all answered — `applied` false means the user kept
  * everything as is, so the card must not say "✓ Done". */
 export interface MochiApplyResult {
-  undo: (() => void) | null
-  pending?: Promise<{ undo: (() => void) | null; applied: boolean; keptSome: boolean }>
+  undo: UndoFn | null
+  pending?: Promise<{ undo: UndoFn | null; applied: boolean; keptSome: boolean }>
 }
 
 
@@ -122,13 +123,13 @@ interface Props {
   onApplyPickedTodos: (
     op: Extract<ProposedOperation, { kind: 'pickTodos' }>,
     selectedIds: string[],
-  ) => (() => void) | null
+  ) => UndoFn | null
   /** Move one to-do to the Trash — `scope:'series'` also moves all future
    * occurrences. Reversible, so the cards don't confirm. */
-  onDeleteTodo: (id: string, scope: 'one' | 'series') => (() => void) | null
+  onDeleteTodo: (id: string, scope: 'one' | 'series') => UndoFn | null
   /** Bulk-act on the pick-list's ticked items: skip / defer (to dueDate) /
    * delete. The card owns the date picker + delete confirm. */
-  onPickAction: (action: 'skip' | 'defer' | 'delete', ids: string[], dueDate?: string) => (() => void) | null
+  onPickAction: (action: 'skip' | 'defer' | 'delete', ids: string[], dueDate?: string) => UndoFn | null
   /** Review a proposed NEW todo in the manual ComposeSheet instead of
    * applying it directly — the chat parsed the words, the manual form (the
    * same code a manual add uses) lets the user confirm/edit and save. When
@@ -1056,13 +1057,15 @@ function AppliedWithUndo({
   styles,
 }: {
   note: string
-  undo: (() => void) | null
+  undo: UndoFn | null
   styles: ReturnType<typeof makeStyles>
 }) {
-  const [undone, setUndone] = useState(false)
+  // "Undone" only once the Undo really put something back.
+  const { state, run } = useInlineUndo(undo)
   // Retired once a newer Mochi turn applied changes.
   const live = useUndoLive(undo)
-  if (undone) return <Text style={styles.appliedNote}>Undone</Text>
+  if (state === 'undone') return <Text style={styles.appliedNote}>Undone</Text>
+  if (state === 'nothing') return <Text style={styles.appliedNote}>✓ {note} · Nothing to undo</Text>
   if (!undo || !live) return <Text style={styles.appliedNote}>✓ {note}</Text>
   return (
     <View style={styles.appliedRow}>
@@ -1070,8 +1073,7 @@ function AppliedWithUndo({
       <TouchableOpacity
         hitSlop={8}
         onPress={() => {
-          undo()
-          setUndone(true)
+          void run()
         }}
         accessibilityRole="button"
         accessibilityLabel={`Undo: ${note}`}
@@ -1095,17 +1097,17 @@ function PickTodosCard({
   op: Extract<ProposedOperation, { kind: 'pickTodos' }>
   candidates: PickCandidate[]
   categoryLabelLookup: (id: string) => string
-  onConfirm: (selectedIds: string[]) => (() => void) | null
-  onDeleteTodo: (id: string, scope: 'one' | 'series') => (() => void) | null
-  onPickAction: (action: 'skip' | 'defer' | 'delete', ids: string[], dueDate?: string) => (() => void) | null
+  onConfirm: (selectedIds: string[]) => UndoFn | null
+  onDeleteTodo: (id: string, scope: 'one' | 'series') => UndoFn | null
+  onPickAction: (action: 'skip' | 'defer' | 'delete', ids: string[], dueDate?: string) => UndoFn | null
   styles: ReturnType<typeof makeStyles>
   theme: ThemeColors
 }) {
   const { t } = useLang()
   const { action, query } = op.args
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [done, setDone] = useState<{ note: string; undo: (() => void) | null } | null>(null)
-  const [seriesDeleted, setSeriesDeleted] = useState<{ undo: (() => void) | null } | null>(null)
+  const [done, setDone] = useState<{ note: string; undo: UndoFn | null } | null>(null)
+  const [seriesDeleted, setSeriesDeleted] = useState<{ undo: UndoFn | null } | null>(null)
   // Defer: closed → the DeferModal-style preset rows → (Pick a date) a picker.
   const [deferOpen, setDeferOpen] = useState<false | 'presets' | 'picker'>(false)
   // delete lists let the user choose Skip / Defer / Delete on the ticked
@@ -1371,12 +1373,12 @@ function DeleteTodoCard({
 }: {
   text: string
   isSeries: boolean
-  onDelete: (scope: 'one' | 'series') => (() => void) | null
+  onDelete: (scope: 'one' | 'series') => UndoFn | null
   styles: ReturnType<typeof makeStyles>
 }) {
   const [text] = useState(textProp)
   const [isSeries] = useState(isSeriesProp)
-  const [done, setDone] = useState<null | { scope: 'one' | 'series'; undo: (() => void) | null }>(null)
+  const [done, setDone] = useState<null | { scope: 'one' | 'series'; undo: UndoFn | null }>(null)
   // Synchronous double-tap guard — delete once.
   const actedRef = useRef(false)
 

@@ -9,7 +9,6 @@ import {
   ScrollView,
   Platform,
   KeyboardAvoidingView,
-  Alert,
   Pressable,
   StyleSheet,
 } from 'react-native'
@@ -38,7 +37,7 @@ import { sortedSubs, snapDueDateToRecurrence } from '../../../../../core/src/log
 import { useTheme } from '../../../app/theme'
 import { useLang } from '../../../app/LangContext'
 import { useNotify } from '../../../app/notify'
-import { useModalPresence } from '../../../app/modalPresence'
+import { alertWithPresence, useModalPresence } from '../../../app/modalPresence'
 import { useStore } from '../../../app/StoreContext'
 import type { SeriesCommit } from '../../../store/slices/useTodosSlice'
 import PriorityDot from '../../../ui/PriorityDot'
@@ -64,6 +63,7 @@ import {
 } from '../../../../../core/src/logic/labels'
 import { makeStyles } from './styles';
 import { planStepDoneFooter, stepDoneUndoAfterToggle } from './stepDoneFooter'
+import { buildDetailsUndo, type RecurrenceStep } from './detailsUndo'
 import { buildSeriesCommit } from './seriesCommit'
 import { rowDateLabel } from '../rowDateLabel'
 import { absoluteDateLabel } from '../absoluteDateLabel'
@@ -121,7 +121,8 @@ interface Props {
   onUpdatePriority: (id: string, priority: Priority) => void
   onUpdateDueDate: (id: string, dueDate: string) => void
   onUpdateCategory: (id: string, category: Category) => void
-  onUpdateRecurrence: (id: string, recurrence: Recurrence | undefined) => void
+  /** Returns the change's tracked Undo (null = nothing changed). */
+  onUpdateRecurrence: (id: string, recurrence: Recurrence | undefined) => (() => boolean) | null
   /** Multi-reminder write — replaces the entire `reminders[]` on a todo
    * (ReminderSheet's Done, the AI reminder pill). The OS-level schedule
    * is reconciled separately by App.tsx's reminder sync effect. */
@@ -259,6 +260,9 @@ export default function TaskDetailsSheet({
   // One commit model: every field saves as you edit; closing shows
   // "Changes saved · Undo", and Undo restores this snapshot.
   const entryTodoRef = useRef<Todo | null>(null)
+  // Repeat changes made this session (with their tracked Undos): the close
+  // Undo must also remove the occurrences they generated (buildDetailsUndo).
+  const recurrenceStepsRef = useRef<RecurrenceStep[]>([])
   // (Pending pickerDate / pendingRemindAt / Interval / Until and
   // remindSubView removed — the redesigned ReminderSubView owns
   // its own chip-selection state and returns the built reminder
@@ -351,6 +355,7 @@ export default function TaskDetailsSheet({
       setEditRecurrence(todo.recurrence)
       setEditReminders(getReminders(todo))
       entryTodoRef.current = todo
+      recurrenceStepsRef.current = []
       setParentEditView('main')
       // Honor an opener-provided "open into subtask edit" intent. If the
       // caller passed a subtask id, jump straight into its edit form.
@@ -466,7 +471,9 @@ export default function TaskDetailsSheet({
     // commits live (existing R6a behavior).
     const seriesBuffer = editMode === 'series' && isSeriesRow
     if (!seriesBuffer && JSON.stringify(r ?? null) !== JSON.stringify(todo.recurrence ?? null)) {
-      onUpdateRecurrence(todo.id, r)
+      const undo = onUpdateRecurrence(todo.id, r)
+      const rowAfter = undo ? store.todosRef.current.find((td) => td.id === todo.id) : undefined
+      if (undo && rowAfter) recurrenceStepsRef.current.push({ rowAfter, undo })
     }
     // Snap dueDate to the first matching occurrence when the
     // recurrence has a weekday filter and the current dueDate
@@ -496,7 +503,7 @@ export default function TaskDetailsSheet({
       JSON.stringify(next) === JSON.stringify(getReminders(todo))
     if (sameAsStored) return
     if (next.length > 0 && !(await ensurePermission())) {
-      Alert.alert(t.remindPermissionDeniedTitle, t.remindPermissionDeniedBody)
+      alertWithPresence(t.remindPermissionDeniedTitle, t.remindPermissionDeniedBody)
       setEditReminders(getReminders(todo))
       return
     }
@@ -562,7 +569,7 @@ export default function TaskDetailsSheet({
     // already carries the user's just-edited subtasks; so the R6c
     // propagation is redundant in this branch and skipped.
     if (seriesCommit && recurrenceChanged) {
-      Alert.alert(
+      alertWithPresence(
         t.seriesFreqChangeTitle,
         t.seriesFreqChangeBody,
         [
@@ -590,7 +597,7 @@ export default function TaskDetailsSheet({
     // R6c — series + subtask shape change (and no recurrence change):
     // ask whether to overwrite all or keep modified.
     if (subtasksChanged) {
-      Alert.alert(
+      alertWithPresence(
         t.seriesSubtasksChangeTitle,
         t.seriesSubtasksChangeBody,
         [
@@ -639,7 +646,7 @@ export default function TaskDetailsSheet({
         notify.showSnackbar({
           message: t.changesSaved,
           actionLabel: t.undo,
-          onAction: () => store.revertTodo(snapshot),
+          onAction: buildDetailsUndo(snapshot, recurrenceStepsRef.current, store.revertTodo),
         })
       }
     }
@@ -902,7 +909,7 @@ export default function TaskDetailsSheet({
                     onPress={() => {
                       const subId = editingSubtaskId
                       if (!subId) return
-                      Alert.alert(
+                      alertWithPresence(
                         t.deleteSubtask,
                         'Delete this step?',
                         [
@@ -1511,7 +1518,7 @@ export default function TaskDetailsSheet({
                   <TouchableOpacity
                     style={styles.clearStepsLink}
                     onPress={() => {
-                      Alert.alert(
+                      alertWithPresence(
                         t.clearAllSteps,
                         t.clearAllStepsConfirm,
                         [
@@ -1616,7 +1623,7 @@ export default function TaskDetailsSheet({
                     // the bin. The App Store copy promises this.
                     if (!isBinFooter) {
                       if (seriesScope) {
-                        Alert.alert(
+                        alertWithPresence(
                           'Delete this and future to-dos?',
                           'They move to Done, where they stay for 30 days. Past ones are kept.',
                           [
@@ -1637,7 +1644,7 @@ export default function TaskDetailsSheet({
                       }
                       return
                     }
-                    Alert.alert(
+                    alertWithPresence(
                       seriesScope ? 'Delete series?' : t.deletePermanently,
                       seriesScope
                         ? 'Permanently delete this and all future to-dos in this series. Past instances are kept.'
@@ -1658,9 +1665,8 @@ export default function TaskDetailsSheet({
                   }}
                   activeOpacity={0.6}
                   accessibilityRole="button"
-                  accessibilityLabel={
-                    isBinFooter ? (seriesScope ? 'Delete series' : t.deletePermanently) : t.deleteTask
-                  }
+                  // Same words as the visible label.
+                  accessibilityLabel={seriesScope ? 'Delete series' : isBinFooter ? t.deletePermanently : t.deleteTask}
                 >
                   {/* Red only when it's permanent (already in Done); a
                       reversible delete reads neutral. */}
@@ -1963,4 +1969,3 @@ function SubtaskCard({
     </View>
   )
 }
-

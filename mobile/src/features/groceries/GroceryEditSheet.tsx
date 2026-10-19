@@ -201,8 +201,8 @@ export default function GroceryEditSheet({
         <Text style={styles.deleteText}>Delete item</Text>
       </TouchableOpacity>
       <Text style={styles.deleteHint}>
-        Deletion is permanent. Checked items live in Future and can always be
-        added back from there.
+        Deleting can&apos;t be undone. Checked items rest in Saved — tap one to
+        add it back.
       </Text>
     </SheetShell>
   )

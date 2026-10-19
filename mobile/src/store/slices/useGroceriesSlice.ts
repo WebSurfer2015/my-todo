@@ -21,7 +21,7 @@ import { Profile } from "../../core-bindings/profile";
 import { classifyGroceryDept } from "../../adapters/aiInfer";
 import { StorageAdapter } from "../../../../core/src/ports/persistence";
 import { TodoStoreActions } from "../../../../core/src/store";
-import { unwrap, serializeAny } from "../../storage/envelope";
+import { unwrapEnvelope as unwrap, wrapEnvelope as serializeAny } from "../../../../core/src/ports/persistence";
 
 const parseGroceries = (raw: string | null): GroceryItem[] =>
   migrateGroceries(unwrap(raw));

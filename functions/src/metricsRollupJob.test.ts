@@ -64,7 +64,7 @@ vi.mock('firebase-admin', () => ({
   }),
 }))
 
-import { collectRollupUsers, metricsRollup, pruneUsageSnapshot, type PruneStats } from './metricsRollupJob'
+import { collectRollupUsers, GET_ALL_CHUNK, metricsRollup, pruneUsageSnapshot, type PruneStats } from './metricsRollupJob'
 import { CONV_RECORD_TTL_MS, parseAgentUsage } from './chatQuota'
 
 const NOW = new Date('2026-10-19T12:00:00.000Z').getTime()
@@ -195,5 +195,31 @@ describe('collectRollupUsers — several users in one getAll batch', () => {
     expect(rows[1].mochiDays).toEqual([{ date: '2026-10-18', conversations: 3, turns: 7, ceilingHit: true }])
     expect(rows[0]).toMatchObject({ lastActiveDate: '2026-10-17' })
     expect(rows[1]).toMatchObject({ lastActiveDate: '2026-10-18' })
+  })
+})
+
+describe('collectRollupUsers — a bad doc and the getAll chunk boundary', () => {
+  it("one user's unparseable signals don't drop or corrupt anyone's row", async () => {
+    h.state.users = [user('a'), user('b')]
+    h.put('users/a/state/signals', { value: '{bad', updatedAt: 1 })
+    h.put('users/b/state/signals', envelope({ lastActiveDate: '2026-10-18' }))
+    const rows = await collectRollupUsers(undefined, NOW)
+    expect(rows).toHaveLength(2)
+    expect(rows[0].lastActiveDate).toBeUndefined()
+    expect(rows[0].signupDay).toBe('2026-10-01')
+    expect(rows[1]).toMatchObject({ signupDay: '2026-10-01', lastActiveDate: '2026-10-18' })
+  })
+
+  it('more users than one getAll chunk: every user gets its own row, across two batches', async () => {
+    const n = GET_ALL_CHUNK + 1
+    h.state.users = Array.from({ length: n }, (_, i) => user(`u${i}`))
+    // The users either side of the boundary carry distinct signals.
+    h.put(`users/u${GET_ALL_CHUNK - 1}/state/signals`, envelope({ lastActiveDate: '2026-10-16' }))
+    h.put(`users/u${GET_ALL_CHUNK}/state/signals`, envelope({ lastActiveDate: '2026-10-17' }))
+    const rows = await collectRollupUsers(undefined, NOW)
+    expect(rows).toHaveLength(n)
+    expect(rows[GET_ALL_CHUNK - 1].lastActiveDate).toBe('2026-10-16')
+    expect(rows[GET_ALL_CHUNK].lastActiveDate).toBe('2026-10-17')
+    expect(rows.filter((r) => r.lastActiveDate).length).toBe(2)
   })
 })

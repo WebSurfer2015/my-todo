@@ -91,7 +91,7 @@ export default function SignIn() {
     } catch (err) {
       console.error("[auth] email sign-in failed", err);
       try {
-        crashlytics().log(`auth error (email): ${authErrorDiagnostic(err, "email") || "(none)"}`);
+        crashlytics().log(`auth error (email): ${authErrorDiagnostic(err, "email")}`);
         crashlytics().recordError(err instanceof Error ? err : new Error(String(err)));
       } catch {
         // best-effort
@@ -120,7 +120,7 @@ export default function SignIn() {
       }
       console.error("[auth] sign-in failed", { flow, code, err });
       try {
-        crashlytics().log(`auth error (${flow}): ${authErrorDiagnostic(err, flow) || "(none)"}`);
+        crashlytics().log(`auth error (${flow}): ${authErrorDiagnostic(err, flow)}`);
         crashlytics().recordError(err instanceof Error ? err : new Error(String(err)));
       } catch {
         // never let crash reporting take down sign-in

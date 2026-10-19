@@ -281,4 +281,24 @@ describe('NotifyProvider snackbar slot', () => {
     expect(document.body.textContent).toContain('Completed')
     expect(onBlocked).not.toHaveBeenCalled()
   })
+  it('pressing Undo whose action shows a follow-up snackbar leaves the follow-up visible', () => {
+    const hook = setup()
+    const undo = vi.fn(() => hook.result.current.showSnackbar({ message: 'Some changes could not be undone' }))
+    act(() => hook.result.current.showSnackbar({ message: 'Changes saved', actionLabel: 'Undo', onAction: undo }))
+    const btn = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Undo')!
+    act(() => btn.click())
+    expect(undo).toHaveBeenCalledTimes(1)
+    expect(document.body.textContent).not.toContain('Changes saved')
+    expect(document.body.textContent).toContain('Some changes could not be undone')
+  })
+
+  it('pressing Undo with nothing follow-up just closes the snackbar', () => {
+    const hook = setup()
+    const undo = vi.fn()
+    act(() => hook.result.current.showSnackbar({ message: 'Changes saved', actionLabel: 'Undo', onAction: undo }))
+    const btn = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Undo')!
+    act(() => btn.click())
+    expect(undo).toHaveBeenCalledTimes(1)
+    expect(document.body.textContent).not.toContain('Changes saved')
+  })
 })

@@ -17,7 +17,7 @@
  * needs to re-render when it changes.
  */
 import { useEffect } from 'react'
-import { ActionSheetIOS, Alert, type AlertButton } from 'react-native'
+import { ActionSheetIOS, Alert, AppState, type AlertButton } from 'react-native'
 import { MODAL_DISMISS_GRACE_MS } from './modalTiming'
 
 let presented = 0
@@ -26,7 +26,8 @@ export function isAnyModalPresented(): boolean {
   return presented > 0
 }
 
-/** An action sheet counts as presented for at most this long. Its callback
+/** An action sheet counts as presented for at most this long in the
+ * foreground (the clock pauses while backgrounded). Its callback
  * should always fire, but if iOS never presents it (no presented view
  * controller, present refused) a leaked count would block every details
  * open forever — so it auto-releases. No one leaves a long-press menu up
@@ -35,20 +36,39 @@ export const ACTION_SHEET_MAX_PRESENCE_MS = 60_000
 
 /** Count one presentation; the returned release (idempotent) uncounts it
  * after the dismiss grace. `maxLifetimeMs` = release by itself after that
- * long (a self-heal for a callback that never comes). */
+ * long in the foreground (a self-heal for a callback that never comes). The
+ * clock is paused while the app isn't `active` — the sheet is still up when
+ * the user returns — and a fresh `maxLifetimeMs` is armed on return. */
 function present(maxLifetimeMs?: number): () => void {
   presented += 1
   let released = false
   let lifetime: ReturnType<typeof setTimeout> | null = null
+  let appStateSub: { remove: () => void } | null = null
+  const stopLifetime = () => {
+    if (lifetime) clearTimeout(lifetime)
+    lifetime = null
+  }
   const release = () => {
     if (released) return
     released = true
-    if (lifetime) clearTimeout(lifetime)
+    stopLifetime()
+    appStateSub?.remove()
+    appStateSub = null
     setTimeout(() => {
       presented = Math.max(0, presented - 1)
     }, MODAL_DISMISS_GRACE_MS)
   }
-  if (maxLifetimeMs !== undefined) lifetime = setTimeout(release, maxLifetimeMs)
+  if (maxLifetimeMs !== undefined) {
+    const armLifetime = () => {
+      stopLifetime()
+      lifetime = setTimeout(release, maxLifetimeMs)
+    }
+    if (AppState.currentState === 'active') armLifetime()
+    appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') armLifetime()
+      else stopLifetime()
+    })
+  }
   return release
 }
 

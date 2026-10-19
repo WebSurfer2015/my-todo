@@ -7,8 +7,8 @@
  * Pure function, no native deps — hosts cleanly under web vitest.
  */
 import { describe, expect, it } from 'vitest'
-import { AUTH_UNKNOWN_MESSAGE, authErrorCode, authErrorDiagnostic, mapAuthError } from '../adapters/authErrors'
-import { AUTH_FALLBACK_MESSAGE, authErrorCode as coreAuthErrorCode } from '../../../core/src/data/authMessages'
+import { authErrorDiagnostic, mapAuthError } from '../adapters/authErrors'
+import { AUTH_FALLBACK_MESSAGE, authErrorCode } from '../../../core/src/data/authMessages'
 
 /** Configuration jargon must never reach the sign-in screen. */
 const JARGON = /OAuth|client ID|Service ID|handshake|misconfigured|configured|for this build|scope/i
@@ -124,21 +124,17 @@ describe('mapAuthError — network heuristics', () => {
 
 describe('mapAuthError — defensive fallbacks', () => {
   it('handles null / undefined input', () => {
-    expect(mapAuthError(null)).toBe(AUTH_UNKNOWN_MESSAGE)
-    expect(mapAuthError(undefined)).toBe(AUTH_UNKNOWN_MESSAGE)
+    expect(mapAuthError(null)).toBe(AUTH_FALLBACK_MESSAGE)
+    expect(mapAuthError(undefined)).toBe(AUTH_FALLBACK_MESSAGE)
   })
   it('handles missing code and missing message', () => {
-    expect(mapAuthError({})).toBe(AUTH_UNKNOWN_MESSAGE)
+    expect(mapAuthError({})).toBe(AUTH_FALLBACK_MESSAGE)
   })
   it('an unknown error shows calm copy — never its raw message or code', () => {
     const out = mapAuthError({ code: 'SOME_SDK_THING', message: 'NSInternalInconsistency 0xdead' })
     expect(out).toBe("Couldn't sign you in just now. Please try again.")
     expect(out).not.toContain('SOME_SDK_THING')
     expect(mapAuthError({ code: 'X', message: 'network down' })).not.toContain('(X)')
-  })
-  it("the mobile names are core's helpers (no duplicate copies)", () => {
-    expect(AUTH_UNKNOWN_MESSAGE).toBe(AUTH_FALLBACK_MESSAGE)
-    expect(authErrorCode).toBe(coreAuthErrorCode)
   })
   it('authErrorCode stringifies the code for the Crashlytics log', () => {
     expect(authErrorCode({ code: 1004 })).toBe('1004')

@@ -27,6 +27,7 @@ import {
 import PriorityDot from '../../../ui/PriorityDot'
 import CategoryIcon from '../../../ui/CategoryIcon'
 import InlinePicker from '../../../ui/InlinePicker'
+import EmptyStateCard from '../../../ui/EmptyStateCard'
 import CustomRecurrenceForm from '../CustomRecurrenceForm'
 import AddSubtaskSheet from '../AddSubtaskSheet'
 import { useTodoFieldSuggestions, TodoFieldSuggestPills } from '../TodoFieldSuggestPills'
@@ -919,13 +920,7 @@ export default function ComposeSheet({
                   )}
                   <View style={styles.stepsCard}>
                     {pendingSubtasks.length === 0 ? (
-                      <View style={styles.stepsEmpty}>
-                        <View style={styles.stepsEmptyDot} />
-                        <Text style={styles.stepsEmptyTitle}>No steps yet</Text>
-                        <Text style={styles.stepsEmptyHint}>
-                          Break this task into smaller steps when you're ready.
-                        </Text>
-                      </View>
+                      <EmptyStateCard title={t.steps.noneYet} hint={t.steps.noneHint} hideGlyph />
                     ) : (
                       pendingSubtasks.map((s, i) => (
                         <View key={s.id}>

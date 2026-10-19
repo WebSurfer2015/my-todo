@@ -34,7 +34,9 @@ devices.
 
 | Data | Why | Where it's stored |
 | --- | --- | --- |
-| Your to-dos and steps | The whole point of the app | Firebase Firestore, your private subtree |
+| Your to-dos and steps, including their notes and reminders | The whole point of the app | Firebase Firestore, your private subtree |
+| Your shopping list (items, aisles, stores) | To keep your shopping list | Firebase Firestore, your private subtree |
+| Titles of to-dos you've added (the most recent 500, with the category, priority and repeat you gave them) | So Compose can suggest them again as you type | Firebase Firestore, your private subtree |
 | Categories (custom + default) | To organize your to-dos | Firebase Firestore, your private subtree |
 | Profile settings (theme, reminder preferences, etc.) | To remember your preferences | Firebase Firestore, your private subtree |
 | Optional avatar image you upload | To personalize the app | Firebase Firestore, your private subtree (compressed) |
@@ -52,7 +54,9 @@ server when:
   seconds) — the title is sent so Mochi can suggest a category, date, or
   reminder you can tap to apply;
 - you add a shopping item the app can't sort into an aisle on the device, or
-  that may name a store ("milk from Costco").
+  that may name a store ("milk from Costco");
+- you add a new store — your shopping items' text is sent so Mochi can tag
+  which ones that store carries.
 
 | Data | Why | Where it goes |
 | --- | --- | --- |
@@ -169,7 +173,8 @@ even if the app is closed right after:
 
 - Your Firebase Authentication account
 - Everything stored under your account in Firestore: to-dos, categories,
-  shopping list, profile, usage dates, Mochi usage counts, and your
+  shopping list, to-do titles kept for suggestions, profile, usage dates,
+  Mochi usage counts, and your
   subscription status
 
 This is irreversible. There is no 30-day grace period for account deletion

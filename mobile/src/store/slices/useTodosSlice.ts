@@ -46,7 +46,7 @@ import {
 } from "../../../../core/src/logic/utils";
 import { useSyncedState } from "../useSyncedState";
 import { StorageAdapter } from "../../../../core/src/ports/persistence";
-import { unwrap, serializeAny } from "../../storage/envelope";
+import { unwrapEnvelope as unwrap, wrapEnvelope as serializeAny } from "../../../../core/src/ports/persistence";
 
 const parseTodos = (raw: string | null): Todo[] => migrateTodos(unwrap(raw));
 const parseTodoReferences = (raw: string | null): TodoReference[] =>
