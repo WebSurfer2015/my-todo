@@ -15,7 +15,15 @@
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
+  /** Assistant turns only: the server's HMAC over this reply text, echoed
+   * back by the client (chatSignature.ts). Proves the turn really came from
+   * agentChat, so a client can't fake earlier history to skip the fair-use
+   * slot. Server-side bookkeeping ONLY — never forwarded to Anthropic. */
+  sig?: string
 }
+
+/** Signatures are base64url SHA-256 HMACs (43 chars); anything longer is junk. */
+const MAX_SIG_CHARS = 128
 
 /** Our own prompt-envelope tags. User-written text (turns, to-do/category/
  * store names) must never contain them, or it could close the envelope early
@@ -52,7 +60,18 @@ export function normalizeChatMessages(messages: unknown): ChatMessage[] {
   const window = messages.filter(isChatMessage).slice(-MAX_TURNS)
   const firstUser = window.findIndex((m) => m.role === 'user')
   if (firstUser === -1) return []
-  return window
-    .slice(firstUser)
-    .map((m) => ({ role: m.role, content: neutralizeEnvelopeTags(m.content).slice(0, MAX_TURN_CHARS) }))
+  return window.slice(firstUser).map((m) => {
+    const out: ChatMessage = {
+      role: m.role,
+      content: neutralizeEnvelopeTags(m.content).slice(0, MAX_TURN_CHARS),
+    }
+    // Carry the signature through for assistant turns only (a sig on a user
+    // turn means nothing). Verification happens against `content` AFTER this
+    // normalization — the server signs replies that already pass through it
+    // unchanged (see signableReply in agentChatCore.ts).
+    if (m.role === 'assistant' && typeof m.sig === 'string' && m.sig.length <= MAX_SIG_CHARS) {
+      out.sig = m.sig
+    }
+    return out
+  })
 }

@@ -187,14 +187,50 @@ describe('validateOperation — editTodo', () => {
       validateOperation('editTodo', { todoId: 't-1', text: '   ' }, knownCats, knownTodoIds),
     ).toBeNull()
   })
-  it('preserves empty-string dueDate as a clear signal', () => {
+  it('ignores a bare empty-string dueDate (models fill optional strings with "")', () => {
+    // Alone it is a no-op edit → dropped.
+    expect(
+      validateOperation('editTodo', { todoId: 't-1', dueDate: '' }, knownCats, knownTodoIds),
+    ).toBeNull()
+    // Alongside a real change, the date is left untouched (key absent).
     const op = validateOperation(
       'editTodo',
-      { todoId: 't-1', dueDate: '' },
+      { todoId: 't-1', text: 'Renamed', dueDate: '' },
       knownCats,
       knownTodoIds,
     )
-    expect(op?.args.dueDate).toBe('')
+    expect(op?.args).toEqual({ todoId: 't-1', text: 'Renamed' })
+  })
+  it('clearDueDate: true emits dueDate "" (the client clear signal)', () => {
+    expect(
+      validateOperation(
+        'editTodo',
+        { todoId: 't-1', dueDate: '', clearDueDate: true },
+        knownCats,
+        knownTodoIds,
+      ),
+    ).toEqual({ kind: 'editTodo', args: { todoId: 't-1', dueDate: '' } })
+    expect(
+      validateOperation('editTodo', { todoId: 't-1', clearDueDate: true }, knownCats, knownTodoIds)
+        ?.args,
+    ).toEqual({ todoId: 't-1', dueDate: '' })
+    // Non-boolean truthy values don't count.
+    expect(
+      validateOperation('editTodo', { todoId: 't-1', clearDueDate: 'yes' }, knownCats, knownTodoIds),
+    ).toBeNull()
+  })
+  it('rejects calendar-impossible due dates', () => {
+    expect(
+      validateOperation('editTodo', { todoId: 't-1', dueDate: '2026-02-31' }, knownCats, knownTodoIds),
+    ).toBeNull()
+    expect(
+      validateOperation(
+        'editTodo',
+        { todoId: 't-1', dueDate: '2026-06-07T25:99' },
+        knownCats,
+        knownTodoIds,
+      ),
+    ).toBeNull()
   })
   it('ignores empty-string notes (models fill optional fields with "")', () => {
     // An unrelated edit must never wipe notes; clearing them is manual.
@@ -446,15 +482,33 @@ describe('validateOperation — category/store/task ops', () => {
       ),
     ).toBeNull()
   })
-  it('renameStore / deleteStore: non-empty names', () => {
-    expect(validateOperation('renameStore', { from: 'Costco', to: "BJ's" }, knownCats)).toEqual({
-      kind: 'renameStore',
-      args: { from: 'Costco', to: "BJ's" },
+  describe('renameStore / deleteStore', () => {
+    const stores = ['Costco', "Trader Joe's"]
+    const v = (name: string, args: unknown, opts: { stores?: string[] } = { stores }) =>
+      validateOperation(name, args, knownCats, undefined, undefined, undefined, [], undefined, opts)
+
+    it('accept an existing store, normalized to its canonical spelling', () => {
+      expect(v('renameStore', { from: 'costco ', to: "BJ's" })).toEqual({
+        kind: 'renameStore',
+        args: { from: 'Costco', to: "BJ's" },
+      })
+      expect(v('deleteStore', { name: "TRADER JOE'S" })).toEqual({
+        kind: 'deleteStore',
+        args: { name: "Trader Joe's" },
+      })
     })
-    expect(validateOperation('renameStore', { from: '', to: 'X' }, knownCats)).toBeNull()
-    expect(validateOperation('deleteStore', { name: 'Costco' }, knownCats)).toEqual({
-      kind: 'deleteStore',
-      args: { name: 'Costco' },
+    it('drop a store not in context (hallucinated name)', () => {
+      expect(v('renameStore', { from: 'Walmart', to: 'X' })).toBeNull()
+      expect(v('deleteStore', { name: 'Walmart' })).toBeNull()
+      // No store list at all → nothing can match (safe default).
+      expect(v('deleteStore', { name: 'Costco' }, {})).toBeNull()
+    })
+    it('drop empty names and a no-op rename', () => {
+      expect(v('renameStore', { from: '', to: 'X' })).toBeNull()
+      expect(v('renameStore', { from: 'Costco', to: '  ' })).toBeNull()
+      expect(v('renameStore', { from: 'costco', to: 'Costco' })).toBeNull()
+      expect(v('deleteStore', { name: '' })).toBeNull()
+      expect(v('deleteStore', { name: 42 })).toBeNull()
     })
   })
   it('skipTodo: known id, optional series scope', () => {

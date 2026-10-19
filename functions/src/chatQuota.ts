@@ -21,6 +21,21 @@ import { decideMochiReservation, type MochiUsageDoc } from './mochiReservation'
 import type { Tier } from './entitlements'
 import type { ChatMessage } from './chatMessages'
 
+/** Exactly what one ALLOWED reservation charged, so it can be refunded when
+ * the upstream model call then fails (see refundAgentUsage /
+ * refundMochiUsage, quota.ts refundUsage). `date`/`month` pin the refund to
+ * the period that was charged — after a rollover the counter has already
+ * reset and there is nothing to give back. */
+export interface UsageCharge {
+  /** UTC day the agentUsage counters were bumped on. */
+  date: string
+  calls: number
+  chatTurns: number
+  chatConversations: number
+  /** Set when the tier counters (users/{uid}/state/mochiUsage) were bumped. */
+  mochi: { date: string; month: string } | null
+}
+
 /** Anti-abuse backstop on TOTAL agentChat turns per uid per UTC day —
  * far above a real person's use (15 conversations × a few follow-ups), and
  * the hard per-user cost bound (~100 × $0.005 ≈ $0.50/day). */
@@ -93,6 +108,8 @@ export function markCeilingHit(usage: AgentUsageData | null, today: string): Age
 export interface FlatCallDecision {
   allow: boolean
   next: AgentUsageData
+  /** What was charged (allowed only) — for a refund on upstream failure. */
+  charge: UsageCharge | null
 }
 
 /** aiInfer's one-shot reservation: one flat-cap slot per call (unchanged
@@ -103,8 +120,49 @@ export function decideFlatCall(
   limit: number,
 ): FlatCallDecision {
   const cur = rollAgentUsage(usage, today)
-  if (cur.calls >= limit) return { allow: false, next: cur }
-  return { allow: true, next: { ...cur, calls: cur.calls + 1 } }
+  if (cur.calls >= limit) return { allow: false, next: cur, charge: null }
+  return {
+    allow: true,
+    next: { ...cur, calls: cur.calls + 1 },
+    charge: { date: today, calls: 1, chatTurns: 0, chatConversations: 0, mochi: null },
+  }
+}
+
+/**
+ * Undo a charge on the agentUsage doc after the upstream model call failed or
+ * timed out (the user got nothing, so it shouldn't count). Returns the doc to
+ * write, or null when there's nothing to refund (no doc, or the day already
+ * rolled over). Counters never go below 0; ceilingHit/prev are untouched.
+ */
+export function refundAgentUsage(
+  usage: AgentUsageData | null,
+  charge: UsageCharge,
+): AgentUsageData | null {
+  if (!usage || usage.date !== charge.date) return null
+  if (charge.calls === 0 && charge.chatTurns === 0 && charge.chatConversations === 0) return null
+  return {
+    ...usage,
+    calls: Math.max(0, usage.calls - charge.calls),
+    chatTurns: Math.max(0, usage.chatTurns - charge.chatTurns),
+    chatConversations: Math.max(0, usage.chatConversations - charge.chatConversations),
+  }
+}
+
+/** Undo a tier (mochiUsage) charge: the day counter only if still the same
+ * day, the month counter only if still the same month. Null = nothing to do. */
+export function refundMochiUsage(
+  usage: MochiUsageDoc | null,
+  charge: UsageCharge,
+): MochiUsageDoc | null {
+  if (!usage || !charge.mochi) return null
+  const sameDay = usage.date === charge.mochi.date
+  const sameMonth = usage.month === charge.mochi.month
+  if (!sameDay && !sameMonth) return null
+  return {
+    ...usage,
+    dayCalls: sameDay ? Math.max(0, usage.dayCalls - 1) : usage.dayCalls,
+    monthCalls: sameMonth ? Math.max(0, usage.monthCalls - 1) : usage.monthCalls,
+  }
 }
 
 export type ChatTurnReason = 'ok' | 'turns' | 'daily' | 'monthly'
@@ -117,6 +175,9 @@ export interface ChatTurnDecision {
   nextAgentUsage: AgentUsageData
   /** Tier usage to persist (tier path, allowed conversation start only). */
   nextMochiUsage: MochiUsageDoc | null
+  /** What an allowed turn charged (null on reject) — refunded if the model
+   * call then fails. */
+  charge: UsageCharge | null
 }
 
 /**
@@ -136,19 +197,22 @@ export function decideChatTurnFlat(
     reason,
     nextAgentUsage: { ...cur, ceilingHit: true },
     nextMochiUsage: null,
+    charge: null,
   })
   if (cur.chatTurns >= MAX_CHAT_TURNS_PER_DAY) return reject('turns')
   if (startsConversation && cur.calls >= flatLimit) return reject('daily')
+  const start = startsConversation ? 1 : 0
   return {
     allow: true,
     reason: 'ok',
     nextAgentUsage: {
       ...cur,
-      calls: cur.calls + (startsConversation ? 1 : 0),
+      calls: cur.calls + start,
       chatTurns: cur.chatTurns + 1,
-      chatConversations: cur.chatConversations + (startsConversation ? 1 : 0),
+      chatConversations: cur.chatConversations + start,
     },
     nextMochiUsage: null,
+    charge: { date: today, calls: start, chatTurns: 1, chatConversations: start, mochi: null },
   }
 }
 
@@ -173,6 +237,7 @@ export function decideChatTurnTier(
     reason,
     nextAgentUsage: { ...cur, ceilingHit: true },
     nextMochiUsage: null,
+    charge: null,
   })
   if (cur.chatTurns >= MAX_CHAT_TURNS_PER_DAY) return reject('turns')
   let nextMochiUsage: MochiUsageDoc | null = null
@@ -190,6 +255,13 @@ export function decideChatTurnTier(
       chatConversations: cur.chatConversations + (startsConversation ? 1 : 0),
     },
     nextMochiUsage,
+    charge: {
+      date: today,
+      calls: 0,
+      chatTurns: 1,
+      chatConversations: startsConversation ? 1 : 0,
+      mochi: nextMochiUsage ? { date: today, month } : null,
+    },
   }
 }
 

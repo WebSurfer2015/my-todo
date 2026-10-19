@@ -8,9 +8,9 @@
  * unknown store names, or malformed numbers regardless of what the
  * model returns.
  *
- * The auth gate (isAgentEnabled), the quota gate (reserveDailyCall),
- * and the Anthropic SDK call are integration territory and are NOT
- * covered here — they need the Firebase emulator + the SDK mocked.
+ * The handler itself — profile gate (isAgentEnabled), quota reserve/refund
+ * and the Anthropic SDK call — is covered with mocks in
+ * aiInferHandler.test.ts.
  */
 import { describe, expect, it } from 'vitest'
 import {
@@ -137,6 +137,23 @@ describe('parseClassifyDeptOutput', () => {
 // ─── parseSuggestFieldsOutput ──────────────────────────────────
 
 describe('parseSuggestFieldsOutput', () => {
+  it('drops calendar-impossible dates (shape-valid but not real)', () => {
+    const out = parseSuggestFieldsOutput(
+      JSON.stringify({
+        dueDate: '2026-02-31',
+        recurrence: { freq: 'daily', endDate: '2026-04-31' },
+        reminder: { at: '2026-06-07T25:99' },
+      }),
+    )
+    expect(out.dueDate).toBeNull()
+    expect(out.recurrence).toEqual({ freq: 'daily' })
+    expect(out.reminder).toBeNull()
+    const until = parseSuggestFieldsOutput(
+      JSON.stringify({ reminder: { at: '2026-06-07T09:00', intervalMinutes: 30, until: '2026-06-07T24:30' } }),
+    )
+    // Invalid `until` dropped → the unbounded interval is dropped too.
+    expect(until.reminder).toEqual({ at: '2026-06-07T09:00' })
+  })
   it('returns all-null on malformed JSON', () => {
     const out = parseSuggestFieldsOutput('not json')
     expect(out).toEqual({

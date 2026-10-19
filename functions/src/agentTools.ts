@@ -48,6 +48,8 @@
  *     agentChat learns to fetch user data inside the tool loop.
  */
 
+import { isValidDueDate, isValidIsoDate, isValidIsoDateTime } from './dates'
+
 // Inlined here because the CF tsconfig rootDir is `src`, so we can't
 // reach core/src/types.ts. Keep this in lockstep with that file.
 type Priority = 'high' | 'medium' | 'low'
@@ -99,6 +101,10 @@ export type ProposedOperation =
         dueDate?: string
         priority?: Priority
         category?: string
+        /** Set INSTEAD of `category` when the to-do belongs to a category
+         * that a createCategory op in the SAME turn creates (no id yet). The
+         * client resolves it to the new category's id after creating it. */
+        newCategoryLabel?: string
         notes?: string
         recurrence?: AgentRecurrence
         reminders?: AgentReminder[]
@@ -112,11 +118,16 @@ export type ProposedOperation =
          * provided keys, leaving others untouched. At least one
          * field must be present (validator enforces). */
         text?: string
+        /** "" = clear the due date (only emitted when the model passed
+         * clearDueDate: true — a bare "" from the model is ignored). */
         dueDate?: string
         priority?: Priority
         category?: string
+        /** Same as createTodo.newCategoryLabel. */
+        newCategoryLabel?: string
         notes?: string
         recurrence?: AgentRecurrence
+        /** REPLACES the to-do's whole reminder list (not appended). */
         reminders?: AgentReminder[]
       }
     }
@@ -196,6 +207,9 @@ export type ProposedOperation =
         todoIds: string[]
         /** The user's phrase (e.g. "Water flower"), for the card header. */
         query?: string
+        /** Number of matches BEFORE the MAX_PICK_TODOS cap — set only when
+         * `todoIds` was truncated, so the card can say "showing 25 of N". */
+        totalMatches?: number
         /** For action:'edit' — the field patch applied to each chosen task
          * (same shape as editTodo's args, minus todoId). */
         edit?: {
@@ -389,6 +403,32 @@ const REMINDERS_SCHEMA = {
   },
 } as const
 
+// editTodo / pickTodos(edit) replace the WHOLE reminder list on apply, so the
+// model must restate any reminders it wants to keep.
+const EDIT_REMINDERS_SCHEMA = {
+  ...REMINDERS_SCHEMA,
+  description:
+    'REPLACES the to-do\'s entire reminder list — pass the full desired list ' +
+    '(include any existing reminders the user wants to keep). Omit to leave ' +
+    'reminders unchanged. Each `at` is a local ISO datetime resolved against `today`.',
+} as const
+
+const NEW_CATEGORY_LABEL_SCHEMA = {
+  type: 'string',
+  description:
+    'Use ONLY when you also call createCategory in this SAME turn: the new ' +
+    "category's label (exactly as passed to createCategory). The app files the " +
+    'to-do under it once created. Leave `category` empty when you set this.',
+  maxLength: MAX_CATEGORY_LABEL_LEN,
+} as const
+
+const CLEAR_DUE_DATE_SCHEMA = {
+  type: 'boolean',
+  description:
+    'Set true ONLY when the user explicitly asks to remove the due date ' +
+    '("no due date", "clear the date"). An empty dueDate alone is ignored.',
+} as const
+
 export const AGENT_TOOLS: AgentTool[] = [
   {
     name: 'createTodo',
@@ -397,7 +437,8 @@ export const AGENT_TOOLS: AgentTool[] = [
       "Resolve relative dates ('Friday', 'next week', 'tomorrow') against the `today` " +
       "field in context and return them as ISO yyyy-mm-dd. Leave dueDate empty when the " +
       "user didn't mention a date. Map category names case-insensitively to one of the " +
-      "user's existing categories (from context); leave category empty if no clean match.",
+      "user's existing categories (from context); leave category empty if no clean match. " +
+      "If you create a new category in this same turn, set newCategoryLabel to its label.",
     input_schema: {
       type: 'object',
       properties: {
@@ -420,8 +461,10 @@ export const AGENT_TOOLS: AgentTool[] = [
         category: {
           type: 'string',
           description:
-            'Category id (not display label) from the user-provided list, or empty.',
+            'Category id (not display label) from the user-provided list, or empty. ' +
+            'For a category you create in this same turn, use newCategoryLabel instead.',
         },
+        newCategoryLabel: NEW_CATEGORY_LABEL_SCHEMA,
         notes: {
           type: 'string',
           description:
@@ -441,7 +484,8 @@ export const AGENT_TOOLS: AgentTool[] = [
       "on a specific task they're referring to in the conversation. The context will " +
       "include a list of recent todos with their ids — pick the matching todoId. " +
       "Only include fields the user actually asked to change; omit the rest. At least " +
-      "one field besides todoId must be provided.",
+      "one field besides todoId must be provided. `reminders` replaces the whole " +
+      "reminder list — pass the full desired list.",
     input_schema: {
       type: 'object',
       properties: {
@@ -457,10 +501,12 @@ export const AGENT_TOOLS: AgentTool[] = [
         dueDate: {
           type: 'string',
           description:
-            "ISO yyyy-mm-dd local date. Resolve relative phrases against `today`. " +
-            "Empty string CLEARS the existing due date.",
+            "New ISO yyyy-mm-dd local date (or yyyy-mm-ddThh:mm). Resolve relative " +
+            "phrases against `today`. Omit to leave unchanged. To REMOVE the date, " +
+            "set clearDueDate: true instead.",
           pattern: '^(\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2})?)?$',
         },
+        clearDueDate: CLEAR_DUE_DATE_SCHEMA,
         priority: {
           type: 'string',
           enum: ['high', 'medium', 'low'],
@@ -468,8 +514,11 @@ export const AGENT_TOOLS: AgentTool[] = [
         },
         category: {
           type: 'string',
-          description: 'Category id from the user-provided list. Omit to leave unchanged.',
+          description:
+            'Category id from the user-provided list. Omit to leave unchanged. For a ' +
+            'category you create in this same turn, use newCategoryLabel instead.',
         },
+        newCategoryLabel: NEW_CATEGORY_LABEL_SCHEMA,
         notes: {
           type: 'string',
           description:
@@ -478,7 +527,7 @@ export const AGENT_TOOLS: AgentTool[] = [
           maxLength: MAX_NOTES_LEN,
         },
         recurrence: RECURRENCE_SCHEMA,
-        reminders: REMINDERS_SCHEMA,
+        reminders: EDIT_REMINDERS_SCHEMA,
       },
       required: ['todoId'],
     },
@@ -686,14 +735,15 @@ export const AGENT_TOOLS: AgentTool[] = [
             text: { type: 'string', maxLength: MAX_TEXT_LEN },
             dueDate: {
               type: 'string',
-              description: 'ISO yyyy-mm-dd, or empty string to clear.',
+              description: 'New ISO yyyy-mm-dd. To remove the date, set clearDueDate: true.',
               pattern: '^(\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2})?)?$',
             },
+            clearDueDate: CLEAR_DUE_DATE_SCHEMA,
             priority: { type: 'string', enum: ['high', 'medium', 'low'] },
             category: { type: 'string', description: 'Category id from context.' },
             notes: { type: 'string', maxLength: MAX_NOTES_LEN },
             recurrence: RECURRENCE_SCHEMA,
-            reminders: REMINDERS_SCHEMA,
+            reminders: EDIT_REMINDERS_SCHEMA,
           },
         },
         steps: {
@@ -949,7 +999,8 @@ function validateReminders(raw: unknown): AgentReminder[] | undefined {
     const at = (item as { at?: unknown }).at
     // Anchored: a trailing "Z"/offset made new Date() read it as UTC and
     // fire at the wrong local hour.
-    if (typeof at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(at)) continue
+    // Calendar-checked too: "2026-02-31T25:99" used to pass the shape regex.
+    if (!isValidIsoDateTime(at)) continue
     const rem: AgentReminder = { at }
     const off = (item as { offsetMinutes?: unknown }).offsetMinutes
     if (typeof off === 'number' && Number.isFinite(off) && off >= 1) {
@@ -966,12 +1017,83 @@ function validateReminders(raw: unknown): AgentReminder[] | undefined {
   return out.length > 0 ? out : undefined
 }
 
+/** Extra per-request context for validateOperation (kept as one options bag
+ * so new allow-lists don't keep growing the positional signature). */
+export interface ValidateOptions {
+  /** The user's category list (id + label) — lets a label the model put in
+   * `category` resolve to the real id. */
+  categories?: ReadonlyArray<{ id: string; label: string }>
+  /** Lower-cased labels of the createCategory ops proposed in THIS turn
+   * (see pendingCategoryLabels). A createTodo/editTodo naming one of them
+   * keeps it as `newCategoryLabel` instead of dropping it. */
+  pendingCategoryLabels?: ReadonlySet<string>
+  /** The user's grocery store names — renameStore/deleteStore must target
+   * one of these (case-insensitive) and are normalized to its spelling. */
+  stores?: ReadonlyArray<string>
+}
+
+/** Normalized category label (the same trim + cap createCategory applies),
+ * or null when the label is unusable. */
+function cleanCategoryLabel(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null
+  const label = raw.trim().slice(0, MAX_CATEGORY_LABEL_LEN).trim()
+  return label.length > 0 ? label : null
+}
+
+/** Lower-cased labels of every createCategory call in one model turn — the
+ * set a same-turn createTodo/editTodo may reference by label. */
+export function pendingCategoryLabels(
+  calls: ReadonlyArray<{ name: string; input: unknown }>,
+): Set<string> {
+  const out = new Set<string>()
+  for (const c of calls) {
+    if (c.name !== 'createCategory' || !c.input || typeof c.input !== 'object') continue
+    const label = cleanCategoryLabel((c.input as { label?: unknown }).label)
+    if (label) out.add(label.toLowerCase())
+  }
+  return out
+}
+
+/**
+ * Resolve the category a createTodo/editTodo targets:
+ *  1. `category` is a known id → that id;
+ *  2. `category` or `newCategoryLabel` is an EXISTING category's label
+ *     (case-insensitive) → that category's id;
+ *  3. either one names a category a createCategory op creates in this same
+ *     turn → `newCategoryLabel` (trimmed, capped) — the client resolves it
+ *     after applying the createCategory;
+ *  4. otherwise nothing (an unknown id is dropped, as before).
+ */
+function resolveCategory(
+  a: Record<string, unknown>,
+  knownCategoryIds: ReadonlySet<string>,
+  opts: ValidateOptions,
+): { category?: string; newCategoryLabel?: string } {
+  if (typeof a.category === 'string' && knownCategoryIds.has(a.category)) {
+    return { category: a.category }
+  }
+  const candidates = [cleanCategoryLabel(a.category), cleanCategoryLabel(a.newCategoryLabel)]
+    .filter((c): c is string => c !== null)
+  for (const label of candidates) {
+    const lower = label.toLowerCase()
+    const existing = opts.categories?.find(
+      (c) => knownCategoryIds.has(c.id) && c.label.trim().toLowerCase() === lower,
+    )
+    if (existing) return { category: existing.id }
+  }
+  for (const label of candidates) {
+    if (opts.pendingCategoryLabels?.has(label.toLowerCase())) return { newCategoryLabel: label }
+  }
+  return {}
+}
+
 /** The editable to-do fields, shared by editTodo and pickTodos(action:'edit'). */
 type EditPatch = {
   text?: string
   dueDate?: string
   priority?: Priority
   category?: string
+  newCategoryLabel?: string
   notes?: string
   recurrence?: AgentRecurrence
   reminders?: AgentReminder[]
@@ -983,6 +1105,7 @@ type EditPatch = {
 function validateEditPatch(
   a: Record<string, unknown>,
   knownCategoryIds: ReadonlySet<string>,
+  opts: ValidateOptions = {},
 ): { patch: EditPatch; hasField: boolean } {
   const patch: EditPatch = {}
   let hasField = false
@@ -990,21 +1113,26 @@ function validateEditPatch(
     patch.text = a.text.trim().slice(0, MAX_TEXT_LEN)
     hasField = true
   }
-  if (typeof a.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(a.dueDate)) {
-    patch.dueDate = a.dueDate
-    hasField = true
-  } else if (a.dueDate === '') {
-    // Explicit empty string means "clear the date" — preserve that signal so
-    // the client can distinguish "no change" from "clear".
+  if (a.clearDueDate === true) {
+    // Explicit clear — emit "" (the client treats "" as "remove the date").
     patch.dueDate = ''
     hasField = true
+  } else if (isValidDueDate(a.dueDate)) {
+    patch.dueDate = a.dueDate
+    hasField = true
   }
+  // A bare dueDate "" WITHOUT clearDueDate is ignored: models fill optional
+  // strings with "", which silently wiped the date on an unrelated edit.
   if (a.priority === 'high' || a.priority === 'medium' || a.priority === 'low') {
     patch.priority = a.priority
     hasField = true
   }
-  if (typeof a.category === 'string' && knownCategoryIds.has(a.category)) {
-    patch.category = a.category
+  const cat = resolveCategory(a, knownCategoryIds, opts)
+  if (cat.category !== undefined) {
+    patch.category = cat.category
+    hasField = true
+  } else if (cat.newCategoryLabel !== undefined) {
+    patch.newCategoryLabel = cat.newCategoryLabel
     hasField = true
   }
   // Non-empty only: models often fill optional strings with "", which
@@ -1025,6 +1153,16 @@ function validateEditPatch(
     hasField = true
   }
   return { patch, hasField }
+}
+
+/** The context store whose name matches `raw` case-insensitively (after
+ * trimming), in its canonical spelling — or null when there's no such store
+ * (a hallucinated store name is dropped, like a hallucinated id). */
+function canonicalStore(raw: unknown, stores: ReadonlyArray<string> | undefined): string | null {
+  if (typeof raw !== 'string') return null
+  const want = raw.trim().toLowerCase()
+  if (!want || want.length > MAX_STORE_NAME_LEN) return null
+  return stores?.find((s) => s.trim().toLowerCase() === want)?.trim() ?? null
 }
 
 /** Validate a steps array (shared by addSteps and pickTodos(action:'addSteps')).
@@ -1066,6 +1204,7 @@ export function validateOperation(
   knownTodos: ReadonlyArray<{ id: string; text: string }> = [],
   // Trashed to-do ids — the allow-list restoreTodo validates against.
   knownTrashedIds: ReadonlySet<string> = new Set(),
+  opts: ValidateOptions = {},
 ): ProposedOperation | null {
   if (!args || typeof args !== 'object') return null
   const a = args as Record<string, unknown>
@@ -1076,15 +1215,15 @@ export function validateOperation(
       kind: 'createTodo',
       args: { text: a.text.trim().slice(0, MAX_TEXT_LEN) },
     }
-    if (typeof a.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(a.dueDate)) {
+    if (isValidDueDate(a.dueDate)) {
       op.args.dueDate = a.dueDate
     }
     if (a.priority === 'high' || a.priority === 'medium' || a.priority === 'low') {
       op.args.priority = a.priority
     }
-    if (typeof a.category === 'string' && knownCategoryIds.has(a.category)) {
-      op.args.category = a.category
-    }
+    const cat = resolveCategory(a, knownCategoryIds, opts)
+    if (cat.category !== undefined) op.args.category = cat.category
+    else if (cat.newCategoryLabel !== undefined) op.args.newCategoryLabel = cat.newCategoryLabel
     if (typeof a.notes === 'string' && a.notes.length > 0) {
       op.args.notes = a.notes.slice(0, MAX_NOTES_LEN)
     }
@@ -1104,7 +1243,7 @@ export function validateOperation(
     ) {
       return null
     }
-    const { patch, hasField } = validateEditPatch(a, knownCategoryIds)
+    const { patch, hasField } = validateEditPatch(a, knownCategoryIds, opts)
     // Reject when no actual change was proposed.
     if (!hasField) return null
     return { kind: 'editTodo', args: { todoId: a.todoId, ...patch } }
@@ -1137,11 +1276,9 @@ export function validateOperation(
   }
 
   if (name === 'createCategory') {
-    if (typeof a.label !== 'string' || a.label.trim().length === 0) return null
-    const op: ProposedOperation = {
-      kind: 'createCategory',
-      args: { label: a.label.trim().slice(0, MAX_CATEGORY_LABEL_LEN) },
-    }
+    const label = cleanCategoryLabel(a.label)
+    if (!label) return null
+    const op: ProposedOperation = { kind: 'createCategory', args: { label } }
     if (typeof a.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(a.color)) {
       op.args.color = a.color
     }
@@ -1287,10 +1424,16 @@ export function validateOperation(
     if (query) {
       op.args.query = query.slice(0, MAX_TEXT_LEN)
     }
+    // Tell the client the list was cut so it can say so (and suggest narrowing).
+    if (ids.length > MAX_PICK_TODOS) op.args.totalMatches = ids.length
     if (a.action === 'edit') {
       const editArgs =
         a.edit && typeof a.edit === 'object' ? (a.edit as Record<string, unknown>) : {}
-      const { patch, hasField } = validateEditPatch(editArgs, knownCategoryIds)
+      // No pendingCategoryLabels: pickTodos always ships ALONE (index.ts drops
+      // any same-turn createCategory), so a new-category label can't resolve.
+      const { patch, hasField } = validateEditPatch(editArgs, knownCategoryIds, {
+        categories: opts.categories,
+      })
       if (!hasField) return null // an edit with nothing to change is meaningless
       op.args.edit = patch
     }
@@ -1341,17 +1484,17 @@ export function validateOperation(
   }
 
   if (name === 'renameStore') {
-    const from = typeof a.from === 'string' ? a.from.trim() : ''
+    // `from` must be an existing store (case-insensitive), normalized to its
+    // canonical spelling so the client's exact-match rename finds it.
+    const from = canonicalStore(a.from, opts.stores)
     const to = typeof a.to === 'string' ? a.to.trim() : ''
-    if (!from || !to || from.length > MAX_STORE_NAME_LEN || to.length > MAX_STORE_NAME_LEN) {
-      return null
-    }
+    if (!from || !to || to.length > MAX_STORE_NAME_LEN || to === from) return null
     return { kind: 'renameStore', args: { from, to } }
   }
 
   if (name === 'deleteStore') {
-    const nm = typeof a.name === 'string' ? a.name.trim() : ''
-    if (!nm || nm.length > MAX_STORE_NAME_LEN) return null
+    const nm = canonicalStore(a.name, opts.stores)
+    if (!nm) return null
     return { kind: 'deleteStore', args: { name: nm } }
   }
 
@@ -1382,7 +1525,7 @@ export function validateOperation(
   }
 
   if (name === 'deferOverdue') {
-    if (typeof a.dueDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(a.dueDate)) return null
+    if (!isValidIsoDate(a.dueDate)) return null
     return { kind: 'deferOverdue', args: { dueDate: a.dueDate } }
   }
 

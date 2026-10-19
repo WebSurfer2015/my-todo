@@ -25,8 +25,11 @@ import {
   decideChatTurnTier,
   decideFlatCall,
   parseAgentUsage,
+  refundAgentUsage,
+  refundMochiUsage,
   type AgentUsageData,
   type ChatTurnDecision,
+  type UsageCharge,
 } from './chatQuota'
 import { isCompName } from './compUsers'
 
@@ -65,20 +68,24 @@ function writeAgentUsage(
  *
  * `label` names the endpoint in server logs only; the user-facing
  * message is the same de-metered copy everywhere (P1.7).
+ *
+ * Returns what was charged so the caller can refundUsage() it if the model
+ * call then fails.
  */
-export async function reserveDailyCall(uid: string, label = 'AI'): Promise<void> {
+export async function reserveDailyCall(uid: string, label = 'AI'): Promise<UsageCharge> {
   const today = new Date().toISOString().slice(0, 10) // YYYY-MM-DD UTC
   const ref = adminDb.doc(`users/${uid}/state/agentUsage`)
   try {
-    await adminDb.runTransaction(async (tx) => {
+    return await adminDb.runTransaction(async (tx) => {
       const snap = await tx.get(ref)
       const usage = snap.exists ? parseAgentUsage(snap.data()) : null
       const d = decideFlatCall(usage, today, DAILY_CALL_LIMIT)
-      if (!d.allow) {
+      if (!d.allow || !d.charge) {
         console.info(`reserveDailyCall: ${label} fair-use ceiling hit`)
         throw new HttpsError('resource-exhausted', RESTING_MESSAGE)
       }
       writeAgentUsage(tx, ref, d.next)
+      return d.charge
     })
   } catch (err) {
     if (err instanceof HttpsError) throw err
@@ -215,7 +222,7 @@ async function runChatReservation(
     agentUsage: AgentUsageData | null,
   ) => Promise<ChatTurnDecision>,
   extraWrite?: (tx: FirebaseFirestore.Transaction, d: ChatTurnDecision) => void,
-): Promise<void> {
+): Promise<UsageCharge> {
   const ref = adminDb.doc(`users/${uid}/state/agentUsage`)
   let decision: ChatTurnDecision
   try {
@@ -235,13 +242,14 @@ async function runChatReservation(
     console.error(`${label} reservation failed`, err)
     throw new HttpsError('internal', "Couldn't reach the quota check.")
   }
-  if (!decision.allow) {
+  if (!decision.allow || !decision.charge) {
     console.info(`${label}: fair-use ceiling hit (${decision.reason})`)
     // De-metered (docs/MOCHI-MONETIZATION-MODEL.md): the fair-use ceiling is
     // INVISIBLE — no counts, no reset countdown, no top-ups. Clients fall back
     // to manual capture on RESOURCE_EXHAUSTED (P1.7); this text is a last resort.
     throw new HttpsError('resource-exhausted', RESTING_MESSAGE)
   }
+  return decision.charge
 }
 
 /**
@@ -250,9 +258,12 @@ async function runChatReservation(
  * shared flat daily cap (DAILY_CALL_LIMIT, shared with aiInfer); follow-ups
  * are free, bounded by the 40-turn window and MAX_CHAT_TURNS_PER_DAY.
  */
-export async function reserveChatTurn(uid: string, startsConversation: boolean): Promise<void> {
+export async function reserveChatTurn(
+  uid: string,
+  startsConversation: boolean,
+): Promise<UsageCharge> {
   const today = new Date().toISOString().slice(0, 10) // YYYY-MM-DD UTC
-  await runChatReservation(uid, 'Mochi', async (_tx, usage) =>
+  return runChatReservation(uid, 'Mochi', async (_tx, usage) =>
     decideChatTurnFlat(usage, today, startsConversation, DAILY_CALL_LIMIT),
   )
 }
@@ -269,19 +280,21 @@ export async function reserveChatTurn(uid: string, startsConversation: boolean):
  * flat fair-use cap: comp matching is on user-editable profile names, so an
  * uncapped bypass would let anyone rename themselves into unlimited spend.
  */
-export async function reserveMochiRequest(uid: string, startsConversation: boolean): Promise<void> {
+export async function reserveMochiRequest(
+  uid: string,
+  startsConversation: boolean,
+): Promise<UsageCharge> {
   // Family comp: no tier metering, but the same flat blast-radius cap everyone
   // gets with enforcement off. TODO: match comp by uid, not name.
   if (await isCompUser(uid)) {
-    await reserveChatTurn(uid, startsConversation)
-    return
+    return reserveChatTurn(uid, startsConversation)
   }
   const now = new Date()
   const today = now.toISOString().slice(0, 10) // YYYY-MM-DD UTC
   const month = today.slice(0, 7) // YYYY-MM UTC
   const usageRef = adminDb.doc(`users/${uid}/state/mochiUsage`)
   const entRef = adminDb.doc(`users/${uid}/state/entitlement`)
-  await runChatReservation(
+  return runChatReservation(
     uid,
     'Mochi(tier)',
     async (tx, agentUsage) => {
@@ -301,4 +314,41 @@ export async function reserveMochiRequest(uid: string, startsConversation: boole
       }
     },
   )
+}
+
+/**
+ * Give back a reservation after the upstream model call failed or timed out —
+ * the user got nothing, so it shouldn't count against fair use. Decrements
+ * exactly what `charge` bumped (pure math in chatQuota.ts: never below 0,
+ * nothing after a day/month rollover), in one transaction.
+ *
+ * Best-effort: a refund failure is logged and swallowed — the caller is
+ * already on its error path and must still surface the ORIGINAL error.
+ */
+export async function refundUsage(uid: string, charge: UsageCharge): Promise<void> {
+  const agentRef = adminDb.doc(`users/${uid}/state/agentUsage`)
+  const mochiRef = adminDb.doc(`users/${uid}/state/mochiUsage`)
+  try {
+    await adminDb.runTransaction(async (tx) => {
+      // All reads before any write (Firestore transaction rule).
+      const agentSnap = await tx.get(agentRef)
+      const mochiSnap = charge.mochi ? await tx.get(mochiRef) : null
+      const nextAgent = refundAgentUsage(
+        agentSnap.exists ? parseAgentUsage(agentSnap.data()) : null,
+        charge,
+      )
+      const nextMochi = mochiSnap
+        ? refundMochiUsage(mochiSnap.exists ? parseMochiUsage(mochiSnap.data()) : null, charge)
+        : null
+      if (nextAgent) writeAgentUsage(tx, agentRef, nextAgent)
+      if (nextMochi) {
+        tx.set(mochiRef, {
+          value: JSON.stringify({ version: 1, data: nextMochi }),
+          updatedAt: Date.now(),
+        })
+      }
+    })
+  } catch (err) {
+    console.error('refundUsage failed', err)
+  }
 }
