@@ -20,7 +20,7 @@ appId: com.websurfer.mytodo
 # (a row is one VoiceOver element, so the circle isn't separately targetable).
 - swipe:
     from:
-      text: "Email therapist about Friday"
+      text: ".*Email therapist about Friday.*"
     direction: RIGHT
     duration: 600
 - runFlow:

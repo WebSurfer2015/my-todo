@@ -166,8 +166,20 @@ export function makeStyles(c: ThemeColors) {
       fontVariant: ['tabular-nums'],
       lineHeight: 13,
     },
+    // The row when its step list shows below it: the list's block carries
+    // the bottom padding instead, so the card reads as one piece.
+    rowWithSteps: { paddingBottom: 0 },
+    // The step list, a sibling of the row's Pressable (so VoiceOver reaches
+    // each step). Indented to the title: row padding + 22pt circle + row gap.
+    stepsBlock: {
+      backgroundColor: c.card,
+      paddingLeft: SPACING.lg + 22 + SPACING.sm,
+      paddingRight: SPACING.lg,
+      paddingBottom: SPACING.md,
+    },
     subList: {
-      marginTop: SPACING.xs,
+      // The body's gap (xs) + the list's own top margin (xs) it had inside the row.
+      marginTop: SPACING.xs * 2,
       gap: 2,
     },
     subRow: {

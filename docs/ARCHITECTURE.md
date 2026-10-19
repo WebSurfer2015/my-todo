@@ -82,7 +82,12 @@ parity tests in `mobile/src/__tests__`).
   briefly instead). Ask Mochi applies through `useMochiExecutor` + `mochiUndo`
   (only the newest applied turn's inline Undo is live). Completions/trash and
   "Edit series" commits go through `applyTracked` so each has an exact Undo
-  (`todosRevertChanges`); an inline Undo retracts its own snackbar.
+  (`todosRevertChanges`); an inline Undo retracts its own snackbar. An Undo
+  can be **partial** — rows edited since are kept and the rest is put back,
+  shown as "Undone — later changes were kept." in the snackbar or inline in
+  the chat (threaded through `combineUndos` → `undoResult` →
+  `useInlineUndo`; an Undo with nothing left to put back reads "Nothing to
+  undo").
 
 ---
 

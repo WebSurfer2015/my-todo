@@ -27,7 +27,7 @@ devices.
 | Data | Why | Where it's stored |
 | --- | --- | --- |
 | Email address | To sign you in | Firebase Authentication |
-| Your first name (required for email sign-up; Apple may provide it) | To greet you ("Good morning, Ying") | Firebase Firestore, your private subtree |
+| Your first and last name (from sign-up, or as provided by Apple/Google) | To greet you ("Good morning, Ying") | Firebase Firestore, your private subtree |
 | Apple/Google ID token | To verify your identity with Apple/Google when signing in | Not stored by us — passed directly to Firebase Auth |
 
 ### When you use the app
@@ -36,7 +36,7 @@ devices.
 | --- | --- | --- |
 | Your to-dos and steps, including their notes and reminders | The whole point of the app | Firebase Firestore, your private subtree |
 | Your shopping list (items, aisles, stores) | To keep your shopping list | Firebase Firestore, your private subtree |
-| Titles of to-dos you've added (the most recent 500, with the category, priority and repeat you gave them) | So Compose can suggest them again as you type | Firebase Firestore, your private subtree |
+| Titles of to-dos you've completed (the most recent 500, with the category, priority and repeat you gave them). A to-do you delete without completing it is forgotten. | So Compose can suggest them again as you type | Firebase Firestore, your private subtree |
 | Categories (custom + default) | To organize your to-dos | Firebase Firestore, your private subtree |
 | Profile settings (theme, reminder preferences, etc.) | To remember your preferences | Firebase Firestore, your private subtree |
 | Optional avatar image you upload | To personalize the app | Firebase Firestore, your private subtree (compressed) |
@@ -54,14 +54,15 @@ server when:
   seconds) — the title is sent so Mochi can suggest a category, date, or
   reminder you can tap to apply;
 - you add a shopping item the app can't sort into an aisle on the device, or
-  that may name a store ("milk from Costco");
+  that may name a store ("milk from Costco") — the item's text, your aisle
+  names and your store names are sent so Mochi can pick its aisle and stores;
 - you add a new store — your shopping items' text is sent so Mochi can tag
   which ones that store carries.
 
 | Data | Why | Where it goes |
 | --- | --- | --- |
 | Your message and the conversation so far | So Mochi can understand and reply | Sent to Anthropic for that request |
-| Today's date, your category names, the text of your to-dos and their steps (open, done, and in Done, up to 100), your shopping-list items and store names | So Mochi can find, add, or change the right items ("move the dentist to Friday") | Sent to Anthropic for that request |
+| Today's date, your category names, the text of your to-dos and their steps (open, done, and in Done, up to 100), your shopping-list items, aisle names and store names | So Mochi can find, add, or change the right items ("move the dentist to Friday") | Sent to Anthropic for that request |
 | How many Mochi requests you've made | To keep a fair-use limit on AI costs | Firebase Firestore, your private subtree |
 | A short-lived conversation id and fingerprint (a one-way hash of the conversation, not its text) | For fair use — so a retried or continued conversation isn't counted twice | Firebase Firestore, your private subtree; each expires 24 hours after its last use and is removed by a daily clean-up (or right away when you delete your account) |
 

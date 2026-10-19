@@ -83,9 +83,9 @@ import { getReminders } from '../../../../../core/src/logic/derive'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Category, Priority, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../../../core-bindings/types'
 import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
-import { dueDateOnly, dueDateToDate, formatDisplayDate, fullDateLabel, todayLocal, isoDate } from '../../../core-bindings/utils'
+import { dueDateOnly, dueDateToDate, fullDateLabel, todayLocal, isoDate } from '../../../core-bindings/utils'
 import { sortedSubs } from '../../../../../core/src/logic/derive'
-import { doneOnLabel, rowDateLabel, weekdayDate } from '../../../../../core/src/logic/labels'
+import { doneOnLabel, rowDateLabel } from '../../../../../core/src/logic/labels'
 import { useTriggerFirework } from '../../../app/FireworkOverlay'
 import { playCompletionChime } from '../../../adapters/completionChime'
 import { useTheme } from '../../../app/theme'
@@ -98,7 +98,7 @@ import { TaskDetailsOpenContext } from '../../../app/SheetContext'
 import { useLang } from '../../../app/LangContext'
 import { makeStyles } from './styles';
 import { shouldIgnoreToggleTap } from './toggleGuard'
-import { rowAccessibilityActions, rowAccessibilityLabel, type RowA11yAction } from './rowA11y'
+import { rowA11yStrings, rowAccessibilityActions, rowAccessibilityLabel, type RowA11yAction } from './rowA11y'
 
 export type SubtaskVisibility = 'all' | 'open' | 'done'
 
@@ -333,7 +333,9 @@ function TaskItem({
     return () => clearOpenSwipeable(todo.id)
   }, [todo.id])
 
-  const overdue = !!todo.dueDate && !todo.done && dueDateOnly(todo.dueDate) < today
+  // Carried over: an OPEN to-do whose day has passed (never a done or
+  // deleted one — those just name their day).
+  const overdue = !!todo.dueDate && !todo.done && !todo.trashed && dueDateOnly(todo.dueDate) < today
   const isToday = !!todo.dueDate && !todo.done && dueDateOnly(todo.dueDate) === today
   // Home hides the date chip on today's rows (the header says TODAY) and on
   // upcoming rows with steps; a carried-over row always shows its day.
@@ -348,13 +350,9 @@ function TaskItem({
         : todo.trashed
           ? 'Deleted · here for 30 days'
           : 'Done'
-  const dueChipText = todo.dueDate
-    ? overdue
-      ? // Carried over: the day it was for ("Mon, Oct 5"),
-        // never a count of days behind ("23 days ago").
-        weekdayDate(dueDateOnly(todo.dueDate), { locale: t.locale })
-      : formatDisplayDate(todo.dueDate, t.locale)
-    : t.noDate
+  // A past day — carried over, done or deleted — names the day it was for
+  // ("Mon, Oct 5"), never a count of days behind ("5 days ago").
+  const dueChipText = todo.dueDate ? rowDateLabel(todo.dueDate, t.locale, today) : t.noDate
 
   function openDetails() {
     swipeableRef.current?.close()
@@ -473,13 +471,17 @@ function TaskItem({
   //       destructive options to auto-commit one)
   //     - Done / Not-Do: Restore + Delete
   const isBin = inTrash || binFilterView || trashedRow
+  // The expanded step list (rendered below the row, as its own a11y elements).
+  const stepsShown = expanded && detailsAvailable && !inTrash && visibleSubs.length > 0
 
   // VoiceOver: the row is one element, so its label speaks the chips and its
   // custom actions mirror the swipes (which VoiceOver can't perform).
+  const a11yStrings = useMemo(() => rowA11yStrings(t), [t])
   const rowA11yLabel = rowAccessibilityLabel({
     text: todo.text,
     dateLabel: hideHomeDateChip ? null : binFilterView ? binChipText : todo.dueDate ? dueChipText : null,
-    dateKind: binFilterView ? 'status' : overdue ? 'carriedOver' : 'due',
+    // A done / deleted row's date is just its day (its state is spoken already).
+    dateKind: binFilterView || todo.done || todo.trashed ? 'status' : overdue ? 'carriedOver' : 'due',
     priority: todo.priority,
     recurring: !!todo.recurrence,
     categoryLabel: cat ? categoryLabel(cat, t) : null,
@@ -488,7 +490,7 @@ function TaskItem({
     done: todo.done,
     skipped: todo.status === 'notDo',
     trashed: todo.trashed,
-  })
+  }, a11yStrings)
   const rowA11yActions = rowAccessibilityActions({
     inTrash,
     isBin,
@@ -499,7 +501,7 @@ function TaskItem({
   })
   const rowA11yActionLabels: Record<RowA11yAction, string> = {
     toggleDone: todo.done || todo.trashed ? t.markNotDone : t.markDone,
-    toggleSteps: expanded ? 'Hide steps' : 'Show steps',
+    toggleSteps: expanded ? a11yStrings.hideSteps : a11yStrings.showSteps,
     edit: t.editTask,
     defer: t.deferTask,
     skip: t.notDo,
@@ -649,6 +651,7 @@ function TaskItem({
         clearOpenSwipeable(todo.id)
       }}
     >
+      <View>
       <Pressable
         // One VoiceOver element per row: say what a double-tap does (open),
         // and offer completion as an action — the circle's own label used to
@@ -684,6 +687,7 @@ function TaskItem({
         delayLongPress={350}
         style={({ pressed }) => [
           styles.row,
+          stepsShown && styles.rowWithSteps,
           todo.done && styles.rowDone,
           // Trashed rows render dimmed in any view (trash filter or
           // mixed-in via the All filter), so the user can tell them
@@ -761,7 +765,7 @@ function TaskItem({
                 meta row where the category chip lives. */}
             <View
               style={styles.priorityBtn}
-              accessibilityLabel={`Priority ${todo.priority}${todo.recurrence ? ', recurring' : ''}`}
+              accessibilityLabel={`${a11yStrings.priority(a11yStrings.priorityLabels[todo.priority])}${todo.recurrence ? `, ${a11yStrings.repeats}` : ''}`}
             >
               <PriorityDot level={todo.priority} size={11} />
             </View>
@@ -858,96 +862,6 @@ function TaskItem({
             )}
           </View>
 
-          {expanded && detailsAvailable && !inTrash && visibleSubs.length > 0 && (
-            <View style={styles.subList}>
-              {visibleSubs.map((s) => {
-                const sPriority: Priority = s.priority ?? 'medium'
-                const sDue = s.dueDate ?? ''
-                const sOverdue = !!sDue && !s.done && sDue < today
-                const sIsToday = !!sDue && !s.done && sDue === today
-                return (
-                  <View
-                    key={s.id}
-                    style={styles.subRow}
-                  >
-                    <TouchableOpacity
-                      ref={(node) => {
-                        if (node) subRefs.current.set(s.id, node)
-                        else subRefs.current.delete(s.id)
-                      }}
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {})
-                        // Celebrate when this step is about to become done.
-                        // sub.done reflects the PRE-toggle state here.
-                        if (!s.done) {
-                          if (playSound) playCompletionChime()
-                          if (celebrate) {
-                            subRefs.current.get(s.id)?.measureInWindow((x, y, w, h) => {
-                              triggerFirework({ x: x + w / 2, y: y + h / 2, color: categoryTint })
-                            })
-                          }
-                        }
-                        onToggleSubtask!(todo.id, s.id)
-                      }}
-                      hitSlop={14}
-                      style={[styles.subCheckbox, s.done && styles.subCheckboxDone]}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: s.done }}
-                      accessibilityLabel={
-                        s.done
-                          ? `${s.text}, completed subtask. Mark as not done.`
-                          : `${s.text}, subtask. Mark as done.`
-                      }
-                    >
-                      {s.done && <CheckGlyph size={12} />}
-                    </TouchableOpacity>
-                    <Text
-                      style={[styles.subText, s.done && styles.subTextDone]}
-                      numberOfLines={1}
-                      onPress={() => openSubtaskEdit(s.id)}
-                      suppressHighlighting
-                    >
-                      {s.text}
-                    </Text>
-                    {onUpdateSubtaskPriority && (
-                      <TouchableOpacity
-                        onPress={() => openSubtaskEdit(s.id)}
-                        hitSlop={12}
-                        style={styles.subPriorityBtn}
-                      >
-                        <PriorityDot level={sPriority} size={9} />
-                      </TouchableOpacity>
-                    )}
-                    {onUpdateSubtaskDueDate &&
-                      // Home's due-today mode hides the date chip on
-                      // sub rows that are already done — the chip
-                      // reads as redundant noise once the work is
-                      // complete. Open subs still show their date.
-                      !(subtaskDateFilter === 'due-today' && s.done) && (
-                      <TouchableOpacity
-                        onPress={() => openSubtaskEdit(s.id)}
-                        hitSlop={12}
-                        style={styles.subChip}
-                      >
-                        <Text style={[
-                          styles.subChipText,
-                          sOverdue
-                            ? styles.chipTextOverdue
-                            : sIsToday
-                              ? styles.chipTextToday
-                              : !sDue
-                                ? styles.chipTextMuted
-                                : styles.chipTextDate,
-                        ]}>
-                          {sDue ? rowDateLabel(sDue, t.locale, today) : t.noDate}
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                )
-              })}
-            </View>
-          )}
         </View>
 
         {/* Parent-gated on open-state so closed rows never build the
@@ -1106,6 +1020,106 @@ function TaskItem({
         )}
 
       </Pressable>
+        {/* The step list is a SIBLING of the row's Pressable, not inside it:
+            the row is one VoiceOver element, which would swallow every step
+            checkbox. Out here each step is its own accessible element; the
+            styles keep it visually part of the card. */}
+        {stepsShown && (
+          <View style={[styles.stepsBlock, (inTrash || todo.trashed) && styles.rowTrashed]}>
+          <View style={styles.subList}>
+            {visibleSubs.map((s) => {
+              const sPriority: Priority = s.priority ?? 'medium'
+              const sDue = s.dueDate ?? ''
+              const sOverdue = !!sDue && !s.done && sDue < today
+              const sIsToday = !!sDue && !s.done && sDue === today
+              return (
+                <View
+                  key={s.id}
+                  style={styles.subRow}
+                >
+                  <TouchableOpacity
+                    ref={(node) => {
+                      if (node) subRefs.current.set(s.id, node)
+                      else subRefs.current.delete(s.id)
+                    }}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {})
+                      // Celebrate when this step is about to become done.
+                      // sub.done reflects the PRE-toggle state here.
+                      if (!s.done) {
+                        if (playSound) playCompletionChime()
+                        if (celebrate) {
+                          subRefs.current.get(s.id)?.measureInWindow((x, y, w, h) => {
+                            triggerFirework({ x: x + w / 2, y: y + h / 2, color: categoryTint })
+                          })
+                        }
+                      }
+                      onToggleSubtask!(todo.id, s.id)
+                    }}
+                    hitSlop={14}
+                    style={[styles.subCheckbox, s.done && styles.subCheckboxDone]}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: s.done }}
+                    accessibilityLabel={
+                      s.done
+                        ? `${s.text}, completed subtask. Mark as not done.`
+                        : `${s.text}, subtask. Mark as done.`
+                    }
+                  >
+                    {s.done && <CheckGlyph size={12} />}
+                  </TouchableOpacity>
+                  <Text
+                    style={[styles.subText, s.done && styles.subTextDone]}
+                    numberOfLines={1}
+                    onPress={() => openSubtaskEdit(s.id)}
+                    suppressHighlighting
+                  >
+                    {s.text}
+                  </Text>
+                  {onUpdateSubtaskPriority && (
+                    <TouchableOpacity
+                      onPress={() => openSubtaskEdit(s.id)}
+                      hitSlop={12}
+                      style={styles.subPriorityBtn}
+                      // Now its own VoiceOver element: the dot alone has no words.
+                      accessibilityRole="button"
+                      accessibilityLabel={a11yStrings.priority(a11yStrings.priorityLabels[sPriority])}
+                    >
+                      <PriorityDot level={sPriority} size={9} />
+                    </TouchableOpacity>
+                  )}
+                  {onUpdateSubtaskDueDate &&
+                    // Home's due-today mode hides the date chip on
+                    // sub rows that are already done — the chip
+                    // reads as redundant noise once the work is
+                    // complete. Open subs still show their date.
+                    !(subtaskDateFilter === 'due-today' && s.done) && (
+                    <TouchableOpacity
+                      onPress={() => openSubtaskEdit(s.id)}
+                      hitSlop={12}
+                      style={styles.subChip}
+                    >
+                      <Text style={[
+                        styles.subChipText,
+                        sOverdue
+                          ? styles.chipTextOverdue
+                          : sIsToday
+                            ? styles.chipTextToday
+                            : !sDue
+                              ? styles.chipTextMuted
+                              : styles.chipTextDate,
+                      ]}>
+                        {sDue ? rowDateLabel(sDue, t.locale, today) : t.noDate}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )
+            })}
+          </View>
+          </View>
+        )}
+      </View>
     </Swipeable>
     </View>
   )

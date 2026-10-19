@@ -130,3 +130,17 @@ describe('buildDetailsUndo', () => {
     expect(buildDetailsUndo(mk('a'), [{ rowAfter: mk('a'), undo: () => false }], () => false)()).toBe(false)
   })
 })
+
+describe('buildDetailsUndo (pure)', () => {
+  const row = mk('r1')
+  it('a step whose tracked Undo put something back makes the whole Undo true', () => {
+    expect(buildDetailsUndo(row, [{ rowAfter: row, undo: () => true }], () => false)()).toBe(true)
+  })
+  it('a partial step counts as put back', () => {
+    expect(buildDetailsUndo(row, [{ rowAfter: row, undo: () => 'partial' }], () => false)()).toBe(true)
+  })
+  it('nothing reverted anywhere → false', () => {
+    expect(buildDetailsUndo(row, [{ rowAfter: row, undo: () => false }], () => false)()).toBe(false)
+    expect(buildDetailsUndo(row, [], () => false)()).toBe(false)
+  })
+})

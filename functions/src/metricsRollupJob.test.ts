@@ -196,6 +196,15 @@ describe('collectRollupUsers — several users in one getAll batch', () => {
     expect(rows[0]).toMatchObject({ lastActiveDate: '2026-10-17' })
     expect(rows[1]).toMatchObject({ lastActiveDate: '2026-10-18' })
   })
+
+  it("reads each user's activatedAt into activatedDay", async () => {
+    h.state.users = [user('u1'), user('u2')]
+    h.put('users/u1/state/signals', envelope({ lastActiveDate: '2026-10-18', activatedAt: '2026-10-12' }))
+    h.put('users/u2/state/signals', envelope({ lastActiveDate: '2026-10-18' }))
+    const rows = await collectRollupUsers(undefined, NOW)
+    expect(rows[0].activatedDay).toBe('2026-10-12')
+    expect(rows[1].activatedDay).toBeUndefined()
+  })
 })
 
 describe('collectRollupUsers — a bad doc and the getAll chunk boundary', () => {

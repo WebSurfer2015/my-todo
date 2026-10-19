@@ -30,17 +30,17 @@ export default defineConfig({
       // screens / sheets (.tsx) are device-QA territory (see mobile/CLAUDE.md).
       include: ['src/**/*.ts'],
       exclude: ['src/__tests__/**', '**/*.d.ts', 'src/core-bindings/**'],
-      // Floor ~1.5 points under the measured level (lines 74.85 / stmts
-      // 73.36 / funcs 66.66 / branches 68.18 as of 2026-10-19, round 8) so a
+      // Floor ~1.5 points under the measured level (lines 77.34 / stmts
+      // 76.07 / funcs 70.68 / branches 70.51 as of 2026-10-19, round 9) so a
       // real regression fails CI. Ratchet upward as coverage grows. .tsx
       // wiring isn't measured — keep its logic in pure .ts helpers (e.g.
       // TaskDetailsSheet/seriesCommit.ts, TaskItem/rowA11y.ts) or add a
       // source-grep guard test.
       thresholds: {
-        lines: 73.3,
-        statements: 71.8,
-        functions: 65.1,
-        branches: 66.6,
+        lines: 75.8,
+        statements: 74.5,
+        functions: 69.1,
+        branches: 69.0,
       },
     },
   },

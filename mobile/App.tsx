@@ -356,7 +356,7 @@ function TodosScreen() {
               style={styles.groupHeaderDeferBtn}
               hitSlop={6}
               accessibilityRole="button"
-              accessibilityLabel={`Defer ${openInGroupCount} to-dos in ${headerLabel}`}
+              accessibilityLabel={`Defer all to-dos in ${headerLabel}`}
             >
               <Text style={styles.groupHeaderDeferText}>Defer all →</Text>
             </TouchableOpacity>
@@ -708,7 +708,7 @@ function TodosScreen() {
                       style={styles.deferAllRow}
                       hitSlop={6}
                       accessibilityRole="button"
-                      accessibilityLabel={`Defer ${displayFiltered.filter((td) => !td.done).length} carried-over to-dos`}
+                      accessibilityLabel="Defer all carried-over to-dos"
                     >
                       <Text style={styles.deferAllText}>Defer all →</Text>
                     </TouchableOpacity>
@@ -1424,7 +1424,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.red,
     },
     emptyTrashText: {
-      color: "#fff",
+      color: c.onDanger,
       fontSize: 13,
       fontWeight: "600",
     },

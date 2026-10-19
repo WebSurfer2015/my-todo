@@ -205,7 +205,7 @@ Mochi, your steady companion, turns what's on your mind into a to-do. Never push
 
 TODAY, AND ONLY TODAY
 
-Open Sagely and you land on Today — a quiet view of just today and whatever carried over from yesterday. The whole backlog isn't shouting at you the moment you open the app. Every check-off comes with an Undo.
+Open Sagely and you land on Today — a quiet view of just today and whatever carried over from earlier days. The whole backlog isn't shouting at you the moment you open the app. Every check-off comes with an Undo.
 
 
 DESIGNED FOR THE HARD MOMENTS
