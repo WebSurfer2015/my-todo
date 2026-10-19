@@ -56,11 +56,15 @@ import Onboarding from "./src/features/onboarding/Onboarding";
 import SplashOverlay from "./src/app/SplashOverlay";
 import { cancelDailyCheckin, onReminderTapped, syncTodoReminders } from "./src/adapters/notifications";
 import { installCrashReporters } from "./src/adapters/crashReporting";
+import { initAppCheck } from "./src/adapters/appCheck";
 
 // Install crash reporters before any React code runs so even very early
 // failures get forwarded to Crashlytics. Idempotent — safe to call once
 // at module-load.
 installCrashReporters();
+// App Check before any Firestore / Functions traffic. Best-effort: a dev
+// client without the native module keeps running (see adapters/appCheck).
+initAppCheck();
 import { NavigationContainer, useIsFocused } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { House, ListTodo, ShoppingBag } from "lucide-react-native";
