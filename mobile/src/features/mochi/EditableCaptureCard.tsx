@@ -25,6 +25,13 @@ interface CreateTodoArgs {
   notes?: string
 }
 
+/** A chip edit on the captured to-do. `category: null` clears it. */
+export interface CapturedTodoPatch {
+  category?: string | null
+  priority?: Priority
+  dueDate?: string
+}
+
 interface Props {
   args: CreateTodoArgs
   /** The live to-do id (so edits target the applied task). */
@@ -32,14 +39,15 @@ interface Props {
   categories: CategoryDef[]
   /** Read-only recurrence summary (computed by the caller). */
   recurrenceText: string | null
-  onEdit: (id: string, patch: { category?: string; priority?: Priority; dueDate?: string }) => void
+  onEdit: (id: string, patch: CapturedTodoPatch) => void
   /** Remove the captured to-do entirely (the bottom of the undo stack).
    * May ask first (a repeating to-do's scope Alert) — resolve false when
    * the user cancels, so the card keeps its Undo instead of reading
    * "Removed" over a to-do that still exists. void counts as removed. */
   onRemove: () => void | boolean | Promise<boolean>
-  /** False once a newer Mochi turn applied changes: the add can't be undone
-   * from here any more (only this card's own chip edits can). */
+  /** False once a newer Mochi turn applied changes: the card turns
+   * read-only — no chip edits and no Undo (its absolute "put back" values
+   * could overwrite what the newer turn did). */
   undoLive?: boolean
 }
 
@@ -66,6 +74,9 @@ export default function EditableCaptureCard({
   const [, bumpUndo] = useState(0) // force a re-render when the stack changes
   const sync = () => bumpUndo((n) => n + 1)
 
+  // One rule: once a newer Mochi turn applied, this card is read-only.
+  const editable = undoLive && !removed
+  const tray = editable ? open : null
   const activeCat = categories.find((c) => c.id === category)
   // Guard against a malformed dueDate → Invalid Date would crash the picker.
   const pickerValue = (() => {
@@ -94,7 +105,8 @@ export default function EditableCaptureCard({
     setOpen(null)
     undoStack.current.push(() => {
       setCategory(prev)
-      if (prev !== undefined) onEdit(id, { category: prev })
+      // No category before → clear it again (null), so card and store agree.
+      onEdit(id, { category: prev ?? null })
     })
     sync()
   }
@@ -132,37 +144,40 @@ export default function EditableCaptureCard({
       <Text style={styles.title}>{args.text}</Text>
       <View style={styles.chipRow}>
         <TouchableOpacity
-          style={styles.editChip}
+          style={editable ? styles.editChip : styles.roChip}
+          disabled={!editable}
           onPress={() => setOpen((p) => (p === 'category' ? null : 'category'))}
           accessibilityRole="button"
-          accessibilityLabel={`Category, ${activeCat ? categoryLabel(activeCat, t) : 'none'}. Tap to change.`}
+          accessibilityLabel={`Category, ${activeCat ? categoryLabel(activeCat, t) : 'none'}${editable ? '. Tap to change.' : ''}`}
         >
-          <Text style={styles.editChipText}>
+          <Text style={editable ? styles.editChipText : styles.roChipText}>
             {activeCat ? categoryLabel(activeCat, t) : 'Category'}
           </Text>
-          <ChevronDown size={12} color={theme.primary} strokeWidth={2.4} />
+          {editable && <ChevronDown size={12} color={theme.primary} strokeWidth={2.4} />}
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.editChip}
+          style={editable ? styles.editChip : styles.roChip}
+          disabled={!editable}
           onPress={() => setOpen((p) => (p === 'date' ? null : 'date'))}
           accessibilityRole="button"
-          accessibilityLabel={`Complete by, ${dueDate ? formatCalendarDate(dueDate, { locale: t.locale }) : t.noDate}. Tap to change.`}
+          accessibilityLabel={`Complete by, ${dueDate ? formatCalendarDate(dueDate, { locale: t.locale }) : t.noDate}${editable ? '. Tap to change.' : ''}`}
         >
-          <Text style={styles.editChipText}>
+          <Text style={editable ? styles.editChipText : styles.roChipText}>
             {dueDate ? formatCalendarDate(dueDate, { locale: t.locale }) : 'Add date'}
           </Text>
-          <ChevronDown size={12} color={theme.primary} strokeWidth={2.4} />
+          {editable && <ChevronDown size={12} color={theme.primary} strokeWidth={2.4} />}
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.editChip}
+          style={editable ? styles.editChip : styles.roChip}
+          disabled={!editable}
           onPress={cyclePriority}
           accessibilityRole="button"
-          accessibilityLabel={`Priority ${t.priority[priority]}. Tap to cycle.`}
+          accessibilityLabel={`Priority ${t.priority[priority]}${editable ? '. Tap to cycle.' : ''}`}
         >
           <PriorityDot level={priority} size={10} />
-          <Text style={styles.editChipText}>{t.priority[priority]}</Text>
+          <Text style={editable ? styles.editChipText : styles.roChipText}>{t.priority[priority]}</Text>
         </TouchableOpacity>
 
         {recurrenceText && (
@@ -181,7 +196,7 @@ export default function EditableCaptureCard({
       {/* Editing controls live in a recessed tray with a header — visually a
           transient menu, distinct from the chip row that shows the to-do's
           actual values. */}
-      {open === 'category' && (
+      {tray === 'category' && (
         <View style={styles.pickerPanel}>
           <Text style={styles.pickerPanelLabel}>Choose a category</Text>
           <View style={styles.catPicker}>
@@ -202,7 +217,7 @@ export default function EditableCaptureCard({
           </View>
         </View>
       )}
-      {open === 'date' && (
+      {tray === 'date' && (
         <View style={styles.pickerPanel}>
           <Text style={styles.pickerPanelLabel}>Pick a date</Text>
           <DateTimePicker
@@ -228,7 +243,7 @@ export default function EditableCaptureCard({
         ) : (
           <>
             <Text style={styles.addedNote}>✓ Added</Text>
-            {(undoLive || undoStack.current.length > 0) && (
+            {editable && (
             <TouchableOpacity
               onPress={undoLast}
               hitSlop={8}

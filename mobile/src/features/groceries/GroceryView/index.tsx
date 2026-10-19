@@ -21,7 +21,8 @@ import {
   View,
 } from 'react-native'
 import { ChevronDown, ChevronRight } from 'lucide-react-native'
-import { ActionSheetIOS, Alert } from 'react-native'
+import { ActionSheetIOS } from 'react-native'
+import { alertWithPresence } from '../../../app/modalPresence'
 import { GroceryItem, GroceryGroup, frequentGroceries } from '../../../core-bindings/groceries'
 import { useTheme } from '../../../app/theme'
 import GroceryEditSheet from '../GroceryEditSheet'
@@ -430,7 +431,7 @@ export default function GroceryView({
         },
       )
     } else {
-      Alert.alert(label, undefined, [
+      alertWithPresence(label, undefined, [
         { text: actionLabel, onPress: toggle },
         { text: 'Cancel', style: 'cancel' },
       ])

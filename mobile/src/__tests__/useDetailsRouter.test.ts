@@ -10,16 +10,24 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
-import { useDetailsRouter, type DetailsRouterDeps, DETAILS_OFFER_MS, PARK_POLL_MS } from '../app/useDetailsRouter'
+import {
+  useDetailsRouter,
+  type DetailsRouterDeps,
+  DETAILS_OFFER_MS,
+  MAX_OPEN_RETRIES,
+  PARK_POLL_MS,
+  PARK_TTL_MS,
+} from '../app/useDetailsRouter'
 import { __resetModalPresenceForTests, useModalPresence } from '../app/modalPresence'
 import { MODAL_DISMISS_GRACE_MS, MODAL_HANDOFF_MS } from '../app/modalTiming'
 
 type Offer = Parameters<DetailsRouterDeps['showSnackbar']>[0]
 
-const TODOS: Record<string, { text: string }> = {
+const TODOS: Record<string, { text: string; trashed?: boolean }> = {
   a: { text: 'Call mom' },
   b: { text: 'Pay rent' },
   c: { text: 'Water plants' },
+  t: { text: 'Old thing', trashed: true },
 }
 
 function setup(initial: Partial<{ anySheetOpen: boolean; accountUid: string | null }> = {}) {
@@ -271,5 +279,177 @@ describe('useDetailsRouter', () => {
     hook.unmount()
     vi.advanceTimersByTime(MODAL_HANDOFF_MS)
     expect(fn).not.toHaveBeenCalled()
+  })
+})
+
+describe('useDetailsRouter — round 5', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    __resetModalPresenceForTests()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('the offer re-checks when it would show: a sheet opened meanwhile → handed back, offered again later', () => {
+    const { hook, offers } = setup({ anySheetOpen: true })
+    act(() => hook.result.current.openTaskDetails('a'))
+    hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+    settle()
+    expect(offers).toHaveLength(1)
+    expect(offers[0].canShow()).toBe(true)
+    // An "Added · Undo" was visible, so the offer waited; Compose opened
+    // again before the Undo ended → NotifyProvider asks and is told no.
+    hook.rerender({ anySheetOpen: true, accountUid: 'u1' })
+    expect(offers[0].canShow()).toBe(false)
+    act(() => offers[0].onBlocked())
+    settle()
+    expect(offers).toHaveLength(1)
+    hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+    settle()
+    expect(offers).toHaveLength(2)
+    expect(offers[1].message).toBe('Reminder: “Call mom”')
+  })
+
+  it('a reminder for a trashed to-do is never parked or offered', () => {
+    const { hook, offers } = setup({ anySheetOpen: true })
+    act(() => hook.result.current.openTaskDetails('t'))
+    hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+    settle()
+    expect(offers).toEqual([])
+  })
+
+  it('a to-do trashed while parked is not offered, and an offer for one can no longer show', () => {
+    const { hook, offers } = setup({ anySheetOpen: true })
+    act(() => hook.result.current.openTaskDetails('b'))
+    TODOS.b.trashed = true
+    try {
+      hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+      settle()
+      expect(offers).toEqual([])
+    } finally {
+      delete TODOS.b.trashed
+    }
+    act(() => hook.result.current.openTaskDetails('a'))
+    // (Nothing presented: 'a' opened directly.)
+    expect(hook.result.current.detailsReq?.id).toBe('a')
+  })
+
+  it('a parked request expires: no offer hours later, and the poll stops', () => {
+    const { hook, offers } = setup({ anySheetOpen: true })
+    act(() => hook.result.current.openTaskDetails('a'))
+    act(() => vi.advanceTimersByTime(PARK_TTL_MS + PARK_POLL_MS))
+    expect(vi.getTimerCount()).toBe(0)
+    hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+    settle()
+    expect(offers).toEqual([])
+  })
+
+  it('a handed-back offer keeps its original expiry', () => {
+    const { hook, offers } = setup({ anySheetOpen: true })
+    act(() => hook.result.current.openTaskDetails('a'))
+    hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+    settle()
+    hook.rerender({ anySheetOpen: true, accountUid: 'u1' })
+    act(() => offers[0].onBlocked())
+    act(() => vi.advanceTimersByTime(PARK_TTL_MS))
+    hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+    settle()
+    expect(offers).toHaveLength(1)
+  })
+
+  it("the user's own row tap is never parked or relabelled — it retries, then opens", () => {
+    const { hook, offers } = setup()
+    const modal = renderHook(({ v }) => useModalPresence(v), { initialProps: { v: true } })
+    act(() => hook.result.current.openTaskDetails('a', null, { source: 'user' }))
+    expect(hook.result.current.detailsReq).toBeNull()
+    modal.rerender({ v: false })
+    act(() => vi.advanceTimersByTime(MODAL_DISMISS_GRACE_MS + MODAL_HANDOFF_MS))
+    expect(hook.result.current.detailsReq?.id).toBe('a')
+    settle()
+    expect(offers).toEqual([])
+    modal.unmount()
+  })
+
+  it('a user tap that still can not open after the retries is dropped (no "Reminder" offer)', () => {
+    const { hook, offers } = setup()
+    const modal = renderHook(() => useModalPresence(true))
+    act(() => hook.result.current.openTaskDetails('a', null, { source: 'user' }))
+    act(() => vi.advanceTimersByTime(MODAL_HANDOFF_MS * (MAX_OPEN_RETRIES + 2)))
+    modal.unmount()
+    settle()
+    act(() => vi.advanceTimersByTime(MODAL_HANDOFF_MS * 2))
+    expect(hook.result.current.detailsReq).toBeNull()
+    expect(offers).toEqual([])
+  })
+
+  it("details' own dismiss counts as presented: a row tap right after closing waits for it", () => {
+    const { hook } = setup()
+    act(() => hook.result.current.openTaskDetails('a', null, { source: 'user' }))
+    act(() => hook.result.current.closeTaskDetails())
+    act(() => hook.result.current.openTaskDetails('b', null, { source: 'user' }))
+    // Not presented over the sheet that's still animating out…
+    expect(hook.result.current.detailsReq).toBeNull()
+    // …but opened once it has animated out (the next handoff after the grace).
+    act(() => vi.advanceTimersByTime(MODAL_HANDOFF_MS))
+    expect(hook.result.current.detailsReq).toBeNull()
+    act(() => vi.advanceTimersByTime(MODAL_HANDOFF_MS))
+    expect(hook.result.current.detailsReq?.id).toBe('b')
+  })
+
+  it("a reminder tap during details' dismiss is parked, then offered", () => {
+    const { hook, offers } = setup()
+    act(() => hook.result.current.openTaskDetails('a'))
+    act(() => hook.result.current.closeTaskDetails())
+    act(() => hook.result.current.openTaskDetails('b'))
+    expect(hook.result.current.detailsReq).toBeNull()
+    settle()
+    expect(offers.map((o) => o.message)).toEqual(['Reminder: “Pay rent”'])
+  })
+
+  it('the offer waits the full dismiss grace after the screen clears (not just one poll)', () => {
+    const { hook, offers } = setup({ anySheetOpen: true })
+    act(() => hook.result.current.openTaskDetails('a'))
+    hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+    act(() => vi.advanceTimersByTime(2 * PARK_POLL_MS))
+    expect(offers).toEqual([])
+    act(() => vi.advanceTimersByTime(MODAL_DISMISS_GRACE_MS))
+    expect(offers).toHaveLength(1)
+  })
+
+  it('the clear streak resets when the screen stops being clear', () => {
+    const { hook, offers } = setup({ anySheetOpen: true })
+    act(() => hook.result.current.openTaskDetails('a'))
+    hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+    act(() => vi.advanceTimersByTime(2 * PARK_POLL_MS))
+    hook.rerender({ anySheetOpen: true, accountUid: 'u1' })
+    act(() => vi.advanceTimersByTime(PARK_POLL_MS))
+    hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+    act(() => vi.advanceTimersByTime(PARK_POLL_MS))
+    expect(offers).toEqual([])
+  })
+
+  it('Open retries exactly MAX_OPEN_RETRIES handoffs, then parks again', () => {
+    const { hook, offers } = setup({ anySheetOpen: true })
+    act(() => hook.result.current.openTaskDetails('a'))
+    hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+    settle()
+    const modal = renderHook(() => useModalPresence(true))
+    act(() => offers[0].onAction())
+    act(() => vi.advanceTimersByTime(MAX_OPEN_RETRIES * MODAL_HANDOFF_MS + 1))
+    modal.unmount()
+    act(() => vi.advanceTimersByTime(MODAL_HANDOFF_MS))
+    expect(hook.result.current.detailsReq).toBeNull()
+  })
+
+  it('opening ANOTHER to-do keeps the parked offer', () => {
+    const { hook, offers } = setup({ anySheetOpen: true })
+    act(() => hook.result.current.openTaskDetails('a'))
+    hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+    act(() => hook.result.current.openTaskDetails('b', null, { source: 'user' }))
+    expect(hook.result.current.detailsReq?.id).toBe('b')
+    act(() => hook.result.current.closeTaskDetails())
+    settle()
+    expect(offers.map((o) => o.message)).toEqual(['Reminder: “Call mom”'])
   })
 })

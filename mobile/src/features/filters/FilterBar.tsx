@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActionSheetIOS, Alert, Platform } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActionSheetIOS, Platform } from 'react-native'
+import { alertWithPresence } from '../../app/modalPresence'
 import {
   Filter,
   Priority,
@@ -224,7 +225,7 @@ export default function FilterBar({
         },
       )
     } else {
-      Alert.alert(label, undefined, [
+      alertWithPresence(label, undefined, [
         { text: pinLabel, onPress: () => onPinFilter(targetSet) },
         { text: removeLabel, onPress: onRemove },
         { text: t.cancel, style: 'cancel' },

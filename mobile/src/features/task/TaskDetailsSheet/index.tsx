@@ -40,6 +40,7 @@ import { useLang } from '../../../app/LangContext'
 import { useNotify } from '../../../app/notify'
 import { useModalPresence } from '../../../app/modalPresence'
 import { useStore } from '../../../app/StoreContext'
+import type { SeriesCommit } from '../../../store/slices/useTodosSlice'
 import PriorityDot from '../../../ui/PriorityDot'
 import CheckGlyph from '../../../ui/CheckGlyph'
 import CategoryIcon from '../../../ui/CategoryIcon'
@@ -62,6 +63,7 @@ import {
   reminderSummary,
 } from '../../../../../core/src/logic/labels'
 import { makeStyles } from './styles';
+import { planStepDoneFooter, stepDoneUndoAfterToggle } from './stepDoneFooter'
 import { absoluteDateLabel } from '../absoluteDateLabel'
 
 function isCustomRecurrence(rec: Recurrence | undefined): boolean {
@@ -131,40 +133,15 @@ interface Props {
   onSkipSeries: (id: string) => void
   /** Permanently delete this + all future occurrences in the series. */
   onPermanentDeleteSeries: (id: string) => void
-  /** Copies text/priority/category/notes from this instance to every
-   * future non-trashed sibling in the same series. Skips detached
-   * instances unless `options.overwriteDetached` is true. */
-  onApplySeriesFutureEdits: (
-    id: string,
-    fields: {
-      text?: string;
-      priority?: Priority;
-      category?: Category | undefined;
-      notes?: string;
-    },
-    options?: { overwriteDetached?: boolean; silent?: boolean },
-  ) => void
+  /** Closing in "Edit series" mode: writes the buffered fields to this row
+   * and every future non-trashed sibling (detached ones skipped), plus a
+   * new repeat rule (R6b, after the "Replace all / Keep my edits" dialog)
+   * or this row's steps shape (R6c) — as ONE change with one snackbar Undo. */
+  onCommitSeriesEdits: (id: string, edits: SeriesCommit) => void
   /** R6a — Mark this series instance as detached so later series-wide
    * edits skip it by default. Fires when the user edits a
    * series-eligible field in "Edit this only" mode on a series row. */
   onDetachFromSeries: (id: string) => void
-  /** R6b — Apply a new recurrence to the whole series and recreate
-   * the tail. Called by the "Replace all / Keep my edits" dialog
-   * fired at Save in series mode when the user changes the
-   * recurrence shape. */
-  onApplyRecurrenceChange: (
-    id: string,
-    newRecurrence: Recurrence | undefined,
-    options: { keepDetached: boolean },
-  ) => void
-  /** R6c — Propagate the target's current subtasks shape to every
-   * future non-trashed sibling. Called by the "Replace all /
-   * Keep my edits" dialog fired at Save in series mode when the
-   * user changed the subtask shape during the session. */
-  onApplySeriesSubtasks: (
-    id: string,
-    options: { keepDetached: boolean },
-  ) => void
   onAddSubtask: (id: string, text: string, priority?: Priority, dueDate?: string) => void
   /** Returns the exact Undo for the toggle (null on a no-op) — the sheet
    * shows it inline when finishing the last step completes the to-do. */
@@ -189,7 +166,7 @@ function todoContentDiffers(a: Todo, b: Todo): boolean {
 
 export default function TaskDetailsSheet({
   visible, todo, categories, initialSubtaskEditId, onClose, registerClose, onUpdateText, onUpdateNotes,
-  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminders, onMoveToTrash, onToggle, onPermanentDelete, onMoveSeriesFutureToTrash, onSkip, onSkipSeries, onPermanentDeleteSeries, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange, onApplySeriesSubtasks,
+  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminders, onMoveToTrash, onToggle, onPermanentDelete, onMoveSeriesFutureToTrash, onSkip, onSkipSeries, onPermanentDeleteSeries, onCommitSeriesEdits, onDetachFromSeries,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
   agentEnabled,
@@ -328,16 +305,12 @@ export default function TaskDetailsSheet({
   const [stepDoneUndo, setStepDoneUndo] = useState<(() => void) | null>(null)
   const toggleStep = (id: string, subId: string) => {
     const before = todoRef.current
-    const willComplete =
-      !before.done &&
-      (before.subtasks ?? []).every((st) => (st.id === subId ? !st.done : st.done))
-    const undo = onToggleSubtask(id, subId)
-    setStepDoneUndo(willComplete && undo ? () => undo : null)
+    const undo = stepDoneUndoAfterToggle(before, subId, onToggleSubtask(id, subId))
+    setStepDoneUndo(undo ? () => undo : null)
   }
-  const showStepDoneRow = stepDoneUndo !== null && !!todo.done
   // The Done-bin footer (Delete forever / Reopen) — not for a to-do that
   // was just finished from its steps while the sheet is open.
-  const isBinFooter = !!todo.trashed && !showStepDoneRow
+  const { showStepDoneRow, isBinFooter } = planStepDoneFooter(stepDoneUndo, todo)
 
   // Seed the form (and the per-open series bookkeeping) when the sheet
   // opens or the task identity changes.
@@ -535,28 +508,17 @@ export default function TaskDetailsSheet({
     const recurrenceChanged =
       JSON.stringify(editRecurrence ?? null) !== JSON.stringify(todo.recurrence ?? null)
 
-    // Commits the buffered text/notes/priority/category to this row +
-    // propagates to future series siblings. Called from both the
-    // straight-Save and the post-dialog paths so the same diff lands
-    // either way.
-    function commitBufferedSeriesFields() {
-      if (textChanged) onUpdateText(todo.id, trimmedText)
-      if (notesChanged) onUpdateNotes(todo.id, editNotes)
-      if (priorityChanged) onUpdatePriority(todo.id, editPriority)
-      if (categoryChanged && editCategory !== undefined) onUpdateCategory(todo.id, editCategory)
-      const fields: {
-        text?: string
-        priority?: Priority
-        category?: Category | undefined
-        notes?: string
-      } = {}
-      if (textChanged) fields.text = trimmedText
-      if (notesChanged) fields.notes = editNotes
-      if (priorityChanged) fields.priority = editPriority
-      if (categoryChanged) fields.category = editCategory
-      if (Object.keys(fields).length > 0) {
-        onApplySeriesFutureEdits(todo.id, fields)
-      }
+    // The buffered text/notes/priority/category, committed (to this row +
+    // future siblings) together with whatever the dialogs below add — as
+    // one change with one Undo.
+    const fields: SeriesCommit['fields'] = {}
+    if (textChanged) fields.text = trimmedText
+    if (notesChanged) fields.notes = editNotes
+    if (priorityChanged) fields.priority = editPriority
+    if (categoryChanged) fields.category = editCategory
+    function commitSeries(extra: Omit<SeriesCommit, 'fields'> = {}) {
+      if (Object.keys(fields).length === 0 && !extra.recurrence && !extra.subtasks) return
+      onCommitSeriesEdits(todo.id, { fields, ...extra })
     }
 
     const subtasksChanged =
@@ -577,16 +539,14 @@ export default function TaskDetailsSheet({
           {
             text: t.seriesFreqKeepModified,
             onPress: () => {
-              commitBufferedSeriesFields()
-              onApplyRecurrenceChange(todo.id, editRecurrence, { keepDetached: true })
+              commitSeries({ recurrence: { value: editRecurrence, keepDetached: true } })
               onClose()
             },
           },
           {
             text: t.seriesFreqRecreateAll,
             onPress: () => {
-              commitBufferedSeriesFields()
-              onApplyRecurrenceChange(todo.id, editRecurrence, { keepDetached: false })
+              commitSeries({ recurrence: { value: editRecurrence, keepDetached: false } })
               onClose()
             },
           },
@@ -607,16 +567,14 @@ export default function TaskDetailsSheet({
           {
             text: t.seriesSubtasksKeepModified,
             onPress: () => {
-              commitBufferedSeriesFields()
-              onApplySeriesSubtasks(todo.id, { keepDetached: true })
+              commitSeries({ subtasks: { keepDetached: true } })
               onClose()
             },
           },
           {
             text: t.seriesSubtasksOverwriteAll,
             onPress: () => {
-              commitBufferedSeriesFields()
-              onApplySeriesSubtasks(todo.id, { keepDetached: false })
+              commitSeries({ subtasks: { keepDetached: false } })
               onClose()
             },
           },
@@ -627,7 +585,7 @@ export default function TaskDetailsSheet({
     }
 
     if (seriesCommit) {
-      commitBufferedSeriesFields()
+      commitSeries()
     } else {
       applyText(editText)
       applyNotes(editNotes)

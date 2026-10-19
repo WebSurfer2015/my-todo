@@ -40,7 +40,7 @@ export const DEBOUNCE_MS = 1500
 // plausibly carry a category signal — but for short text with no
 // signal, skip to save tokens. Cheap regex, runs on every text
 // change before the network call.
-export const SIGNAL_PATTERNS: RegExp[] = [
+const SIGNAL_PATTERNS: RegExp[] = [
   // clock time: "3pm", "3:30 pm", "at 3", "at 14:00"
   /\b\d{1,2}(:\d{2})?\s?(am|pm)\b/i,
   /\bat\s+\d{1,2}(:\d{2})?\b/i,
@@ -59,7 +59,7 @@ export const SIGNAL_PATTERNS: RegExp[] = [
 ]
 
 /** Words needed before a cue-less title is worth a (category-only) guess. */
-export const MIN_WORDS = 3
+const MIN_WORDS = 3
 
 export function hasExtractableSignal(text: string): boolean {
   if (SIGNAL_PATTERNS.some((re) => re.test(text))) return true

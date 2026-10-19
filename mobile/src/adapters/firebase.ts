@@ -7,6 +7,6 @@ import { getFirestore } from "@react-native-firebase/firestore";
  * and google-services.json (Android) at native launch — no JS-side config
  * needed. We just grab handles to the default app.
  */
-export const firebaseApp = getApp();
+const firebaseApp = getApp();
 export const auth = getAuth(firebaseApp);
 export const db = getFirestore(firebaseApp);

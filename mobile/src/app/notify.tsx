@@ -24,6 +24,14 @@ interface SnackbarOptions {
    * VISIBLE waiting-kind one directly. Used by the reminder "Open" offer.
    */
   queue?: boolean
+  /**
+   * For a `queue` snackbar: whether it can be SEEN right now. Checked when it
+   * would show — immediately, or once the Undo it waited for ends. If false
+   * (e.g. a sheet opened meanwhile and would cover it), it isn't shown;
+   * `onBlocked` hands it back to its owner to wait again.
+   */
+  canShow?: () => boolean
+  onBlocked?: () => void
   /** Survive an account change (sign-out / account deletion) — e.g. the
    * "Your data has been cleared." confirmation shown right after sign-out. */
   outlivesAccount?: boolean
@@ -44,6 +52,14 @@ interface SnackbarState {
   mergedActionLabel?: string
   /** The options it was shown with (re-queued if an Undo replaces it). */
   source: SnackbarOptions
+  /** Every toast merged into this one, oldest first (for retractSnackbar). */
+  parts: SnackbarPart[]
+}
+
+interface SnackbarPart {
+  message: string
+  actionLabel?: string
+  action?: () => void
 }
 
 interface NotifyApi {
@@ -51,6 +67,10 @@ interface NotifyApi {
   /** Hide the snackbar (and drop a waiting one). `accountChange`: the
    * signed-in account changed — keep only `outlivesAccount` snackbars. */
   dismissSnackbar: (opts?: { accountChange?: boolean }) => void
+  /** The action `onAction` was already taken elsewhere (an inline Undo):
+   * drop that toast — or just its part of a merged one — so its Undo can't
+   * run twice. No-op if it isn't showing. */
+  retractSnackbar: (onAction: () => void) => void
 }
 
 /**
@@ -113,6 +133,13 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
     else setSnackbar(null)
   }, [])
 
+  // A queued snackbar about to show where it can't be seen: hand it back.
+  const blocked = (opts: SnackbarOptions): boolean => {
+    if (!opts.queue || !opts.canShow || opts.canShow()) return false
+    opts.onBlocked?.()
+    return true
+  }
+
   const dismissSnackbar = useCallback((opts?: { accountChange?: boolean }) => {
     if (opts?.accountChange) {
       if (waitingRef.current && !waitingRef.current.outlivesAccount) waitingRef.current = null
@@ -126,6 +153,11 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
     const plan = planSnackbar(prev?.source ?? null, waitingRef.current, opts)
     if (plan.action === 'wait') {
       waitingRef.current = opts
+      return
+    }
+    if (blocked(opts)) {
+      // Nothing new shows; a slot freed by endCurrent stays empty.
+      if (!prev) setSnackbar(null)
       return
     }
     if (plan.requeue && prev) waitingRef.current = prev.source
@@ -156,6 +188,7 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
         mergedMessage: builder,
         mergedActionLabel: opts.mergedActionLabel ?? prev.mergedActionLabel,
         source: opts,
+        parts: [...prev.parts, { message: opts.message, actionLabel: opts.actionLabel, action: opts.onAction }],
       }
     } else {
       next = {
@@ -171,6 +204,7 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
         mergedMessage: opts.mergedMessage,
         mergedActionLabel: opts.mergedActionLabel,
         source: opts,
+        parts: [{ message: opts.message, actionLabel: opts.actionLabel, action: opts.onAction }],
       }
     }
     snackbarRef.current = next
@@ -185,12 +219,45 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
     showRef.current = showSnackbar
   }, [showSnackbar])
 
+  const retractSnackbar = useCallback(
+    (action: () => void) => {
+      const cur = snackbarRef.current
+      if (!cur || !cur.parts.some((p) => p.action === action)) return
+      const parts = cur.parts.filter((p) => p.action !== action)
+      if (parts.length === 0) {
+        endCurrent()
+        return
+      }
+      const last = parts[parts.length - 1]
+      const count = parts.length
+      const next: SnackbarState = {
+        ...cur,
+        message: count >= 2 && cur.mergedMessage ? cur.mergedMessage(count) : last.message,
+        actionLabel: count >= 2 ? (cur.mergedActionLabel ?? last.actionLabel) : last.actionLabel,
+        onAction: runNewestFirst(
+          parts.slice(0, -1).flatMap((p) => (p.action ? [p.action] : [])),
+          last.action,
+        ),
+        mergedCount: count,
+        mergedActions: parts.slice(0, -1).flatMap((p) => (p.action ? [p.action] : [])),
+        ownAction: last.action,
+        parts,
+      }
+      snackbarRef.current = next
+      setSnackbar(next)
+    },
+    [endCurrent],
+  )
+
   const handleAction = useCallback(() => {
     if (snackbar?.onAction) snackbar.onAction()
     endCurrent()
   }, [snackbar, endCurrent])
 
-  const value = useMemo<NotifyApi>(() => ({ showSnackbar, dismissSnackbar }), [showSnackbar, dismissSnackbar])
+  const value = useMemo<NotifyApi>(
+    () => ({ showSnackbar, dismissSnackbar, retractSnackbar }),
+    [showSnackbar, dismissSnackbar, retractSnackbar],
+  )
 
   return (
     <NotifyContext.Provider value={value}>

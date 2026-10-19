@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode, useMemo } from 'react'
+import React, { Component, ErrorInfo, ReactNode, useMemo, useState } from 'react'
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import crashlytics from '@react-native-firebase/crashlytics'
@@ -64,34 +64,52 @@ function ErrorFallback({
 }) {
   const c = useTheme()
   const styles = useMemo(() => makeStyles(c), [c])
+  const [showDetails, setShowDetails] = useState(false)
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>Something went wrong</Text>
-        <Text style={styles.body}>{String(error.message || error)}</Text>
+        <Text style={styles.title}>{ERROR_FALLBACK_TITLE}</Text>
+        <Text style={styles.lead}>{ERROR_FALLBACK_BODY}</Text>
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.btn} onPress={onRetry}>
+          <TouchableOpacity style={styles.btn} onPress={onRetry} accessibilityRole="button">
             <Text style={styles.btnText}>Try again</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.btn, styles.btnDanger]} onPress={onResetAll}>
-            <Text style={[styles.btnText, styles.btnTextDanger]}>Reset all data</Text>
+          {/* Clears only this device's local settings (the to-dos live in
+              the account), so it's a neutral action, not a destructive one. */}
+          <TouchableOpacity style={styles.btn} onPress={onResetAll} accessibilityRole="button">
+            <Text style={styles.btnText}>Reset this device's settings</Text>
           </TouchableOpacity>
         </View>
+        <TouchableOpacity
+          onPress={() => setShowDetails((v) => !v)}
+          style={styles.detailsToggle}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showDetails }}
+        >
+          <Text style={styles.detailsToggleText}>{showDetails ? 'Hide details' : 'Details'}</Text>
+        </TouchableOpacity>
+        {showDetails && <Text style={styles.body}>{String(error.message || error)}</Text>}
       </ScrollView>
     </SafeAreaView>
   )
 }
 
+const ERROR_FALLBACK_TITLE = 'Something went sideways.'
+const ERROR_FALLBACK_BODY = 'Your to-dos are safe in your account.'
+
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: c.bg },
     container: { padding: 24 },
-    title: { fontSize: 22, fontWeight: '700', marginBottom: 12, color: c.label },
+    title: { fontSize: 22, fontWeight: '700', marginBottom: 8, color: c.label },
+    lead: { fontSize: 15, color: c.label2 },
+    detailsToggle: { alignSelf: 'center', marginTop: 20, paddingVertical: 8 },
+    detailsToggleText: { fontSize: 13, fontWeight: '500', color: c.label2 },
     body: {
       fontSize: 13,
       fontFamily: 'Menlo',
       backgroundColor: c.card,
-      color: c.red,
+      color: c.label2,
       padding: 12,
       borderRadius: 8,
       borderWidth: StyleSheet.hairlineWidth,
@@ -105,8 +123,6 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.card,
       alignItems: 'center',
     },
-    btnDanger: { borderWidth: StyleSheet.hairlineWidth, borderColor: c.red },
     btnText: { fontSize: 15, fontWeight: '600', color: c.label },
-    btnTextDanger: { color: c.red },
   })
 }

@@ -6,7 +6,8 @@
  * newer turn's edit of the same to-do. Simplest mental model: once a newer
  * turn applies changes, older turns read "✓ Done" with no Undo.
  *
- * The executor (SheetContext) calls `beginMochiTurn()` when a turn applies
+ * The executor (useMochiExecutor) calls `beginMochiTurn()` once a turn has
+ * actually applied something (not for a cancelled confirm or an empty plan)
  * and wraps that turn's Undo(s) with the returned `stamp`. A stale Undo is a
  * no-op that reports `false` (nothing undone); the chat hides it via
  * `isUndoLive` / `useUndoLive`. Undos that were never stamped stay live.

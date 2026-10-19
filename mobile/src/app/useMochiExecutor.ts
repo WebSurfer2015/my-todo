@@ -13,9 +13,9 @@ import { useCallback, useEffect, useRef } from 'react'
 import { Alert } from 'react-native'
 import type { useTodoStore } from '../store/useTodoStore'
 import type { Strings } from '../core-bindings/i18n'
-import type { Priority } from '../core-bindings/types'
 import { categoryLabel } from '../core-bindings/categories'
 import type { MochiApplyResult } from '../features/mochi/ChatSheet'
+import type { CapturedTodoPatch } from '../features/mochi/EditableCaptureCard'
 import type { OpOf, ProposedOperation } from '../../../core/src/ports/aiContracts'
 import {
   planMochiOp,
@@ -29,6 +29,24 @@ import { genUuid, todayLocal } from '../../../core/src/logic/utils'
 import { beginMochiTurn } from './mochiUndo'
 
 type Store = ReturnType<typeof useTodoStore>
+
+/** Executor-driven store calls skip the store's snackbar: the chat card
+ * shows the inline, turn-stamped Undo (a root snackbar would merge across
+ * turns and bypass the latest-turn-only rule). */
+const SILENT = { silent: true } as const
+
+/** A Mochi turn that begins (retiring older turns' Undos) only once
+ * `begin()` is called — i.e. once something actually applied. */
+function lazyTurn() {
+  let stamp: ReturnType<typeof beginMochiTurn> | null = null
+  return {
+    begin: () => {
+      stamp ??= beginMochiTurn()
+    },
+    /** `fn` stamped with this turn; null for no fn or a turn that never began. */
+    stamp: (fn: (() => void) | null): (() => void) | null => (fn && stamp ? stamp(fn) : null),
+  }
+}
 
 /** Combine several actions' Undos into one (newest first); null if none. */
 export function combineUndos(undos: Array<(() => void) | null | undefined>): (() => void) | null {
@@ -162,13 +180,13 @@ export function useMochiExecutor(store: Store, t: Strings) {
             undos.push(store.addSubtask(it.todoId, it.text))
             break
           case 'toggle':
-            undos.push(store.toggle(it.todoId))
+            undos.push(store.toggle(it.todoId, SILENT))
             break
           case 'moveToTrash':
-            undos.push(store.moveToTrash(it.todoId))
+            undos.push(store.moveToTrash(it.todoId, SILENT))
             break
           case 'moveSeriesFutureToTrash':
-            undos.push(store.moveSeriesFutureToTrash(it.todoId))
+            undos.push(store.moveSeriesFutureToTrash(it.todoId, SILENT))
             break
           case 'askDeleteScope': {
             const id = it.todoId
@@ -183,14 +201,14 @@ export function useMochiExecutor(store: Store, t: Strings) {
                     {
                       text: 'Just this one',
                       onPress: () => {
-                        undos.push(store.moveToTrash(id))
+                        undos.push(store.moveToTrash(id, SILENT))
                         resolve(true)
                       },
                     },
                     {
                       text: 'This & future',
                       onPress: () => {
-                        undos.push(store.moveSeriesFutureToTrash(id))
+                        undos.push(store.moveSeriesFutureToTrash(id, SILENT))
                         resolve(true)
                       },
                     },
@@ -202,22 +220,22 @@ export function useMochiExecutor(store: Store, t: Strings) {
             break
           }
           case 'skipTodo':
-            undos.push(store.skipTodo(it.todoId))
+            undos.push(store.skipTodo(it.todoId, SILENT))
             break
           case 'skipSeriesFuture':
-            undos.push(store.skipSeriesFuture(it.todoId))
+            undos.push(store.skipSeriesFuture(it.todoId, SILENT))
             break
           case 'restoreFromTrash':
             snapshotTodo(it.todoId)
             store.restoreFromTrash(it.todoId)
             break
           case 'bulkDeferTodos':
-            undos.push(store.bulkDeferTodos(it.todoIds, it.dueDate))
+            undos.push(store.bulkDeferTodos(it.todoIds, it.dueDate, SILENT))
             break
           case 'toggleSubtask':
             // Tracked: finishing the last step can complete the to-do and
             // roll a series forward — the Undo takes all of that back.
-            undos.push(store.toggleSubtask(it.todoId, it.subtaskId))
+            undos.push(store.toggleSubtask(it.todoId, it.subtaskId, SILENT))
             break
           case 'removeSubtask':
             undos.push(store.removeSubtask(it.todoId, it.subtaskId))
@@ -335,21 +353,27 @@ export function useMochiExecutor(store: Store, t: Strings) {
   // inline Undo (mark done / delete / skip), or null.
   // A turn with confirm Alerts reports through `pending` once they're all
   // answered, so the card never says "✓ Done" for something the user kept.
-  // Only the latest applied turn keeps its Undo (mochiUndo): each apply below
-  // starts a new Mochi turn, which retires every older turn's Undo.
+  // Only the latest applied turn keeps its Undo (mochiUndo). A new Mochi
+  // turn (retiring every older turn's Undo) begins only once something
+  // actually applied — a cancelled confirm, an empty plan or a no-op keeps
+  // the previous turn's Undo live.
   const applyMochiOps = useCallback(
     (ops: ProposedOperation[]): MochiApplyResult => {
-      const stamp = beginMochiTurn()
       const run = runMochiIntents(planMochiOps(ops, mochiSnapshot(), { genId: genUuid }))
-      const current = () => (run.hasUndo() ? stamp(run.undo) : null)
+      const turn = lazyTurn()
+      if (run.appliedNow || run.hasUndo()) turn.begin()
+      const current = () => turn.stamp(run.hasUndo() ? run.undo : null)
       if (run.asks.length === 0) return { undo: current() }
       return {
         undo: null,
-        pending: Promise.all(run.asks).then((answers) => ({
-          undo: current(),
-          applied: run.appliedNow || answers.some(Boolean),
-          keptSome: answers.some((a) => !a),
-        })),
+        pending: Promise.all(run.asks).then((answers) => {
+          if (answers.some(Boolean)) turn.begin()
+          return {
+            undo: current(),
+            applied: run.appliedNow || answers.some(Boolean),
+            keptSome: answers.some((a) => !a),
+          }
+        }),
       }
     },
     [mochiSnapshot, runMochiIntents],
@@ -363,24 +387,23 @@ export function useMochiExecutor(store: Store, t: Strings) {
   const applyCaptureWithUndo = useCallback(
     (op: ProposedOperation): { id: string | null; category?: string; undo: () => void | boolean | Promise<boolean> } => {
       if (op.kind !== 'createTodo' && op.kind !== 'addGroceryItem') return { id: null, undo: () => {} }
-      const stamp = beginMochiTurn()
       const intents = planMochiOp(op, mochiSnapshot(), { genId: genUuid })
       const run = runMochiIntents(intents)
       if (op.kind === 'addGroceryItem') {
         // null id → no inline chip-editing for groceries (Undo only). The
         // Undo removes a new item, or restores one that was already listed.
-        return { id: null, undo: stamp(run.undo) }
+        return { id: null, undo: run.hasUndo() ? beginMochiTurn()(run.undo) : () => false }
       }
       const id = run.todoIds[0] ?? null
       const task = intents.find((i): i is Extract<MochiIntent, { type: 'addTask' }> => i.type === 'addTask')
       const isRecurring = !!op.args.recurrence
+      // Nothing created → no new turn (the previous turn's Undo stays live).
+      if (!id) return { id: null, undo: () => false }
       return {
         id,
         category: task?.category ? run.categoryOf(task.category) : undefined,
-        // Resolves whether anything was removed (false when stale / nothing
-        // was created).
-        undo: stamp((): boolean => {
-          if (!id) return false
+        // Resolves whether anything was removed (false when stale).
+        undo: beginMochiTurn()((): boolean => {
           // A series also drops occurrences topped up since (all of them
           // belong to this new series); the run's exact Undo then removes the
           // rows it created and a category it created, now unused.
@@ -396,8 +419,9 @@ export function useMochiExecutor(store: Store, t: Strings) {
   // Inline-edit a just-captured to-do straight from the Mochi card — fixes the
   // common "Mochi got the category/date slightly off" without leaving chat.
   const editCapturedTodo = useCallback(
-    (id: string, patch: { category?: string; priority?: Priority; dueDate?: string }) => {
-      if (patch.category !== undefined) store.updateTaskCategory(id, patch.category)
+    (id: string, patch: CapturedTodoPatch) => {
+      // null clears the category (a chip Undo back to "no category").
+      if (patch.category !== undefined) store.updateTaskCategory(id, patch.category ?? undefined)
       if (patch.priority !== undefined) store.updatePriority(id, patch.priority)
       if (patch.dueDate !== undefined) store.updateDueDate(id, patch.dueDate)
     },
@@ -410,9 +434,8 @@ export function useMochiExecutor(store: Store, t: Strings) {
   const applyPickedTodos = useCallback(
     (op: OpOf<'pickTodos'>, ids: string[]) => {
       if (ids.length === 0) return null
-      const stamp = beginMochiTurn()
       const run = runMochiIntents(planPickedTodos(op, ids, mochiSnapshot(), { genId: genUuid }))
-      return run.hasUndo() ? stamp(run.undo) : null
+      return run.hasUndo() ? beginMochiTurn()(run.undo) : null
     },
     [mochiSnapshot, runMochiIntents],
   )
@@ -421,9 +444,8 @@ export function useMochiExecutor(store: Store, t: Strings) {
   // this + every future occurrence in the series.
   const deleteTodoScoped = useCallback(
     (id: string, scope: 'one' | 'series') => {
-      const stamp = beginMochiTurn()
-      const undo = scope === 'series' ? store.moveSeriesFutureToTrash(id) : store.moveToTrash(id)
-      return undo ? stamp(undo) : null
+      const undo = scope === 'series' ? store.moveSeriesFutureToTrash(id, SILENT) : store.moveToTrash(id, SILENT)
+      return undo ? beginMochiTurn()(undo) : null
     },
     [store],
   )
@@ -433,17 +455,16 @@ export function useMochiExecutor(store: Store, t: Strings) {
   const applyPickAction = useCallback(
     (action: 'skip' | 'defer' | 'delete', ids: string[], dueDate?: string) => {
       const run = (): (() => void) | null => {
-        if (action === 'skip') return combineUndos(ids.map((id) => store.skipTodo(id)))
-        if (action === 'delete') return combineUndos(ids.map((id) => store.moveToTrash(id)))
+        if (action === 'skip') return combineUndos(ids.map((id) => store.skipTodo(id, SILENT)))
+        if (action === 'delete') return combineUndos(ids.map((id) => store.moveToTrash(id, SILENT)))
         // Defer like the Today "Defer" action (todoDeferTo): keeps each to-do's
         // time, moves its reminders, handles a series, and has an exact Undo.
-        if (action === 'defer' && dueDate) return store.bulkDeferTodos(ids, dueDate)
+        if (action === 'defer' && dueDate) return store.bulkDeferTodos(ids, dueDate, SILENT)
         return null
       }
       if (ids.length === 0 || (action === 'defer' && !dueDate)) return null
-      const stamp = beginMochiTurn()
       const undo = run()
-      return undo ? stamp(undo) : null
+      return undo ? beginMochiTurn()(undo) : null
     },
     [store],
   )

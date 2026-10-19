@@ -238,10 +238,206 @@ describe('mochiUndo', () => {
     hook.unmount()
   })
 
-  it('combineUndos runs newest first and is null when empty', () => {
+  it('combineUndos runs newest first and is null when empty (no-op entries skipped)', () => {
     const calls: number[] = []
     expect(combineUndos([null, undefined])).toBeNull()
     combineUndos([() => calls.push(1), null, () => calls.push(2)])!()
     expect(calls).toEqual([2, 1])
+  })
+})
+
+/** Capture the Alert's buttons so a test can answer it. */
+function answerAlerts() {
+  const pending: Array<{ press: (label: string) => void; dismiss: () => void }> = []
+  vi.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons, options) => {
+    const list = buttons as Array<{ text: string; onPress?: () => void }>
+    pending.push({
+      press: (label) => list.find((b) => b.text === label)?.onPress?.(),
+      dismiss: () => (options as { onDismiss?: () => void } | undefined)?.onDismiss?.(),
+    })
+  })
+  return pending
+}
+
+const series = (id: string) => todo(id, { seriesId: 's', recurrence: { freq: 'daily' }, dueDate: '2026-10-19' })
+
+describe('useMochiExecutor — a new turn begins only once something applied', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('a cancelled confirm keeps the previous turn\'s Undo live', async () => {
+    const { store, hook } = setup()
+    const r1 = hook.result.current.applyMochiOps([markDone('a')])
+    store.todos = [...store.todos, series('r')]
+    const alerts = answerAlerts()
+    const res = hook.result.current.applyMochiOps([{ kind: 'deleteTodo', args: { todoId: 'r' } }])
+    // Still live while the Alert is up…
+    expect(isUndoLive(r1.undo)).toBe(true)
+    alerts[0].press('Cancel')
+    const out = await res.pending!
+    expect(out).toEqual({ undo: null, applied: false, keptSome: true })
+    // …and after the Cancel.
+    expect(isUndoLive(r1.undo)).toBe(true)
+  })
+
+  it('an empty plan (nothing matched) keeps the previous turn\'s Undo live', () => {
+    const { hook } = setup()
+    const r1 = hook.result.current.applyMochiOps([markDone('a')])
+    const r2 = hook.result.current.applyMochiOps([markDone('nope')])
+    expect(r2.undo).toBeNull()
+    expect(isUndoLive(r1.undo)).toBe(true)
+  })
+
+  it('a capture that created nothing keeps the previous Undo live and reports false', () => {
+    const { store, hook } = setup()
+    const r1 = hook.result.current.applyMochiOps([markDone('a')])
+    store.addGrocery = vi.fn(() => null)
+    const groc = hook.result.current.applyCaptureWithUndo({ kind: 'addGroceryItem', args: { text: 'milk' } })
+    expect(groc.undo()).toBe(false)
+    expect(isUndoLive(r1.undo)).toBe(true)
+    store.addTaskWithUndo = vi.fn(() => ({ id: undefined, undo: () => {} }))
+    const cap = hook.result.current.applyCaptureWithUndo({ kind: 'createTodo', args: { text: 'x' } })
+    expect(cap.id).toBeNull()
+    expect(cap.undo()).toBe(false)
+    expect(isUndoLive(r1.undo)).toBe(true)
+  })
+
+  it('a scoped delete / bulk action that changed nothing keeps the previous Undo live', () => {
+    const { store, hook } = setup()
+    const r1 = hook.result.current.applyMochiOps([markDone('a')])
+    store.moveToTrash = vi.fn(() => null)
+    store.skipTodo = vi.fn(() => null)
+    expect(hook.result.current.deleteTodoScoped('a', 'one')).toBeNull()
+    expect(hook.result.current.applyPickAction('skip', ['a'])).toBeNull()
+    expect(isUndoLive(r1.undo)).toBe(true)
+  })
+
+  it('executor-driven store calls are silent (the chat card owns the Undo)', () => {
+    const { store, hook } = setup()
+    store.toggleSubtask = vi.fn(() => () => {})
+    hook.result.current.applyMochiOps([markDone('a')])
+    expect(store.toggle).toHaveBeenCalledWith('a', { silent: true })
+    hook.result.current.deleteTodoScoped('b', 'one')
+    expect(store.moveToTrash).toHaveBeenCalledWith('b', { silent: true })
+    hook.result.current.applyPickAction('skip', ['a'])
+    expect(store.skipTodo).toHaveBeenCalledWith('a', { silent: true })
+    hook.result.current.applyPickAction('defer', ['a'], '2026-11-01')
+    expect(store.bulkDeferTodos).toHaveBeenCalledWith(['a'], '2026-11-01', { silent: true })
+  })
+})
+
+describe('useMochiExecutor — apply details', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('scoped delete: "series" trashes this + future, "one" just this one', () => {
+    const { store, hook } = setup()
+    hook.result.current.deleteTodoScoped('a', 'series')!()
+    hook.result.current.deleteTodoScoped('b', 'one')!()
+    expect(store.calls).toEqual(['undo series trash a', 'undo trash b'])
+  })
+
+  it('"This & future" on a repeating to-do trashes the series; its Undo is live', async () => {
+    const { store, hook } = setup()
+    store.todos = [series('r')]
+    const alerts = answerAlerts()
+    const res = hook.result.current.applyMochiOps([{ kind: 'deleteTodo', args: { todoId: 'r' } }])
+    alerts[0].press('This & future')
+    const out = await res.pending!
+    expect(out).toMatchObject({ applied: true, keptSome: false })
+    expect(store.moveSeriesFutureToTrash).toHaveBeenCalledWith('r', { silent: true })
+    out.undo!()
+    expect(store.calls).toContain('undo series trash r')
+  })
+
+  it('a dismissed confirm counts as kept', async () => {
+    const { store, hook } = setup()
+    store.todos = [series('r')]
+    const alerts = answerAlerts()
+    const res = hook.result.current.applyMochiOps([{ kind: 'deleteTodo', args: { todoId: 'r' } }])
+    alerts[0].dismiss()
+    expect(await res.pending!).toEqual({ undo: null, applied: false, keptSome: true })
+  })
+
+  it('a turn that applied something now but kept a confirm reports applied + keptSome', async () => {
+    const { store, hook } = setup()
+    store.todos = [todo('b'), series('r')]
+    const alerts = answerAlerts()
+    const res = hook.result.current.applyMochiOps([markDone('b'), { kind: 'deleteTodo', args: { todoId: 'r' } }])
+    alerts[0].press('Cancel')
+    const out = await res.pending!
+    expect(out.applied).toBe(true)
+    expect(out.keptSome).toBe(true)
+    expect(isUndoLive(out.undo)).toBe(true)
+    out.undo!()
+    expect(store.calls).toContain('undo toggle b')
+  })
+
+  it('several edits to one to-do revert to the pre-run state once (first touch wins)', () => {
+    const { store, hook } = setup()
+    const res = hook.result.current.applyMochiOps([{ kind: 'editTodo', args: { todoId: 'a', text: 'A2', priority: 'high' } }])
+    res.undo!()
+    expect(store.revertTodo).toHaveBeenCalledTimes(1)
+    expect(store.revertTodo).toHaveBeenCalledWith(store.todos.find((x) => x.id === 'a'))
+  })
+
+  it('a category the capture created survives its Undo while another to-do uses it', () => {
+    const { store, hook } = setup()
+    const cap = hook.result.current.applyCaptureWithUndo({
+      kind: 'createTodo',
+      args: { text: 'Stretch', newCategoryLabel: 'Health' },
+    })
+    store.todosRef.current = [todo('other', { category: 'newcat' })]
+    cap.undo()
+    expect(store.deleteCategory).not.toHaveBeenCalled()
+  })
+
+  it('re-adding a grocery that was already listed: Undo restores its previous state', () => {
+    const { store, hook } = setup()
+    const previous = { checked: true }
+    store.addGrocery = vi.fn(() => ({ id: 'g', previous }))
+    store.restoreGrocery = vi.fn()
+    store.deleteGrocery = vi.fn()
+    hook.result.current.applyMochiOps([{ kind: 'addGroceryItem', args: { text: 'milk' } }]).undo!()
+    expect(store.restoreGrocery).toHaveBeenCalledWith('g', previous)
+    expect(store.deleteGrocery).not.toHaveBeenCalled()
+    store.addGrocery = vi.fn(() => ({ id: 'n' }))
+    hook.result.current.applyMochiOps([{ kind: 'addGroceryItem', args: { text: 'eggs' } }]).undo!()
+    expect(store.deleteGrocery).toHaveBeenCalledWith('n')
+  })
+
+  it("editCategory's Undo restores a built-in's undefined label, not \"\"", () => {
+    const { store, hook } = setup()
+    store.categories = [{ id: 'work', color: '#111', icon: 'briefcase' }]
+    store.editCategory = vi.fn()
+    hook.result.current.applyMochiOps([{ kind: 'editCategory', args: { categoryId: 'work', color: '#222' } }]).undo!()
+    expect(store.editCategory).toHaveBeenLastCalledWith('work', { label: undefined, color: '#111', icon: 'briefcase' })
+  })
+
+  it('a grocery capture and a pick-list apply are turn-stamped (stale after a newer turn)', () => {
+    const { store, hook } = setup()
+    store.addGrocery = vi.fn(() => ({ id: 'n' }))
+    store.deleteGrocery = vi.fn()
+    const groc = hook.result.current.applyCaptureWithUndo({ kind: 'addGroceryItem', args: { text: 'eggs' } })
+    expect(isUndoLive(groc.undo)).toBe(true)
+    const op = { kind: 'pickTodos', args: { action: 'markDone', todoIds: ['a', 'b'] } } as Parameters<
+      typeof hook.result.current.applyPickedTodos
+    >[0]
+    const picked = hook.result.current.applyPickedTodos(op, ['a'])
+    expect(isUndoLive(groc.undo)).toBe(false)
+    expect(isUndoLive(picked)).toBe(true)
+    hook.result.current.applyMochiOps([markDone('b')])
+    expect(isUndoLive(picked)).toBe(false)
+    expect((picked as () => unknown)()).toBe(false)
+  })
+
+  it('a chip Undo back to "no category" clears it (null → undefined)', () => {
+    const { store, hook } = setup()
+    hook.result.current.editCapturedTodo('t1', { category: null })
+    expect(store.updateTaskCategory).toHaveBeenCalledWith('t1', undefined)
+    hook.result.current.editCapturedTodo('t1', { priority: 'high' })
+    expect(store.updateTaskCategory).toHaveBeenCalledTimes(1)
   })
 })

@@ -43,6 +43,10 @@ const AGENT_CHAT_URL =
 // a slow-but-successful turn isn't shown as a failure and charged twice.
 const AGENT_FETCH_TIMEOUT_MS = 35000
 
+/** A malformed / failed / empty reply: one calm line, never the raw server
+ * text. (Offline, quota and blocked keep their own specific messages.) */
+export const MOCHI_LOST_THREAD = 'Mochi lost the thread for a moment. Try again, or add it yourself.'
+
 export interface AgentResponse {
   reply: string
   operations: ProposedOperation[]
@@ -116,7 +120,7 @@ const isChatOnlyExhausted = (b: ExhaustedBody) => {
 }
 
 /** The wire shape of one history turn: `sig` only on signed assistant turns. */
-export function toWireTurn(m: ChatTurn): { role: 'user' | 'assistant'; content: string; sig?: string } {
+function toWireTurn(m: ChatTurn): { role: 'user' | 'assistant'; content: string; sig?: string } {
   return m.role === 'assistant' && m.sig
     ? { role: m.role, content: m.wireContent ?? m.content, sig: m.sig }
     : { role: m.role, content: m.content }
@@ -299,17 +303,17 @@ export function useMochiAgent() {
         if (!body) {
           // 200 with a malformed/empty body — treat as a transient failure
           // rather than throwing an unhandled JSON parse error.
-          setError('Something went wrong.')
+          setError(MOCHI_LOST_THREAD)
           setErrorKind('fail')
           return { ok: false, error: 'bad-response' }
         }
         if (body.error) {
-          setError(body.error.message || 'Something went wrong.')
+          setError(MOCHI_LOST_THREAD)
           setErrorKind('fail')
           return { ok: false, error: body.error.message }
         }
         if (!body.result) {
-          setError('Empty reply from Mochi.')
+          setError(MOCHI_LOST_THREAD)
           setErrorKind('fail')
           return { ok: false, error: 'empty' }
         }

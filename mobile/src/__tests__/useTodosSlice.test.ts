@@ -58,6 +58,7 @@ const t = {
   clearAllCompleted: 'Clear',
   emptyTrashConfirm: (n: number) => String(n),
   deletePermanently: 'Delete',
+  changesSaved: 'Changes saved',
   series: {
     editsApplied: (n: number) => `applied ${n}`,
     editsNothing: 'Nothing to apply',
@@ -70,6 +71,7 @@ const t = {
 
 async function setup(todos: Todo[]) {
   const snacks: Snack[] = []
+  const retracted: Array<() => void> = []
   const actions = createTodoStore({ t: strings.en }).actions
   const filter: Filter = 'all'
   const deps: TodosSliceDeps = {
@@ -78,14 +80,14 @@ async function setup(todos: Todo[]) {
     uid: null,
     today: new Date().toISOString().slice(0, 10),
     t,
-    notify: { showSnackbar: (o) => { snacks.push(o) } },
+    notify: { showSnackbar: (o) => { snacks.push(o) }, retractSnackbar: (a) => { retracted.push(a) } },
     actions,
   }
   const adapter = adapterWith(todos)
   const hook = renderHook(() => useTodosSlice(adapter, deps))
   await waitFor(() => expect(hook.result.current.todosLoaded).toBe(true))
   await waitFor(() => expect(hook.result.current.todos.length).toBeGreaterThan(0))
-  return { hook, snacks }
+  return { hook, snacks, retracted }
 }
 
 // A daily series already filled to its 7-day window, so the post-load
@@ -107,12 +109,118 @@ describe('useTodosSlice snackbars', () => {
   })
   afterEach(() => vi.useRealTimers())
 
-  it('series edits report how many future occurrences changed', async () => {
+  it('series edits report how many future occurrences changed, with one exact Undo', async () => {
     const { hook, snacks } = await setup(dailySeries())
-    act(() => hook.result.current.applySeriesFutureEdits('d19', { text: 'Run' }))
-    expect(snacks.at(-1)?.message).toBe('applied 7')
-    act(() => hook.result.current.applySeriesSubtasks('d19', { keepDetached: true }))
-    expect(snacks.at(-1)?.message).toBe('steps 7')
+    const before = hook.result.current.todos
+    act(() => {
+      hook.result.current.commitSeriesEdits('d19', { fields: { text: 'Run', priority: 'high' } })
+    })
+    expect(hook.result.current.todos.every((x) => x.text === 'Run' && x.priority === 'high')).toBe(true)
+    const snack = snacks.at(-1)!
+    expect(snack.message).toBe('Applied to 7 upcoming to-dos')
+    expect(snack.actionLabel).toBe('Undo')
+    // Undo reverts this row AND every sibling.
+    act(() => snack.onAction!())
+    await waitFor(() => expect(hook.result.current.todos.map((x) => x.text)).toEqual(before.map((x) => x.text)))
+    expect(hook.result.current.todos.every((x) => x.priority === 'medium')).toBe(true)
+  })
+
+  it('steps "Replace all" reports its count and undoes the copy', async () => {
+    const series = dailySeries()
+    series[0] = { ...series[0], subtasks: [{ id: 'st', text: 'shoes', done: false, priority: 'medium', dueDate: '' }] }
+    const { hook, snacks } = await setup(series)
+    act(() => {
+      hook.result.current.commitSeriesEdits('d19', { fields: {}, subtasks: { keepDetached: false } })
+    })
+    expect(hook.result.current.todos.filter((x) => x.subtasks?.length).length).toBe(8)
+    expect(snacks.at(-1)?.message).toBe('Steps applied to 7 upcoming to-dos')
+    act(() => snacks.at(-1)!.onAction!())
+    await waitFor(() => expect(hook.result.current.todos.filter((x) => x.subtasks?.length).length).toBe(1))
+  })
+
+  it('a series edit that reaches no sibling says "Changes saved" — still with Undo', async () => {
+    // Every future sibling is detached → the edit lands on this row only.
+    const { hook, snacks } = await setup(dailySeries().map((x) => (x.id === 'd19' ? x : { ...x, detachedFromSeries: true })))
+    act(() => {
+      hook.result.current.commitSeriesEdits('d19', { fields: { notes: 'bring water' } })
+    })
+    expect(snacks.at(-1)).toMatchObject({ message: 'Changes saved', actionLabel: 'Undo' })
+    act(() => snacks.at(-1)!.onAction!())
+    await waitFor(() => expect(hook.result.current.todos.find((x) => x.id === 'd19')?.notes).toBeUndefined())
+  })
+
+  it('field edits + a rule change fold into ONE Undo', async () => {
+    const { hook, snacks } = await setup(dailySeries())
+    const before = hook.result.current.todos.map((x) => x.id)
+    const n = snacks.length
+    act(() => {
+      hook.result.current.commitSeriesEdits('d19', {
+        fields: { text: 'Run' },
+        recurrence: { value: { freq: 'weekly' }, keepDetached: true },
+      })
+    })
+    expect(snacks.length).toBe(n + 1)
+    expect(snacks.at(-1)?.message).toBe('Repeat updated · 7 upcoming to-dos replaced')
+    act(() => snacks.at(-1)!.onAction!())
+    await waitFor(() => expect(hook.result.current.todos.map((x) => x.id)).toEqual(before))
+    expect(hook.result.current.todos.every((x) => x.text === 'Walk' && x.recurrence?.freq === 'daily')).toBe(true)
+  })
+
+  it('a rule change honors keepDetached: true keeps a detached sibling, false replaces it', async () => {
+    const withDetached = () =>
+      dailySeries().map((x) => (x.id === 'd22' ? { ...x, text: 'Long walk', detachedFromSeries: true } : x))
+    const kept = await setup(withDetached())
+    act(() => {
+      kept.hook.result.current.commitSeriesEdits('d19', { fields: {}, recurrence: { value: { freq: 'weekly' }, keepDetached: true } })
+    })
+    expect(kept.hook.result.current.todos.find((x) => x.id === 'd22' && !x.trashed)?.text).toBe('Long walk')
+    kept.hook.unmount()
+    const replaced = await setup(withDetached())
+    act(() => {
+      replaced.hook.result.current.commitSeriesEdits('d19', { fields: {}, recurrence: { value: { freq: 'weekly' }, keepDetached: false } })
+    })
+    expect(replaced.hook.result.current.todos.some((x) => x.id === 'd22' && !x.trashed)).toBe(false)
+  })
+
+  it('finishing the last step: the inline Undo also retracts its own snackbar', async () => {
+    const parent = mk('p', {
+      text: 'Pack',
+      subtasks: [{ id: 's', text: 'bag', done: false, priority: 'medium', dueDate: '' }],
+    })
+    const { hook, snacks, retracted } = await setup([parent])
+    let inline: (() => void) | null = null
+    act(() => {
+      inline = hook.result.current.toggleSubtask('p', 's')
+    })
+    const snack = snacks.at(-1)!
+    expect(inline).not.toBe(snack.onAction)
+    act(() => inline!())
+    expect(retracted).toEqual([snack.onAction])
+    await waitFor(() => expect(hook.result.current.todos[0].done).toBe(false))
+  })
+
+  it('silent (Ask Mochi) actions show no snackbar but still return an Undo', async () => {
+    const parent = mk('p', { subtasks: [{ id: 's', text: 'bag', done: false, priority: 'medium', dueDate: '' }] })
+    const { hook, snacks } = await setup([mk('a'), mk('b'), mk('c', { dueDate: '2026-10-10' }), mk('d'), parent])
+    const n = snacks.length
+    const undos: Array<(() => void) | null> = []
+    act(() => {
+      undos.push(hook.result.current.toggleSubtask('p', 's', { silent: true }))
+      undos.push(hook.result.current.skipTodo('d', { silent: true }))
+      undos.push(hook.result.current.bulkDeferTodos(['c'], '2026-10-25', { silent: true }))
+    })
+    expect(undos.every(Boolean)).toBe(true)
+    expect(snacks.length).toBe(n)
+    let undo: (() => void) | null = null
+    act(() => {
+      undo = hook.result.current.toggle('b', { silent: true })
+    })
+    expect(snacks.length).toBe(n)
+    expect(undo).not.toBeNull()
+    act(() => {
+      hook.result.current.moveToTrash('a', { silent: true })
+    })
+    expect(snacks.length).toBe(n)
   })
 
   it('finishing the last step shows the completion snackbar with an exact Undo', async () => {
@@ -254,7 +362,7 @@ describe('useTodosSlice ordering + timing', () => {
     const future = mk('f25', { text: 'Walk', dueDate: '2026-10-25', seriesId: 's2', recurrence: { freq: 'weekly' } })
     const { hook, snacks } = await setup([...missed, future])
     act(() => hook.result.current.bulkDeferTodos(['m16', 'm17', 'm18'], '2026-10-21'))
-    expect(snacks.at(-1)?.message).toBe('1 to-do deferred · 2 earlier repeats tucked into Done.')
+    expect(snacks.at(-1)?.message).toBe('Deferred to Wed, Oct 21 · 2 earlier repeats tucked into Done.')
     expect(snacks.at(-1)?.actionLabel).toBe('Undo all')
   })
 })
@@ -474,23 +582,23 @@ describe('useTodosSlice round 4', () => {
     const before = hook.result.current.todos.map((x) => x.id)
     let undo: (() => void) | null = null
     act(() => {
-      undo = hook.result.current.applyRecurrenceChange('d19', { freq: 'weekly' }, { keepDetached: true })
+      undo = hook.result.current.commitSeriesEdits('d19', { fields: {}, recurrence: { value: { freq: 'weekly' }, keepDetached: true } })
     })
     const snack = snacks.at(-1)!
     expect(snack.message).toBe('Repeat updated · 7 upcoming to-dos replaced')
     expect(snack.actionLabel).toBe('Undo')
-    expect(snack.onAction).toBe(undo)
+    expect(undo).not.toBeNull()
     act(() => snack.onAction!())
     await waitFor(() => expect(hook.result.current.todos.map((x) => x.id)).toEqual(before))
     expect(hook.result.current.todos.every((x) => x.recurrence?.freq === 'daily')).toBe(true)
   })
 
-  it('a rule change that changes nothing returns no Undo and says nothing', async () => {
+  it('a series commit that changes nothing returns no Undo and says nothing', async () => {
     const { hook, snacks } = await setup([mk('solo')])
     const n = snacks.length
     let undo: (() => void) | null = () => {}
     act(() => {
-      undo = hook.result.current.applyRecurrenceChange('solo', { freq: 'weekly' }, { keepDetached: true })
+      undo = hook.result.current.commitSeriesEdits('solo', { fields: {}, recurrence: { value: { freq: 'weekly' }, keepDetached: true } })
     })
     expect(undo).toBeNull()
     expect(snacks.length).toBe(n)
