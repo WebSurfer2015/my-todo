@@ -127,6 +127,10 @@ export interface SeriesCommit {
   recurrence?: { value: Recurrence | undefined; keepDetached: boolean };
   /** R6c — copy this row's steps shape to future siblings. */
   subtasks?: { keepDetached: boolean };
+  /** Per-occurrence edits made in "Edit series" mode (the date and the
+   * reminders belong to THIS date only) — folded into the same change, so
+   * the commit's one Undo takes them back too. */
+  thisRow?: { dueDate?: string; reminders?: Reminder[] };
 }
 
 /** Defer snackbar: what moved, plus — when a repeating series had several
@@ -138,6 +142,9 @@ export function recurrenceChangedMessage(replaced: number): string {
   if (replaced <= 0) return "Repeat updated";
   return `Repeat updated · ${replaced} upcoming ${replaced === 1 ? "to-do" : "to-dos"} replaced`;
 }
+
+/** A to-do reopened from the Done view leaves it — say where it went. */
+export const MOVED_BACK_MESSAGE = "Moved back to your open list.";
 
 const upcoming = (n: number) => `${n} upcoming ${n === 1 ? "to-do" : "to-dos"}`;
 
@@ -190,7 +197,9 @@ export interface TodosSlice {
    * appended. */
   skipTodo: (id: string, opts?: SilentOpt) => Undo | null;
   skipSeriesFuture: (id: string, opts?: SilentOpt) => Undo | null;
-  restoreFromTrash: (id: string) => void;
+  /** Reopen from Done; in the Done view it says so, with an exact Undo
+   * (`silent`: no snackbar). */
+  restoreFromTrash: (id: string, opts?: SilentOpt) => void;
   permanentlyDelete: (id: string) => void;
   permanentlyDeleteSeriesFuture: (id: string) => void;
   updatePriority: (id: string, priority: Priority) => void;
@@ -448,16 +457,17 @@ export function useTodosSlice(
         );
       }
       if (
-        !opts?.silent &&
         beforeTodo.done &&
         !after.done &&
         (filterRef.current === "done" || filterRef.current === "trash")
       ) {
-        notify.showSnackbar({ message: "Moved back to your open list." });
+        // Reopened from Done: it leaves this list, so say where it went —
+        // with the same exact Undo (silent callers get just the Undo).
+        return withUndoSnackbar(undo, { message: MOVED_BACK_MESSAGE }, opts);
       }
       return undo;
     },
-    [applyTracked, undoTracked, withUndoSnackbar, toggleOutcome, filterRef, todoToggle, setTodoReferences, recordTodoReference, notify, t],
+    [applyTracked, undoTracked, withUndoSnackbar, toggleOutcome, filterRef, todoToggle, setTodoReferences, recordTodoReference, t],
   );
 
   const revertTodo = useCallback(
@@ -466,15 +476,14 @@ export function useTodosSlice(
   );
 
   const restoreFromTrash = useCallback(
-    (id: string) => {
-      const beforeTodo = todosRef.current.find((td) => td.id === id);
-      applyTracked((prev) => todoRestoreFromTrash(prev, id));
-      if (!beforeTodo) return;
+    (id: string, opts?: SilentOpt) => {
+      const change = applyTracked((prev) => todoRestoreFromTrash(prev, id));
+      if (!change) return;
       if (filterRef.current === "done" || filterRef.current === "trash") {
-        notify.showSnackbar({ message: "Moved back to your open list." });
+        withUndoSnackbar(() => undoTracked(change), { message: MOVED_BACK_MESSAGE }, opts);
       }
     },
-    [applyTracked, filterRef, todoRestoreFromTrash, notify],
+    [applyTracked, undoTracked, withUndoSnackbar, filterRef, todoRestoreFromTrash],
   );
 
   const moveToTrash = useCallback(
@@ -541,13 +550,17 @@ export function useTodosSlice(
   // steps) while later edits survive. Counts are read from the live list.
   const commitSeriesEdits = useCallback(
     (id: string, edits: SeriesCommit) => {
-      const { fields, recurrence, subtasks } = edits;
+      const { fields, recurrence, subtasks, thisRow } = edits;
       const today = todayLocal();
       let affected = 0;
       let replaced = 0;
       let stepsAffected = 0;
       const change = applyTracked((ts) => {
         let next = ts;
+        // This occurrence's own date / reminders (before a rule change, which
+        // expands the new tail from this row).
+        if (thisRow?.dueDate !== undefined) next = todoSet(next, id, "dueDate", thisRow.dueDate);
+        if (thisRow?.reminders !== undefined) next = todoSetReminders(next, id, thisRow.reminders);
         // This row first (category only when one is set, as a manual pick).
         if (fields.text !== undefined) next = todoSet(next, id, "text", fields.text);
         if (fields.notes !== undefined) next = todoSet(next, id, "notes", fields.notes);
@@ -582,7 +595,7 @@ export function useTodosSlice(
             : seriesCommitMessage({ kind: "fields", affected }),
       });
     },
-    [applyTracked, undoTracked, withUndoSnackbar, todoSet, todoApplySeriesFutureEdits, todoApplyRecurrenceChange, todoApplySeriesSubtasks],
+    [applyTracked, undoTracked, withUndoSnackbar, todoSet, todoSetReminders, todoApplySeriesFutureEdits, todoApplyRecurrenceChange, todoApplySeriesSubtasks],
   );
 
   // R6a — flip detachedFromSeries on the row. Called by
@@ -793,16 +806,16 @@ export function useTodosSlice(
           opts,
         );
       } else if (
-        !opts?.silent &&
         beforeTodo.done &&
         beforeSub?.done &&
+        !afterTodo?.done &&
         (filterRef.current === "done" || filterRef.current === "trash")
       ) {
-        notify.showSnackbar({ message: "Moved back to your open list." });
+        return withUndoSnackbar(undo, { message: MOVED_BACK_MESSAGE }, opts);
       }
       return undo;
     },
-    [applyTracked, undoTracked, withUndoSnackbar, filterRef, subtaskToggle, setTodoReferences, recordTodoReference, notify, t],
+    [applyTracked, undoTracked, withUndoSnackbar, filterRef, subtaskToggle, setTodoReferences, recordTodoReference, t],
   );
 
   const updateSubtaskText = useCallback(

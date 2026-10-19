@@ -587,7 +587,7 @@ export default function ComposeSheet({
                     onPress={() => setDatePanelOpen((v) => !v)}
                     accessibilityRole="button"
                     accessibilityState={{ expanded: datePanelOpen }}
-                    accessibilityLabel={`${t.composeWhen} ${dueDate ? formatDisplayDate(dueDate, t.locale) : t.presetNoDate}`}
+                    accessibilityLabel={`${t.composeDateLabel}, ${dueDate ? formatDisplayDate(dueDate, t.locale) : t.presetNoDate}`}
                   >
                     <CalendarIcon size={15} color={dueDate ? theme.primary : theme.label2} />
                     <Text style={[styles.chipText, !dueDate && styles.chipTextMuted]} numberOfLines={1}>
@@ -623,7 +623,7 @@ export default function ComposeSheet({
 
                 {datePanelOpen && (
                   <View style={styles.presetPanel}>
-                    <Text style={styles.presetPanelLabel}>{t.composeWhen}</Text>
+                    <Text style={styles.presetPanelLabel}>{t.composeDateLabel}</Text>
                     <View style={styles.presetGrid}>
                       {[
                         { label: t.presetToday, value: presetDates.today },

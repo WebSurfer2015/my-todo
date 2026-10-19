@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
   Modal,
@@ -105,6 +105,9 @@ interface Props {
    * sub-view for this subtask id (skipping the parent edit view). */
   initialSubtaskEditId?: string | null
   onClose: () => void
+  /** The Modal presented (onShow) — the host's ghost guard clears a request
+   * whose sheet iOS refused to present. */
+  onShown?: () => void
   /** Lets the host close this sheet through its save path (e.g. a reminder
    * tap swapping to another to-do). Called with null on unmount. */
   registerClose?: (close: (() => void) | null) => void
@@ -165,7 +168,7 @@ function todoContentDiffers(a: Todo, b: Todo): boolean {
 }
 
 export default function TaskDetailsSheet({
-  visible, todo, categories, initialSubtaskEditId, onClose, registerClose, onUpdateText, onUpdateNotes,
+  visible, todo, categories, initialSubtaskEditId, onClose, onShown, registerClose, onUpdateText, onUpdateNotes,
   onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminders, onMoveToTrash, onToggle, onPermanentDelete, onMoveSeriesFutureToTrash, onSkip, onSkipSeries, onPermanentDeleteSeries, onCommitSeriesEdits, onDetachFromSeries,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
@@ -302,12 +305,25 @@ export default function TaskDetailsSheet({
   // snackbar sits behind this sheet, so the sheet shows that Undo inline
   // and keeps its normal footer (instead of flipping to the Done-bin
   // "Delete forever / Reopen" pair) until it closes.
+  // Whether the toggle completed it is read from the store's result (the
+  // next `todo`), not re-derived from core's rule here.
   const [stepDoneUndo, setStepDoneUndo] = useState<(() => void) | null>(null)
+  const pendingStepToggleRef = useRef<{ before: Todo; undo: () => void } | null>(null)
   const toggleStep = (id: string, subId: string) => {
     const before = todoRef.current
-    const undo = stepDoneUndoAfterToggle(before, subId, onToggleSubtask(id, subId))
-    setStepDoneUndo(undo ? () => undo : null)
+    const undo = onToggleSubtask(id, subId)
+    if (undo) pendingStepToggleRef.current = { before, undo }
+    else setStepDoneUndo(null)
   }
+  // Layout effect: resolved before paint, so the footer never flashes the
+  // Done-bin pair for a frame.
+  useLayoutEffect(() => {
+    const pending = pendingStepToggleRef.current
+    if (!pending || todo === pending.before) return
+    pendingStepToggleRef.current = null
+    const undo = stepDoneUndoAfterToggle(pending.before, todo, pending.undo)
+    setStepDoneUndo(undo ? () => undo : null)
+  }, [todo])
   // The Done-bin footer (Delete forever / Reopen) — not for a to-do that
   // was just finished from its steps while the sheet is open.
   const { showStepDoneRow, isBinFooter } = planStepDoneFooter(stepDoneUndo, todo)
@@ -400,10 +416,11 @@ export default function TaskDetailsSheet({
 
   // Auto-save helpers. In "this only" mode every picker change commits
   // immediately to this row. In "Edit series" mode text / notes /
-  // priority / category buffer locally until the header Save button —
-  // that's the explicit commit point that also propagates the changes
-  // to every future sibling. dueDate / recurrence / reminder stay live
-  // in both modes (R6b/R7 scope).
+  // priority / category buffer locally until the sheet closes — that's
+  // the commit point that also propagates the changes to every future
+  // sibling. The date and reminders belong to this occurrence only; in
+  // "Edit series" mode they buffer too, so the commit's ONE Undo covers
+  // them (recurrence buffers for its own dialog, R6b).
   function applyText(next: string) {
     const trimmed = next.trim()
     if (!trimmed || trimmed === todo.text) return
@@ -433,6 +450,7 @@ export default function TaskDetailsSheet({
   }
   function applyDueDate(d: string) {
     setEditDueDate(d)
+    if (editMode === 'series' && isSeriesRow) return // buffered until close
     if (d !== (todo.dueDate ?? '')) onUpdateDueDate(todo.id, d)
   }
   function applyRecurrence(r: Recurrence | undefined) {
@@ -477,6 +495,7 @@ export default function TaskDetailsSheet({
       setEditReminders(getReminders(todo))
       return
     }
+    if (editMode === 'series' && isSeriesRow) return // buffered until close
     onUpdateReminders(todo.id, next)
   }
   // Footer actions (Delete / Skip / Mark done) sit outside the ScrollView,
@@ -507,6 +526,8 @@ export default function TaskDetailsSheet({
     const categoryChanged = editCategory !== todo.category
     const recurrenceChanged =
       JSON.stringify(editRecurrence ?? null) !== JSON.stringify(todo.recurrence ?? null)
+    const dueDateChanged = editDueDate !== (todo.dueDate ?? '')
+    const remindersChanged = JSON.stringify(editReminders) !== JSON.stringify(getReminders(todo))
 
     // The buffered text/notes/priority/category, committed (to this row +
     // future siblings) together with whatever the dialogs below add — as
@@ -516,9 +537,14 @@ export default function TaskDetailsSheet({
     if (notesChanged) fields.notes = editNotes
     if (priorityChanged) fields.priority = editPriority
     if (categoryChanged) fields.category = editCategory
-    function commitSeries(extra: Omit<SeriesCommit, 'fields'> = {}) {
-      if (Object.keys(fields).length === 0 && !extra.recurrence && !extra.subtasks) return
-      onCommitSeriesEdits(todo.id, { fields, ...extra })
+    // This occurrence's own date / reminders, buffered in series mode.
+    const thisRow: NonNullable<SeriesCommit['thisRow']> = {}
+    if (dueDateChanged) thisRow.dueDate = editDueDate
+    if (remindersChanged) thisRow.reminders = editReminders
+    const hasThisRow = dueDateChanged || remindersChanged
+    function commitSeries(extra: Omit<SeriesCommit, 'fields' | 'thisRow'> = {}) {
+      if (Object.keys(fields).length === 0 && !hasThisRow && !extra.recurrence && !extra.subtasks) return
+      onCommitSeriesEdits(todo.id, { fields, ...(hasThisRow ? { thisRow } : {}), ...extra })
     }
 
     const subtasksChanged =
@@ -589,9 +615,22 @@ export default function TaskDetailsSheet({
     } else {
       applyText(editText)
       applyNotes(editNotes)
+      // A date / reminder buffered in "Edit series" mode before switching
+      // back to "This date" still lands.
+      if (dueDateChanged) onUpdateDueDate(todo.id, editDueDate)
+      if (remindersChanged) onUpdateReminders(todo.id, editReminders)
       // Series rows confirm via their own dialog; single to-dos get Undo.
       const snapshot = entryTodoRef.current
-      if (snapshot && (textChanged || notesChanged || todoContentDiffers(snapshot, todo))) {
+      // Finished while open (its last step): the completion's own exact
+      // "Done · Undo" stays — a "Changes saved · Undo" that restores only
+      // this row (not a series' appended next occurrence or its moved
+      // reminders) must not replace it.
+      const completedWhileOpen = !!snapshot && !snapshot.done && !!todo.done
+      if (
+        snapshot &&
+        !completedWhileOpen &&
+        (textChanged || notesChanged || todoContentDiffers(snapshot, todo))
+      ) {
         notify.showSnackbar({
           message: t.changesSaved,
           actionLabel: t.undo,
@@ -741,7 +780,7 @@ export default function TaskDetailsSheet({
   }, [registerClose])
 
   return (
-    <Modal visible={visible} transparent statusBarTranslucent animationType="slide" onRequestClose={handleAndroidBack}>
+    <Modal visible={visible} transparent statusBarTranslucent animationType="slide" onRequestClose={handleAndroidBack} onShow={onShown}>
       <KeyboardAvoidingView
         style={styles.overlay}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1206,7 +1245,7 @@ export default function TaskDetailsSheet({
                   a surprise on Save. */}
               <Text style={styles.editModeCaption}>
                 {editMode === 'series'
-                  ? 'Edits apply to all future repeats.'
+                  ? 'Text, priority, category and steps apply to all future repeats. Date and reminders change this one only.'
                   : todo.detachedFromSeries
                     ? 'This date is detached from the series.'
                     : 'Edits apply to this date only.'}

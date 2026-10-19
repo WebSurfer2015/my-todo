@@ -188,7 +188,7 @@ THE BASICS, DONE GENTLY
 
 • To-dos with priority, due dates, recurrence, categories, and steps (subtasks)
 • Recurring tasks: daily, weekly, monthly, yearly, or custom (specific weekdays, "second Thursday," with optional end date)
-• Categories with custom colors and an 80+ icon library — configurable and drag to reorder
+• Categories with custom colors and 40+ icons — drag to reorder.
 • Sign in with Apple, Google, or email
 • Cross-device sync via secure cloud storage
 
@@ -431,7 +431,7 @@ Sagely 让你的艰难时刻也变得高效，温柔地。没有连胜。没有�
 
 • 待办事项支持优先级、截止日期、重复、分类和步骤
 • 重复任务：每日、每周、每月、每年，或自定义（指定星期、"每月第二个周四"，可选结束日期）
-• 自定义颜色和 80+ 图标的分类——可配置和拖动排序
+• 自定义颜色和 40+ 图标的分类——可拖动排序。
 • 用 Apple、Google 或邮箱登录
 • 通过安全云存储跨设备同步
 

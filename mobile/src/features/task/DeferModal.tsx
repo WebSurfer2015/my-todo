@@ -84,11 +84,9 @@ export default function DeferModal({
 
   const presets = deferPresets(t)
 
-  const subtitle = filterLabel
-    ? count && count > 1
-      ? `${filterLabel} (${count})`
-      : filterLabel
-    : ''
+  // Just the group's name ("Carried over") — no count: a tally of what's
+  // behind reads as pressure.
+  const subtitle = filterLabel ?? ''
 
   const isPicker = subView === 'picker'
   // "Defer to" for a single todo (swipe action), "Defer all to" for bulk

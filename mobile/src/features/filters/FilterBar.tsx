@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActionSheetIOS, Platform } from 'react-native'
-import { alertWithPresence } from '../../app/modalPresence'
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Platform } from 'react-native'
+import { actionSheetWithPresence, alertWithPresence } from '../../app/modalPresence'
 import {
   Filter,
   Priority,
@@ -211,7 +211,7 @@ export default function FilterBar({
       if (selKey === tgtKey) onClearFilters()
     }
     if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
+      actionSheetWithPresence(
         {
           options: [pinLabel, removeLabel, t.cancel],
           title: label,

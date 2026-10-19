@@ -20,7 +20,9 @@
  * When just details is up on ANOTHER to-do, it closes through its own save
  * path (commits typed text / series edits) and the new one opens once it has
  * closed. Details' own dismiss animation counts as presented (a grace) for
- * every other open. Everything is reset when the signed-in account changes.
+ * every other open. A request whose Modal never reports `onShow` (iOS
+ * refused to present it) is cleared after DETAILS_SHOW_TIMEOUT_MS so it
+ * can't linger as an invisible ghost. Everything is reset when the signed-in account changes.
  *
  * Plain hook (no JSX) so the routing rules are unit-testable with renderHook.
  */
@@ -39,6 +41,12 @@ export const PARK_TTL_MS = 3 * 60_000
 /** Retries (one handoff apart) while something is still dismissing — for
  * the snackbar's Open and the user's own row tap. */
 export const MAX_OPEN_RETRIES = 6
+/** Details must report it presented (RN Modal `onShow`) within this long
+ * after a request is set. If it doesn't, iOS refused the presentation
+ * (something native, e.g. an uncounted system sheet, was up), so the request
+ * is cleared rather than left as an invisible "ghost" that blocks later
+ * opens — a reminder's is parked as an offer instead. */
+export const DETAILS_SHOW_TIMEOUT_MS = 1500
 
 /** Where an open request came from. `user` = their own row tap. */
 export type OpenSource = 'user' | 'reminder'
@@ -66,6 +74,8 @@ export interface DetailsRouter {
   detailsReq: DetailsReq | null
   /** `source` defaults to 'reminder' (parks when it can't open). */
   openTaskDetails: (todoId: string, subtaskId?: string | null, opts?: { source?: OpenSource }) => void
+  /** The details sheet presented (its Modal's onShow). */
+  detailsShown: () => void
   /** The details sheet closed (its onClose): open a queued swap, if any. */
   closeTaskDetails: () => void
   /** The mounted details sheet registers its close-and-save path here. */
@@ -90,6 +100,9 @@ interface Parked {
   req: DetailsReq
   /** Dropped at this time (Date.now()). */
   expiresAt: number
+  /** `openCounts` for this to-do when it was parked: if the user has opened
+   * it since, the reminder is moot and its offer is dropped. */
+  openSeq: number
 }
 
 export function useDetailsRouter(deps: DetailsRouterDeps): DetailsRouter {
@@ -163,14 +176,25 @@ export function useDetailsRouter(deps: DetailsRouterDeps): DetailsRouter {
   // ---- Parked request → offered once the screen is clear ----
   const parkedRef = useRef<Parked | null>(null)
   const [parkSeq, setParkSeq] = useState(0)
-  // `expiresAt` carries over when an offer is handed back (re-parked).
+  // How many times each to-do has been opened (any source). A parked / handed
+  // back offer remembers the count it was parked at — once the user has
+  // opened that to-do directly, its reminder offer is moot.
+  const openCountsRef = useRef(new Map<string, number>())
+  const openCount = useCallback((id: string) => openCountsRef.current.get(id) ?? 0, [])
+  const isStillMeaningful = useCallback(
+    (p: Parked) => openCount(p.req.id) === p.openSeq && isOfferable(p.req.id),
+    [openCount, isOfferable],
+  )
+  // `expiresAt` / `openSeq` carry over when an offer is handed back (re-parked).
   const park = useCallback(
-    (req: DetailsReq, expiresAt?: number) => {
+    (req: DetailsReq, carried?: { expiresAt: number; openSeq: number }) => {
       if (!isOfferable(req.id)) return
-      parkedRef.current = { req, expiresAt: expiresAt ?? Date.now() + PARK_TTL_MS }
+      const openSeq = carried?.openSeq ?? openCount(req.id)
+      if (openSeq !== openCount(req.id)) return
+      parkedRef.current = { req, expiresAt: carried?.expiresAt ?? Date.now() + PARK_TTL_MS, openSeq }
       setParkSeq((n) => n + 1)
     },
-    [isOfferable],
+    [isOfferable, openCount],
   )
   useEffect(() => {
     if (!parkedRef.current) return
@@ -187,9 +211,9 @@ export function useDetailsRouter(deps: DetailsRouterDeps): DetailsRouter {
       if (clearFor < MODAL_DISMISS_GRACE_MS) return
       clearInterval(id)
       parkedRef.current = null
-      const { req, expiresAt } = parked
+      const { req } = parked
       const td = depsRef.current.findTodo(req.id)
-      if (!td || td.trashed) return
+      if (!td || td.trashed || !isStillMeaningful(parked)) return
       depsRef.current.showSnackbar({
         message: detailsNotifyMessage(td.text),
         actionLabel: 'Open',
@@ -199,12 +223,22 @@ export function useDetailsRouter(deps: DetailsRouterDeps): DetailsRouter {
         queue: true,
         // …and if a sheet opened meanwhile, don't play it hidden under that
         // sheet: hand it back to wait again (same expiry).
-        canShow: () => isScreenClear() && isOfferable(req.id),
-        onBlocked: () => park(req, expiresAt),
+        // (Dropped if the user opened this to-do meanwhile.)
+        canShow: () => isScreenClear() && isStillMeaningful(parked),
+        onBlocked: () => park(req, parked),
       })
     }, PARK_POLL_MS)
     return () => clearInterval(id)
-  }, [parkSeq, isScreenClear, isOfferable, park])
+  }, [parkSeq, isScreenClear, isStillMeaningful, park])
+
+  // ---- Ghost guard: a set request whose Modal never presented ----
+  const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const clearShowTimer = useCallback(() => {
+    if (showTimerRef.current) clearTimeout(showTimerRef.current)
+    showTimerRef.current = null
+  }, [])
+  useEffect(() => clearShowTimer, [clearShowTimer])
+  const detailsShown = clearShowTimer
 
   const openDetails = useCallback(
     (req: DetailsReq, attempt: OpenAttempt) => {
@@ -215,8 +249,12 @@ export function useDetailsRouter(deps: DetailsRouterDeps): DetailsRouter {
         todoId: req.id,
       })
       // Opening the parked to-do itself makes its offer moot (only that
-      // to-do — another one opening keeps the offer).
-      if (plan !== 'notify' && parkedRef.current?.req.id === req.id) parkedRef.current = null
+      // to-do — another one opening keeps the offer). Counted per to-do so an
+      // offer already handed to the snackbar queue is dropped too.
+      if (plan !== 'notify') {
+        openCountsRef.current.set(req.id, openCount(req.id) + 1)
+        if (parkedRef.current?.req.id === req.id) parkedRef.current = null
+      }
       switch (plan) {
         case 'already-open':
           return
@@ -244,9 +282,19 @@ export function useDetailsRouter(deps: DetailsRouterDeps): DetailsRouter {
           return
         case 'now':
           setDetailsReq(req)
+          clearShowTimer()
+          showTimerRef.current = setTimeout(() => {
+            showTimerRef.current = null
+            if (openStateRef.current.detailsId !== req.id) return
+            // Never presented: don't leave a ghost that blocks every later
+            // open. A reminder's request waits as an offer instead.
+            pendingRef.current = null
+            clearDetails()
+            if (attempt.source === 'reminder') park(req)
+          }, DETAILS_SHOW_TIMEOUT_MS)
       }
     },
-    [afterModalClose, park, clearDetails],
+    [afterModalClose, park, clearDetails, clearShowTimer, openCount],
   )
   useEffect(() => {
     openDetailsRef.current = openDetails
@@ -260,27 +308,32 @@ export function useDetailsRouter(deps: DetailsRouterDeps): DetailsRouter {
   // A queued swap goes back through the plan: something may have opened
   // during the handoff.
   const closeTaskDetails = useCallback(() => {
+    clearShowTimer()
     clearDetails()
     const next = pendingRef.current
     pendingRef.current = null
     if (next) afterModalClose(() => openDetailsRef.current(next.req, { source: next.source, swap: true }))
-  }, [afterModalClose, clearDetails])
+  }, [afterModalClose, clearDetails, clearShowTimer])
   const forgetDetails = useCallback(() => {
+    clearShowTimer()
     pendingRef.current = null
     clearDetails()
-  }, [clearDetails])
+  }, [clearDetails, clearShowTimer])
 
   // Per account: nothing opened, queued or parked survives an account change.
   useEffect(() => {
     setDetailsReq(null)
     pendingRef.current = null
     parkedRef.current = null
+    openCountsRef.current.clear()
+    clearShowTimer()
     cancelHandoffs()
-  }, [deps.accountUid, cancelHandoffs])
+  }, [deps.accountUid, cancelHandoffs, clearShowTimer])
 
   return {
     detailsReq,
     openTaskDetails,
+    detailsShown,
     closeTaskDetails,
     registerDetailsClose,
     forgetDetails,

@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   Platform,
-  ActionSheetIOS,
   ActivityIndicator,
   Alert,
 } from "react-native";
@@ -38,6 +37,7 @@ function normalizeAvatar(a: AvatarT | undefined | null): AvatarT {
 }
 import Avatar from "../../../ui/Avatar";
 import { useLang } from "../../../app/LangContext";
+import { actionSheetWithPresence, alertWithPresence } from "../../../app/modalPresence";
 import { useAuth } from "../../../app/AuthContext";
 import { useTheme } from "../../../app/theme";
 
@@ -191,7 +191,7 @@ export default function ProfileSheet({
       const options = hasPhoto
         ? [t.profileTakePhoto, t.profileChooseLibrary, "Use Mochi", cancelLabel]
         : [t.profileTakePhoto, t.profileChooseLibrary, cancelLabel];
-      ActionSheetIOS.showActionSheetWithOptions(
+      actionSheetWithPresence(
         {
           options,
           cancelButtonIndex: hasPhoto ? 3 : 2,
@@ -203,7 +203,7 @@ export default function ProfileSheet({
         },
       );
     } else {
-      Alert.alert(t.profileChangePhoto, undefined, [
+      alertWithPresence(t.profileChangePhoto, undefined, [
         { text: t.profileTakePhoto, onPress: takePhoto },
         { text: t.profileChooseLibrary, onPress: pickFromLibrary },
         ...(hasPhoto ? [{ text: "Use Mochi", onPress: applyMochiAvatar }] : []),
@@ -286,7 +286,7 @@ export default function ProfileSheet({
                 <View style={[styles.cardField, styles.cardFieldHalf]}>
                   <Text style={styles.cardFieldLabel}>
                     {t.profileFirstNameLabel}
-                    <Text style={{ color: theme.red }}> *</Text>
+                    <Text style={{ color: theme.label2 }}> *</Text>
                   </Text>
                   <TextInput
                     style={styles.cardFieldInput}

@@ -227,4 +227,58 @@ describe('NotifyProvider snackbar slot', () => {
     expect(order).toEqual(['c', 'a'])
     expect(document.body.textContent).not.toContain('2 x')
   })
+
+  it('a merge after a retract runs each remaining action once (mergedActions recomputed)', () => {
+    const hook = setup()
+    const fns = { a: vi.fn(), b: vi.fn(), c: vi.fn(), d: vi.fn() }
+    const show = (onAction: () => void) =>
+      hook.result.current.showSnackbar({ message: 'x', actionLabel: 'Undo', onAction, mergeKey: 'k', mergedMessage: (n) => `${n} x` })
+    act(() => show(fns.a))
+    act(() => show(fns.b))
+    act(() => show(fns.c))
+    act(() => hook.result.current.retractSnackbar(fns.a))
+    act(() => show(fns.d))
+    expect(document.body.textContent).toContain('3 x')
+    const undoBtn = Array.from(document.querySelectorAll('button')).find((el) => el.textContent === 'Undo')!
+    act(() => undoBtn.click())
+    expect(fns.a).not.toHaveBeenCalled()
+    expect(fns.b).toHaveBeenCalledTimes(1)
+    expect(fns.c).toHaveBeenCalledTimes(1)
+    expect(fns.d).toHaveBeenCalledTimes(1)
+  })
+
+  it('the action label follows the count after a retract: 3 → 2 keeps "Undo all", → 1 is "Undo"', () => {
+    const hook = setup()
+    const a = vi.fn()
+    const b = vi.fn()
+    const c = vi.fn()
+    const show = (onAction: () => void) =>
+      hook.result.current.showSnackbar({
+        message: 'one',
+        actionLabel: 'Undo',
+        onAction,
+        mergeKey: 'k',
+        mergedMessage: (n) => `${n} done`,
+        mergedActionLabel: 'Undo all',
+      })
+    const label = () => Array.from(document.querySelectorAll('button')).map((el) => el.textContent)
+    act(() => show(a))
+    act(() => show(b))
+    act(() => show(c))
+    expect(label()).toContain('Undo all')
+    act(() => hook.result.current.retractSnackbar(a))
+    expect(label()).toContain('Undo all')
+    expect(label()).not.toContain('Undo')
+    act(() => hook.result.current.retractSnackbar(c))
+    expect(label()).toContain('Undo')
+    expect(label()).not.toContain('Undo all')
+  })
+
+  it('canShow only gates a queued snackbar: a normal one shows regardless', () => {
+    const hook = setup()
+    const onBlocked = vi.fn()
+    act(() => hook.result.current.showSnackbar({ message: 'Completed', canShow: () => false, onBlocked }))
+    expect(document.body.textContent).toContain('Completed')
+    expect(onBlocked).not.toHaveBeenCalled()
+  })
 })
