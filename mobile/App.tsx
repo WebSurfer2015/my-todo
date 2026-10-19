@@ -920,6 +920,10 @@ function FirstRunLayer() {
   // lacks onboardingDone can't pop it over the app mid-session. The one
   // deliberate re-entry is Settings → Show intro again, which writes an
   // explicit `false`.
+  // Finishing onboarding also marks the "A few quick tips?" prompt as seen:
+  // a brand-new user goes straight to their first to-do instead of a second
+  // pop-up (which could also collide with the Mochi sheet opening). The
+  // guides stay in Settings → Tips & guides.
   const [onboardingNeeded, setOnboardingNeeded] = useState(false);
   const onboardingDecidedRef = useRef(false);
   useEffect(() => {
@@ -938,14 +942,14 @@ function FirstRunLayer() {
         visible={onboardingNeeded}
         onSubmit={(text) => {
           setOnboardingNeeded(false);
-          store.saveProfile((p) => ({ ...p, onboardingDone: true }));
+          store.saveProfile((p) => ({ ...p, onboardingDone: true, guidesPromptShown: true }));
           // Hand the words to Mochi once the onboarding modal has animated
           // out (iOS can't stack two Modals — same 280ms handoff).
           setTimeout(() => sheets.openCaptureWith(text), 280);
         }}
         onExplore={() => {
           setOnboardingNeeded(false);
-          store.saveProfile((p) => ({ ...p, onboardingDone: true }));
+          store.saveProfile((p) => ({ ...p, onboardingDone: true, guidesPromptShown: true }));
         }}
       />
       {splashShown && (
