@@ -1,8 +1,7 @@
 /**
  * Tests for the todo store helpers lifted out of mobile's useTodosSlice
  * into core (task #2): todoSetReminders, todoSetRecurrence, selectOverdue,
- * setDueDates, plus addDaysISO. Hosted under web's Vitest (web -> core is
- * the allowed dependency direction, so no arch-gate violation).
+ * setDueDates, plus addDaysISO.
  */
 import { describe, expect, it } from "vitest";
 import {

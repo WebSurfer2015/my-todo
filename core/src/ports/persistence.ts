@@ -17,12 +17,12 @@ function isVersioned(raw: unknown): raw is Versioned<unknown> {
 }
 
 /**
- * Platform-agnostic storage interface. Wraps localStorage on web, AsyncStorage
- * on mobile, Firestore in the cloud. All methods are async — sync stores like
- * localStorage just resolve immediately.
+ * Platform-agnostic storage interface. Implemented by AsyncStorage (device)
+ * and Firestore (cloud) adapters in mobile/. All methods are async — a
+ * synchronous KV store would just resolve immediately.
  *
  * `subscribe` is optional: realtime backends (Firestore) implement it so
- * multiple devices stay in sync; KV-only backends (localStorage, AsyncStorage)
+ * multiple devices stay in sync; KV-only backends (AsyncStorage)
  * leave it undefined and the store falls back to one-shot reads on hydration.
  */
 export interface StorageAdapter {

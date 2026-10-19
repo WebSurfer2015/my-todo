@@ -127,8 +127,12 @@ describe("2 — month-end anchor lives on the rule", () => {
   it("a rule change re-anchors on the target's day; an endDate-only edit keeps it", () => {
     let ts = expandSeries(row({ seriesId: "s", dueDate: "2026-10-31", recurrence: { freq: "monthly" } }), "2026-10-31");
     const nov = ts.find((t) => day(t) === "2026-11-30")!;
+    // A real rule change (every 2 months) anchors on the target's own day…
+    const changedRule = todoApplyRecurrenceChange(ts, nov.id, { freq: "monthly", interval: 2 }, "2026-11-30").next;
+    expect(changedRule.find((t) => t.id === nov.id)!.recurrence!.anchorDay).toBe(30);
+    // …while re-saving the SAME rule (round 4) keeps the series' 31st.
     ts = todoApplyRecurrenceChange(ts, nov.id, { freq: "monthly", anchorDay: 31 }, "2026-11-30").next;
-    expect(ts.find((t) => t.id === nov.id)!.recurrence!.anchorDay).toBe(30);
+    expect(ts.find((t) => t.id === nov.id)!.recurrence!.anchorDay).toBe(31);
     // endDate-only edit on a clamped row keeps the series' 31st.
     const clamped = row({ id: "c", seriesId: "q", dueDate: "2026-02-28", recurrence: { freq: "monthly", anchorDay: 31 } });
     const [kept] = todoSetRecurrence([clamped], "c", { freq: "monthly", anchorDay: 31, endDate: "2026-12-31" });

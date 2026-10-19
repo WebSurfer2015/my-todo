@@ -1,5 +1,5 @@
 /**
- * Tests for core/src/groceries.ts — item factory, store normalization,
+ * Tests for core/src/data/groceries.ts — item factory, store normalization,
  * read-time migration, mutation helpers, dept inference, frequent
  * picks. Covers the multi-store data model migration since that's
  * the highest-risk recent change.

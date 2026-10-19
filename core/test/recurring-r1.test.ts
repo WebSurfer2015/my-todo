@@ -1,5 +1,5 @@
 /**
- * R1 of the recurring-todo redesign — pure helpers in core/src/derive.ts.
+ * R1 of the recurring-todo redesign — pure helpers in core/src/logic/derive.ts.
  * Verifies the window cutoff math, the seed-to-series expansion, the
  * idempotent top-up, and the series-future lookup.
  *

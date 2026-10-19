@@ -24,7 +24,7 @@ import type {
   OpOf,
   ProposedOperation,
 } from '../ports/aiContracts'
-import type { Reminder } from '../domain/types'
+import type { Recurrence, Reminder } from '../domain/types'
 import { COLOR_PALETTE } from '../data/categories'
 import { dueDateOnly } from './utils'
 
@@ -40,6 +40,9 @@ export interface MochiSnapshot {
     trashed?: boolean
     seriesId?: string
     dueDate?: string
+    /** The row's current rule — Mochi's rule has no end date / set-pos, so
+     * those are carried over from here (see mergeAgentRecurrence). */
+    recurrence?: Recurrence
     subtasks?: ReadonlyArray<{ id: string; text: string; done: boolean }>
   }>
   /** `label` is the STORED label (empty for a built-in that shows its
@@ -83,7 +86,8 @@ export type MochiIntent =
   | { type: 'updateDueDate'; todoId: string; dueDate: string }
   | { type: 'updateCategory'; todoId: string; category: CategoryRef }
   | { type: 'updateNotes'; todoId: string; notes: string }
-  | { type: 'updateRecurrence'; todoId: string; recurrence: AgentRecurrence }
+  /** The agent's rule merged over the row's current one (mergeAgentRecurrence). */
+  | { type: 'updateRecurrence'; todoId: string; recurrence: Recurrence }
   | { type: 'updateReminders'; todoId: string; reminders: Reminder[] }
   | { type: 'addSubtask'; todoId: string; text: string }
   /** done ↔ open flip — only planned when it moves the right way. */
@@ -171,12 +175,17 @@ interface PlanCtx {
   todoDone: Map<string, boolean>
   stepDone: Map<string, boolean>
   groceryChecked: Map<string, boolean>
+  /** To-dos an earlier op this turn skipped or sent to the bin — a later
+   * markDone / edit / step op on them is a no-op (it would complete or edit
+   * a row the user just closed). */
+  closed: Set<string>
 }
 
 function newCtx(snap: MochiSnapshot, deps: MochiPlanDeps): PlanCtx {
   return {
     snap, deps, creating: new Set(), out: [],
     todoDone: new Map(), stepDone: new Map(), groceryChecked: new Map(),
+    closed: new Set(),
   }
 }
 
@@ -236,6 +245,43 @@ function resolveCategory(
   return category !== undefined ? { id: category } : undefined
 }
 
+const ruleList = (v: readonly number[] | undefined) => (v && v.length > 0 ? v.join(',') : '')
+
+/** Same repeat rule AND end date (anchorDay is derived, so ignored). */
+function sameRecurrence(a: Recurrence, b: Recurrence): boolean {
+  return (
+    a.freq === b.freq &&
+    (a.interval ?? 1) === (b.interval ?? 1) &&
+    ruleList(a.byWeekday) === ruleList(b.byWeekday) &&
+    ruleList(a.bySetPos) === ruleList(b.bySetPos) &&
+    (a.endDate ?? '') === (b.endDate ?? '')
+  )
+}
+
+/**
+ * The agent's rule over the row's `current` one. AgentRecurrence can't say
+ * "until <date>" or "2nd Thursday", so the series' endDate is always kept and
+ * its bySetPos is kept while the result is still a monthly weekday rule —
+ * otherwise a Mochi edit would silently drop them. Undefined when the merged
+ * rule is what the row already has (nothing to apply).
+ */
+export function mergeAgentRecurrence(
+  agent: AgentRecurrence,
+  current: Recurrence | undefined,
+): Recurrence | undefined {
+  const merged: Recurrence = { freq: agent.freq }
+  if (agent.interval !== undefined) merged.interval = agent.interval
+  if (agent.byWeekday && agent.byWeekday.length > 0) merged.byWeekday = [...agent.byWeekday]
+  if (current) {
+    if (merged.freq === 'monthly' && merged.byWeekday && current.bySetPos && current.bySetPos.length > 0) {
+      merged.bySetPos = [...current.bySetPos]
+    }
+    if (current.endDate) merged.endDate = current.endDate
+    if (sameRecurrence(merged, current)) return undefined
+  }
+  return merged
+}
+
 type TodoPatch = NonNullable<OpOf<'pickTodos'>['args']['edit']> & { newCategoryLabel?: string }
 
 /** The field-by-field edit of one to-do (editTodo and a pick-list edit). */
@@ -248,13 +294,32 @@ function planTodoPatch(ctx: PlanCtx, todoId: string, e: TodoPatch): void {
   const category = resolveCategory(ctx, e.category, e.newCategoryLabel)
   if (category) out.push({ type: 'updateCategory', todoId, category })
   if (e.notes !== undefined) out.push({ type: 'updateNotes', todoId, notes: e.notes })
-  if (e.recurrence !== undefined) out.push({ type: 'updateRecurrence', todoId, recurrence: e.recurrence })
+  if (e.recurrence !== undefined) {
+    const current = ctx.snap.todos.find((t) => t.id === todoId)?.recurrence
+    const recurrence = mergeAgentRecurrence(e.recurrence, current)
+    if (recurrence) out.push({ type: 'updateRecurrence', todoId, recurrence })
+  }
   const reminders = stampReminders(e.reminders, ctx.deps.genId)
   if (reminders) out.push({ type: 'updateReminders', todoId, reminders })
 }
 
 const liveTodo = (snap: MochiSnapshot, id: string) =>
   snap.todos.find((t) => t.id === id && !t.trashed)
+
+/** A live to-do no earlier op this turn has skipped / binned. */
+const openTodo = (ctx: PlanCtx, id: string) =>
+  ctx.closed.has(id) ? undefined : liveTodo(ctx.snap, id)
+
+/** `td` and — for "this & future" on a series — its later live siblings
+ * are closed for the rest of the turn. */
+function closeTodo(ctx: PlanCtx, td: SnapTodo, future: boolean): void {
+  ctx.closed.add(td.id)
+  if (!future || !td.seriesId) return
+  const from = dueDateOnly(td.dueDate)
+  for (const t of ctx.snap.todos) {
+    if (t.seriesId === td.seriesId && !t.trashed && dueDateOnly(t.dueDate) >= from) ctx.closed.add(t.id)
+  }
+}
 
 function planOne(ctx: PlanCtx, op: ProposedOperation): void {
   const { snap, out } = ctx
@@ -276,12 +341,12 @@ function planOne(ctx: PlanCtx, op: ProposedOperation): void {
       return
     }
     case 'editTodo': {
-      if (!liveTodo(snap, op.args.todoId)) return
+      if (!openTodo(ctx, op.args.todoId)) return
       planTodoPatch(ctx, op.args.todoId, op.args)
       return
     }
     case 'addSteps': {
-      if (!liveTodo(snap, op.args.todoId)) return
+      if (!openTodo(ctx, op.args.todoId)) return
       for (const s of op.args.steps) {
         if (s.text.trim()) out.push({ type: 'addSubtask', todoId: op.args.todoId, text: s.text })
       }
@@ -290,7 +355,7 @@ function planOne(ctx: PlanCtx, op: ProposedOperation): void {
     case 'markDone': {
       // `toggle` flips unconditionally — markDone means "make it done",
       // never "re-open it" (also not after an earlier op in this turn).
-      const td = liveTodo(snap, op.args.todoId)
+      const td = openTodo(ctx, op.args.todoId)
       if (td) planTodoDone(ctx, td, true)
       return
     }
@@ -317,13 +382,14 @@ function planOne(ctx: PlanCtx, op: ProposedOperation): void {
     case 'deleteTodo': {
       // Always to the 30-day Done bin — an AI misreading must be recoverable.
       // A series instance asks the scope.
-      const td = liveTodo(snap, op.args.todoId)
+      const td = openTodo(ctx, op.args.todoId)
       if (!td) return
       out.push(
         td.seriesId
           ? { type: 'askDeleteScope', todoId: td.id, text: td.text }
           : { type: 'moveToTrash', todoId: td.id },
       )
+      closeTodo(ctx, td, false)
       return
     }
     case 'deleteGroceryItem': {
@@ -385,13 +451,11 @@ function planOne(ctx: PlanCtx, op: ProposedOperation): void {
       out.push({ type: 'deleteGroceryStore', name: op.args.name })
       return
     case 'skipTodo': {
-      const td = liveTodo(snap, op.args.todoId)
+      const td = openTodo(ctx, op.args.todoId)
       if (!td) return
-      out.push(
-        op.args.scope === 'series' && td.seriesId
-          ? { type: 'skipSeriesFuture', todoId: td.id }
-          : { type: 'skipTodo', todoId: td.id },
-      )
+      const future = op.args.scope === 'series' && !!td.seriesId
+      out.push(future ? { type: 'skipSeriesFuture', todoId: td.id } : { type: 'skipTodo', todoId: td.id })
+      closeTodo(ctx, td, future)
       return
     }
     case 'deferOverdue': {
@@ -408,7 +472,7 @@ function planOne(ctx: PlanCtx, op: ProposedOperation): void {
     }
     case 'subtaskAction': {
       const a = op.args
-      const td = liveTodo(snap, a.todoId)
+      const td = openTodo(ctx, a.todoId)
       if (!td) return
       const m = matchSubtask(td.subtasks, a.subtaskText)
       if (m.kind !== 'match') return

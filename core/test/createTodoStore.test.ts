@@ -1,8 +1,7 @@
 /**
  * Tests for core/src/store/createTodoStore.ts — the orchestration factory
  * (task #4, phase 4c). Confirms the pure action surface + coordinators are
- * exposed and that derive produces derived state. Hosted under web's
- * Vitest (web -> core, allowed direction).
+ * exposed and that derive produces derived state.
  */
 import { describe, expect, it } from "vitest";
 import { createTodoStore } from "../src/store";

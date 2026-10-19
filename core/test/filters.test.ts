@@ -1,8 +1,7 @@
 /**
- * Tests for core/src/filters.ts — pinned-filter set logic, Home stat
+ * Tests for core/src/logic/filters.ts — pinned-filter set logic, Home stat
  * tile toggling, and view defaults, lifted out of mobile's
- * useProfileSlice (task #3). Hosted under web's Vitest (web -> core is
- * the allowed dependency direction).
+ * useProfileSlice (task #3).
  */
 import { describe, expect, it } from "vitest";
 import {
