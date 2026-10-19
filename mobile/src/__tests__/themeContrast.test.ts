@@ -29,6 +29,11 @@ describe('theme contrast (WCAG AA)', () => {
         // Red: as text (Delete actions) and as a fill under onDanger text.
         expect(contrast(c.red, c.card)).toBeGreaterThanOrEqual(4.5)
         expect(contrast(c.onDanger, c.red)).toBeGreaterThanOrEqual(4.5)
+        // On-accent ink on every accent fill alias (SignIn submit, TaskItem
+        // swipe Edit, primary buttons) — plain white fails in dark themes.
+        for (const fill of [c.primary, c.blue, c.teal]) {
+          expect(contrast(c.primaryOn, fill)).toBeGreaterThanOrEqual(4.5)
+        }
         // Dark ink on the pastel swipe buttons (TaskItem SWIPE_INK).
         for (const bg of [c.orange, c.green, c.gray]) {
           expect(contrast('#1F2A24', bg)).toBeGreaterThanOrEqual(4.5)

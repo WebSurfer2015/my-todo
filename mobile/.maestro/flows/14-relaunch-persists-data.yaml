@@ -4,7 +4,7 @@
 #
 # A seeded todo is visible, the app is fully stopped and relaunched, and
 # the same row is still there — proving useSyncedState hydrates from the
-# Firestore/AsyncStorage adapter (now under src/adapters/) after the
+# Firestore adapter (now under src/adapters/) after the
 # rewrite to consume store.actions.
 #
 # Precondition: seeded dataset (sign in as sagely.todo@gmail.com or run

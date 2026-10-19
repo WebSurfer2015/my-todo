@@ -12,10 +12,14 @@ mobile guide (Expo SDK 54 + RN 0.81, EAS build/submit, native auth quirks).
 my-todo/
 ├── core/            Pure TypeScript domain, in Clean Architecture rings:
 │   ├── src/         domain/ (types, priorities, statuses, entitlements),
-│   │                logic/ (derive, groups, filters, selection, utils, mochiFallback),
+│   │                logic/ (derive, groups, filters, selection, utils, labels,
+│   │                  homeDashboard, mochiOps, mochiFallback, reminderPresets,
+│   │                  suggestFields),
 │   │                ports/ (persistence StorageAdapter, aiContracts),
-│   │                data/ (categories, profile, groceries, i18n, exporter, quotes),
-│   │                store/ (createTodoStore, coordinators, usageSignals, migration);
+│   │                data/ (categories, profile, groceries, i18n, exporter, quotes,
+│   │                  authMessages),
+│   │                store/ (createTodoStore, coordinators, mergeTodos,
+│   │                  usageSignals, types, index);
 │   │                index.ts is the barrel
 │   └── test/        core's tests (vitest, node env)
 ├── mobile/          Expo SDK 54 + React Native 0.81 + TypeScript (the app)

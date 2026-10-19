@@ -261,18 +261,20 @@ export function makeStyles(c: ThemeColors) {
       fontWeight: '800',
       lineHeight: 14,
     },
-    swipeEdit:    { backgroundColor: c.blue },
+    swipeEdit:    { backgroundColor: c.primary },
     swipeDefer:   { backgroundColor: c.orange },
     swipeMarkDone: { backgroundColor: c.green },
-    // swipeTrash = the reversible actions (Not Do, Delete on an active row →
+    // swipeTrash = the reversible actions (Skip, Delete on an active row →
     // the 30-day Done bin). Calm muted sage — red is reserved for truly
     // irreversible actions (Delete permanently in the bin, Delete all).
     swipeTrash:   { backgroundColor: c.gray },
     swipeRestore: { backgroundColor: c.green },
     swipeDelete:  { backgroundColor: c.red },
     swipeActionTextInk: { color: '#1F2A24' },
+    // Default ink = on-accent (the Edit fill); other fills override it
+    // (SWIPE_INK on pastels, onDanger on red).
     swipeActionText: {
-      color: '#fff',
+      color: c.primaryOn,
       fontSize: TYPE.footnote,
       fontWeight: '600',
       letterSpacing: -0.16,

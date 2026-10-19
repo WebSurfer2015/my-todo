@@ -1,13 +1,13 @@
-# Flow 04 — Swipe a row LEFT to reveal [Defer | Not Do | Delete]; tap
-# "Not Do" → row routes to the Done bin with a "Marked as Not Do."
-# snackbar; Undo restores it. Manual-plan test 4.10.
+# Flow 04 — Swipe a row LEFT to reveal [Defer | Skip | Delete]; tap
+# "Skip" → row routes to the Done bin with a "Skipped." snackbar; Undo
+# restores it. Manual-plan test 4.10.
 #
 # Target a TODAY row ("Take a 10-minute walk") rather than a bottom-of-
 # list row: the revealed action panel needs vertical room, and a row
-# crammed against the FAB/tab bar leaves the middle "Not Do" button hard
-# for the driver to land on. The "Not Do" button pairs a "✕" glyph Text
-# with the label Text, which iOS merges into one node ("✕ Not Do"), so it
-# needs a `.*Not Do.*` regex rather than a bare-text match.
+# crammed against the FAB/tab bar leaves the middle "Skip" button hard
+# for the driver to land on. The "Skip" button pairs a "✕" glyph Text
+# with the label Text, which iOS merges into one node ("✕ Skip"), so it
+# needs a `.*Skip.*` regex rather than a bare-text match.
 appId: com.websurfer.mytodo
 ---
 - stopApp
@@ -19,10 +19,10 @@ appId: com.websurfer.mytodo
       text: ".*Take a 10-minute walk.*"
     direction: LEFT
 - tapOn:
-    text: ".*Not Do.*"
+    text: ".*✕ Skip.*|Skip"
 # Snackbar surfaces with Undo.
 - assertVisible:
-    text: ".*Marked as Not Do.*"
+    text: ".*Skipped\\..*"
 - tapOn:
     text: "Undo"
 # Row is back in the active list.

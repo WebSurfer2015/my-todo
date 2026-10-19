@@ -17,13 +17,15 @@ appId: com.websurfer.mytodo
 - launchApp
 - tapOn:
     text: "Todos, tab.*"
-# Bin footer a11y label: "N to-dos tucked away in the bin."
+# Bin footer: visible "N tucked away · tap to peek →", but its a11y label
+# (what Maestro sees) is "N to-dos resting in Done. Tap to view." — match
+# either.
 - scrollUntilVisible:
     element:
-      text: ".*tucked away.*"
+      text: ".*resting in Done.*|.*tucked away.*"
     direction: DOWN
 - tapOn:
-    text: ".*tucked away.*"
+    text: ".*resting in Done.*|.*tucked away.*"
 - waitForAnimationToEnd
 # Bin chrome renders (retention notice + bulk delete).
 - assertVisible: ".*Delete all permanently.*"

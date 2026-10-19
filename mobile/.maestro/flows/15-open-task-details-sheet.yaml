@@ -1,4 +1,5 @@
-# Flow 15 — Long-press a todo opens TaskDetailsSheet (Steps section renders).
+# Flow 15 — Long-press (or tap) a todo opens TaskDetailsSheet (Steps
+# section renders).
 # Session manual-plan P1.6 (subtasks) — RENDER-ONLY.
 #
 # Scope: long-press opens the edit/details sheet; we assert the "Steps"
@@ -15,7 +16,7 @@ appId: com.websurfer.mytodo
 - launchApp
 - tapOn:
     text: "Todos, tab.*"
-# Body-tap toggles done; long-press opens the details/edit sheet.
+# Both a body tap and a long-press open the details/edit sheet.
 - longPressOn: ".*Buy groceries.*"
 - waitForAnimationToEnd:
     timeout: 1500

@@ -1,4 +1,5 @@
-# Flow 11 — Open Manage Store (Shopping gear → Settings → Manage Store)
+# Flow 11 — Open the store manager (Shopping gear → Settings → "Shopping
+# stores"; the sheet it opens is still titled "Manage Store")
 # and verify the store-management sheet renders with the "+ Add store"
 # affordance and the existing stores as individually-addressable rows.
 # (v1.5 routed Manage Store through the Settings sheet; the gear no longer
@@ -17,7 +18,7 @@ appId: com.websurfer.mytodo
 - tapOn:
     id: "settings-button"
 - tapOn:
-    text: ".*Manage Store.*"
+    text: ".*Shopping stores.*"
 - waitForAnimationToEnd
 # StorePicker sheet renders with its store rows individually exposed
 # (post-#15). The "+ Add store" footer lives in the DraggableFlatList's

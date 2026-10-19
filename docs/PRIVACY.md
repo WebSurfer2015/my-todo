@@ -1,6 +1,6 @@
 # Sagely — Privacy Policy
 
-**Last updated**: October 18, 2026
+**Last updated**: October 19, 2026
 
 This policy describes what Sagely does with your data, who has access to it,
 and what choices you have. We've tried to keep it short and plain.
@@ -107,6 +107,12 @@ Crash reports include the device model, OS version, and a stack trace of
 where the crash happened. They do **not** include the contents of your
 to-dos or any text you've written.
 
+### App integrity checks
+
+Firebase App Check (Apple App Attest/DeviceCheck) checks requests come from
+the genuine app; no to-do content is sent. It helps keep other software from
+using Sagely's servers in your name.
+
 ---
 
 ## What we do NOT collect
@@ -155,7 +161,9 @@ account. You can save this anywhere.
 
 ### Delete your account
 
-Settings → Data → "Delete account" wipes everything:
+Settings → Data → "Delete account" wipes everything. The erase runs on our
+servers (a Cloud Function triggered by the account deletion), so it completes
+even if the app is closed right after:
 
 - Your Firebase Authentication account
 - Everything stored under your account in Firestore: to-dos, categories,
@@ -178,9 +186,12 @@ privacy policies.
 
 ### Sign out
 
-Sign out from Profile. Your data stays in the cloud; your local cache on
-this device is cleared so the next user signing in on this device sees a
-clean state.
+Sign out from Profile. Nothing is deleted: your data stays in your account
+in the cloud. Sagely keeps no separate copy of your to-dos on the device —
+the app only ever shows the signed-in account's data, so the next person who
+signs in on this device sees their own data, not yours. (Firebase may keep
+an offline copy on the device so the app works without a connection; it is
+removed when you delete the app.)
 
 ---
 
@@ -220,6 +231,7 @@ Sagely uses these third-party services to deliver the app:
 | Firebase Authentication (Google LLC) | Verifies your sign-in | https://policies.google.com/privacy |
 | Cloud Firestore (Google LLC) | Stores your to-dos and settings | https://policies.google.com/privacy |
 | Firebase Crashlytics (Google LLC) | Collects crash reports | https://policies.google.com/privacy |
+| Firebase App Check (Google LLC) + Apple App Attest/DeviceCheck (Apple Inc.) | Checks requests come from the genuine app (no to-do content) | https://policies.google.com/privacy |
 | Cloud Functions for Firebase (Google LLC) | Runs our server code (Mochi requests, subscription updates) | https://policies.google.com/privacy |
 | Anthropic, PBC | Powers Mochi, the optional AI assistant | https://www.anthropic.com/legal/privacy |
 | RevenueCat, Inc. | Manages subscriptions and purchase status | https://www.revenuecat.com/privacy |

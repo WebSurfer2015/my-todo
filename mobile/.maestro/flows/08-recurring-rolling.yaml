@@ -1,4 +1,5 @@
-# Flow 08 — Body-tap a recurring task → a done snapshot lands in the Done
+# Flow 08 — Complete a recurring task (swipe RIGHT → "Mark done") → a
+# done snapshot lands in the Done
 # bin and the rolling instance advances to its next occurrence.
 # Manual-plan tests 9.1–9.3 (recurrence).
 #
@@ -36,7 +37,7 @@ appId: com.websurfer.mytodo
 # (a row is one VoiceOver element, so the circle isn't separately targetable).
 - swipe:
     from:
-      text: "Yoga class"
+      text: ".*Yoga class.*"
     direction: RIGHT
     duration: 600
 - runFlow:

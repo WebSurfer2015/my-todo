@@ -64,23 +64,23 @@ at the running sim and it'll show element selectors live.
 | File | What it covers | Manual-plan test # |
 | --- | --- | --- |
 | `flows/01-cold-launch-lands-on-home.yaml` | App launches to Today tab; TODAY section renders | 1.1, 3.1 |
-| `flows/02-add-todo.yaml` | FAB → Compose → Done → row appears in list | 4.1–4.3 |
+| `flows/02-add-todo.yaml` | + opens Mochi → "Switch to entering the to-do manually" → Compose renders | 4.1–4.3 |
 | `flows/03-toggle-done-and-strike.yaml` | Filter Open → swipe → Mark done → appears under Done filter | 4.7, 3.2 |
-| `flows/04-swipe-to-trash-and-undo.yaml` | Swipe-right → Not Do → snackbar Undo restores row | 4.10 |
+| `flows/04-swipe-to-trash-and-undo.yaml` | Swipe LEFT → Skip → "Skipped." snackbar Undo restores row | 4.10 |
 | `flows/05-defer-all-group.yaml` | Group header "Defer all →" → modal title check → Tomorrow | 7.5–7.7 |
-| `flows/07-defer-single-via-swipe.yaml` | Swipe-right → Defer → modal "Defer to" → Tomorrow | 7.1–7.3 |
+| `flows/07-defer-single-via-swipe.yaml` | Swipe LEFT → Defer → modal "Defer to" → Tomorrow | 7.1–7.3 |
 | `flows/08-recurring-rolling.yaml` | Complete recurring (swipe → Mark done) → Done bin + rolled-forward instance | 9.1–9.3 |
 | `flows/09-shopping-add-item.yaml` | Empty Shopping → Add CTA → GroceryComposeSheet renders (STORES section visible) | (v1.5) |
 | `flows/10-shopping-empty-state.yaml` | Empty Shopping → "Start shopping." → "Add your first item" → GroceryComposeSheet | (v1.5) ⚠ needs empty acct |
-| `flows/11-shopping-add-store.yaml` | Gear → Manage Store renders → "Add a store" CTA visible | (v1.5) |
+| `flows/11-shopping-add-store.yaml` | Gear → Settings → "Shopping stores" → store sheet renders with seeded stores | (v1.5) |
 | `flows/12-todos-empty-state.yaml` | Empty Todos → EmptyStateCard → Add a to-do → compose opens | (v1.5) |
 | `flows/13-tab-navigation.yaml` | Today → Todos → Shopping → Today all mount/switch | P0.3 |
 | `flows/14-relaunch-persists-data.yaml` | Seeded row survives a cold stopApp/launchApp (hydration) | P0.4 |
-| `flows/15-open-task-details-sheet.yaml` | Long-press row → TaskDetailsSheet "Steps" renders (render-only) | P1.6 |
+| `flows/15-open-task-details-sheet.yaml` | Long-press (or tap) row → TaskDetailsSheet "Steps" renders (render-only) | P1.6 |
 | `flows/16-sign-out.yaml` | Avatar → ProfileSheet → Sign out → SignIn screen ⚠ destructive | P0.2 |
 | `flows/17-clear-completed.yaml` | Complete row → Done filter → "Delete all permanently" → confirm ⚠ destructive | P1.8 |
-| `flows/18-bin-reopen.yaml` | Done bin → swipe → Reopen → "Moved back to your open list." | P1.7 |
-| `flows/19-complete-undo.yaml` | Swipe → Mark done → "Done: … · Undo" → Undo restores the row | Phase 2 |
+| `flows/18-bin-reopen.yaml` | Done bin footer → swipe LEFT → Reopen → "Moved back to your open list." | P1.7 |
+| `flows/19-complete-undo.yaml` | Swipe RIGHT → Mark done → "Done: … · Undo" → Undo restores "Review reading group chapter" | Phase 2 |
 | `flows/20-onboarding.yaml` | View intro again → one-screen onboarding; starter chip pre-fills; look around → Today (no AI call) | Phase 2 |
 
 > **Flows 13–15 are verified green; 16/17/18 are destructive/precondition
@@ -98,7 +98,7 @@ at the running sim and it'll show element selectors live.
 | P0.4 relaunch hydration | `14` | ✅ new (needs seed) |
 | P1.5 add task + toggle | `02`, `03` | ✅ |
 | P1.6 subtasks / task-details | `15` | ✅ long-press → TaskDetailsSheet renders ("Steps") |
-| P1.7 trash + undo | `04` | ✅ swipe LEFT → Not Do → snackbar Undo (TODAY row) |
+| P1.7 trash + undo | `04` | ✅ swipe LEFT → Skip → snackbar Undo (TODAY row) |
 | P1.7 trash bulk-select | `18` | bin via "tap to peek" footer → select → bulk Restore |
 | P1.8 clear completed | `17` | ✅ new |
 | P1.9 reminders | — | reachable (ReminderSheet is addressable) — flow not yet written |
@@ -114,8 +114,16 @@ filter-sheet selector rewrite). 01–09, 11, 13–18 run on the seeded sim;
 - Reseed before each MUTATING flow (03/04/05/07/08/17/18) — they persist
   to the demo account's cloud, so back-to-back runs contaminate each other
   (the Open count drifts, rows toggle).
+- **One seeded row per mutating flow.** The nightly seeds ONCE, then runs
+  the subset back to back, so no two flows may act on the same row:
+  03 → "Refill prescription" (left done), 04 → "Take a 10-minute walk"
+  (Skip + Undo), 05 → the CARRIED OVER pair (deferred), 07 → "Pay credit
+  card bill" (deferred), 08 → "Yoga class" (completed), 18 → "Unread
+  newsletter cleanup" (reopened), 19 → "Review reading group chapter"
+  (Done + Undo). 14 and 15 only read ("Submit project status update",
+  "Buy groceries"). Pick an untouched seed row when adding a flow.
 - **09/11 (shopping)** drive the populated list (FAB → GroceryComposeSheet;
-  gear → Settings → Manage Store). The DraggableFlatList footers
+  gear → Settings → Shopping stores). The DraggableFlatList footers
   ("+ Add store", store-chip commit) are still swallowed into the list's
   a11y node, so these assert the sheet renders + rows/chips are exposed,
   not the commit.
@@ -142,7 +150,7 @@ right precondition. Two caveats baked into these flows:
   stores only shows "No stores yet." in-session. Covered by manual QA.
 
 **⚠ Flow 10 is skipped by default** — requires a sim with zero stores
-configured. Run explicitly after deleting all stores via Manage Store,
+configured. Run explicitly after deleting all stores via Shopping stores,
 or against a fresh install.
 
 **⚠ Flows 03–08, 14, 15, 17, 18 require seed data** — they tap specific
@@ -208,7 +216,6 @@ scrolled into; tap the header to expand first, then `scrollUntilVisible`.
 
 - `signin-apple.yaml` / `signin-google.yaml` — native OAuth sheets aren't reliably scriptable; covered by manual QA today.
 - `add-grocery-mochi-thinking.yaml` — would assert "Mochi's thinking…" appears within 1s of typing. CF call latency is non-deterministic, so this needs a stub or generous timeout.
-- `recalibrate.yaml` — Reset Lifetime Count → Recalibrate confirm dialog copy.
 - `dark-mode.yaml` — toggle system dark → Today chrome adapts.
 - `voiceover.yaml` — Maestro doesn't natively drive VoiceOver; document manual approach.
 

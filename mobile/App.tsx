@@ -114,15 +114,25 @@ function TodosScreen() {
   const stickyHRef = useRef(0);
   const pendingScrollRef = useRef<number | null>(null);
   const scrollReq = sheets.todosScrollRequest;
+  // The scroll fires once per request (keyed on `seq`), reading the latest
+  // group/sections/filter/collapse state through this ref — assigned each
+  // render below, once those values exist — rather than re-running on them.
+  const scrollCtxRef = useRef<{
+    group: string | null;
+    displayGroups: readonly { key: string }[];
+    filter: string;
+    collapsedGroups: ReadonlySet<string>;
+  } | null>(null);
   useEffect(() => {
-    if (!scrollReq.group || scrollReq.seq === 0) return;
-    const targetGroup = scrollReq.group;
-    const sectionIndex = displayGroups.findIndex((g) => g.key === targetGroup);
+    const ctx = scrollCtxRef.current;
+    if (!ctx || !ctx.group || scrollReq.seq === 0) return;
+    const targetGroup = ctx.group;
+    const sectionIndex = ctx.displayGroups.findIndex((g) => g.key === targetGroup);
     if (sectionIndex < 0) return;
     // A collapsed target has an empty `data`; scrolling to itemIndex 0 of an
     // empty section is unreliable, so expand it first and scroll next tick.
-    const toggleable = store.filter === "all" || store.filter === "open";
-    if (toggleable && collapsedGroups.has(targetGroup)) {
+    const toggleable = ctx.filter === "all" || ctx.filter === "open";
+    if (toggleable && ctx.collapsedGroups.has(targetGroup)) {
       setCollapsedGroups((prev) => {
         if (!prev.has(targetGroup)) return prev;
         const next = new Set(prev);
@@ -142,7 +152,6 @@ function TodosScreen() {
       });
     }, 140);
     return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollReq.seq]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -182,6 +191,12 @@ function TodosScreen() {
   // changes) and the filtered/grouped views it produces live in useLinger.
   const searchNeedle = searchQuery.trim().toLowerCase();
   const { displayFiltered, displayGroups } = useLinger(store, searchNeedle);
+  scrollCtxRef.current = {
+    group: scrollReq.group,
+    displayGroups,
+    filter: store.filter,
+    collapsedGroups,
+  };
 
   // Guard against landing on a fully-collapsed Todos list: if every
   // group in the current view is collapsed (e.g., the default

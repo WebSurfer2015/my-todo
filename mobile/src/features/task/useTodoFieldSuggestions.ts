@@ -91,6 +91,12 @@ export function useTodoFieldSuggestions({
   useEffect(() => {
     todayRef.current = today
   }, [today])
+  // The edit seed only gates the next text change; it must not re-run the
+  // query effect on its own. (Declared before that effect so it syncs first.)
+  const initialTextRef = useRef(initialText)
+  useEffect(() => {
+    initialTextRef.current = initialText
+  }, [initialText])
 
   // Sequence number — every dispatched request carries one; only the
   // latest one is allowed to apply its response. Mutating seqRef in
@@ -121,7 +127,8 @@ export function useTodoFieldSuggestions({
     }
     // Edit flow: don't fire on the seed text. Re-engages once the
     // user actually changes it.
-    if (initialText && trimmed.toLowerCase() === initialText.trim().toLowerCase()) {
+    const seed = initialTextRef.current
+    if (seed && trimmed.toLowerCase() === seed.trim().toLowerCase()) {
       seqRef.current += 1
       setSuggestions(null)
       setThinking(false)
@@ -216,7 +223,6 @@ export function useTodoFieldSuggestions({
       controllerRef.current?.abort()
       seqRef.current += 1
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, agentEnabled])
 
   function dismissField(

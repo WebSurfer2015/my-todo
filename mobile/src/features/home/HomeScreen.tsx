@@ -121,6 +121,10 @@ export default function HomeScreen() {
   // that has open todos. null when there's nothing left — drives the
   // "no What's Next button on the last group" rule.
 
+  // Open to-dos with no date — they never surface on Today, so the
+  // Today empty state points at them instead of reading "Nothing pending".
+  const undatedCount = groupsByKey.noDate?.length ?? 0
+
   const nextBucket = nextGroupKey ? groupsByKey[nextGroupKey] ?? [] : []
   const nextSectionLabel = nextGroupKey ? t.groups[nextGroupKey] : "What's next"
   const hasNextGroupAfter = nextGroupAfter(nextGroupKey, firstAvailableNextKey, groupsByKey) !== null
@@ -270,7 +274,21 @@ export default function HomeScreen() {
                 </View>
               </TouchableOpacity>
             )}
-            {firstAvailableNextKey == null ? (
+            {undatedCount > 0 ? (
+              // Undated captures (e.g. a first to-do via Mochi) never land
+              // on Today — point at them so they don't seem to vanish.
+              <EmptyStateCard
+                title="Nothing due today."
+                subline={
+                  undatedCount === 1
+                    ? '1 to-do without a date is waiting in Todos.'
+                    : `${undatedCount} to-dos without a date are waiting in Todos.`
+                }
+                actionLabel={undatedCount === 1 ? 'See it' : 'See them'}
+                onAction={() => openTodos('open', 'noDate')}
+                actionAccessibilityLabel="Open Todos at the to-dos without a date"
+              />
+            ) : firstAvailableNextKey == null ? (
               <EmptyStateCard
                 title="You're all caught up."
                 hint="Add a to-do to get started."

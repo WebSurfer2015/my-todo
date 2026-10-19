@@ -315,7 +315,7 @@ export default function SignIn() {
                   testID="signin-submit"
                 >
                   {busy ? (
-                    <ActivityIndicator color="#fff" />
+                    <ActivityIndicator color={theme.primaryOn} />
                   ) : (
                     <Text style={styles.submitText}>
                       {mode === "signin"
@@ -557,14 +557,15 @@ function makeStyles(c: ThemeColors) {
     },
     submit: {
       marginTop: SPACING.sm,
-      backgroundColor: c.blue,
+      backgroundColor: c.primary,
       borderRadius: RADIUS.control,
       // ~48pt — this is the app's primary CTA across all auth modes.
       paddingVertical: SPACING.lg,
       alignItems: "center",
     },
     submitDisabled: { opacity: 0.6 },
-    submitText: { color: "#fff", fontSize: TYPE.body, fontWeight: "600" },
+    // On-accent ink (white in light, dark ink in dark) — AA on every accent.
+    submitText: { color: c.primaryOn, fontSize: TYPE.body, fontWeight: "600" },
     toggle: { marginTop: SPACING.lg, alignItems: "center", padding: SPACING.sm },
     toggleText: { color: c.blue, fontSize: TYPE.footnote },
   });

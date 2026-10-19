@@ -118,7 +118,7 @@ interface Props {
   subtaskVisibility?: SubtaskVisibility
   onToggle: (id: string) => void
   onMoveToTrash: (id: string) => void
-  /** R5 — Skip ("Not Do"). Marks status='notDo' and tucks the row
+  /** R5 — Skip. Marks status='notDo' and tucks the row
    * into the Done bin without flipping done. Pebble-neutral. */
   onSkip?: (id: string) => void
   onRestore?: (id: string) => void
@@ -442,7 +442,7 @@ function TaskItem({
   //     - Open: Edit + Mark Done, full-swipe-right = Mark Done
   //     - Done / Not-Do: Edit only
   //   Left swipe (drag left, reveals rightActions):
-  //     - Open: Defer + Not Do + Delete (no full-swipe shortcut — too many
+  //     - Open: Defer + Skip + Delete (no full-swipe shortcut — too many
   //       destructive options to auto-commit one)
   //     - Done / Not-Do: Restore + Delete
   const isBin = inTrash || binFilterView || trashedRow
@@ -502,7 +502,7 @@ function TaskItem({
           <Calendar size={20} color={SWIPE_INK} strokeWidth={2} />
           <Text style={[styles.swipeActionText, styles.swipeActionTextInk]} numberOfLines={1}>{t.deferTask}</Text>
         </TouchableOpacity>
-        {/* Not Do can't apply to a to-do with steps (its done state comes
+        {/* Skip can't apply to a to-do with steps (its done state comes
             from the steps), so don't offer it there. */}
         {!hasSubs && (
         <TouchableOpacity
@@ -733,14 +733,16 @@ function TaskItem({
                   styles.chipText,
                   todo.completionDate ? styles.chipTextDate : styles.chipTextMutedItalic,
                 ]}>
-                  {/* R5 — Skipped rows show "Not Do" instead of
-                      "Done <date>" so the Done bin clearly
-                      distinguishes them from completed rows. */}
+                  {/* R5 — the Done bin tells its three kinds of rows apart:
+                      skipped ("Skipped"), finished ("Done <date>"), and
+                      deleted-never-finished ("Deleted · back anytime"). */}
                   {todo.status === 'notDo'
                     ? t.notDoChip
                     : todo.completionDate
                       ? `Done ${formatDisplayDate(todo.completionDate, t.locale).toLowerCase()}`
-                      : 'No completion date'}
+                      : todo.trashed
+                        ? 'Deleted · back anytime'
+                        : 'Done'}
                 </Text>
               ) : dateChipFormat === 'home-today' && overdue ? (
                 <Text style={[styles.chipText, styles.chipTextOverdue]}>

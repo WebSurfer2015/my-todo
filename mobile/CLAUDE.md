@@ -57,7 +57,7 @@ SafeAreaProvider
                       <AppGate>
 ```
 
-`AppGate` blocks on `auth.loading`, then on `!user` (renders `<SignIn>`), then on `!store.loaded` (waits for first hydrate from Firestore/AsyncStorage), then mounts the tab navigator. Auth must wrap `LangProvider` and the store because `useTodoStore` consumes both `useAuth()` (for the uid → adapter switch) and `useLang()` (for derived strings). `AppGate` also owns the local-reminder sync (`syncTodoReminders` on todo changes and on foreground).
+`AppGate` blocks on `auth.loading`, then on `!user` (renders `<SignIn>`), then on `!store.loaded` (waits for first hydrate from Firestore), then mounts the tab navigator. Auth must wrap `LangProvider` and the store because `useTodoStore` consumes both `useAuth()` (for the uid → adapter switch) and `useLang()` (for derived strings). `AppGate` also owns the local-reminder sync (`syncTodoReminders` on todo changes and on foreground).
 
 ### Persistence: per-uid adapter swap
 
@@ -84,7 +84,7 @@ const adapter = useMemo<StorageAdapter>(
 5. **`todos` merges instead of replacing** when a remote snapshot arrives while local changes are pending (`core/src/store/mergeTodos.ts`, a 3-way merge by id / `updatedAt`), so two devices editing different to-dos don't clobber each other.
 6. Returns a 4th value, `trusted`; the store exposes `profileTrusted` / `dataTrusted` (onboarding and reminder sync wait for real data).
 
-The Firestore adapter writes each entity to `users/{uid}/state/{key}` as `{ value: <json envelope>, updatedAt }`. `value` is the same versioned envelope (`{version, data}`) that AsyncStorage uses, so local and cloud data share one shape.
+The Firestore adapter writes each entity to `users/{uid}/state/{key}` as `{ value: <json envelope>, updatedAt }`. `value` is the same versioned envelope (`{version, data}`) that `adapters/persistence` (AsyncStorage) uses for the device-local language setting — the only thing kept on-device.
 
 ### Auth (`src/app/AuthContext.tsx`)
 
@@ -148,5 +148,6 @@ The app uses **Firebase Crashlytics** (`@react-native-firebase/crashlytics`) —
 - Pure domain logic belongs in `core/` with tests in `core/test/` (run from the repo root); mobile tests cover hooks, adapters and parity guards.
 - `any` is a lint error; dependency arrays must be complete — when an effect must deliberately ignore a value, mirror it in a ref (see `useSyncedState`'s `initialRef`) rather than disabling the rule.
 - `src/core-bindings/*` are thin re-export shims over `core/src/*`, and `src/adapters/persistence.ts` / `firestoreAdapter.ts` implement core's `StorageAdapter` port. Add new shared logic to core (e.g. display labels live in `core/src/logic/labels.ts`, Home's Today rules in `core/src/logic/homeDashboard.ts`), not here.
+- **Strings**: `core/src/data/i18n.ts` holds the UI copy (every locale must carry every key — `core/test/i18n.test.ts`; prune a key from all six). Store snackbars and Mochi chat copy are English literals for v2 (English-only launch) — don't route them through i18n until the language picker returns.
 - **Feature flags** (`src/app/featureFlags.ts`): `IAP_ENABLED = false` — the v2.0.0 release is **free-only** (RevenueCat never initialized, paywall entry points hidden, all themes free); `LANGUAGE_PICKER_ENABLED = false` — **English-only** launch (stored `lang` is ignored, picker hidden; other locales stay in `core/src/data/i18n.ts`); `MOCHI_AGENT_ENABLED` — kill-switch for Ask Mochi.
 - iOS bundle id and Android package: `com.websurfer.mytodo`. EAS project id `c564f1cd-…` lives in `app.json > extra.eas.projectId`.
