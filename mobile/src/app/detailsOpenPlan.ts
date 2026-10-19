@@ -3,13 +3,16 @@
  * Modal-handoff rules are unit-testable (SheetContext does the side effects).
  *
  * - `already-open` — details already shows this to-do: nothing to do.
- * - `swap`         — details shows ANOTHER to-do: close it through its own
- *                    save path first, then open the new one after it closed.
- * - `after-close`  — another sheet is up: close it, open after it dismissed
- *                    (iOS can't present a Modal over / while another closes).
+ * - `notify`       — another sheet or modal is up (SheetProvider's own, or
+ *                    any presented Modal it doesn't own). iOS can't present
+ *                    over it, and force-closing it would drop the user's
+ *                    work (a Compose draft, a half-picked date) — so offer
+ *                    a calm `"<title>" · Open` snackbar instead.
+ * - `swap`         — only details is up, on ANOTHER to-do: close it through
+ *                    its own save path first, then open the new one.
  * - `now`          — nothing is open: open right away.
  */
-export type DetailsOpenPlan = 'already-open' | 'swap' | 'after-close' | 'now'
+export type DetailsOpenPlan = 'already-open' | 'notify' | 'swap' | 'now'
 
 export interface DetailsReq {
   id: string
@@ -19,10 +22,19 @@ export interface DetailsReq {
 export function planDetailsOpen(s: {
   todoId: string
   detailsId: string | null
+  /** A sheet SheetProvider tracks (Compose, Mochi, Profile, …) is open. */
   anySheetOpen: boolean
+  /** Some other presented Modal (pickers, paywall, per-screen sheets). */
+  anyModalOpen: boolean
 }): DetailsOpenPlan {
   if (s.detailsId === s.todoId) return 'already-open'
+  if (s.anySheetOpen || s.anyModalOpen) return 'notify'
   if (s.detailsId !== null) return 'swap'
-  if (s.anySheetOpen) return 'after-close'
   return 'now'
+}
+
+/** Snackbar label for a to-do that couldn't open right away. */
+export function detailsNotifyMessage(text: string): string {
+  const t = text.trim()
+  return `"${t.length > 40 ? `${t.slice(0, 39)}…` : t}"`
 }

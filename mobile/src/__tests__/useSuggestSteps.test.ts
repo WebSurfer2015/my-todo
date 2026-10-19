@@ -113,6 +113,10 @@ describe('useSuggestSteps', () => {
   })
 
   it('over the fair-use ceiling: a gentle note WITH the reset time (never the server text)', async () => {
+    // Pinned clock: the rest window + label are computed from "now" in both
+    // the hook and this assertion — a real clock could cross a boundary.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 19, 15, 30, 0))
     clearMochiRest()
     const quota = new Error('Daily AI limit reached (150 per day).')
     quota.name = 'AiQuotaError'
@@ -122,7 +126,7 @@ describe('useSuggestSteps', () => {
       await result.current.request()
     })
     const until = mochiRestUntil('uid-1')
-    expect(until).toBe(mochiRestEndsAt(new Date()).valueOf())
+    expect(until).toBe(mochiRestEndsAt(new Date(2026, 9, 19, 15, 30, 0)).valueOf())
     expect(result.current.error).toBe(
       `Mochi's resting until ${mochiRestLabel(until)} — you can add steps yourself.`,
     )
@@ -134,6 +138,7 @@ describe('useSuggestSteps', () => {
     expect(suggestSubtasksMock).toHaveBeenCalledTimes(1)
     expect(result.current.error).toMatch(/^Mochi's resting until /)
     clearMochiRest()
+    vi.useRealTimers()
   })
 
   it('reset() clears suggestions + error without firing a new request', async () => {

@@ -7,24 +7,22 @@ import {
 } from './reminderId'
 
 /**
- * Daily check-in notifications — single repeating local notification at the
- * user-picked hour. Calm-by-design:
- *   - Title is a quiet "Quiet check-in" (no alerts, no exclamation marks)
- *   - Body is mascot-voiced and time-of-day aware (morning/afternoon/evening)
- *   - Sound off (calm-default brand contract)
- *   - One persistent identifier so re-scheduling cleanly replaces the old one
- *     instead of stacking duplicates
+ * Local notifications: per-to-do reminders (+ the optional gentle-nudge
+ * follow-up) and reminder-tap routing. Calm by design — no sound, no badge,
+ * no exclamation marks.
  *
  * All notifications are LOCAL (scheduled on-device). There is no server push:
  * no push token is requested or stored.
  */
 
-const NOTIFICATION_ID = 'sagely-daily-checkin'
+/** The retired daily check-in's identifier — only ever cancelled now, so a
+ * device that scheduled it under an older build stops receiving it. */
+const LEGACY_CHECKIN_ID = 'sagely-daily-checkin'
 
 // Configure the foreground-notification handler at module load. Without
-// this, a push arriving while the app is open is silently dropped on
-// iOS. Banner + list only — sound and badge stay off to match the
-// calm-default brand contract (matches scheduleDailyCheckin below).
+// this, a reminder firing while the app is open is silently dropped on
+// iOS. Banner + list only — sound and badge stay off (calm-default brand
+// contract).
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
@@ -33,30 +31,6 @@ Notifications.setNotificationHandler({
     shouldSetBadge: false,
   }),
 })
-
-interface CheckinCopy {
-  title: string
-  body: string
-}
-
-function copyForHour(hour: number): CheckinCopy {
-  if (hour < 12) {
-    return {
-      title: 'Quiet check-in',
-      body: "Mochi's here. Whenever you're ready.",
-    }
-  }
-  if (hour < 18) {
-    return {
-      title: 'Quiet check-in',
-      body: "Mochi's pacing through the day. No rush.",
-    }
-  }
-  return {
-    title: 'Quiet check-in',
-    body: "Mochi's settling in. Anything to add for tomorrow?",
-  }
-}
 
 /** Returns true when the user granted (or already had) permission. */
 export async function ensurePermission(): Promise<boolean> {
@@ -73,30 +47,9 @@ export async function ensurePermission(): Promise<boolean> {
   return req.status === 'granted'
 }
 
-export async function scheduleDailyCheckin(hour: number): Promise<boolean> {
-  const granted = await ensurePermission()
-  if (!granted) return false
-  // Cancel any existing scheduled instance under our id, then schedule fresh.
-  await Notifications.cancelScheduledNotificationAsync(NOTIFICATION_ID).catch(() => {})
-  const copy = copyForHour(hour)
-  await Notifications.scheduleNotificationAsync({
-    identifier: NOTIFICATION_ID,
-    content: {
-      title: copy.title,
-      body: copy.body,
-      sound: false,
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DAILY,
-      hour,
-      minute: 0,
-    },
-  })
-  return true
-}
-
+/** Cancel the retired daily check-in (legacy cleanup on launch). */
 export async function cancelDailyCheckin(): Promise<void> {
-  await Notifications.cancelScheduledNotificationAsync(NOTIFICATION_ID).catch(() => {})
+  await Notifications.cancelScheduledNotificationAsync(LEGACY_CHECKIN_ID).catch(() => {})
 }
 
 // ── Per-todo local reminders ───────────────────────────────────────────────
@@ -300,11 +253,12 @@ async function syncOnce(
 }
 
 /**
- * Cancel every scheduled to-do reminder (and the daily check-in) — on
- * sign-out, "Delete data only" and account deletion. They carry the to-do's
- * text, so they must not keep firing for an account that's no longer here.
- * Drops any queued sync and waits out one in flight first, so a sync that
- * started before sign-out can't reschedule after this ran.
+ * Cancel every scheduled to-do reminder (and the legacy check-in), and clear
+ * the ones already delivered to Notification Center — on sign-out, "Delete
+ * data only" and account deletion. They carry the to-do's text, so they must
+ * not keep firing (or keep sitting on the lock screen) for an account that's
+ * no longer here. Drops any queued sync and waits out one in flight first,
+ * so a sync that started before sign-out can't reschedule after this ran.
  */
 export async function cancelAllReminders(): Promise<void> {
   pendingArgs = null
@@ -317,13 +271,30 @@ export async function cancelAllReminders(): Promise<void> {
       .map((req) => Notifications.cancelScheduledNotificationAsync(req.identifier).catch(() => {})),
   )
   await cancelDailyCheckin()
+  const presented: Notifications.Notification[] =
+    await Notifications.getPresentedNotificationsAsync().catch(() => [])
+  await Promise.all(
+    presented
+      .filter((n) => n.request.identifier.startsWith(REMINDER_ID_PREFIX))
+      .map((n) => Notifications.dismissNotificationAsync(n.request.identifier).catch(() => {})),
+  )
 }
 
 // ── Tap handling ──────────────────────────────────────────────────────
 
 /** Responses already routed (a launch response may also reach the listener,
- * and AppGate can remount across sign-out / sign-in). */
+ * and AppGate can remount across sign-out / sign-in). Only the latest few
+ * matter, so it's capped instead of growing for the app's lifetime. */
 const handledResponses = new Set<string>()
+const MAX_HANDLED_RESPONSES = 50
+
+function markHandled(key: string): void {
+  handledResponses.add(key)
+  if (handledResponses.size > MAX_HANDLED_RESPONSES) {
+    const oldest = handledResponses.values().next().value
+    if (oldest !== undefined) handledResponses.delete(oldest)
+  }
+}
 
 function todoIdOf(response: Notifications.NotificationResponse): string | null {
   if (response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return null
@@ -334,7 +305,7 @@ function todoIdOf(response: Notifications.NotificationResponse): string | null {
 /**
  * Calls `onTodo(todoId)` when the user taps a to-do reminder — both while the
  * app is running and for the tap that cold-launched it. Notifications without
- * a todoId (the daily check-in) and non-default actions are ignored.
+ * a todoId and non-default actions are ignored.
  * Returns an unsubscribe.
  */
 export function onReminderTapped(onTodo: (todoId: string) => void): () => void {
@@ -343,7 +314,7 @@ export function onReminderTapped(onTodo: (todoId: string) => void): () => void {
     if (!alive || !response) return
     const key = `${response.notification.request.identifier}@${response.notification.date}`
     if (handledResponses.has(key)) return
-    handledResponses.add(key)
+    markHandled(key)
     const todoId = todoIdOf(response)
     if (todoId) onTodo(todoId)
   }

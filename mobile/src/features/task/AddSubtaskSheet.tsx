@@ -13,6 +13,7 @@ import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
 import { dueDateToDate, formatDisplayDate, fullDateLabel, isoDate } from '../../core-bindings/utils'
 import PriorityDot from '../../ui/PriorityDot'
 import InlinePicker from '../../ui/InlinePicker'
+import { useModalPresence } from '../../app/modalPresence'
 
 function CalendarIcon({ size = 18, color = '#8E8E93' }: { size?: number; color?: string }) {
   return (
@@ -39,6 +40,7 @@ export default function AddSubtaskSheet({ visible, onAdd, onClose, defaultDueDat
   const { t } = useLang()
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
+  useModalPresence(visible)
   const inputRef = useRef<TextInput>(null)
 
   const [subView, setSubView] = useState<SubView>('main')

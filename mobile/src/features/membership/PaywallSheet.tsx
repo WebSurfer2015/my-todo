@@ -19,6 +19,7 @@ import { useLang } from '../../app/LangContext'
 import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
 import { useSheetDismiss, sheetGrabZone } from '../../ui/useSheetDismiss'
 import { PRIVACY_URL } from '../../app/links'
+import { useModalPresence } from '../../app/modalPresence'
 import {
   PRODUCT_IDS,
   tierAtLeast,
@@ -112,6 +113,7 @@ export default function PaywallSheet({
   const { t } = useLang()
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
+  useModalPresence(visible)
   const [billing, setBilling] = useState<Billing>('annual')
   // Track the product mid-purchase so its own CTA shows the spinner (and all
   // CTAs disable) — the StoreKit call can take a couple seconds and a silent

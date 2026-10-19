@@ -92,6 +92,7 @@ import PriorityDot from '../../../ui/PriorityDot'
 import CheckGlyph from '../../../ui/CheckGlyph'
 import CategoryIcon from '../../../ui/CategoryIcon'
 import PickerModal from '../../../ui/PickerModal'
+import { useModalPresence } from '../../../app/modalPresence'
 import { TaskDetailsOpenContext } from '../../../app/SheetContext'
 import { useLang } from '../../../app/LangContext'
 import { makeStyles } from './styles';
@@ -173,6 +174,8 @@ function TaskItem({
   const [subPriorityForId, setSubPriorityForId] = useState<string | null>(null)
   const [subDateForId, setSubDateForId] = useState<string | null>(null)
   const [subPickerDate, setSubPickerDate] = useState<Date>(new Date())
+  // The iOS date sheets below are hand-rolled Modals (PickerModal counts itself).
+  useModalPresence(Platform.OS === 'ios' && (dateOpen || (!!onUpdateSubtaskDueDate && subDateForId !== null)))
   // Pending values while iOS date pickers are open. Commit happens on
   // Done; Clear empties the pending value but keeps the modal open.
   const [pendingDate, setPendingDate] = useState<string>('')

@@ -5,9 +5,10 @@
  * sheet components themselves live at the app shell, not inside a
  * single tab screen.
  *
- * Per-tab sheets (ComposeSheet / ChatSheet / CategorySheet for Todos;
- * GroceryEditSheet / StorePicker for Groceries)
- * stay inside their owning screen — those don't need cross-tab access.
+ * It also hosts the capture + editing sheets every tab reaches: ComposeSheet
+ * (the Add FAB), ChatSheet (Ask Mochi), CategorySheet (filters / manage) and
+ * the ONE TaskDetailsSheet. Only the Groceries-local sheets
+ * (GroceryEditSheet / StorePicker) stay inside GroceryView.
  */
 
 import React, {
@@ -59,7 +60,9 @@ import { SEED_GROCERY_STORES, frequentGroceries } from '../core-bindings/groceri
 import type { Filter, Priority } from '../core-bindings/types'
 import type { Guide } from '../features/onboarding/guides'
 import { genUuid, todayLocal } from '../../../core/src/logic/utils'
-import { planDetailsOpen, type DetailsReq } from './detailsOpenPlan'
+import { detailsNotifyMessage, planDetailsOpen, type DetailsReq } from './detailsOpenPlan'
+import { isAnyModalPresented } from './modalPresence'
+import { deleteAccountErrorMessage } from './accountErrors'
 
 /** How long a sheet takes to animate out before the next one may open —
  * iOS can't reliably present a <Modal> while another is still dismissing. */
@@ -186,9 +189,13 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   // (openTaskDetails is defined below afterModalClose, which it uses.)
   const detailsTodo = detailsReq ? store.todos.find((td) => td.id === detailsReq.id) : undefined
   // The to-do vanished while open (e.g. deleted on another device): forget
-  // the request, or the sheet would pop back if that id reappeared.
+  // the request (and any queued swap), or the sheet would pop back if that
+  // id reappeared.
   useEffect(() => {
-    if (detailsReq && !detailsTodo) setDetailsReq(null)
+    if (detailsReq && !detailsTodo) {
+      pendingDetailsRef.current = null
+      setDetailsReq(null)
+    }
   }, [detailsReq, detailsTodo])
   const openProfile = useCallback(() => setProfileOpen(true), [])
   const openSettings = useCallback(() => setSettingsOpen(true), [])
@@ -238,7 +245,8 @@ export function SheetProvider({ children }: { children: ReactNode }) {
 
   // Sheet → sheet handoffs: iOS can't reliably stack two <Modal>s, so the
   // next sheet opens only once the current one has animated out. Pending
-  // handoffs are cancelled on unmount (e.g. sign-out tears the shell down).
+  // handoffs are cancelled on unmount and on an account change (below) —
+  // SheetProvider sits ABOVE AppGate, so sign-out does NOT unmount it.
   const handoffTimers = useRef(new Set<ReturnType<typeof setTimeout>>())
   useEffect(() => {
     const timers = handoffTimers.current
@@ -256,11 +264,12 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // Open a to-do's details from anywhere — a row tap, or a reminder tap that
-  // can arrive while ANY sheet is up. iOS can't stack <Modal>s (the details
-  // sheet was dropped and detailsReq stayed stuck), so: close the other
-  // sheets first and open after they've dismissed; if details is already
-  // showing another to-do, close it through its own save path (commits
-  // typed text / series edits) and open the new one once it has closed.
+  // can arrive while ANY sheet or modal is up. iOS can't stack <Modal>s, and
+  // force-closing what's open would silently drop the user's work (a Compose
+  // draft, a half-picked date) — so then we only offer a calm
+  // `"<title>" · Open` snackbar. When just details is up on ANOTHER to-do,
+  // close it through its own save path (commits typed text / series edits)
+  // and open the new one once it has closed.
   const anySheetOpen =
     profileOpen || settingsOpen || themePickerOpen || guideMenuOpen || composeOpen ||
     mochiOpen || animationSoundOpen || categorySheetOpen || promptOpen || !!activeGuide
@@ -272,35 +281,68 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     detailsCloseRef.current = fn
   }, [])
   const pendingDetailsRef = useRef<DetailsReq | null>(null)
-  const openTaskDetails = useCallback(
-    (todoId: string, subtaskId: string | null = null) => {
-      const req: DetailsReq = { id: todoId, subtaskId }
-      switch (planDetailsOpen({ ...openStateRef.current, todoId })) {
+  // Latest store, for callbacks/Undos that run later and must read the
+  // CURRENT state (a render-time `store` closed over is stale by then).
+  const storeRef = useRef(store)
+  useEffect(() => {
+    storeRef.current = store
+  }, [store])
+  // `retry` = the snackbar's Open: if something is still dismissing, try
+  // again a few handoffs later instead of re-showing the snackbar.
+  const openDetailsRef = useRef<(req: DetailsReq, retry?: number) => void>(() => {})
+  const offerDetails = useCallback(
+    (req: DetailsReq) => {
+      const td = storeRef.current.todos.find((x) => x.id === req.id)
+      if (!td) return
+      showSnackbar({
+        message: detailsNotifyMessage(td.text),
+        actionLabel: 'Open',
+        onAction: () => openDetailsRef.current(req, 0),
+        // It may sit behind the open sheet for a while.
+        durationMs: 8000,
+      })
+    },
+    [showSnackbar],
+  )
+  const openDetails = useCallback(
+    (req: DetailsReq, retry?: number) => {
+      const plan = planDetailsOpen({
+        ...openStateRef.current,
+        anyModalOpen: isAnyModalPresented(),
+        todoId: req.id,
+      })
+      switch (plan) {
         case 'already-open':
+          return
+        case 'notify':
+          if (retry === undefined) offerDetails(req)
+          else if (retry < 6) afterModalClose(() => openDetailsRef.current(req, retry + 1))
           return
         case 'swap':
           pendingDetailsRef.current = req
           if (detailsCloseRef.current) detailsCloseRef.current()
           else setDetailsReq(null)
-          return
-        case 'after-close':
-          setProfileOpen(false)
-          setSettingsOpen(false)
-          setThemePickerOpen(false)
-          setGuideMenuOpen(false)
-          setComposeOpen(false)
-          setMochiOpen(false)
-          setAnimationSoundOpen(false)
-          setCategorySheetOpen(false)
-          setPromptOpen(false)
-          setActiveGuide(null)
-          afterModalClose(() => setDetailsReq(req))
+          // The close path ran synchronously unless details asked a series
+          // confirm first (an Alert). Don't leave the request queued — a
+          // Cancel there keeps details open, and a later close would pop
+          // this one open out of nowhere. Offer it instead.
+          if (pendingDetailsRef.current === req) {
+            pendingDetailsRef.current = null
+            offerDetails(req)
+          }
           return
         case 'now':
           setDetailsReq(req)
       }
     },
-    [afterModalClose],
+    [afterModalClose, offerDetails],
+  )
+  useEffect(() => {
+    openDetailsRef.current = openDetails
+  }, [openDetails])
+  const openTaskDetails = useCallback(
+    (todoId: string, subtaskId: string | null = null) => openDetails({ id: todoId, subtaskId }),
+    [openDetails],
   )
   const closeTaskDetails = useCallback(() => {
     setDetailsReq(null)
@@ -308,6 +350,29 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     pendingDetailsRef.current = null
     if (next) afterModalClose(() => setDetailsReq(next))
   }, [afterModalClose])
+
+  // Every sheet is per account. SheetProvider sits ABOVE AppGate, so a
+  // sign-out doesn't unmount it — reset all open state, queued details and
+  // pending handoffs when the account changes, so the next account doesn't
+  // land in a sheet (or a to-do) left open by the previous one.
+  const accountUid = user?.uid ?? null
+  useEffect(() => {
+    setProfileOpen(false)
+    setSettingsOpen(false)
+    setThemePickerOpen(false)
+    setGuideMenuOpen(false)
+    setComposeOpen(false)
+    setComposePrefill(null)
+    setMochiOpen(false)
+    setAnimationSoundOpen(false)
+    setCategorySheetOpen(false)
+    setPromptOpen(false)
+    setActiveGuide(null)
+    setDetailsReq(null)
+    pendingDetailsRef.current = null
+    handoffTimers.current.forEach(clearTimeout)
+    handoffTimers.current.clear()
+  }, [accountUid])
 
   // Read-only view of the store for the pure Mochi op planner (core
   // logic/mochiOps). Built at apply time so it sees the latest store.
@@ -327,13 +392,6 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     [store.todos, store.categories, store.groceries, t],
   )
 
-  // Latest store, for Undos that run later and must read the CURRENT to-dos
-  // (the render-time `store` an Undo closed over is stale by then).
-  const storeRef = useRef(store)
-  useEffect(() => {
-    storeRef.current = store
-  }, [store])
-
   // The thin executor: run each planned intent through the SAME store
   // mutation a manual tap uses (the agent has no privileged write path), and
   // collect the Undos the store hands back into one inline Undo — the
@@ -352,26 +410,14 @@ export function SheetProvider({ children }: { children: ReactNode }) {
       const asks: Array<Promise<boolean>> = []
       // Pre-run state for snapshot Undos.
       const todosBefore = store.todos
-      const beforeIds = new Set(todosBefore.map((td) => td.id))
       const snapshotted = new Set<string>()
       // Put a to-do back exactly as it was before this run (first touch wins,
       // so several edits to one to-do revert to the pre-run state).
-      const snapshotTodo = (id: string, opts?: { dropNewSeriesRows?: boolean }) => {
+      const snapshotTodo = (id: string) => {
         const before = todosBefore.find((td) => td.id === id)
         if (!before || snapshotted.has(id)) return
         snapshotted.add(id)
-        undos.push(() => {
-          store.revertTodo(before)
-          if (!opts?.dropNewSeriesRows) return
-          // A recurrence edit tops up the series right away — remove the
-          // occurrences it generated (rows that didn't exist before the run).
-          const live = storeRef.current.todos
-          const sid = live.find((td) => td.id === id)?.seriesId
-          if (!sid) return
-          live
-            .filter((td) => td.seriesId === sid && td.id !== id && !beforeIds.has(td.id))
-            .forEach((td) => store.permanentlyDelete(td.id))
-        })
+        undos.push(() => store.revertTodo(before))
       }
       // Categories created by this run, by lower-cased label.
       const created = new Map<string, string>()
@@ -379,27 +425,36 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         'id' in ref ? ref.id : created.get(ref.newLabel.trim().toLowerCase())
       for (const it of intents) {
         switch (it.type) {
-          case 'addCategory':
-            created.set(
-              it.label.trim().toLowerCase(),
-              store.addCategory({ label: it.label, color: it.color, icon: it.icon }),
-            )
+          case 'addCategory': {
+            const id = store.addCategory({ label: it.label, color: it.color, icon: it.icon })
+            created.set(it.label.trim().toLowerCase(), id)
+            // Undos run newest-first, so the to-dos this run filed under it are
+            // already gone; remove it only if nothing else uses it by then.
+            // Read the LIVE store: the category didn't exist at this render.
+            undos.push(() => {
+              const live = storeRef.current
+              if (live.todosRef.current.some((td) => td.category === id)) return
+              live.deleteCategory(id)
+            })
             break
-          case 'addTask':
-            todoIds.push(
-              store.addTask(
-                it.text,
-                it.priority,
-                it.dueDate,
-                it.category ? categoryOf(it.category) : undefined,
-                it.recurrence,
-                {
-                  ...(it.notes ? { notes: it.notes } : {}),
-                  ...(it.reminders ? { reminders: it.reminders } : {}),
-                },
-              ),
+          }
+          case 'addTask': {
+            const added = store.addTaskWithUndo(
+              it.text,
+              it.priority,
+              it.dueDate,
+              it.category ? categoryOf(it.category) : undefined,
+              it.recurrence,
+              {
+                ...(it.notes ? { notes: it.notes } : {}),
+                ...(it.reminders ? { reminders: it.reminders } : {}),
+              },
             )
+            todoIds.push(added.id)
+            // Exact: removes every row it created (the whole new series).
+            undos.push(added.undo)
             break
+          }
           case 'updateText':
             snapshotTodo(it.todoId)
             store.updateText(it.todoId, it.text)
@@ -425,16 +480,15 @@ export function SheetProvider({ children }: { children: ReactNode }) {
             store.updateNotes(it.todoId, it.notes)
             break
           case 'updateRecurrence':
-            snapshotTodo(it.todoId, { dropNewSeriesRows: true })
-            store.updateRecurrence(it.todoId, it.recurrence)
+            // Tracked: a series occurrence rebuilds the series' future rows.
+            undos.push(store.updateRecurrence(it.todoId, it.recurrence))
             break
           case 'updateReminders':
             snapshotTodo(it.todoId)
             store.updateReminders(it.todoId, it.reminders)
             break
           case 'addSubtask':
-            snapshotTodo(it.todoId)
-            store.addSubtask(it.todoId, it.text)
+            undos.push(store.addSubtask(it.todoId, it.text))
             break
           case 'toggle':
             undos.push(store.toggle(it.todoId))
@@ -490,19 +544,19 @@ export function SheetProvider({ children }: { children: ReactNode }) {
             undos.push(store.bulkDeferTodos(it.todoIds, it.dueDate))
             break
           case 'toggleSubtask':
-            snapshotTodo(it.todoId)
-            store.toggleSubtask(it.todoId, it.subtaskId)
+            // Tracked: finishing the last step can complete the to-do and
+            // roll a series forward — the Undo takes all of that back.
+            undos.push(store.toggleSubtask(it.todoId, it.subtaskId))
             break
           case 'removeSubtask':
-            snapshotTodo(it.todoId)
-            store.removeSubtask(it.todoId, it.subtaskId)
+            undos.push(store.removeSubtask(it.todoId, it.subtaskId))
             break
           case 'updateSubtaskText':
             snapshotTodo(it.todoId)
             store.updateSubtaskText(it.todoId, it.subtaskId, it.text)
             break
           case 'addGroceryStore':
-            store.addGroceryStore(it.name)
+            undos.push(store.addGroceryStore(it.name))
             break
           case 'renameGroceryStore':
             undos.push(store.renameGroceryStore(it.from, it.to))
@@ -651,7 +705,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   // would render behind the chat Modal. For a recurring to-do, Undo asks
   // whether to drop just this occurrence or the whole repeat.
   const applyCaptureWithUndo = useCallback(
-    (op: ProposedOperation): { id: string | null; category?: string; undo: () => void } => {
+    (op: ProposedOperation): { id: string | null; category?: string; undo: () => void | boolean | Promise<boolean> } => {
       if (op.kind !== 'createTodo' && op.kind !== 'addGroceryItem') return { id: null, undo: () => {} }
       const intents = planMochiOp(op, mochiSnapshot(), { genId: genUuid })
       const run = runMochiIntents(intents)
@@ -667,25 +721,42 @@ export function SheetProvider({ children }: { children: ReactNode }) {
       return {
         id,
         category: task?.category ? run.categoryOf(task.category) : undefined,
-        undo: () => {
-          if (!id) return
-          if (isRecurring) {
+        // Resolves whether anything was removed: a repeating to-do asks first,
+        // and Cancel keeps it (the card must not claim it was undone).
+        undo: (): boolean | Promise<boolean> => {
+          if (!id) return false
+          if (!isRecurring) {
+            run.undo()
+            return true
+          }
+          return new Promise<boolean>((resolve) => {
             Alert.alert(
               'Remove repeating to-do?',
               `"${text}" repeats — remove just this one, or the whole series?`,
               [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Just this one', onPress: () => store.permanentlyDelete(id) },
+                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                {
+                  text: 'Just this one',
+                  onPress: () => {
+                    store.permanentlyDelete(id)
+                    resolve(true)
+                  },
+                },
                 {
                   text: 'Whole series',
                   style: 'destructive',
-                  onPress: () => store.permanentlyDeleteSeriesFuture(id),
+                  // Also drops occurrences topped up since, then the run's
+                  // exact Undo (incl. a category it created, now unused).
+                  onPress: () => {
+                    store.permanentlyDeleteSeriesFuture(id)
+                    run.undo()
+                    resolve(true)
+                  },
                 },
               ],
+              { cancelable: true, onDismiss: () => resolve(false) },
             )
-          } else {
-            store.permanentlyDelete(id)
-          }
+          })
         },
       }
     },
@@ -849,17 +920,15 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         )
         return
       }
-      const message = err instanceof Error ? err.message : String(err)
-      afterModalClose(() => Alert.alert(t.deleteAccount, message))
+      afterModalClose(() => Alert.alert(t.deleteAccount, deleteAccountErrorMessage(err)))
     }
   }, [deleteAccount, signOut, showSnackbar, t, afterModalClose])
 
   // Mochi's "resting" state is per account: forget it on sign-out so the
   // next account on this device doesn't inherit it.
-  const uid = user?.uid ?? null
   useEffect(() => {
-    if (!uid) clearMochiRest()
-  }, [uid])
+    if (!accountUid) clearMochiRest()
+  }, [accountUid])
 
   // Mount the first-run prompt the first time the user lands in
   // the app post-onboarding with the flag unset. Stamping the
