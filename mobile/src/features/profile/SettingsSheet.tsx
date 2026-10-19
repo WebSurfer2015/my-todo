@@ -386,6 +386,7 @@ export default function SettingsSheet({
                   style={styles.row}
                   onPress={() => Linking.openURL(PRIVACY_URL).catch(() => {})}
                   accessibilityRole="link"
+                  accessibilityLabel="Privacy policy"
                 >
                   <Text style={styles.rowLabel}>Privacy policy</Text>
                   <Text style={styles.rowChevron}>›</Text>

@@ -207,6 +207,13 @@ describe('parseSuggestFieldsOutput', () => {
     // intervalMinutes without until is dropped (too noisy).
     expect(out.reminder?.intervalMinutes).toBeUndefined()
   })
+  it('drops a reminder interval under 15 minutes', () => {
+    const out = parseSuggestFieldsOutput(
+      '{"reminder":{"at":"2026-05-20T09:00","intervalMinutes":1,"until":"2026-05-20T17:00"}}',
+    )
+    expect(out.reminder?.at).toBe('2026-05-20T09:00')
+    expect(out.reminder?.intervalMinutes).toBeUndefined()
+  })
   it('blocks stand-in newCategoryLabel values', () => {
     for (const v of ['Tasks', 'Stuff', 'Misc', 'TODOs']) {
       const out = parseSuggestFieldsOutput(`{"newCategoryLabel":"${v}"}`)

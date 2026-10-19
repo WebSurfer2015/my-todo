@@ -37,8 +37,8 @@
  *
  * The two delete ops honor Sagely's "every destructive action is reversible
  * or confirmed" rule on the CLIENT: a delete is never auto-applied — it needs
- * an explicit Confirm, and the client then shows a second alert spelling out
- * that the to-do/item is removed PERMANENTLY before it does so. markDone stays
+ * an explicit Confirm. A deleted to-do moves to the Done bin (restorable for
+ * 30 days); a deleted shopping item gets a second, permanent-delete alert. markDone stays
  * the path for COMPLETING a task; delete is for removing one the user no
  * longer wants.
  *
@@ -368,7 +368,7 @@ const REMINDERS_SCHEMA = {
         description:
           'Local ISO datetime yyyy-mm-ddThh:mm (e.g. 2026-06-07T09:00). For a ' +
           '"before due" reminder, compute it as the due moment minus the offset.',
-        pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}',
+        pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$',
       },
       offsetMinutes: {
         type: 'integer',
@@ -379,8 +379,10 @@ const REMINDERS_SCHEMA = {
       },
       intervalMinutes: {
         type: 'integer',
-        minimum: 1,
-        description: 'Optional: repeat every N minutes after `at`.',
+        // Matches validateReminders — anything outside is dropped.
+        minimum: 15,
+        maximum: 10080,
+        description: 'Optional: repeat every N minutes after `at` (15 minutes to 1 week).',
       },
     },
     required: ['at'],
@@ -613,7 +615,8 @@ export const AGENT_TOOLS: AgentTool[] = [
       "Delete an EXISTING to-do the user wants to remove (\"delete the dentist task\", " +
       "\"remove buy paint\", \"get rid of that\"). Pick the matching todoId from the " +
       "context to-do list. Use this ONLY for removal — when the user has COMPLETED a " +
-      "task, use markDone instead. The client confirms before permanently deleting it; " +
+      "task, use markDone instead. The client confirms, then moves it to Done (restorable " +
+      "for 30 days); " +
       "for a recurring task it asks whether to drop one occurrence or the whole series.",
     input_schema: {
       type: 'object',
@@ -1224,8 +1227,12 @@ export function validateOperation(
         .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
         .slice(0, MAX_ITEM_STORES)
         .map((s) => s.trim().slice(0, MAX_STORE_NAME_LEN))
-      op.args.stores = stores
-      hasField = true
+      // Ignore an empty list: models fill optional arrays with [], which
+      // silently wiped an item's store tags on an unrelated rename.
+      if (stores.length > 0) {
+        op.args.stores = stores
+        hasField = true
+      }
     }
     if (
       typeof a.groupId === 'string' &&

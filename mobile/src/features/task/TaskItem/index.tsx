@@ -557,15 +557,27 @@ function TaskItem({
         // and offer completion as an action — the circle's own label used to
         // lead ("…Mark as done.") while a double-tap actually opened it.
         accessibilityRole="button"
-        accessibilityLabel={
-          todo.done ? `${todo.text}, completed` : todo.trashed ? `${todo.text}, removed` : todo.text
-        }
+        accessibilityLabel={[
+          todo.text,
+          todo.done ? 'completed' : todo.trashed ? 'removed' : null,
+          hasSubs ? `${subsDoneCount} of ${subs.length} steps done` : null,
+        ]
+          .filter(Boolean)
+          .join(', ')}
         accessibilityHint={inTrash && onToggleSelect ? 'Selects this to-do' : 'Opens the to-do'}
         accessibilityActions={
-          inTrash ? undefined : [{ name: 'toggleDone', label: todo.done ? 'Mark not done' : 'Mark done' }]
+          inTrash
+            ? undefined
+            : [
+                { name: 'toggleDone', label: todo.done ? 'Mark not done' : 'Mark done' },
+                // The steps pill sits inside this one VoiceOver element, so
+                // expanding steps must be offered as an action too.
+                ...(hasSubs ? [{ name: 'toggleSteps', label: expanded ? 'Hide steps' : 'Show steps' }] : []),
+              ]
         }
         onAccessibilityAction={(e) => {
           if (e.nativeEvent.actionName === 'toggleDone') handleToggle()
+          else if (e.nativeEvent.actionName === 'toggleSteps') setExpanded((v) => !v)
         }}
         onTouchStart={onRowTouchStart}
         onTouchMove={onRowTouchMove}

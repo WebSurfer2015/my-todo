@@ -609,9 +609,13 @@ export default function ChatSheet({
                               styles={styles}
                               theme={theme}
                             />
-                          ) : op.kind === 'deleteTodo' ? (
+                          ) : op.kind === 'deleteTodo' && m.operations!.length === 1 ? (
                             // Owns its own action row: frozen title + a series
                             // instance gets an explicit "Delete series" choice.
+                            // Only for a delete-only turn — in a mixed turn its
+                            // own button resolved the WHOLE turn, so the other
+                            // actions were never applied; there it renders as a
+                            // preview under the shared Confirm.
                             <DeleteTodoCard
                               text={todoTextLookup(op.args.todoId)}
                               isSeries={!!todoLookup(op.args.todoId)?.seriesId}
@@ -982,7 +986,7 @@ function PickTodosCard({
   }
 
   if (seriesDeleted) {
-    return <Text style={styles.appliedNote}>✓ Series moved to Trash</Text>
+    return <Text style={styles.appliedNote}>✓ Series tucked into Done</Text>
   }
   if (done) {
     return (
@@ -1514,6 +1518,17 @@ function OperationPreview({
     return (
       <FrozenTitle
         kindLabel="Mark done"
+        resolve={() => todoTextLookup(op.args.todoId)}
+        styles={styles}
+      />
+    )
+  }
+
+  if (op.kind === 'deleteTodo') {
+    // Only reached in a mixed turn (a delete-only turn uses DeleteTodoCard).
+    return (
+      <FrozenTitle
+        kindLabel="Move to Done"
         resolve={() => todoTextLookup(op.args.todoId)}
         styles={styles}
       />

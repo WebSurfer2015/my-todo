@@ -179,8 +179,9 @@ Tasks — beyond create/edit/done/delete:
 Removing things (delete vs complete):
 - deleteTodo / deleteGroceryItem REMOVE an existing item the user no longer
   wants ("delete the dentist task", "take eggs off the list"). Pick the id from
-  the context to-do or shopping lists. The client confirms (and warns the
-  removal is permanent) before deleting. If nothing in context matches, say so
+  the context to-do or shopping lists. The client confirms first; a deleted
+  to-do moves to Done and can be restored for 30 days (a deleted shopping item
+  is removed for good). If nothing in context matches, say so
   in one sentence instead of guessing.
 - Completing is different: when the user FINISHED a task ("done with the report"),
   use markDone, not deleteTodo. Delete = "I don't want this"; done = "I did this".
@@ -491,6 +492,7 @@ export const agentChat = onCall(
     if (response.stop_reason === 'max_tokens') {
       console.warn('agentChat: hit max_tokens')
     }
+    let droppedOps = 0
     for (const block of response.content) {
       if (block.type === 'text') {
         reply += block.text
@@ -506,9 +508,21 @@ export const agentChat = onCall(
           knownTrashedIds,
         )
         if (op) operations.push(op)
+        else droppedOps += 1
       }
     }
+    // pickTodos is an interactive list with its own buttons; it can't share a
+    // turn with other actions (the client would apply only one side). Keep it
+    // alone — the user can ask for the rest next.
+    const pick = operations.find((o) => o.kind === 'pickTodos')
+    if (pick && operations.length > 1) operations.splice(0, operations.length, pick)
     reply = reply.trim()
+    // Every action Mochi proposed was rejected (unknown id, bad fields): don't
+    // ship its "I'll mark the report done." text with nothing behind it —
+    // the user would believe it happened.
+    if (droppedOps > 0 && operations.length === 0) {
+      reply = "I couldn't match that to anything on your list — which one did you mean?"
+    }
     // Voice-rule enforcement at the boundary: strip any exclamation
     // marks Mochi let slip. Future: full regex sweep + word filter.
     reply = reply.replace(/!/g, '.')

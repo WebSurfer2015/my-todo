@@ -320,7 +320,9 @@ export function parseSuggestFieldsOutput(text: string): SuggestFieldsOutput {
       if (
         typeof r.intervalMinutes === 'number' &&
         Number.isFinite(r.intervalMinutes) &&
-        r.intervalMinutes >= 1 &&
+        // ≥15 min: a 1-minute repeat filled the iOS pending-notification
+        // budget (same floor as the agent's validateReminders).
+        r.intervalMinutes >= 15 &&
         r.intervalMinutes <= 60 * 24 * 7
       ) {
         rem.intervalMinutes = Math.floor(r.intervalMinutes)

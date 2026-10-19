@@ -528,6 +528,17 @@ describe('validateOperation — category/store/task ops', () => {
 // ─── editGroceryItem ───────────────────────────────────────────────
 
 describe('validateOperation — editGroceryItem', () => {
+  it('ignores an empty stores list (would silently wipe store tags)', () => {
+    const op = validateOperation(
+      'editGroceryItem',
+      { groceryId: 'g-1', text: 'milk', stores: [] },
+      knownCats,
+      knownTodoIds,
+      knownGroceryGroupIds,
+      knownGroceryIds,
+    )
+    expect(op).toEqual({ kind: 'editGroceryItem', args: { groceryId: 'g-1', text: 'milk' } })
+  })
   it('renames a known item', () => {
     const op = validateOperation(
       'editGroceryItem',
