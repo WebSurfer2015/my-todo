@@ -11,7 +11,7 @@
 
 import React from 'react'
 import { StyleSheet, Text, View } from 'react-native'
-import { Bell, Calendar, Repeat, ShoppingBag, Sparkles, Tag } from 'lucide-react-native'
+import { Bell, Calendar, Repeat, Sparkles, Tag } from 'lucide-react-native'
 import { RADIUS, SPACING, TYPE, useTheme, ThemeColors } from '../../app/theme'
 
 interface SheetProps {
@@ -146,10 +146,6 @@ export function IconBell() {
 export function IconRepeat() {
   const theme = useTheme()
   return <Repeat size={14} color={theme.blue} strokeWidth={2} />
-}
-export function IconStore() {
-  const theme = useTheme()
-  return <ShoppingBag size={11} color={theme.primary} strokeWidth={2.2} />
 }
 
 // ── Styles ─────────────────────────────────────────────────────────────

@@ -33,8 +33,11 @@ interface Props {
   /** Read-only recurrence summary (computed by the caller). */
   recurrenceText: string | null
   onEdit: (id: string, patch: { category?: string; priority?: Priority; dueDate?: string }) => void
-  /** Remove the captured to-do entirely (the bottom of the undo stack). */
-  onRemove: () => void
+  /** Remove the captured to-do entirely (the bottom of the undo stack).
+   * May ask first (a repeating to-do's scope Alert) — resolve false when
+   * the user cancels, so the card keeps its Undo instead of reading
+   * "Removed" over a to-do that still exists. void counts as removed. */
+  onRemove: () => void | boolean | Promise<boolean>
 }
 
 export default function EditableCaptureCard({
@@ -112,8 +115,10 @@ export default function EditableCaptureCard({
       fn()
       sync()
     } else {
-      onRemove()
-      setRemoved(true)
+      // Only read "Removed" once a removal actually happened.
+      void Promise.resolve(onRemove()).then((ok) => {
+        if (ok !== false) setRemoved(true)
+      })
     }
   }
 

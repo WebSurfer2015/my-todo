@@ -61,33 +61,7 @@ import {
   reminderSummary,
 } from '../../../../../core/src/logic/labels'
 import { makeStyles } from './styles';
-
-/**
- * Absolute date label for "Completed by" — "May 17" (current year) or
- * "May 17, 2027" (other year). Distinct from formatDisplayDate which
- * gives a relative reading ("in 2 days") that's wrong for a target
- * date the user explicitly picked.
- */
-function absoluteDateLabel(iso: string): string {
-  const tIndex = iso.indexOf('T')
-  const datePart = tIndex === -1 ? iso : iso.slice(0, tIndex)
-  const timePart = tIndex === -1 ? '' : iso.slice(tIndex + 1)
-  const d = new Date(`${datePart}T00:00:00`)
-  const sameYear = d.getFullYear() === new Date().getFullYear()
-  const dateLabel = d.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    ...(sameYear ? {} : { year: 'numeric' }),
-  })
-  if (!timePart) return dateLabel
-  const [hh, mm] = timePart.slice(0, 5).split(':').map(Number)
-  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return dateLabel
-  const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm)
-  return `${dateLabel}, ${dt.toLocaleTimeString(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-  })}`
-}
+import { absoluteDateLabel } from '../absoluteDateLabel'
 
 function isCustomRecurrence(rec: Recurrence | undefined): boolean {
   return !!rec && Array.isArray(rec.byWeekday) && rec.byWeekday.length > 0
@@ -962,7 +936,7 @@ export default function TaskDetailsSheet({
                         ]}
                         numberOfLines={1}
                       >
-                        {editSubDueDate ? absoluteDateLabel(editSubDueDate) : t.noDate}
+                        {editSubDueDate ? absoluteDateLabel(editSubDueDate, t.locale) : t.noDate}
                       </Text>
                       <Text style={styles.editChevron}>›</Text>
                     </TouchableOpacity>
@@ -1371,7 +1345,7 @@ export default function TaskDetailsSheet({
                   onPress={openEditDatePicker}
                   activeOpacity={0.6}
                   accessibilityRole="button"
-                  accessibilityLabel={`Complete by, ${editDueDate ? absoluteDateLabel(editDueDate) : t.noDate}. Tap to change.`}
+                  accessibilityLabel={`Complete by, ${editDueDate ? absoluteDateLabel(editDueDate, t.locale) : t.noDate}. Tap to change.`}
                 >
                   <CalendarIcon size={18} color={editDueDate ? theme.blue : theme.gray3} />
                   <Text style={styles.editFieldLabel}>{t.edit.completedBy}</Text>
@@ -1382,7 +1356,7 @@ export default function TaskDetailsSheet({
                     ]}
                     numberOfLines={1}
                   >
-                    {editDueDate ? absoluteDateLabel(editDueDate) : t.noDate}
+                    {editDueDate ? absoluteDateLabel(editDueDate, t.locale) : t.noDate}
                   </Text>
                   <Text style={styles.editChevron}>›</Text>
                 </TouchableOpacity>
@@ -1467,7 +1441,7 @@ export default function TaskDetailsSheet({
                       activeOpacity={0.6}
                       accessibilityRole="button"
                       accessibilityState={{ disabled: repeatLocked }}
-                      accessibilityLabel={`Repeat ends, ${editRecurrence.endDate ? absoluteDateLabel(editRecurrence.endDate) : 'never'}. Tap to change.`}
+                      accessibilityLabel={`Repeat ends, ${editRecurrence.endDate ? absoluteDateLabel(editRecurrence.endDate, t.locale) : 'never'}. Tap to change.`}
                     >
                       <CalendarIcon size={18} color={editRecurrence.endDate ? theme.blue : theme.gray3} />
                       <Text style={styles.editFieldLabel}>{t.edit.repeatEnds}</Text>
@@ -1478,7 +1452,7 @@ export default function TaskDetailsSheet({
                         ]}
                         numberOfLines={1}
                       >
-                        {editRecurrence.endDate ? absoluteDateLabel(editRecurrence.endDate) : t.edit.noEnd}
+                        {editRecurrence.endDate ? absoluteDateLabel(editRecurrence.endDate, t.locale) : t.edit.noEnd}
                       </Text>
                       <Text style={styles.editChevron}>›</Text>
                     </TouchableOpacity>
@@ -1577,7 +1551,8 @@ export default function TaskDetailsSheet({
             {/* Sticky footer — actions pinned to the bottom; the fields +
                 STEPS above scroll independently. */}
             <View style={styles.stickyFooter}>
-              {/* Action row — Delete · Skip · Mark done. In "Edit series"
+              {/* Action row — Delete · Skip · Mark done (Delete forever ·
+                  Reopen for a row in Done). In "Edit series"
                   mode these apply to this + all future occurrences
                   ("Delete series" / "Skip all"; Mark done is hidden). */}
               <View style={styles.bottomActionRow}>
@@ -1596,8 +1571,8 @@ export default function TaskDetailsSheet({
                           [
                             { text: t.cancel, style: 'cancel' },
                             {
-                              text: 'Delete',
-                              style: 'destructive',
+                              // Reversible (30 days in Done) — neutral, not red.
+                              text: 'Move to Done',
                               onPress: () => {
                                 onMoveSeriesFutureToTrash(todo.id)
                                 onClose()
@@ -1639,10 +1614,32 @@ export default function TaskDetailsSheet({
                   {/* Red only when it's permanent (already in Done); a
                       reversible delete reads neutral. */}
                   <Text style={[styles.deleteActionText, !todo.trashed && { color: theme.label2 }]}>
-                    {seriesScope ? 'Delete series' : t.deleteTask}
+                    {seriesScope ? 'Delete series' : todo.trashed ? t.deletePermanently : t.deleteTask}
                   </Text>
                 </TouchableOpacity>
 
+                {/* A row already in Done offers only Reopen (back to the open
+                    list) and the permanent delete — Skip / Mark done make no
+                    sense for something finished or deleted. */}
+                {todo.trashed ? (
+                  <>
+                    <View />
+                    <TouchableOpacity
+                      style={styles.bottomActionButton}
+                      onPress={() => {
+                        flushTypedText()
+                        store.restoreFromTrash(todo.id)
+                        onClose()
+                      }}
+                      activeOpacity={0.6}
+                      accessibilityRole="button"
+                      accessibilityLabel={t.restoreTask}
+                    >
+                      <Text style={styles.markDoneActionText}>{t.restoreTask}</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                <>
                 {!(todo.subtasks && todo.subtasks.length > 0) ? (
                   <TouchableOpacity
                     style={styles.bottomActionButton}
@@ -1687,6 +1684,8 @@ export default function TaskDetailsSheet({
                   >
                     <Text style={styles.markDoneActionText}>{t.markDone}</Text>
                   </TouchableOpacity>
+                )}
+                </>
                 )}
               </View>
             </View>

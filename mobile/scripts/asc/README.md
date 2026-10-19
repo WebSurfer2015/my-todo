@@ -18,13 +18,18 @@ one to use. Homebrew's `python3` does not (PEP 668 blocks
    (the existing flow — see `mobile/CLAUDE.md`).
 2. Wait until the EAS build finishes and the IPA has uploaded to ASC.
 3. Edit `whats_new.json`: add an entry for the new version string with
-   per-locale "What's New" copy. Translate from `en-US` as needed.
+   per-locale "What's New" copy, then check everything offline (no
+   network, no key needed):
+   ```sh
+   python3 mobile/scripts/asc/asc_release.py validate
+   ```
 4. Run:
    ```sh
    /usr/bin/python3 mobile/scripts/asc/asc_release.py prepare
    ```
    This will, on the editable in-flight version:
-   - Push the privacy policy URL to every locale of the app info.
+   - Push the privacy policy URL (and the subtitle, for locales that
+     have one in `release_copy.json`) to every locale of the app info.
    - Push description / keywords / promotional text / support URL to
      every locale of the version, from `release_copy.json`.
    - Push the per-locale "What's New" for this version, from
@@ -38,16 +43,28 @@ one to use. Homebrew's `python3` does not (PEP 668 blocks
 The script is **idempotent**: re-run any step safely after fixing a
 typo or a missing locale; ASC just accepts the new values.
 
+**v2.0.0 is English-only.** `release_copy.json` and the 2.0.0
+`whats_new.json` entry carry `en-US` only (the copy is
+`docs/POSITIONING.md`'s approved English). Any other locale still
+configured on the ASC version is skipped with a "not shipped this
+release" note — delete those localizations in the ASC web UI so they
+don't keep the stale v1.x copy (re-add them once copy is written in the
+same calm voice; never machine-translate).
+
 ## Sub-commands
 
 ```text
+validate               Offline: check release_copy.json + whats_new.json
+                       against ASC limits (subtitle 30, promo 170,
+                       keywords 100, description/whatsNew 4000) and the
+                       no-exclamation-mark rule. No network.
 list-versions          App's appStoreVersions with state.
 list-builds            Recent builds with processingState.
 status                 Current readiness of the editable version
                        (linked build, locale completeness, privacy URL).
 
-set-privacy            Push privacyPolicyUrl from release_copy.json
-                       to every appInfo locale.
+set-privacy            Push privacyPolicyUrl (+ subtitle when present)
+                       from release_copy.json to every appInfo locale.
                        --url <X>   override
 set-copy               Push description / keywords / promo / support
                        from release_copy.json to every version locale.
@@ -86,11 +103,11 @@ Stable per-locale long-form copy. Edit only when positioning shifts.
   "privacyPolicyUrl": "https://websurfer2015.github.io/my-todo/PRIVACY",
   "locales": {
     "en-US": {
-      "description": "Sagely is a calm to-do app …",
+      "subtitle": "Calm ADHD to-dos & planner",
+      "description": "Most to-do apps push you …",
       "keywords": "todo,task,planner,…",
-      "promotionalText": "A calm to-do app …"
-    },
-    "es-MX": { … }
+      "promotionalText": "Sagely is the calm to-do app …"
+    }
   }
 }
 ```

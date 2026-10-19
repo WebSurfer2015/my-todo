@@ -165,9 +165,11 @@ const inlineStyles = StyleSheet.create({
     width: 70,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E07878',
+    // Same calm sage as the real row's reversible Delete (TaskItem
+    // swipeTrash) — red is only for permanent deletes.
+    backgroundColor: '#8A998F',
   },
-  swipeActionText: { color: '#fff', fontWeight: '700', fontSize: TYPE.caption },
+  swipeActionText: { color: '#1F2A24', fontWeight: '700', fontSize: TYPE.caption },
 
   filterBar: {
     flexDirection: 'row',
@@ -462,7 +464,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: 'Pin a filter',
-        body: "Long-press any filter pill (Carried over, Open, Done, or a category) to pin it to your quick-access bar. Long-press again to unpin.",
+        body: "Keep the filters you use most (Carried over, Open, Done, or a category) in your quick-access bar. Long-press a pill to pin or remove it.",
         visual: (
           <View style={inlineStyles.filterBar}>
             {[

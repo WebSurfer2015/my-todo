@@ -26,7 +26,7 @@ import { useTheme } from '../../../app/theme'
 import type { Reminder } from '../../../core-bindings/types'
 import { genUuid } from '../../../../../core/src/logic/utils'
 import { dedupeReminders } from '../../../../../core/src/logic/derive'
-import { isoLocalDateTime } from '../../../../../core/src/logic/labels'
+import { formatDateTime, isoLocalDateTime } from '../../../../../core/src/logic/labels'
 import { makeStyles } from './styles'
 import AndroidDateFlow from '../../../ui/AndroidDateFlow'
 
@@ -71,18 +71,6 @@ function presetTimeLabel(at: string): string {
   const sameDay = d.toDateString() === new Date().toDateString()
   return d.toLocaleString(undefined, {
     ...(sameDay ? {} : { weekday: 'short' }),
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-}
-
-/** Short human label for a fixed absolute reminder, e.g. "Jun 7, 9:00 AM". */
-function fixedPillLabel(at: string): string {
-  const d = new Date(at)
-  if (Number.isNaN(d.valueOf())) return at
-  return d.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
   })
@@ -248,7 +236,7 @@ export default function ReminderSheet({
           ? beforeDuePillLabel(m.minutes, t)
           : recurs
             ? `${timeOfDayLabel(r.at)} on the day`
-            : fixedPillLabel(r.at),
+            : formatDateTime(r.at, { locale: t.locale }),
       })
     }
     for (const r of repeating) {
@@ -392,7 +380,7 @@ export default function ReminderSheet({
                   accessibilityLabel={t.a11yChooseDateTime}
                 >
                   <Text style={styles.fixedAndroidFieldText}>
-                    {fixedPillLabel(isoLocalDateTime(fixedDate))}
+                    {formatDateTime(isoLocalDateTime(fixedDate), { locale: t.locale })}
                   </Text>
                 </TouchableOpacity>
                 {fixedPickerOpen && (

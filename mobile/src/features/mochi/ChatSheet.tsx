@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   Animated,
@@ -29,7 +29,7 @@ import { type Priority } from '../../core-bindings/types'
 import { snapDueDateToRecurrence } from '../../../../core/src/logic/derive'
 import { buildFallbackCapture } from '../../../../core/src/logic/mochiFallback'
 import { markMochiResting, mochiRestLabel, mochiRestUntil, type MochiRestScope } from './mochiRest'
-import { todayLocal, fullDateLabel, isoDate } from '../../core-bindings/utils'
+import { todayLocal, isoDate } from '../../core-bindings/utils'
 import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 import type { AgentRecurrence } from '../../../../core/src/ports/aiContracts'
 import { formatCalendarDate, recurrenceShortLabel, type RecurrenceFreqStrings } from '../../../../core/src/logic/labels'
@@ -41,6 +41,18 @@ import { formatCalendarDate, recurrenceShortLabel, type RecurrenceFreqStrings } 
 export interface MochiApplyResult {
   undo: (() => void) | null
   pending?: Promise<{ undo: (() => void) | null; applied: boolean; keptSome: boolean }>
+}
+
+/** An inline Undo. Returns nothing (undone at once), a boolean, or a Promise
+ * of one when it asks first — false means the user cancelled and nothing
+ * was undone. */
+export type UndoFn = () => void | boolean | Promise<boolean>
+
+/** Run an Undo and report whether it actually undid anything. */
+export async function undoOutcome(fn: UndoFn | undefined): Promise<boolean> {
+  if (!fn) return false
+  const r = fn()
+  return (await r) !== false
 }
 
 interface Props {
@@ -102,8 +114,10 @@ interface Props {
   /** Optimistically apply a single new to-do / grocery item. Returns the live
    * id (for inline chip-editing; null for groceries), the to-do's resolved
    * category id, and an `undo` the card renders inline. The no-Confirm
-   * capture path. */
-  onCaptureWithUndo: (op: ProposedOperation) => { id: string | null; category?: string; undo: () => void }
+   * capture path. `undo` may ask first (a repeating to-do's "just this one /
+   * whole series" Alert): it then returns a Promise that resolves false on
+   * Cancel, so the card only reads "Removed" once something was removed. */
+  onCaptureWithUndo: (op: ProposedOperation) => { id: string | null; category?: string; undo: UndoFn }
   /** Edit a field on a just-captured to-do straight from its card. */
   onEditCapturedTodo: (
     id: string,
@@ -290,13 +304,20 @@ export default function ChatSheet({
   // turn's inline undo; `undone` flips the card to a "Removed" note after Undo.
   const appliedRef = useRef<Set<number>>(new Set())
   const confirmedRef = useRef<Set<number>>(new Set())
-  const undoFnsRef = useRef<Record<number, () => void>>({})
+  const undoFnsRef = useRef<Record<number, UndoFn>>({})
   // Live id of each auto-applied to-do, so its card chips can edit it in place.
   const capturedIdRef = useRef<Record<number, string | null>>({})
   // …and its resolved category id (a same-turn new category has no id in the
   // proposal itself).
   const capturedCategoryRef = useRef<Record<number, string | undefined>>({})
   const [undone, setUndone] = useState<Record<number, true>>({})
+  // Run turn i's inline Undo; flip it to "Removed"/"Undone" only when the
+  // undo actually happened (a Cancel in its confirm keeps the Undo live).
+  const runUndo = useCallback(async (i: number): Promise<boolean> => {
+    const ok = await undoOutcome(undoFnsRef.current[i])
+    if (ok) setUndone((prev) => ({ ...prev, [i]: true }))
+    return ok
+  }, [])
   const inputRef = useRef<TextInput>(null)
   const scrollRef = useRef<ScrollView>(null)
 
@@ -504,10 +525,9 @@ export default function ChatSheet({
       close()
       return
     }
-    // Calm, accurate copy (English launch literal, like the rest of this
-    // sheet): ending clears only the chat — nothing the user saved. Not a
-    // destructive action, so a neutral button.
-    Alert.alert(t.endChatTitle, 'Your to-dos are saved. Only this conversation will be cleared.', [
+    // Calm, accurate copy: ending clears only the chat — nothing the user
+    // saved. Not a destructive action, so a neutral button.
+    Alert.alert(t.endChatTitle, t.endChatBody, [
       { text: t.keepChatting, style: 'cancel' },
       { text: t.endChat, onPress: close },
     ])
@@ -585,14 +605,22 @@ export default function ChatSheet({
             <View style={sheetGrabZone} {...panHandlers}>
               <View style={styles.handle} />
             </View>
-            {/* Cancel pinned left, title optically centered, no right action. */}
+            {/* Close pinned left, title optically centered, no right action. */}
             <View style={styles.headerRow}>
               <View style={styles.titleRow}>
                 <Sparkles size={16} color={theme.primary} strokeWidth={2.2} />
                 <Text style={styles.title}>Ask Mochi</Text>
               </View>
-              <TouchableOpacity onPress={close} hitSlop={10} style={styles.cancelBtn}>
-                <Text style={styles.closeText}>{t.cancel}</Text>
+              {/* Same path as the backdrop / swipe: confirms before
+                  clearing a non-empty conversation. */}
+              <TouchableOpacity
+                onPress={requestClose}
+                hitSlop={10}
+                style={styles.cancelBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+              >
+                <Text style={styles.closeText}>Close</Text>
               </TouchableOpacity>
             </View>
 
@@ -674,7 +702,7 @@ export default function ChatSheet({
                               categories={categories}
                               recurrenceText={repeatText(op.args.recurrence, t.recurrence)}
                               onEdit={onEditCapturedTodo}
-                              onRemove={() => undoFnsRef.current[i]?.()}
+                              onRemove={() => runUndo(i)}
                             />
                           ) : op.kind === 'pickTodos' ? (
                             // Several tasks matched — let the user tick which
@@ -757,8 +785,7 @@ export default function ChatSheet({
                                 <TouchableOpacity
                                   hitSlop={8}
                                   onPress={() => {
-                                    undoFnsRef.current[i]?.()
-                                    setUndone((prev) => ({ ...prev, [i]: true }))
+                                    void runUndo(i)
                                   }}
                                   accessibilityRole="button"
                                   accessibilityLabel="Undo this"
@@ -966,11 +993,12 @@ const PICK_CTA: Record<'delete' | 'markDone' | 'edit' | 'addSteps', string> = {
   edit: 'Apply to',
   addSteps: 'Add steps to',
 }
-const PICK_DONE: Record<'delete' | 'markDone' | 'edit' | 'addSteps', string> = {
-  delete: 'Tucked into Done',
-  markDone: 'Completed',
-  edit: 'Updated',
-  addSteps: 'Updated',
+/** The applied note after a pick: "3 moved to Done", "1 done", "3 updated". */
+const PICK_DONE: Record<'delete' | 'markDone' | 'edit' | 'addSteps', (n: number) => string> = {
+  delete: (n) => `${n} moved to Done`,
+  markDone: (n) => `${n} done`,
+  edit: (n) => `${n} updated`,
+  addSteps: (n) => `${n} updated`,
 }
 
 /** The core cadence label ("Weekly", "Every 2 weeks", "Weekly · Mon, Wed"),
@@ -1079,7 +1107,7 @@ function PickTodosCard({
   const { t } = useLang()
   const { action, query } = op.args
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [done, setDone] = useState<{ verb: string; n: number; undo: (() => void) | null } | null>(null)
+  const [done, setDone] = useState<{ note: string; undo: (() => void) | null } | null>(null)
   const [seriesDeleted, setSeriesDeleted] = useState<{ undo: (() => void) | null } | null>(null)
   const [deferOpen, setDeferOpen] = useState(false)
   // delete lists let the user choose Skip / Defer / Delete on the ticked
@@ -1125,27 +1153,27 @@ function PickTodosCard({
     if (selected.size === 0 || !actOnce()) return
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
     const undo = onConfirm(selectedIds())
-    setDone({ verb: PICK_DONE[action], n: selected.size, undo })
+    setDone({ note: PICK_DONE[action](selected.size), undo })
   }
   const doSkip = () => {
     if (selected.size === 0 || !actOnce()) return
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
     const undo = onPickAction('skip', selectedIds())
-    setDone({ verb: 'Skipped', n: selected.size, undo })
+    setDone({ note: `${selected.size} skipped`, undo })
   }
   const doDelete = () => {
     if (selected.size === 0 || !actOnce()) return
     const ids = selectedIds()
     // Reversible (30-day Trash + Undo), so no confirm dialog.
     const undo = onPickAction('delete', ids)
-    setDone({ verb: 'Tucked into Done', n: ids.length, undo })
+    setDone({ note: PICK_DONE.delete(ids.length), undo })
   }
   const onDeferDate = (e: DateTimePickerEvent, d?: Date) => {
     setDeferOpen(false)
     if (e.type === 'set' && d && selected.size > 0 && actOnce()) {
       const ids = selectedIds()
       const undo = onPickAction('defer', ids, isoDate(d))
-      setDone({ verb: 'Deferred', n: ids.length, undo })
+      setDone({ note: `${ids.length} deferred`, undo })
     }
   }
 
@@ -1159,7 +1187,7 @@ function PickTodosCard({
     return <AppliedWithUndo note="Series tucked into Done" undo={seriesDeleted.undo} styles={styles} />
   }
   if (done) {
-    return <AppliedWithUndo note={`${done.verb} ${done.n}`} undo={done.undo} styles={styles} />
+    return <AppliedWithUndo note={done.note} undo={done.undo} styles={styles} />
   }
 
   // Series-delete fork: drop the whole repeat, or pick individual occurrences.
@@ -1657,7 +1685,7 @@ function OperationPreview({
     return (
       <View>
         <Text style={styles.proposalKind}>Move carried-over to-dos</Text>
-        <Text style={styles.proposalTitle}>Move carried-over to-dos to {fullDateLabel(op.args.dueDate)}</Text>
+        <Text style={styles.proposalTitle}>Move carried-over to-dos to {formatCalendarDate(op.args.dueDate, { locale: t.locale })}</Text>
       </View>
     )
   }

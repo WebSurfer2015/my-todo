@@ -219,12 +219,6 @@ export default function SettingsSheet({
                 </TouchableOpacity>
               </View>
 
-              {/* Daily check-in + Reminder time were removed pending a
-                  full notifications & reminders redesign. The underlying
-                  profile fields (dailyCheckinEnabled, dailyCheckinHour)
-                  are preserved in core/profile.ts so the toggle state
-                  isn't lost; we just don't surface the UI right now. */}
-
               {/* MOCHI */}
               <Text style={styles.sectionLabel}>MOCHI</Text>
               <Text style={styles.sectionSubtitle}>

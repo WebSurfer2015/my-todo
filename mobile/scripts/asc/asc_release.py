@@ -56,7 +56,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-import jwt  # pyjwt
+# pyjwt is imported lazily in token() so the offline `validate` command
+# runs without it.
 
 # ── ASC project identity ───────────────────────────────────────────────
 KEY_ID = "QD85GLBAA2"
@@ -108,6 +109,8 @@ def token() -> str:
             f"ASC private key {KEY_PATH} is group/world-accessible "
             f"(mode={oct(mode & 0o777)}). Run: chmod 600 {KEY_PATH}"
         )
+    import jwt  # pyjwt — only needed for live ASC calls
+
     with open(KEY_PATH, "rb") as f:
         pk = f.read()
     exp = time.time() + 1200
@@ -438,15 +441,22 @@ def cmd_set_privacy(args):
     """Push the privacy policy URL to every locale of the editable
     appInfo. URL comes from --url or from release_copy.json's
     `privacyPolicyUrl` field."""
-    url = args.url or load_copy()["privacyPolicyUrl"]
+    copy = load_copy()
+    url = args.url or copy["privacyPolicyUrl"]
     info = find_editable_app_info()
     body = asc("GET", f"/v1/appInfos/{info['id']}/appInfoLocalizations")
     for l in body.get("data", []):
+        loc = l["attributes"]["locale"]
+        attrs = {"privacyPolicyUrl": url}
+        per = _copy_for(copy, loc)
+        if per and per.get("subtitle"):
+            attrs["subtitle"] = per["subtitle"]
         asc("PATCH",
             f"/v1/appInfoLocalizations/{l['id']}",
             {"data": {"type": "appInfoLocalizations", "id": l["id"],
-                      "attributes": {"privacyPolicyUrl": url}}})
-        print(f"  ✓ {l['attributes']['locale']:>8} → {url}")
+                      "attributes": attrs}})
+        extra = f"  subtitle={attrs['subtitle']!r}" if "subtitle" in attrs else ""
+        print(f"  ✓ {loc:>8} → {url}{extra}")
 
 
 def cmd_set_copy(args):
@@ -460,9 +470,10 @@ def cmd_set_copy(args):
         loc = l["attributes"]["locale"]
         if args.skip_en and loc == "en-US":
             continue
-        per = copy["locales"].get(loc) or copy["locales"].get(_locale_root(loc))
+        per = _copy_for(copy, loc)
         if not per:
-            print(f"  ?  {loc}: no copy on hand, skipping")
+            print(f"  ?  {loc}: not shipped this release (no copy on hand) — "
+                  f"skipping; remove this localization in ASC")
             continue
         attrs = {
             "description": per["description"],
@@ -495,7 +506,8 @@ def cmd_set_whats_new(args):
         loc = l["attributes"]["locale"]
         text = locale_notes.get(loc) or locale_notes.get(_locale_root(loc))
         if not text:
-            print(f"  ?  {loc}: no whatsNew on hand, skipping")
+            print(f"  ?  {loc}: not shipped this release (no whatsNew on hand) — "
+                  f"skipping; remove this localization in ASC")
             continue
         asc("PATCH",
             f"/v1/appStoreVersionLocalizations/{l['id']}",
@@ -539,6 +551,52 @@ def load_whats_new() -> dict:
         return json.load(f)
 
 
+def _copy_for(copy: dict, loc: str) -> dict | None:
+    return copy["locales"].get(loc) or copy["locales"].get(_locale_root(loc))
+
+
+# App Store Connect field limits (characters).
+LIMITS = {"subtitle": 30, "promotionalText": 170, "keywords": 100,
+          "description": 4000, "whatsNew": 4000}
+
+
+def cmd_validate(_args):
+    """Offline check of release_copy.json + whats_new.json against ASC
+    limits and the calm-copy rules. Makes no network calls."""
+    problems: list[str] = []
+    copy = load_copy()
+    for loc, per in copy["locales"].items():
+        for field in ("description", "keywords", "promotionalText"):
+            if not per.get(field):
+                problems.append(f"{loc}: missing {field}")
+        for field, limit in LIMITS.items():
+            val = per.get(field)
+            if val is None:
+                continue
+            note = f"{len(val)}/{limit}"
+            if len(val) > limit:
+                problems.append(f"{loc}: {field} too long ({note})")
+            if "!" in val:
+                problems.append(f"{loc}: {field} has an exclamation mark")
+            print(f"  {loc:>8}  {field:<16} {note}")
+    for version, per_loc in load_whats_new().items():
+        for loc, text in per_loc.items():
+            if len(text) > LIMITS["whatsNew"]:
+                problems.append(f"{version}/{loc}: whatsNew too long ({len(text)})")
+    latest = next(iter(load_whats_new()), None)
+    if latest:
+        for loc in copy["locales"]:
+            if not load_whats_new()[latest].get(loc):
+                problems.append(f"{latest}: no whatsNew for shipped locale {loc}")
+            elif "!" in load_whats_new()[latest][loc]:
+                problems.append(f"{latest}/{loc}: whatsNew has an exclamation mark")
+        print(f"  latest whatsNew entry: {latest}")
+    if problems:
+        print("\n".join(f"  ✗ {p}" for p in problems))
+        raise SystemExit(1)
+    print("  ✓ release copy valid")
+
+
 def _locale_root(loc: str) -> str:
     """es-MX → es. ASC accepts region-suffixed locales (es-ES, es-MX,
     fr-FR) but our copy is often shared across regions of the same
@@ -553,6 +611,8 @@ def main():
     sub = p.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("list-versions", help="list app versions")
+    sub.add_parser("validate",
+                   help="offline: check copy files against ASC limits (no network)")
 
     cv = sub.add_parser("create-version",
                         help="create a new appStoreVersion page (idempotent)")
@@ -610,6 +670,7 @@ def main():
     args = p.parse_args()
     handlers = {
         "list-versions": cmd_list_versions,
+        "validate": cmd_validate,
         "create-version": cmd_create_version,
         "rename-version": cmd_rename_version,
         "submit-for-review": cmd_submit_for_review,
