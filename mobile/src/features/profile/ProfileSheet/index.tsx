@@ -348,7 +348,7 @@ export default function ProfileSheet({
                     setQuoteMode("custom");
                   }}
                   placeholder={t.profileQuotePlaceholder}
-                  placeholderTextColor={theme.gray3}
+                  placeholderTextColor={theme.label2}
                   multiline
                   maxLength={128}
                 />

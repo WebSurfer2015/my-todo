@@ -185,9 +185,11 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   // always opens manual compose, regardless of the remembered mode — Ask Mochi
   // shouldn't surface at all while AI is disabled.
   const agentEnabled = store.profile.agentEnabled !== false
-  const lastComposeMode = store.profile.lastComposeMode ?? 'manual'
+  // Default is Mochi — it's the front door (2026-10-18). "Enter manually"
+  // switches the remembered mode to manual.
+  const lastComposeMode = store.profile.lastComposeMode ?? 'mochi'
   const openCapture = useCallback(() => {
-    if (agentEnabled && lastComposeMode === 'mochi') setMochiOpen(true)
+    if (MOCHI_AGENT_ENABLED && agentEnabled && lastComposeMode === 'mochi') setMochiOpen(true)
     else openCompose()
   }, [agentEnabled, lastComposeMode, openCompose])
 
@@ -296,8 +298,8 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         if (!td) return
         if (td.seriesId) {
           Alert.alert(
-            'Move repeating to-do to Trash?',
-            `"${td.text}" — just this one, or this and all future? You can restore from Trash for 30 days.`,
+            'Delete repeating to-do?',
+            `"${td.text}" — just this one, or this and all future? Deleted to-dos stay in Done for 30 days.`,
             [
               { text: 'Cancel', style: 'cancel' },
               { text: 'Just this one', onPress: () => store.moveToTrash(td.id) },

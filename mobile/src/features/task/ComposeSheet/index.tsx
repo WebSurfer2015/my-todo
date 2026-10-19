@@ -548,7 +548,7 @@ export default function ComposeSheet({
                       ref={inputRef}
                       style={styles.textInputInCard}
                       placeholder={t.addPlaceholder}
-                      placeholderTextColor={theme.gray3}
+                      placeholderTextColor={theme.label2}
                       value={text}
                       onChangeText={(next) => {
                         setText(next)

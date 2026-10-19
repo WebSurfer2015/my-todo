@@ -24,6 +24,8 @@ describe('theme contrast (WCAG AA)', () => {
         expect(contrast(c.primaryOn, c.primary)).toBeGreaterThanOrEqual(4.5)
         // Done (struck-through) text is deliberately faded: 3:1 floor.
         expect(contrast(c.label3, c.card)).toBeGreaterThanOrEqual(3)
+        // Warm text (carried over / today chips) on cards.
+        expect(contrast(c.warmText, c.card)).toBeGreaterThanOrEqual(4.5)
       })
     }
   }

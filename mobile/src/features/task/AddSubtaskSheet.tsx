@@ -116,7 +116,7 @@ export default function AddSubtaskSheet({ visible, onAdd, onClose, defaultDueDat
                     ref={inputRef}
                     style={styles.textInput}
                     placeholder={t.addSubtask}
-                    placeholderTextColor={theme.gray3}
+                    placeholderTextColor={theme.label2}
                     value={text}
                     onChangeText={setText}
                     multiline

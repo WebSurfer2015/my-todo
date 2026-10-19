@@ -22,7 +22,6 @@ import {
   Hand as HandIcon,
   ListChecks,
   Palette,
-  ShoppingBag as ShoppingBagMenuIcon,
   Sparkles as SparklesMenuIcon,
   type LucideIcon,
 } from 'lucide-react-native'
@@ -38,7 +37,6 @@ import {
   IconCalendar,
   IconPlus,
   IconRepeat,
-  IconStore,
   IconTag,
 } from './GuideMockups'
 import { RADIUS, SPACING, TYPE } from '../../app/theme'
@@ -292,7 +290,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: 'New categories',
-        body: "Type «renew passport» and Sagely proposes «Travel». Tap «+ Travel» and confirm to create it in your sidebar.",
+        body: "Type «renew passport» and Sagely proposes «Travel». Tap «+ Travel» and confirm to create the category.",
         visual: (
           <MockupSheet title="Add to-do">
             <MockupTextField text="Renew passport" />
@@ -336,8 +334,8 @@ export const GUIDES: Guide[] = [
         ),
       },
       {
-        title: 'Recurring reminders',
-        body: "Same sub-view: tap an interval chip and Sagely schedules a series of pings up to the «Until» time. Defaults to your due date.",
+        title: 'Gentle nudge',
+        body: "Turn on Gentle nudge in the reminder sheet and Mochi checks in once — the morning after a to-do's last reminder, only if it's still open. Never more than once.",
         visual: (
           <MockupHighlight>
             <MockupChips
@@ -349,7 +347,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: 'AI sets them for you',
-        body: "Type «remind me every 2 hours until 5pm» in the compose. The Bell pill carries the full spec — tap to apply.",
+        body: "Type «call the dentist Friday, remind me the day before» in the compose. The Bell pill carries the reminder — tap to apply.",
         visual: (
           <MockupSheet title="Add to-do">
             <MockupTextField text="Drink water, remind every 2h until 5pm" />
@@ -387,7 +385,7 @@ export const GUIDES: Guide[] = [
     slides: [
       {
         title: 'Add a step',
-        body: "Open a to-do → tap «+ Add a step…». Each step gets its own priority + due date, and counts toward today's tally when you check it.",
+        body: "Open a to-do → tap «+ Add a step…». Each step gets its own priority + due date. Checking the to-do's circle completes every step at once.",
         visual: (
           <MockupSheet title="Edit to-do">
             <View style={inlineStyles.subsHeader}>
@@ -431,76 +429,6 @@ export const GUIDES: Guide[] = [
     ],
   },
   {
-    id: 'groceries',
-    title: 'Smart grocery list',
-    blurb: 'Departments auto-fill. AI catches the store too.',
-    icon: ShoppingBagMenuIcon,
-    glyph: '🥬',
-    slides: [
-      {
-        title: 'Local first',
-        body: "Type «eggs» and Department flips to Dairy instantly — no network call. The list ships with ~250 common items.",
-        visual: (
-          <MockupSheet title="Add item">
-            <MockupTextField text="Eggs" />
-            <MockupRow label="Department" value="Dairy" highlight />
-            <MockupRow label="Store" value="Any" muted />
-          </MockupSheet>
-        ),
-      },
-      {
-        title: 'AI for misses',
-        body: "Type «books from target» → after ~1.5s an AI pill suggests «+ Books» (a new department). Tap and confirm to create it. Same for stores.",
-        visual: (
-          <MockupSheet title="Add item">
-            <MockupTextField text="Books from target" />
-            <MockupPills
-              highlight
-              pills={[
-                { icon: <IconPlus />, label: 'Books' },
-                { icon: <IconStore />, label: 'Target' },
-              ]}
-            />
-            <MockupRow label="Department" value="Miscellaneous" muted />
-          </MockupSheet>
-        ),
-      },
-      {
-        title: 'Often picked up',
-        body: "Your most-completed groceries surface in an «Often picked up» row at the top of the list. Tap any to add a fresh one without typing.",
-        visual: (
-          <View style={inlineStyles.oftenWrap}>
-            <Text style={inlineStyles.oftenLabel}>OFTEN PICKED UP</Text>
-            <View style={inlineStyles.oftenRow}>
-              {['Milk', 'Bread', 'Bananas', 'Coffee'].map((label) => (
-                <View key={label} style={inlineStyles.oftenChip}>
-                  <Text style={inlineStyles.oftenChipText}>{label}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        ),
-      },
-      {
-        title: 'Filter by store',
-        body: "Tap the filter icon in the Groceries header to scope by store. Hide stores you don't shop at, reorder them, or set a default.",
-        visual: (
-          <View style={inlineStyles.headerBar}>
-            <Text style={inlineStyles.headerBarTitle}>Groceries</Text>
-            <View style={inlineStyles.headerBarRight}>
-              <View style={inlineStyles.headerBarChip}>
-                <Text style={inlineStyles.headerBarChipText}>Whole Foods</Text>
-              </View>
-              <View style={[inlineStyles.headerBarIcon, inlineStyles.headerBarIconHighlight]}>
-                <Text style={inlineStyles.headerBarIconGlyph}>≡</Text>
-              </View>
-            </View>
-          </View>
-        ),
-      },
-    ],
-  },
-  {
     id: 'hidden-actions',
     title: 'Hidden gestures',
     blurb: 'Tap, swipe, drag — the shortcuts.',
@@ -523,7 +451,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: 'Pin a filter',
-        body: "Long-press any filter pill (Today, Overdue, a category) to pin it to your quick-access bar. Long-press again to unpin.",
+        body: "Long-press any filter pill (Today, Carried over, a category) to pin it to your quick-access bar. Long-press again to unpin.",
         visual: (
           <View style={inlineStyles.filterBar}>
             {[
@@ -551,7 +479,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: 'Reorder categories',
-        body: "In the sidebar, drag a category to reorder it. The order syncs across your devices.",
+        body: "In Settings → Manage Todos, drag a category to reorder it. The order syncs across your devices.",
         visual: (
           <View style={inlineStyles.sidebarWrap}>
             {['Home', 'Work', 'Family'].map((label, i) => (
@@ -566,20 +494,6 @@ export const GUIDES: Guide[] = [
           </View>
         ),
       },
-      {
-        title: 'Themed markers',
-        body: "Pick a preset avatar (cat, dog, butterfly…) and your completion animation + today's tally switch to a themed glyph: fish, bone, butterfly.",
-        visual: (
-          <View style={inlineStyles.tallyWrap}>
-            <Text style={inlineStyles.tallyLabel}>3 today</Text>
-            <View style={inlineStyles.tallyRow}>
-              {['🐟', '🐟', '🐟'].map((g, i) => (
-                <Text key={i} style={inlineStyles.tallyGlyph}>{g}</Text>
-              ))}
-            </View>
-          </View>
-        ),
-      },
     ],
   },
   {
@@ -590,8 +504,8 @@ export const GUIDES: Guide[] = [
     glyph: '🎨',
     slides: [
       {
-        title: 'Backgrounds',
-        body: "Settings → Background opens a picker with 8 calm palettes and 10 patterns. Each works in light + dark mode.",
+        title: 'Themes',
+        body: "Settings → Theme offers six calm color themes. Each works in light and dark mode.",
         visual: (
           <View style={inlineStyles.swatchRow}>
             {['#E3ECEC', '#F5EFDC', '#ECEAEF', '#F4ECE7'].map((bg) => (
@@ -601,25 +515,8 @@ export const GUIDES: Guide[] = [
         ),
       },
       {
-        title: 'Theme from avatar',
-        body: "Flip «Theme from avatar» and the FAB + app canvas tint to match your preset avatar's color family.",
-        visual: (
-          <View style={inlineStyles.themeWrap}>
-            <View style={inlineStyles.avatarCircle}>
-              <Text style={inlineStyles.avatarEmoji}>🐱</Text>
-            </View>
-            <Text style={inlineStyles.themeArrow}>→</Text>
-            <View style={inlineStyles.tintedRow}>
-              <View style={[inlineStyles.tintedSwatch, { backgroundColor: '#F7D9B4' }]} />
-              <View style={[inlineStyles.tintedSwatch, { backgroundColor: '#EFC9B0' }]} />
-              <View style={[inlineStyles.tintedSwatch, { backgroundColor: '#D88D5F' }]} />
-            </View>
-          </View>
-        ),
-      },
-      {
         title: 'Calm by default',
-        body: "Toggle off the completion animation, sound, or reduce motion for accessibility. Today's tally still grows — just quietly.",
+        body: "Toggle off the completion animation or sound, or reduce motion, in Settings → Manage Animation & Sound.",
         visual: (
           <MockupSheet title="Settings">
             <MockupRow label="Completion animation" value="On" />

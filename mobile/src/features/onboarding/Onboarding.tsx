@@ -142,7 +142,7 @@ export default function Onboarding({ visible, onSubmit, onExplore }: Props) {
             <Text style={styles.exploreText}>I'll look around first</Text>
           </TouchableOpacity>
           <Text style={styles.disclosure}>
-            Mochi sends what you type to our AI provider to understand it — never for ads.{' '}
+            Mochi sends what you type to Anthropic (Claude) to understand it — never for ads.{' '}
             <Text
               style={styles.link}
               onPress={() => Linking.openURL(PRIVACY_URL).catch(() => {})}

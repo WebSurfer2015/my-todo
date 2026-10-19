@@ -885,7 +885,7 @@ function TodosScreen() {
             onPress={() => {
               sheets.openCapture()
             }}
-            accessibilityLabel={t.addPlaceholder}
+            accessibilityLabel="Add a to-do"
             agentEnabled={store.profile.agentEnabled !== false}
           />
         )}
@@ -946,7 +946,9 @@ function FirstRunLayer() {
         visible={onboardingNeeded}
         onSubmit={(text) => {
           setOnboardingNeeded(false);
-          store.saveProfile((p) => ({ ...p, onboardingDone: true, guidesPromptShown: true }));
+          // Mochi is the front door: the + button opens it from now on
+          // (openCapture follows lastComposeMode).
+          store.saveProfile((p) => ({ ...p, onboardingDone: true, guidesPromptShown: true, lastComposeMode: 'mochi' }));
           // Hand the words to Mochi once the onboarding modal has animated
           // out (iOS can't stack two Modals — same 280ms handoff).
           setTimeout(() => sheets.openCaptureWith(text), 280);

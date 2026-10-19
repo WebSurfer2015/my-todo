@@ -29,6 +29,9 @@ export interface ThemeColors {
   blue: string
   red: string
   orange: string
+  /** Warm accent for TEXT ("carried over", today chips) — the decorative
+   * `orange` is ~2:1 on white; this one meets AA (4.5:1). */
+  warmText: string
   yellow: string
   green: string
   purple: string
@@ -160,6 +163,7 @@ function buildTheme(h: HandoffPalette, scheme: 'light' | 'dark'): ThemeColors {
     red: h.danger,
     teal: h.accent,
     ...k,
+    warmText: scheme === 'dark' ? k.orange : '#9C5E1C',
     statusBar: scheme === 'dark' ? 'light-content' : 'dark-content',
   }
 }

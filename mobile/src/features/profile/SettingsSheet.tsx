@@ -22,6 +22,7 @@ import {
   TouchableOpacity,
   View,
   useColorScheme,
+  Linking,
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import Constants from "expo-constants";
@@ -30,6 +31,7 @@ import { useLang } from "../../app/LangContext";
 import { usePurchases } from "../../app/PurchasesContext";
 import { useTheme, ThemeColors, themeSwatch, SPACING, RADIUS, TYPE } from "../../app/theme";
 import { IAP_ENABLED } from '../../app/featureFlags';
+import { PRIVACY_URL } from "../../app/links";
 import SheetShell from "../../ui/SheetShell";
 
 interface Props {
@@ -376,8 +378,18 @@ export default function SettingsSheet({
               <View style={styles.card}>
                 <View style={styles.rowStatic}>
                   <Text style={styles.rowLabel}>Sagely</Text>
-                  <Text style={styles.rowValue}>v{Constants.expoConfig?.version ?? "1.6.0"}</Text>
+                  <Text style={styles.rowValue}>v{Constants.expoConfig?.version ?? ""}</Text>
                 </View>
+                <View style={styles.divider} />
+                {/* App Review 5.1.1(i): the policy must be easy to find in-app. */}
+                <TouchableOpacity
+                  style={styles.row}
+                  onPress={() => Linking.openURL(PRIVACY_URL).catch(() => {})}
+                  accessibilityRole="link"
+                >
+                  <Text style={styles.rowLabel}>Privacy policy</Text>
+                  <Text style={styles.rowChevron}>›</Text>
+                </TouchableOpacity>
               </View>
 
               <View style={{ height: 24 }} />

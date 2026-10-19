@@ -311,7 +311,9 @@ export default function HomeScreen() {
             hint="Let's add your first to-do."
             actionLabel="Add a to-do"
             onAction={() => {
-              sheets.openCompose()
+              // Same front door as the + button (Mochi when that's the
+              // last-used capture surface).
+              sheets.openCapture()
             }}
           />
         </View>
@@ -319,7 +321,7 @@ export default function HomeScreen() {
           onPress={() => {
             sheets.openCapture()
           }}
-          accessibilityLabel={t.addPlaceholder}
+          accessibilityLabel="Add a to-do"
           agentEnabled={store.profile.agentEnabled !== false}
         />
       </View>
@@ -363,7 +365,7 @@ export default function HomeScreen() {
               >
                 <Text style={styles.sectionHeader}>TODAY</Text>
                 <View style={styles.sectionRight}>
-                  <Text style={styles.sectionCount}>{`${counts.dToday} done`}</Text>
+                  <Text style={styles.sectionCount}>Done</Text>
                   <ChevronRight size={14} color={theme.label3} strokeWidth={2.5} />
                 </View>
               </TouchableOpacity>
@@ -374,19 +376,13 @@ export default function HomeScreen() {
                 hint="Add a to-do to get started."
                 actionLabel="Add a to-do"
                 onAction={() => {
-                  sheets.openCompose()
+                  sheets.openCapture()
                 }}
               />
             ) : (
               <EmptyStateCard
                 title="Nothing pending."
-                subline={
-                  counts.dToday === 0
-                    ? undefined
-                    : counts.dToday === 1
-                      ? '1 done today.'
-                      : `${counts.dToday} done today.`
-                }
+                subline={counts.dToday === 0 ? undefined : 'What you finished is resting in Done.'}
                 hint="Enjoy the breathing room."
                 actionLabel="Peek ahead"
                 onAction={openWhatsNext}
@@ -572,7 +568,7 @@ export default function HomeScreen() {
         onPress={() => {
           sheets.openCapture()
         }}
-        accessibilityLabel={t.addPlaceholder}
+        accessibilityLabel="Add a to-do"
         agentEnabled={store.profile.agentEnabled !== false}
       />
     </View>

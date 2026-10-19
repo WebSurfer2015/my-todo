@@ -550,7 +550,9 @@ function TaskItem({
           </View>
           <Text style={styles.swipeActionText} numberOfLines={1}>{t.notDo}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.swipeAction, styles.swipeDelete]} onPress={confirmPermanentDelete}>
+        {/* Delete on an active row goes to the Done bin (30 days, with
+            Undo); permanent delete lives only in the bin (above). */}
+        <TouchableOpacity style={[styles.swipeAction, styles.swipeDelete]} onPress={handleMoveToTrash}>
           <Trash2 size={20} color="#fff" strokeWidth={2} />
           <Text style={styles.swipeActionText} numberOfLines={1}>{t.deleteTask}</Text>
         </TouchableOpacity>
@@ -600,6 +602,20 @@ function TaskItem({
       }}
     >
       <Pressable
+        // One VoiceOver element per row: say what a double-tap does (open),
+        // and offer completion as an action — the circle's own label used to
+        // lead ("…Mark as done.") while a double-tap actually opened it.
+        accessibilityRole="button"
+        accessibilityLabel={
+          todo.done ? `${todo.text}, completed` : todo.trashed ? `${todo.text}, removed` : todo.text
+        }
+        accessibilityHint={inTrash && onToggleSelect ? 'Selects this to-do' : 'Opens the to-do'}
+        accessibilityActions={
+          inTrash ? undefined : [{ name: 'toggleDone', label: todo.done ? 'Mark not done' : 'Mark done' }]
+        }
+        onAccessibilityAction={(e) => {
+          if (e.nativeEvent.actionName === 'toggleDone') handleToggle()
+        }}
         onTouchStart={onRowTouchStart}
         onTouchMove={onRowTouchMove}
         onPress={() => {

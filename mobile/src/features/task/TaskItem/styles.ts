@@ -29,7 +29,9 @@ export function makeStyles(c: ThemeColors) {
       height: 22,
       borderRadius: 11,
       borderWidth: 1.5,
-      borderColor: c.gray3,
+      // label3 meets the 3:1 non-text minimum — the circle is the ONLY
+      // completion control, so it must be visible (gray3 was ~1.5:1).
+      borderColor: c.label3,
       alignItems: 'center',
       justifyContent: 'center',
       marginTop: 2,
@@ -139,11 +141,11 @@ export function makeStyles(c: ThemeColors) {
       // orange as "today" (was c.red) — the app already reframes overdue as
       // "carried over" and hides its count in the filter bar; the red chip
       // was the one place it still raised its voice. Red stays for destructive.
-      color: c.orange,
+      color: c.warmText,
       fontWeight: '700',
     },
     chipTextToday: {
-      color: c.orange,
+      color: c.warmText,
       fontWeight: '700',
     },
     metaSep: { color: c.label3, fontSize: TYPE.caption, marginHorizontal: 2 },

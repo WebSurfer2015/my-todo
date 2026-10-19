@@ -130,7 +130,7 @@ export default function GroceryEditSheet({
             value={text}
             onChangeText={setText}
             placeholder="Milk"
-            placeholderTextColor={theme.gray3}
+            placeholderTextColor={theme.label2}
             maxLength={200}
             returnKeyType="done"
             onSubmitEditing={handleSave}

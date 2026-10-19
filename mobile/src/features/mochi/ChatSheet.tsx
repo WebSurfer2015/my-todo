@@ -26,7 +26,7 @@ import EditableCaptureCard from './EditableCaptureCard'
 import { type Priority } from '../../core-bindings/types'
 import { snapDueDateToRecurrence } from '../../../../core/src/logic/derive'
 import { buildFallbackCapture, mochiRestEndsAt } from '../../../../core/src/logic/mochiFallback'
-import { todayLocal, formatDisplayDate, isoDate } from '../../core-bindings/utils'
+import { todayLocal, formatDisplayDate, fullDateLabel, isoDate } from '../../core-bindings/utils'
 import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 
 interface Props {
@@ -124,7 +124,7 @@ interface Props {
 const EXAMPLE_CHIPS: Array<{ label: string; prefill: string }> = [
   { label: 'Buy milk tomorrow', prefill: 'Buy milk tomorrow' },
   { label: 'Run Mon/Wed/Fri 11am', prefill: 'Run Mon/Wed/Fri 11am' },
-  { label: 'Add eggs to shopping', prefill: 'Add eggs to shopping' },
+  { label: 'Call mom this weekend', prefill: 'Call mom this weekend' },
 ]
 
 /** Rotating placeholder hints — cycle while the box is empty so the field
@@ -133,8 +133,7 @@ const PLACEHOLDER_EXAMPLES: string[] = [
   'Buy milk tomorrow',
   'Call dentist Tue 3pm',
   'Run Mon/Wed/Fri 11am',
-  'Eggs, bread, butter to shopping',
-  'Plan today',
+  'Pay the water bill Friday',
 ]
 
 /** Fade-and-rise entrance for a chat row. New bubbles ease up into place so the
@@ -716,7 +715,7 @@ export default function ChatSheet({
                   <View style={styles.mochiBubble}>
                     <Text style={styles.mochiLine}>
                       {restingCapture
-                        ? `I've helped with a lot today, so I'm resting until ${restLabel}. Your words are safe — you can add this yourself right now.`
+                        ? `I'm resting until ${restLabel}. Your words are safe — you can add this yourself right now.`
                         : `I'm resting until ${restLabel}. You can still add things yourself.`}
                     </Text>
                     <View style={styles.actionsRow}>
@@ -781,7 +780,7 @@ export default function ChatSheet({
                       ? `e.g. ${PLACEHOLDER_EXAMPLES[phIdx]}`
                       : 'Message Mochi…'
                 }
-                placeholderTextColor={theme.gray3}
+                placeholderTextColor={theme.label2}
                 autoCapitalize="sentences"
                 value={input}
                 // Multiline so long input WRAPS, but a Return submits like
@@ -844,7 +843,7 @@ const PICK_CTA: Record<'delete' | 'markDone' | 'edit' | 'addSteps', string> = {
   addSteps: 'Add steps to',
 }
 const PICK_DONE: Record<'delete' | 'markDone' | 'edit' | 'addSteps', string> = {
-  delete: 'Moved to Trash',
+  delete: 'Tucked into Done',
   markDone: 'Completed',
   edit: 'Updated',
   addSteps: 'Updated',
@@ -964,7 +963,7 @@ function PickTodosCard({
     const ids = selectedIds()
     // Reversible (30-day Trash + Undo), so no confirm dialog.
     onPickAction('delete', ids)
-    setDone({ verb: 'Moved to Trash', n: ids.length })
+    setDone({ verb: 'Tucked into Done', n: ids.length })
   }
   const onDeferDate = (e: DateTimePickerEvent, d?: Date) => {
     setDeferOpen(false)
@@ -1160,7 +1159,7 @@ function DeleteTodoCard({
 
   if (done) {
     return (
-      <Text style={styles.appliedNote}>✓ {done === 'series' ? 'Series moved to Trash' : 'Moved to Trash'}</Text>
+      <Text style={styles.appliedNote}>✓ {done === 'series' ? 'Series tucked into Done' : 'Tucked into Done'}</Text>
     )
   }
 
@@ -1458,8 +1457,8 @@ function OperationPreview({
   if (op.kind === 'deferOverdue') {
     return (
       <View>
-        <Text style={styles.proposalKind}>Reschedule overdue</Text>
-        <Text style={styles.proposalTitle}>Move overdue to-dos to {op.args.dueDate}</Text>
+        <Text style={styles.proposalKind}>Move carried-over to-dos</Text>
+        <Text style={styles.proposalTitle}>Move carried-over to-dos to {fullDateLabel(op.args.dueDate)}</Text>
       </View>
     )
   }
@@ -1467,7 +1466,7 @@ function OperationPreview({
   if (op.kind === 'restoreTodo') {
     return (
       <FrozenTitle
-        kindLabel="Restore from trash"
+        kindLabel="Restore from Done"
         resolve={() => trashedTextLookup(op.args.todoId)}
         styles={styles}
       />

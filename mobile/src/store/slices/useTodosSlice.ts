@@ -739,8 +739,9 @@ export function useTodosSlice(
   );
 
   const emptyTrash = useCallback(() => {
-    if (todosRef.current.filter((td) => td.trashed).length === 0) return;
-    Alert.alert(t.emptyTrash, t.deletePermanentlyConfirm(t.filters.trash), [
+    const n = todosRef.current.filter((td) => td.trashed).length;
+    if (n === 0) return;
+    Alert.alert(t.emptyTrash, t.emptyTrashConfirm(n), [
       { text: t.cancel, style: "cancel" },
       {
         text: t.emptyTrash,

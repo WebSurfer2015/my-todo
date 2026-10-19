@@ -437,7 +437,7 @@ export default function StorePicker({
                             value={newName}
                             onChangeText={setNewName}
                             placeholder="Store name"
-                            placeholderTextColor={theme.label3}
+                            placeholderTextColor={theme.label2}
                             autoFocus
                             returnKeyType="done"
                             maxLength={MAX_GROCERY_STORE_LEN}

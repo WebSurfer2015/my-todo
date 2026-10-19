@@ -420,7 +420,7 @@ export default function GroceryComposeSheet({
                     ref={inputRef}
                     style={styles.textInput}
                     placeholder="Item"
-                    placeholderTextColor={theme.gray3}
+                    placeholderTextColor={theme.label2}
                     value={text}
                     onChangeText={setText}
                     maxLength={200}

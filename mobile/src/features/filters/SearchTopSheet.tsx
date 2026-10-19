@@ -101,7 +101,7 @@ export default function SearchTopSheet({
           value={query}
           onChangeText={onQueryChange}
           placeholder={placeholder}
-          placeholderTextColor={theme.label3}
+          placeholderTextColor={theme.label2}
           returnKeyType="search"
           onSubmitEditing={() => {
             if (canSubmit) onSubmit()

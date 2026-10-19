@@ -82,7 +82,7 @@ export function makeStyles(c: ThemeColors) {
       letterSpacing: 0.4,
     },
     statusPillText_notstarted: { color: c.label2 },
-    statusPillText_progress: { color: c.orange },
+    statusPillText_progress: { color: c.warmText },
     statusPillText_done: { color: c.green },
     metaSep: { color: c.label3, fontSize: TYPE.caption },
     metaCat: {
@@ -94,8 +94,8 @@ export function makeStyles(c: ThemeColors) {
     metaDate: { fontSize: TYPE.caption, fontWeight: '500', color: c.label2 },
     // Calm lens: overdue is information, not an alarm — match TaskItem's soft
     // orange (was c.red). Red is reserved for destructive actions.
-    metaDateOverdue: { color: c.orange, fontWeight: '600' },
-    metaDateToday: { color: c.orange, fontWeight: '600' },
+    metaDateOverdue: { color: c.warmText, fontWeight: '600' },
+    metaDateToday: { color: c.warmText, fontWeight: '600' },
     metaDateMuted: { color: c.label3, fontStyle: 'italic' },
     metaProgress: { fontSize: TYPE.caption, color: c.label2, fontVariant: ['tabular-nums'] },
     closeBtn: { padding: SPACING.xs },
@@ -160,8 +160,8 @@ export function makeStyles(c: ThemeColors) {
     subDateChipText: { fontSize: TYPE.caption, fontWeight: '500' },
     subDateChipMuted: { color: c.gray3, fontStyle: 'italic', fontWeight: '500' },
     subDateChipPlain: { color: c.label3, fontWeight: '500' },
-    subDateChipOverdue: { color: c.orange, fontWeight: '600' },
-    subDateChipToday: { color: c.orange, fontWeight: '600' },
+    subDateChipOverdue: { color: c.warmText, fontWeight: '600' },
+    subDateChipToday: { color: c.warmText, fontWeight: '600' },
     subRemoveBtn: { padding: SPACING.xs },
 
     /* Action bar (view mode): Add a subtask primary */

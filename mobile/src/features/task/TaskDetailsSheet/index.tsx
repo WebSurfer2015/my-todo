@@ -997,7 +997,7 @@ export default function TaskDetailsSheet({
                       onChangeText={setEditSubText}
                       onBlur={() => applySubText(editSubText)}
                       placeholder={t.addSubtask}
-                      placeholderTextColor={theme.gray3}
+                      placeholderTextColor={theme.label2}
                       multiline
                       maxLength={1024}
                       textAlignVertical="top"
@@ -1338,7 +1338,7 @@ export default function TaskDetailsSheet({
                   onChangeText={setEditText}
                   onBlur={() => applyText(editText)}
                   placeholder={t.addPlaceholder}
-                  placeholderTextColor={theme.gray3}
+                  placeholderTextColor={theme.label2}
                   multiline
                   maxLength={4096}
                   textAlignVertical="top"
@@ -1357,7 +1357,7 @@ export default function TaskDetailsSheet({
                       onChangeText={setEditNotes}
                       onBlur={() => applyNotes(editNotes)}
                       placeholder={t.notes.placeholder}
-                      placeholderTextColor={theme.gray3}
+                      placeholderTextColor={theme.label2}
                       multiline
                       maxLength={8192}
                       textAlignVertical="top"
@@ -1661,6 +1661,32 @@ export default function TaskDetailsSheet({
                   <TouchableOpacity
                     style={styles.bottomActionButton}
                     onPress={() => {
+                      // An active to-do goes to the Done bin (30 days, with
+                      // Undo) — permanent delete is only for rows already in
+                      // the bin. The App Store copy promises this.
+                      if (!todo.trashed) {
+                        if (seriesScope && onMoveSeriesFutureToTrash) {
+                          Alert.alert(
+                            'Delete this and future to-dos?',
+                            'They move to Done, where they stay for 30 days. Past ones are kept.',
+                            [
+                              { text: t.cancel, style: 'cancel' },
+                              {
+                                text: 'Delete',
+                                style: 'destructive',
+                                onPress: () => {
+                                  onMoveSeriesFutureToTrash(todo.id)
+                                  onClose()
+                                },
+                              },
+                            ],
+                          )
+                        } else {
+                          onMoveToTrash(todo.id)
+                          onClose()
+                        }
+                        return
+                      }
                       Alert.alert(
                         seriesScope ? 'Delete series?' : t.deletePermanently,
                         seriesScope
@@ -1682,7 +1708,9 @@ export default function TaskDetailsSheet({
                     }}
                     activeOpacity={0.6}
                     accessibilityRole="button"
-                    accessibilityLabel={seriesScope ? 'Delete series' : t.deletePermanently}
+                    accessibilityLabel={
+                      todo.trashed ? (seriesScope ? 'Delete series' : t.deletePermanently) : t.deleteTask
+                    }
                   >
                     <Text style={styles.deleteActionText}>
                       {seriesScope ? 'Delete series' : t.deleteTask}

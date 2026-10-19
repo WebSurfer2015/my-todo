@@ -47,7 +47,7 @@ export default function GuidesPrompt({ visible, onAccept, onDismiss }: Props) {
           <Text style={styles.title}>A few quick tips?</Text>
           <Text style={styles.body}>
             Sagely has {GUIDES.length} short walkthroughs of its newer features —
-            AI suggestions, recurring reminders, smart groceries. Under a minute
+            AI suggestions, reminders, steps. Under a minute
             each.{'\n\n'}
             You can find them anytime in Settings → Tips & guides.
           </Text>
