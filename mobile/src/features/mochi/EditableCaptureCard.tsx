@@ -38,6 +38,9 @@ interface Props {
    * the user cancels, so the card keeps its Undo instead of reading
    * "Removed" over a to-do that still exists. void counts as removed. */
   onRemove: () => void | boolean | Promise<boolean>
+  /** False once a newer Mochi turn applied changes: the add can't be undone
+   * from here any more (only this card's own chip edits can). */
+  undoLive?: boolean
 }
 
 export default function EditableCaptureCard({
@@ -47,6 +50,7 @@ export default function EditableCaptureCard({
   recurrenceText,
   onEdit,
   onRemove,
+  undoLive = true,
 }: Props) {
   const theme = useTheme()
   const { t } = useLang()
@@ -224,6 +228,7 @@ export default function EditableCaptureCard({
         ) : (
           <>
             <Text style={styles.addedNote}>✓ Added</Text>
+            {(undoLive || undoStack.current.length > 0) && (
             <TouchableOpacity
               onPress={undoLast}
               hitSlop={8}
@@ -232,6 +237,7 @@ export default function EditableCaptureCard({
             >
               <Text style={styles.undoText}>Undo</Text>
             </TouchableOpacity>
+            )}
           </>
         )}
       </View>

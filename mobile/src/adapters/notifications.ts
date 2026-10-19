@@ -15,10 +15,6 @@ import {
  * no push token is requested or stored.
  */
 
-/** The retired daily check-in's identifier — only ever cancelled now, so a
- * device that scheduled it under an older build stops receiving it. */
-const LEGACY_CHECKIN_ID = 'sagely-daily-checkin'
-
 // Configure the foreground-notification handler at module load. Without
 // this, a reminder firing while the app is open is silently dropped on
 // iOS. Banner + list only — sound and badge stay off (calm-default brand
@@ -45,11 +41,6 @@ export async function ensurePermission(): Promise<boolean> {
     },
   })
   return req.status === 'granted'
-}
-
-/** Cancel the retired daily check-in (legacy cleanup on launch). */
-export async function cancelDailyCheckin(): Promise<void> {
-  await Notifications.cancelScheduledNotificationAsync(LEGACY_CHECKIN_ID).catch(() => {})
 }
 
 // ── Per-todo local reminders ───────────────────────────────────────────────
@@ -253,7 +244,7 @@ async function syncOnce(
 }
 
 /**
- * Cancel every scheduled to-do reminder (and the legacy check-in), and clear
+ * Cancel every scheduled to-do reminder, and clear
  * the ones already delivered to Notification Center — on sign-out, "Delete
  * data only" and account deletion. They carry the to-do's text, so they must
  * not keep firing (or keep sitting on the lock screen) for an account that's
@@ -270,7 +261,6 @@ export async function cancelAllReminders(): Promise<void> {
       .filter((req) => req.identifier.startsWith(REMINDER_ID_PREFIX))
       .map((req) => Notifications.cancelScheduledNotificationAsync(req.identifier).catch(() => {})),
   )
-  await cancelDailyCheckin()
   const presented: Notifications.Notification[] =
     await Notifications.getPresentedNotificationsAsync().catch(() => [])
   await Promise.all(

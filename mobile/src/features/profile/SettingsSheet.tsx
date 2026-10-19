@@ -28,6 +28,7 @@ import * as Haptics from "expo-haptics";
 import Constants from "expo-constants";
 import { Profile, type ThemeName } from "../../core-bindings/profile";
 import { useLang } from "../../app/LangContext";
+import { MODAL_HANDOFF_MS } from "../../app/modalTiming";
 import { usePurchases } from "../../app/PurchasesContext";
 import { useTheme, ThemeColors, themeSwatch, SPACING, RADIUS, TYPE } from "../../app/theme";
 import { IAP_ENABLED } from '../../app/featureFlags';
@@ -122,7 +123,7 @@ export default function SettingsSheet({
                   style={styles.row}
                   onPress={() => {
                     onClose()
-                    setTimeout(() => openPaywall(), 280)
+                    setTimeout(() => openPaywall(), MODAL_HANDOFF_MS)
                   }}
                   activeOpacity={0.7}
                 >
@@ -144,7 +145,7 @@ export default function SettingsSheet({
                     onClose();
                     // Defer so this modal can finish dismissing before the
                     // picker modal slides up — iOS dislikes modal-on-modal.
-                    setTimeout(() => onOpenTheme(), 280);
+                    setTimeout(() => onOpenTheme(), MODAL_HANDOFF_MS);
                   }}
                   activeOpacity={0.7}
                   accessibilityRole="button"
@@ -177,7 +178,7 @@ export default function SettingsSheet({
                   style={styles.row}
                   onPress={() => {
                     onClose();
-                    setTimeout(() => onOpenManageTodos(), 280);
+                    setTimeout(() => onOpenManageTodos(), MODAL_HANDOFF_MS);
                   }}
                   activeOpacity={0.7}
                   accessibilityRole="button"
@@ -194,7 +195,7 @@ export default function SettingsSheet({
                     // Manage Groceries navigates first (since StorePicker
                     // still lives in GroceryView) and then signals
                     // GroceriesScreen to open it in edit mode.
-                    setTimeout(() => onOpenManageGroceries(), 280);
+                    setTimeout(() => onOpenManageGroceries(), MODAL_HANDOFF_MS);
                   }}
                   activeOpacity={0.7}
                   accessibilityRole="button"
@@ -208,7 +209,7 @@ export default function SettingsSheet({
                   style={styles.row}
                   onPress={() => {
                     onClose();
-                    setTimeout(() => onOpenAnimationSound(), 280);
+                    setTimeout(() => onOpenAnimationSound(), MODAL_HANDOFF_MS);
                   }}
                   activeOpacity={0.7}
                   accessibilityRole="button"
@@ -243,7 +244,7 @@ export default function SettingsSheet({
                   style={styles.row}
                   onPress={() => {
                     onClose();
-                    setTimeout(() => onOpenGuides(), 280);
+                    setTimeout(() => onOpenGuides(), MODAL_HANDOFF_MS);
                   }}
                   accessibilityRole="button"
                   accessibilityLabel="Open Tips and guides"
@@ -256,7 +257,7 @@ export default function SettingsSheet({
                   style={styles.row}
                   onPress={() => {
                     onClose();
-                    setTimeout(() => onShowIntro(), 280);
+                    setTimeout(() => onShowIntro(), MODAL_HANDOFF_MS);
                   }}
                   accessibilityRole="button"
                   accessibilityLabel="View Mochi's intro again"

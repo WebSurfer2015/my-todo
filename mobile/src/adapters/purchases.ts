@@ -62,7 +62,7 @@ export async function configurePurchases(uid: string): Promise<void> {
   }
 }
 
-/** The current offering (Pro + Elite, monthly + annual packages) for the
+/** The current offering (Premium monthly + annual packages) for the
  * paywall, or null when unavailable. */
 export async function fetchCurrentOffering(): Promise<PurchasesOffering | null> {
   if (!isPurchasesEnabled()) return null

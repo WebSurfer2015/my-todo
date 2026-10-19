@@ -17,6 +17,16 @@ interface SnackbarOptions {
   mergedMessage?: (count: number) => string
   /** Label shown when stacked; defaults to actionLabel. */
   mergedActionLabel?: string
+  /**
+   * Low priority: never replace a snackbar that's showing (an Undo) — wait
+   * for it to end, then show (the duration starts once visible). One waiting
+   * slot: a newer waiting snackbar replaces an older one, and it replaces a
+   * VISIBLE waiting-kind one directly. Used by the reminder "Open" offer.
+   */
+  queue?: boolean
+  /** Survive an account change (sign-out / account deletion) — e.g. the
+   * "Your data has been cleared." confirmation shown right after sign-out. */
+  outlivesAccount?: boolean
 }
 
 interface SnackbarState {
@@ -32,10 +42,31 @@ interface SnackbarState {
   ownAction?: () => void
   mergedMessage?: (count: number) => string
   mergedActionLabel?: string
+  /** The options it was shown with (re-queued if an Undo replaces it). */
+  source: SnackbarOptions
 }
 
 interface NotifyApi {
   showSnackbar: (opts: SnackbarOptions) => void
+  /** Hide the snackbar (and drop a waiting one). `accountChange`: the
+   * signed-in account changed — keep only `outlivesAccount` snackbars. */
+  dismissSnackbar: (opts?: { accountChange?: boolean }) => void
+}
+
+/**
+ * Where a new snackbar goes, given what's showing / waiting (pure):
+ * - `wait`: a low-priority (`queue`) snackbar while a normal one is up —
+ *   park it in the single waiting slot.
+ * - `show`: show it now. `requeue` = the visible low-priority snackbar it
+ *   replaces, to show again once this one ends (unless one already waits).
+ */
+export function planSnackbar(
+  visible: Pick<SnackbarOptions, 'queue'> | null,
+  waiting: SnackbarOptions | null,
+  next: SnackbarOptions,
+): { action: 'wait' } | { action: 'show'; requeue: boolean } {
+  if (next.queue && visible && !visible.queue) return { action: 'wait' }
+  return { action: 'show', requeue: !next.queue && !!visible?.queue && !waiting }
 }
 
 const NotifyContext = createContext<NotifyApi>(null!)
@@ -65,19 +96,40 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
   const snackbarRef = useRef<SnackbarState | null>(null)
   const idRef = useRef(0)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // A low-priority snackbar waiting for the visible one to end.
+  const waitingRef = useRef<SnackbarOptions | null>(null)
+  const showRef = useRef<(opts: SnackbarOptions) => void>(() => {})
 
-  const dismissSnackbar = useCallback(() => {
+  // The visible snackbar ended (timeout, action, ×): show the waiting one.
+  const endCurrent = useCallback(() => {
     snackbarRef.current = null
-    setSnackbar(null)
     if (timerRef.current) {
       clearTimeout(timerRef.current)
       timerRef.current = null
     }
+    const waiting = waitingRef.current
+    waitingRef.current = null
+    if (waiting) showRef.current(waiting)
+    else setSnackbar(null)
   }, [])
 
+  const dismissSnackbar = useCallback((opts?: { accountChange?: boolean }) => {
+    if (opts?.accountChange) {
+      if (waitingRef.current && !waitingRef.current.outlivesAccount) waitingRef.current = null
+      if (snackbarRef.current?.source.outlivesAccount) return
+    }
+    endCurrent()
+  }, [endCurrent])
+
   const showSnackbar = useCallback((opts: SnackbarOptions) => {
-    const id = ++idRef.current
     const prev = snackbarRef.current
+    const plan = planSnackbar(prev?.source ?? null, waitingRef.current, opts)
+    if (plan.action === 'wait') {
+      waitingRef.current = opts
+      return
+    }
+    if (plan.requeue && prev) waitingRef.current = prev.source
+    const id = ++idRef.current
     let next: SnackbarState
     if (prev && opts.mergeKey && prev.mergeKey === opts.mergeKey) {
       const newCount = prev.mergedCount + 1
@@ -103,6 +155,7 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
         ownAction: opts.onAction,
         mergedMessage: builder,
         mergedActionLabel: opts.mergedActionLabel ?? prev.mergedActionLabel,
+        source: opts,
       }
     } else {
       next = {
@@ -117,26 +170,27 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
         ownAction: opts.onAction,
         mergedMessage: opts.mergedMessage,
         mergedActionLabel: opts.mergedActionLabel,
+        source: opts,
       }
     }
     snackbarRef.current = next
     setSnackbar(next)
     if (timerRef.current) clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => {
-      if (snackbarRef.current?.id === id) {
-        snackbarRef.current = null
-        setSnackbar(null)
-      }
       timerRef.current = null
+      if (snackbarRef.current?.id === id) endCurrent()
     }, next.durationMs)
-  }, [])
+  }, [endCurrent])
+  useEffect(() => {
+    showRef.current = showSnackbar
+  }, [showSnackbar])
 
   const handleAction = useCallback(() => {
     if (snackbar?.onAction) snackbar.onAction()
-    dismissSnackbar()
-  }, [snackbar, dismissSnackbar])
+    endCurrent()
+  }, [snackbar, endCurrent])
 
-  const value = useMemo<NotifyApi>(() => ({ showSnackbar }), [showSnackbar])
+  const value = useMemo<NotifyApi>(() => ({ showSnackbar, dismissSnackbar }), [showSnackbar, dismissSnackbar])
 
   return (
     <NotifyContext.Provider value={value}>
@@ -146,7 +200,7 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
           message={snackbar.message}
           actionLabel={snackbar.actionLabel}
           onAction={handleAction}
-          onDismiss={dismissSnackbar}
+          onDismiss={endCurrent}
         />
       )}
     </NotifyContext.Provider>

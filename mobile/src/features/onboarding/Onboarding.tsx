@@ -15,6 +15,7 @@ import {
 } from 'react-native'
 import { RADIUS, SPACING, TYPE, useTheme, ThemeColors } from '../../app/theme'
 import { PRIVACY_URL } from '../../app/links'
+import { useModalPresence } from '../../app/modalPresence'
 
 /**
  * One-screen first launch: Mochi is the front door (Phase 2, 2026-10-18).
@@ -51,6 +52,8 @@ export default function Onboarding({ visible, onSubmit, onExplore }: Props) {
   const [text, setText] = useState('')
   const inputRef = useRef<TextInput>(null)
   const canSend = text.trim().length > 0
+  // A reminder tap must not try to present details over onboarding.
+  useModalPresence(visible)
 
   useEffect(() => {
     if (visible) setText('')

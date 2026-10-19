@@ -286,7 +286,7 @@ export function useMochiAgent() {
           setError(
             res.status === 429
               ? "Mochi's catching its breath — try again in a moment."
-              : `Mochi couldn't reach us (${res.status}).`,
+              : "Mochi couldn't reach us just now. Try again in a moment.",
           )
           setErrorKind(res.status === 429 ? 'rate' : 'fail')
           return { ok: false, error: String(res.status) }

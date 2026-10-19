@@ -520,8 +520,6 @@ export function useTodoStore() {
   const identityLine =
     quoteMode === 'off' ? '' : quoteMode === 'custom' ? trimmedQuote : dailyQuote;
   const identityLineIsQuote = identityLine !== '';
-  // Legacy: still expose quoteLine for any caller that wants the raw
-  // value, but App.tsx now reads identityLine + identityLineIsQuote.
   // Memoized: fresh arrays every render would bust the store memo below.
   const orderedStatuses = useMemo(() => getOrderedStatuses(profile, t), [profile, t]);
   const orderedPriorities = useMemo(() => getOrderedPriorities(profile, t), [profile, t]);

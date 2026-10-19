@@ -10,8 +10,11 @@ import { tierFromCustomerInfo, productFromCustomerInfo } from '../adapters/purch
 import { shouldIgnoreToggleTap, UNCOMPLETE_GUARD_MS } from '../features/task/TaskItem/toggleGuard'
 import { detailsNotifyMessage, planDetailsOpen } from '../app/detailsOpenPlan'
 import { deleteAccountErrorMessage, DELETE_ACCOUNT_FAILED, DELETE_ACCOUNT_OFFLINE } from '../app/accountErrors'
-import { isAnyModalPresented, MODAL_DISMISS_GRACE_MS, useModalPresence } from '../app/modalPresence'
+import { __resetModalPresenceForTests, isAnyModalPresented, useModalPresence } from '../app/modalPresence'
+import { MODAL_DISMISS_GRACE_MS } from '../app/modalTiming'
 import { PRODUCT_IDS } from '../core-bindings/entitlements'
+import { planSnackbar } from '../app/notify'
+import { absoluteDateLabel } from '../features/task/absoluteDateLabel'
 
 describe('tierFromCustomerInfo', () => {
   it('no info / nothing active → free', () => {
@@ -104,9 +107,14 @@ describe('planDetailsOpen', () => {
 
 describe('detailsNotifyMessage', () => {
   it('quotes the title and truncates it at ~40 chars', () => {
-    expect(detailsNotifyMessage('  Call mom ')).toBe('"Call mom"')
+    expect(detailsNotifyMessage('  Call mom ')).toBe('Reminder: “Call mom”')
     const long = 'x'.repeat(60)
-    expect(detailsNotifyMessage(long)).toBe(`"${'x'.repeat(39)}…"`)
+    expect(detailsNotifyMessage(long)).toBe(`Reminder: “${'x'.repeat(39)}…”`)
+  })
+  it('keeps a 40-char title whole and truncates at 41', () => {
+    const forty = 'y'.repeat(40)
+    expect(detailsNotifyMessage(forty)).toBe(`Reminder: “${forty}”`)
+    expect(detailsNotifyMessage(`${forty}z`)).toBe(`Reminder: “${'y'.repeat(39)}…”`)
   })
 })
 
@@ -114,6 +122,15 @@ describe('deleteAccountErrorMessage', () => {
   it('maps network failures to the offline copy', () => {
     expect(deleteAccountErrorMessage({ code: 'auth/network-request-failed' })).toBe(DELETE_ACCOUNT_OFFLINE)
     expect(deleteAccountErrorMessage(new Error('A network error has occurred'))).toBe(DELETE_ACCOUNT_OFFLINE)
+    expect(deleteAccountErrorMessage({ code: 'unavailable' })).toBe(DELETE_ACCOUNT_OFFLINE)
+    expect(deleteAccountErrorMessage(new Error('The Internet connection appears to be offline.'))).toBe(
+      DELETE_ACCOUNT_OFFLINE,
+    )
+    expect(deleteAccountErrorMessage({ message: 'Service UNAVAILABLE' })).toBe(DELETE_ACCOUNT_OFFLINE)
+  })
+  it('ignores non-string code / message fields', () => {
+    expect(deleteAccountErrorMessage({ code: 42, message: { offline: true } })).toBe(DELETE_ACCOUNT_FAILED)
+    expect(deleteAccountErrorMessage({ code: 'auth/internal-error' })).toBe(DELETE_ACCOUNT_FAILED)
   })
   it('never shows a raw error otherwise', () => {
     expect(deleteAccountErrorMessage(new Error('auth/internal-error: boom'))).toBe(DELETE_ACCOUNT_FAILED)
@@ -133,5 +150,65 @@ describe('useModalPresence counter', () => {
     expect(isAnyModalPresented()).toBe(false)
     hook.unmount()
     vi.useRealTimers()
+  })
+
+  it('counts several Modals and never goes below zero', async () => {
+    vi.useFakeTimers()
+    __resetModalPresenceForTests()
+    const { renderHook } = await import('@testing-library/react')
+    const a = renderHook(({ v }) => useModalPresence(v), { initialProps: { v: true } })
+    const b = renderHook(({ v }) => useModalPresence(v), { initialProps: { v: true } })
+    a.unmount()
+    vi.advanceTimersByTime(MODAL_DISMISS_GRACE_MS)
+    // b is still up.
+    expect(isAnyModalPresented()).toBe(true)
+    // A reset mid-grace (tests) must not drive the count negative.
+    __resetModalPresenceForTests()
+    b.unmount()
+    vi.advanceTimersByTime(MODAL_DISMISS_GRACE_MS)
+    expect(isAnyModalPresented()).toBe(false)
+    const c = renderHook(() => useModalPresence(true))
+    expect(isAnyModalPresented()).toBe(true)
+    c.unmount()
+    vi.advanceTimersByTime(MODAL_DISMISS_GRACE_MS)
+    expect(isAnyModalPresented()).toBe(false)
+    vi.useRealTimers()
+  })
+
+  it('a hidden Modal is never counted', async () => {
+    __resetModalPresenceForTests()
+    const { renderHook } = await import('@testing-library/react')
+    const h = renderHook(() => useModalPresence(false))
+    expect(isAnyModalPresented()).toBe(false)
+    h.unmount()
+  })
+})
+
+describe('planSnackbar (notify queue)', () => {
+  it('a low-priority snackbar waits behind a normal one (an Undo)', () => {
+    expect(planSnackbar({}, null, { message: 'r', queue: true })).toEqual({ action: 'wait' })
+  })
+  it('shows right away when nothing (or another low-priority one) is up', () => {
+    expect(planSnackbar(null, null, { message: 'r', queue: true })).toEqual({ action: 'show', requeue: false })
+    expect(planSnackbar({ queue: true }, null, { message: 'r2', queue: true })).toEqual({
+      action: 'show',
+      requeue: false,
+    })
+  })
+  it('an Undo replacing a visible offer re-queues the offer (unless one already waits)', () => {
+    expect(planSnackbar({ queue: true }, null, { message: 'undo' })).toEqual({ action: 'show', requeue: true })
+    expect(planSnackbar({ queue: true }, { message: 'w', queue: true }, { message: 'undo' })).toEqual({
+      action: 'show',
+      requeue: false,
+    })
+    expect(planSnackbar({}, null, { message: 'undo' })).toEqual({ action: 'show', requeue: false })
+  })
+})
+
+describe('absoluteDateLabel (locale)', () => {
+  it('formats in the given locale', () => {
+    const y = new Date().getFullYear()
+    expect(absoluteDateLabel(`${y}-05-17`, 'de-DE')).toBe('17. Mai')
+    expect(absoluteDateLabel(`${y + 1}-05-17`, 'de-DE')).toBe(`17. Mai ${y + 1}`)
   })
 })

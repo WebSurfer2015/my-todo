@@ -7,7 +7,9 @@
  *                    any presented Modal it doesn't own). iOS can't present
  *                    over it, and force-closing it would drop the user's
  *                    work (a Compose draft, a half-picked date) — so offer
- *                    a calm `"<title>" · Open` snackbar instead.
+ *                    a calm `Reminder: “<title>” · Open` snackbar once
+ *                    nothing is presented (see useDetailsRouter). A
+ *                    picker presented over details counts too.
  * - `swap`         — only details is up, on ANOTHER to-do: close it through
  *                    its own save path first, then open the new one.
  * - `now`          — nothing is open: open right away.
@@ -33,8 +35,9 @@ export function planDetailsOpen(s: {
   return 'now'
 }
 
-/** Snackbar label for a to-do that couldn't open right away. */
+/** Snackbar label for a to-do that couldn't open right away (a reminder
+ * tap while a sheet was up). English-only launch. */
 export function detailsNotifyMessage(text: string): string {
   const t = text.trim()
-  return `"${t.length > 40 ? `${t.slice(0, 39)}…` : t}"`
+  return `Reminder: “${t.length > 40 ? `${t.slice(0, 39)}…` : t}”`
 }

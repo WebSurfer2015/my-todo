@@ -36,6 +36,7 @@ import {
 } from '../../core-bindings/groceries'
 import { classifyGroceryDept } from '../../adapters/aiInfer'
 import { useLang } from '../../app/LangContext'
+import { MODAL_HANDOFF_MS } from '../../app/modalTiming'
 import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
 
 interface Props {
@@ -548,7 +549,7 @@ export default function GroceryComposeSheet({
                         onClose()
                         // Same iOS modal-handoff delay used by every
                         // sheet-to-sheet transition in this app.
-                        setTimeout(() => onOpenManageStore(), 280)
+                        setTimeout(() => onOpenManageStore(), MODAL_HANDOFF_MS)
                       }}
                       accessibilityRole="button"
                       accessibilityLabel="Add stores first — opens Shopping stores"

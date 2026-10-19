@@ -1,0 +1,275 @@
+// @vitest-environment happy-dom
+/**
+ * useDetailsRouter — opening the ONE details sheet from a row / reminder tap
+ * (SheetContext's routing, extracted so it's testable):
+ *   - nothing up → opens now; something presented → PARKED, then offered as a
+ *     `Reminder: “…” · Open` snackbar only once the screen is clear (a
+ *     snackbar shown under a presented Modal expired unseen)
+ *   - swap through details' own close path; a close that doesn't close parks
+ *   - account change drops the open, queued and parked requests + handoffs
+ */
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { renderHook, act } from '@testing-library/react'
+import { useDetailsRouter, type DetailsRouterDeps, DETAILS_OFFER_MS, PARK_POLL_MS } from '../app/useDetailsRouter'
+import { __resetModalPresenceForTests, useModalPresence } from '../app/modalPresence'
+import { MODAL_DISMISS_GRACE_MS, MODAL_HANDOFF_MS } from '../app/modalTiming'
+
+type Offer = Parameters<DetailsRouterDeps['showSnackbar']>[0]
+
+const TODOS: Record<string, { text: string }> = {
+  a: { text: 'Call mom' },
+  b: { text: 'Pay rent' },
+  c: { text: 'Water plants' },
+}
+
+function setup(initial: Partial<{ anySheetOpen: boolean; accountUid: string | null }> = {}) {
+  const offers: Offer[] = []
+  const showSnackbar = vi.fn((o: Offer) => {
+    offers.push(o)
+  })
+  const findTodo = (id: string) => TODOS[id]
+  const hook = renderHook(
+    (p: { anySheetOpen: boolean; accountUid: string | null }) =>
+      useDetailsRouter({ anySheetOpen: p.anySheetOpen, accountUid: p.accountUid, findTodo, showSnackbar }),
+    { initialProps: { anySheetOpen: false, accountUid: 'u1', ...initial } },
+  )
+  return { hook, offers, showSnackbar }
+}
+
+/** Long enough for any parked request to see a clear screen. */
+const settle = () => act(() => vi.advanceTimersByTime(MODAL_DISMISS_GRACE_MS + 3 * PARK_POLL_MS))
+
+describe('useDetailsRouter', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    __resetModalPresenceForTests()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('opens right away when nothing is up; a repeat tap is a no-op', () => {
+    const { hook, showSnackbar } = setup()
+    act(() => hook.result.current.openTaskDetails('a', 's1'))
+    expect(hook.result.current.detailsReq).toEqual({ id: 'a', subtaskId: 's1' })
+    act(() => hook.result.current.openTaskDetails('a'))
+    expect(hook.result.current.detailsReq).toEqual({ id: 'a', subtaskId: 's1' })
+    settle()
+    expect(showSnackbar).not.toHaveBeenCalled()
+  })
+
+  it('with a Modal presented: parks (no details, no snackbar yet), offers once clear', () => {
+    const { hook, offers } = setup()
+    const modal = renderHook(({ v }) => useModalPresence(v), { initialProps: { v: true } })
+    act(() => hook.result.current.openTaskDetails('a'))
+    expect(hook.result.current.detailsReq).toBeNull()
+    // Still presented a long while later: nothing shown (it would sit under it).
+    act(() => vi.advanceTimersByTime(60_000))
+    expect(offers).toEqual([])
+    // Dismissed: still nothing during the dismiss grace…
+    modal.rerender({ v: false })
+    act(() => vi.advanceTimersByTime(MODAL_DISMISS_GRACE_MS))
+    expect(offers).toEqual([])
+    // …then the calm offer, low priority (never clobbers a visible Undo).
+    settle()
+    expect(offers).toHaveLength(1)
+    expect(offers[0]).toMatchObject({
+      message: 'Reminder: “Call mom”',
+      actionLabel: 'Open',
+      durationMs: DETAILS_OFFER_MS,
+      queue: true,
+    })
+    // Open → the details sheet.
+    act(() => offers[0].onAction())
+    expect(hook.result.current.detailsReq).toEqual({ id: 'a', subtaskId: null })
+    settle()
+    expect(offers).toHaveLength(1)
+    modal.unmount()
+  })
+
+  it('a provider sheet open parks too; a newer reminder replaces the parked one', () => {
+    const { hook, offers } = setup({ anySheetOpen: true })
+    act(() => hook.result.current.openTaskDetails('a'))
+    act(() => hook.result.current.openTaskDetails('b'))
+    settle()
+    expect(offers).toEqual([])
+    hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+    settle()
+    expect(offers.map((o) => o.message)).toEqual(['Reminder: “Pay rent”'])
+  })
+
+  it('opening the parked to-do directly drops the offer', () => {
+    const { hook, offers } = setup({ anySheetOpen: true })
+    act(() => hook.result.current.openTaskDetails('a'))
+    hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+    act(() => hook.result.current.openTaskDetails('a'))
+    expect(hook.result.current.detailsReq?.id).toBe('a')
+    act(() => hook.result.current.closeTaskDetails())
+    settle()
+    expect(offers).toEqual([])
+  })
+
+  it('a to-do deleted while parked is never offered', () => {
+    const { hook, offers } = setup({ anySheetOpen: true })
+    act(() => hook.result.current.openTaskDetails('gone'))
+    hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+    settle()
+    expect(offers).toEqual([])
+  })
+
+  it('waits for details to close before offering (it renders over the snackbar)', () => {
+    const { hook, offers } = setup()
+    act(() => hook.result.current.openTaskDetails('a'))
+    // A picker is up inside details → can't swap: park.
+    const picker = renderHook(() => useModalPresence(true))
+    act(() => hook.result.current.openTaskDetails('b'))
+    expect(hook.result.current.detailsReq?.id).toBe('a')
+    picker.unmount()
+    settle()
+    // Details is still open on 'a' — the offer would sit under it.
+    expect(offers).toEqual([])
+    act(() => hook.result.current.closeTaskDetails())
+    settle()
+    expect(offers.map((o) => o.message)).toEqual(['Reminder: “Pay rent”'])
+  })
+
+  it('swap: closes details through its save path, then opens the new to-do', () => {
+    const { hook, offers } = setup()
+    act(() => hook.result.current.openTaskDetails('a'))
+    const close = vi.fn(() => hook.result.current.closeTaskDetails())
+    act(() => hook.result.current.registerDetailsClose(close))
+    act(() => hook.result.current.openTaskDetails('b'))
+    expect(close).toHaveBeenCalledTimes(1)
+    expect(hook.result.current.detailsReq).toBeNull()
+    act(() => vi.advanceTimersByTime(MODAL_HANDOFF_MS))
+    expect(hook.result.current.detailsReq?.id).toBe('b')
+    settle()
+    expect(offers).toEqual([])
+  })
+
+  it('swap whose close does not close (series confirm up) parks — nothing stays pending', () => {
+    const { hook, offers } = setup()
+    act(() => hook.result.current.openTaskDetails('a'))
+    act(() => hook.result.current.registerDetailsClose(() => {}))
+    act(() => hook.result.current.openTaskDetails('b'))
+    expect(hook.result.current.detailsReq?.id).toBe('a')
+    // The user cancels the confirm, keeps editing, then closes: 'b' must not
+    // pop open out of nowhere — it's offered instead.
+    act(() => hook.result.current.closeTaskDetails())
+    act(() => vi.advanceTimersByTime(MODAL_HANDOFF_MS))
+    expect(hook.result.current.detailsReq).toBeNull()
+    settle()
+    expect(offers.map((o) => o.message)).toEqual(['Reminder: “Pay rent”'])
+  })
+
+  it('without a registered close path, a swap just closes and opens the new one', () => {
+    const { hook } = setup()
+    act(() => hook.result.current.openTaskDetails('a'))
+    act(() => hook.result.current.registerDetailsClose(null))
+    act(() => hook.result.current.openTaskDetails('b'))
+    // setDetailsReq(null) without the onClose path: no queued swap.
+    expect(hook.result.current.detailsReq).toBeNull()
+  })
+
+  it('a queued swap re-plans after the handoff: a sheet opened meanwhile → parked', () => {
+    const { hook, offers } = setup()
+    act(() => hook.result.current.openTaskDetails('a'))
+    act(() => hook.result.current.registerDetailsClose(() => hook.result.current.closeTaskDetails()))
+    act(() => hook.result.current.openTaskDetails('b'))
+    hook.rerender({ anySheetOpen: true, accountUid: 'u1' })
+    act(() => vi.advanceTimersByTime(MODAL_HANDOFF_MS))
+    expect(hook.result.current.detailsReq).toBeNull()
+    hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+    settle()
+    expect(offers.map((o) => o.message)).toEqual(['Reminder: “Pay rent”'])
+  })
+
+  it('Open while something is still dismissing retries a few handoffs later', () => {
+    const { hook, offers } = setup({ anySheetOpen: true })
+    act(() => hook.result.current.openTaskDetails('a'))
+    hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+    settle()
+    expect(offers).toHaveLength(1)
+    const modal = renderHook(() => useModalPresence(true))
+    act(() => offers[0].onAction())
+    expect(hook.result.current.detailsReq).toBeNull()
+    modal.unmount()
+    act(() => vi.advanceTimersByTime(MODAL_DISMISS_GRACE_MS + MODAL_HANDOFF_MS))
+    expect(hook.result.current.detailsReq?.id).toBe('a')
+  })
+
+  it('Open gives up retrying after a while and parks the request again', () => {
+    const { hook, offers } = setup({ anySheetOpen: true })
+    act(() => hook.result.current.openTaskDetails('a'))
+    hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+    settle()
+    const modal = renderHook(() => useModalPresence(true))
+    act(() => offers[0].onAction())
+    act(() => vi.advanceTimersByTime(MODAL_HANDOFF_MS * 10))
+    expect(hook.result.current.detailsReq).toBeNull()
+    expect(offers).toHaveLength(1)
+    modal.unmount()
+    settle()
+    expect(offers).toHaveLength(2)
+  })
+
+  it('uid change clears the open sheet, a queued swap and a parked offer', () => {
+    const { hook, offers } = setup()
+    act(() => hook.result.current.openTaskDetails('a'))
+    act(() => hook.result.current.registerDetailsClose(() => hook.result.current.closeTaskDetails()))
+    // Swap queued (handoff pending)…
+    act(() => hook.result.current.openTaskDetails('b'))
+    // …and another one parked behind a modal.
+    const modal = renderHook(() => useModalPresence(true))
+    act(() => hook.result.current.openTaskDetails('c'))
+    hook.rerender({ anySheetOpen: false, accountUid: 'u2' })
+    modal.unmount()
+    act(() => vi.advanceTimersByTime(MODAL_HANDOFF_MS))
+    expect(hook.result.current.detailsReq).toBeNull()
+    settle()
+    expect(offers).toEqual([])
+  })
+
+  it('after a uid change, a later close never reopens the old account\'s to-do', () => {
+    const { hook } = setup()
+    act(() => hook.result.current.openTaskDetails('a'))
+    act(() => hook.result.current.registerDetailsClose(() => {}))
+    act(() => hook.result.current.openTaskDetails('b'))
+    hook.rerender({ anySheetOpen: false, accountUid: 'u2' })
+    act(() => hook.result.current.closeTaskDetails())
+    settle()
+    act(() => vi.advanceTimersByTime(MODAL_HANDOFF_MS))
+    expect(hook.result.current.detailsReq).toBeNull()
+  })
+
+  it('forgetDetails drops the sheet and a queued swap', () => {
+    const { hook } = setup()
+    act(() => hook.result.current.openTaskDetails('a'))
+    act(() => hook.result.current.forgetDetails())
+    expect(hook.result.current.detailsReq).toBeNull()
+  })
+
+  it('afterModalClose runs after the handoff; cancelHandoffs drops pending ones', () => {
+    const { hook } = setup()
+    const fn = vi.fn()
+    act(() => hook.result.current.afterModalClose(fn))
+    act(() => vi.advanceTimersByTime(MODAL_HANDOFF_MS - 1))
+    expect(fn).not.toHaveBeenCalled()
+    act(() => vi.advanceTimersByTime(1))
+    expect(fn).toHaveBeenCalledTimes(1)
+    const later = vi.fn()
+    act(() => hook.result.current.afterModalClose(later))
+    act(() => hook.result.current.cancelHandoffs())
+    act(() => vi.advanceTimersByTime(MODAL_HANDOFF_MS))
+    expect(later).not.toHaveBeenCalled()
+  })
+
+  it('unmount drops pending handoffs', () => {
+    const { hook } = setup()
+    const fn = vi.fn()
+    act(() => hook.result.current.afterModalClose(fn))
+    hook.unmount()
+    vi.advanceTimersByTime(MODAL_HANDOFF_MS)
+    expect(fn).not.toHaveBeenCalled()
+  })
+})
