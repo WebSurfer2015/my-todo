@@ -108,7 +108,7 @@ export const strings = {
     notDoChip: 'Skipped',
     editThisOnly: 'Edit this only',
     editSeries: 'Edit series',
-    detachedToast: 'Detached from series. Future series edits will skip this.',
+    detachedToast: "Saved for this one only. Changes to the whole repeat won't touch it.",
     undo: 'Undo',
     undoAll: 'Undo all',
     restoreTask: 'Reopen',
@@ -126,7 +126,7 @@ export const strings = {
     editCategory: 'Edit category',
     deleteCategoryAction: 'Delete',
     deleteCategoryConfirm: (name: string, _target: string, count: number) =>
-      `Delete "${name}"? All ${count} to-do${count !== 1 ? 's' : ''} in this category will move to Done. You can restore them within 30 days.`,
+      `Delete "${name}"? All ${count} to-do${count !== 1 ? 's' : ''} in this category will move to Done for 30 days. Repeating to-dos in it will stop repeating.`,
     deleteCategoryConfirmEmpty: (name: string) => `Delete "${name}"?`,
     cannotDeleteLast: 'You must keep at least one category.',
     categoryNameLabel: 'Name',
@@ -260,7 +260,7 @@ export const strings = {
     series: {
       trashedMany: (n: number): string => `${n} to-dos in this series tucked into Done.`,
       editsApplied: (n: number): string => `Applied to ${n} future to-do${n !== 1 ? 's' : ''} in this series.`,
-      editsNothing: 'Nothing to apply.',
+      editsNothing: 'Changes saved.',
       applyToFutureA11y: "Apply this to-do's text, priority, and category to every future to-do in this series",
       subtasksApplied: (n: number): string =>
         n === 0 ? 'Nothing to apply.' : `Steps applied to ${n} upcoming to-do${n !== 1 ? 's' : ''}.`,

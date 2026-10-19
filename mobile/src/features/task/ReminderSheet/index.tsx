@@ -26,7 +26,7 @@ import { useTheme } from '../../../app/theme'
 import type { Reminder } from '../../../core-bindings/types'
 import { genUuid } from '../../../../../core/src/logic/utils'
 import { dedupeReminders } from '../../../../../core/src/logic/derive'
-import { formatDateTime, isoLocalDateTime } from '../../../../../core/src/logic/labels'
+import { formatDateTime, isoLocalDateTime, timeOfDay } from '../../../../../core/src/logic/labels'
 import { makeStyles } from './styles'
 import AndroidDateFlow from '../../../ui/AndroidDateFlow'
 
@@ -98,14 +98,6 @@ function repeatingPillLabel(
   return t.remindPillEveryWeek(Math.round(minutes / 10080))
 }
 
-/** "9:00 AM" — time-of-day only. Used for a fixed reminder that lands on
- * the due date's day (esp. recurring todos, where the saved `at` rebases
- * per occurrence so the date is noise — only the time matters). */
-function timeOfDayLabel(at: string): string {
-  const d = new Date(at)
-  if (Number.isNaN(d.valueOf())) return at
-  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-}
 
 export interface ReminderSheetProps {
   /** Existing reminders on the todo (after getReminders normalization
@@ -235,7 +227,7 @@ export default function ReminderSheet({
         label: m
           ? beforeDuePillLabel(m.minutes, t)
           : recurs
-            ? `${timeOfDayLabel(r.at)} on the day`
+            ? `${timeOfDay(r.at)} on the day`
             : formatDateTime(r.at, { locale: t.locale }),
       })
     }

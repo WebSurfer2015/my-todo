@@ -420,12 +420,17 @@ export function todoRevert(prev: Todo[], snapshot: Todo): Todo[] {
  * hard-removes the old future occurrences) are re-inserted at their original
  * position. A row whose id is in both but was replaced — a regenerated
  * occurrence reusing its deterministic id — counts as changed, so it reverts
- * to the `before` version. Everything else in `prev` (later edits to OTHER
- * to-dos) is kept; a removed row that is somehow back in `prev` is left as is.
+ * to the `before` version.
+ *
+ * Only rows still exactly as the action left them are touched: an added or
+ * changed row that was edited since (completed, renamed, …) is kept as is —
+ * deleting or rewinding it would silently lose that later action. Rows a
+ * later action appended (not in `after`) are never touched, and a removed
+ * row whose id is back in `prev` is left as is.
  */
 export function todosRevertChanges(prev: Todo[], before: Todo[], after: Todo[]): Todo[] {
   const beforeById = new Map(before.map((td) => [td.id, td]));
-  const afterIds = new Set(after.map((td) => td.id));
+  const afterById = new Map(after.map((td) => [td.id, td]));
   const added = new Set<string>();
   const changed = new Map<string, Todo>();
   for (const td of after) {
@@ -434,15 +439,29 @@ export function todosRevertChanges(prev: Todo[], before: Todo[], after: Todo[]):
     else if (old !== td) changed.set(td.id, old);
   }
   const prevIds = new Set(prev.map((td) => td.id));
-  const removed = before.filter((td) => !afterIds.has(td.id) && !prevIds.has(td.id));
+  const removed = before.filter((td) => !afterById.has(td.id) && !prevIds.has(td.id));
   if (added.size === 0 && changed.size === 0 && removed.length === 0) return prev;
+  // Untouched since the action: the very object it produced, or (after a
+  // merge / remote snapshot rebuilt it) a deep-equal copy.
+  const untouched = (td: Todo) => {
+    const a = afterById.get(td.id);
+    return a !== undefined && (a === td || jsonEqual(a, td));
+  };
   const now = Date.now();
-  const out = prev
-    .filter((td) => !added.has(td.id))
-    .map((td) => {
-      const old = changed.get(td.id);
-      return old ? { ...old, updatedAt: now } : td;
-    });
+  let touched = removed.length > 0;
+  const out = prev.flatMap((td) => {
+    if (added.has(td.id) && untouched(td)) {
+      touched = true;
+      return [];
+    }
+    const old = changed.get(td.id);
+    if (old && untouched(td)) {
+      touched = true;
+      return [{ ...old, updatedAt: now }];
+    }
+    return [td];
+  });
+  if (!touched) return prev;
   if (removed.length === 0) return out;
   // Re-insert each removed row right after its nearest `before` predecessor
   // that is in the list (or at the front when none is).
@@ -458,6 +477,22 @@ export function todosRevertChanges(prev: Todo[], before: Todo[], after: Todo[]):
     if (at !== -1) lastPos = at;
   }
   return out;
+}
+
+/** Structural equality for plain JSON data (key order-insensitive). */
+function jsonEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) {
+    const bb = b as unknown[];
+    return a.length === bb.length && a.every((v, i) => jsonEqual(v, bb[i]));
+  }
+  const ao = a as Record<string, unknown>;
+  const bo = b as Record<string, unknown>;
+  const ak = Object.keys(ao).filter((k) => ao[k] !== undefined);
+  const bk = Object.keys(bo).filter((k) => bo[k] !== undefined);
+  return ak.length === bk.length && ak.every((k) => jsonEqual(ao[k], bo[k]));
 }
 
 export function subtaskAdd(
@@ -1338,10 +1373,16 @@ export function topUpSeries(
   const anchor = currentRuleAnchorDay(members, rec);
   const additions: Todo[] = [];
   const taken = new Set(todos.map((t) => t.id));
+  const settled = settledSeriesDays(todos, seriesId);
   // A lapsed series resumes at today — no flood of back-filled overdue rows.
   let cursor = firstOccurrenceFrom(latest, dueDateOnly(todayISO), rec, anchor);
   let guard = 0;
   while (cursor <= hardEnd && guard < MAX_RECURRENCE_INSTANCES) {
+    if (settled.has(cursor)) {
+      cursor = nextOccurrence(cursor, rec.freq, interval, rec.byWeekday, rec.bySetPos, anchor);
+      guard += 1;
+      continue;
+    }
     const instDue = cursor + timeSuffix;
     const id = seriesInstanceId(seriesId, cursor, taken);
     taken.add(id);
@@ -1369,6 +1410,23 @@ export function topUpSeries(
   }
   if (additions.length === 0) return todos;
   return [...todos, ...additions];
+}
+
+/**
+ * Days of `seriesId` the user already settled (done / skipped) on a row that
+ * still holds that day's generated id — typically a former member that left
+ * the series as a one-off when its end was shortened or its rule changed.
+ * Minting that day again would add a `_2` duplicate next to it.
+ */
+function settledSeriesDays(todos: Todo[], seriesId: string): Set<string> {
+  const days = new Set<string>();
+  const prefix = `${seriesId}_`;
+  for (const td of todos) {
+    if (!td.id.startsWith(prefix) || !(td.done || td.status === "notDo")) continue;
+    const day = dueDateOnly(td.dueDate);
+    if (day && isGeneratedSeriesRow({ ...td, seriesId })) days.add(day);
+  }
+  return days;
 }
 
 /**
@@ -1599,7 +1657,9 @@ function transferSeriesReminders(
  * For series instances (those with `seriesId`), Skip also appends
  * one fresh tail via `appendNextSeriesInstance` so the user always
  * has the next occurrence queued — the same horizon-stability
- * promise R3 made for completion.
+ * promise R3 made for completion — and, like completion, only while the
+ * series still owes one (seriesOwesTail), so re-skipping a restored row
+ * doesn't append again.
  *
  * Pebble-neutral: `pebbleDelta` only fires on `done` flipping, which
  * Skip doesn't cause.
@@ -1638,7 +1698,11 @@ export function todoSkip(prev: Todo[], id: string, todayISO?: string): Todo[] {
     return next;
   });
   if (target.seriesId) {
-    result = appendNextSeriesInstance(result, target.seriesId, todayISO);
+    // Same "1 settle = 1 new tail" accounting as completion, so skip →
+    // restore → skip cycles don't grow the series.
+    if (seriesOwesTail(result, target, today)) {
+      result = appendNextSeriesInstance(result, target.seriesId, todayISO);
+    }
     if (oldReminders.length > 0) {
       result = transferSeriesReminders(
         result, id, oldReminders, oldDueDate, target.seriesId, today,

@@ -30,6 +30,7 @@ import { ChevronRight, Calendar } from 'lucide-react-native'
 import { useTheme, ThemeColors } from '../../app/theme'
 import { useLang } from '../../app/LangContext'
 import { isoDate } from '../../core-bindings/utils'
+import { weekdayDate } from '../../../../core/src/logic/labels'
 import SheetShell from '../../ui/SheetShell'
 
 interface Props {
@@ -224,12 +225,7 @@ export function deferPresets(
  * ("Tomorrow", "In a week"), so the hint stays purely calendrical.
  */
 function formatTargetDate(d: Date, locale?: string): string {
-  return d.toLocaleDateString(locale, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    ...(d.getFullYear() === new Date().getFullYear() ? {} : { year: 'numeric' }),
-  })
+  return weekdayDate(d, { locale })
 }
 
 function makeStyles(c: ThemeColors) {

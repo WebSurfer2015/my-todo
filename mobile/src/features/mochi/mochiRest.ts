@@ -10,6 +10,7 @@
  * state) — a cold launch simply re-learns it from the server's next "no".
  */
 import { mochiRestEndsAt } from '../../../../core/src/logic/mochiFallback'
+import { timeOfDay } from '../../../../core/src/logic/labels'
 
 /** 'all' = the shared cap (every AI surface pauses); 'chat' = only the
  * chat's own ceilings (server details.reason 'turns' or 'tier') — field
@@ -59,7 +60,7 @@ export function __resetForTests(): void {
  * day — the same label in the chat and the suggest-steps note. */
 export function mochiRestLabel(untilMs: number, now: Date = new Date()): string {
   const d = new Date(untilMs)
-  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+  const time = timeOfDay(d)
   return d.toDateString() === now.toDateString() ? time : `tomorrow at ${time}`
 }
 
