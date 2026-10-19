@@ -170,6 +170,8 @@ export interface TodosSlice {
     dueDate?: string,
   ) => void;
   toggleSubtask: (id: string, subId: string) => void;
+  /** Put a to-do back exactly as `snapshot` (the edit/completion Undo). */
+  revertTodo: (snapshot: Todo) => void;
   updateSubtaskText: (id: string, subId: string, text: string) => void;
   updateSubtaskPriority: (id: string, subId: string, priority: Priority) => void;
   updateSubtaskDueDate: (id: string, subId: string, dueDate: string) => void;
@@ -328,6 +330,11 @@ export function useTodosSlice(
       }
     },
     [setTodos, toggleOutcome, filterRef, todoToggle, todoRevert, setTodoReferences, recordTodoReference, notify, t],
+  );
+
+  const revertTodo = useCallback(
+    (snapshot: Todo) => setTodos((prev) => todoRevert(prev, snapshot)),
+    [setTodos, todoRevert],
   );
 
   const restoreFromTrash = useCallback(
@@ -800,6 +807,7 @@ export function useTodosSlice(
     selectedTrashIds,
     todosRef,
     toggle,
+    revertTodo,
     moveToTrash,
     skipTodo,
     skipSeriesFuture,

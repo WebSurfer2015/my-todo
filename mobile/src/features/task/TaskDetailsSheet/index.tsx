@@ -48,6 +48,7 @@ import { sortedSubs, snapDueDateToRecurrence } from '../../../../../core/src/log
 import { useTheme } from '../../../app/theme'
 import { useLang } from '../../../app/LangContext'
 import { useNotify } from '../../../app/notify'
+import { useStore } from '../../../app/StoreContext'
 import PriorityDot from '../../../ui/PriorityDot'
 import CheckGlyph from '../../../ui/CheckGlyph'
 import CategoryIcon from '../../../ui/CategoryIcon'
@@ -278,6 +279,13 @@ interface Props {
   agentEnabled?: boolean
 }
 
+/** Did the to-do's content change (ignoring the updatedAt stamp)? */
+function todoContentDiffers(a: Todo, b: Todo): boolean {
+  const { updatedAt: _a, ...restA } = a
+  const { updatedAt: _b, ...restB } = b
+  return JSON.stringify(restA) !== JSON.stringify(restB)
+}
+
 export default function TaskDetailsSheet({
   visible, todo, categories, initialSubtaskEditId, onClose, onUpdateText, onUpdateNotes,
   onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminders, onMoveToTrash, onPermanentDelete, onMoveSeriesFutureToTrash, onSkip, onSkipSeries, onPermanentDeleteSeries, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange, onApplySeriesSubtasks,
@@ -288,6 +296,7 @@ export default function TaskDetailsSheet({
   const { t } = useLang()
   const theme = useTheme()
   const notify = useNotify()
+  const store = useStore()
   const styles = useMemo(() => makeStyles(theme), [theme])
   // Swipe-the-grabber-down to dismiss. confirmsClose: closeAndFlushText may pop
   // a series-edit dialog before closing, so settle back rather than slide off.
@@ -382,20 +391,10 @@ export default function TaskDetailsSheet({
   const [editReminders, setEditReminders] = useState<Reminder[]>(() =>
     getReminders(todo),
   )
-  // True-Cancel snapshot. Captured when the sheet OPENS, before any
-  // auto-save fires. closeWithoutFlush (the header "Cancel") reverts
-  // every auto-saved field back to these values via the same store
-  // callbacks they were set with. Mirrors the step-editor's
-  // editSubOriginal snapshot+revert pattern, one level up.
-  const editOriginalRef = useRef<{
-    text: string
-    notes: string
-    priority: Priority
-    category: Category | undefined
-    dueDate: string
-    recurrence: Recurrence | undefined
-    reminders: Reminder[]
-  } | null>(null)
+  // Entry snapshot, captured when the sheet OPENS (before any auto-save).
+  // One commit model: every field saves as you edit; closing shows
+  // "Changes saved · Undo", and Undo restores this snapshot.
+  const entryTodoRef = useRef<Todo | null>(null)
   // (Pending pickerDate / pendingRemindAt / Interval / Until and
   // remindSubView removed — the redesigned ReminderSubView owns
   // its own chip-selection state and returns the built reminder
@@ -442,17 +441,7 @@ export default function TaskDetailsSheet({
       setEditDueDate(todo.dueDate ?? '')
       setEditRecurrence(todo.recurrence)
       setEditReminders(getReminders(todo))
-      // Capture the True-Cancel snapshot before any picker auto-save
-      // can mutate the live todo this session.
-      editOriginalRef.current = {
-        text: todo.text,
-        notes: todo.notes ?? '',
-        priority: todo.priority,
-        category: todo.category,
-        dueDate: todo.dueDate ?? '',
-        recurrence: todo.recurrence,
-        reminders: getReminders(todo),
-      }
+      entryTodoRef.current = todo
       setParentEditView('main')
       // Honor an opener-provided "open into subtask edit" intent. If the
       // caller passed a subtask id, jump straight into its edit form.
@@ -606,13 +595,12 @@ export default function TaskDetailsSheet({
     onUpdateReminders?.(todo.id, next)
   }
   function closeAndFlushText() {
-    // "Save" path. In "this only" mode this is a final flush for
-    // text + notes (other fields auto-save on pick). In "Edit
-    // series" mode every series-eligible field has been buffered
-    // locally — Save is the commit point: write changed fields to
-    // this row, then propagate to all future siblings via
-    // applySeriesFutureEdits. Cancel / scrim-tap routes through
-    // closeWithoutFlush which drops the buffer.
+    // The ONE close path (Done, scrim tap, Android back). In "this only"
+    // mode this is a final flush for text + notes (other fields auto-save
+    // on pick), then "Changes saved · Undo". In "Edit series" mode every
+    // series-eligible field has been buffered locally — closing is the
+    // commit point: write changed fields to this row, then propagate to
+    // all future siblings via applySeriesFutureEdits (with its dialogs).
     const seriesCommit = editMode === 'series' && isSeriesRow
     const trimmedText = editText.trim()
     const textChanged = !!trimmedText && trimmedText !== todo.text
@@ -720,44 +708,14 @@ export default function TaskDetailsSheet({
     } else {
       applyText(editText)
       applyNotes(editNotes)
-    }
-    onClose()
-  }
-  function closeWithoutFlush() {
-    // "Cancel" path — a TRUE cancel. Every editable field on this sheet
-    // auto-saves on selection (priority, due date, category, recurrence,
-    // reminders) or on blur (title, notes); Cancel reverts all of them
-    // to the snapshot captured when the sheet opened, then closes.
-    const orig = editOriginalRef.current
-    if (orig) {
-      // Title + notes: revert unconditionally. A just-fired onBlur may
-      // have dispatched in-progress text that isn't visible in `todo`
-      // synchronously here, so a compare-guard could miss it. Empty-
-      // title guard matches applyText (never write an empty title).
-      if (orig.text.trim()) onUpdateText(todo.id, orig.text)
-      onUpdateNotes?.(todo.id, orig.notes)
-      // Picker fields commit synchronously on pick, so `todo` already
-      // reflects any change — compare and revert only what moved, via
-      // the SAME store callbacks they were set with.
-      if (orig.priority !== todo.priority) {
-        onUpdatePriority(todo.id, orig.priority)
-      }
-      // Reverting to "no category" can't be expressed (onUpdateCategory
-      // takes a Category) — restore only when the snapshot had one.
-      if (orig.category !== todo.category && orig.category !== undefined) {
-        onUpdateCategory(todo.id, orig.category)
-      }
-      if (orig.dueDate !== (todo.dueDate ?? '')) {
-        onUpdateDueDate(todo.id, orig.dueDate)
-      }
-      if (
-        JSON.stringify(orig.recurrence ?? null) !==
-        JSON.stringify(todo.recurrence ?? null)
-      ) {
-        onUpdateRecurrence(todo.id, orig.recurrence)
-      }
-      if (JSON.stringify(orig.reminders) !== JSON.stringify(getReminders(todo))) {
-        onUpdateReminders?.(todo.id, orig.reminders)
+      // Series rows confirm via their own dialog; single to-dos get Undo.
+      const snapshot = entryTodoRef.current
+      if (snapshot && (textChanged || notesChanged || todoContentDiffers(snapshot, todo))) {
+        notify.showSnackbar({
+          message: t.changesSaved,
+          actionLabel: t.undo,
+          onAction: () => store.revertTodo(snapshot),
+        })
       }
     }
     onClose()
@@ -1288,13 +1246,20 @@ export default function TaskDetailsSheet({
           ) : (
           <>
           <View style={styles.editHeader}>
-            <TouchableOpacity onPress={closeWithoutFlush} hitSlop={10} style={styles.headerSideBtn}>
-              <Text style={styles.cancelHeaderText}>{t.cancel}</Text>
-            </TouchableOpacity>
-            <Text style={styles.editHeaderTitle}>{t.edit.toDo}</Text>
-            {/* All commit/destructive actions live at the bottom now; this
-                spacer keeps the title centered against the Cancel button. */}
+            {/* Spacer keeps the title centered against Done. */}
             <View style={styles.headerSideBtn} />
+            <Text style={styles.editHeaderTitle}>{t.edit.toDo}</Text>
+            {/* Done = close; every field already saved as you edited
+                (Undo appears in the toast). */}
+            <TouchableOpacity
+              onPress={closeAndFlushText}
+              hitSlop={10}
+              style={styles.headerSideBtn}
+              accessibilityRole="button"
+              accessibilityLabel={t.done}
+            >
+              <Text style={styles.dateDoneBtnText}>{t.done}</Text>
+            </TouchableOpacity>
           </View>
 
           {/* R6a — Edit-scope toggle. Only renders for series rows.
@@ -1692,17 +1657,6 @@ export default function TaskDetailsSheet({
             {/* Sticky footer — actions pinned to the bottom; the fields +
                 STEPS above scroll independently. */}
             <View style={styles.stickyFooter}>
-              {/* Primary action — Save. */}
-              <TouchableOpacity
-                style={styles.primarySaveBtn}
-                onPress={closeAndFlushText}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel={t.save}
-              >
-                <Text style={styles.primarySaveBtnText}>{t.save}</Text>
-              </TouchableOpacity>
-
               {/* Action row — Delete · Skip · Mark done. In "Edit series"
                   mode these apply to this + all future occurrences
                   ("Delete series" / "Skip all" / "Mark all done"). */}

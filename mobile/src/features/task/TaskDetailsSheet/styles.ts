@@ -215,12 +215,6 @@ export function makeStyles(c: ThemeColors) {
     saveHeaderTextDisabled: {
       color: c.gray3,
     },
-    cancelHeaderText: {
-      fontSize: TYPE.body,
-      fontWeight: '500',
-      color: c.label2,
-      textAlign: 'left',
-    },
     /* R6a — Edit-scope segmented control (series rows only) */
     editModeWrap: {
       paddingHorizontal: SPACING.xs,
@@ -639,21 +633,6 @@ export function makeStyles(c: ThemeColors) {
       paddingBottom: SPACING.lg,
     },
     // Primary commit button — Save moved here from the header.
-    primarySaveBtn: {
-      backgroundColor: c.primary,
-      borderRadius: 14,
-      paddingVertical: SPACING.lg,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginTop: SPACING.lg,
-      marginHorizontal: SPACING.xs,
-    },
-    primarySaveBtnText: {
-      color: c.primaryOn,
-      fontSize: TYPE.bodyLg,
-      fontWeight: '700',
-      letterSpacing: -0.2,
-    },
     // Disabled field row (e.g. Repeat in "Edit this only").
     editFieldRowDisabled: {
       opacity: 0.4,
