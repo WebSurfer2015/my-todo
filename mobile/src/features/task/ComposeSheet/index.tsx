@@ -218,12 +218,14 @@ export default function ComposeSheet({
   // attached when the user taps Add).
   const stepsAi = useSuggestSteps({ parentTitle: text, parentNotes: '' })
 
-  // Reset stepsAi state when the sheet opens so suggestions from a
-  // prior compose session don't bleed into the new one.
-  useEffect(() => {
-    if (visible) stepsAi.reset()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible])
+  // The AI hooks return fresh function identities every render; mirror the
+  // two the open effect calls so it only re-runs on its real triggers.
+  const aiHandlesRef = useRef({ markApplied: ai.markApplied, resetSteps: stepsAi.reset })
+  aiHandlesRef.current = { markApplied: ai.markApplied, resetSteps: stepsAi.reset }
+
+  // Quick-pick dates for the When page — recomputed per open so a sheet
+  // left mounted past midnight stays right.
+  const [presetDates, setPresetDates] = useState(() => duePresetDates())
 
   // Suggestion list — once the user has typed ≥3 chars, surface any
   // historic completions (deduplicated by lowercased text, sorted by
@@ -298,6 +300,9 @@ export default function ComposeSheet({
     wasVisibleRef.current = visible
     if (opening) {
       setSubView('main')
+      setPresetDates(duePresetDates())
+      // Suggestions from a prior compose session must not bleed into this one.
+      aiHandlesRef.current.resetSteps()
       if (prefill) {
         // Opened from Ask Mochi → fill every blank from the chat's proposal
         // and run the SAME dueDate snap a manual recurrence pick does (so a
@@ -319,7 +324,7 @@ export default function ComposeSheet({
         setDatePanelOpen(false)
         setPendingSubtasks([])
         setAppliedTextLower(prefill.text.trim().toLowerCase())
-        ai.markApplied(prefill.text)
+        aiHandlesRef.current.markApplied(prefill.text)
         setPendingFreq(null)
         return
       }
@@ -340,13 +345,9 @@ export default function ComposeSheet({
       const id = setTimeout(() => inputRef.current?.focus(), 120)
       return () => clearTimeout(id)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, defaultCategory, prefill, startsToday])
 
   const activeCat = categories.find((c) => c.id === category) ?? categories[0]
-  // Recomputed per open so a sheet left open past midnight stays right.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const presetDates = useMemo(() => duePresetDates(), [visible])
   const canSubmit = text.trim().length > 0 && !!activeCat
 
   function submit() {

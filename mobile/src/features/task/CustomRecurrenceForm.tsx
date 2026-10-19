@@ -28,7 +28,7 @@ export default function CustomRecurrenceForm({ initial, onDone, onBack }: Props)
   const styles = useMemo(() => makeStyles(theme), [theme])
 
   const [freq, setFreq] = useState<RecurrenceFreq>(initial?.freq ?? 'weekly')
-  const [interval, setInterval] = useState<number>(
+  const [interval, setIntervalCount] = useState<number>(
     Math.max(1, Math.min(99, Math.floor(initial?.interval ?? 1))),
   )
   const [weekdays, setWeekdays] = useState<Set<number>>(() => new Set(initial?.byWeekday ?? []))
@@ -36,7 +36,7 @@ export default function CustomRecurrenceForm({ initial, onDone, onBack }: Props)
 
   useEffect(() => {
     setFreq(initial?.freq ?? 'weekly')
-    setInterval(Math.max(1, Math.min(99, Math.floor(initial?.interval ?? 1))))
+    setIntervalCount(Math.max(1, Math.min(99, Math.floor(initial?.interval ?? 1))))
     setWeekdays(new Set(initial?.byWeekday ?? []))
     setPositions(new Set(initial?.bySetPos ?? []))
   }, [initial])
@@ -109,7 +109,7 @@ export default function CustomRecurrenceForm({ initial, onDone, onBack }: Props)
             <TouchableOpacity
               style={[styles.stepBtn, interval <= 1 && styles.stepBtnDisabled]}
               hitSlop={8}
-              onPress={() => setInterval((n) => Math.max(1, n - 1))}
+              onPress={() => setIntervalCount((n) => Math.max(1, n - 1))}
               disabled={interval <= 1}
               accessibilityRole="button"
               accessibilityLabel="Decrease interval"
@@ -120,7 +120,7 @@ export default function CustomRecurrenceForm({ initial, onDone, onBack }: Props)
             <TouchableOpacity
               style={[styles.stepBtn, interval >= 99 && styles.stepBtnDisabled]}
               hitSlop={8}
-              onPress={() => setInterval((n) => Math.min(99, n + 1))}
+              onPress={() => setIntervalCount((n) => Math.min(99, n + 1))}
               disabled={interval >= 99}
               accessibilityRole="button"
               accessibilityLabel="Increase interval"

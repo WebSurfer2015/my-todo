@@ -148,13 +148,11 @@ export default function HomeScreen() {
     setNextGroupKey(next)
   }, [nextGroupKey, firstAvailableNextKey, groupsByKey])
 
-  // Effective tiles come from the store (defaults to Home/Work/Done when
-  // the user hasn't customized). Computed there so the Manage Filter
-  // badges stay in sync with what the Home tiles actually render.
   // Pass-through render of TaskItem for each row, so Home inherits the
-  // unified tap/long-press/swipe model and the embedded TaskDetailsSheet
-  // for free. The only Home-local state is the single-todo Defer modal
-  // — TaskItem's onLongPressDefer prop bubbles up here.
+  // unified tap/long-press/swipe model; a row tap opens the details sheet
+  // hosted once in SheetContext (via TaskDetailsOpenContext). The only
+  // Home-local state is the single-todo Defer modal — TaskItem's
+  // onLongPressDefer prop bubbles up here.
   const celebrate = store.animationOn
   const playSound = store.profile.completionSound !== false
 
@@ -164,8 +162,7 @@ export default function HomeScreen() {
   }, [])
 
   // Shared row renderer for the Home today/carried-over groups — keeps
-  // the long TaskItem prop list in one place (and wires the series
-  // skip/delete handlers the embedded TaskDetailsSheet needs).
+  // the long TaskItem prop list in one place.
   const renderRow = (td: Todo) => (
     <TaskItem
       key={td.id}
