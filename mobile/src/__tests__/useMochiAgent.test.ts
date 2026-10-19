@@ -49,9 +49,21 @@ describe('useMochiAgent', () => {
     await act(async () => {
       res = await result.current.send('call mom', CTX as never)
     })
-    expect(res).toEqual({ ok: false, error: 'quota' })
+    expect(res).toEqual({ ok: false, error: 'quota', chatOnly: false })
     expect(result.current.errorKind).toBe('quota')
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('the chat-only turn backstop (details.reason "turns") is flagged chatOnly', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({ error: { status: 'RESOURCE_EXHAUSTED', message: 'resting', details: { reason: 'turns' } } }, 429),
+    )
+    const { result } = renderHook(() => useMochiAgent())
+    let res: { ok: boolean; error?: string; chatOnly?: boolean } | undefined
+    await act(async () => {
+      res = await result.current.send('call mom', CTX as never)
+    })
+    expect(res).toEqual({ ok: false, error: 'quota', chatOnly: true })
   })
 
   it('transient 429 then quota 429 on the retry → still quota (graceful fallback)', async () => {
