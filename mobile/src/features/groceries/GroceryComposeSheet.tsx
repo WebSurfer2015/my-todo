@@ -551,7 +551,7 @@ export default function GroceryComposeSheet({
                         setTimeout(() => onOpenManageStore(), 280)
                       }}
                       accessibilityRole="button"
-                      accessibilityLabel="Add stores first — opens Manage Store"
+                      accessibilityLabel="Add stores first — opens Shopping stores"
                     >
                       <Text style={styles.noStoresHintText}>
                         Add stores first to organize this item ›

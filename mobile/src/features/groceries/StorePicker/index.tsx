@@ -236,7 +236,7 @@ export default function StorePicker({
       onClose={closeAndReset}
       scroll={false}
       padded={false}
-      title={editing ? "Manage Store" : "Select Store"}
+      title={editing ? "Shopping stores" : "Select store"}
       primary={{ label: t.done, onPress: closeAndReset }}
     >
         <ScrollView

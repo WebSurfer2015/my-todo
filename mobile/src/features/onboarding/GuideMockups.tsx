@@ -11,7 +11,7 @@
 
 import React from 'react'
 import { StyleSheet, Text, View } from 'react-native'
-import { Bell, Calendar, Plus, Repeat, ShoppingBag, Sparkles, Tag } from 'lucide-react-native'
+import { Bell, Calendar, Repeat, ShoppingBag, Sparkles, Tag } from 'lucide-react-native'
 import { RADIUS, SPACING, TYPE, useTheme, ThemeColors } from '../../app/theme'
 
 interface SheetProps {
@@ -85,33 +85,6 @@ export function MockupPills({ pills, highlight }: PillsProps) {
   )
 }
 
-interface ChipsProps {
-  chips: string[]
-  activeIndex?: number
-  highlight?: boolean
-}
-
-/** Interval-style chip row (None, 15m, 30m, 1h, 2h…). */
-export function MockupChips({ chips, activeIndex, highlight }: ChipsProps) {
-  const theme = useTheme()
-  const s = chipStyles(theme, !!highlight)
-  return (
-    <View style={s.wrap}>
-      <Text style={s.label}>Repeat every</Text>
-      <View style={s.row}>
-        {chips.map((c, i) => {
-          const active = i === activeIndex
-          return (
-            <View key={i} style={[s.chip, active && s.chipActive]}>
-              <Text style={[s.chipText, active && s.chipTextActive]}>{c}</Text>
-            </View>
-          )
-        })}
-      </View>
-    </View>
-  )
-}
-
 interface TodoProps {
   text: string
   done?: boolean
@@ -156,14 +129,6 @@ export function MockupTextField({ text, placeholder }: TextFieldProps) {
   )
 }
 
-/** Wraps any child with a highlight ring + soft glow. Use when a
- * primitive doesn't accept `highlight` (e.g., a whole stack). */
-export function MockupHighlight({ children }: { children: React.ReactNode }) {
-  const theme = useTheme()
-  const s = highlightStyles(theme)
-  return <View style={s.wrap}>{children}</View>
-}
-
 // ── Icon helpers (small lucide wrappers so guides.tsx stays terse)
 
 export function IconCalendar() {
@@ -181,10 +146,6 @@ export function IconBell() {
 export function IconRepeat() {
   const theme = useTheme()
   return <Repeat size={14} color={theme.blue} strokeWidth={2} />
-}
-export function IconPlus() {
-  const theme = useTheme()
-  return <Plus size={11} color={theme.primary} strokeWidth={2.4} />
 }
 export function IconStore() {
   const theme = useTheme()
@@ -277,30 +238,6 @@ function pillsStyles(c: ThemeColors, highlight: boolean) {
   })
 }
 
-function chipStyles(c: ThemeColors, highlight: boolean) {
-  return StyleSheet.create({
-    wrap: {
-      gap: SPACING.sm,
-      paddingHorizontal: SPACING.sm,
-      paddingVertical: SPACING.sm,
-      borderRadius: RADIUS.control,
-      borderWidth: highlight ? 2 : 0,
-      borderColor: highlight ? c.primary : 'transparent',
-    },
-    label: { fontSize: TYPE.caption, color: c.label2, fontWeight: '600' },
-    row: { flexDirection: 'row', gap: SPACING.sm, flexWrap: 'wrap' },
-    chip: {
-      paddingHorizontal: SPACING.sm,
-      paddingVertical: SPACING.xs,
-      borderRadius: RADIUS.pill,
-      backgroundColor: c.primarySoft,
-    },
-    chipActive: { backgroundColor: c.primary },
-    chipText: { fontSize: TYPE.caption, fontWeight: '600', color: c.primary },
-    chipTextActive: { color: c.primaryOn },
-  })
-}
-
 function todoStyles(c: ThemeColors, highlight: boolean) {
   return StyleSheet.create({
     row: {
@@ -341,13 +278,3 @@ function textFieldStyles(c: ThemeColors) {
   })
 }
 
-function highlightStyles(c: ThemeColors) {
-  return StyleSheet.create({
-    wrap: {
-      borderWidth: 2,
-      borderColor: c.primary,
-      borderRadius: 12,
-      padding: SPACING.xs,
-    },
-  })
-}

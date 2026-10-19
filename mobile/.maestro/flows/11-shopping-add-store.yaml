@@ -1,5 +1,5 @@
 # Flow 11 — Open the store manager (Shopping gear → Settings → "Shopping
-# stores"; the sheet it opens is still titled "Manage Store")
+# stores"; the sheet it opens is titled "Shopping stores")
 # and verify the store-management sheet renders with the "+ Add store"
 # affordance and the existing stores as individually-addressable rows.
 # (v1.5 routed Manage Store through the Settings sheet; the gear no longer
@@ -24,5 +24,5 @@ appId: com.websurfer.mytodo
 # (post-#15). The "+ Add store" footer lives in the DraggableFlatList's
 # ListFooterComponent, which iOS still swallows into the list's a11y node,
 # so we assert the title + a known seeded store row instead.
-- assertVisible: ".*Manage Store.*"
+- assertVisible: ".*Shopping stores.*"
 - assertVisible: ".*Costco.*"
