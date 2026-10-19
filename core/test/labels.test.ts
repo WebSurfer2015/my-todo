@@ -101,8 +101,12 @@ describe('formatDateTime', () => {
   it('returns unparseable input unchanged', () => {
     expect(formatDateTime('not a date', EN)).toBe('not a date')
   })
-  it('works with default options', () => {
-    expect(typeof formatDateTime('2026-06-07T09:00')).toBe('string')
+  it('works with default options (runtime locale, this year → no year)', () => {
+    const year = new Date().getFullYear()
+    const d = new Date(`${year}-06-07T09:00`)
+    const want = `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+    expect(formatDateTime(`${year}-06-07T09:00`)).toBe(want)
+    expect(formatDateTime(`${year}-06-07T09:00`)).not.toContain(String(year))
   })
 })
 

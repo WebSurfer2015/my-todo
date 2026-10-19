@@ -24,7 +24,7 @@ function dailySeed(): Todo {
 }
 
 describe('todoApplyRecurrenceChange — Recreate all', () => {
-  it('trashes future siblings and re-expands with new freq', () => {
+  it('replaces (removes) future siblings and re-expands with new freq', () => {
     const expanded = expandSeries(dailySeed(), '2026-05-28')
     const headId = expanded[0].id
     const result = todoApplyRecurrenceChange(
@@ -35,11 +35,11 @@ describe('todoApplyRecurrenceChange — Recreate all', () => {
       { keepDetached: false },
     )
     expect(result.trashedCount).toBe(expanded.length - 1)
-    // Original future siblings should be trashed.
-    for (const orig of expanded.slice(1)) {
-      const after = result.next.find((t) => t.id === orig.id)!
-      expect(after.trashed).toBe(true)
-    }
+    // Original future siblings are gone — no old-rule (daily) row remains.
+    // (A new weekly row may reuse an old row's deterministic id, e.g. the
+    // 06-04 occurrence, so check by rule, not by id.)
+    expect(result.next.filter((t) => t.recurrence?.freq === 'daily')).toEqual([])
+    expect(result.next.some((t) => expanded.slice(1).includes(t))).toBe(false)
     // Target now carries the new recurrence.
     const head = result.next.find((t) => t.id === headId)!
     expect(head.recurrence?.freq).toBe('weekly')
@@ -68,8 +68,8 @@ describe('todoApplyRecurrenceChange — Recreate all', () => {
       '2026-05-28',
       { keepDetached: false },
     )
-    const detachedAfter = result.next.find((t) => t.id === expanded[2].id)!
-    expect(detachedAfter.trashed).toBe(true)
+    expect(result.next.find((t) => t.id === expanded[2].id)).toBeUndefined()
+    expect(result.trashedCount).toBe(expanded.length - 1)
   })
 })
 
@@ -87,13 +87,13 @@ describe('todoApplyRecurrenceChange — Keep modified', () => {
     )
     const detachedAfter = result.next.find((t) => t.id === expanded[2].id)!
     expect(detachedAfter.trashed).toBe(false)
-    expect(detachedAfter.detachedFromSeries).toBe(true)
-    // Non-detached future siblings still got trashed.
+    // Kept as a plain one-off: out of the series so it can't skew the tail.
+    expect(detachedAfter.seriesId).toBeUndefined()
+    expect(detachedAfter.recurrence).toBeUndefined()
+    expect(detachedAfter.text).toBe(expanded[2].text)
+    // Non-detached future siblings are removed (replaced).
     const nonDetachedSiblings = expanded.slice(1).filter((_, i) => i + 1 !== 2)
-    for (const orig of nonDetachedSiblings) {
-      const after = result.next.find((t) => t.id === orig.id)!
-      expect(after.trashed).toBe(true)
-    }
+    expect(result.next.some((t) => nonDetachedSiblings.includes(t))).toBe(false)
     // trashedCount reflects only the non-detached ones.
     expect(result.trashedCount).toBe(nonDetachedSiblings.length)
   })

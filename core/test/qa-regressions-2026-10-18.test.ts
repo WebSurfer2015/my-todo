@@ -80,10 +80,19 @@ describe("completing a series instance doesn't duplicate reminders", () => {
   it("next instance keeps exactly one reminder per time", () => {
     let ts = expandSeries(seed({ dueDate: "2026-05-28T09:00", reminders: [{ id: "r1", at: "2026-05-28T08:00" }] }), "2026-05-28");
     ts = todoToggle(ts, ts[0].id, "2026-05-28");
-    for (const t of open(ts)) {
+    const live = open(ts);
+    // Not vacuous: the series still has open rows, each carrying reminders.
+    expect(live.length).toBeGreaterThan(0);
+    for (const t of live) {
       const ats = (t.reminders ?? []).map((r) => r.at);
+      expect(ats.length).toBeGreaterThan(0);
       expect(new Set(ats).size).toBe(ats.length);
     }
+    // The next open instance carries exactly its own 08:00 reminder — the
+    // transferred one merged with (not stacked on) the rebased one.
+    const next = [...live].sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
+    expect(next.dueDate).toBe("2026-05-29T09:00");
+    expect(next.reminders!.map((r) => r.at)).toEqual(["2026-05-29T08:00"]);
   });
 });
 
