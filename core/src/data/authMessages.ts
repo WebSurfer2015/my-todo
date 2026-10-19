@@ -51,16 +51,43 @@ export const FIREBASE_AUTH_MESSAGES: Record<string, string> = {
   "auth/popup-closed-by-user": "",
 };
 
+/** Calm copy for a sign-in failure with no curated message. */
+export const AUTH_FALLBACK_MESSAGE = "Couldn't sign you in just now. Please try again.";
+
+/**
+ * The raw SDK error code (e.g. "auth/invalid-credential") for crash / log
+ * reporting ONLY — never put it in user-facing text. "" when absent.
+ */
+export function authErrorCode(err: unknown): string {
+  if (!err || typeof err !== "object") return "";
+  const code = (err as { code?: unknown }).code;
+  return code == null ? "" : String(code);
+}
+
+/** `msg` with the "[auth/…]" / "(auth/…)" code tokens Firebase puts in its
+ * raw messages removed — a code is diagnostics, not copy. */
+export function stripAuthCode(msg: string): string {
+  return msg
+    .replace(/[[(]auth\/[\w-]+[\])]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * @deprecated Diagnostics only (a log line) — user-facing sign-in text never
+ * carries the code. Kept until the mobile adapter stops calling it.
+ */
 export function appendCode(msg: string, code: string): string {
   if (!code) return msg;
   return `${msg} (${code})`;
 }
 
 /**
- * Map a Firebase `auth/*` code to a friendly message. The caller is
- * expected to have checked `code.startsWith("auth/")`. `flow` drives the
- * auth/internal-error override; `rawMessage` is the fallback shown when a
- * code has no curated mapping.
+ * Map a Firebase `auth/*` code to a friendly message — never with the code
+ * in it (log it via authErrorCode). The caller is expected to have checked
+ * `code.startsWith("auth/")`. `flow` drives the auth/internal-error
+ * override; a code mapped to "" (a cancelled popup) passes `rawMessage`
+ * through, code-stripped; an unmapped code gets AUTH_FALLBACK_MESSAGE.
  */
 export function mapFirebaseAuthError(
   code: string,
@@ -71,19 +98,13 @@ export function mapFirebaseAuthError(
   // catch-all is almost always a configuration drift in Firebase Console.
   if (code === "auth/internal-error") {
     if (flow === "google") {
-      return appendCode(
-        "Google sign-in handshake failed. The OAuth web client ID in this build doesn't match what Firebase expects. The app needs to be updated.",
-        code,
-      );
+      return "Google sign-in handshake failed. The OAuth web client ID in this build doesn't match what Firebase expects. The app needs to be updated.";
     }
     if (flow === "apple") {
-      return appendCode(
-        "Apple sign-in handshake failed. The Apple Service ID or Sign-in-with-Apple key in Firebase Console may be out of sync. The app needs to be updated.",
-        code,
-      );
+      return "Apple sign-in handshake failed. The Apple Service ID or Sign-in-with-Apple key in Firebase Console may be out of sync. The app needs to be updated.";
     }
   }
   const mapped = FIREBASE_AUTH_MESSAGES[code];
-  if (mapped !== undefined) return appendCode(mapped || rawMessage, code);
-  return appendCode(`Sign-in failed: ${rawMessage || "unknown Firebase error"}`, code);
+  if (mapped !== undefined) return mapped || stripAuthCode(rawMessage);
+  return AUTH_FALLBACK_MESSAGE;
 }

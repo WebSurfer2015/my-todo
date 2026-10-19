@@ -125,6 +125,26 @@ export function timeOfDay(input: Date | string, opts: LabelFormatOptions = {}): 
   return d.toLocaleTimeString(opts.locale, { hour: 'numeric', minute: '2-digit' })
 }
 
+/** A reminder-preset time: "Wed 9:00 AM" on another day, just "9:00 AM" on
+ * the same day as `now`. Accepts a Date or a date-time string (a
+ * timezone-less 'YYYY-MM-DD[THH:mm]' reads as device-local); unparseable
+ * input gives "". */
+export function weekdayTime(input: Date | string, opts: LabelFormatOptions = {}): string {
+  const d =
+    typeof input !== 'string'
+      ? input
+      : /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$/.test(input)
+        ? parseLocalISO(input)
+        : new Date(input)
+  if (!d || Number.isNaN(d.valueOf())) return ''
+  const sameDay = d.toDateString() === (opts.now ?? new Date()).toDateString()
+  return d.toLocaleString(opts.locale, {
+    ...(sameDay ? {} : { weekday: 'short' }),
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
 /** Cadence label plus " · ends <date>" when the rule has an end date. */
 export function recurrenceLabel(
   rec: Recurrence | undefined,

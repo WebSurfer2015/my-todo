@@ -263,15 +263,17 @@ function sameRecurrence(a: Recurrence, b: Recurrence): boolean {
  * "until <date>" or "2nd Thursday", so the series' endDate is kept and its
  * bySetPos is kept while the result is still a monthly weekday rule —
  * otherwise a Mochi edit would silently drop them. An endDate already before
- * `fromDay` (the row's due day, or today when it's undated) is dropped: the
- * series has ended, and "repeat daily" on it means resume, which a past end
- * would block. Undefined when the merged rule is what the row already has
- * (nothing to apply).
+ * `fromDay` (the row's due day, or today when it's undated) or before `today`
+ * is dropped: the series has ended, and "repeat daily" on it means resume,
+ * which a past end would block (Skip all / Delete series end it on the last
+ * open row's own — possibly overdue — day). Undefined when the merged rule is
+ * what the row already has (nothing to apply).
  */
 export function mergeAgentRecurrence(
   agent: AgentRecurrence,
   current: Recurrence | undefined,
   fromDay?: string,
+  today?: string,
 ): Recurrence | undefined {
   const merged: Recurrence = { freq: agent.freq }
   if (agent.interval !== undefined) merged.interval = agent.interval
@@ -280,7 +282,9 @@ export function mergeAgentRecurrence(
     if (merged.freq === 'monthly' && merged.byWeekday && current.bySetPos && current.bySetPos.length > 0) {
       merged.bySetPos = [...current.bySetPos]
     }
-    const from = fromDay ? dueDateOnly(fromDay) : ''
+    const day = fromDay ? dueDateOnly(fromDay) : ''
+    const now = today ? dueDateOnly(today) : ''
+    const from = day > now ? day : now
     if (current.endDate && !(from && current.endDate < from)) merged.endDate = current.endDate
     if (sameRecurrence(merged, current)) return undefined
   }
@@ -303,7 +307,7 @@ function planTodoPatch(ctx: PlanCtx, todoId: string, e: TodoPatch): void {
     const row = ctx.snap.todos.find((t) => t.id === todoId)
     // The row's day once this edit lands (a same-edit dueDate goes first).
     const day = (e.dueDate || row?.dueDate || ctx.snap.today) ?? ''
-    const recurrence = mergeAgentRecurrence(e.recurrence, row?.recurrence, day)
+    const recurrence = mergeAgentRecurrence(e.recurrence, row?.recurrence, day, ctx.snap.today)
     if (recurrence) out.push({ type: 'updateRecurrence', todoId, recurrence })
   }
   const reminders = stampReminders(e.reminders, ctx.deps.genId)

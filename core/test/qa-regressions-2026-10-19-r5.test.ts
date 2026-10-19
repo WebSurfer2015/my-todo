@@ -163,7 +163,8 @@ describe("4 — Mochi can resume an ended series", () => {
     today: TODAY,
     todos: [
       { id: "E", text: "Stretch", done: false, seriesId: "e", dueDate: "2026-10-15", recurrence: { freq: "daily", endDate: "2026-10-14" } },
-      { id: "K", text: "Pills", done: false, seriesId: "k", dueDate: "2026-10-15", recurrence: { freq: "daily", endDate: "2026-10-15" } },
+      // An end still ahead of today (round 6: one before today is dropped).
+      { id: "K", text: "Pills", done: false, seriesId: "k", dueDate: "2026-10-15", recurrence: { freq: "daily", endDate: "2026-10-20" } },
       { id: "U", text: "Undated", done: false, seriesId: "u", recurrence: { freq: "daily", endDate: "2026-10-18" } },
     ],
     categories: [],
@@ -182,7 +183,7 @@ describe("4 — Mochi can resume an ended series", () => {
     ]);
   });
 
-  it("an end on/after the row's day is kept", () => {
+  it("an end on/after the row's day and today is kept", () => {
     expect(plan([edit("K", { freq: "daily" })])).toEqual([]);
     expect(mergeAgentRecurrence({ freq: "weekly" }, { freq: "daily", endDate: "2026-10-15" }, "2026-10-15")).toEqual({
       freq: "weekly",

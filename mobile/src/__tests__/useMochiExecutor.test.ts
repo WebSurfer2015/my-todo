@@ -65,17 +65,32 @@ function fakeStore(): Fake {
     s.calls.push(`deleteCategory ${id}`)
     return null
   })
-  s.addTaskWithUndo = vi.fn(() => ({
-    id: 't1',
-    undo: () => s.calls.push('undo add t1'),
-  }))
-  s.permanentlyDeleteSeriesFuture = vi.fn((id: string) => s.calls.push(`delete series ${id}`))
-  s.permanentlyDelete = vi.fn()
+  // Like the real store's applyTracked: todosRef advances only on a change.
+  const drop = (id: string) => {
+    if (s.todosRef.current.some((td) => td.id === id)) s.todosRef.current = s.todosRef.current.filter((td) => td.id !== id)
+  }
+  const patch = (id: string, p: Partial<Todo>) => {
+    const cur = s.todosRef.current.find((td) => td.id === id)
+    if (!cur || Object.entries(p).every(([k, v]) => cur[k as keyof Todo] === v)) return
+    s.todosRef.current = s.todosRef.current.map((td) => (td.id === id ? { ...td, ...p } : td))
+  }
+  s.addTaskWithUndo = vi.fn(() => {
+    s.todosRef.current = [...s.todosRef.current, todo('t1')]
+    return { id: 't1', undo: () => s.calls.push('undo add t1') }
+  })
+  s.permanentlyDeleteSeriesFuture = vi.fn((id: string) => {
+    s.calls.push(`delete series ${id}`)
+    drop(id)
+  })
+  s.permanentlyDelete = vi.fn((id: string) => {
+    s.calls.push(`delete ${id}`)
+    drop(id)
+  })
   s.revertTodo = vi.fn((td: Todo) => s.calls.push(`revert ${td.id}`))
-  s.updateText = vi.fn()
-  s.updatePriority = vi.fn()
-  s.updateDueDate = vi.fn()
-  s.updateTaskCategory = vi.fn()
+  s.updateText = vi.fn((id: string, text: string) => patch(id, { text }))
+  s.updatePriority = vi.fn((id: string, priority: Todo['priority']) => patch(id, { priority }))
+  s.updateDueDate = vi.fn((id: string, dueDate: string) => patch(id, { dueDate }))
+  s.updateTaskCategory = vi.fn((id: string, category: string | undefined) => patch(id, { category }))
   return s
 }
 
@@ -178,11 +193,29 @@ describe('useMochiExecutor — capture Undo', () => {
     expect(store.calls).toEqual(['addCategory', 'delete series t1', 'undo add t1', 'deleteCategory newcat'])
   })
 
-  it('a one-off capture is removed exactly (no series delete)', () => {
+  it('a one-off capture is removed by id (no series delete)', () => {
     const { store, hook } = setup()
     const cap = hook.result.current.applyCaptureWithUndo({ kind: 'createTodo', args: { text: 'Call mom' } })
     expect(cap.undo()).toBe(true)
-    expect(store.calls).toEqual(['undo add t1'])
+    expect(store.calls).toEqual(['delete t1', 'undo add t1'])
+    expect(store.todosRef.current.some((td) => td.id === 't1')).toBe(false)
+  })
+
+  it('capture → chip edit → chip undo → Undo still removes the row', () => {
+    const { store, hook } = setup()
+    const cap = hook.result.current.applyCaptureWithUndo({ kind: 'createTodo', args: { text: 'Call mom' } })
+    hook.result.current.editCapturedTodo('t1', { category: 'home' })
+    hook.result.current.editCapturedTodo('t1', { category: null })
+    expect(cap.undo()).toBe(true)
+    expect(store.permanentlyDelete).toHaveBeenCalledWith('t1')
+    expect(store.todosRef.current.some((td) => td.id === 't1')).toBe(false)
+  })
+
+  it('a capture already gone reports nothing removed', () => {
+    const { store, hook } = setup()
+    const cap = hook.result.current.applyCaptureWithUndo({ kind: 'createTodo', args: { text: 'Call mom' } })
+    store.todosRef.current = store.todosRef.current.filter((td) => td.id !== 't1')
+    expect(cap.undo()).toBe(false)
   })
 
   it('a grocery capture returns its Undo with no chip id; unsupported ops are inert', () => {
@@ -279,6 +312,21 @@ describe('useMochiExecutor — a new turn begins only once something applied', (
     expect(out).toEqual({ undo: null, applied: false, keptSome: true })
     // …and after the Cancel.
     expect(isUndoLive(r1.undo)).toBe(true)
+  })
+
+  it('a store call that changed nothing (same category) keeps the previous Undo live', () => {
+    const { store, hook } = setup()
+    store.todos = [todo('a', { category: 'home' }), todo('b')]
+    store.todosRef.current = store.todos
+    const r1 = hook.result.current.applyMochiOps([markDone('b')])
+    const r2 = hook.result.current.applyMochiOps([{ kind: 'editTodo', args: { todoId: 'a', category: 'home' } }])
+    expect(store.updateTaskCategory).toHaveBeenCalledWith('a', 'home')
+    expect(r2.undo).toBeNull()
+    expect(isUndoLive(r1.undo)).toBe(true)
+    // A real change does begin a new turn.
+    const r3 = hook.result.current.applyMochiOps([{ kind: 'editTodo', args: { todoId: 'a', text: 'A2' } }])
+    expect(r3.undo).not.toBeNull()
+    expect(isUndoLive(r1.undo)).toBe(false)
   })
 
   it('an empty plan (nothing matched) keeps the previous turn\'s Undo live', () => {

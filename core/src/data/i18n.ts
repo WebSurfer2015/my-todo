@@ -224,15 +224,12 @@ export const strings = {
     snooze: {
       title: 'Defer to',
       tomorrow: 'Tomorrow',
-      nextWeek: 'Next week',
       pickDate: 'Pick a date…',
       toTomorrow: 'Deferred to tomorrow.',
       toNextWeek: 'Deferred to next week.',
       toDays: (n: number): string => `Deferred ${n} days.`,
     },
     defer: {
-      allToNextWeek: 'Defer all to next week →',
-      allA11y: (n: number): string => `Defer all ${n} carried-over to-dos to next week`,
       done: (n: number): string => n === 1 ? '1 carried-over to-do deferred.' : `${n} carried-over to-dos deferred.`,
     },
     binFooter: {
@@ -250,7 +247,6 @@ export const strings = {
       repeat: 'Repeat',
       repeatEnds: 'Repeat ends',
       noEnd: 'No end',
-      markDoneAndClose: 'Mark done & close',
     },
     steps: {
       header: 'STEPS',
@@ -259,7 +255,6 @@ export const strings = {
     },
     series: {
       trashedMany: (n: number): string => `${n} to-dos in this series tucked into Done.`,
-      applyToFutureA11y: "Apply this to-do's text, priority, and category to every future to-do in this series",
     },
     seriesFreqChangeTitle: 'Change the repeat?',
     seriesFreqChangeBody: 'Upcoming to-dos will be replaced.',
@@ -480,15 +475,12 @@ export const strings = {
     snooze: {
       title: '推迟到',
       tomorrow: '明天',
-      nextWeek: '下周',
       pickDate: '选择日期…',
       toTomorrow: '已推迟到明天。',
       toNextWeek: '已推迟到下周。',
       toDays: (n: number): string => `已推迟 ${n} 天。`,
     },
     defer: {
-      allToNextWeek: '全部推迟到下周 →',
-      allA11y: (n: number): string => `将 ${n} 项延续任务推迟到下周`,
       done: (n: number): string => n === 1 ? '已推迟 1 项延续任务。' : `已推迟 ${n} 项延续任务。`,
     },
     binFooter: {
@@ -506,7 +498,6 @@ export const strings = {
       repeat: '重复',
       repeatEnds: '重复结束',
       noEnd: '无结束',
-      markDoneAndClose: '标记完成并关闭',
     },
     steps: {
       header: '步骤',
@@ -523,7 +514,6 @@ export const strings = {
     seriesSubtasksKeepModified: '保留已修改的，覆盖其余',
     series: {
       trashedMany: (n: number): string => `已将此系列中的 ${n} 项任务收起。`,
-      applyToFutureA11y: '将此任务的文本、优先级和类别应用到此系列中所有未来的任务',
     },
   },
   es: {
@@ -736,15 +726,12 @@ export const strings = {
     snooze: {
       title: 'Aplazar a',
       tomorrow: 'Mañana',
-      nextWeek: 'Próxima semana',
       pickDate: 'Elegir fecha…',
       toTomorrow: 'Pospuesto a mañana.',
       toNextWeek: 'Pospuesto a la próxima semana.',
       toDays: (n: number): string => `Pospuesto ${n} días.`,
     },
     defer: {
-      allToNextWeek: 'Posponer todas a la próxima semana →',
-      allA11y: (n: number): string => `Posponer las ${n} pendientes a la próxima semana`,
       done: (n: number): string => n === 1 ? '1 pendiente pospuesta.' : `${n} pendientes pospuestas.`,
     },
     binFooter: {
@@ -762,7 +749,6 @@ export const strings = {
       repeat: 'Repetir',
       repeatEnds: 'Repetir hasta',
       noEnd: 'Sin fin',
-      markDoneAndClose: 'Marcar hecho y cerrar',
     },
     steps: {
       header: 'PASOS',
@@ -779,7 +765,6 @@ export const strings = {
     seriesSubtasksKeepModified: 'Conservar los modificados, sobrescribir el resto',
     series: {
       trashedMany: (n: number): string => `${n} tareas de esta serie guardadas.`,
-      applyToFutureA11y: 'Aplicar el texto, prioridad y categoría a todas las tareas futuras de esta serie',
     },
   },
   fr: {
@@ -992,15 +977,12 @@ export const strings = {
     snooze: {
       title: 'Reporter à',
       tomorrow: 'Demain',
-      nextWeek: 'Semaine prochaine',
       pickDate: 'Choisir une date…',
       toTomorrow: 'Reporté à demain.',
       toNextWeek: 'Reporté à la semaine prochaine.',
       toDays: (n: number): string => `Reporté de ${n} jours.`,
     },
     defer: {
-      allToNextWeek: 'Tout reporter à la semaine prochaine →',
-      allA11y: (n: number): string => `Reporter les ${n} en retard à la semaine prochaine`,
       done: (n: number): string => n === 1 ? '1 tâche en retard reportée.' : `${n} tâches en retard reportées.`,
     },
     binFooter: {
@@ -1018,7 +1000,6 @@ export const strings = {
       repeat: 'Répéter',
       repeatEnds: "Répéter jusqu'au",
       noEnd: 'Sans fin',
-      markDoneAndClose: 'Marquer fait et fermer',
     },
     steps: {
       header: 'ÉTAPES',
@@ -1035,7 +1016,6 @@ export const strings = {
     seriesSubtasksKeepModified: 'Garder les modifiés, écraser le reste',
     series: {
       trashedMany: (n: number): string => `${n} tâches de cette série mises de côté.`,
-      applyToFutureA11y: 'Appliquer le texte, la priorité et la catégorie à toutes les tâches futures de cette série',
     },
   },
   ja: {
@@ -1248,15 +1228,12 @@ export const strings = {
     snooze: {
       title: '延期する',
       tomorrow: '明日',
-      nextWeek: '来週',
       pickDate: '日付を選ぶ…',
       toTomorrow: '明日まで延期しました。',
       toNextWeek: '来週まで延期しました。',
       toDays: (n: number): string => `${n}日延期しました。`,
     },
     defer: {
-      allToNextWeek: 'すべて来週に延期 →',
-      allA11y: (n: number): string => `${n}件の繰越タスクを来週に延期`,
       done: (n: number): string => `${n}件の繰越タスクを延期しました。`,
     },
     binFooter: {
@@ -1274,7 +1251,6 @@ export const strings = {
       repeat: '繰り返し',
       repeatEnds: '繰り返し終了',
       noEnd: '終了なし',
-      markDoneAndClose: '完了にして閉じる',
     },
     steps: {
       header: 'ステップ',
@@ -1291,7 +1267,6 @@ export const strings = {
     seriesSubtasksKeepModified: '編集済みは残し、残りを上書き',
     series: {
       trashedMany: (n: number): string => `${n}件のシリーズタスクをしまいました。`,
-      applyToFutureA11y: 'このタスクのテキスト、優先度、カテゴリーをこのシリーズの今後すべてのタスクに適用',
     },
   },
   de: {
@@ -1504,15 +1479,12 @@ export const strings = {
     snooze: {
       title: 'Verschieben auf',
       tomorrow: 'Morgen',
-      nextWeek: 'Nächste Woche',
       pickDate: 'Datum wählen…',
       toTomorrow: 'Auf morgen verschoben.',
       toNextWeek: 'Auf nächste Woche verschoben.',
       toDays: (n: number): string => `Um ${n} Tage verschoben.`,
     },
     defer: {
-      allToNextWeek: 'Alle auf nächste Woche verschieben →',
-      allA11y: (n: number): string => `Alle ${n} Übertragenen auf nächste Woche verschieben`,
       done: (n: number): string => n === 1 ? '1 Übertragene verschoben.' : `${n} Übertragene verschoben.`,
     },
     binFooter: {
@@ -1530,7 +1502,6 @@ export const strings = {
       repeat: 'Wiederholen',
       repeatEnds: 'Wiederholen bis',
       noEnd: 'Kein Ende',
-      markDoneAndClose: 'Erledigt markieren und schließen',
     },
     steps: {
       header: 'SCHRITTE',
@@ -1547,7 +1518,6 @@ export const strings = {
     seriesSubtasksKeepModified: 'Geänderte behalten, Rest überschreiben',
     series: {
       trashedMany: (n: number): string => `${n} Aufgaben dieser Serie weggeräumt.`,
-      applyToFutureA11y: 'Text, Priorität und Kategorie auf alle zukünftigen Aufgaben dieser Serie anwenden',
     },
   },
 }
