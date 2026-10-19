@@ -171,6 +171,26 @@ describe('revenuecatWebhook — lifecycle → entitlement', () => {
     expect(ids[0]).toBe('e2')
     expect(ids.at(-1)).toBe('e51')
   })
+  it('the TRANSFER path keeps the dedupe log capped too: 50 seeded ids + a TRANSFER → 50, new id last, oldest gone', async () => {
+    h.users.add('u2')
+    const seeded = Array.from({ length: 50 }, (_, i) => `old${i}`)
+    h.store.set('users/u2/state/rcWebhook', { ids: seeded })
+    const r = await send({
+      id: 'tx-new',
+      type: 'TRANSFER',
+      product_id: PRODUCT_IDS.premiumMonthly,
+      expiration_at_ms: EXP,
+      transferred_from: [],
+      transferred_to: ['u2'],
+    })
+    expect(r.status).toBe(200)
+    const ids = (h.store.get('users/u2/state/rcWebhook') as { ids: string[] }).ids
+    expect(ids).toHaveLength(50)
+    expect(ids.at(-1)).toBe('tx-new')
+    expect(ids[0]).toBe('old1')
+    expect(ids).not.toContain('old0')
+    expect(entitlementOf('u2')?.tier).toBe('premium')
+  })
   it('TRANSFER moves the subscription between accounts', async () => {
     h.users.add('u2')
     await send({ id: 'e1', type: 'INITIAL_PURCHASE', app_user_id: 'u1', product_id: PRODUCT_IDS.premiumMonthly, expiration_at_ms: EXP })

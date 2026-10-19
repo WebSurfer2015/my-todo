@@ -279,7 +279,9 @@ async function runChatReservation(
       const d = await decide(tx, usage, conv.startsConversation)
       if (d.allow && d.charge) {
         d.nextAgentUsage = { ...d.nextAgentUsage, convs: conv.nextConvs }
+        // What the refund must undo on the record too (chatQuota refundConvs).
         if (conv.minted) d.charge = { ...d.charge, convId: conv.convId }
+        else if (conv.followUp) d.charge = { ...d.charge, followUpConvId: conv.convId }
       }
       convId = conv.convId
       starts = conv.startsConversation
@@ -319,7 +321,7 @@ async function runChatReservation(
  * Flat-path reservation for ONE agentChat turn (MOCHI_TIER_ENFORCEMENT off,
  * and comp users). Only a turn that STARTS a conversation (resolveConversation) takes a slot of the
  * shared flat daily cap (DAILY_CALL_LIMIT, shared with aiInfer); follow-ups
- * are free, bounded by the 40-turn window and MAX_CHAT_TURNS_PER_DAY.
+ * are free, bounded by MAX_TURNS_PER_CONVERSATION and MAX_CHAT_TURNS_PER_DAY.
  */
 export async function reserveChatTurn(
   uid: string,

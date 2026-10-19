@@ -7,7 +7,9 @@
  * a live, server-minted conversation (signed convId, chatSignature.ts) that is
  * recorded here (`convs`, resolveConversation). Follow-up turns are free,
  * bounded by
- *  - the 40-turn window (chatMessages.ts MAX_TURNS) per conversation, and
+ *  - MAX_TURNS_PER_CONVERSATION follow-ups per convId (counted on the record,
+ *    so FORKING one live conversation into many requests can't be free
+ *    forever — past the cap the next request is a new conversation), and
  *  - MAX_CHAT_TURNS_PER_DAY total turns per uid per UTC day — an anti-abuse
  *    backstop so a client can't run unlimited turns by never starting a new
  *    conversation (e.g. replaying a fake history).
@@ -42,26 +44,46 @@ export interface UsageCharge {
    * a refund also forgets it — otherwise a retry of the failed start would
    * be recognised as a duplicate and ride free on a refunded slot. */
   convId?: string
+  /** The conversation this reservation CONTINUED (a follow-up), so a refund
+   * gives back its per-conversation turn (ConvRecord.n). */
+  followUpConvId?: string
 }
 
-/** One server-minted conversation (chatSignature.ts contract). */
+/** One server-minted conversation (chatSignature.ts contract). Kept tiny —
+ * up to MAX_CONV_RECORDS of these live in one Firestore doc (~100 bytes
+ * each as JSON, ~12 KB at the cap). */
 export interface ConvRecord {
   /** convId (16-char base64url). */
   id: string
-  /** Mint time, epoch ms. */
+  /** Mint time, epoch ms (anchors the start-retry window). */
   t: number
+  /** Last use, epoch ms: mint, follow-up or retry reuse. Expiry
+   * (CONV_RECORD_TTL_MS) and eviction (MAX_CONV_RECORDS) go by this. */
+  u: number
   /** historyHash() of the request that started it (retry de-dup). */
   h: string
+  /** Follow-ups claimed so far (≤ MAX_TURNS_PER_CONVERSATION). */
+  n: number
+  /** Start retries that reused this convId — a refund of the minting
+   * request only forgets the record when no retry is riding on it. */
+  r: number
 }
 
-/** Recorded conversations kept per uid (newest win). Far above a real day's
- * use; a conversation pushed out simply starts a new one on its next turn. */
-export const MAX_CONV_RECORDS = 50
-/** A recorded conversation stays continuable for this long after it was
- * minted. ROLLOVER RULE: the list is a ROLLING window — it is NOT reset at
+/** Recorded conversations kept per uid (least recently used evicted first).
+ * ≥ MAX_CHAT_TURNS_PER_DAY, so even a day where every allowed turn starts a
+ * conversation can't push out one that is still in use. */
+export const MAX_CONV_RECORDS = 120
+/** A recorded conversation stays continuable for this long after its LAST
+ * USE (u). ROLLOVER RULE: the list is a ROLLING window — it is NOT reset at
  * UTC midnight, so a conversation started at 23:50 continues at 00:10 without
  * a new slot (and without being charged to the new day). */
 export const CONV_RECORD_TTL_MS = 24 * 60 * 60_000
+/** Free follow-ups per conversation. A real capture is a handful of turns;
+ * past this the next request is treated as a NEW conversation (takes a slot,
+ * fresh convId). Bounds forking: a tampered client re-using one live
+ * conversation as the prefix of every new request gets at most this many
+ * free turns per slot. */
+export const MAX_TURNS_PER_CONVERSATION = 30
 /** A conversation START whose normalized history matches the one that minted
  * a conversation this recently is a client RETRY (e.g. after a timeout whose
  * first attempt actually reserved) — it reuses that convId, no second slot. */
@@ -98,8 +120,8 @@ export interface AgentUsageData {
   ceilingHit: boolean
   /** The previous active day's Mochi stats, kept for the metrics roll-up. */
   prev?: ChatDayStats
-  /** Recently minted conversations (rolling, see CONV_RECORD_TTL_MS) — NOT
-   * reset with `date`. */
+  /** Recently used conversations, least recently used first (rolling, see
+   * CONV_RECORD_TTL_MS) — NOT reset with `date`. */
   convs?: ConvRecord[]
 }
 
@@ -181,11 +203,8 @@ export function refundAgentUsage(
   charge: UsageCharge,
 ): AgentUsageData | null {
   if (!usage) return null
-  // Forget a conversation this charge minted (even across a day rollover —
-  // the list is rolling): no reply was signed for it, and keeping it would
-  // let a retry of the failed start reuse it for free.
-  const convs = charge.convId ? usage.convs?.filter((c) => c.id !== charge.convId) : usage.convs
-  const convsChanged = (convs?.length ?? 0) !== (usage.convs?.length ?? 0)
+  const convs = refundConvs(usage.convs, charge)
+  const convsChanged = convs !== usage.convs
   const sameDay = usage.date === charge.date
   const counters = charge.calls !== 0 || charge.chatTurns !== 0 || charge.chatConversations !== 0
   if (!convsChanged && (!sameDay || !counters)) return null
@@ -199,6 +218,28 @@ export function refundAgentUsage(
   return next
 }
 
+/** The conversation-record half of a refund (even across a day rollover —
+ * the list is rolling). Returns `convs` itself when nothing changes.
+ *  - A MINTED convId is forgotten (no reply was signed for it; keeping it
+ *    would let a retry of the failed start reuse it for free) — unless a
+ *    start retry reused it meanwhile (r > 0): that request may hold a signed
+ *    reply, so the record stays and only the reuse count drops.
+ *  - A FOLLOW-UP gives back its per-conversation turn (n − 1, never < 0). */
+function refundConvs(
+  convs: ConvRecord[] | undefined,
+  charge: UsageCharge,
+): ConvRecord[] | undefined {
+  const id = charge.convId ?? charge.followUpConvId
+  const rec = id ? convs?.find((c) => c.id === id) : undefined
+  if (!convs || !rec) return convs
+  if (charge.convId) {
+    if (rec.r === 0) return convs.filter((c) => c !== rec)
+    return convs.map((c) => (c === rec ? { ...c, r: c.r - 1 } : c))
+  }
+  if (rec.n === 0) return convs
+  return convs.map((c) => (c === rec ? { ...c, n: c.n - 1 } : c))
+}
+
 export interface ConversationResolution {
   /** True → this request takes a fair-use slot. */
   startsConversation: boolean
@@ -206,6 +247,9 @@ export interface ConversationResolution {
   convId: string
   /** True when `convId` was minted by this request (and is in nextConvs). */
   minted: boolean
+  /** True when this request is a free follow-up of a recorded conversation
+   * (its record's `n` was bumped in nextConvs). */
+  followUp: boolean
   /** The conversation list to persist if the reservation is ALLOWED. */
   nextConvs: ConvRecord[]
 }
@@ -214,14 +258,16 @@ export interface ConversationResolution {
  * Server half of "is this a new conversation?" — runs inside the reservation
  * transaction against the user's recorded conversations:
  *  1. `claimedConvId` (already sig-verified + fresh, agentChatCore
- *     claimFollowUp) is in the live list → follow-up, no slot.
+ *     claimFollowUp) is in the live list AND has had fewer than
+ *     MAX_TURNS_PER_CONVERSATION follow-ups → follow-up, no slot (n + 1).
  *  2. Otherwise it is a START — unless the same normalized history started a
  *     conversation < START_RETRY_WINDOW_MS ago (a client retry): reuse that
- *     convId, no slot. The retry window runs from the ORIGINAL mint, so it
- *     can't be extended by retrying again.
+ *     convId, no slot (r + 1). The retry window runs from the ORIGINAL mint,
+ *     so it can't be extended by retrying again.
  *  3. Otherwise mint a new convId (slot reserved by the caller).
- * Expired records (CONV_RECORD_TTL_MS) are dropped; the list is capped at
- * MAX_CONV_RECORDS, newest kept.
+ * Every use stamps `u` and moves the record to the end (most recently used).
+ * Records idle ≥ CONV_RECORD_TTL_MS are dropped; the list is capped at
+ * MAX_CONV_RECORDS, least recently used evicted first.
  */
 export function resolveConversation(
   convs: ConvRecord[] | undefined,
@@ -230,20 +276,41 @@ export function resolveConversation(
   nowMs: number,
   mint: () => string,
 ): ConversationResolution {
-  const live = (convs ?? []).filter((c) => nowMs - c.t < CONV_RECORD_TTL_MS)
-  if (claimedConvId && live.some((c) => c.id === claimedConvId)) {
-    return { startsConversation: false, convId: claimedConvId, minted: false, nextConvs: live }
+  const live = (convs ?? []).filter((c) => nowMs - c.u < CONV_RECORD_TTL_MS)
+  /** `rec` updated, stamped and moved to the end (most recently used). */
+  const touch = (rec: ConvRecord, upd: Partial<ConvRecord>): ConvRecord[] => [
+    ...live.filter((c) => c !== rec),
+    { ...rec, ...upd, u: nowMs },
+  ]
+  const claimed = claimedConvId ? live.find((c) => c.id === claimedConvId) : undefined
+  if (claimed && claimed.n < MAX_TURNS_PER_CONVERSATION) {
+    return {
+      startsConversation: false,
+      convId: claimed.id,
+      minted: false,
+      followUp: true,
+      nextConvs: touch(claimed, { n: claimed.n + 1 }),
+    }
   }
   const retry = live.find((c) => c.h === startHash && nowMs - c.t < START_RETRY_WINDOW_MS)
   if (retry) {
-    return { startsConversation: false, convId: retry.id, minted: false, nextConvs: live }
+    return {
+      startsConversation: false,
+      convId: retry.id,
+      minted: false,
+      followUp: false,
+      nextConvs: touch(retry, { r: retry.r + 1 }),
+    }
   }
   const id = mint()
   return {
     startsConversation: true,
     convId: id,
     minted: true,
-    nextConvs: [...live, { id, t: nowMs, h: startHash }].slice(-MAX_CONV_RECORDS),
+    followUp: false,
+    nextConvs: [...live, { id, t: nowMs, u: nowMs, h: startHash, n: 0, r: 0 }].slice(
+      -MAX_CONV_RECORDS,
+    ),
   }
 }
 
@@ -417,18 +484,28 @@ export function parseAgentUsage(raw: unknown): AgentUsageData | null {
   return out
 }
 
+const isFiniteNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
+
+/** A stored follow-up count: a non-negative integer, else the
+ * per-conversation cap — junk fails CLOSED (a capped record), never reads as
+ * a fresh conversation. */
+const parseCount = (v: unknown): number =>
+  isFiniteNum(v) && v >= 0 ? Math.floor(v) : MAX_TURNS_PER_CONVERSATION
+
 /** Validated conversation records (storage is untrusted): well-formed ids,
- * finite times, string hashes; capped at MAX_CONV_RECORDS (newest kept). */
+ * finite times, string hashes, sane counts; capped at MAX_CONV_RECORDS
+ * (the list is stored in use order, so the most recently used are kept). */
 function parseConvs(raw: unknown): ConvRecord[] {
   if (!Array.isArray(raw)) return []
   const out: ConvRecord[] = []
-  for (const r of raw) {
-    if (!r || typeof r !== 'object') continue
-    const { id, t, h } = r as Record<string, unknown>
-    if (!isConvId(id) || typeof t !== 'number' || !Number.isFinite(t) || typeof h !== 'string') {
-      continue
-    }
-    out.push({ id, t, h: h.slice(0, 64) })
+  for (const rec of raw) {
+    if (!rec || typeof rec !== 'object') continue
+    const { id, t, u, h, n, r } = rec as Record<string, unknown>
+    if (!isConvId(id) || !isFiniteNum(t) || !isFiniteNum(u) || typeof h !== 'string') continue
+    // A junk reuse count reads as 0: a refund of the start then forgets the
+    // record (the conservative side for r).
+    const reuses = isFiniteNum(r) && r >= 0 ? Math.floor(r) : 0
+    out.push({ id, t, u, h: h.slice(0, 64), n: parseCount(n), r: reuses })
   }
   return out.slice(-MAX_CONV_RECORDS)
 }
