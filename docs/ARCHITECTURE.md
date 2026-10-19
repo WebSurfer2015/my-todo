@@ -35,8 +35,9 @@ parity tests in `mobile/src/__tests__`).
    ┌────────────┐  state  ┌──────────────────┐  read/write  ┌──────────────────┐
    │ React      │────────▶│ useTodoStore +   │─────────────▶│ StorageAdapter   │
    │ Native UI  │         │ slices (mobile)  │              │ Firestore (uid)  │
-   └────────────┘         └────────┬─────────┘              │ or AsyncStorage  │
-                                   │ pure transforms         └────────┬─────────┘
+   └────────────┘         └────────┬─────────┘              │ or inert (signed │
+                                   │                        │ out)             │
+                                   │ pure transforms        └────────┬─────────┘
                                    ▼                                  │
                           ┌──────────────────┐                        ▼
                           │ core/ (derive,   │          Firestore users/{uid}/state/
@@ -49,8 +50,10 @@ parity tests in `mobile/src/__tests__`).
 ```
 
 - **Per-uid adapter swap**: signed in → `makeFirestoreAdapter(db, uid)`,
-  signed out → AsyncStorage. Memoized on `uid` (Firebase rotates the `User`
-  object hourly).
+  signed out → an inert adapter (`SIGNED_OUT_ADAPTER` in `useTodoStore`:
+  reads nothing, writes nothing — sign-in is mandatory, so there is no
+  local-only mode). Memoized on `uid` (Firebase rotates the `User` object
+  hourly).
 - **`useSyncedState(adapter, key, …)`**: hydrate → subscribe (`onSnapshot`) →
   ~400 ms debounced writes; a failed/stalled read never writes defaults back.
 - **Every read is validated** (`migrateTodos`, `migrateProfile`, …): storage is
@@ -149,7 +152,13 @@ iPhone captures are downscaled to 1290×2796 (the 6.7" slot), iPad to 2048×2732
 
 - **Auth** (`mobile/src/app/AuthContext.tsx`): Apple / Google / email → all via
   `signInWithCredential`. Apple sends `fullName` only on first sign-in — the
-  profile is seeded then. Sign-out and account deletion both clear local data.
+  profile is seeded then. User data lives only in Firestore under
+  `users/{uid}` (no device-local copy of to-dos; AsyncStorage holds just the
+  language setting). Sign-out signs out of Firebase and the store's adapter
+  swaps to the inert one, so nothing of the previous user renders. Account
+  deletion is server-side: `deleteUser` triggers the `onUserDeleted` Cloud
+  Function, which recursively erases `users/{uid}` (clients can't delete
+  state docs under `firestore.rules`).
 - **Profile** (`core/src/data/profile.ts`): one synced doc per user — avatar,
   themes, flags, grocery stores, pinned filters, lifetime count.
 - **Localization** (`core/src/data/i18n.ts`): 6 locales (TS enforces that every

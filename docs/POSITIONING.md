@@ -191,7 +191,6 @@ THE BASICS, DONE GENTLY
 • Categories with custom colors and an 80+ icon library — configurable and drag to reorder
 • Sign in with Apple, Google, or email
 • Cross-device sync via secure cloud storage
-• A simple shopping list, sorted by aisle
 
 WHAT MAKES IT DIFFERENT
 
@@ -227,7 +226,7 @@ GENTLE ON YOUR SENSES
 PRIVACY-RESPECTING BY DEFAULT
 
 • Your data is yours. Export everything as JSON, anytime.
-• Delete your account and everything goes — cloud data wiped, local cache cleared.
+• Delete your account and everything goes — your data is erased from our servers.
 • No third-party analytics tracking behavior across apps. No ads.
 
 AVAILABLE IN

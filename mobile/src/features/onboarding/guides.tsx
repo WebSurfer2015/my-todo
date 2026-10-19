@@ -21,13 +21,12 @@ import {
   Bell as BellMenuIcon,
   Hand as HandIcon,
   ListChecks,
+  MessageCircle,
   Palette,
   Sparkles as SparklesMenuIcon,
   type LucideIcon,
 } from 'lucide-react-native'
 import {
-  MockupChips,
-  MockupHighlight,
   MockupPills,
   MockupRow,
   MockupSheet,
@@ -35,7 +34,6 @@ import {
   MockupTodo,
   IconBell,
   IconCalendar,
-  IconPlus,
   IconRepeat,
   IconTag,
 } from './GuideMockups'
@@ -247,38 +245,46 @@ const inlineStyles = StyleSheet.create({
 
 export const GUIDES: Guide[] = [
   {
-    id: 'ai-fields',
-    title: 'AI for to-dos',
-    blurb: 'Type naturally — Sagely fills the fields.',
-    icon: SparklesMenuIcon,
-    glyph: '✨',
+    id: 'ask-mochi',
+    title: 'Ask Mochi',
+    blurb: 'Tap + and say it however you like.',
+    icon: MessageCircle,
+    glyph: '💬',
     slides: [
       {
-        title: 'Tap-to-apply pills',
-        body: "When you type a to-do, ambient suggestions appear above the form: category, priority, due date with time, recurrence, reminder. Nothing changes unless you tap a pill.",
+        title: 'Say it however you like',
+        body: "Tap + and say it however you like. Every change has Undo.",
         visual: (
-          <MockupSheet title="Add to-do">
-            <MockupTextField text="Buy birthday gift for Sam" />
-            <MockupPills
-              highlight
-              pills={[
-                { icon: <IconTag />, label: 'Family' },
-                { icon: <IconCalendar />, label: 'Friday' },
-              ]}
-            />
-            <MockupRow label="Category" value="Home" muted />
+          <MockupSheet title="Ask Mochi">
+            <MockupTextField text="Dentist Friday, and pick up milk" />
+            <MockupTodo text="Call the dentist" meta="Friday" highlight />
           </MockupSheet>
         ),
       },
       {
-        title: 'Times + dates',
-        body: "Try «pickup Mia at 3pm tomorrow». Complete by fills with the time. «every Mon and Wed» sets a weekly recurrence on those days.",
+        title: 'Prefer the form?',
+        body: "Tap «Enter manually instead» to fill in the to-do yourself.",
         visual: (
-          <MockupSheet title="Add to-do">
+          <MockupSheet title="Ask Mochi">
+            <MockupRow label="Enter manually instead" highlight />
+          </MockupSheet>
+        ),
+      },
+    ],
+  },
+  {
+    id: 'ai-fields',
+    title: 'AI for to-dos',
+    blurb: 'Mochi fills in the details for you.',
+    icon: SparklesMenuIcon,
+    glyph: '✨',
+    slides: [
+      {
+        title: 'Times + dates',
+        body: "Tell Mochi «pickup Mia at 3pm tomorrow» and Complete by fills with the time. «every Mon and Wed» sets a weekly repeat on those days.",
+        visual: (
+          <MockupSheet title="Ask Mochi">
             <MockupTextField text="Pickup Mia at 3pm tomorrow" />
-            <MockupPills
-              pills={[{ icon: <IconCalendar />, label: 'Tomorrow, 3:00 PM' }]}
-            />
             <MockupRow
               icon={<IconCalendar />}
               label="Complete by"
@@ -290,21 +296,33 @@ export const GUIDES: Guide[] = [
       },
       {
         title: 'New categories',
-        body: "Type «renew passport» and Sagely proposes «Travel». Tap «+ Travel» and confirm to create the category.",
+        body: "Say «renew passport» and Mochi can file it under a new «Travel» category. Changed your mind? Tap Undo.",
+        visual: (
+          <MockupSheet title="Ask Mochi">
+            <MockupTextField text="Renew passport" />
+            <MockupRow icon={<IconTag />} label="Category" value="Travel" highlight />
+          </MockupSheet>
+        ),
+      },
+      {
+        title: 'Typing it yourself',
+        body: "In the form, a few small suggestions may appear above the fields. Nothing changes unless you tap one.",
         visual: (
           <MockupSheet title="Add to-do">
-            <MockupTextField text="Renew passport" />
+            <MockupTextField text="Buy birthday gift for Sam" />
             <MockupPills
               highlight
-              pills={[{ icon: <IconPlus />, label: 'Travel' }]}
+              pills={[
+                { icon: <IconTag />, label: 'Family' },
+                { icon: <IconCalendar />, label: 'Friday' },
+              ]}
             />
-            <MockupRow label="Category" value="Home" muted />
           </MockupSheet>
         ),
       },
       {
         title: 'It stays quiet',
-        body: "Pause typing for ~1.5s and pills appear. Keep typing and they wait. Turn it off entirely in Settings → AI assistance.",
+        body: "Turn AI help off entirely in Settings → AI assistance.",
         visual: (
           <MockupSheet title="Settings">
             <MockupRow label="Completion animation" value="On" />
@@ -317,14 +335,14 @@ export const GUIDES: Guide[] = [
   },
   {
     id: 'reminders',
-    title: 'Reminders that repeat',
-    blurb: 'One-shot or every N hours until a cutoff.',
+    title: 'Gentle reminders',
+    blurb: 'A quiet nudge at the moment you pick.',
     icon: BellMenuIcon,
     glyph: '🔔',
     slides: [
       {
         title: 'Set a reminder',
-        body: "Open any to-do → Remind me → pick a date + time. iOS asks for notification permission the first time. The phone fires a quiet local notification at the chosen moment.",
+        body: "Open any to-do → Remind me → pick a moment, like «Morning of» or «Day before». iOS asks for notification permission the first time. The phone fires a quiet local notification then.",
         visual: (
           <MockupSheet title="Edit to-do">
             <MockupRow icon={<IconCalendar />} label="Complete by" value="Tomorrow" />
@@ -337,26 +355,19 @@ export const GUIDES: Guide[] = [
         title: 'Gentle nudge',
         body: "Turn on Gentle nudge in the reminder sheet and Mochi checks in once — the morning after a to-do's last reminder, only if it's still open. Never more than once.",
         visual: (
-          <MockupHighlight>
-            <MockupChips
-              chips={['Once', '15m', '30m', '1h', '2h', '4h']}
-              activeIndex={4}
-            />
-          </MockupHighlight>
+          <MockupSheet title="Remind me">
+            <MockupRow label="Day before" value="9:00 AM" />
+            <MockupRow label="Gentle nudge" value="On" highlight />
+          </MockupSheet>
         ),
       },
       {
-        title: 'AI sets them for you',
-        body: "Type «call the dentist Friday, remind me the day before» in the compose. The Bell pill carries the reminder — tap to apply.",
+        title: 'Mochi sets them for you',
+        body: "Tell Mochi «call the dentist Friday, remind me the day before» and the reminder comes with it.",
         visual: (
-          <MockupSheet title="Add to-do">
-            <MockupTextField text="Drink water, remind every 2h until 5pm" />
-            <MockupPills
-              highlight
-              pills={[
-                { icon: <IconBell />, label: 'every 2h until 5:00 PM' },
-              ]}
-            />
+          <MockupSheet title="Ask Mochi">
+            <MockupTextField text="Call the dentist Friday, remind me the day before" />
+            <MockupRow icon={<IconBell />} label="Remind me" value="Day before" highlight />
           </MockupSheet>
         ),
       },
@@ -366,7 +377,7 @@ export const GUIDES: Guide[] = [
         visual: (
           <View style={inlineStyles.stack}>
             <MockupTodo
-              text="Drink water"
+              text="Call the dentist"
               done
               meta="reminders cancelled"
               highlight
@@ -451,7 +462,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: 'Pin a filter',
-        body: "Long-press any filter pill (Today, Carried over, a category) to pin it to your quick-access bar. Long-press again to unpin.",
+        body: "Long-press any filter pill (Carried over, Open, Done, or a category) to pin it to your quick-access bar. Long-press again to unpin.",
         visual: (
           <View style={inlineStyles.filterBar}>
             {[

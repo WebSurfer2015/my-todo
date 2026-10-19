@@ -6,7 +6,7 @@ appId: com.websurfer.mytodo
 - launchApp
 - tapOn:
     text: "Todos, tab.*"
-# Swipe LEFT reveals the right-side actions (verified on-device): [Defer | Not Do | Delete].
+# Swipe LEFT reveals the right-side actions (verified on-device): [Defer | Skip | Delete].
 # "Pay credit card bill" is a stable seeded row (monthly recurring).
 - swipe:
     from:

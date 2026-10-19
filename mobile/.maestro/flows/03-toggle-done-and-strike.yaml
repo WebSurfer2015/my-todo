@@ -1,5 +1,8 @@
-# Flow 03 — Body-tap an open row toggles it done; it then shows under the
-# Done filter. Manual-plan tests 4.7, 3.2.
+# Flow 03 — Complete an open row (swipe RIGHT → "Mark done"); it then
+# shows under the Done filter. Manual-plan tests 4.7, 3.2.
+#
+# MUTATES the seed: "Refill prescription" stays done. No other nightly
+# flow may target that row (flow 19 uses "Review reading group chapter").
 #
 # Note on the assertion: the just-completed row does NOT unmount from the
 # Open view in place (the Mochi flight keeps it mounted; it stays struck
@@ -22,12 +25,15 @@ appId: com.websurfer.mytodo
 - tapOn:
     text: "Done"
 - waitForAnimationToEnd
-# Body-tap toggles done (TaskItem default tapBehavior: 'toggle').
 # Row body tap OPENS a to-do now; complete via the swipe "Mark done" action
 # (a row is one VoiceOver element, so the circle isn't separately targetable).
+- scrollUntilVisible:
+    element:
+      text: ".*Refill prescription.*"
+    direction: DOWN
 - swipe:
     from:
-      text: "Refill prescription"
+      text: ".*Refill prescription.*"
     direction: RIGHT
     duration: 600
 - runFlow:

@@ -1,5 +1,12 @@
 # Flow 19 — Every completion has Undo (Phase 2, 2026-10-18).
-# Swipe → "Mark done" → "Done: <title> · Undo" → Undo → the row is open again.
+# Swipe RIGHT → "Mark done" → "Done: <title> · Undo" → Undo → the row is
+# open again.
+#
+# Row choice: "Review reading group chapter" (seeded, THIS WEEK, no steps,
+# not recurring). It must NOT be a row another nightly flow mutates — flow
+# 03 completes "Refill prescription" and leaves it done, so pointing this
+# flow at the same row made it fail on every nightly run. Undo restores
+# the row, so this flow leaves the seed as it found it.
 appId: com.websurfer.mytodo
 ---
 - stopApp
@@ -7,9 +14,15 @@ appId: com.websurfer.mytodo
 - tapOn:
     text: "Todos, tab.*"
 - waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      text: ".*Review reading group chapter.*"
+    direction: DOWN
+# Row body tap OPENS a to-do; complete via the swipe "Mark done" action
+# (a row is one VoiceOver element, so the circle isn't separately targetable).
 - swipe:
     from:
-      text: "Refill prescription"
+      text: ".*Review reading group chapter.*"
     direction: RIGHT
     duration: 600
 - runFlow:
@@ -19,8 +32,10 @@ appId: com.websurfer.mytodo
       - tapOn: "Mark done"
 - extendedWaitUntil:
     visible:
-      text: "Done: Refill prescription.*"
+      text: "Done: Review reading group chapter.*"
     timeout: 4000
 - tapOn: "Undo"
 - waitForAnimationToEnd
-- assertVisible: "Refill prescription"
+# Open again: an open row's a11y label is just its title (a done row
+# reads "<title>, completed").
+- assertVisible: "Review reading group chapter"

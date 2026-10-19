@@ -234,7 +234,7 @@ export default function TaskDetailsSheet({
   // occurrence of a series — changing the cadence only makes sense series-wide.
   const repeatLocked = isSeriesRow && editMode === 'this'
   // When editing the whole series, the bottom actions apply to this + all
-  // future occurrences ("Delete series" / "Skip all" / "Mark all done");
+  // future occurrences ("Delete series" / "Skip all"; no "Mark all done");
   // otherwise they act on this single todo/occurrence.
   const seriesScope = isSeriesRow && editMode === 'series'
   // Toast bookkeeping: only show the detach toast the first time the
@@ -1568,7 +1568,7 @@ export default function TaskDetailsSheet({
             <View style={styles.stickyFooter}>
               {/* Action row — Delete · Skip · Mark done. In "Edit series"
                   mode these apply to this + all future occurrences
-                  ("Delete series" / "Skip all" / "Mark all done"). */}
+                  ("Delete series" / "Skip all"; Mark done is hidden). */}
               <View style={styles.bottomActionRow}>
                 <TouchableOpacity
                   style={styles.bottomActionButton}
@@ -1653,27 +1653,30 @@ export default function TaskDetailsSheet({
                   <View />
                 )}
 
-                <TouchableOpacity
-                  style={styles.bottomActionButton}
-                  onPress={() => {
-                    flushTypedText()
-                    if (seriesScope) {
-                      onMoveSeriesFutureToTrash(todo.id)
-                    } else if (!todo.done) {
-                      // A real completion (completion date, Undo toast,
-                      // next occurrence) — same as the row's circle.
-                      onToggle(todo.id)
-                    }
-                    onClose()
-                  }}
-                  activeOpacity={0.6}
-                  accessibilityRole="button"
-                  accessibilityLabel={seriesScope ? 'Mark all done' : t.markDone}
-                >
-                  <Text style={styles.markDoneActionText}>
-                    {seriesScope ? 'Mark all done' : t.markDone}
-                  </Text>
-                </TouchableOpacity>
+                {/* No "Mark all done" in series mode: the circle completes
+                    this occurrence, and "Delete series" / Repeat → Never
+                    already end the series. */}
+                {seriesScope ? (
+                  <View />
+                ) : (
+                  <TouchableOpacity
+                    style={styles.bottomActionButton}
+                    onPress={() => {
+                      flushTypedText()
+                      if (!todo.done) {
+                        // A real completion (completion date, Undo toast,
+                        // next occurrence) — same as the row's circle.
+                        onToggle(todo.id)
+                      }
+                      onClose()
+                    }}
+                    activeOpacity={0.6}
+                    accessibilityRole="button"
+                    accessibilityLabel={t.markDone}
+                  >
+                    <Text style={styles.markDoneActionText}>{t.markDone}</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           </>

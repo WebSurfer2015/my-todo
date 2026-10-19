@@ -198,9 +198,9 @@ export default function SettingsSheet({
                   }}
                   activeOpacity={0.7}
                   accessibilityRole="button"
-                  accessibilityLabel="Manage Store"
+                  accessibilityLabel="Shopping stores"
                 >
-                  <Text style={styles.rowLabel}>Manage Store</Text>
+                  <Text style={styles.rowLabel}>Shopping stores</Text>
                   <Text style={styles.rowChevron}>›</Text>
                 </TouchableOpacity>
                 <View style={styles.divider} />

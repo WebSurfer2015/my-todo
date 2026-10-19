@@ -26,7 +26,6 @@ vi.mock('../app/LangContext', () => ({
   useLang: () => ({
     t: {
       suggestStepsError: 'Could not suggest steps.',
-      suggestStepsResting: 'Mochi is resting.',
     },
     lang: 'en',
     toggle: vi.fn(),
