@@ -267,29 +267,18 @@ function TodosScreen() {
         playSound={store.profile.completionSound !== false}
         onToggle={store.toggle}
         onMoveToTrash={store.moveToTrash}
-        onSkip={store.skipTodo} onSkipSeries={store.skipSeriesFuture}
-        onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
-        onApplySeriesFutureEdits={store.applySeriesFutureEdits}
-        onDetachFromSeries={store.detachFromSeries}
-        onApplyRecurrenceChange={store.applyRecurrenceChange}
-        onApplySeriesSubtasks={store.applySeriesSubtasks}
-        onPermanentDelete={store.permanentlyDelete} onPermanentDeleteSeries={store.permanentlyDeleteSeriesFuture}
+        onSkip={store.skipTodo}
+        onPermanentDelete={store.permanentlyDelete}
         onUpdatePriority={store.updatePriority}
         onUpdateDueDate={store.updateDueDate}
         onLongPressDefer={openSingleDefer}
         onUpdateCategory={store.updateTaskCategory}
-        onUpdateText={store.updateText}
-        onUpdateNotes={store.updateNotes}
-        onUpdateRecurrence={store.updateRecurrence}
-        onUpdateReminders={store.updateReminders}
         onAddSubtask={store.addSubtask}
         onToggleSubtask={store.toggleSubtask}
         onUpdateSubtaskText={store.updateSubtaskText}
         onUpdateSubtaskPriority={store.updateSubtaskPriority}
         onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
         onRemoveSubtask={store.removeSubtask}
-        agentEnabled={store.profile.agentEnabled !== false}
-        onClearSubtasks={store.clearSubtasks}
         subtaskVisibility={subtaskVisibility}
       />
     </View>
@@ -376,30 +365,19 @@ function TodosScreen() {
         binFilterView
         onToggle={store.toggle}
         onMoveToTrash={store.moveToTrash}
-        onSkip={store.skipTodo} onSkipSeries={store.skipSeriesFuture}
+        onSkip={store.skipTodo}
         onRestore={store.restoreFromTrash}
-        onPermanentDelete={store.permanentlyDelete} onPermanentDeleteSeries={store.permanentlyDeleteSeriesFuture}
-        onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
-        onApplySeriesFutureEdits={store.applySeriesFutureEdits}
-        onDetachFromSeries={store.detachFromSeries}
-        onApplyRecurrenceChange={store.applyRecurrenceChange}
-        onApplySeriesSubtasks={store.applySeriesSubtasks}
+        onPermanentDelete={store.permanentlyDelete}
         onUpdatePriority={store.updatePriority}
         onUpdateDueDate={store.updateDueDate}
         onLongPressDefer={openSingleDefer}
         onUpdateCategory={store.updateTaskCategory}
-        onUpdateText={store.updateText}
-        onUpdateNotes={store.updateNotes}
-        onUpdateRecurrence={store.updateRecurrence}
-        onUpdateReminders={store.updateReminders}
         onAddSubtask={store.addSubtask}
         onToggleSubtask={store.toggleSubtask}
         onUpdateSubtaskText={store.updateSubtaskText}
         onUpdateSubtaskPriority={store.updateSubtaskPriority}
         onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
         onRemoveSubtask={store.removeSubtask}
-        agentEnabled={store.profile.agentEnabled !== false}
-        onClearSubtasks={store.clearSubtasks}
         subtaskVisibility={subtaskVisibility}
       />
     </View>
@@ -626,22 +604,13 @@ function TodosScreen() {
                         onToggleSelect={store.toggleTrashSelection}
                         onToggle={store.toggle}
                         onMoveToTrash={store.moveToTrash}
-                        onSkip={store.skipTodo} onSkipSeries={store.skipSeriesFuture}
-                        onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
-                        onApplySeriesFutureEdits={store.applySeriesFutureEdits}
-                        onDetachFromSeries={store.detachFromSeries}
-                        onApplyRecurrenceChange={store.applyRecurrenceChange}
-                        onApplySeriesSubtasks={store.applySeriesSubtasks}
+                        onSkip={store.skipTodo}
                         onRestore={store.restoreFromTrash}
-                        onPermanentDelete={store.permanentlyDelete} onPermanentDeleteSeries={store.permanentlyDeleteSeriesFuture}
+                        onPermanentDelete={store.permanentlyDelete}
                         onUpdatePriority={store.updatePriority}
                         onUpdateDueDate={store.updateDueDate}
                         onLongPressDefer={openSingleDefer}
                         onUpdateCategory={store.updateTaskCategory}
-                        onUpdateText={store.updateText}
-                              onUpdateNotes={store.updateNotes}
-                        onUpdateRecurrence={store.updateRecurrence}
-                        onUpdateReminders={store.updateReminders}
                       />
                     </View>
                   ))}
@@ -752,30 +721,19 @@ function TodosScreen() {
                             playSound={store.profile.completionSound !== false}
                             onToggle={store.toggle}
                             onMoveToTrash={store.moveToTrash}
-                            onSkip={store.skipTodo} onSkipSeries={store.skipSeriesFuture}
+                            onSkip={store.skipTodo}
                             onRestore={store.restoreFromTrash}
-                            onPermanentDelete={store.permanentlyDelete} onPermanentDeleteSeries={store.permanentlyDeleteSeriesFuture}
-                            onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
-                            onApplySeriesFutureEdits={store.applySeriesFutureEdits}
-                            onDetachFromSeries={store.detachFromSeries}
-                            onApplyRecurrenceChange={store.applyRecurrenceChange}
-                            onApplySeriesSubtasks={store.applySeriesSubtasks}
+                            onPermanentDelete={store.permanentlyDelete}
                             onUpdatePriority={store.updatePriority}
                             onUpdateDueDate={store.updateDueDate}
                         onLongPressDefer={openSingleDefer}
                             onUpdateCategory={store.updateTaskCategory}
-                            onUpdateText={store.updateText}
-                            onUpdateNotes={store.updateNotes}
-                            onUpdateRecurrence={store.updateRecurrence}
-                        onUpdateReminders={store.updateReminders}
                             onAddSubtask={store.addSubtask}
                             onToggleSubtask={store.toggleSubtask}
                             onUpdateSubtaskText={store.updateSubtaskText}
                             onUpdateSubtaskPriority={store.updateSubtaskPriority}
                             onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
                             onRemoveSubtask={store.removeSubtask}
-                            agentEnabled={store.profile.agentEnabled !== false}
-                            onClearSubtasks={store.clearSubtasks}
                             subtaskVisibility={
                               store.filter === "open"
                                 ? "open"

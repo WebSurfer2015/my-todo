@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo, useRef, useState } from 'react'
+import React, { memo, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { View, Text, TouchableOpacity, Platform, Modal, Alert, Pressable, Animated, Easing, Dimensions } from 'react-native'
 
 const SCREEN_WIDTH = Dimensions.get('window').width
@@ -78,7 +78,7 @@ import {
 } from 'lucide-react-native'
 import { getReminders } from '../../../../../core/src/logic/derive'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
-import { Category, Priority, Recurrence, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../../../core-bindings/types'
+import { Category, Priority, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../../../core-bindings/types'
 import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
 import { dueDateOnly, dueDateToDate, formatDisplayDate, fullDateLabel, todayLocal, isoDate } from '../../../core-bindings/utils'
 import { sortedSubs } from '../../../../../core/src/logic/derive'
@@ -89,7 +89,7 @@ import PriorityDot from '../../../ui/PriorityDot'
 import CheckGlyph from '../../../ui/CheckGlyph'
 import CategoryIcon from '../../../ui/CategoryIcon'
 import PickerModal from '../../../ui/PickerModal'
-import TaskDetailsSheet from '../TaskDetailsSheet'
+import { TaskDetailsOpenContext } from '../../../app/SheetContext'
 import { useLang } from '../../../app/LangContext'
 import { makeStyles } from './styles';
 
@@ -118,38 +118,6 @@ interface Props {
   /** R5 — Skip ("Not Do"). Marks status='notDo' and tucks the row
    * into the Done bin without flipping done. Pebble-neutral. */
   onSkip?: (id: string) => void
-  onSkipSeries?: (id: string) => void
-  onPermanentDeleteSeries?: (id: string) => void
-  onMoveSeriesFutureToTrash?: (id: string) => void
-  onApplySeriesFutureEdits?: (
-    id: string,
-    fields: {
-      text?: string
-      priority?: Priority
-      category?: Category | undefined
-      notes?: string
-    },
-    options?: { overwriteDetached?: boolean; silent?: boolean },
-  ) => void
-  /** R6a — Mark this series instance as detached. Wired through to
-   * TaskDetailsSheet which fires it when the user makes a
-   * series-eligible edit in "Edit this only" mode. */
-  onDetachFromSeries?: (id: string) => void
-  /** R6b — Series recurrence change. Wired through to
-   * TaskDetailsSheet for the "Recreate all / Keep modified" dialog
-   * fired at Save in series mode. */
-  onApplyRecurrenceChange?: (
-    id: string,
-    newRecurrence: Recurrence | undefined,
-    options: { keepDetached: boolean },
-  ) => void
-  /** R6c — Series subtask propagation. Wired through to
-   * TaskDetailsSheet for the "Overwrite all / Keep modified" dialog
-   * fired at Save in series mode when the user edited subtask shape. */
-  onApplySeriesSubtasks?: (
-    id: string,
-    options: { keepDetached: boolean },
-  ) => void
   onRestore?: (id: string) => void
   onPermanentDelete?: (id: string) => void
   onUpdatePriority: (id: string, priority: Priority) => void
@@ -160,19 +128,12 @@ interface Props {
    * fallback. No-op on done items. */
   onLongPressDefer?: (todo: Todo) => void
   onUpdateCategory: (id: string, category: Category) => void
-  onUpdateText: (id: string, text: string) => void
-  onUpdateNotes?: (id: string, notes: string) => void
-  onUpdateRecurrence?: (id: string, recurrence: Recurrence | undefined) => void
-  /** Reminder write — wired through to the ReminderSheet + AI pill in
-   * TaskDetailsSheet. */
-  onUpdateReminders?: (id: string, reminders: import('../../../core-bindings/types').Reminder[]) => void
   onAddSubtask?: (id: string, text: string, priority?: Priority, dueDate?: string) => void
   onToggleSubtask?: (id: string, subId: string) => void
   onUpdateSubtaskText?: (id: string, subId: string, text: string) => void
   onUpdateSubtaskPriority?: (id: string, subId: string, priority: Priority) => void
   onUpdateSubtaskDueDate?: (id: string, subId: string, dueDate: string) => void
   onRemoveSubtask?: (id: string, subId: string) => void
-  onClearSubtasks?: (id: string) => void
   /** Home-specific date chip rendering: hide the "Today" label for
    * items due today, swap the formatted past date for a "carried over"
    * label on overdue items. Default rendering shows the full
@@ -184,32 +145,24 @@ interface Props {
    * (today-or-earlier) sub is done but future subs are still open —
    * the "today's work is finished" state. Home uses this. */
   subtaskDateFilter?: 'due-today'
-  /** When true, TaskDetailsSheet shows the AI "Suggest steps" panel
-   * in the empty subtask state. Mirrors profile.agentEnabled. */
-  agentEnabled?: boolean
 }
 
 function TaskItem({
   todo, inTrash = false, binFilterView = false, selected = false, onToggleSelect,
   categories, celebrate = true, playSound = true,
   subtaskVisibility = 'all',
-  onToggle, onMoveToTrash, onSkip, onSkipSeries, onMoveSeriesFutureToTrash, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange, onApplySeriesSubtasks, onRestore, onPermanentDelete, onPermanentDeleteSeries,
-  onUpdatePriority, onUpdateDueDate, onLongPressDefer, onUpdateCategory, onUpdateText, onUpdateNotes, onUpdateRecurrence, onUpdateReminders,
-  onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
-  onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
-  dateChipFormat = 'default', subtaskDateFilter,
-  agentEnabled,
-}: Props) {
+  onToggle, onMoveToTrash, onSkip, onRestore, onPermanentDelete, onUpdatePriority, onUpdateDueDate, onLongPressDefer, onUpdateCategory, onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
+  onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, dateChipFormat = 'default', subtaskDateFilter,
+  }: Props) {
   const { t } = useLang()
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
   const [priorityOpen, setPriorityOpen] = useState(false)
   const [categoryOpen, setCategoryOpen] = useState(false)
   const [dateOpen, setDateOpen] = useState(false)
-  const [detailsOpen, setDetailsOpen] = useState(false)
-  // When set, TaskDetailsSheet opens jumped straight into the named
-  // subtask's edit view. Cleared on close.
-  const [pendingSubtaskEditId, setPendingSubtaskEditId] = useState<string | null>(null)
+  // The details sheet is hosted once in SheetContext (not per row), so it
+  // survives the row moving or unmounting while it's open.
+  const openTaskDetails = useContext(TaskDetailsOpenContext)
   // Rows start collapsed; the steps pill (N/M ›) expands them.
   const [expanded, setExpanded] = useState(false)
   // Shared per-subtask pickers — track which sub has the modal open.
@@ -373,17 +326,15 @@ function TaskItem({
 
   function openDetails() {
     swipeableRef.current?.close()
-    setPendingSubtaskEditId(null)
     // Interaction model (2026-10-18): tapping the row body opens the to-do
     // (also in the bin); only the circle completes it. Long-press opens too.
-    if (detailsAvailable) setDetailsOpen(true)
+    if (detailsAvailable) openTaskDetails(todo.id)
   }
 
   function openSubtaskEdit(subId: string) {
     swipeableRef.current?.close()
     if (inTrash || !detailsAvailable) return
-    setPendingSubtaskEditId(subId)
-    setDetailsOpen(true)
+    openTaskDetails(todo.id, subId)
   }
 
   function handleToggle() {
@@ -1071,44 +1022,6 @@ function TaskItem({
           />
         )}
 
-        {detailsAvailable && detailsOpen && (
-          <TaskDetailsSheet
-            visible={detailsOpen}
-            todo={todo}
-            categories={categories}
-            initialSubtaskEditId={pendingSubtaskEditId}
-            onClose={() => {
-              setDetailsOpen(false)
-              setPendingSubtaskEditId(null)
-            }}
-            onUpdateText={onUpdateText}
-            onUpdateNotes={onUpdateNotes}
-            onUpdatePriority={onUpdatePriority}
-            onUpdateDueDate={onUpdateDueDate}
-            onUpdateCategory={onUpdateCategory}
-            onUpdateRecurrence={onUpdateRecurrence ?? (() => {})}
-            onUpdateReminders={onUpdateReminders}
-            onMoveToTrash={onMoveToTrash}
-            onToggle={onToggle}
-            onPermanentDelete={onPermanentDelete}
-            onMoveSeriesFutureToTrash={onMoveSeriesFutureToTrash}
-            onSkip={onSkip}
-            onSkipSeries={onSkipSeries}
-            onPermanentDeleteSeries={onPermanentDeleteSeries}
-            onApplySeriesFutureEdits={onApplySeriesFutureEdits}
-            onDetachFromSeries={onDetachFromSeries}
-            onApplyRecurrenceChange={onApplyRecurrenceChange}
-            onApplySeriesSubtasks={onApplySeriesSubtasks}
-            onAddSubtask={onAddSubtask!}
-            onToggleSubtask={onToggleSubtask!}
-            onUpdateSubtaskText={onUpdateSubtaskText!}
-            onUpdateSubtaskPriority={onUpdateSubtaskPriority}
-            onUpdateSubtaskDueDate={onUpdateSubtaskDueDate}
-            onRemoveSubtask={onRemoveSubtask!}
-            onClearSubtasks={onClearSubtasks}
-            agentEnabled={agentEnabled}
-          />
-        )}
       </Pressable>
     </Swipeable>
     </View>

@@ -37,6 +37,7 @@ import GuideMenuSheet from '../features/onboarding/GuideMenuSheet'
 import GuideSheet from '../features/onboarding/GuideSheet'
 import GuidesPrompt from '../features/onboarding/GuidesPrompt'
 import ComposeSheet, { type ComposePrefill } from '../features/task/ComposeSheet'
+import TaskDetailsSheet from '../features/task/TaskDetailsSheet'
 import ChatSheet from '../features/mochi/ChatSheet'
 import type { ProposedOperation } from '../features/mochi/useMochiAgent'
 import { IAP_ENABLED, MOCHI_AGENT_ENABLED } from './featureFlags'
@@ -94,6 +95,13 @@ interface Sheets {
 
 const SheetContext = createContext<Sheets | null>(null)
 
+/** Opens the to-do details sheet (optionally jumped into a step's editor).
+ * A separate, STABLE context so memoized list rows don't re-render whenever
+ * the sheet layer does. */
+export const TaskDetailsOpenContext = createContext<(todoId: string, subtaskId?: string | null) => void>(
+  () => {},
+)
+
 /**
  * Module-level NavigationContainer ref. SheetProvider is mounted ABOVE
  * NavigationContainer in App.tsx, so `useNavigation` isn't available
@@ -147,6 +155,16 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   // state lets us animate it independently of the menu.
   const [promptOpen, setPromptOpen] = useState(false)
 
+  // The ONE to-do details sheet. It used to live inside each list row, so
+  // an edit that moved the row (date → tomorrow on Today, a group change on
+  // Todos) unmounted the row and closed the sheet mid-edit, losing typed
+  // text. Hosted here, it always shows the live to-do from the store.
+  const [detailsReq, setDetailsReq] = useState<{ id: string; subtaskId: string | null } | null>(null)
+  const openTaskDetails = useCallback(
+    (todoId: string, subtaskId: string | null = null) => setDetailsReq({ id: todoId, subtaskId }),
+    [],
+  )
+  const detailsTodo = detailsReq ? store.todos.find((td) => td.id === detailsReq.id) : undefined
   const openProfile = useCallback(() => setProfileOpen(true), [])
   const openSettings = useCallback(() => setSettingsOpen(true), [])
   const openTheme = useCallback(() => setThemePickerOpen(true), [])
@@ -657,6 +675,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   }
 
   return (
+    <TaskDetailsOpenContext.Provider value={openTaskDetails}>
     <SheetContext.Provider value={{ openProfile, openSettings, openTheme, openGuides, openCompose, openCapture, openMochi, openCaptureWith, openManageFilter, openSelectFilter, openManageGroceries, manageRequest, requestTodosScroll, todosScrollRequest }}>
       {children}
       {/* Sheets are only relevant once signed in. Crucially, mounting these
@@ -909,7 +928,43 @@ export function SheetProvider({ children }: { children: ReactNode }) {
       />
       </>
       )}
+      {detailsReq && detailsTodo && (
+        <TaskDetailsSheet
+          visible
+          todo={detailsTodo}
+          categories={store.categories}
+          initialSubtaskEditId={detailsReq.subtaskId}
+          onClose={() => setDetailsReq(null)}
+          onUpdateText={store.updateText}
+          onUpdateNotes={store.updateNotes}
+          onUpdatePriority={store.updatePriority}
+          onUpdateDueDate={store.updateDueDate}
+          onUpdateCategory={store.updateTaskCategory}
+          onUpdateRecurrence={store.updateRecurrence}
+          onUpdateReminders={store.updateReminders}
+          onMoveToTrash={store.moveToTrash}
+          onToggle={store.toggle}
+          onPermanentDelete={store.permanentlyDelete}
+          onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
+          onSkip={store.skipTodo}
+          onSkipSeries={store.skipSeriesFuture}
+          onPermanentDeleteSeries={store.permanentlyDeleteSeriesFuture}
+          onApplySeriesFutureEdits={store.applySeriesFutureEdits}
+          onDetachFromSeries={store.detachFromSeries}
+          onApplyRecurrenceChange={store.applyRecurrenceChange}
+          onApplySeriesSubtasks={store.applySeriesSubtasks}
+          onAddSubtask={store.addSubtask}
+          onToggleSubtask={store.toggleSubtask}
+          onUpdateSubtaskText={store.updateSubtaskText}
+          onUpdateSubtaskPriority={store.updateSubtaskPriority}
+          onUpdateSubtaskDueDate={store.updateSubtaskDueDate}
+          onRemoveSubtask={store.removeSubtask}
+          onClearSubtasks={store.clearSubtasks}
+          agentEnabled={store.profile.agentEnabled !== false}
+        />
+      )}
     </SheetContext.Provider>
+    </TaskDetailsOpenContext.Provider>
   )
 }
 
