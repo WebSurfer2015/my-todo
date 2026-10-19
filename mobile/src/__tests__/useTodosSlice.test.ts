@@ -7,7 +7,7 @@
  */
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import { useTodosSlice, type TodosSliceDeps } from '../store/slices/useTodosSlice'
+import { useTodosSlice, deferSnackbarMessage, type TodosSliceDeps } from '../store/slices/useTodosSlice'
 import { createTodoStore } from '../../../core/src/store'
 import { strings } from '../../../core/src/data/i18n'
 import type { StorageAdapter } from '../../../core/src/ports/persistence'
@@ -146,7 +146,7 @@ describe('useTodosSlice snackbars', () => {
     const { hook, snacks } = await setup([...missed, ...future, mk('solo', { dueDate: '2026-10-10' })])
     const before = hook.result.current.todos
     act(() => hook.result.current.deferOverdue(1))
-    expect(snacks.at(-1)?.message).toBe('deferred 2')
+    expect(snacks.at(-1)?.message).toBe('deferred 2 · 2 earlier repeats tucked into Done.')
     const byId = Object.fromEntries(hook.result.current.todos.map((x) => [x.id, x]))
     expect(byId.m18.dueDate).toBe('2026-10-20')
     expect(byId.solo.dueDate).toBe('2026-10-20')
@@ -181,5 +181,116 @@ describe('useTodosSlice snackbars', () => {
       undo = hook.result.current.bulkDeferTodos(['a'], 'not-a-date')
     })
     expect(undo).toBeNull()
+  })
+})
+
+describe('deferSnackbarMessage', () => {
+  it('adds the tucked-away repeats, pluralized', () => {
+    expect(deferSnackbarMessage('1 to-do deferred.', 0)).toBe('1 to-do deferred.')
+    expect(deferSnackbarMessage('1 to-do deferred.', 1)).toBe(
+      '1 to-do deferred · 1 earlier repeat tucked into Done.',
+    )
+    expect(deferSnackbarMessage('1 to-do deferred.', 3)).toBe(
+      '1 to-do deferred · 3 earlier repeats tucked into Done.',
+    )
+  })
+})
+
+describe('useTodosSlice ordering + timing', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 19, 12, 0, 0))
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('a mixed Mochi batch (add X, then complete a series) undoes exactly the completion', async () => {
+    const series = dailySeries()
+    const { hook } = await setup(series)
+    let undo: (() => void) | null = null
+    act(() => {
+      hook.result.current.addTask('Buy milk', 'medium', '')
+      undo = hook.result.current.toggle('d19')
+    })
+    await waitFor(() => expect(hook.result.current.todos.find((x) => x.id === 'd19')?.done).toBe(true))
+    // X + the appended next occurrence.
+    expect(hook.result.current.todos.length).toBe(series.length + 2)
+    act(() => undo?.())
+    await waitFor(() => expect(hook.result.current.todos.find((x) => x.id === 'd19')?.done).toBe(false))
+    // Only X remains added: the appended occurrence was reverted too.
+    expect(hook.result.current.todos.length).toBe(series.length + 1)
+    expect(hook.result.current.todos.some((x) => x.text === 'Buy milk')).toBe(true)
+  })
+
+  it('every mutation advances todosRef synchronously', async () => {
+    const { hook } = await setup([mk('a')])
+    act(() => {
+      hook.result.current.updateText('a', 'renamed')
+      expect(hook.result.current.todosRef.current[0].text).toBe('renamed')
+      hook.result.current.addSubtask('a', 'step')
+      expect(hook.result.current.todosRef.current[0].subtasks?.length).toBe(1)
+    })
+  })
+
+  it('snooze keeps the time of day and moves an upcoming reminder with it', async () => {
+    const at = new Date(2026, 9, 19, 14, 0, 0).toISOString()
+    const { hook } = await setup([
+      mk('t', { dueDate: '2026-10-19T15:00', reminders: [{ id: 'r', at }] }),
+    ])
+    act(() => hook.result.current.snooze('t', 1))
+    const t1 = hook.result.current.todos[0]
+    expect(t1.dueDate).toBe('2026-10-20T15:00')
+    expect(new Date(t1.reminders![0].at).getDate()).toBe(20)
+    expect(new Date(t1.reminders![0].at).getHours()).toBe(14)
+  })
+
+  it('bulk defer reports the earlier repeats it tucked into Done', async () => {
+    const missed = [16, 17, 18].map((d) =>
+      mk(`m${d}`, { text: 'Walk', dueDate: `2026-10-${d}`, seriesId: 's2', recurrence: { freq: 'weekly' } }),
+    )
+    const future = mk('f25', { text: 'Walk', dueDate: '2026-10-25', seriesId: 's2', recurrence: { freq: 'weekly' } })
+    const { hook, snacks } = await setup([...missed, future])
+    act(() => hook.result.current.bulkDeferTodos(['m16', 'm17', 'm18'], '2026-10-21'))
+    expect(snacks.at(-1)?.message).toBe('1 to-do deferred · 2 earlier repeats tucked into Done.')
+    expect(snacks.at(-1)?.actionLabel).toBe('Undo all')
+  })
+})
+
+describe('series top-up waits for server-confirmed todos', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 19, 12, 0, 0))
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('does not top up cache-first data; tops up once a server snapshot lands', async () => {
+    // A daily series with only today's occurrence: the top-up adds a tail.
+    const lone = [mk('d19', { text: 'Walk', dueDate: '2026-10-19', seriesId: 's1', recurrence: { freq: 'daily' } })]
+    type Cb = (v: string | null, meta?: { trusted: boolean; fromServer?: boolean }) => void
+    const subs = new Map<string, Cb>()
+    const adapter: StorageAdapter = {
+      ...adapterWith(lone),
+      subscribe: (k, cb) => {
+        subs.set(k, cb)
+        return () => { subs.delete(k) }
+      },
+    }
+    const sub = (v: string | null, meta: { trusted: boolean; fromServer?: boolean }) => subs.get('todos')!(v, meta)
+    const deps: TodosSliceDeps = {
+      filter: 'all',
+      filterRef: { current: 'all' },
+      uid: 'u1',
+      today: '2026-10-19',
+      t,
+      notify: { showSnackbar: () => {} },
+      actions: createTodoStore({ t: strings.en }).actions,
+    }
+    const hook = renderHook(() => useTodosSlice(adapter, deps))
+    await waitFor(() => expect(hook.result.current.todosLoaded).toBe(true))
+    expect(hook.result.current.todos.length).toBe(1)
+    // A cache snapshot is not server confirmation → still no top-up.
+    act(() => sub(wrap(lone), { trusted: true, fromServer: false }))
+    expect(hook.result.current.todos.length).toBe(1)
+    act(() => sub(wrap(lone), { trusted: true, fromServer: true }))
+    await waitFor(() => expect(hook.result.current.todos.length).toBeGreaterThan(1))
   })
 })

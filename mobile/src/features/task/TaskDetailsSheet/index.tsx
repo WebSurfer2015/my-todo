@@ -128,6 +128,9 @@ interface Props {
    * sub-view for this subtask id (skipping the parent edit view). */
   initialSubtaskEditId?: string | null
   onClose: () => void
+  /** Lets the host close this sheet through its save path (e.g. a reminder
+   * tap swapping to another to-do). Called with null on unmount. */
+  registerClose?: (close: (() => void) | null) => void
   onUpdateText: (id: string, text: string) => void
   onUpdateNotes: (id: string, notes: string) => void
   onUpdatePriority: (id: string, priority: Priority) => void
@@ -208,7 +211,7 @@ function todoContentDiffers(a: Todo, b: Todo): boolean {
 }
 
 export default function TaskDetailsSheet({
-  visible, todo, categories, initialSubtaskEditId, onClose, onUpdateText, onUpdateNotes,
+  visible, todo, categories, initialSubtaskEditId, onClose, registerClose, onUpdateText, onUpdateNotes,
   onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminders, onMoveToTrash, onToggle, onPermanentDelete, onMoveSeriesFutureToTrash, onSkip, onSkipSeries, onPermanentDeleteSeries, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange, onApplySeriesSubtasks,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
@@ -771,6 +774,14 @@ export default function TaskDetailsSheet({
     }
   }
 
+  // Expose the save-and-close path to the host (latest closure via a ref).
+  const closeAndFlushRef = useRef(closeAndFlushText)
+  closeAndFlushRef.current = closeAndFlushText
+  useEffect(() => {
+    if (!registerClose) return
+    registerClose(() => closeAndFlushRef.current())
+    return () => registerClose(null)
+  }, [registerClose])
 
   return (
     <Modal visible={visible} transparent statusBarTranslucent animationType="slide" onRequestClose={handleAndroidBack}>

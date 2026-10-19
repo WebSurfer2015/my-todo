@@ -81,8 +81,8 @@ const adapter = useMemo<StorageAdapter>(
 2. Subscribes via `adapter.subscribe?.(key, cb)` (Firestore `onSnapshot` with `includeMetadataChanges`; each snapshot carries `meta.trusted` — a cache-only "missing" doc is untrusted).
 3. **Writes are locked until real data arrives** (a resolved read or a trusted snapshot). A timed-out/failed first read shows defaults but never writes them over the cloud doc; edits made while locked are written once it unlocks.
 4. **Trailing-debounced writes (~400ms)** — bursts of mutations collapse into one `setDoc`. `lastSerializedRef` short-circuits write→subscribe→setState round-trips. Values over ~480 KiB aren't written (Firestore's 512 KiB doc cap) and surface a calm snackbar via `onSyncIssue`.
-5. **`todos` merges instead of replacing** when a remote snapshot arrives while local changes are pending (`core/src/store/mergeTodos.ts`, a 3-way merge by id / `updatedAt`), so two devices editing different to-dos don't clobber each other.
-6. Returns a 4th value, `trusted`; the store exposes `profileTrusted` / `dataTrusted` (onboarding and reminder sync wait for real data).
+5. **`todos` merges instead of replacing**: the todos slice passes `{ merge: mergeTodos }` (`core/src/store/mergeTodos.ts`, a 3-way merge by id / `updatedAt`, collapsing duplicate series occurrences on the same day) so a remote snapshot or a late first read never clobbers pending local edits. A rejected write rolls `lastSerializedRef` back so the next edit re-sends it.
+6. Returns `[state, setState, loaded, trusted, serverConfirmed]`. `trusted` = real data arrived (the store exposes `profileTrusted` / `dataTrusted`; onboarding and reminder sync wait on them). `serverConfirmed` = the latest snapshot came from the server — automatic writes such as the daily series top-up wait on it, so a stale cache can't overwrite another device's newer doc.
 
 The Firestore adapter writes each entity to `users/{uid}/state/{key}` as `{ value: <json envelope>, updatedAt }`. `value` is the same versioned envelope (`{version, data}`) that `adapters/persistence` (AsyncStorage) uses for the device-local language setting — the only thing kept on-device.
 

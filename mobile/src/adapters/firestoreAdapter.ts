@@ -10,6 +10,7 @@ import type { FirebaseFirestoreTypes } from "@react-native-firebase/firestore";
 
 type Firestore = FirebaseFirestoreTypes.Module;
 import { StorageAdapter, stateDocPath } from "../../../core/src/ports/persistence";
+import type { SnapshotMeta } from "../store/useSyncedState";
 
 /** Delay before the one retry of a listener that failed permission-denied. */
 export const SUBSCRIBE_RETRY_MS = 1500;
@@ -84,9 +85,13 @@ export function makeFirestoreAdapter(
             // through normally.
             if (snap.metadata.hasPendingWrites) return;
             // A cache-only "doesn't exist" may just mean "not synced yet".
-            const trusted = !snap.metadata.fromCache || snap.exists();
-            if (!snap.exists()) return callback(null, { trusted });
-            callback(valueOf(snap), { trusted });
+            const fromServer = !snap.metadata.fromCache;
+            const trusted = fromServer || snap.exists();
+            // `fromServer` rides along beyond the port's `{trusted}` so the
+            // shell can hold back automatic writes (series top-up) until the
+            // data is server-confirmed (useSyncedState's SnapshotMeta).
+            const meta: SnapshotMeta = { trusted, fromServer };
+            callback(snap.exists() ? valueOf(snap) : null, meta);
           },
           (err) => {
             const code = (err as { code?: string }).code ?? "";

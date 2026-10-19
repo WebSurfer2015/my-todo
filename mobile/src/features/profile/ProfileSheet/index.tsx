@@ -46,7 +46,9 @@ import { makeStyles } from "./styles";
 interface Props {
   visible: boolean;
   profile: Profile;
-  onSave: (p: Profile) => void;
+  /** Only the fields this sheet edits — merged onto the LATEST profile, so a
+   * change that landed while the sheet was open isn't clobbered. */
+  onSave: (patch: Partial<Profile>) => void;
   onClose: () => void;
 }
 
@@ -214,7 +216,6 @@ export default function ProfileSheet({
   function commit() {
     const trimmedFirst = firstName.trim();
     onSave({
-      ...profile,
       name: trimmedFirst,
       firstName: trimmedFirst,
       lastName: lastName.trim() || undefined,

@@ -28,7 +28,7 @@ jobs:
         run: npm run test:coverage
 
   mobile:
-    name: mobile lint + typecheck + test
+    name: mobile lint + typecheck + test + coverage gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,9 +46,9 @@ jobs:
       - name: Typecheck
         working-directory: mobile
         run: npx tsc --noEmit -p tsconfig.json
-      - name: Test
+      - name: Test + coverage gate (thresholds in mobile/vitest.config.ts)
         working-directory: mobile
-        run: npm test
+        run: npm run test:coverage
 
   functions:
     name: cloud functions typecheck + test

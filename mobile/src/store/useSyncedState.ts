@@ -1,10 +1,9 @@
-import { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from "react";
+import { Dispatch, SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
 import {
   StorageAdapter,
   exceedsSyncedValueCap,
 } from "../../../core/src/ports/persistence";
-import { mergeTodos } from "../../../core/src/store";
 
 /** Upper bound on a single entity's first hydrate read. Firestore (with the
  * offline cache) normally resolves in ms or rejects; this only catches a
@@ -22,12 +21,14 @@ export interface SyncedStateOptions<T> {
   merge?: SyncedMerge<T>;
 }
 
-/** Keys that merge by default. `todos` is one doc holding the whole list, so
- * replace-on-snapshot was last-writer-wins across devices. Lives here (not
- * only as an option) because the todos slice calls this hook directly. */
-const DEFAULT_MERGE: Record<string, unknown> = {
-  todos: mergeTodos,
-};
+/** Snapshot metadata. core's port only promises `trusted`; the Firestore
+ * adapter also says whether the snapshot is server-confirmed (`fromServer`,
+ * i.e. not served from the offline cache). Adapters that can't tell leave it
+ * undefined. */
+export interface SnapshotMeta {
+  trusted: boolean;
+  fromServer?: boolean;
+}
 
 /** Something the user should hear about, reported by every synced key. */
 export type SyncIssue =
@@ -58,27 +59,11 @@ function reportSyncIssue(issue: SyncIssue): void {
   });
 }
 
-// Which (adapter, key) pairs have seen REAL data. Lets the composer gate
-// effects on keys whose hook lives in a slice that doesn't surface the flag.
-const trustedKeys = new WeakMap<StorageAdapter, Set<string>>();
-
-/** True once `key` on `adapter` has seen real data (a resolved read or a
- * trusted snapshot) — not defaults from a failed / timed-out hydrate. */
-export function isSyncedKeyTrusted(adapter: StorageAdapter, key: string): boolean {
-  return trustedKeys.get(adapter)?.has(key) === true;
-}
-
-function markTrusted(adapter: StorageAdapter, key: string): void {
-  let keys = trustedKeys.get(adapter);
-  if (!keys) {
-    keys = new Set();
-    trustedKeys.set(adapter, keys);
-  }
-  keys.add(key);
-}
-
 /** Write `json` unless it's over the doc cap. Advances lastSerialized only
- * when a write is actually sent. */
+ * when a write is actually sent — and rolls it back when the write is
+ * rejected, so the server's unchanged value arriving next isn't mistaken for
+ * "already saved" and silently reverted over the local change, and the next
+ * edit re-sends it. */
 function persist(
   adapter: StorageAdapter,
   key: string,
@@ -90,8 +75,11 @@ function persist(
     reportSyncIssue({ kind: "tooLarge", key });
     return;
   }
+  const previous = lastSerializedRef.current;
   lastSerializedRef.current = json;
   adapter.setItem(key, json).catch((err) => {
+    // Only if nothing newer was written / applied since.
+    if (lastSerializedRef.current === json) lastSerializedRef.current = previous;
     console.warn(`useSyncedState[${key}] ${label} failed:`, err);
     // permission-denied is the expected sign-out / uid-swap teardown race.
     const code = String((err as { code?: unknown } | null)?.code ?? "");
@@ -106,12 +94,16 @@ function persist(
  * adapter.getItem(key), subscribes to remote changes if supported, writes
  * back through adapter.setItem on local mutations.
  *
- * Returns `[state, setState, loaded, trusted]`:
+ * Returns `[state, setState, loaded, trusted, serverConfirmed]`:
  * - `loaded` — the first hydrate for THIS adapter settled (real data or
  *   defaults). Scoped to the adapter, so right after a uid swap it is false
  *   in the very same render, not one frame later.
  * - `trusted` — the state came from real data (a resolved read or a trusted
  *   snapshot), not defaults after a failed / timed-out hydrate.
+ * - `serverConfirmed` — the latest snapshot came from the server (not the
+ *   offline cache). For adapters without `subscribe` (one-shot KV stores),
+ *   a resolved read is all there is, so it counts. Gate automatic writes
+ *   that must not run on possibly-stale cache data on this.
  *
  * `lastSerializedRef` tracks last-seen-or-written value so write→subscribe→
  * setState round-trips don't recurse.
@@ -123,28 +115,27 @@ export function useSyncedState<T>(
   parse: (raw: string | null) => T,
   serialize: (value: T) => string,
   options?: SyncedStateOptions<T>,
-): [T, Dispatch<SetStateAction<T>>, boolean, boolean] {
+): [T, Dispatch<SetStateAction<T>>, boolean, boolean, boolean] {
   const [state, setState] = useState<T>(initial);
   // Scope token: loaded/trusted are only true for the (adapter, key) they
   // were reached on.
   const scope = useMemo(() => ({ adapter, key }), [adapter, key]);
   const [loadedFor, setLoadedFor] = useState<typeof scope | null>(null);
   const [trustedFor, setTrustedFor] = useState<typeof scope | null>(null);
+  const [serverFor, setServerFor] = useState<typeof scope | null>(null);
   const loaded = loadedFor === scope;
   const trusted = trustedFor === scope;
+  const serverConfirmed = serverFor === scope;
   const lastSerializedRef = useRef<string | null>(null);
   const parseRef = useRef(parse);
   const serializeRef = useRef(serialize);
-  const mergeRef = useRef(
-    options?.merge ?? (DEFAULT_MERGE[key] as SyncedMerge<T> | undefined),
-  );
+  const mergeRef = useRef(options?.merge);
   // Mirrored like parse/serialize: callers often pass a fresh literal (e.g.
   // `[]`), which must not re-run the hydrate effect.
   const initialRef = useRef(initial);
   parseRef.current = parse;
   serializeRef.current = serialize;
-  mergeRef.current =
-    options?.merge ?? (DEFAULT_MERGE[key] as SyncedMerge<T> | undefined);
+  mergeRef.current = options?.merge;
   initialRef.current = initial;
   // Latest values mirrored into refs so the AppState background-flush
   // listener (registered once) can read current state/adapter/key/loaded
@@ -166,75 +157,17 @@ export function useSyncedState<T>(
   // differs is written — `trusted` is a write-effect dep for exactly that.
   const canWriteRef = useRef(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    let settled = false;
-    canWriteRef.current = false;
-    const becomeTrusted = () => {
-      canWriteRef.current = true;
-      markTrusted(scope.adapter, scope.key);
-      setTrustedFor(scope);
-    };
-    // Proceed-with-defaults fallback shared by the catch and the timeout: don't
-    // let the trailing-debounced write push our default/empty state back to
-    // cloud over data we merely failed to READ. Seed the ref with the default
-    // so the write effect treats it as already-persisted (no write fires); a
-    // later getItem resolution or subscribe() snapshot recovers from here.
-    const proceedWithDefaults = () => {
-      lastSerializedRef.current = serializeRef.current(initialRef.current);
-      setLoadedFor(scope);
-    };
-    // A getItem read that STALLS (socket open but never responds — captive
-    // portal, dead connection before the cache warms) would never settle, so
-    // `loaded` would never flip and the user is trapped on the launch
-    // LoadingScreen. Bound it: after the timeout, proceed with defaults.
-    const timeout = setTimeout(() => {
-      if (cancelled || settled) return;
-      settled = true;
-      console.warn(`useSyncedState[${key}] hydrate timed out — using defaults`);
-      proceedWithDefaults();
-    }, HYDRATE_TIMEOUT_MS);
-    adapter
-      .getItem(key)
-      .then((raw) => {
-        settled = true;
-        if (cancelled) return;
-        const parsed = parseRef.current(raw);
-        // A MISSING doc: treat the defaults as already saved, so they aren't
-        // written 400ms later. That write raced (and could overwrite) a doc
-        // created elsewhere on this device — e.g. Apple/Google sign-in
-        // seeding the profile name, which Apple only sends once. The first
-        // real edit still writes.
-        lastSerializedRef.current = raw === null ? serializeRef.current(parsed) : raw;
-        setState(parsed);
-        becomeTrusted();
-        setLoadedFor(scope);
-      })
-      .catch((err) => {
-        settled = true;
-        if (cancelled) return;
-        console.warn(`useSyncedState[${key}] hydrate failed:`, err);
-        proceedWithDefaults();
-      })
-      .finally(() => clearTimeout(timeout));
-    return () => {
-      cancelled = true;
-      clearTimeout(timeout);
-    };
-  }, [adapter, key, scope]);
+  // Unlock writes for this scope (first real data).
+  const becomeTrusted = useCallback(() => {
+    canWriteRef.current = true;
+    setTrustedFor(scope);
+  }, [scope]);
 
-  useEffect(() => {
-    if (!adapter.subscribe) return;
-    return adapter.subscribe(key, (raw, meta) => {
-      if (meta?.trusted === false && !canWriteRef.current) return;
-      // The first trusted snapshot after a failed read is the real data:
-      // apply it even if it matches the defaults we were showing.
-      const firstTrusted = !canWriteRef.current;
-      if (firstTrusted) {
-        canWriteRef.current = true;
-        markTrusted(scope.adapter, scope.key);
-        setTrustedFor(scope);
-      }
+  // Apply a remote value (a snapshot, or a hydrate read that resolved only
+  // after the timeout already showed defaults). `firstTrusted` = this is the
+  // first real data: apply it even if it matches what we were showing.
+  const applyRemote = useCallback(
+    (raw: string | null, firstTrusted: boolean) => {
       if (raw === lastSerializedRef.current && !firstTrusted) return;
       // Two-step equality: a raw byte match short-circuits; otherwise
       // parse-then-reserialize and compare. When Firestore holds an older
@@ -256,7 +189,7 @@ export function useSyncedState<T>(
         return;
       }
       // A local change not yet written (debounce pending, or edits made
-      // while writes were locked): merge instead of letting the snapshot
+      // while writes were locked): merge instead of letting the remote value
       // replace it. The write effect then sees merged ≠ remote and writes
       // the union back.
       const serializeNow = serializeRef.current;
@@ -264,8 +197,95 @@ export function useSyncedState<T>(
       setState((prev) =>
         serializeNow(prev) === baseRaw ? parsed : merge(base, prev, parsed),
       );
+    },
+    [],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    let settled = false;
+    let timedOut = false;
+    canWriteRef.current = false;
+    // Proceed-with-defaults fallback shared by the catch and the timeout:
+    // SHOW the defaults (state may still hold the previous account's data
+    // after a uid swap — merging a later snapshot into that would write
+    // account A's to-dos into account B's doc), but don't let the
+    // trailing-debounced write push them back to cloud over data we merely
+    // failed to READ. Seed the ref with the default so the write effect
+    // treats it as already-persisted (no write fires); a later getItem
+    // resolution or subscribe() snapshot recovers from here.
+    const proceedWithDefaults = () => {
+      lastSerializedRef.current = serializeRef.current(initialRef.current);
+      setState(initialRef.current);
+      setLoadedFor(scope);
+    };
+    // A getItem read that STALLS (socket open but never responds — captive
+    // portal, dead connection before the cache warms) would never settle, so
+    // `loaded` would never flip and the user is trapped on the launch
+    // LoadingScreen. Bound it: after the timeout, proceed with defaults.
+    const timeout = setTimeout(() => {
+      if (cancelled || settled) return;
+      settled = true;
+      timedOut = true;
+      console.warn(`useSyncedState[${key}] hydrate timed out — using defaults`);
+      proceedWithDefaults();
+    }, HYDRATE_TIMEOUT_MS);
+    adapter
+      .getItem(key)
+      .then((raw) => {
+        settled = true;
+        if (cancelled) return;
+        if (timedOut) {
+          // Late read: defaults are showing and the user may have edited on
+          // top of them. A trusted snapshot that already arrived is newer —
+          // drop this; otherwise treat it like a first trusted snapshot
+          // (merge, not replace).
+          if (canWriteRef.current) return;
+          becomeTrusted();
+          if (!adapter.subscribe) setServerFor(scope);
+          applyRemote(raw, true);
+          return;
+        }
+        const parsed = parseRef.current(raw);
+        // A MISSING doc: treat the defaults as already saved, so they aren't
+        // written 400ms later. That write raced (and could overwrite) a doc
+        // created elsewhere on this device — e.g. Apple/Google sign-in
+        // seeding the profile name, which Apple only sends once. The first
+        // real edit still writes.
+        lastSerializedRef.current = raw === null ? serializeRef.current(parsed) : raw;
+        setState(parsed);
+        becomeTrusted();
+        // No realtime channel: this read is the authoritative copy.
+        if (!adapter.subscribe) setServerFor(scope);
+        setLoadedFor(scope);
+      })
+      .catch((err) => {
+        if (cancelled || timedOut) return;
+        settled = true;
+        console.warn(`useSyncedState[${key}] hydrate failed:`, err);
+        proceedWithDefaults();
+      })
+      .finally(() => clearTimeout(timeout));
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [adapter, key, scope, becomeTrusted, applyRemote]);
+
+  useEffect(() => {
+    if (!adapter.subscribe) return;
+    return adapter.subscribe(key, (raw, meta?: SnapshotMeta) => {
+      // Track server confirmation on every snapshot (incl. metadata-only
+      // ones): going offline flips the next snapshot to fromCache.
+      if (meta?.fromServer !== undefined) setServerFor(meta.fromServer ? scope : null);
+      if (meta?.trusted === false && !canWriteRef.current) return;
+      // The first trusted snapshot after a failed read is the real data:
+      // apply it even if it matches the defaults we were showing.
+      const firstTrusted = !canWriteRef.current;
+      if (firstTrusted) becomeTrusted();
+      applyRemote(raw, firstTrusted);
     });
-  }, [adapter, key, scope]);
+  }, [adapter, key, scope, becomeTrusted, applyRemote]);
 
   // Trailing-debounced write (~400ms) so a burst of mutations (typing in a
   // task title) collapses into a single Firestore setDoc instead of one
@@ -299,5 +319,5 @@ export function useSyncedState<T>(
     return () => sub.remove();
   }, []);
 
-  return [state, setState, loaded, trusted];
+  return [state, setState, loaded, trusted, serverConfirmed];
 }
