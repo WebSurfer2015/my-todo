@@ -38,9 +38,19 @@ appId: com.websurfer.mytodo
     commands:
       - tapOn:
           id: "signin-with-email"
-      - tapOn:
-          id: "signin-email-input"
-      - inputText: ${EMAIL}
+      # Fast typing on the iOS sim can scramble characters ("gmail.cmo" seen
+      # in CI) — type, then verify the field shows exactly the email, and
+      # retry (clearing first) if it doesn't.
+      - retry:
+          maxRetries: 3
+          commands:
+            - tapOn:
+                id: "signin-email-input"
+            - eraseText: 60
+            - inputText: ${EMAIL}
+            - assertVisible:
+                id: "signin-email-input"
+                text: ${EMAIL}
       - tapOn:
           id: "signin-password-input"
       - inputText: ${PASSWORD}
