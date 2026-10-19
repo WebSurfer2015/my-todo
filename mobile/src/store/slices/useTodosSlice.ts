@@ -221,6 +221,7 @@ export function useTodosSlice(
     newTodo,
     todoToggle,
     todoRevert,
+    todosRevertChanges,
     todoMoveToTrash,
     todoMoveToTrashFutureSeries,
     todoApplySeriesFutureEdits,
@@ -301,8 +302,13 @@ export function useTodosSlice(
 
   const toggle = useCallback(
     (id: string) => {
-      const beforeTodo = todosRef.current.find((td) => td.id === id);
-      setTodos((prev) => todoToggle(prev, id));
+      const beforeAll = todosRef.current;
+      const beforeTodo = beforeAll.find((td) => td.id === id);
+      // Computed up front so Undo can reverse EXACTLY what this toggle did —
+      // a series completion also appends the next occurrence and moves
+      // reminders; restoring only the one row left those behind.
+      const afterAll = todoToggle(beforeAll, id);
+      setTodos((prev) => (prev === beforeAll ? afterAll : todoToggle(prev, id)));
       if (!beforeTodo) return;
       const { after, referenceRow } = toggleOutcome(beforeTodo);
       if (referenceRow) {
@@ -316,7 +322,7 @@ export function useTodosSlice(
         notify.showSnackbar({
           message: t.completedSnackbar(text),
           actionLabel: t.undo,
-          onAction: () => setTodos((prev) => todoRevert(prev, beforeTodo)),
+          onAction: () => setTodos((prev) => todosRevertChanges(prev, beforeAll, afterAll)),
           mergeKey: "done",
           mergedMessage: (n: number) => t.completedSnackbarMany(n),
           mergedActionLabel: t.undoAll,
@@ -329,7 +335,7 @@ export function useTodosSlice(
         notify.showSnackbar({ message: "Moved back to your open list." });
       }
     },
-    [setTodos, toggleOutcome, filterRef, todoToggle, todoRevert, setTodoReferences, recordTodoReference, notify, t],
+    [setTodos, toggleOutcome, filterRef, todoToggle, todosRevertChanges, setTodoReferences, recordTodoReference, notify, t],
   );
 
   const revertTodo = useCallback(

@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react'
-import { Animated, StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native'
+import { AccessibilityInfo, Animated, StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native'
 import { useTheme, ThemeColors } from './theme'
 
 interface SnackbarOptions {
@@ -28,6 +28,8 @@ interface SnackbarState {
   mergeKey?: string
   mergedCount: number
   mergedActions: Array<() => void>
+  /** This toast's OWN action (onAction above may be a merged composite). */
+  ownAction?: () => void
   mergedMessage?: (count: number) => string
   mergedActionLabel?: string
 }
@@ -38,7 +40,9 @@ interface NotifyApi {
 
 const NotifyContext = createContext<NotifyApi>(null!)
 
-const DEFAULT_DURATION = 3500
+// Long enough to notice and reach Undo (was 3.5s — too quick, especially
+// with VoiceOver or a slower reader).
+const DEFAULT_DURATION = 6000
 
 export function NotifyProvider({ children }: { children: ReactNode }) {
   const [snackbar, setSnackbar] = useState<SnackbarState | null>(null)
@@ -62,7 +66,9 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
     if (prev && opts.mergeKey && prev.mergeKey === opts.mergeKey) {
       const newCount = prev.mergedCount + 1
       const accumulated = [...prev.mergedActions]
-      if (prev.onAction) accumulated.push(prev.onAction)
+      // Push the previous toast's own action, not its composite — pushing the
+      // composite re-ran every earlier undo once per later merge.
+      if (prev.ownAction) accumulated.push(prev.ownAction)
       const builder = opts.mergedMessage ?? prev.mergedMessage
       const message = builder ? builder(newCount) : opts.message
       next = {
@@ -81,6 +87,7 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
         mergeKey: opts.mergeKey,
         mergedCount: newCount,
         mergedActions: accumulated,
+        ownAction: opts.onAction,
         mergedMessage: builder,
         mergedActionLabel: opts.mergedActionLabel ?? prev.mergedActionLabel,
       }
@@ -94,6 +101,7 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
         mergeKey: opts.mergeKey,
         mergedCount: 1,
         mergedActions: [],
+        ownAction: opts.onAction,
         mergedMessage: opts.mergedMessage,
         mergedActionLabel: opts.mergedActionLabel,
       }
@@ -155,6 +163,11 @@ function Snackbar({
       Animated.timing(opacity, { toValue: 1, duration: 220, useNativeDriver: true }),
     ]).start()
   }, [translateY, opacity])
+  // accessibilityRole="alert" isn't announced on iOS — speak it explicitly
+  // so VoiceOver users know an Undo is available.
+  useEffect(() => {
+    AccessibilityInfo.announceForAccessibility(actionLabel ? `${message}. ${actionLabel} available.` : message)
+  }, [message, actionLabel])
 
   return (
     <View style={styles.container} pointerEvents="box-none">
@@ -164,11 +177,17 @@ function Snackbar({
       >
         <Text style={styles.message} numberOfLines={2}>{message}</Text>
         {actionLabel && (
-          <TouchableOpacity onPress={onAction} hitSlop={8}>
+          <TouchableOpacity onPress={onAction} hitSlop={8} accessibilityRole="button">
             <Text style={styles.action}>{actionLabel}</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity onPress={onDismiss} hitSlop={8} style={styles.closeBtn}>
+        <TouchableOpacity
+          onPress={onDismiss}
+          hitSlop={8}
+          style={styles.closeBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss"
+        >
           <Text style={styles.close}>×</Text>
         </TouchableOpacity>
       </Animated.View>

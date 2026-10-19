@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   todoToggle,
   expandSeries,
+  todosRevertChanges,
 } from "../src/logic/derive";
 import type { Todo } from "../src/domain/types";
 
@@ -111,5 +112,21 @@ describe("todoToggle — series un-do (R3)", () => {
     expect(head.trashed).toBe(false);
     expect(head.completionDate).toBeUndefined();
     expect(head.trashedAt).toBeUndefined();
+  });
+});
+
+describe("todosRevertChanges — exact completion Undo (series)", () => {
+  it("removes the appended occurrence and restores every touched instance", () => {
+    const expanded = expandSeries(seed({ reminders: [{ id: "r1", at: "2026-05-28T08:00" }] } as never), "2026-05-28");
+    const target = expanded[0];
+    const after = todoToggle(expanded, target.id, "2026-05-28");
+    expect(after.length).toBeGreaterThanOrEqual(expanded.length);
+    const reverted = todosRevertChanges(after, expanded, after);
+    expect(reverted.map((t) => t.id)).toEqual(expanded.map((t) => t.id));
+    reverted.forEach((t, i) => {
+      const { updatedAt: _a, ...r } = t;
+      const { updatedAt: _b, ...e } = expanded[i];
+      expect(r).toEqual(e);
+    });
   });
 });

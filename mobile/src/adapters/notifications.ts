@@ -161,111 +161,139 @@ interface TodoForReminder {
 }
 
 const REMINDER_BODY = 'A gentle nudge from Mochi.'
-const NUDGE_BODY = 'No rush. Tap to pick a new day, or mark it done.'
+// Promise only what a tap does (it opens the app — no actions/deep link yet).
+const NUDGE_BODY = "No rush. It'll be here when you're ready."
+
+/** iOS keeps at most 64 pending local notifications per app and silently
+ * drops the rest — schedule only the soonest ones, leaving a little headroom. */
+const MAX_PENDING = 60
+
+/** The fire time we scheduled, read back from the request's own data. The
+ * trigger can't be trusted for this: iOS returns a DATE trigger as a
+ * time-interval trigger with no `date`, so comparing triggers never matched
+ * and every sync cancelled + re-created every reminder. */
+function scheduledAtMs(req: Notifications.NotificationRequest): number | undefined {
+  const at = (req.content.data as { atMs?: unknown } | null | undefined)?.atMs
+  return typeof at === 'number' ? at : undefined
+}
+
+// One sync at a time; a call made while one runs just marks "run again".
+let syncInFlight: Promise<void> | null = null
+let pendingArgs: [TodoForReminder[], { gentleNudge?: boolean }] | null = null
 
 /**
  * @param opts.gentleNudge — also schedule ONE follow-up per to-do at 9:00 the
  *   morning after its last one-shot reminder (core nudgeAtFor). Done/trashed
  *   to-dos drop out of `desired`, so their nudge is cancelled like any fire.
+ *
+ * Serialized: overlapping runs could interleave cancel/schedule and leave a
+ * stale time behind; the latest call always wins.
  */
-export async function syncTodoReminders(
+export function syncTodoReminders(
   todos: TodoForReminder[],
   opts: { gentleNudge?: boolean } = {},
+): Promise<void> {
+  pendingArgs = [todos, opts]
+  if (!syncInFlight) {
+    syncInFlight = (async () => {
+      while (pendingArgs) {
+        const [t, o] = pendingArgs
+        pendingArgs = null
+        try {
+          await syncOnce(t, o)
+        } catch (err) {
+          console.warn('syncTodoReminders failed', err)
+        }
+      }
+      syncInFlight = null
+    })()
+  }
+  return syncInFlight
+}
+
+async function syncOnce(
+  todos: TodoForReminder[],
+  opts: { gentleNudge?: boolean },
 ): Promise<void> {
   const settings = await Notifications.getPermissionsAsync().catch(() => null)
   if (!settings || settings.status !== 'granted') return
 
-  // Desired schedule, keyed by (todoId, reminderId, fireIndex) so the diff can
-  // be done in one pass. Walks each todo's reminders array.
-  const desired = new Map<string, { todoId: string; title: string; body: string; at: Date }>()
+  // Desired schedule, keyed by (todoId, reminderId, fireIndex). Two reminders
+  // at the same instant on one to-do collapse to one notification.
+  type Spec = { todoId: string; title: string; body: string; at: Date }
+  const all: Array<[string, Spec]> = []
   for (const td of todos) {
     if (td.trashed || td.done) continue
+    const seen = new Set<number>()
     for (const r of td.reminders ?? []) {
       if (!r.at) continue
-      const fires = computeFires(r)
-      for (const fire of fires) {
-        desired.set(reminderIdFor(td.id, r.id, fire.index), {
+      for (const fire of computeFires(r)) {
+        const ms = fire.at.valueOf()
+        if (seen.has(ms)) continue
+        seen.add(ms)
+        all.push([reminderIdFor(td.id, r.id, fire.index), {
           todoId: td.id,
           title: td.text,
           body: REMINDER_BODY,
           at: fire.at,
-        })
+        }])
       }
     }
     const nudgeAt = opts.gentleNudge ? nudgeAtFor(td.reminders) : null
     if (nudgeAt) {
-      desired.set(reminderIdFor(td.id, 'nudge', 0), {
+      all.push([reminderIdFor(td.id, 'nudge', 0), {
         todoId: td.id,
         title: `Still on your list: ${td.text}`,
         body: NUDGE_BODY,
         at: new Date(nudgeAt),
-      })
+      }])
     }
   }
+  all.sort((a, b) => a[1].at.valueOf() - b[1].at.valueOf())
+  const desired = new Map(all.slice(0, MAX_PENDING))
 
   let scheduled: Notifications.NotificationRequest[]
   try {
     scheduled = await Notifications.getAllScheduledNotificationsAsync()
   } catch {
-    // If we can't read the current set, fall back to "schedule
-    // everything desired" — the OS dedupes by identifier so it stays
-    // correct, just slightly noisier.
+    // Can't read the current set: schedule everything desired — the OS
+    // replaces by identifier, so it stays correct, just noisier.
     scheduled = []
   }
 
   const existingByKey = new Map<string, Notifications.NotificationRequest>()
   for (const req of scheduled) {
-    if (req.identifier.startsWith(REMINDER_ID_PREFIX)) {
-      existingByKey.set(req.identifier, req)
-    }
+    if (req.identifier.startsWith(REMINDER_ID_PREFIX)) existingByKey.set(req.identifier, req)
   }
 
-  // Cancel: anything previously scheduled that's no longer desired,
-  // or whose target time / title changed.
-  const cancels: Promise<void>[] = []
-  for (const [key, req] of existingByKey.entries()) {
-    const want = desired.get(key)
-    const currentDate = (req.trigger as { date?: number | Date } | null)?.date
-    const currentMs =
-      currentDate instanceof Date ? currentDate.valueOf() : typeof currentDate === 'number' ? currentDate : undefined
-    const sameTime =
-      want != null && currentMs != null && Math.abs(want.at.valueOf() - currentMs) < 1000
-    const sameTitle = want != null && req.content.title === want.title
-    if (!want || !sameTime || !sameTitle) {
-      cancels.push(Notifications.cancelScheduledNotificationAsync(req.identifier).catch(() => {}))
-    }
-  }
-  await Promise.all(cancels)
+  const isCurrent = (req: Notifications.NotificationRequest | undefined, spec: Spec | undefined) =>
+    !!req && !!spec && scheduledAtMs(req) === spec.at.valueOf() &&
+    req.content.title === spec.title && req.content.body === spec.body
 
-  // Schedule: any desired key that didn't exist OR was just
-  // canceled. Skip ones already correctly scheduled.
-  const schedules: Promise<unknown>[] = []
-  for (const [key, spec] of desired.entries()) {
-    const existing = existingByKey.get(key)
-    const currentDate = (existing?.trigger as { date?: number | Date } | null)?.date
-    const currentMs =
-      currentDate instanceof Date ? currentDate.valueOf() : typeof currentDate === 'number' ? currentDate : undefined
-    const sameTime =
-      currentMs != null && Math.abs(spec.at.valueOf() - currentMs) < 1000
-    const sameTitle = existing != null && existing.content.title === spec.title
-    if (existing && sameTime && sameTitle) continue
+  await Promise.all(
+    [...existingByKey.entries()]
+      .filter(([key, req]) => !isCurrent(req, desired.get(key)))
+      .map(([key]) => Notifications.cancelScheduledNotificationAsync(key).catch(() => {})),
+  )
 
-    schedules.push(
-      Notifications.scheduleNotificationAsync({
-        identifier: key,
-        content: {
-          title: spec.title,
-          // Calm, never a command (no "!" — brand voice). English-only launch.
-          body: spec.body,
-          sound: false,
-          data: { todoId: spec.todoId },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DATE,
-          date: spec.at,
-        },
-      }).catch((err: unknown) => console.warn('scheduleTodoReminder failed', err)),
-    )
-  }
-  await Promise.all(schedules)
+  await Promise.all(
+    [...desired.entries()]
+      .filter(([key, spec]) => !isCurrent(existingByKey.get(key), spec))
+      .map(([key, spec]) =>
+        Notifications.scheduleNotificationAsync({
+          identifier: key,
+          content: {
+            title: spec.title,
+            // Calm, never a command (no "!" — brand voice). English-only launch.
+            body: spec.body,
+            sound: false,
+            data: { todoId: spec.todoId, atMs: spec.at.valueOf() },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: spec.at,
+          },
+        }).catch((err: unknown) => console.warn('scheduleTodoReminder failed', err)),
+      ),
+  )
 }

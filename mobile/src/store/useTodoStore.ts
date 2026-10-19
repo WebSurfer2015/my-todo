@@ -79,6 +79,11 @@ export function useTodoStore() {
   // across type groups (open OR done) AND (Home OR Work). See
   // core/derive.ts for the matching predicate.
   const [filters, setFiltersState] = useState<Filter[]>([]);
+  // A filter like `cat:<id>` belongs to one account — clear it when the
+  // signed-in user changes so the next user doesn't land on an empty list.
+  useEffect(() => {
+    setFiltersState([]);
+  }, [uid]);
   // Legacy single-filter alias. `filter === 'all'` when 0 or 2+ are
   // selected; the lone value when exactly one is. Keeps every
   // existing `store.filter === '...'` comparison working.
@@ -320,13 +325,14 @@ export function useTodoStore() {
   // calmer guarantee.
   const clearAllData = useCallback(async () => {
     const empty = JSON.stringify({ version: SCHEMA_VERSION, data: [] });
-    await Promise.all(
-      USER_STATE_KEYS.map((key) =>
-        adapter.setItem(key, empty).catch((err) => {
-          console.warn(`clearAllData: cloud overwrite failed for ${key}`, err);
-        }),
-      ),
-    );
+    // Fire the cloud overwrites but don't wait for the server: Firestore
+    // only resolves setDoc once the server confirms, so offline this hung
+    // "Deleting…" forever. The writes are queued and sync when back online.
+    USER_STATE_KEYS.forEach((key) => {
+      adapter.setItem(key, empty).catch((err) => {
+        console.warn(`clearAllData: cloud overwrite failed for ${key}`, err);
+      });
+    });
     await Promise.all(
       USER_STATE_KEYS.map((key) =>
         AsyncStorage.removeItem(key).catch(() => {

@@ -62,7 +62,6 @@ import {
   SuggestStepsReview,
 } from '../SuggestStepsPanel'
 import { useTodoFieldSuggestions, TodoFieldSuggestPills } from '../TodoFieldSuggestPills'
-import MochiThinking from '../../mochi/MochiThinking'
 import { ensurePermission } from '../../../adapters/notifications'
 import CustomRecurrenceForm from '../CustomRecurrenceForm'
 import { makeStyles } from './styles';
@@ -218,6 +217,9 @@ interface Props {
    * reminders" pill list, Clear all). */
   onUpdateReminders?: (id: string, reminders: Reminder[]) => void
   onMoveToTrash: (id: string) => void
+  /** Complete the to-do the same way the row's circle does (completion
+   * date, steps, next occurrence, "Done: … · Undo"). */
+  onToggle?: (id: string) => void
   /** Optional — used by the "Delete to-do" action to permanently delete a
    * done item (skipping the trash step). Open items still go to trash. */
   onPermanentDelete?: (id: string) => void
@@ -288,7 +290,7 @@ function todoContentDiffers(a: Todo, b: Todo): boolean {
 
 export default function TaskDetailsSheet({
   visible, todo, categories, initialSubtaskEditId, onClose, onUpdateText, onUpdateNotes,
-  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminders, onMoveToTrash, onPermanentDelete, onMoveSeriesFutureToTrash, onSkip, onSkipSeries, onPermanentDeleteSeries, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange, onApplySeriesSubtasks,
+  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminders, onMoveToTrash, onToggle, onPermanentDelete, onMoveSeriesFutureToTrash, onSkip, onSkipSeries, onPermanentDeleteSeries, onApplySeriesFutureEdits, onDetachFromSeries, onApplyRecurrenceChange, onApplySeriesSubtasks,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
   agentEnabled,
@@ -1258,7 +1260,7 @@ export default function TaskDetailsSheet({
               accessibilityRole="button"
               accessibilityLabel={t.done}
             >
-              <Text style={styles.dateDoneBtnText}>{t.done}</Text>
+              <Text style={styles.saveHeaderText}>{t.done}</Text>
             </TouchableOpacity>
           </View>
 
@@ -1363,15 +1365,9 @@ export default function TaskDetailsSheet({
                     />
                   </>
                 )}
-                {/* Mochi-thinking status row — surfaced inside the
-                    text card so the user sees the AI is working in
-                    the same area where they're typing. Same pattern
-                    as the Add to-do (ComposeSheet) accessory row. */}
-                {(fieldAi.thinking || ai.thinking) && (
-                  <View style={styles.inputAccessoryRow}>
-                    <MochiThinking label="Reading your to-do…" />
-                  </View>
-                )}
+                {/* No separate "Reading your to-do…" row: TodoFieldSuggestPills
+                    shows fieldAi.thinking itself, and Suggest steps shows its
+                    own (two stacked indicators read as a glitch). */}
                 <View style={styles.editGroupDivider} />
                 <TodoFieldSuggestPills
                   suggestions={fieldAi.suggestions}
@@ -1721,6 +1717,10 @@ export default function TaskDetailsSheet({
                   onPress={() => {
                     if (seriesScope && onMoveSeriesFutureToTrash) {
                       onMoveSeriesFutureToTrash(todo.id)
+                    } else if (onToggle) {
+                      // A real completion (was: just tucked into Done, with
+                      // no completion date, Undo toast, or next occurrence).
+                      if (!todo.done) onToggle(todo.id)
                     } else {
                       onMoveToTrash(todo.id)
                     }
@@ -1891,8 +1891,8 @@ function SubtaskCard({
   const priority: Priority = subtask.priority ?? 'medium'
   const dueDate = subtask.dueDate ?? ''
   const today = todayLocal()
-  const overdue = !!dueDate && !subtask.done && dueDate < today
-  const isToday = !!dueDate && !subtask.done && dueDate === today
+  const overdue = !!dueDate && !subtask.done && dueDateOnly(dueDate) < today
+  const isToday = !!dueDate && !subtask.done && dueDateOnly(dueDate) === today
 
   function startEdit() {
     setText(subtask.text)

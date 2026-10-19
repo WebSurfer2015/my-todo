@@ -317,6 +317,32 @@ export function todoRevert(prev: Todo[], snapshot: Todo): Todo[] {
   return prev.map((td) => (td.id === snapshot.id ? { ...snapshot, updatedAt: now } : td));
 }
 
+/**
+ * Undo an action EXACTLY, given the to-do list right before (`before`) and
+ * right after (`after`) it: to-dos the action added are removed, and to-dos
+ * it changed are put back as they were. Everything else in `prev` (later
+ * edits to OTHER to-dos) is kept. Used for completion Undo, where completing
+ * a series instance also appends the next occurrence and moves reminders.
+ */
+export function todosRevertChanges(prev: Todo[], before: Todo[], after: Todo[]): Todo[] {
+  const beforeById = new Map(before.map((td) => [td.id, td]));
+  const added = new Set<string>();
+  const changed = new Map<string, Todo>();
+  for (const td of after) {
+    const old = beforeById.get(td.id);
+    if (!old) added.add(td.id);
+    else if (old !== td) changed.set(td.id, old);
+  }
+  if (added.size === 0 && changed.size === 0) return prev;
+  const now = Date.now();
+  return prev
+    .filter((td) => !added.has(td.id))
+    .map((td) => {
+      const old = changed.get(td.id);
+      return old ? { ...old, updatedAt: now } : td;
+    });
+}
+
 export function subtaskAdd(
   prev: Todo[],
   todoId: string,
@@ -919,21 +945,26 @@ export function topUpSeries(
     if (d && d > latest) latest = d;
   }
   if (!latest) return todos;
-  // Inheritance: prefer the latest non-detached row so per-instance
+  // A series is only alive while at least one OPEN member still repeats.
+  // Delete series / Mark all done / Skip all / Stop repeating / deleting the
+  // category all leave no open repeating member — and a trashed member must
+  // never be the template, or the series regrows on the next launch.
+  const live = members.filter((m) => !m.trashed && !m.done && m.recurrence);
+  if (live.length === 0) return todos;
+  // Inheritance: prefer the latest non-detached live row so per-instance
   // tweaks don't propagate forward via top-up.
   let inheritFrom: Todo | undefined;
   let inheritLatest = "";
-  for (const m of members) {
+  for (const m of live) {
     if (m.detachedFromSeries) continue;
-    if (!m.recurrence) continue;
     const d = dueDateOnly(m.dueDate);
     if (d && d > inheritLatest) {
       inheritLatest = d;
       inheritFrom = m;
     }
   }
-  if (!inheritFrom) inheritFrom = members.find((m) => m.recurrence);
-  if (!inheritFrom || !inheritFrom.recurrence) return todos;
+  if (!inheritFrom) inheritFrom = live[0];
+  if (!inheritFrom.recurrence) return todos;
   const rec = inheritFrom.recurrence;
   const cutoff = windowCutoffFor(rec.freq, todayISO);
   const hardEnd = rec.endDate && rec.endDate < cutoff ? rec.endDate : cutoff;
@@ -1162,9 +1193,14 @@ function transferSeriesReminders(
     // candidate's own reminders take precedence on id clashes (so
     // a user-set reminder isn't clobbered by a transfer from a
     // sibling).
+    // Instances are pre-rebased (expand/top-up/append copy the seed's
+    // reminders), so a rolled reminder usually already exists under another
+    // id — skip any with the same time + repeat, or the OS fires it twice.
     const existing = t.reminders ?? [];
+    const sameSlot = (a: Reminder, b: Reminder) =>
+      a.at === b.at && (a.intervalMinutes ?? 0) === (b.intervalMinutes ?? 0);
     const byId = new Map<string, Reminder>();
-    for (const r of rolled) byId.set(r.id, r);
+    for (const r of rolled) if (!existing.some((e) => sameSlot(e, r))) byId.set(r.id, r);
     for (const r of existing) byId.set(r.id, r); // existing wins on conflict
     return {
       ...t,
@@ -1260,10 +1296,19 @@ export function todoRestoreFromTrash(prev: Todo[], id: string): Todo[] {
   const now = Date.now();
   return prev.map((td) => {
     if (td.id !== id) return td;
-    const { trashedAt: _t, completionDate: _c, ...rest } = td;
-    // Restoring from the Done bin clears both flags so the row goes
-    // back to active.
-    return { ...rest, done: false, trashed: false, updatedAt: now };
+    const { trashedAt: _t, completionDate: _c, status: _s, ...rest } = td;
+    // Restoring from the Done bin clears both flags (and a "Not Do" mark) so
+    // the row goes back to active. Its steps reopen too — done is derived
+    // from them, so leaving them done would re-complete it on reload.
+    const restored: Todo = { ...rest, done: false, trashed: false, updatedAt: now };
+    if (td.subtasks?.some((st) => st.done)) {
+      restored.subtasks = td.subtasks.map((st) => {
+        if (!st.done) return st;
+        const { completionDate: _sc, ...open } = st;
+        return { ...open, done: false };
+      });
+    }
+    return restored;
   });
 }
 
@@ -1596,6 +1641,11 @@ export function migrateTodo(raw: unknown, ctx: MigrateTodoCtx): Todo | null {
             .map((n) => Math.floor(n));
           const unique = Array.from(new Set(pos));
           if (unique.length > 0) recurrence.bySetPos = unique;
+        }
+        // "Repeat ends" — dropping it here made every series run forever
+        // after a reload.
+        if (typeof r.endDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.endDate)) {
+          recurrence.endDate = r.endDate;
         }
       }
     }

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
+  AppState,
   Easing,
   View,
   Text,
@@ -47,7 +48,7 @@ import { ErrorBoundary } from "./src/app/ErrorBoundary";
 import { buildDoneGroups, type TodoGroup, type DoneGroup } from "../core/src/logic/groups";
 import { useLinger } from "./src/features/task/useLinger";
 import { fullDateLabel } from "./src/core-bindings/utils";
-import { todayLocal } from "../core/src/logic/utils";
+import { dueDateOnly, todayLocal } from "../core/src/logic/utils";
 import type { Todo } from "./src/core-bindings/types";
 import SignIn from "./src/features/auth/SignIn";
 import EmptyStateCard from "./src/ui/EmptyStateCard";
@@ -153,7 +154,7 @@ function TodosScreen() {
     setDeferTarget({
       label: todo.text,
       ids: [todo.id],
-      isTodayGroup: !!todo.dueDate && todo.dueDate === todayLocal(),
+      isTodayGroup: !!todo.dueDate && dueDateOnly(todo.dueDate) === todayLocal(),
     });
   }, []);
   // Collapse state for All-view group headers. All four groups
@@ -915,6 +916,9 @@ function FirstRunLayer() {
   const sheets = useSheets();
   // One-time JS splash overlay per cold launch (breath + fade, then hides).
   const [splashShown, setSplashShown] = useState(true);
+  // Stable identity: the overlay restarts its animation when onDismiss
+  // changes, so an inline arrow cut the splash short on every store update.
+  const hideSplash = useCallback(() => setSplashShown(false), []);
   // Onboarding is decided ONCE, the first time the store finishes
   // hydrating — then latched, so a later profile-sync tick that momentarily
   // lacks onboardingDone can't pop it over the app mid-session. The one
@@ -955,7 +959,7 @@ function FirstRunLayer() {
       {splashShown && (
         <SplashOverlay
           reduceMotion={store.reduceMotion}
-          onDismiss={() => setSplashShown(false)}
+          onDismiss={hideSplash}
         />
       )}
     </>
@@ -980,6 +984,20 @@ function AppGate() {
     if (!store.loaded) return;
     void syncTodoReminders(store.todos, { gentleNudge: store.profile.gentleNudge === true });
   }, [store.todos, store.loaded, store.profile.gentleNudge]);
+  // Re-sync when the app returns to the foreground: notification permission
+  // may have been granted in iOS Settings, the time zone may have changed,
+  // and repeating reminders are only scheduled a limited number ahead.
+  const reminderInputsRef = useRef({ todos: store.todos, loaded: store.loaded, nudge: store.profile.gentleNudge === true });
+  reminderInputsRef.current = { todos: store.todos, loaded: store.loaded, nudge: store.profile.gentleNudge === true };
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      const cur = reminderInputsRef.current;
+      if (next === "active" && cur.loaded) {
+        void syncTodoReminders(cur.todos, { gentleNudge: cur.nudge });
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   // Splash + sign-in + hydration + onboarding gates run BEFORE the tab
   // navigator mounts, so screens can assume store + user are ready.

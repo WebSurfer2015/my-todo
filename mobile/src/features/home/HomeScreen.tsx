@@ -23,7 +23,7 @@ import { useStore } from '../../app/StoreContext'
 import { useLang } from '../../app/LangContext'
 import { useSheets } from '../../app/SheetContext'
 import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
-import { todayLocal } from '../../../../core/src/logic/utils'
+import { dueDateOnly, todayLocal } from '../../../../core/src/logic/utils'
 import { type Todo, type Filter } from '../../../../core/src/domain/types'
 import { buildGroups, type GroupKey } from '../../../../core/src/logic/groups'
 
@@ -126,7 +126,7 @@ export default function HomeScreen() {
     const hasOpenTodaySub = (td: Todo) => {
       const subs = td.subtasks ?? []
       return subs.some(
-        (s) => !s.done && !!s.dueDate && s.dueDate <= today,
+        (s) => !s.done && !!s.dueDate && dueDateOnly(s.dueDate) <= today,
       )
     }
     return store.todos
@@ -135,7 +135,7 @@ export default function HomeScreen() {
         if (td.done) return false
         const subs = td.subtasks ?? []
         if (subs.length > 0) return hasOpenTodaySub(td)
-        return !!td.dueDate && td.dueDate <= today
+        return !!td.dueDate && dueDateOnly(td.dueDate) <= today
       })
       .sort((a, b) => {
         // Done rows sink to the bottom; everything else (including
@@ -162,11 +162,11 @@ export default function HomeScreen() {
   // "Today" = everything else (due today, or sub-driven with no/future
   // own date). No cap — the outer ScrollView scrolls.
   const carriedOverItems = useMemo(
-    () => todayBucket.filter((td) => !!td.dueDate && td.dueDate < today),
+    () => todayBucket.filter((td) => !!td.dueDate && dueDateOnly(td.dueDate) < today),
     [todayBucket, today],
   )
   const todayDueItems = useMemo(
-    () => todayBucket.filter((td) => !(td.dueDate && td.dueDate < today)),
+    () => todayBucket.filter((td) => !(td.dueDate && dueDateOnly(td.dueDate) < today)),
     [todayBucket, today],
   )
 

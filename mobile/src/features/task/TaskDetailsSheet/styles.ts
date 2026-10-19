@@ -318,13 +318,6 @@ export function makeStyles(c: ThemeColors) {
     // Mochi-thinking accessory row — only renders while an AI call
     // is in flight. Mirrors the ComposeSheet styling so the
     // indicator looks the same on Add vs Edit.
-    inputAccessoryRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: SPACING.lg,
-      paddingTop: SPACING.xs,
-      paddingBottom: SPACING.sm,
-    },
     editFieldRowInGroup: {
       flexDirection: 'row',
       alignItems: 'center',

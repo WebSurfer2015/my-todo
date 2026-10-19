@@ -45,11 +45,20 @@ export function useSyncedState<T>(
   keyRef.current = key;
   const loadedRef = useRef(loaded);
   loadedRef.current = loaded;
+  // Writes are only allowed once we've seen REAL data for this key (a
+  // resolved read, or a trusted snapshot). After a failed / timed-out read
+  // the UI shows defaults, but writing them (or the first edit on top of
+  // them) would replace the user's whole cloud doc once the connection
+  // returns. Edits made in that window stay local until real data arrives,
+  // which then replaces them — losing a few offline edits beats wiping the
+  // account.
+  const canWriteRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
     let settled = false;
     setLoaded(false);
+    canWriteRef.current = false;
     // Proceed-with-defaults fallback shared by the catch and the timeout: don't
     // let the trailing-debounced write push our default/empty state back to
     // cloud over data we merely failed to READ. Seed the ref with the default
@@ -74,6 +83,7 @@ export function useSyncedState<T>(
       .then((raw) => {
         settled = true;
         if (cancelled) return;
+        canWriteRef.current = true;
         lastSerializedRef.current = raw;
         setState(parseRef.current(raw));
         setLoaded(true);
@@ -93,8 +103,13 @@ export function useSyncedState<T>(
 
   useEffect(() => {
     if (!adapter.subscribe) return;
-    return adapter.subscribe(key, (raw) => {
-      if (raw === lastSerializedRef.current) return;
+    return adapter.subscribe(key, (raw, meta) => {
+      if (meta?.trusted === false && !canWriteRef.current) return;
+      // The first trusted snapshot after a failed read is the real data:
+      // apply it even if it matches the defaults we were showing.
+      const firstTrusted = !canWriteRef.current;
+      canWriteRef.current = true;
+      if (raw === lastSerializedRef.current && !firstTrusted) return;
       // Two-step equality (ported from web): a raw byte match short-
       // circuits; otherwise parse-then-reserialize and compare. When
       // Firestore holds an older "thin" doc (e.g. fields stored before a
@@ -114,7 +129,7 @@ export function useSyncedState<T>(
   // task title) collapses into a single Firestore setDoc instead of one
   // per keystroke.
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || !canWriteRef.current) return;
     const json = serializeRef.current(state);
     if (json === lastSerializedRef.current) return;
     const handle = setTimeout(() => {
@@ -138,7 +153,7 @@ export function useSyncedState<T>(
   useEffect(() => {
     const sub = AppState.addEventListener("change", (next) => {
       if (next !== "background" && next !== "inactive") return;
-      if (!loadedRef.current) return;
+      if (!loadedRef.current || !canWriteRef.current) return;
       const json = serializeRef.current(stateRef.current);
       if (json === lastSerializedRef.current) return;
       lastSerializedRef.current = json;

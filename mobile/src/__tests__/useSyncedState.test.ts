@@ -137,4 +137,19 @@ describe('useSyncedState', () => {
     expect(setCalls.length).toBe(0)
   })
 
+
+  it('after a FAILED read, local edits are never written over the cloud doc', async () => {
+    const { adapter, setCalls, pushRemote } = makeAdapter({ failGet: true, subscribe: true })
+    const { result } = renderHook(() => useSyncedState(adapter, 'k', 0, parse, serialize))
+    await waitFor(() => expect(result.current[2]).toBe(true))
+    act(() => result.current[1](7))
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    expect(setCalls).toHaveLength(0)
+    // Real data arrives → it wins, and writes resume from there.
+    act(() => pushRemote('42'))
+    expect(result.current[0]).toBe(42)
+    act(() => result.current[1](43))
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    expect(setCalls.map((c) => c.value)).toEqual(['43'])
+  })
 })

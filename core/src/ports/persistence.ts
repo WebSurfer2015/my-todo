@@ -30,7 +30,13 @@ export interface StorageAdapter {
   setItem(key: string, value: string): Promise<void>;
   removeItem(key: string): Promise<void>;
   clear(): Promise<void>;
-  subscribe?(key: string, callback: (value: string | null) => void): () => void;
+  /** `meta.trusted` is false for a snapshot that may not reflect the
+   * server (e.g. an empty offline cache on a fresh device) — callers must not
+   * treat it as "this key is empty" for write purposes. */
+  subscribe?(
+    key: string,
+    callback: (value: string | null, meta?: { trusted: boolean }) => void,
+  ): () => void;
 }
 
 /** Per-user state document path used by FirestoreAdapter implementations. */

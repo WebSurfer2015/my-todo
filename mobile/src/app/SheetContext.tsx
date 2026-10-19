@@ -46,7 +46,7 @@ import { COLOR_PALETTE } from '../core-bindings/categories'
 import { SEED_GROCERY_STORES, frequentGroceries } from '../core-bindings/groceries'
 import type { Filter, Priority } from '../core-bindings/types'
 import type { Guide } from '../features/onboarding/guides'
-import { genUuid, todayLocal } from '../../../core/src/logic/utils'
+import { dueDateOnly, genUuid, todayLocal } from '../../../core/src/logic/utils'
 
 /** Signal that a screen should open its tab-local manage sheet. The
  * `seq` bumps so a repeat-trigger fires even when target stays the
@@ -364,7 +364,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
       } else if (op.kind === 'deferOverdue') {
         const today = todayLocal()
         const overdue = store.todos
-          .filter((t) => !t.done && !t.trashed && !!t.dueDate && t.dueDate < today)
+          .filter((t) => !t.done && !t.trashed && !!t.dueDate && dueDateOnly(t.dueDate) < today)
           .map((t) => t.id)
         if (overdue.length > 0) store.bulkDeferTodos(overdue, op.args.dueDate)
       } else if (op.kind === 'restoreTodo') {

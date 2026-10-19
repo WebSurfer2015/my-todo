@@ -43,6 +43,11 @@ export function makeFirestoreAdapter(
       const ref = doc(db, stateDocPath(uid, key));
       return onSnapshot(
         ref,
+        // includeMetadataChanges: without it the "write confirmed" snapshot
+        // described below never arrives, so a write made on this device
+        // outside useSyncedState (e.g. Apple sign-in seeding the profile
+        // name) never reached the UI and was then overwritten.
+        { includeMetadataChanges: true },
         (snap) => {
           // Skip snapshots that fire while a local write is still pending —
           // the SDK may serve a pre-write cache value here, which would
@@ -55,9 +60,11 @@ export function makeFirestoreAdapter(
           // so subscribe stays a no-op for our own echoes. Cross-device
           // updates from other clients still come through normally.
           if (snap.metadata.hasPendingWrites) return;
-          if (!snap.exists()) return callback(null);
+          // A cache-only "doesn't exist" may just mean "not synced yet".
+          const trusted = !snap.metadata.fromCache || snap.exists();
+          if (!snap.exists()) return callback(null, { trusted });
           const data = snap.data() as { value?: string } | undefined;
-          callback(data?.value ?? null);
+          callback(data?.value ?? null, { trusted });
         },
         (err) => {
           // permission-denied is expected during the sign-out / uid-swap

@@ -80,7 +80,7 @@ import { getReminders } from '../../../../../core/src/logic/derive'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Category, Priority, Recurrence, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../../../core-bindings/types'
 import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
-import { dueDateToDate, formatDisplayDate, fullDateLabel, todayLocal, isoDate } from '../../../core-bindings/utils'
+import { dueDateOnly, dueDateToDate, formatDisplayDate, fullDateLabel, todayLocal, isoDate } from '../../../core-bindings/utils'
 import { sortedSubs } from '../../../../../core/src/logic/derive'
 import { useTriggerFirework } from '../../../app/FireworkOverlay'
 import { playCompletionChime } from '../../../adapters/completionChime'
@@ -229,7 +229,7 @@ function TaskItem({
     subtaskDateFilter === 'due-today'
       ? // Home's TODAY rendering: only render subs whose due-date is
         // today or earlier. Future subs and no-date subs stay hidden.
-        subs.filter((s) => !!s.dueDate && s.dueDate <= today)
+        subs.filter((s) => !!s.dueDate && dueDateOnly(s.dueDate) <= today)
       : subtaskVisibility === 'open'
         ? subs.filter((s) => !s.done)
         : subtaskVisibility === 'done'
@@ -367,8 +367,8 @@ function TaskItem({
     return () => clearOpenSwipeable(todo.id)
   }, [todo.id])
 
-  const overdue = !!todo.dueDate && !todo.done && todo.dueDate < today
-  const isToday = !!todo.dueDate && !todo.done && todo.dueDate === today
+  const overdue = !!todo.dueDate && !todo.done && dueDateOnly(todo.dueDate) < today
+  const isToday = !!todo.dueDate && !todo.done && dueDateOnly(todo.dueDate) === today
   const cat = todo.category ? categories.find((c) => c.id === todo.category) : undefined
 
   function openDetails() {
@@ -1073,6 +1073,7 @@ function TaskItem({
             onUpdateRecurrence={onUpdateRecurrence ?? (() => {})}
             onUpdateReminders={onUpdateReminders}
             onMoveToTrash={onMoveToTrash}
+            onToggle={onToggle}
             onPermanentDelete={onPermanentDelete}
             onMoveSeriesFutureToTrash={onMoveSeriesFutureToTrash}
             onSkip={onSkip}
