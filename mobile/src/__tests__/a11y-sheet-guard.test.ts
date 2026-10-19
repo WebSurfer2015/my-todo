@@ -37,16 +37,19 @@ function tsxFiles(dir: string): string[] {
 
 describe('#15 a11y sheet guard', () => {
   it('no sheet wraps its backdrop in a <Pressable> (must be a sibling <View>)', () => {
-    // Capture the element tag that carries style={styles.backdrop}.
-    const re = /<(\w+)[^>]*style=\{styles\.backdrop\}/g
+    // Capture the element tag that carries a backdrop/overlay style. Overlay
+    // names were added after QA (2026-10-18) found PickerModal + the date
+    // pop-ups wrapping their content in a TouchableOpacity overlay.
+    const re = /<(\w+)[^>]*style=\{styles\.(?:backdrop|overlay|dateOverlay)\}/g
+    const TOUCHABLES = new Set(['Pressable', 'TouchableOpacity', 'TouchableWithoutFeedback', 'TouchableHighlight'])
     const offenders: string[] = []
 
     for (const file of tsxFiles(SRC)) {
       const src = readFileSync(file, 'utf8')
       let m: RegExpExecArray | null
       while ((m = re.exec(src)) !== null) {
-        if (m[1] !== 'View') {
-          offenders.push(`${file.replace(SRC, 'src')} → <${m[1]} style={styles.backdrop}>`)
+        if (TOUCHABLES.has(m[1])) {
+          offenders.push(`${file.replace(SRC, 'src')} → <${m[1]}> wrapping a sheet`)
         }
       }
     }

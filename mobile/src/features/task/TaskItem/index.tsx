@@ -1,5 +1,5 @@
 import React, { memo, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { View, Text, TouchableOpacity, Platform, Modal, Alert, Pressable, Animated, Easing, Dimensions } from 'react-native'
+import { View, Text, TouchableOpacity, Platform, Modal, Alert, Pressable, Animated, Easing, Dimensions, StyleSheet } from 'react-native'
 
 const SCREEN_WIDTH = Dimensions.get('window').width
 // Trigger-to-commit threshold for full-swipe gestures. Pairs with the
@@ -900,11 +900,10 @@ function TaskItem({
 
         {dateOpen && Platform.OS === 'ios' && (
           <Modal visible transparent statusBarTranslucent animationType="fade" onRequestClose={() => setDateOpen(false)}>
-            <TouchableOpacity
-              style={styles.dateOverlay}
-              onPress={() => setDateOpen(false)}
-              activeOpacity={1}
-            >
+            <View style={styles.dateOverlay}>
+              {/* Sibling backdrop (not a wrapper): a wrapping touchable collapses the
+                  sheet into one VoiceOver element so its buttons can't be reached. */}
+              <Pressable style={StyleSheet.absoluteFill} onPress={() => setDateOpen(false)} accessible={false} />
               <View
                 style={styles.dateSheet}
                 onStartShouldSetResponder={() => true}
@@ -930,7 +929,7 @@ function TaskItem({
                   </TouchableOpacity>
                 </View>
               </View>
-            </TouchableOpacity>
+            </View>
           </Modal>
         )}
         {dateOpen && Platform.OS === 'android' && (
@@ -971,11 +970,10 @@ function TaskItem({
             animationType="fade"
             onRequestClose={() => setSubDateForId(null)}
           >
-            <TouchableOpacity
-              style={styles.dateOverlay}
-              onPress={() => setSubDateForId(null)}
-              activeOpacity={1}
-            >
+            <View style={styles.dateOverlay}>
+              {/* Sibling backdrop (not a wrapper): a wrapping touchable collapses the
+                  sheet into one VoiceOver element so its buttons can't be reached. */}
+              <Pressable style={StyleSheet.absoluteFill} onPress={() => setSubDateForId(null)} accessible={false} />
               <View style={styles.dateSheet} onStartShouldSetResponder={() => true}>
                 <DateTimePicker
                   value={subPickerDate}
@@ -1005,7 +1003,7 @@ function TaskItem({
                   </TouchableOpacity>
                 </View>
               </View>
-            </TouchableOpacity>
+            </View>
           </Modal>
         )}
         {onUpdateSubtaskDueDate && subDateForId !== null && Platform.OS === 'android' && (

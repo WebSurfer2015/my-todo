@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react'
-import { Modal, View, TouchableOpacity, Text, StyleSheet } from 'react-native'
+import { Modal, Pressable, View, TouchableOpacity, Text, StyleSheet } from 'react-native'
 import { useTheme, ThemeColors } from '../app/theme'
 import CheckGlyph from './CheckGlyph'
 
@@ -27,7 +27,10 @@ export default function PickerModal({ visible, options, selectedKey, onSelect, o
   if (!visible) return null
   return (
     <Modal visible={visible} transparent statusBarTranslucent animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity style={styles.overlay} onPress={onClose} activeOpacity={1}>
+      <View style={styles.overlay}>
+        {/* Sibling backdrop (not a wrapper): a wrapping touchable collapses the
+            sheet into one VoiceOver element so its buttons can't be reached. */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
         <View style={styles.sheet}>
           {options.map((opt, i) => (
             <TouchableOpacity
@@ -45,7 +48,7 @@ export default function PickerModal({ visible, options, selectedKey, onSelect, o
             </TouchableOpacity>
           ))}
         </View>
-      </TouchableOpacity>
+      </View>
     </Modal>
   )
 }

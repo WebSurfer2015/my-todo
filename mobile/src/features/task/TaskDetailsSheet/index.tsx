@@ -10,6 +10,8 @@ import {
   Platform,
   KeyboardAvoidingView,
   Alert,
+  Pressable,
+  StyleSheet,
 } from 'react-native'
 import { useSheetDismiss, sheetGrabZone } from '../../../ui/useSheetDismiss'
 import Svg, { Path, Rect } from 'react-native-svg'
@@ -1837,11 +1839,10 @@ export default function TaskDetailsSheet({
               animationType="fade"
               onRequestClose={() => setSubDateForId(null)}
             >
-              <TouchableOpacity
-                style={styles.dateOverlay}
-                onPress={() => setSubDateForId(null)}
-                activeOpacity={1}
-              >
+              <View style={styles.dateOverlay}>
+                {/* Sibling backdrop (not a wrapper): a wrapping touchable collapses the
+                    sheet into one VoiceOver element so its buttons can't be reached. */}
+                <Pressable style={StyleSheet.absoluteFill} onPress={() => setSubDateForId(null)} accessible={false} />
                 <View style={styles.dateSheet} onStartShouldSetResponder={() => true}>
                   {pendingSubModalDate ? (
                     <Text style={styles.datePendingLabel}>{fullDateLabel(pendingSubModalDate)}</Text>
@@ -1874,7 +1875,7 @@ export default function TaskDetailsSheet({
                     </TouchableOpacity>
                   </View>
                 </View>
-              </TouchableOpacity>
+              </View>
             </Modal>
           )}
           {onUpdateSubtaskDueDate && subDateForId !== null && Platform.OS === 'android' && (

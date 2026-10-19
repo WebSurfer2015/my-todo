@@ -391,9 +391,19 @@ export function useTodosSlice(
   // series-restore path is out of scope here; a plain snackbar nudge.
   const skipSeriesFuture = useCallback(
     (id: string) => {
-      setTodos((prev) => todoSkipSeriesFuture(prev, id).next);
+      // Computed from the live list so the count is right and Undo can
+      // reverse exactly this (it ended the series silently, with no Undo).
+      const before = todosRef.current;
+      const { next: after, affected } = todoSkipSeriesFuture(before, id);
+      if (after === before) return;
+      setTodos((prev) => (prev === before ? after : todoSkipSeriesFuture(prev, id).next));
+      notify.showSnackbar({
+        message: affected > 1 ? `Skipped ${affected} to-dos in this series.` : t.skippedSnackbar,
+        actionLabel: t.undo,
+        onAction: () => setTodos((prev) => todosRevertChanges(prev, before, after)),
+      });
     },
-    [setTodos, todoSkipSeriesFuture],
+    [setTodos, notify, t.skippedSnackbar, t.undo, todoSkipSeriesFuture, todosRevertChanges],
   );
 
   const applySeriesFutureEdits = useCallback(
@@ -485,18 +495,19 @@ export function useTodosSlice(
 
   const moveSeriesFutureToTrash = useCallback(
     (id: string) => {
-      let affected = 0;
-      setTodos((prev) => {
-        const result = todoMoveToTrashFutureSeries(prev, id);
-        affected = result.affected;
-        return result.next;
-      });
+      // Computed from the live list: the count read inside the updater was
+      // often still 0 when the snackbar ran, and there was no Undo.
+      const before = todosRef.current;
+      const { next: after, affected } = todoMoveToTrashFutureSeries(before, id);
+      if (after === before) return;
+      setTodos((prev) => (prev === before ? after : todoMoveToTrashFutureSeries(prev, id).next));
       notify.showSnackbar({
-        message:
-          affected > 1 ? t.series.trashedMany(affected) : t.movedToTrash,
+        message: affected > 1 ? t.series.trashedMany(affected) : t.movedToTrash,
+        actionLabel: t.undo,
+        onAction: () => setTodos((prev) => todosRevertChanges(prev, before, after)),
       });
     },
-    [setTodos, notify, t.series, t.movedToTrash, todoMoveToTrashFutureSeries],
+    [setTodos, notify, t.series, t.movedToTrash, t.undo, todoMoveToTrashFutureSeries, todosRevertChanges],
   );
 
   const permanentlyDelete = useCallback(

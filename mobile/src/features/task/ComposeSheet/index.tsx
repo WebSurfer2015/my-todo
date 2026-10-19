@@ -275,7 +275,11 @@ export default function ComposeSheet({
   // setText — which was making the overlay flicker back on first tap.
   const [appliedTextLower, setAppliedTextLower] = useState('')
 
-  useEffect(() => { setCategory(defaultCategory) }, [defaultCategory])
+  // Only follow the default while closed — while open, a background sync that
+  // shifts the default must not overwrite the user's pick.
+  useEffect(() => {
+    if (!visible) setCategory(defaultCategory)
+  }, [defaultCategory, visible])
 
   // Ambient AI field suggestions — fires after typing pause, presents
   // tap-to-apply pills above the field rows. The hook owns debounce,
@@ -368,8 +372,14 @@ export default function ComposeSheet({
     Haptics.selectionAsync().catch(() => {})
   }
 
+  // Reset ONLY on the closed → open edge. It used to re-run whenever
+  // defaultCategory changed (it's derived from the to-do list), so a remote
+  // sync while Compose was open wiped the text, date and steps being typed.
+  const wasVisibleRef = useRef(false)
   useEffect(() => {
-    if (visible) {
+    const opening = visible && !wasVisibleRef.current
+    wasVisibleRef.current = visible
+    if (opening) {
       setSubView('main')
       if (prefill) {
         // Opened from Ask Mochi → fill every blank from the chat's proposal
