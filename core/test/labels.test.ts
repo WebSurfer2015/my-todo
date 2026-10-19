@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import {
   formatCalendarDate,
   DEFAULT_RECURRENCE_FREQ_STRINGS,
@@ -102,7 +102,11 @@ describe('formatDateTime', () => {
   it('returns unparseable input unchanged', () => {
     expect(formatDateTime('not a date', EN)).toBe('not a date')
   })
+  afterEach(() => vi.useRealTimers())
   it('works with default options (runtime locale, this year → no year)', () => {
+    // Pinned: "this year" is read twice (here and inside formatDateTime).
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 5, 1, 12, 0))
     const year = new Date().getFullYear()
     const d = new Date(`${year}-06-07T09:00`)
     const want = `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`

@@ -71,6 +71,7 @@ export function newTodo(input: {
     if (!dueDateOnly(dueDate)) dueDate = todayLocal();
     dueDate = snapDueDateToRecurrence(dueDate, input.recurrence);
   }
+  const recurrence = input.recurrence ? recurrenceWithAnchor(input.recurrence, dueDate) : undefined;
   return {
     id: genUuid(),
     text: input.text.slice(0, MAX_TODO_TEXT_LEN),
@@ -80,7 +81,7 @@ export function newTodo(input: {
     category: input.category,
     trashed: false,
     updatedAt: Date.now(),
-    ...(input.recurrence ? { recurrence: input.recurrence } : {}),
+    ...(recurrence ? { recurrence } : {}),
     ...(input.subtasks && input.subtasks.length > 0 ? { subtasks: input.subtasks } : {}),
     ...(notes ? { notes } : {}),
     ...(input.reminders && input.reminders.length > 0 ? { reminders: input.reminders } : {}),
@@ -211,7 +212,9 @@ function rebaseReminders(
  * flags and leaves the tail alone.
  *
  * `todayISO` defaults to `todayLocal()` so existing callers stay the
- * same; tests pass an explicit value for determinism.
+ * same; tests pass an explicit value for determinism. When passed
+ * explicitly it also clamps the appended occurrence to today (see
+ * appendNextSeriesInstance) — callers should pass it.
  */
 /** Every step set to `done` (stamping / clearing each step's completionDate). */
 function stepsSetAll(subs: Subtask[], done: boolean, today: string): Subtask[] {
@@ -265,7 +268,7 @@ export function todoToggle(prev: Todo[], id: string, todayISO?: string): Todo[] 
     });
     // Only on completion do we extend the tail — un-doing must not
     // generate a brand-new instance the user didn't ask for.
-    return nextDone ? seriesCompletionFollowUp(result, target, today) : result;
+    return nextDone ? seriesCompletionFollowUp(result, target, today, todayISO) : result;
   }
 
   return prev.flatMap((td) => {
@@ -303,9 +306,14 @@ export function todoToggle(prev: Todo[], id: string, todayISO?: string): Todo[] 
  * BEFORE completion cleared them) onto the next-upcoming sibling. No-op for a
  * one-off.
  */
-function seriesCompletionFollowUp(result: Todo[], target: Todo, today: string): Todo[] {
+function seriesCompletionFollowUp(
+  result: Todo[],
+  target: Todo,
+  today: string,
+  clampToday?: string,
+): Todo[] {
   if (!target.seriesId || !target.recurrence) return result;
-  let out = appendNextSeriesInstance(result, target.seriesId);
+  let out = appendNextSeriesInstance(result, target.seriesId, clampToday);
   const oldReminders = getReminders(target);
   if (oldReminders.length > 0) {
     out = transferSeriesReminders(out, target.id, oldReminders, target.dueDate, target.seriesId, today);
@@ -358,7 +366,7 @@ function applyStepChange(
   const today = todayISO ?? todayLocal();
   const next = syncParentDone({ ...changed, updatedAt: now }, today, now);
   const result = prev.map((td) => (td.id === todoId ? next : td));
-  return !target.done && next.done ? seriesCompletionFollowUp(result, target, today) : result;
+  return !target.done && next.done ? seriesCompletionFollowUp(result, target, today, todayISO) : result;
 }
 
 /**
@@ -374,13 +382,17 @@ export function todoRevert(prev: Todo[], snapshot: Todo): Todo[] {
 
 /**
  * Undo an action EXACTLY, given the to-do list right before (`before`) and
- * right after (`after`) it: to-dos the action added are removed, and to-dos
- * it changed are put back as they were. Everything else in `prev` (later
- * edits to OTHER to-dos) is kept. Used for completion Undo, where completing
- * a series instance also appends the next occurrence and moves reminders.
+ * right after (`after`) it: to-dos the action added are removed, to-dos it
+ * changed are put back as they were, and to-dos it removed (a rule change
+ * hard-removes the old future occurrences) are re-inserted at their original
+ * position. A row whose id is in both but was replaced — a regenerated
+ * occurrence reusing its deterministic id — counts as changed, so it reverts
+ * to the `before` version. Everything else in `prev` (later edits to OTHER
+ * to-dos) is kept; a removed row that is somehow back in `prev` is left as is.
  */
 export function todosRevertChanges(prev: Todo[], before: Todo[], after: Todo[]): Todo[] {
   const beforeById = new Map(before.map((td) => [td.id, td]));
+  const afterIds = new Set(after.map((td) => td.id));
   const added = new Set<string>();
   const changed = new Map<string, Todo>();
   for (const td of after) {
@@ -388,14 +400,31 @@ export function todosRevertChanges(prev: Todo[], before: Todo[], after: Todo[]):
     if (!old) added.add(td.id);
     else if (old !== td) changed.set(td.id, old);
   }
-  if (added.size === 0 && changed.size === 0) return prev;
+  const prevIds = new Set(prev.map((td) => td.id));
+  const removed = before.filter((td) => !afterIds.has(td.id) && !prevIds.has(td.id));
+  if (added.size === 0 && changed.size === 0 && removed.length === 0) return prev;
   const now = Date.now();
-  return prev
+  const out = prev
     .filter((td) => !added.has(td.id))
     .map((td) => {
       const old = changed.get(td.id);
       return old ? { ...old, updatedAt: now } : td;
     });
+  if (removed.length === 0) return out;
+  // Re-insert each removed row right after its nearest `before` predecessor
+  // that is in the list (or at the front when none is).
+  const removedIds = new Set(removed.map((td) => td.id));
+  let lastPos = -1;
+  for (const td of before) {
+    if (removedIds.has(td.id)) {
+      out.splice(lastPos + 1, 0, { ...td, updatedAt: now });
+      lastPos += 1;
+      continue;
+    }
+    const at = out.findIndex((o) => o.id === td.id);
+    if (at !== -1) lastPos = at;
+  }
+  return out;
 }
 
 export function subtaskAdd(
@@ -708,7 +737,7 @@ export function todoApplySeriesSubtasks(
 /**
  * End a series BEFORE `cutoffDue`: every member that still repeats gets
  * recurrence.endDate = the day before. Used by every "end the series" action
- * (delete series, mark all done, skip all, stop repeating) so an OLDER open
+ * (delete series, move this & future to the bin, skip all, stop repeating) so an OLDER open
  * occurrence (e.g. yesterday's, still undone) can't revive it — top-up and
  * append both stop at endDate.
  */
@@ -768,7 +797,8 @@ export function todoApplyRecurrenceChange(
       dueDate: snappedDueDate,
       updatedAt: now,
     };
-    if (newRecurrence) next.recurrence = newRecurrence;
+    // A new rule anchors on the target's own (snapped) day.
+    if (newRecurrence) next.recurrence = recurrenceWithAnchor(newRecurrence, snappedDueDate);
     else delete next.recurrence;
     return next;
   });
@@ -964,16 +994,20 @@ export function expandSeries(
   takenIds?: ReadonlySet<string>,
 ): Todo[] {
   if (!seed.recurrence || !seed.dueDate) return [seed];
-  const rec = seed.recurrence;
   const seedDateOnly = dueDateOnly(seed.dueDate);
   const tIdx = seed.dueDate.indexOf("T");
   const timeSuffix = tIdx === -1 ? "" : seed.dueDate.slice(tIdx);
-  const cutoff = windowCutoffFor(rec.freq, todayISO);
-  const hardEnd = rec.endDate && rec.endDate < cutoff ? rec.endDate : cutoff;
+  const cutoff = windowCutoffFor(seed.recurrence.freq, todayISO);
+  const hardEnd = seed.recurrence.endDate && seed.recurrence.endDate < cutoff ? seed.recurrence.endDate : cutoff;
   const seriesId = seed.seriesId ?? genUuid();
-  const head: Todo = { ...seed, seriesId };
+  // The day-of-month anchor: the caller's, else the rule's stored one, else
+  // (expandRecurrence's default) the first occurrence's own day — then
+  // stamped on the rule so it outlives the members it was derived from.
+  const anchor = anchorDay ?? storedAnchorDay(seed.recurrence);
+  const dates = hardEnd < seedDateOnly ? [] : expandRecurrence(seedDateOnly, hardEnd, seed.recurrence, anchor);
+  const rec = recurrenceWithAnchor(seed.recurrence, dates[0] ?? seedDateOnly, anchor);
+  const head: Todo = { ...seed, seriesId, recurrence: rec };
   if (hardEnd < seedDateOnly) return [head];
-  const dates = expandRecurrence(seedDateOnly, hardEnd, rec, anchorDay);
   // dates[0] is the seed itself only when the seed sits on the rule; a seed
   // that doesn't match (e.g. an un-snapped date) must not swallow the first
   // real occurrence.
@@ -1029,18 +1063,38 @@ const MAX_SERIES_INSTANCE_ID_LEN = 64;
  * Two devices topping up the same series on the same days mint the same ids,
  * so the three-way merge collapses them instead of keeping duplicates. The
  * separator is `_`, not `:` — notification identifiers split todo ids on
- * colons (mobile/src/adapters/reminderId.ts). Falls back to a fresh UUID when
- * the id is already taken (e.g. a superseded row kept after a rule change)
- * or would be too long.
+ * colons (mobile/src/adapters/reminderId.ts). When that id is already taken
+ * (e.g. a superseded row kept after a rule change) the next free
+ * `${seriesId}_${day}_2` … `_9` is used — still deterministic, so two devices
+ * resolving the same clash agree. Falls back to a fresh UUID only when every
+ * candidate is taken or the id would be too long.
  */
 export function seriesInstanceId(
   seriesId: string,
   day: string,
   taken?: ReadonlySet<string>,
 ): string {
-  const id = `${seriesId}_${dueDateOnly(day)}`;
-  if (id.length > MAX_SERIES_INSTANCE_ID_LEN || taken?.has(id)) return genUuid();
-  return id;
+  const base = `${seriesId}_${dueDateOnly(day)}`;
+  for (let n = 1; n <= 9; n++) {
+    const id = n === 1 ? base : `${base}_${n}`;
+    if (id.length > MAX_SERIES_INSTANCE_ID_LEN) break;
+    if (!taken?.has(id)) return id;
+  }
+  return genUuid();
+}
+
+/**
+ * True when `td`'s id is the one seriesInstanceId mints for its CURRENT day
+ * (`${seriesId}_${day}` or a `_2`…`_9` clash variant) — i.e. a generated
+ * occurrence that has not been moved off its day since. A snoozed /
+ * rescheduled row (id names another day) or the user's own seed (a UUID)
+ * never matches.
+ */
+export function isGeneratedSeriesRow(td: Todo): boolean {
+  const day = dueDateOnly(td.dueDate);
+  if (!td.seriesId || !day) return false;
+  const base = `${td.seriesId}_${day}`;
+  return td.id === base || (td.id.startsWith(`${base}_`) && /^[2-9]$/.test(td.id.slice(base.length + 1)));
 }
 
 /** Same repeat rule, ignoring endDate (which "end the series" rewrites). */
@@ -1053,6 +1107,34 @@ function sameRule(a: Recurrence | undefined, b: Recurrence): boolean {
     list(a.byWeekday) === list(b.byWeekday) &&
     list(a.bySetPos) === list(b.bySetPos)
   );
+}
+
+/** True for a rule whose occurrences sit on a day-of-month (monthly / yearly
+ * without a weekday filter) — the only rules an anchor day applies to. */
+function usesAnchorDay(rec: Recurrence): boolean {
+  return (rec.freq === "monthly" || rec.freq === "yearly") && !(rec.byWeekday && rec.byWeekday.length > 0);
+}
+
+/** A valid stored anchor day (int 1..31), else undefined. */
+function storedAnchorDay(rec: Recurrence): number | undefined {
+  const d = rec.anchorDay;
+  return typeof d === "number" && Number.isInteger(d) && d >= 1 && d <= 31 ? d : undefined;
+}
+
+/**
+ * `rec` with `anchorDay` set to `due`'s day-of-month for a monthly / yearly
+ * rule (or `day` when given), and stripped for any other rule. Called when a
+ * series is created or its rule changes, so the anchor survives the Done-bin
+ * purge of the series' earlier members.
+ */
+export function recurrenceWithAnchor(rec: Recurrence, due: string, day?: number): Recurrence {
+  const anchor = day ?? Number(dueDateOnly(due).slice(8, 10));
+  if (usesAnchorDay(rec) && Number.isInteger(anchor) && anchor >= 1 && anchor <= 31) {
+    return rec.anchorDay === anchor ? rec : { ...rec, anchorDay: anchor };
+  }
+  if (rec.anchorDay === undefined) return rec;
+  const { anchorDay: _a, ...rest } = rec;
+  return rest;
 }
 
 /**
@@ -1077,12 +1159,17 @@ function firstOccurrenceFrom(
 }
 
 /**
- * The anchor day for a series' CURRENT rule: seriesAnchorDay over only the
+ * The anchor day for a series' CURRENT rule: `recurrence.anchorDay` when
+ * stored, else seriesAnchorDay over only the
  * members that repeat by `rec` — members left from before a rule change
  * (e.g. daily from the 31st, changed to monthly on the 30th) must not drag
  * the new rule's day-of-month back to the old one.
  */
 function currentRuleAnchorDay(members: Todo[], rec: Recurrence): number | undefined {
+  // The rule's own anchor wins: the earliest SURVIVING member drifts once the
+  // Done bin purges older ones (Apr 30 left → a "31st" series stuck on 30).
+  const stored = storedAnchorDay(rec);
+  if (stored !== undefined) return stored;
   return seriesAnchorDay(members.filter((m) => sameRule(m.recurrence, rec)));
 }
 
@@ -1131,7 +1218,8 @@ export function topUpSeries(
   }
   if (!latest) return todos;
   // A series is only alive while at least one OPEN member still repeats.
-  // Delete series / Mark all done / Skip all / Stop repeating / deleting the
+  // Delete series / this & future to the bin (todoMoveToTrashFutureSeries) /
+  // Skip all / Stop repeating / deleting the
   // category all leave no open repeating member — and a trashed member must
   // never be the template, or the series regrows on the next launch.
   const live = members.filter((m) => !m.trashed && !m.done && m.recurrence);
@@ -1203,6 +1291,10 @@ export function topUpSeries(
  * completion = 1 new tail"). Distinct from `topUpSeries`, which is
  * window-driven and used by migration + app-open catch-up.
  *
+ * `todayISO` (optional): when given, the new occurrence is the first one
+ * after the tail that lands on/after today — a lapsed series doesn't get an
+ * overdue row appended. Omitted → strictly one period past the tail.
+ *
  * No-op when:
  *  - The series has no members.
  *  - The next occurrence past the tail would exceed
@@ -1215,6 +1307,7 @@ export function topUpSeries(
 export function appendNextSeriesInstance(
   todos: Todo[],
   seriesId: string,
+  todayISO?: string,
 ): Todo[] {
   if (!seriesId) return todos;
   const members = todos.filter((t) => t.seriesId === seriesId);
@@ -1244,8 +1337,12 @@ export function appendNextSeriesInstance(
     if (d && d > latest) latest = d;
   }
   if (!latest) return todos;
-  const interval = rec.interval ?? 1;
-  const next = nextOccurrence(latest, rec.freq, interval, rec.byWeekday, rec.bySetPos, currentRuleAnchorDay(members, rec));
+  const anchor = currentRuleAnchorDay(members, rec);
+  // With `todayISO`, a lapsed series resumes at today (as topUpSeries does)
+  // instead of appending one more already-overdue occurrence.
+  const next = todayISO
+    ? firstOccurrenceFrom(latest, dueDateOnly(todayISO), rec, anchor)
+    : nextOccurrence(latest, rec.freq, rec.interval ?? 1, rec.byWeekday, rec.bySetPos, anchor);
   if (rec.endDate && next > rec.endDate) return todos;
   const tIdx = inheritFrom.dueDate.indexOf("T");
   const timeSuffix = tIdx === -1 ? "" : inheritFrom.dueDate.slice(tIdx);
@@ -1419,12 +1516,19 @@ function transferSeriesReminders(
  *
  * Pebble-neutral: `pebbleDelta` only fires on `done` flipping, which
  * Skip doesn't cause.
+ *
+ * No-op on a done or binned row. An explicit `todayISO` also clamps the
+ * appended occurrence to today (appendNextSeriesInstance).
  */
 export function todoSkip(prev: Todo[], id: string, todayISO?: string): Todo[] {
   const now = Date.now();
   const today = todayISO ?? todayLocal();
   const target = prev.find((td) => td.id === id);
   if (!target) return prev;
+  // Only an open occurrence can be skipped: skipping a completed (done ⇒
+  // binned) or binned row would relabel it "Skipped" and append another
+  // occurrence.
+  if (target.done || target.trashed) return prev;
   // Subtask-gated parents — same rule as todoToggle: when subs
   // exist, the parent's state is derived. Block the action so a
   // skip can't silently desync the parent from its sub list.
@@ -1447,7 +1551,7 @@ export function todoSkip(prev: Todo[], id: string, todayISO?: string): Todo[] {
     return next;
   });
   if (target.seriesId) {
-    result = appendNextSeriesInstance(result, target.seriesId);
+    result = appendNextSeriesInstance(result, target.seriesId, todayISO);
     if (oldReminders.length > 0) {
       result = transferSeriesReminders(
         result, id, oldReminders, oldDueDate, target.seriesId, today,
@@ -1484,12 +1588,19 @@ export function topUpAllSeries(
 }
 
 export function todoRestoreFromTrash(prev: Todo[], id: string): Todo[] {
-  // Only a row in the Done bin can be restored — on an active row this used
-  // to reopen every finished step.
-  if (!prev.some((td) => td.id === id && td.trashed)) return prev;
+  return todosRestoreFromTrash(prev, new Set([id]));
+}
+
+/**
+ * Restore every Done-bin row whose id is in `ids` (single + bulk restore).
+ * Only a row in the Done bin can be restored — on an active row this used to
+ * reopen every finished step. Returns `prev` when nothing matches.
+ */
+export function todosRestoreFromTrash(prev: Todo[], ids: ReadonlySet<string>): Todo[] {
+  if (!prev.some((td) => ids.has(td.id) && td.trashed)) return prev;
   const now = Date.now();
   return prev.map((td) => {
-    if (td.id !== id) return td;
+    if (!ids.has(td.id) || !td.trashed) return td;
     const { trashedAt: _t, completionDate: _c, status: _s, ...rest } = td;
     // Restoring from the Done bin clears both flags (and a "Not Do" mark) so
     // the row goes back to active. Its steps reopen too — done is derived
@@ -1512,7 +1623,7 @@ export function todoPermanentlyDelete(prev: Todo[], id: string): Todo[] {
 
 /**
  * Permanently delete this occurrence + every future sibling in the series
- * ("Delete series"). Distinct from "Mark all done" (which moves this+future
+ * ("Delete series"). Distinct from todoMoveToTrashFutureSeries (which moves this+future
  * to the bin, recoverable) — this hard-removes them. Past instances are
  * kept. Falls back to a single permanent delete for a one-off.
  */
@@ -1618,7 +1729,12 @@ export function todoSetRecurrence(
       let dueDate = td.dueDate;
       if (!dueDateOnly(dueDate)) dueDate = todayLocal();
       dueDate = snapDueDateToRecurrence(dueDate, recurrence);
-      return { ...td, recurrence, seriesId, dueDate, updatedAt: now };
+      // Re-anchor unless the rule is unchanged (an endDate-only edit keeps
+      // the series' original day, e.g. the 31st on a row clamped to the 30th).
+      const rec = td.recurrence && sameRule(td.recurrence, recurrence) && storedAnchorDay(td.recurrence) !== undefined
+        ? recurrenceWithAnchor(recurrence, dueDate, storedAnchorDay(td.recurrence))
+        : recurrenceWithAnchor(recurrence, dueDate);
+      return { ...td, recurrence: rec, seriesId, dueDate, updatedAt: now };
     }
     const next: Todo = { ...td, updatedAt: now };
     delete next.recurrence;
@@ -1977,6 +2093,13 @@ export function migrateTodo(raw: unknown, ctx: MigrateTodoCtx): Todo | null {
         // after a reload.
         if (typeof r.endDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.endDate)) {
           recurrence.endDate = r.endDate;
+        }
+        // Month-end anchor: an int 1..31 on a day-of-month rule, else dropped.
+        if (
+          typeof r.anchorDay === "number" && Number.isInteger(r.anchorDay) &&
+          r.anchorDay >= 1 && r.anchorDay <= 31 && usesAnchorDay(recurrence)
+        ) {
+          recurrence.anchorDay = r.anchorDay;
         }
       }
     }

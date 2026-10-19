@@ -159,12 +159,42 @@ export function matchSubtask(
   return prefix.length > 1 ? { kind: 'ambiguous' } : { kind: 'none' }
 }
 
-/** Mutable per-plan state: categories this plan creates (lower-cased labels). */
+/** Mutable per-plan state: categories this plan creates (lower-cased labels),
+ * and the done / checked state each toggle planned so far leaves a target in
+ * — so a repeated markDone (or step complete, or setGroceryChecked) in one
+ * turn is a no-op instead of a second flip that cancels the first. */
 interface PlanCtx {
   snap: MochiSnapshot
   deps: MochiPlanDeps
   creating: Set<string>
   out: MochiIntent[]
+  todoDone: Map<string, boolean>
+  stepDone: Map<string, boolean>
+  groceryChecked: Map<string, boolean>
+}
+
+function newCtx(snap: MochiSnapshot, deps: MochiPlanDeps): PlanCtx {
+  return {
+    snap, deps, creating: new Set(), out: [],
+    todoDone: new Map(), stepDone: new Map(), groceryChecked: new Map(),
+  }
+}
+
+const stepKey = (todoId: string, stepId: string) => `${todoId}\u0000${stepId}`
+
+type SnapTodo = MochiSnapshot['todos'][number]
+
+/** A to-do's done state as of the intents planned so far. */
+const plannedDone = (ctx: PlanCtx, td: SnapTodo): boolean =>
+  ctx.todoDone.get(td.id) ?? td.done
+
+/** Plan a toggle of `td` iff it isn't already (as planned) in `done`. A
+ * to-do's toggle moves all its steps with it (todoToggle). */
+function planTodoDone(ctx: PlanCtx, td: SnapTodo, done: boolean): void {
+  if (plannedDone(ctx, td) === done) return
+  ctx.out.push({ type: 'toggle', todoId: td.id })
+  ctx.todoDone.set(td.id, done)
+  for (const s of td.subtasks ?? []) ctx.stepDone.set(stepKey(td.id, s.id), done)
 }
 
 const labelKey = (label: string) => label.trim().toLowerCase()
@@ -259,14 +289,17 @@ function planOne(ctx: PlanCtx, op: ProposedOperation): void {
     }
     case 'markDone': {
       // `toggle` flips unconditionally — markDone means "make it done",
-      // never "re-open it".
+      // never "re-open it" (also not after an earlier op in this turn).
       const td = liveTodo(snap, op.args.todoId)
-      if (td && !td.done) out.push({ type: 'toggle', todoId: td.id })
+      if (td) planTodoDone(ctx, td, true)
       return
     }
     case 'markUndone': {
-      const td = liveTodo(snap, op.args.todoId)
-      if (td && td.done) out.push({ type: 'toggle', todoId: td.id })
+      // A completed to-do sits in the Done bin (done ⇒ trashed), so look it
+      // up among binned rows too — liveTodo would never find it. A to-do
+      // marked done earlier in this same turn counts as done.
+      const td = snap.todos.find((t) => t.id === op.args.todoId)
+      if (td && (td.done || ctx.todoDone.has(td.id))) planTodoDone(ctx, td, false)
       return
     }
     case 'createCategory':
@@ -339,8 +372,9 @@ function planOne(ctx: PlanCtx, op: ProposedOperation): void {
       return
     case 'setGroceryChecked': {
       const item = snap.groceries.find((g) => g.id === op.args.groceryId)
-      if (item && !!item.checked !== op.args.checked) {
+      if (item && (ctx.groceryChecked.get(item.id) ?? !!item.checked) !== op.args.checked) {
         out.push({ type: 'toggleGroceryChecked', groceryId: item.id })
+        ctx.groceryChecked.set(item.id, op.args.checked)
       }
       return
     }
@@ -379,10 +413,11 @@ function planOne(ctx: PlanCtx, op: ProposedOperation): void {
       const m = matchSubtask(td.subtasks, a.subtaskText)
       if (m.kind !== 'match') return
       const sub = td.subtasks!.find((s) => s.id === m.id)!
-      if (a.action === 'complete' && !sub.done) {
+      const key = stepKey(td.id, sub.id)
+      const subDone = ctx.stepDone.get(key) ?? sub.done
+      if ((a.action === 'complete' && !subDone) || (a.action === 'uncomplete' && subDone)) {
         out.push({ type: 'toggleSubtask', todoId: td.id, subtaskId: sub.id })
-      } else if (a.action === 'uncomplete' && sub.done) {
-        out.push({ type: 'toggleSubtask', todoId: td.id, subtaskId: sub.id })
+        ctx.stepDone.set(key, !subDone)
       } else if (a.action === 'remove') {
         out.push({ type: 'removeSubtask', todoId: td.id, subtaskId: sub.id })
       } else if (a.action === 'rename' && a.newText?.trim()) {
@@ -408,7 +443,7 @@ export function planMochiOps(
   snap: MochiSnapshot,
   deps: MochiPlanDeps,
 ): MochiIntent[] {
-  const ctx: PlanCtx = { snap, deps, creating: new Set(), out: [] }
+  const ctx = newCtx(snap, deps)
   for (const op of ops) if (op.kind === 'createCategory') planOne(ctx, op)
   for (const op of ops) if (op.kind !== 'createCategory') planOne(ctx, op)
   return ctx.out
@@ -433,14 +468,14 @@ export function planPickedTodos(
   snap: MochiSnapshot,
   deps: MochiPlanDeps,
 ): MochiIntent[] {
-  const ctx: PlanCtx = { snap, deps, creating: new Set(), out: [] }
+  const ctx = newCtx(snap, deps)
   const live = ids.filter((id, i) => ids.indexOf(id) === i && !!liveTodo(snap, id))
   const { action } = op.args
   for (const id of live) {
     if (action === 'delete') {
       ctx.out.push({ type: 'moveToTrash', todoId: id })
     } else if (action === 'markDone') {
-      if (!liveTodo(snap, id)!.done) ctx.out.push({ type: 'toggle', todoId: id })
+      planTodoDone(ctx, liveTodo(snap, id)!, true)
     } else if (action === 'edit') {
       if (op.args.edit) planTodoPatch(ctx, id, op.args.edit)
     } else {

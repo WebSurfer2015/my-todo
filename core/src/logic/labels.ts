@@ -76,8 +76,22 @@ export function recurrenceShortLabel(
   return recurrenceFreqLabel(rec.freq, strings)
 }
 
-/** Short date: "May 17" this year, "May 17, 2027" otherwise. */
-function shortDate(d: Date, opts: LabelFormatOptions): string {
+/** Parse a local 'YYYY-MM-DD' or 'YYYY-MM-DDTHH:mm' (no timezone — read as
+ * device-local, never UTC). Undefined when unparseable. */
+function parseLocalISO(iso: string): Date | undefined {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/.exec(iso)
+  if (!m) return undefined
+  const [, y, mo, d, hh, mm] = m
+  const date = new Date(Number(y), Number(mo) - 1, Number(d), Number(hh ?? 0), Number(mm ?? 0))
+  return Number.isNaN(date.valueOf()) ? undefined : date
+}
+
+/** Short date: "May 17" this year, "May 17, 2027" otherwise. Accepts a Date
+ * or a local 'YYYY-MM-DD[THH:mm]' string (the time part is ignored);
+ * an unparseable string is returned as-is. */
+export function shortDate(input: Date | string, opts: LabelFormatOptions = {}): string {
+  const d = typeof input === 'string' ? parseLocalISO(input) : input
+  if (!d || Number.isNaN(d.valueOf())) return typeof input === 'string' ? input : ''
   const now = opts.now ?? new Date()
   const sameYear = d.getFullYear() === now.getFullYear()
   return d.toLocaleDateString(opts.locale, {
@@ -94,10 +108,17 @@ export function recurrenceLabel(
   opts: LabelFormatOptions = {},
 ): string {
   const base = recurrenceShortLabel(rec, strings)
-  if (!rec?.endDate) return base
-  const end = new Date(`${rec.endDate}T00:00:00`)
-  if (Number.isNaN(end.valueOf())) return base
-  return `${base} · ends ${shortDate(end, opts)}`
+  const end = formatRepeatEnd(rec?.endDate, opts)
+  return end ? `${base} · ends ${end}` : base
+}
+
+/** The "Repeat ends" value: shortDate of a rule's `endDate`, or undefined
+ * when there is none (or it doesn't parse) — the caller shows its own
+ * "No end" / "Never" copy. */
+export function formatRepeatEnd(endDate: string | undefined, opts: LabelFormatOptions = {}): string | undefined {
+  if (!endDate) return undefined
+  const end = parseLocalISO(endDate)
+  return end ? shortDate(end, opts) : undefined
 }
 
 /** Compact datetime: "May 17, 9:00 AM" (year added when not this year).

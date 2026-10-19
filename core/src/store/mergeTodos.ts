@@ -22,13 +22,19 @@
  * Order follows `local` (so the user's list doesn't jump under them), with
  * remote-only rows appended. Pure: no clock, no ids, inputs untouched.
  *
- * Finally, two OPEN occurrences of the same series on the same day are one
+ * Finally, two OPEN occurrences of the same series on the same day MAY be one
  * occurrence generated twice (two devices topped the series up before
- * syncing). Only one survives — the one already in `base` or `remote` (the
- * copy the other side has), so the list converges instead of stacking.
+ * syncing). A copy is dropped only when it is provably such an artifact: not
+ * in `base` (generated since the last sync), not detached, and still on the
+ * day its deterministic id names (isGeneratedSeriesRow — never a row the
+ * user moved there). A row in `base` is never dropped: snooze / reschedule /
+ * Mochi can legitimately put two real occurrences on one day. Among droppable
+ * copies with no protected row on the day, the one in `remote` survives so the
+ * list converges instead of stacking.
  */
 import type { Todo } from '../domain/types'
 import { dueDateOnly } from '../logic/utils'
+import { isGeneratedSeriesRow } from '../logic/derive'
 
 const stamp = (td: Todo): number => td.updatedAt ?? 0
 
@@ -58,31 +64,41 @@ export function mergeTodos(
     if (localIds.has(r.id)) continue
     if (keepOneSided(r, baseById)) out.push(r)
   }
-  return dedupeSeriesDays(out, (id) => baseById.has(id) || remoteById.has(id))
+  return dedupeSeriesDays(out, baseById, remoteById)
 }
 
-/** Drop all but one open row per (seriesId, day); the kept row is the first
- * one `isShared` accepts, else the first seen. Returns `rows` itself when
- * there is nothing to drop. */
-function dedupeSeriesDays(rows: Todo[], isShared: (id: string) => boolean): Todo[] {
-  const keeper = new Map<string, Todo>()
-  let dup = false
+/** Collapse duplicate generated copies of one open occurrence per
+ * (seriesId, day) — see the header. Returns `rows` itself when there is
+ * nothing to drop. */
+function dedupeSeriesDays(
+  rows: Todo[],
+  baseById: Map<string, Todo>,
+  remoteById: Map<string, Todo>,
+): Todo[] {
+  const groups = new Map<string, Todo[]>()
   for (const td of rows) {
     if (!td.seriesId || td.trashed || td.done) continue
     const day = dueDateOnly(td.dueDate)
     if (!day) continue
     const key = `${td.seriesId}|${day}`
-    const kept = keeper.get(key)
-    if (!kept) keeper.set(key, td)
-    else {
-      dup = true
-      if (!isShared(kept.id) && isShared(td.id)) keeper.set(key, td)
-    }
+    const g = groups.get(key)
+    if (g) g.push(td)
+    else groups.set(key, [td])
   }
-  if (!dup) return rows
-  const keep = new Set([...keeper.values()].map((td) => td.id))
-  return rows.filter((td) => {
-    if (!td.seriesId || td.trashed || td.done || !dueDateOnly(td.dueDate)) return true
-    return keep.has(td.id)
-  })
+  const drop = new Set<string>()
+  const droppable = (td: Todo) =>
+    !baseById.has(td.id) && !td.detachedFromSeries && isGeneratedSeriesRow(td)
+  for (const g of groups.values()) {
+    if (g.length < 2) continue
+    const copies = g.filter(droppable)
+    if (copies.length === 0) continue
+    // A protected (real) row on the day absorbs every copy; else keep one
+    // copy — the remote's when there is one.
+    const keeper = copies.length < g.length
+      ? undefined
+      : copies.find((td) => remoteById.has(td.id)) ?? copies[0]
+    for (const td of copies) if (td !== keeper) drop.add(td.id)
+  }
+  if (drop.size === 0) return rows
+  return rows.filter((td) => !drop.has(td.id))
 }

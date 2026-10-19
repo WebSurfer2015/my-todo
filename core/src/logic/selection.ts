@@ -1,4 +1,5 @@
 import type { Todo } from '../domain/types'
+import { todosRestoreFromTrash } from './derive'
 
 export interface ToggleArgs {
   prev: Set<string>
@@ -26,18 +27,11 @@ export function toggleSelection({
   return next
 }
 
+/** Bulk restore from the Done bin — the same per-row logic as
+ * todoRestoreFromTrash (clears done / Not Do / trash fields, reopens done
+ * steps), applied only to selected rows that are actually in the bin. */
 export function applyBulkRestore(todos: Todo[], ids: Set<string>): Todo[] {
-  const now = Date.now()
-  return todos.map((td) => {
-    if (!ids.has(td.id)) return td
-    // Mirror todoRestoreFromTrash (derive.ts): clear done + completionDate as
-    // well as the trash flags. Completed tasks live in the same Done/trash bin,
-    // so restoring them must return them to the ACTIVE list — otherwise they
-    // come back done:true/trashed:false, counted active but struck-through, and
-    // can never leave.
-    const { trashedAt: _trashedAt, completionDate: _completionDate, ...rest } = td
-    return { ...rest, done: false, trashed: false, updatedAt: now }
-  })
+  return todosRestoreFromTrash(todos, ids)
 }
 
 export function applyBulkDelete(todos: Todo[], ids: Set<string>): Todo[] {

@@ -2,7 +2,7 @@
 // changes, lapsed-series top-up, multi-device top-up duplicates, step-driven
 // parent dates, category delete, defer stacking — plus the test gaps the
 // pass flagged (mutation-proven).
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   categoryDelete,
   expandSeries,
@@ -86,6 +86,14 @@ describe("1 — changing a series' rule leaves no gap", () => {
 });
 
 describe("2 — step dates move the parent's DAY, keep its time + reminders", () => {
+  // Only reminders still ahead move — pin the clock so the 2030 fixtures
+  // stay "ahead" forever.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 19, 12, 0));
+  });
+  afterEach(() => vi.useRealTimers());
+
   const parent = () =>
     seed({
       id: "p",
@@ -180,11 +188,13 @@ describe("4 — generated occurrence ids are deterministic", () => {
   it("mergeTodos dedupes open rows by (series, day), keeping the remote / base copy", () => {
     const row = (id: string, day: string, over: Partial<Todo> = {}): Todo =>
       seed({ id, seriesId: "s", dueDate: day, ...over });
+    // Generated copies (id names the row's own day, not in base): a clash
+    // variant on a day the base already has, and two copies of one new day.
     const base = [row("shared", "2026-10-20")];
-    const local = [...base, row("local-x", "2026-10-25"), row("local-y", "2026-10-20T09:00")];
-    const remote = [...base, row("remote-x", "2026-10-25")];
+    const local = [...base, row("s_2026-10-25", "2026-10-25"), row("s_2026-10-20", "2026-10-20T09:00")];
+    const remote = [...base, row("s_2026-10-25_2", "2026-10-25")];
     const merged = mergeTodos(base, local, remote);
-    expect(merged.map((t) => t.id).sort()).toEqual(["remote-x", "shared"]);
+    expect(merged.map((t) => t.id).sort()).toEqual(["s_2026-10-25_2", "shared"]);
     // Closed (done / binned) rows and different days are never collapsed.
     const closed = [row("d1", "2026-10-20", { done: true, trashed: true }), row("d2", "2026-10-20", { trashed: true })];
     const merged2 = mergeTodos([], [...closed, row("o1", "2026-10-21")], [row("o2", "2026-10-22")]);

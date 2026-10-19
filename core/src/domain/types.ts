@@ -41,6 +41,15 @@ export interface Recurrence {
    * completion.
    */
   endDate?: string
+  /**
+   * Day-of-month (1..31) a monthly / yearly series aims for — the day it was
+   * created on (or its rule last changed to). Stored on the rule so a
+   * month-end series ("the 31st") still recovers after a short month once
+   * its earlier members are purged from the Done bin. Set by newTodo /
+   * expandSeries / todoSetRecurrence / todoApplyRecurrenceChange; absent on
+   * daily / weekly / Nth-weekday rules.
+   */
+  anchorDay?: number
 }
 export const RECURRENCE_FREQS: RecurrenceFreq[] = ['daily', 'weekly', 'monthly', 'yearly']
 /** Weekday short labels — Sun=0. */
