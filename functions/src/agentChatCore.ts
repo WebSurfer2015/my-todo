@@ -564,11 +564,12 @@ export function walkAgentResponse(response: AgentModelResponse, ctx: SanitizedCo
  * null when it must be treated as a conversation START (takes a fair-use
  * slot). Null when the client says so (`conversationStart === true` — an
  * intent chip prepends a canned local exchange), when the window has exactly
- * one user turn, or when the assistant history doesn't prove ONE live,
+ * one user turn, or when the newest assistant turn doesn't prove a live,
  * server-signed conversation for this uid (chatSignature verifiedConversation:
- * every sig valid; the newest reply's convId signed < 60 min ago). A non-null claim is
- * only honoured if the convId is also in the user's recorded list — checked in
- * the reservation transaction (chatQuota resolveConversation).
+ * its sig valid and signed < 60 min ago; older turns aren't checked). A
+ * non-null claim is only honoured if the convId is also in the user's
+ * recorded list with follow-ups left — checked in the reservation
+ * transaction (chatQuota resolveConversation).
  */
 export function claimFollowUp(
   conversationStartFlag: unknown,

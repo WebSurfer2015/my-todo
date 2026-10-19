@@ -2,8 +2,9 @@
  * Chat-turn signatures: each reply is signed as `${convId}.${iat}.${hmac}`,
  * bound to the caller's uid, a server-minted conversation id, the signing
  * time and the user turn it answered. A request only counts as a free
- * follow-up when its whole assistant history proves ONE live conversation
- * (claimFollowUp) AND that conversation is recorded for the uid
+ * follow-up when its newest assistant turn proves a live conversation
+ * (claimFollowUp) AND that conversation is recorded for the uid with
+ * follow-ups left
  * (resolveConversation, chatQuota.ts) — so fabricated, cross-user, stale,
  * spliced or prefix-replayed history takes a slot.
  */
@@ -25,7 +26,9 @@ import { normalizeChatMessages, type ChatMessage } from './chatMessages'
 import { DROPPED_OPS_REPLY, SYNTHESIZED_ACK, claimFollowUp } from './agentChatCore'
 import {
   CONV_RECORD_TTL_MS,
+  MAX_CHAT_TURNS_PER_DAY,
   MAX_CONV_RECORDS,
+  MAX_TURNS_PER_CONVERSATION,
   START_RETRY_WINDOW_MS,
   resolveConversation,
   type ConvRecord,
@@ -160,7 +163,16 @@ const signed = (prev: string, content: string, opts: { conv?: string; iatS?: num
   content,
   sig: signReply(key, opts.uid ?? UID, opts.conv ?? CONV, opts.iatS ?? NOW_S - 30, prev, content),
 })
-const rec = (id: string, t: number, h = 'h'): ConvRecord => ({ id, t, h })
+/** A recorded conversation minted (and last used) at `t`. */
+const rec = (id: string, t: number, h = 'h', over: Partial<ConvRecord> = {}): ConvRecord => ({
+  id,
+  t,
+  u: t,
+  h,
+  n: 0,
+  r: 0,
+  ...over,
+})
 let n = 0
 const mint = () => `MINTED${String(++n).padStart(10, '0')}`
 
@@ -266,54 +278,111 @@ describe('claimFollowUp / verifiedConversation (client-claim half)', () => {
     ])
     expect(claimFollowUp(undefined, mixed, key, UID, NOW)).toBeNull()
   })
+  it('only the NEWEST reply is checked: older unverifiable turns (e.g. signed before a key rotation) are ignored', () => {
+    const rotated = normalizeChatMessages([
+      { role: 'user', content: 'a' },
+      { role: 'assistant', content: 'one?', sig: signReply(deriveChatSigKey('old-api-key'), UID, CONV, NOW_S - 600, 'a', 'one?') },
+      { role: 'user', content: 'b' },
+      signed('b', 'two?', { conv: OTHER_CONV, iatS: NOW_S - 30 }),
+      { role: 'user', content: 'c' },
+    ])
+    expect(claimFollowUp(undefined, rotated, key, UID, NOW)).toBe(OTHER_CONV)
+    // …and an unsigned / fabricated prefix in front of a live signed reply too.
+    const fabricatedPrefix = normalizeChatMessages([
+      { role: 'user', content: 'x' },
+      { role: 'assistant', content: 'made up' },
+      { role: 'user', content: 'b' },
+      signed('b', 'two?'),
+      { role: 'user', content: 'c' },
+    ])
+    expect(claimFollowUp(undefined, fabricatedPrefix, key, UID, NOW)).toBe(CONV)
+  })
+  it("freshness is the newest reply's OWN iat — an older, fresher reply of the same conversation can't refresh it", () => {
+    const reordered = normalizeChatMessages([
+      { role: 'user', content: 'a' },
+      signed('a', 'one?', { iatS: NOW_S - 60 }),
+      { role: 'user', content: 'b' },
+      signed('b', 'two?', { iatS: NOW_S - 2 * 3600 }),
+      { role: 'user', content: 'c' },
+    ])
+    expect(claimFollowUp(undefined, reordered, key, UID, NOW)).toBeNull()
+  })
 })
 
 describe('resolveConversation (recorded-list half)', () => {
-  it('a claimed convId that is recorded and live → follow-up, no slot, list unchanged', () => {
-    const convs = [rec(CONV, NOW - 10 * 60_000)]
-    expect(resolveConversation(convs, CONV, 'h2', NOW, mint)).toEqual({
+  const HOUR = 3600_000
+  it('constants: 24h idle TTL, ≥ a full day of starts recorded, 30 follow-ups per conversation', () => {
+    expect(CONV_RECORD_TTL_MS).toBe(24 * HOUR)
+    expect(MAX_CONV_RECORDS).toBe(120)
+    expect(MAX_CONV_RECORDS).toBeGreaterThanOrEqual(MAX_CHAT_TURNS_PER_DAY)
+    expect(MAX_TURNS_PER_CONVERSATION).toBe(30)
+  })
+  it('a claimed convId that is recorded and live → follow-up, no slot; its record is counted (n+1), stamped (u) and moved to the end', () => {
+    const mine = rec(CONV, NOW - 10 * 60_000, 'h', { n: 3 })
+    const other = rec(OTHER_CONV, NOW - 5 * 60_000)
+    expect(resolveConversation([mine, other], CONV, 'h2', NOW, mint)).toEqual({
       startsConversation: false,
       convId: CONV,
       minted: false,
-      nextConvs: convs,
+      followUp: true,
+      nextConvs: [other, { ...mine, n: 4, u: NOW }],
     })
   })
   it('a claimed convId NOT in the list (forged id / pushed out / other user) → start, new convId recorded', () => {
     const r = resolveConversation([rec(OTHER_CONV, NOW - 1000)], CONV, 'hx', NOW, () => 'NEWCONVNEWCONV00')
-    expect(r.startsConversation).toBe(true)
-    expect(r.minted).toBe(true)
-    expect(r.convId).toBe('NEWCONVNEWCONV00')
-    expect(r.nextConvs).toEqual([rec(OTHER_CONV, NOW - 1000), { id: 'NEWCONVNEWCONV00', t: NOW, h: 'hx' }])
+    expect(r).toMatchObject({ startsConversation: true, minted: true, followUp: false, convId: 'NEWCONVNEWCONV00' })
+    expect(r.nextConvs).toEqual([rec(OTHER_CONV, NOW - 1000), rec('NEWCONVNEWCONV00', NOW, 'hx')])
   })
-  it('records older than 24h are dropped — a claim on one is a start (rolling window, not reset at UTC midnight)', () => {
-    const old = rec(CONV, NOW - CONV_RECORD_TTL_MS)
-    const recent = rec(OTHER_CONV, NOW - CONV_RECORD_TTL_MS + 1)
-    const r = resolveConversation([old, recent], CONV, 'h', NOW, mint)
+  it('expiry runs from LAST USE: idle 24h + 1ms → start; minted 30h ago but used 23h ago → still a follow-up', () => {
+    const idle = rec(CONV, NOW - 30 * HOUR, 'h', { u: NOW - (24 * HOUR + 1) })
+    const r = resolveConversation([idle], CONV, 'h', NOW, mint)
     expect(r.startsConversation).toBe(true)
     expect(r.nextConvs.map((c) => c.id)).not.toContain(CONV)
-    expect(r.nextConvs.map((c) => c.id)).toContain(OTHER_CONV)
-    // Yesterday-23:50 conversation continued at 00:10 → still a follow-up.
+    const used = rec(CONV, NOW - 30 * HOUR, 'h', { u: NOW - 23 * HOUR })
+    expect(resolveConversation([used], CONV, 'h', NOW, mint)).toMatchObject({ startsConversation: false, followUp: true })
+    // Exactly 24h idle is expired; 1ms less is live.
+    expect(resolveConversation([rec(CONV, NOW - 24 * HOUR)], CONV, 'h', NOW, mint).startsConversation).toBe(true)
+    expect(resolveConversation([rec(CONV, NOW - 24 * HOUR + 1)], CONV, 'h', NOW, mint).startsConversation).toBe(false)
+    // Rolling, not reset at UTC midnight: yesterday-23:50 conversation continued at 00:10.
     const lateNight = Date.UTC(2026, 9, 18, 23, 50)
     const afterMidnight = Date.UTC(2026, 9, 19, 0, 10)
     expect(resolveConversation([rec(CONV, lateNight)], CONV, 'h', afterMidnight, mint).startsConversation).toBe(false)
   })
-  it('the list is capped at MAX_CONV_RECORDS, newest kept', () => {
+  it('per-conversation turn cap: follow-up #30 is free, #31 is a NEW conversation (slot, fresh convId)', () => {
+    const at29 = resolveConversation([rec(CONV, NOW - HOUR, 'h', { n: 29 })], CONV, 'x', NOW, mint)
+    expect(at29).toMatchObject({ startsConversation: false, followUp: true, convId: CONV })
+    expect(at29.nextConvs[0].n).toBe(MAX_TURNS_PER_CONVERSATION)
+    const capped = rec(CONV, NOW - HOUR, 'h', { n: MAX_TURNS_PER_CONVERSATION })
+    const over = resolveConversation([capped], CONV, 'x', NOW, () => 'FRESHFRESHFRESH0')
+    expect(over).toMatchObject({ startsConversation: true, minted: true, followUp: false, convId: 'FRESHFRESHFRESH0' })
+    // The capped record is left as-is (it just ages out); the new one starts at 0.
+    expect(over.nextConvs).toEqual([capped, rec('FRESHFRESHFRESH0', NOW, 'x')])
+    // …and the continued chat is free again under the fresh convId.
+    expect(resolveConversation(over.nextConvs, 'FRESHFRESHFRESH0', 'y', NOW + 1000, mint).startsConversation).toBe(false)
+  })
+  it('the list is capped at MAX_CONV_RECORDS, LEAST RECENTLY USED evicted', () => {
     const many = Array.from({ length: MAX_CONV_RECORDS }, (_, i) => rec(`C${String(i).padStart(15, '0')}`, NOW - 1000 + i, `h${i}`))
-    const r = resolveConversation(many, null, 'fresh', NOW, () => 'ZZZZZZZZZZZZZZZZ')
+    // The OLDEST-minted conversation is still in use: a follow-up moves it to the end…
+    const used = resolveConversation(many, many[0].id, 'fu', NOW, mint)
+    expect(used.nextConvs.at(-1)?.id).toBe(many[0].id)
+    // …so the next start evicts the least recently used one instead (many[1]).
+    const r = resolveConversation(used.nextConvs, null, 'fresh', NOW + 1, () => 'ZZZZZZZZZZZZZZZZ')
     expect(r.nextConvs).toHaveLength(MAX_CONV_RECORDS)
-    expect(r.nextConvs[0].id).toBe(many[1].id)
+    expect(r.nextConvs.map((c) => c.id)).toContain(many[0].id)
+    expect(r.nextConvs.map((c) => c.id)).not.toContain(many[1].id)
     expect(r.nextConvs.at(-1)?.id).toBe('ZZZZZZZZZZZZZZZZ')
   })
-  it('start RETRY: same history within 2 min reuses the convId without a slot; after 2 min it is a new start', () => {
+  it('start RETRY: same history within 2 min (from MINT) reuses the convId without a slot, counting the reuse (r+1); after 2 min it is a new start', () => {
     const convs = [rec(CONV, NOW - START_RETRY_WINDOW_MS + 1, 'same')]
-    expect(resolveConversation(convs, null, 'same', NOW, mint)).toMatchObject({
-      startsConversation: false,
-      convId: CONV,
-      minted: false,
-    })
+    const retry = resolveConversation(convs, null, 'same', NOW, mint)
+    expect(retry).toMatchObject({ startsConversation: false, convId: CONV, minted: false, followUp: false })
+    expect(retry.nextConvs).toEqual([{ ...convs[0], r: 1, u: NOW }])
     expect(resolveConversation(convs, null, 'different', NOW, mint).startsConversation).toBe(true)
     const stale = [rec(CONV, NOW - START_RETRY_WINDOW_MS, 'same')]
     expect(resolveConversation(stale, null, 'same', NOW, mint).startsConversation).toBe(true)
+    // A recent USE doesn't extend the retry window — it runs from the mint.
+    const usedSince = [rec(CONV, NOW - START_RETRY_WINDOW_MS, 'same', { u: NOW - 1000 })]
+    expect(resolveConversation(usedSince, null, 'same', NOW, mint).startsConversation).toBe(true)
   })
 })
 
@@ -373,5 +442,20 @@ describe('end to end: the round-3 replay cases', () => {
   it('client flag always starts (unless it is a retry of the same start)', () => {
     const msgs = normalizeChatMessages([{ role: 'user', content: 'u1' }, signed('u1', 'a1?'), { role: 'user', content: 'u2' }])
     expect(takesSlot(msgs, recorded, { flag: true })).toBe(true)
+  })
+  it('FORKING one live conversation: free for MAX_TURNS_PER_CONVERSATION requests, then each costs a slot', () => {
+    // A tampered client keeps one reply fresh and sends every new request as
+    // [u1, a1+sig, uNew] — distinct histories, so no retry de-dup.
+    let convs = [rec(CONV, NOW - 60_000)]
+    const fork = (i: number) =>
+      normalizeChatMessages([{ role: 'user', content: 'u1' }, signed('u1', 'a1?'), { role: 'user', content: `new ${i}` }])
+    let slots = 0
+    for (let i = 0; i < MAX_TURNS_PER_CONVERSATION + 3; i++) {
+      const m = fork(i)
+      const r = resolveConversation(convs, claimFollowUp(undefined, m, key, UID, NOW), historyHash(m), NOW, mint)
+      if (r.startsConversation) slots++
+      convs = r.nextConvs
+    }
+    expect(slots).toBe(3)
   })
 })

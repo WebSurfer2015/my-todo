@@ -6,6 +6,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   MAX_CHAT_TURNS_PER_DAY,
+  MAX_CONV_RECORDS,
+  MAX_TURNS_PER_CONVERSATION,
   chatDaysFromUsage,
   decideChatTurnFlat,
   decideChatTurnTier,
@@ -161,7 +163,7 @@ describe('rollAgentUsage / markCeilingHit', () => {
     expect(r).toEqual(usage({ prev }))
   })
   it('carries conversation records across a UTC rollover (rolling list)', () => {
-    const convs = [{ id: 'AAAAAAAAAAAAAAAA', t: 1, h: 'h' }]
+    const convs = [{ id: 'AAAAAAAAAAAAAAAA', t: 1, u: 1, h: 'h', n: 0, r: 0 }]
     expect(rollAgentUsage(usage({ date: YDAY, convs }), TODAY).convs).toEqual(convs)
   })
   it('markCeilingHit sets today\'s flag', () => {
@@ -180,20 +182,39 @@ describe('parseAgentUsage', () => {
       prev: { date: YDAY, chatTurns: 6, chatConversations: 2, ceilingHit: true },
     })
   })
-  it('parses conversation records, dropping malformed ones and keeping the newest 50', () => {
-    const good = { id: 'AAAAAAAAAAAAAAAA', t: 5, h: 'hash' }
+  it('parses conversation records, dropping malformed ones and keeping the last MAX_CONV_RECORDS (use order)', () => {
+    const good = { id: 'AAAAAAAAAAAAAAAA', t: 5, u: 9, h: 'hash', n: 2, r: 1 }
     const parsed = parseAgentUsage(
       envelope({
         ...usage(),
-        convs: [good, { id: 'short', t: 1, h: 'x' }, { id: 'BBBBBBBBBBBBBBBB', t: 'x', h: 'x' }, { id: 'CCCCCCCCCCCCCCCC', t: 1 }, null, 7],
+        convs: [
+          good,
+          { id: 'short', t: 1, u: 1, h: 'x', n: 0, r: 0 },
+          { id: 'BBBBBBBBBBBBBBBB', t: 'x', u: 1, h: 'x', n: 0, r: 0 },
+          { id: 'DDDDDDDDDDDDDDDD', t: 1, h: 'x', n: 0, r: 0 }, // no last-use
+          { id: 'CCCCCCCCCCCCCCCC', t: 1, u: 1 },
+          null,
+          7,
+        ],
       }),
     )
     expect(parsed?.convs).toEqual([good])
-    const many = Array.from({ length: 60 }, (_, i) => ({ id: `C${String(i).padStart(15, '0')}`, t: i, h: 'h' }))
+    const many = Array.from({ length: MAX_CONV_RECORDS + 10 }, (_, i) => ({ id: `C${String(i).padStart(15, '0')}`, t: i, u: i, h: 'h', n: 0, r: 0 }))
     const capped = parseAgentUsage(envelope({ ...usage(), convs: many }))?.convs
-    expect(capped).toHaveLength(50)
+    expect(capped).toHaveLength(MAX_CONV_RECORDS)
     expect(capped?.[0].t).toBe(10)
     expect(parseAgentUsage(envelope({ ...usage(), convs: 'nope' }))?.convs).toBeUndefined()
+  })
+  it('junk counts fail closed: a bad follow-up count reads as the cap, a bad reuse count as 0; fractions floor', () => {
+    const base = { id: 'AAAAAAAAAAAAAAAA', t: 1, u: 1, h: 'h' }
+    const out = parseAgentUsage(
+      envelope({ ...usage(), convs: [{ ...base, n: -1, r: 'x' }, { ...base, n: 'x', r: -2 }, { ...base, n: 2.9, r: 1.5 }] }),
+    )?.convs
+    expect(out?.map((c) => [c.n, c.r])).toEqual([
+      [MAX_TURNS_PER_CONVERSATION, 0],
+      [MAX_TURNS_PER_CONVERSATION, 0],
+      [2, 1],
+    ])
   })
   it('null on junk', () => {
     expect(parseAgentUsage(null)).toBeNull()

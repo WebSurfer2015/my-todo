@@ -222,6 +222,37 @@ describe('agentChat handler', () => {
     expect(claimOf().claimedConvId).toBeNull()
   })
 
+  it('conversationStart:true over a signed, live history → no claim, a new slot, starts_conversation:true logged', async () => {
+    // The reservation mock behaves like the real one: no claim → a start.
+    h.reserveChatTurn.mockImplementation(async (_uid: string, claim: { claimedConvId: string | null }) => ({
+      charge: CHARGE,
+      convId: claim.claimedConvId ?? 'NEWNEWNEWNEWNEW0',
+      startsConversation: claim.claimedConvId === null,
+    }))
+    h.create.mockResolvedValue(fixture({ type: 'text', text: 'Okay.' }))
+    const messages = [
+      { role: 'user', content: 'add milk' },
+      signedTurn('add milk', 'Which store?'),
+      { role: 'user', content: 'and eggs' },
+    ]
+    const telemetry = () =>
+      JSON.parse(
+        (console.log as unknown as { mock: { calls: string[][] } }).mock.calls
+          .map((c) => c[0])
+          .filter((s) => typeof s === 'string' && s.includes('"agentChat"'))
+          .at(-1)!,
+      )
+    const started = await call({ messages, conversationStart: true })
+    expect(claimOf(0).claimedConvId).toBeNull()
+    expect(telemetry().starts_conversation).toBe(true)
+    expect(started.sig.startsWith('NEWNEWNEWNEWNEW0.')).toBe(true)
+    // The same history WITHOUT the flag is a free follow-up of CONV.
+    const followed = await call({ messages })
+    expect(claimOf(1).claimedConvId).toBe(CONV)
+    expect(telemetry().starts_conversation).toBe(false)
+    expect(followed.sig.startsWith(`${CONV}.`)).toBe(true)
+  })
+
   it('an empty model response gets a calm, signed fallback (never an empty assistant turn)', async () => {
     h.create.mockResolvedValue(fixture())
     const res = await call({ messages: [{ role: 'user', content: 'hmm' }] })

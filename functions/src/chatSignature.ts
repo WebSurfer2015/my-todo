@@ -24,28 +24,36 @@
  *    `{ role, content, sig }`.
  *  - A request is a FOLLOW-UP (no slot) only when claimFollowUp() finds:
  *    no conversationStart flag, more than one user turn, ≥1 assistant turn,
- *    EVERY assistant turn's sig verifies for this uid + its preceding user
- *    turn, and the NEWEST reply's convId was signed within
- *    FOLLOW_UP_MAX_IDLE_MS of now — AND (checked in the reservation
- *    transaction) that convId is in the user's recorded list. Anything else
- *    is a new conversation. (Earlier replies may carry an older convId: a
- *    chat resumed after the idle limit re-starts under a fresh convId, and
- *    must not be charged again on every later turn.)
+ *    the NEWEST assistant turn's sig verifies for this uid + its preceding
+ *    user turn and was signed within FOLLOW_UP_MAX_IDLE_MS of now — AND
+ *    (checked in the reservation transaction) its convId is in the user's
+ *    recorded list with follow-ups left (chatQuota resolveConversation).
+ *    Anything else is a new conversation. OLDER assistant turns are not
+ *    checked: they can't make a request free on their own (the newest reply
+ *    decides), and an attacker who holds a live signed reply can already
+ *    send it as a bare [user, reply, newUser] window — so verifying them
+ *    adds no protection, while it would charge a slot on every later turn
+ *    of a chat whose early replies became unverifiable (key rotation, or a
+ *    chat resumed after idle under a fresh convId).
  *
  * What the binding stops:
- *  - fabricated / forged history: no valid hmac;
+ *  - fabricated / forged history: the newest reply has no valid hmac;
  *  - cross-user replay: uid is MAC'd;
  *  - a reply moved after a different user turn: the predecessor is MAC'd;
  *  - an old exchange replayed as a prefix: its newest iat is stale (> 60 min),
- *    or its convId is no longer in the recorded list (24h / 50 entries);
+ *    or its convId is no longer in the recorded list (24h idle / LRU cap);
  *  - splicing an old exchange in FRONT of nothing live: the newest reply
  *    decides, and it must be fresh + recorded.
- * Residual: forking a LIVE conversation (its newest reply < 60 min old, e.g.
- * re-using it as a prefix, alone or after older signed turns) is still free — bounded by the per-day turn backstop (chatQuota MAX_CHAT_TURNS_PER_DAY).
+ * Residual: forking a LIVE conversation (re-using its newest reply < 60 min
+ * old as the prefix of a new request) — bounded per conversation by
+ * chatQuota MAX_TURNS_PER_CONVERSATION (then it takes a slot) and per day by
+ * MAX_CHAT_TURNS_PER_DAY.
  *
  * Key: sha256('sagely-chat-sig:' + ANTHROPIC_API_KEY) — derived from the
  * secret we already hold, so no new secret to provision. Rotating the API key
- * invalidates outstanding sigs, which only costs in-flight chats one slot.
+ * invalidates outstanding sigs: each in-flight chat's NEXT turn is a new
+ * conversation (one slot); its reply is signed with the new key, and since
+ * only the newest reply is verified, later turns are free again.
  */
 
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
@@ -142,12 +150,12 @@ export function precedingUserText(messages: ChatMessage[], index: number): strin
 
 /**
  * The conversation this (normalized) window can prove it continues, or null.
- * Non-null only when there is ≥1 assistant turn, EVERY assistant turn's sig
- * verifies for `uid` + its preceding user turn, and the newest reply's
- * convId was last signed within FOLLOW_UP_MAX_IDLE_MS of `nowMs` (and not implausibly
- * in the future). The caller must still check the convId against the user's
- * recorded list (chatQuota resolveConversation) before treating the request
- * as a free follow-up.
+ * Non-null only when the NEWEST assistant turn's sig verifies for `uid` +
+ * its preceding user turn and was signed within FOLLOW_UP_MAX_IDLE_MS of
+ * `nowMs` (and not implausibly in the future). Older assistant turns are
+ * ignored (see the contract above). The caller must still check the convId
+ * against the user's recorded list (chatQuota resolveConversation) before
+ * treating the request as a free follow-up.
  */
 export function verifiedConversation(
   messages: ChatMessage[],
@@ -155,25 +163,16 @@ export function verifiedConversation(
   uid: string,
   nowMs: number,
 ): string | null {
-  const verified: VerifiedSig[] = []
-  for (let i = 0; i < messages.length; i++) {
-    const m = messages[i]
-    if (m.role !== 'assistant') continue
-    const v = verifyReplySig(key, uid, precedingUserText(messages, i), m.content, m.sig)
-    if (!v) return null
-    verified.push(v)
-  }
-  if (verified.length === 0) return null
-  // The conversation is the NEWEST reply's. Earlier replies may carry an
-  // older convId: a chat resumed after > 60 min idle (or whose record aged
-  // out) re-started under a new convId mid-history — requiring one convId
-  // across the whole window would charge every later turn as a new start.
-  const convId = verified[verified.length - 1].convId
-  const newest = Math.max(...verified.filter((v) => v.convId === convId).map((v) => v.iat))
+  let i = messages.length - 1
+  while (i >= 0 && messages[i].role !== 'assistant') i--
+  if (i < 0) return null
+  const m = messages[i]
+  const v = verifyReplySig(key, uid, precedingUserText(messages, i), m.content, m.sig)
+  if (!v) return null
   const nowS = Math.floor(nowMs / 1000)
-  if (newest > nowS + FUTURE_SKEW_S) return null
-  if (nowS - newest > FOLLOW_UP_MAX_IDLE_MS / 1000) return null
-  return convId
+  if (v.iat > nowS + FUTURE_SKEW_S) return null
+  if (nowS - v.iat > FOLLOW_UP_MAX_IDLE_MS / 1000) return null
+  return v.convId
 }
 
 /** Short (22-char base64url, 132-bit) hash of a normalized history — role +

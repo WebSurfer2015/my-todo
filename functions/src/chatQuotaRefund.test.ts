@@ -12,6 +12,7 @@ import {
   refundAgentUsage,
   refundMochiUsage,
   type AgentUsageData,
+  type ConvRecord,
   type UsageCharge,
 } from './chatQuota'
 import type { MochiUsageDoc } from './mochiReservation'
@@ -26,6 +27,15 @@ const usage = (over: Partial<AgentUsageData> = {}): AgentUsageData => ({
   chatTurns: 0,
   chatConversations: 0,
   ceilingHit: false,
+  ...over,
+})
+const conv = (id: string, t: number, over: Partial<ConvRecord> = {}): ConvRecord => ({
+  id,
+  t,
+  u: t,
+  h: 'h',
+  n: 0,
+  r: 0,
   ...over,
 })
 const mochi = (over: Partial<MochiUsageDoc> = {}): MochiUsageDoc => ({
@@ -90,8 +100,8 @@ describe('refundAgentUsage', () => {
     ).toBeNull()
   })
   it('forgets the conversation a start minted — same day with the counters, and alone after a rollover', () => {
-    const minted = { id: 'MMMMMMMMMMMMMMMM', t: 2, h: 'h' }
-    const other = { id: 'OOOOOOOOOOOOOOOO', t: 1, h: 'g' }
+    const minted = conv('MMMMMMMMMMMMMMMM', 2)
+    const other = conv('OOOOOOOOOOOOOOOO', 1)
     const charge: UsageCharge = { date: TODAY, calls: 1, chatTurns: 1, chatConversations: 1, mochi: null, convId: minted.id }
     expect(refundAgentUsage(usage({ calls: 1, chatTurns: 1, chatConversations: 1, convs: [other, minted] }), charge)).toEqual(
       usage({ convs: [other] }),
@@ -102,6 +112,28 @@ describe('refundAgentUsage', () => {
     )
     // Nothing to forget and nothing to refund after a rollover → no write.
     expect(refundAgentUsage(usage({ date: TOMORROW, convs: [other] }), charge)).toBeNull()
+  })
+  it('a start some RETRY reused (r > 0) is NOT forgotten — the reuse count drops instead', () => {
+    // Request A minted M; its client timed out and retry B reused M (r=1) and
+    // may hold a signed reply; then A's upstream call failed → A refunds.
+    const reused = conv('MMMMMMMMMMMMMMMM', 2, { r: 1 })
+    const charge: UsageCharge = { date: TODAY, calls: 1, chatTurns: 1, chatConversations: 1, mochi: null, convId: reused.id }
+    const out = refundAgentUsage(usage({ calls: 1, chatTurns: 2, chatConversations: 1, convs: [reused] }), charge)
+    expect(out).toEqual(usage({ chatTurns: 1, convs: [{ ...reused, r: 0 }] }))
+    // B's follow-up then still continues M.
+    expect(out?.convs?.map((c) => c.id)).toEqual([reused.id])
+  })
+  it('a FOLLOW-UP refund gives back its per-conversation turn (never below 0)', () => {
+    const live = conv('LLLLLLLLLLLLLLLL', 2, { n: 5 })
+    const charge: UsageCharge = { date: TODAY, calls: 0, chatTurns: 1, chatConversations: 0, mochi: null, followUpConvId: live.id }
+    expect(refundAgentUsage(usage({ chatTurns: 3, convs: [live] }), charge)).toEqual(
+      usage({ chatTurns: 2, convs: [{ ...live, n: 4 }] }),
+    )
+    // n already 0 / record gone: only the counters (and nothing at all after a rollover).
+    const zero = conv('LLLLLLLLLLLLLLLL', 2)
+    expect(refundAgentUsage(usage({ chatTurns: 3, convs: [zero] }), charge)?.convs).toEqual([zero])
+    expect(refundAgentUsage(usage({ date: TOMORROW, convs: [zero] }), charge)).toBeNull()
+    expect(refundAgentUsage(usage({ date: TOMORROW }), charge)).toBeNull()
   })
   it('keeps prev stats untouched', () => {
     const prev = { date: '2026-10-17', chatTurns: 2, chatConversations: 1, ceilingHit: false }

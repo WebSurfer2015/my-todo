@@ -143,12 +143,13 @@ export const agentChat = onCall(
     // Reserve before doing any expensive work: the turn is counted (committed
     // in a transaction) before the Anthropic request runs, so a hammered model
     // endpoint can't drain past the cap. Fair use counts CONVERSATIONS: only a
-    // request that starts one takes a slot. A follow-up must prove ONE live,
+    // request that starts one takes a slot. A follow-up must prove a live,
     // server-signed conversation (agentChatCore.claimFollowUp) whose convId is
     // recorded for this uid (checked in the reservation transaction); a start
     // mints the convId every reply in the conversation is signed with.
-    // Follow-ups are free, bounded by the 40-turn window and the per-day turn
-    // backstop (chatQuota.ts MAX_CHAT_TURNS_PER_DAY).
+    // Follow-ups are free, bounded per conversation
+    // (chatQuota.ts MAX_TURNS_PER_CONVERSATION) and by the per-day turn
+    // backstop (MAX_CHAT_TURNS_PER_DAY).
     const apiKey = ANTHROPIC_API_KEY.value()
     const sigKey = deriveChatSigKey(apiKey)
     const claim = {

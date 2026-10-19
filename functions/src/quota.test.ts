@@ -64,7 +64,7 @@ let seq = 0
 const start = () => ({ claimedConvId: null, startHash: `start-${++seq}` })
 /** A recorded conversation and a follow-up claim on it. */
 const CONV = 'AAAAAAAAAAAAAAAA'
-const CONV_REC = () => ({ id: CONV, t: Date.now() - 60_000, h: 'orig' })
+const CONV_REC = () => ({ id: CONV, t: Date.now() - 60_000, u: Date.now() - 60_000, h: 'orig', n: 0, r: 0 })
 const followUp = () => ({ claimedConvId: CONV, startHash: `fu-${++seq}` })
 
 // Pinned clock (mid-day UTC): code and test both derive "today" from Date, so
@@ -258,12 +258,14 @@ describe('conversation ids (reservation transaction)', () => {
     const fu = await reserveChatTurn('u1', { claimedConvId: first.convId, startHash: 'x' })
     expect(fu).toMatchObject({ convId: first.convId, startsConversation: false, charge: { calls: 0, chatConversations: 0 } })
     expect(fu.charge.convId).toBeUndefined()
+    expect(fu.charge.followUpConvId).toBe(first.convId)
+    expect(agentUsage()?.convs).toMatchObject([{ id: first.convId, n: 1, u: Date.now() }])
     expect(agentUsage()).toMatchObject({ calls: 1, chatTurns: 2, chatConversations: 1 })
     // Next UTC day, 30 min later: counters reset, the conversation continues free.
     vi.setSystemTime(new Date('2026-10-20T00:10:00.000Z'))
     h.store.set(
       AGENT,
-      envelope({ date: '2026-10-19', calls: 1, chatTurns: 2, chatConversations: 1, convs: [{ id: first.convId, t: Date.now() - 30 * 60_000, h: 'x' }] }),
+      envelope({ date: '2026-10-19', calls: 1, chatTurns: 2, chatConversations: 1, convs: [{ id: first.convId, t: Date.now() - 30 * 60_000, u: Date.now() - 30 * 60_000, h: 'x', n: 1, r: 0 }] }),
     )
     const next = await reserveChatTurn('u1', { claimedConvId: first.convId, startHash: 'y' })
     expect(next.startsConversation).toBe(false)
@@ -290,5 +292,23 @@ describe('conversation ids (reservation transaction)', () => {
     expect(b.startsConversation).toBe(true)
     expect(b.convId).not.toBe(a.convId)
     expect(agentUsage()).toMatchObject({ calls: 1, chatConversations: 1 })
+  })
+  it('RACE: a retry reused the start, then the ORIGINAL start fails and refunds → the convId survives for the retry', async () => {
+    const claim = { claimedConvId: null, startHash: 'raced-start' }
+    const a = await reserveChatTurn('u1', claim) // original (client timed out on it)
+    const b = await reserveChatTurn('u1', claim) // retry reuses a.convId, no slot
+    expect(b).toMatchObject({ convId: a.convId, startsConversation: false })
+    await refundUsage('u1', a.charge) // original's upstream call then fails
+    expect(agentUsage()?.convs).toMatchObject([{ id: a.convId, r: 0 }])
+    // The retry got a reply signed with a.convId — its next turn is free.
+    const fu = await reserveChatTurn('u1', { claimedConvId: a.convId, startHash: 'next' })
+    expect(fu.startsConversation).toBe(false)
+  })
+  it('a refunded FOLLOW-UP gives back its per-conversation turn', async () => {
+    h.store.set(AGENT, envelope({ date: today(), calls: 1, chatTurns: 4, chatConversations: 1, convs: [{ ...CONV_REC(), n: 3 }] }))
+    const fu = await reserveChatTurn('u1', followUp())
+    expect(agentUsage()?.convs?.[0].n).toBe(4)
+    await refundUsage('u1', fu.charge)
+    expect(agentUsage()).toMatchObject({ chatTurns: 4, convs: [{ id: CONV, n: 3 }] })
   })
 })
