@@ -1,7 +1,6 @@
 /**
- * Tests for the @my-todo/core package, hosted under web's Vitest setup so
- * we don't need a second test runner. All imports resolve via the same
- * relative path the apps use.
+ * Cross-cutting tests for core/ (migration, derive, utils), run by the
+ * repo-root vitest. Imports use the same relative ring paths the app uses.
  */
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import {

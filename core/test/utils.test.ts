@@ -1,7 +1,6 @@
 /**
- * Tests for core/src/utils.ts — date helpers, recurrence engine, and
- * relative-time formatters. Hosted under web's Vitest runner so we
- * don't need a separate test setup for core.
+ * Tests for core/src/logic/utils.ts — date helpers, recurrence engine, and
+ * relative-time formatters.
  *
  * vi.useFakeTimers freezes the system clock for any test that needs
  * a stable "today" — keeps the suite deterministic across timezones.

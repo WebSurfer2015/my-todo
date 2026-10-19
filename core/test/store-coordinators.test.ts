@@ -1,7 +1,7 @@
 /**
  * Tests for core/src/store/coordinators.ts — the cross-slice
  * orchestration extracted from mobile's useTodoStore composer (task #4,
- * phase 4a). Hosted under web's Vitest (web -> core, allowed direction).
+ * phase 4a).
  */
 import { describe, expect, it } from "vitest";
 import {

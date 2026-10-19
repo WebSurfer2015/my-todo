@@ -58,14 +58,22 @@ describe('derive-path performance', () => {
   // overhead), so skip it during coverage runs (COVERAGE=1). The two
   // absolute-budget checks above still run and catch real O(n^2) blowups.
   it.skipIf(process.env.COVERAGE === '1')('scales roughly linearly (10× todos ≪ 100× time)', () => {
-    const small = makeTodos(1000)
-    const big = makeTodos(10000)
-    const tA = performance.now()
-    deriveState({ todos: small, filters: ['open'], categories: cats, t })
-    const dSmall = performance.now() - tA
-    const tB = performance.now()
-    deriveState({ todos: big, filters: ['open'], categories: cats, t })
-    const dBig = performance.now() - tB
+    const small = makeTodos(2000)
+    const big = makeTodos(20000)
+    const run = (todos: typeof small) => {
+      const t0 = performance.now()
+      deriveState({ todos, filters: ['open'], categories: cats, t })
+      return performance.now() - t0
+    }
+    // Warm up (JIT, caches) once, then take the FASTEST of 5 runs per size:
+    // noise (GC pauses on the big list, a busy CI core while other test files
+    // run in parallel) only ever adds time, so the minimum is the stable
+    // estimate of the real cost. (A median of 3 still flaked under load.)
+    run(small)
+    run(big)
+    const fastest = (todos: typeof small) => Math.min(...[0, 1, 2, 3, 4].map(() => run(todos)))
+    const dSmall = fastest(small)
+    const dBig = fastest(big)
     // 10× the input. O(n log n) → ~10-14×. Allow 40× slack for CI noise /
     // fixed overhead; an O(n²) path would be ~100× and trip this.
     const ratio = dBig / Math.max(dSmall, 0.05)

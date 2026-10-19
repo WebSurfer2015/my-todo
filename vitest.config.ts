@@ -19,21 +19,20 @@ export default defineConfig({
       exclude: [
         '**/*.test.ts',
         '**/*.d.ts',
-        'core/src/index.ts',
         'core/src/**/index.ts',
         'core/src/domain/types.ts',
         // i18n is a 6-language string table (mostly data + per-language
         // formatter fns); line/fn coverage is meaningless here.
         'core/src/data/i18n.ts',
       ],
-      // Floor set just below the measured level (lines 89.7 / stmts 86 /
-      // funcs 90 / branches 78 as of 2026-06) so any real regression
-      // fails CI. Ratchet upward as coverage grows.
+      // Floor set ~1.5 points below the measured level (lines 97.0 / stmts
+      // 94.2 / funcs 96.2 / branches 89.0 as of 2026-10-19) so any real
+      // regression fails CI. Ratchet upward as coverage grows.
       thresholds: {
-        lines: 88,
-        statements: 85,
-        functions: 88,
-        branches: 76,
+        lines: 95.5,
+        statements: 92.5,
+        functions: 94.5,
+        branches: 87.5,
       },
     },
   },

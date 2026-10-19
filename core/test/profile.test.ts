@@ -1,5 +1,5 @@
 /**
- * Tests for core/src/profile.ts — avatar lookups and the
+ * Tests for core/src/data/profile.ts — avatar lookups and the
  * migrateProfile defensive parser.
  */
 import { describe, expect, it } from 'vitest'

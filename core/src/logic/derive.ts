@@ -157,12 +157,14 @@ function rollDateTime(at: string, fromDate: string, toDate: string): string {
   if (Number.isNaN(from.valueOf()) || Number.isNaN(to.valueOf()) || Number.isNaN(remind.valueOf())) {
     return at;
   }
-  const deltaMs = to.valueOf() - from.valueOf();
-  const next = new Date(remind.valueOf() + deltaMs);
-  // Return the same `yyyy-mm-ddTHH:mm` shape we stored (local time,
-  // no timezone suffix). Reconstructing via getFullYear/etc. keeps
-  // the original local hour even across DST changes (deltaMs would
-  // shift it by an hour otherwise).
+  // Whole days between the two dates — rounded, because the gap between two
+  // LOCAL midnights is 23h / 25h across a DST change. Then move the
+  // reminder's own LOCAL date by that many days, keeping its clock time.
+  // (Adding the raw ms delta to the reminder instant slipped a 23:xx reminder
+  // into the next day after fall-back.)
+  const days = Math.round((to.valueOf() - from.valueOf()) / 86_400_000);
+  const next = new Date(remind.valueOf());
+  next.setDate(next.getDate() + days);
   const y = next.getFullYear();
   const m = String(next.getMonth() + 1).padStart(2, "0");
   const d = String(next.getDate()).padStart(2, "0");
@@ -237,6 +239,8 @@ export function todoToggle(prev: Todo[], id: string, todayISO?: string): Todo[] 
   const today = todayISO ?? todayLocal();
   const target = prev.find((td) => td.id === id);
   if (!target) return prev;
+  // A skipped row is closed: completing it would turn "didn't do" into "did".
+  if (target.status === "notDo" && !target.done) return prev;
 
   // Series instance: mark done/un-do in place, no snapshot, no
   // dueDate roll. On completion, append one tail so the user always
@@ -313,12 +317,41 @@ function seriesCompletionFollowUp(
   clampToday?: string,
 ): Todo[] {
   if (!target.seriesId || !target.recurrence) return result;
-  let out = appendNextSeriesInstance(result, target.seriesId, clampToday);
+  let out = seriesOwesTail(result, target, today)
+    ? appendNextSeriesInstance(result, target.seriesId, clampToday)
+    : result;
   const oldReminders = getReminders(target);
   if (oldReminders.length > 0) {
     out = transferSeriesReminders(out, target.id, oldReminders, target.dueDate, target.seriesId, today);
   }
   return out;
+}
+
+/**
+ * Whether completing `target` still owes the series one new tail row. Each
+ * row settled ahead of time (done / skipped, dated today or later — plus the
+ * row being completed, which may be overdue) owes one row past the
+ * materialization window; the rows already sitting past the window are the
+ * ones earlier completions appended. Completing, un-completing and
+ * re-completing the same row therefore appends once, not once per cycle,
+ * while completing several different rows still appends one each ("1
+ * completion = 1 new tail").
+ */
+function seriesOwesTail(todos: Todo[], target: Todo, today: string): boolean {
+  const sid = target.seriesId;
+  if (!sid || !target.recurrence) return false;
+  const day0 = dueDateOnly(today);
+  const cutoff = windowCutoffFor(target.recurrence.freq, day0);
+  let owed = 0;
+  let beyond = 0;
+  for (const m of todos) {
+    if (m.seriesId !== sid) continue;
+    const d = dueDateOnly(m.dueDate);
+    if (!d) continue;
+    if (d > cutoff) beyond += 1;
+    if (m.id === target.id || ((m.done || m.status === "notDo") && d >= day0)) owed += 1;
+  }
+  return beyond < owed;
 }
 
 /**
@@ -782,6 +815,12 @@ export function todoApplyRecurrenceChange(
 ): { next: Todo[]; trashedCount: number } {
   const target = prev.find((t) => t.id === id);
   if (!target || !target.seriesId) return { next: prev, trashedCount: 0 };
+  // Same repeat rule (only the end date differs, or nothing): patch the
+  // series' endDate instead of rebuilding it — a rebuild would re-anchor a
+  // "31st" series on the target's own (shorter-month) day.
+  if (newRecurrence && sameRule(target.recurrence, newRecurrence)) {
+    return seriesSetEndDate(prev, target, newRecurrence.endDate, todayISO, !!options.keepDetached);
+  }
   const sid = target.seriesId;
   const cutoff = target.dueDate;
   const now = Date.now();
@@ -811,8 +850,13 @@ export function todoApplyRecurrenceChange(
   let trashedCount = 0;
   const superseded = (td: Todo) =>
     td.id !== id && td.seriesId === sid && !(cutoff && td.dueDate && td.dueDate < cutoff);
+  // Days the user already settled (completed / skipped) — the new tail must
+  // not mint a fresh occurrence on them (it would land as a `_2` duplicate
+  // next to the now one-off done / skipped row).
+  const settledDays = new Set<string>();
   updated = updated.flatMap((td) => {
     if (!superseded(td)) return [td];
+    if (td.done || td.status === "notDo") settledDays.add(dueDateOnly(td.dueDate));
     const isOpen = !td.trashed;
     const keep = !isOpen || (options.keepDetached && td.detachedFromSeries);
     if (!keep) {
@@ -840,7 +884,50 @@ export function todoApplyRecurrenceChange(
     new Set(updated.map((td) => td.id)),
   );
   // expanded[0] is the target itself — already in `updated`.
-  return { next: [...updated, ...expanded.slice(1)], trashedCount };
+  const tail = expanded.slice(1).filter((td) => !settledDays.has(dueDateOnly(td.dueDate)));
+  return { next: [...updated, ...tail], trashedCount };
+}
+
+/**
+ * The endDate-only branch of todoApplyRecurrenceChange (the rule itself is
+ * unchanged): every member keeps its rule — stored anchorDay included — with
+ * `endDate` replaced (or cleared). Members now past a shortened end leave the
+ * series exactly as superseded rows do on a rule change (open ones removed and
+ * counted, binned / kept-detached ones become one-offs); an extended or
+ * cleared end tops the series up to its window.
+ */
+function seriesSetEndDate(
+  prev: Todo[],
+  target: Todo,
+  endDate: string | undefined,
+  todayISO: string,
+  keepDetached: boolean,
+): { next: Todo[]; trashedCount: number } {
+  const sid = target.seriesId as string;
+  const end = endDate ? dueDateOnly(endDate) : "";
+  const now = Date.now();
+  let trashedCount = 0;
+  const next = prev.flatMap((td) => {
+    if (td.seriesId !== sid) return [td];
+    const day = dueDateOnly(td.dueDate);
+    if (td.id !== target.id && end && day && day > end) {
+      if (!td.trashed && !(keepDetached && td.detachedFromSeries)) {
+        trashedCount += 1;
+        return [];
+      }
+      const oneOff: Todo = { ...td, updatedAt: now };
+      delete oneOff.seriesId;
+      delete oneOff.recurrence;
+      delete oneOff.detachedFromSeries;
+      return [oneOff];
+    }
+    if (!td.recurrence || (td.recurrence.endDate ?? "") === end) return [td];
+    const rec: Recurrence = { ...td.recurrence };
+    if (end) rec.endDate = end;
+    else delete rec.endDate;
+    return [{ ...td, recurrence: rec, updatedAt: now }];
+  });
+  return { next: topUpSeries(next, sid, todayISO), trashedCount };
 }
 
 /**
@@ -2284,7 +2371,7 @@ export function recordTodoReference(
 }
 
 /**
- * Sanitize cloud / localStorage payloads of the suggestion history.
+ * Sanitize cloud / device-storage payloads of the suggestion history.
  * Drops malformed entries silently so a corrupt write can't crash the
  * compose sheet.
  */

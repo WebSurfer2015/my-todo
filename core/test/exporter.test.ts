@@ -1,5 +1,5 @@
 /**
- * Tests for the JSON export helpers in core/src/exporter.ts.
+ * Tests for the JSON export helpers in core/src/data/exporter.ts.
  * Drives the new "Export data" surface in Settings.
  */
 import { describe, expect, it } from 'vitest'

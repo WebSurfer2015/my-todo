@@ -1,5 +1,5 @@
 /**
- * Tests for core/src/statuses.ts — user-overridable status filter
+ * Tests for core/src/domain/statuses.ts — user-overridable status filter
  * labels + ordering + visibility. Pure Profile transforms.
  */
 import { describe, expect, it } from 'vitest'

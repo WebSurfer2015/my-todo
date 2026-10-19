@@ -1,5 +1,5 @@
 /**
- * Tests for core/src/persistence.ts — versioned envelope read/write,
+ * Tests for core/src/ports/persistence.ts — versioned envelope read/write,
  * the StorageAdapter contract, the doc-path builder.
  *
  * Uses an in-memory Map as a stand-in StorageAdapter so we don't
