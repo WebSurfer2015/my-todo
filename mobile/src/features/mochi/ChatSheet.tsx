@@ -4,6 +4,7 @@ import {
   Animated,
   Easing,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -16,7 +17,7 @@ import {
 } from 'react-native'
 import * as Haptics from 'expo-haptics'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
-import { Sparkles, Bell, Check } from 'lucide-react-native'
+import { Sparkles, Bell, Check, Mic, Square } from 'lucide-react-native'
 import { useLang } from '../../app/LangContext'
 import { useAuth } from '../../app/AuthContext'
 import { isUndoLive, useUndoLive } from '../../app/mochiUndo'
@@ -39,6 +40,8 @@ import { deferPresets } from '../task/DeferModal'
 import CategoryIcon from '../../ui/CategoryIcon'
 import { formatCalendarDate, recurrenceShortLabel, type RecurrenceFreqStrings } from '../../../../core/src/logic/labels'
 import { addedReplyText } from './captureCardEditable'
+import { useSpeechInput } from './useSpeechInput'
+import { SPEECH_COPY } from './speechInput'
 
 /** What applying a confirmed turn did. `pending` is set when the turn raised
  * confirm Alerts (a repeating to-do's delete scope):
@@ -281,6 +284,10 @@ export default function ChatSheet({
   })
   const { send, reset, isThinking, messages, error, errorKind } = useMochiAgent()
   const [input, setInput] = useState('')
+  // On-device voice input: the live transcript fills the box; nothing sends
+  // until the user taps Send. 'unavailable' (no native module / no on-device
+  // recognizer) hides the mic — keyboard dictation still exists.
+  const speech = useSpeechInput({ onTranscript: setInput })
   // Rotating placeholder index (cycles while the box is empty + pre-first-turn).
   const [phIdx, setPhIdx] = useState(0)
   // Last user turn, for the "Try again" recovery action on an error.
@@ -401,6 +408,19 @@ export default function ChatSheet({
     const id = setTimeout(() => setResting(null), Math.max(0, resting.until - Date.now()))
     return () => clearTimeout(id)
   }, [resting])
+  // Closing the sheet (it stays mounted), Mochi thinking or resting all end
+  // listening — the mic is disabled in those states.
+  const stopSpeech = speech.stop
+  useEffect(() => {
+    if (!visible || isThinking || isResting) stopSpeech({ discard: true })
+  }, [visible, isThinking, isResting, stopSpeech])
+  const micDisabled = isThinking || isResting
+  function toggleSpeech() {
+    if (micDisabled) return
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {})
+    if (speech.status === 'listening') speech.stop()
+    else void speech.start(input)
+  }
   // Forget this conversation's local bookkeeping (the hook's reset() aborts
   // any in-flight turn and clears the messages).
   // Bumped on every clear, so a late confirm-Alert answer can't land on a
@@ -446,6 +466,8 @@ export default function ChatSheet({
   function handleSend(raw: string = input) {
     const turn = raw.trim()
     if (!turn || isThinking) return
+    // Send ends listening; a late result must not refill the cleared box.
+    speech.stop({ discard: true })
     if (mochiRestUntil(uid, Date.now(), 'chat')) {
       // Still resting from earlier today — don't spend a call.
       fallBackToManual(turn, 'chat')
@@ -984,6 +1006,31 @@ export default function ChatSheet({
                 blurOnSubmit={false}
                 editable={!isThinking && !isResting}
               />
+              {speech.status !== 'unavailable' && (
+                // Same 40pt footprint in every state — no layout shift.
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.micBtn,
+                    speech.status === 'listening' && styles.micBtnListening,
+                    micDisabled && styles.sendBtnDisabled,
+                    pressed && !micDisabled && { transform: [{ scale: 0.9 }] },
+                  ]}
+                  onPress={toggleSpeech}
+                  disabled={micDisabled}
+                  hitSlop={4}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    speech.status === 'listening' ? SPEECH_COPY.stopLabel : SPEECH_COPY.micLabel
+                  }
+                  accessibilityState={{ disabled: micDisabled }}
+                >
+                  {speech.status === 'listening' ? (
+                    <Square size={14} color={theme.primary} fill={theme.primary} strokeWidth={2.5} />
+                  ) : (
+                    <Mic size={20} color={theme.label2} strokeWidth={2} />
+                  )}
+                </Pressable>
+              )}
               <Pressable
                 style={({ pressed }) => [
                   styles.sendBtn,
@@ -999,6 +1046,28 @@ export default function ChatSheet({
                 <Text style={styles.sendBtnText}>↑</Text>
               </Pressable>
             </View>
+            {speech.status === 'listening' && (
+              <Text style={styles.speechNote} accessibilityLiveRegion="polite">
+                {SPEECH_COPY.listening}
+              </Text>
+            )}
+            {speech.status === 'error' && (
+              <Text style={styles.speechNote} accessibilityLiveRegion="polite">
+                {SPEECH_COPY.missed}
+              </Text>
+            )}
+            {speech.status === 'denied' && (
+              <Text style={styles.speechNote}>
+                {SPEECH_COPY.denied}{' '}
+                <Text
+                  style={styles.speechLink}
+                  onPress={() => Linking.openSettings().catch(() => {})}
+                  accessibilityRole="link"
+                >
+                  {SPEECH_COPY.openSettings}
+                </Text>
+              </Text>
+            )}
           </Animated.View>
         </View>
       </KeyboardAvoidingView>
@@ -2129,6 +2198,23 @@ function makeStyles(c: ThemeColors) {
       justifyContent: 'center',
     },
     sendBtnDisabled: { opacity: 0.4 },
+    // 40pt mic, vertically centred on the 44pt send button.
+    micBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      marginBottom: 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    micBtnListening: { backgroundColor: c.primarySoft },
+    speechNote: {
+      fontSize: TYPE.footnote,
+      color: c.label2,
+      paddingTop: SPACING.xs,
+      paddingHorizontal: SPACING.xs,
+    },
+    speechLink: { color: c.primary, fontWeight: '600' },
     sendBtnText: { color: c.primaryOn, fontSize: TYPE.title, fontWeight: '700' },
   })
 }

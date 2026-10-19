@@ -39,3 +39,8 @@ export const Alert = {
 export const ActionSheetIOS = {
   showActionSheetWithOptions: (_options: unknown, _callback: (buttonIndex: number) => void) => {},
 }
+
+/** Platform: tests run as iOS (the shipped platform); a test may flip `OS`. */
+export const Platform = {
+  OS: 'ios' as 'ios' | 'android',
+}
