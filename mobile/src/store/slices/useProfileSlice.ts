@@ -9,17 +9,18 @@
 // callbacks. Cross-state mutations (changeView calls setFilter,
 // keepAndClearFilter calls clearFilters) thread through deps.
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useSyncedState } from "../useSyncedState";
 import { Profile, SEED_PROFILE, migrateProfile } from "../../core-bindings/profile";
 import { Filter, Priority, StatusFilter, ViewMode } from "../../core-bindings/types";
 import { PIN_LIMIT } from "../../../../core/src/logic/filters";
 import { TodoStoreActions } from "../../../../core/src/store";
 import { StorageAdapter } from "../../../../core/src/ports/persistence";
-import { unwrapEnvelope as unwrap, wrapEnvelope as serializeAny } from "../../../../core/src/ports/persistence";
+import { unwrapEnvelope, wrapEnvelope } from "../../../../core/src/ports/persistence";
+import type { SilentOpt } from "./useTodosSlice";
 
 const parseProfile = (raw: string | null): Profile => {
-  const data = unwrap(raw);
+  const data = unwrapEnvelope(raw);
   return data ? migrateProfile(data) : SEED_PROFILE;
 };
 
@@ -45,7 +46,10 @@ export interface ProfileSlice {
    * timed-out hydrate. */
   profileTrusted: boolean;
   // ---- Mutations (PR 5 expansion) ----
-  pinFilter: (set: Filter[]) => void;
+  /** Pin / unpin a filter set. `limitReached`: the pin cap blocked it — the
+   * store says so in a snackbar unless `silent` (a sheet over the root, where
+   * the snackbar can't be seen, says it inline). */
+  pinFilter: (set: Filter[], opts?: SilentOpt) => { limitReached: boolean };
   keepAndClearFilter: (set: Filter[]) => void;
   toggleHomeStatTile: (f: Filter) => void;
   clearHomeStatTiles: () => void;
@@ -83,21 +87,29 @@ export function useProfileSlice(
     "profile",
     SEED_PROFILE,
     parseProfile,
-    serializeAny,
+    wrapEnvelope,
   );
+
+  // Latest profile, so pinFilter can tell its caller (synchronously) that
+  // the cap blocked the pin.
+  const profileRef = useRef(profile);
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
 
   // ---- Pin filter (set-aware) ----
   const pinFilter = useCallback(
-    (set: Filter[]) => {
+    (set: Filter[], opts?: SilentOpt) => {
+      if (togglePinnedFilter(profileRef.current.pinnedFilters, set).limitReached) {
+        if (!opts?.silent) notify.showSnackbar({ message: t.pinCapReached(PIN_LIMIT) });
+        return { limitReached: true };
+      }
       setProfile((prev) => {
         const res = togglePinnedFilter(prev.pinnedFilters, set);
-        if (res.limitReached) {
-          notify.showSnackbar({ message: t.pinCapReached(PIN_LIMIT) });
-          return prev;
-        }
-        if (res.pinned === prev.pinnedFilters) return prev;
+        if (res.limitReached || res.pinned === prev.pinnedFilters) return prev;
         return { ...prev, pinnedFilters: res.pinned };
       });
+      return { limitReached: false };
     },
     [setProfile, togglePinnedFilter, notify, t],
   );

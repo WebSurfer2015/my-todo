@@ -40,6 +40,7 @@ import { useNotify } from '../../../app/notify'
 import { alertWithPresence, useModalPresence } from '../../../app/modalPresence'
 import { useStore } from '../../../app/StoreContext'
 import type { SeriesCommit } from '../../../store/slices/useTodosSlice'
+import { detachOnEditDecision } from './detachPolicy'
 import PriorityDot from '../../../ui/PriorityDot'
 import CheckGlyph from '../../../ui/CheckGlyph'
 import CategoryIcon from '../../../ui/CategoryIcon'
@@ -410,10 +411,23 @@ export default function TaskDetailsSheet({
   // the first series-eligible edit in "Edit this only" mode. Idempotent
   // at the core layer so re-firing is safe; the toast gate makes it
   // user-visible only the first time.
-  function maybeDetachOnEdit() {
-    if (!isSeriesRow) return
-    if (todo.detachedFromSeries) return
-    if (editMode !== 'this') return
+  function maybeDetachOnEdit(fields: SeriesCommit['fields']) {
+    const decision = detachOnEditDecision({
+      isSeriesRow,
+      alreadyDetached: !!todo.detachedFromSeries,
+      editMode,
+      entrySeriesId: entryTodoRef.current?.seriesId,
+      recurrenceSteps: recurrenceStepsRef.current.length,
+    })
+    if (decision === 'none') return
+    if (decision === 'propagate') {
+      // The series was made in this session: the edit goes to all of it (as
+      // a recorded step, so the close Undo unwinds it before the creation).
+      const undo = store.commitSeriesEdits(todo.id, { fields }, { silent: true })
+      const rowAfter = undo ? store.todosRef.current.find((td) => td.id === todo.id) : undefined
+      if (undo && rowAfter) recurrenceStepsRef.current.push({ rowAfter, undo })
+      return
+    }
     onDetachFromSeries(todo.id)
     if (!detachToastShownRef.current) {
       detachToastShownRef.current = true
@@ -433,27 +447,27 @@ export default function TaskDetailsSheet({
     if (!trimmed || trimmed === todo.text) return
     if (editMode === 'series' && isSeriesRow) return // buffered until Save
     onUpdateText(todo.id, trimmed)
-    maybeDetachOnEdit()
+    maybeDetachOnEdit({ text: trimmed })
   }
   function applyNotes(next: string) {
     if (next === (todo.notes ?? '')) return
     if (editMode === 'series' && isSeriesRow) return // buffered until Save
     onUpdateNotes(todo.id, next)
-    maybeDetachOnEdit()
+    maybeDetachOnEdit({ notes: next })
   }
   function applyPriority(p: Priority) {
     setEditPriority(p)
     if (p === todo.priority) return
     if (editMode === 'series' && isSeriesRow) return // buffered until Save
     onUpdatePriority(todo.id, p)
-    maybeDetachOnEdit()
+    maybeDetachOnEdit({ priority: p })
   }
   function applyCategory(cId: string) {
     setEditCategory(cId)
     if (cId === todo.category) return
     if (editMode === 'series' && isSeriesRow) return // buffered until Save
     onUpdateCategory(todo.id, cId)
-    maybeDetachOnEdit()
+    maybeDetachOnEdit({ category: cId })
   }
   function applyDueDate(d: string) {
     setEditDueDate(d)

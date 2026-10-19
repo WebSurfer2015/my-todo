@@ -92,4 +92,31 @@ describe('useTodoStore.deleteCategory Undo', () => {
     expect(hook.result.current.categories.some((c) => c.id === 'school')).toBe(true)
     hook.unmount()
   })
+
+  it('a to-do edited since → "partial"; silent shows no partial snackbar (Mochi says it inline)', async () => {
+    const spy = vi.spyOn(notify, 'showSnackbar')
+    const hook = renderHook(() => useTodoStore())
+    await waitFor(() => expect(hook.result.current.loaded).toBe(true))
+    let a = ''
+    act(() => {
+      a = hook.result.current.addTask('Report', 'medium', '', 'work')
+      hook.result.current.addTask('Slides', 'medium', '', 'work')
+    })
+    let undo: (() => unknown) | null = null
+    act(() => {
+      undo = hook.result.current.deleteCategory('work', { silent: true })
+    })
+    act(() => hook.result.current.updateText(a, 'Report v2'))
+    spy.mockClear()
+    let out: unknown
+    act(() => {
+      out = undo!()
+    })
+    expect(out).toBe('partial')
+    expect(spy).not.toHaveBeenCalled()
+    expect(hook.result.current.todos.find((t) => t.text === 'Slides')?.category).toBe('work')
+    expect(hook.result.current.categories.some((c) => c.id === 'work')).toBe(true)
+    spy.mockRestore()
+    hook.unmount()
+  })
 })

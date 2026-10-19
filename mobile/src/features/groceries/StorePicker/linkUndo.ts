@@ -26,3 +26,16 @@ export function unlinkPatches(
     .filter((it) => linked.has(it.id) && it.stores.includes(storeName))
     .map((it) => ({ id: it.id, stores: it.stores.filter((s) => s !== storeName) }))
 }
+
+/** The link result line: how many items it actually tagged (an AI match of
+ * items already tagged links nothing new — no Undo then). */
+export function linkResultMessage(linked: number, storeName: string): string {
+  if (linked <= 0) return `No new items to link to ${storeName}.`
+  return `Linked ${linked} ${linked === 1 ? 'item' : 'items'} to ${storeName}.`
+}
+
+/** The AI link lands only while the store still exists (it may have been
+ * renamed / deleted while Mochi was matching). */
+export function isStoreStillListed(stores: ReadonlyArray<string>, storeName: string): boolean {
+  return stores.includes(storeName)
+}

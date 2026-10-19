@@ -21,14 +21,14 @@ import { Profile } from "../../core-bindings/profile";
 import { classifyGroceryDept } from "../../adapters/aiInfer";
 import { StorageAdapter } from "../../../../core/src/ports/persistence";
 import { TodoStoreActions } from "../../../../core/src/store";
-import { unwrapEnvelope as unwrap, wrapEnvelope as serializeAny } from "../../../../core/src/ports/persistence";
+import { unwrapEnvelope, wrapEnvelope } from "../../../../core/src/ports/persistence";
 import type { Undo } from "./useTodosSlice";
 
 const parseGroceries = (raw: string | null): GroceryItem[] =>
-  migrateGroceries(unwrap(raw));
+  migrateGroceries(unwrapEnvelope(raw));
 
 const parseGroceryGroups = (raw: string | null): GroceryGroup[] =>
-  migrateGroceryGroups(unwrap(raw));
+  migrateGroceryGroups(unwrapEnvelope(raw));
 
 export interface GroceriesSliceDeps {
   setProfile: (next: Profile | ((prev: Profile) => Profile)) => void;
@@ -108,6 +108,9 @@ export interface GroceriesSlice {
   setActiveGroceryStore: (store: string | undefined) => void;
   setActiveGroceryDept: (deptId: string | undefined) => void;
   pinGroceryDept: (deptId: string) => void;
+  /** Latest groceries, advanced synchronously by add / toggle / delete — for
+   * Undos that run before the next render (a Mochi turn's). */
+  groceriesRef: MutableRefObject<GroceryItem[]>;
 }
 
 export function useGroceriesSlice(
@@ -139,14 +142,14 @@ export function useGroceriesSlice(
     "groceries",
     [],
     parseGroceries,
-    serializeAny,
+    wrapEnvelope,
   );
   const [groceryGroups, setGroceryGroups, groceryGroupsLoaded] = useSyncedState<GroceryGroup[]>(
     adapter,
     "groceryGroups",
     SEED_GROCERY_GROUPS,
     parseGroceryGroups,
-    serializeAny,
+    wrapEnvelope,
   );
 
   // Mirror groceryGroups so addGrocery's stable callback can read
@@ -200,6 +203,10 @@ export function useGroceriesSlice(
           };
           return [updated, ...prev.filter((it) => it.id !== existing.id)];
         });
+        groceriesRef.current = [
+          { ...existing, checked: false, checkedAt: undefined, stores: mergedStores },
+          ...groceriesRef.current.filter((it) => it.id !== existing.id),
+        ];
         return {
           id: existing.id,
           previous: {
@@ -210,6 +217,9 @@ export function useGroceriesSlice(
           },
         };
       }
+      // At the cap nothing is added — say so (undefined), don't hand back an
+      // id for an item that never landed.
+      if (groceriesRef.current.length >= MAX_GROCERY_ITEMS) return undefined;
       const explicit =
         args.groupId && args.groupId !== OTHERS_GROUP_ID
           ? args.groupId
@@ -225,6 +235,7 @@ export function useGroceriesSlice(
         if (prev.length >= MAX_GROCERY_ITEMS) return prev;
         return [item, ...prev];
       });
+      groceriesRef.current = [item, ...groceriesRef.current];
       const newStores = item.stores;
       const lastAdded = newStores[0];
       setProfile((p) => {
@@ -564,6 +575,7 @@ export function useGroceriesSlice(
       const idx = prev.findIndex((it) => it.id === id);
       if (idx === -1) return null;
       const item = prev[idx];
+      groceriesRef.current = groceryDelete(prev, id);
       setGroceries((p) => groceryDelete(p, id));
       // Undo: the very item back in its slot (unless it is back already).
       return () => {
@@ -646,5 +658,6 @@ export function useGroceriesSlice(
     setActiveGroceryStore,
     setActiveGroceryDept,
     pinGroceryDept,
+    groceriesRef,
   };
 }

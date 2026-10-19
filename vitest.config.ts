@@ -29,9 +29,9 @@ export default defineConfig({
       // real regression fails CI. Ratchet upward as coverage grows.
       thresholds: {
         lines: 96.2,
-        statements: 93.7,
-        functions: 95.8,
-        branches: 88.9,
+        statements: 93.9,
+        functions: 96.1,
+        branches: 89.4,
       },
     },
   },

@@ -532,7 +532,16 @@ function dropForeignRuleAppends(
   for (const td of beforeById.values()) if (td.seriesId) beforeSids.add(td.seriesId);
   const created = new Set<string>();
   for (const td of after) if (td.seriesId && !beforeSids.has(td.seriesId)) created.add(td.seriesId);
-  if (restored.size === 0 && created.size === 0) return todos;
+  // Series the action REBUILT under the same rule (a moved start / a
+  // re-expansion): it removed rows of the series and added others. Appends a
+  // later top-up made on the rebuilt grid are off the restored one.
+  const rebuilt = new Set<string>();
+  const addedSids = new Set<string>();
+  for (const td of after) if (td.seriesId && !beforeById.has(td.id)) addedSids.add(td.seriesId);
+  for (const td of beforeById.values()) {
+    if (td.seriesId && addedSids.has(td.seriesId) && !afterById.has(td.id)) rebuilt.add(td.seriesId);
+  }
+  if (restored.size === 0 && created.size === 0 && rebuilt.size === 0) return todos;
   // Only once the old rule really is back on those rows (a kept later edit
   // leaves the new rule in place, and its appended rows with it).
   const byId = new Map(todos.map((td) => [td.id, td]));
@@ -547,14 +556,40 @@ function dropForeignRuleAppends(
       created.delete(td.seriesId);
     }
   }
+  // A rebuilt series counts only once its removed rows are back.
+  for (const td of beforeById.values()) {
+    if (td.seriesId && rebuilt.has(td.seriesId) && !afterById.has(td.id) && !byId.has(td.id)) rebuilt.delete(td.seriesId);
+  }
   const foreign = (td: Todo) => {
     if (!td.seriesId || beforeById.has(td.id) || afterById.has(td.id) || td.done || td.trashed) return false;
     if (!isGeneratedSeriesRow(td)) return false;
     if (created.has(td.seriesId)) return true;
     const rule = restored.get(td.seriesId);
-    return !!rule && !sameRule(td.recurrence, rule);
+    if (rule) return !sameRule(td.recurrence, rule);
+    return rebuilt.has(td.seriesId) && !onRestoredGrid(todos, td, beforeById);
   };
   return todos.some(foreign) ? todos.filter((td) => !foreign(td)) : todos;
+}
+
+/** Whether `td` (a later append) falls on the grid of its series as restored:
+ * walked by the restored rule from the latest restored member before it. No
+ * such member → true (nothing to measure against; kept). */
+function onRestoredGrid(todos: Todo[], td: Todo, beforeById: Map<string, Todo>): boolean {
+  const sid = td.seriesId as string;
+  const day = dueDateOnly(td.dueDate);
+  let base: Todo | undefined;
+  let baseDay = "";
+  for (const m of todos) {
+    if (m.seriesId !== sid || !beforeById.has(m.id) || !m.recurrence) continue;
+    const d = occurrenceDay(m, sid);
+    if (d && d < day && d > baseDay) {
+      baseDay = d;
+      base = m;
+    }
+  }
+  if (!base?.recurrence) return true;
+  const rec = base.recurrence;
+  return expandRecurrence(baseDay, day, rec, storedAnchorDay(rec)).includes(day);
 }
 
 /** A row's content for the Undo "untouched" check: no updatedAt, and an
@@ -979,6 +1014,12 @@ export function todoApplyRecurrenceChange(
   const freshRule = newRecurrence ? withoutHorizon(newRecurrence) : undefined;
   if (resumes && oldEnd) {
     prev = dropSkippedAfter(prev, sid, id, oldEnd > today ? oldEnd : today, newRecurrence?.endDate);
+    // Resuming FROM a skipped / binned occurrence (opened from Done) on or
+    // after today reopens it — it is the series' live row again, not a
+    // leftover that keeps the tail (or the whole series) dead.
+    if (target.trashed && !target.done && dueDateOnly(target.dueDate) >= today) {
+      prev = todosRestoreFromTrash(prev, new Set([id]));
+    }
   }
   // Same repeat rule (only the end date differs, or nothing): patch the
   // series' endDate instead of rebuilding it — a rebuild would re-anchor a
@@ -1113,7 +1154,25 @@ function seriesSetEndDate(
   // Nothing to change (the same rule restated): the very same list, so the
   // caller sees a no-op (no Undo, no write).
   const next = changed ? kept : prev;
-  return { next: topUpSeries(next, sid, todayISO), trashedCount };
+  if (!resumes || !oldEnd) return { next: topUpSeries(next, sid, todayISO), trashedCount };
+  // A resume regrows from the day after the old end (or today, when later) by
+  // the rule — not from the latest kept row (a binned one past the old end
+  // would hide the days before it) and even when no live member is left (the
+  // target, opened from Done, is then the template).
+  const today = dueDateOnly(todayISO);
+  const dayAfterEnd = addDaysISO(oldEnd, 1);
+  const template = next.find((td) => td.id === target.id) ?? target;
+  return {
+    next: growSeries(next, sid, todayISO, { from: dayAfterEnd > today ? dayAfterEnd : today, template }),
+    trashedCount,
+  };
+}
+
+/** `iso` (YYYY-MM-DD…) plus `n` calendar days, as YYYY-MM-DD. */
+function addDaysISO(iso: string, n: number): string {
+  const d = new Date(`${dueDateOnly(iso)}T00:00:00`);
+  d.setDate(d.getDate() + n);
+  return isoDate(d);
 }
 
 /**
@@ -1531,6 +1590,21 @@ export function topUpSeries(
   seriesId: string,
   todayISO: string,
 ): Todo[] {
+  return growSeries(todos, seriesId, todayISO);
+}
+
+/**
+ * topUpSeries' engine. `resume` (a resumed series — see seriesSetEndDate):
+ * grow from the first occurrence on/after `resume.from` instead of past the
+ * series' horizon, skipping days a member already stands for, and fall back
+ * to `resume.template` when no open member is left.
+ */
+function growSeries(
+  todos: Todo[],
+  seriesId: string,
+  todayISO: string,
+  resume?: { from: string; template: Todo },
+): Todo[] {
   if (!seriesId) return todos;
   const members = todos.filter((t) => t.seriesId === seriesId);
   if (members.length === 0) return todos;
@@ -1538,14 +1612,15 @@ export function topUpSeries(
   // seriesHorizon — a row moved off its day doesn't count where it went, and
   // a deleted tail still counts).
   const latest = seriesHorizon(members, seriesId);
-  if (!latest) return todos;
+  if (!latest && !resume) return todos;
   // A series is only alive while at least one OPEN member still repeats.
   // Delete series / this & future to the bin (todoMoveToTrashFutureSeries) /
   // Skip all / Stop repeating / deleting the
   // category all leave no open repeating member — and a trashed member must
-  // never be the template, or the series regrows on the next launch.
+  // never be the template, or the series regrows on the next launch. (A
+  // resume names its template explicitly — the user just restarted it.)
   const live = members.filter((m) => !m.trashed && !m.done && m.recurrence);
-  if (live.length === 0) return todos;
+  if (live.length === 0 && !resume?.template.recurrence) return todos;
   // Inheritance: prefer the latest non-detached live row so per-instance
   // tweaks don't propagate forward via top-up.
   let inheritFrom: Todo | undefined;
@@ -1558,12 +1633,12 @@ export function topUpSeries(
       inheritFrom = m;
     }
   }
-  if (!inheritFrom) inheritFrom = live[0];
-  if (!inheritFrom.recurrence) return todos;
+  if (!inheritFrom) inheritFrom = live[0] ?? resume?.template;
+  if (!inheritFrom?.recurrence) return todos;
   const rec = inheritFrom.recurrence;
   const cutoff = windowCutoffFor(rec.freq, todayISO);
   const hardEnd = rec.endDate && rec.endDate < cutoff ? rec.endDate : cutoff;
-  if (latest >= hardEnd) return todos;
+  if (!resume && latest >= hardEnd) return todos;
   const inheritDD = inheritFrom.dueDate;
   const tIdx = inheritDD.indexOf("T");
   const timeSuffix = tIdx === -1 ? "" : inheritDD.slice(tIdx);
@@ -1576,7 +1651,9 @@ export function topUpSeries(
   const held = heldSeriesDays(todos, seriesId);
   const newRowRule = withoutHorizon(rec);
   // A lapsed series resumes at today — no flood of back-filled overdue rows.
-  let cursor = firstOccurrenceFrom(latest, dueDateOnly(todayISO), rec, anchor);
+  let cursor = resume
+    ? resumeCursor(members, seriesId, resume.from, resume.template, rec, anchor, held)
+    : firstOccurrenceFrom(latest, dueDateOnly(todayISO), rec, anchor);
   let guard = 0;
   while (cursor <= hardEnd && guard < MAX_RECURRENCE_INSTANCES) {
     if (held.has(cursor)) {
@@ -1612,6 +1689,33 @@ export function topUpSeries(
   }
   if (additions.length === 0) return todos;
   return [...todos, ...additions];
+}
+
+/**
+ * Where a resumed series regrows: the first occurrence on/after `from`, on
+ * the rule's grid as walked from the latest member before `from` (else from
+ * the template's own day). Days a member already stands for (by occurrence
+ * day, the user's UUID seed included) are added to `held` so they're not
+ * minted again.
+ */
+function resumeCursor(
+  members: Todo[],
+  seriesId: string,
+  from: string,
+  template: Todo,
+  rec: Recurrence,
+  anchor: number | undefined,
+  held: Set<string>,
+): string {
+  let base = "";
+  for (const m of members) {
+    const d = occurrenceDay(m, seriesId);
+    if (d) held.add(d);
+    if (d && d < from && d > base) base = d;
+  }
+  if (base) return firstOccurrenceFrom(base, from, rec, anchor);
+  const own = occurrenceDay(template, seriesId);
+  return !own || own >= from ? own || from : firstOccurrenceFrom(own, from, rec, anchor);
 }
 
 /**
@@ -2744,16 +2848,20 @@ export function recordTodoReference(
  * Forget the suggestion-history entries of permanently deleted to-dos (Delete
  * forever, emptying the bin, Clear done, a bulk delete, undoing a capture):
  * an entry whose text matches a `removed` row goes, unless a `remaining` row
- * (any state) still carries that text. `refs` itself when nothing goes.
+ * (any state) still carries that text. A COMPLETED removed row never makes
+ * its title go — clearing Done keeps what the user actually did, so typing it
+ * again still auto-fills; only rows removed without being completed (deleted,
+ * skipped) are forgotten. `refs` itself when nothing goes.
  */
 export function forgetTodoReferences(
   refs: TodoReference[],
-  removed: ReadonlyArray<Pick<Todo, "text">>,
+  removed: ReadonlyArray<Pick<Todo, "text"> & { done?: boolean }>,
   remaining: ReadonlyArray<Pick<Todo, "text">>,
 ): TodoReference[] {
   const key = (text: string | undefined) => (text ?? "").trim().toLowerCase();
-  const gone = new Set(removed.map((td) => key(td.text)).filter(Boolean));
+  const gone = new Set(removed.filter((td) => !td.done).map((td) => key(td.text)).filter(Boolean));
   if (gone.size === 0) return refs;
+  for (const td of removed) if (td.done) gone.delete(key(td.text));
   for (const td of remaining) gone.delete(key(td.text));
   if (gone.size === 0 || !refs.some((r) => gone.has(r.textLower))) return refs;
   return refs.filter((r) => !gone.has(r.textLower));

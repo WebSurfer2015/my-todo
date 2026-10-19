@@ -32,9 +32,9 @@
  * copies with no protected row on the day, the one in `remote` survives so the
  * list converges instead of stacking.
  */
-import type { Todo } from '../domain/types'
+import type { Todo, TodoReference } from '../domain/types'
 import { dueDateOnly } from '../logic/utils'
-import { isGeneratedSeriesRow } from '../logic/derive'
+import { isGeneratedSeriesRow, MAX_TODO_REFERENCES } from '../logic/derive'
 
 const stamp = (td: Todo): number => td.updatedAt ?? 0
 
@@ -101,4 +101,34 @@ function dedupeSeriesDays(
   }
   if (drop.size === 0) return rows
   return rows.filter((td) => !drop.has(td.id))
+}
+
+/**
+ * Three-way merge of the suggestion history (`todoReferences`, one cloud doc)
+ * — same rules as mergeTodos, keyed by `textLower` and stamped by
+ * `lastSeenAt`: on both sides the newer wins; one-sided and not in `base` →
+ * added there, kept; one-sided but in `base` → forgotten on the other side,
+ * kept only when this side used it since. Newest first, capped at
+ * MAX_TODO_REFERENCES. Pure.
+ */
+export function mergeTodoReferences(
+  base: readonly TodoReference[] | null,
+  local: readonly TodoReference[],
+  remote: readonly TodoReference[],
+): TodoReference[] {
+  const baseBy = new Map((base ?? []).map((r) => [r.textLower, r]))
+  const remoteBy = new Map(remote.map((r) => [r.textLower, r]))
+  const localKeys = new Set(local.map((r) => r.textLower))
+  const keep = (r: TodoReference) => {
+    const b = baseBy.get(r.textLower)
+    return !b || r.lastSeenAt > b.lastSeenAt
+  }
+  const out: TodoReference[] = []
+  for (const l of local) {
+    const r = remoteBy.get(l.textLower)
+    if (r) out.push(l.lastSeenAt > r.lastSeenAt ? l : r)
+    else if (keep(l)) out.push(l)
+  }
+  for (const r of remote) if (!localKeys.has(r.textLower) && keep(r)) out.push(r)
+  return out.sort((a, b) => b.lastSeenAt - a.lastSeenAt).slice(0, MAX_TODO_REFERENCES)
 }

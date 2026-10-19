@@ -19,6 +19,7 @@ import { createTodoStore } from '../../../core/src/store'
 import { strings } from '../../../core/src/data/i18n'
 import type { StorageAdapter } from '../../../core/src/ports/persistence'
 import type { Profile } from '../core-bindings/profile'
+import { MAX_GROCERY_ITEMS, type GroceryItem } from '../core-bindings/groceries'
 
 function memoryAdapter(): StorageAdapter {
   const data = new Map<string, string>()
@@ -246,5 +247,39 @@ describe('useGroceriesSlice — Undos report what they did (round 8)', () => {
       ok = hook.result.current.restoreGrocery('nope', { checked: false, addedAt: 1, stores: [] })
     })
     expect(ok).toBe(false)
+  })
+})
+
+describe('useGroceriesSlice — round 9', () => {
+  it('at MAX_GROCERY_ITEMS a new item is not added and addGrocery says so (undefined)', async () => {
+    const { hook } = await setup()
+    act(() => {
+      hook.result.current.groceriesRef.current = Array.from({ length: MAX_GROCERY_ITEMS }, (_, i) => ({
+        id: `g${i}`,
+        text: `item ${i}`,
+        groupId: 'other',
+        checked: false,
+        stores: [],
+        addedAt: i,
+      })) as unknown as GroceryItem[]
+    })
+    let res: ReturnType<typeof hook.result.current.addGrocery> = { id: 'x' }
+    act(() => {
+      res = hook.result.current.addGrocery({ text: 'Brand new thing' })
+    })
+    expect(res).toBeUndefined()
+  })
+
+  it('add / toggle / delete advance groceriesRef synchronously (Undo reads it before a render)', async () => {
+    const { hook } = await setup()
+    let id = ''
+    act(() => {
+      id = hook.result.current.addGrocery({ text: 'Milk' })!.id
+      expect(hook.result.current.groceriesRef.current.some((g) => g.id === id)).toBe(true)
+      hook.result.current.toggleGroceryChecked(id)
+      expect(hook.result.current.groceriesRef.current.find((g) => g.id === id)?.checked).toBe(true)
+      hook.result.current.deleteGrocery(id)
+      expect(hook.result.current.groceriesRef.current.some((g) => g.id === id)).toBe(false)
+    })
   })
 })
