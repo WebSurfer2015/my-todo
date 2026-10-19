@@ -169,23 +169,6 @@ function TodosScreen() {
       else next.add(key);
       return next;
     });
-  // One-time JS splash overlay shown when AppInner first mounts. Hides
-  // itself after the breath + fade animation. Only blocks once per cold
-  // launch.
-  const [splashShown, setSplashShown] = useState(true);
-  // Onboarding is decided ONCE, the first time the store finishes
-  // hydrating — then latched. Without the latch, a later profile-sync
-  // tick (or any churn that momentarily lacks onboardingDone) could flip
-  // `needed` true mid-session and pop "Meet Mochi" over the app (e.g.
-  // when the user just tapped a to-do). It must only appear at first
-  // login, never resurface after.
-  const [onboardingNeeded, setOnboardingNeeded] = useState(false);
-  const onboardingDecidedRef = useRef(false);
-  useEffect(() => {
-    if (!store.loaded || onboardingDecidedRef.current) return;
-    onboardingDecidedRef.current = true;
-    if (store.profile.onboardingDone !== true) setOnboardingNeeded(true);
-  }, [store.loaded, store.profile.onboardingDone]);
 
   // Search narrows the already-filtered + grouped view (case-insensitive
   // substring over text/subtasks/notes). The linger projection (keeping a
@@ -915,18 +898,54 @@ function TodosScreen() {
         }}
         onClose={() => setDeferTarget(null)}
       />
+    </SafeAreaView>
+  );
+}
+
+const Tab = createBottomTabNavigator();
+
+/**
+ * First-launch layer, mounted at the app level (above the tab navigator) so
+ * it runs whichever tab opens first. It used to live inside the Todos tab,
+ * which React Navigation mounts lazily — so the splash and onboarding only
+ * appeared when the user first visited Todos, never at launch on Today.
+ */
+function FirstRunLayer() {
+  const store = useStore();
+  const sheets = useSheets();
+  // One-time JS splash overlay per cold launch (breath + fade, then hides).
+  const [splashShown, setSplashShown] = useState(true);
+  // Onboarding is decided ONCE, the first time the store finishes
+  // hydrating — then latched, so a later profile-sync tick that momentarily
+  // lacks onboardingDone can't pop it over the app mid-session. The one
+  // deliberate re-entry is Settings → Show intro again, which writes an
+  // explicit `false`.
+  const [onboardingNeeded, setOnboardingNeeded] = useState(false);
+  const onboardingDecidedRef = useRef(false);
+  useEffect(() => {
+    if (!store.loaded) return;
+    if (!onboardingDecidedRef.current) {
+      onboardingDecidedRef.current = true;
+      if (store.profile.onboardingDone !== true) setOnboardingNeeded(true);
+    } else if (store.profile.onboardingDone === false) {
+      setOnboardingNeeded(true);
+    }
+  }, [store.loaded, store.profile.onboardingDone]);
+
+  return (
+    <>
       <Onboarding
         visible={onboardingNeeded}
         onSubmit={(text) => {
           setOnboardingNeeded(false);
-          store.saveProfile({ ...store.profile, onboardingDone: true });
+          store.saveProfile((p) => ({ ...p, onboardingDone: true }));
           // Hand the words to Mochi once the onboarding modal has animated
           // out (iOS can't stack two Modals — same 280ms handoff).
           setTimeout(() => sheets.openCaptureWith(text), 280);
         }}
         onExplore={() => {
           setOnboardingNeeded(false);
-          store.saveProfile({ ...store.profile, onboardingDone: true });
+          store.saveProfile((p) => ({ ...p, onboardingDone: true }));
         }}
       />
       {splashShown && (
@@ -935,11 +954,9 @@ function TodosScreen() {
           onDismiss={() => setSplashShown(false)}
         />
       )}
-    </SafeAreaView>
+    </>
   );
 }
-
-const Tab = createBottomTabNavigator();
 
 function AppGate() {
   const { user, loading } = useAuth();
@@ -1062,6 +1079,7 @@ function AppGate() {
         />
         </Tab.Navigator>
       </NavigationContainer>
+      <FirstRunLayer />
     </View>
   );
 }
