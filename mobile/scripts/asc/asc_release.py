@@ -591,6 +591,18 @@ def cmd_validate(_args):
             elif "!" in load_whats_new()[latest][loc]:
                 problems.append(f"{latest}/{loc}: whatsNew has an exclamation mark")
         print(f"  latest whatsNew entry: {latest}")
+        # The newest What's New entry must match the version the app
+        # actually ships (mobile/app.json expo.version).
+        app_json = SCRIPT_DIR.parent.parent / "app.json"
+        try:
+            with open(app_json, encoding="utf-8") as f:
+                app_version = json.load(f)["expo"]["version"]
+        except (OSError, KeyError, ValueError) as e:
+            problems.append(f"couldn't read expo.version from {app_json}: {e}")
+        else:
+            if latest != app_version:
+                problems.append(
+                    f"latest whatsNew entry {latest} != app.json expo.version {app_version}")
     if problems:
         print("\n".join(f"  ✗ {p}" for p in problems))
         raise SystemExit(1)

@@ -255,7 +255,7 @@ export const GUIDES: Guide[] = [
     slides: [
       {
         title: 'Say it however you like',
-        body: "Tap + and say it however you like. Every change has Undo.",
+        body: "Tap + and say it however you like. Every to-do change Mochi makes can be undone.",
         visual: (
           <MockupSheet title="Ask Mochi">
             <MockupTextField text="Dentist Friday, and pick up milk" />

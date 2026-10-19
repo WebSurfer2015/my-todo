@@ -490,7 +490,8 @@ function TaskItem({
           </TouchableOpacity>
           <TouchableOpacity style={[styles.swipeAction, styles.swipeDelete]} onPress={confirmPermanentDelete}>
             <Trash2 size={20} color={theme.onDanger} strokeWidth={2} />
-            <Text style={[styles.swipeActionText, { color: theme.onDanger }]} numberOfLines={1}>{t.deleteTask}</Text>
+            {/* Permanent — say so ("Delete forever"); two lines fit the 86pt action. */}
+            <Text style={[styles.swipeActionText, { color: theme.onDanger, textAlign: 'center' }]} numberOfLines={2}>{t.deletePermanently}</Text>
           </TouchableOpacity>
         </View>
       )
@@ -740,13 +741,13 @@ function TaskItem({
                 ]}>
                   {/* R5 — the Done bin tells its three kinds of rows apart:
                       skipped ("Skipped"), finished ("Done <date>"), and
-                      deleted-never-finished ("Deleted · back anytime"). */}
+                      deleted-never-finished ("Deleted · here for 30 days"). */}
                   {todo.status === 'notDo'
                     ? t.notDoChip
                     : todo.completionDate
                       ? `Done ${formatDisplayDate(todo.completionDate, t.locale).toLowerCase()}`
                       : todo.trashed
-                        ? 'Deleted · back anytime'
+                        ? 'Deleted · here for 30 days'
                         : 'Done'}
                 </Text>
               ) : dateChipFormat === 'home-today' && overdue ? (

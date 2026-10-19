@@ -76,19 +76,12 @@ export default function DeferModal({
     }
   }, [visible])
 
-  function offsetFromToday(days: number): Date {
-    const d = new Date()
-    d.setDate(d.getDate() + days)
-    return d
-  }
   function commit(d: Date) {
     onSelect(isoDate(d))
     onClose()
   }
 
-  const tomorrow = offsetFromToday(1)
-  const inAWeek = offsetFromToday(7)
-  const inAMonth = offsetFromToday(30)
+  const presets = deferPresets(t)
 
   const subtitle = filterLabel
     ? count && count > 1
@@ -118,27 +111,12 @@ export default function DeferModal({
     >
       {!isPicker ? (
         <View style={styles.card}>
-          <OptionRow
-            label={t.snooze.tomorrow}
-            hint={formatTargetDate(tomorrow, t.locale)}
-            onPress={() => commit(tomorrow)}
-            styles={styles}
-          />
-          <Divider styles={styles} />
-          <OptionRow
-            label={t.deferWeekLater}
-            hint={formatTargetDate(inAWeek, t.locale)}
-            onPress={() => commit(inAWeek)}
-            styles={styles}
-          />
-          <Divider styles={styles} />
-          <OptionRow
-            label={t.deferMonthLater}
-            hint={formatTargetDate(inAMonth, t.locale)}
-            onPress={() => commit(inAMonth)}
-            styles={styles}
-          />
-          <Divider styles={styles} />
+          {presets.map((p) => (
+            <React.Fragment key={p.key}>
+              <OptionRow label={p.label} hint={p.hint} onPress={() => commit(p.date)} styles={styles} />
+              <Divider styles={styles} />
+            </React.Fragment>
+          ))}
           <OptionRow
             label={t.snooze.pickDate}
             icon={<Calendar size={16} color={theme.label3} strokeWidth={2} />}
@@ -211,6 +189,33 @@ function OptionRow({
 
 function Divider({ styles }: { styles: ReturnType<typeof makeStyles> }) {
   return <View style={styles.divider} />
+}
+
+export interface DeferPreset {
+  key: 'tomorrow' | 'week' | 'month'
+  label: string
+  date: Date
+  /** The resulting calendar date ("Wed, Oct 21"). */
+  hint: string
+}
+
+/** The quick defer presets — Tomorrow / In a week / In a month, each with
+ * its resulting date. Shared with Ask Mochi's pick-list Defer so both
+ * offer the same choices. */
+export function deferPresets(
+  t: { locale?: string; snooze: { tomorrow: string }; deferWeekLater: string; deferMonthLater: string },
+  now: Date = new Date(),
+): DeferPreset[] {
+  const offset = (days: number) => {
+    const d = new Date(now)
+    d.setDate(d.getDate() + days)
+    return d
+  }
+  return [
+    { key: 'tomorrow' as const, label: t.snooze.tomorrow, date: offset(1) },
+    { key: 'week' as const, label: t.deferWeekLater, date: offset(7) },
+    { key: 'month' as const, label: t.deferMonthLater, date: offset(30) },
+  ].map((p) => ({ ...p, hint: formatTargetDate(p.date, t.locale) }))
 }
 
 /**

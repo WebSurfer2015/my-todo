@@ -7,7 +7,7 @@
  * so this lives here, NOT in core. The mobile client mirrors this union in
  * its own ProposedOperation type (see useMochiAgent); a parity test
  * (mobile/src/__tests__/proposedOperation-parity.test.ts) guards the two
- * copies against drift. Tested directly by web/src/agentTools.test.ts
+ * copies against drift. Tested directly by functions/src/agentTools.test.ts
  * (imports THIS file), so the deployed validator is what's covered.
  * (Previously duplicated in core/src/ports/agentTools.ts, which the test
  * pointed at — that orphan was deleted to remove the test-vs-deployed
@@ -51,7 +51,7 @@
 import { isValidDueDate, isValidIsoDate, isValidIsoDateTime } from './dates'
 
 // Inlined here because the CF tsconfig rootDir is `src`, so we can't
-// reach core/src/types.ts. Keep this in lockstep with that file.
+// reach core/src/domain/types.ts. Keep this in lockstep with that file.
 type Priority = 'high' | 'medium' | 'low'
 
 /** JSON-schema-ish input shape for one tool. Loose `unknown` for the

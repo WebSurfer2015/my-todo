@@ -11,8 +11,7 @@ import { useSuggestSteps } from './useSuggestSteps'
 /**
  * Suggest steps — split into hook + trigger + review so the trigger
  * pill can live in the STEPS section header row while the review
- * checklist renders below the subtask list. Mirrors the web pattern
- * in web/src/components/SuggestStepsPanel.tsx.
+ * checklist renders below the subtask list.
  *
  * The hook itself lives in ./useSuggestSteps so it can be unit-tested
  * without pulling in React Native; re-exported here for back-compat

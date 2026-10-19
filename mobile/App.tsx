@@ -319,6 +319,9 @@ function TodosScreen() {
     // Header counts include every to-do in the bucket (open + done) so the
     // number matches what's visible.
     const headerCount = group.todos.length;
+    // Carried over shows no count — a growing number there reads as a
+    // backlog score, which is exactly the pressure Sagely avoids.
+    const headerSuffix = group.key === 'overdue' ? '' : ` (${headerCount})`;
     // Only OPEN todos in the bucket can be deferred; hidden when zero.
     const openInGroup = group.todos.filter((td) => !td.done);
     const openInGroupCount = openInGroup.length;
@@ -340,12 +343,12 @@ function TodosScreen() {
             )}
             <Text style={styles.groupHeader}>
               {headerLabel}
-              {collapsed ? '' : ` (${headerCount})`}
+              {collapsed ? '' : headerSuffix}
             </Text>
           </TouchableOpacity>
         ) : (
           <Text style={[styles.groupHeader, styles.groupHeaderSpacing]}>
-            {headerLabel} ({headerCount})
+            {headerLabel}{headerSuffix}
           </Text>
         )}
         {openInGroupCount > 0 &&
