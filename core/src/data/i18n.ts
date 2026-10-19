@@ -259,11 +259,7 @@ export const strings = {
     },
     series: {
       trashedMany: (n: number): string => `${n} to-dos in this series tucked into Done.`,
-      editsApplied: (n: number): string => `Applied to ${n} future to-do${n !== 1 ? 's' : ''} in this series.`,
-      editsNothing: 'Changes saved.',
       applyToFutureA11y: "Apply this to-do's text, priority, and category to every future to-do in this series",
-      subtasksApplied: (n: number): string =>
-        n === 0 ? 'Nothing to apply.' : `Steps applied to ${n} upcoming to-do${n !== 1 ? 's' : ''}.`,
     },
     seriesFreqChangeTitle: 'Change the repeat?',
     seriesFreqChangeBody: 'Upcoming to-dos will be replaced.',
@@ -527,10 +523,6 @@ export const strings = {
     seriesSubtasksKeepModified: '保留已修改的，覆盖其余',
     series: {
       trashedMany: (n: number): string => `已将此系列中的 ${n} 项任务收起。`,
-      editsApplied: (n: number): string => `已应用到此系列中未来的 ${n} 项任务。`,
-      subtasksApplied: (n: number): string =>
-        n === 0 ? '没有可应用的内容。' : `已将步骤应用到 ${n} 项未来事件。`,
-      editsNothing: '没有要应用的。',
       applyToFutureA11y: '将此任务的文本、优先级和类别应用到此系列中所有未来的任务',
     },
   },
@@ -787,10 +779,6 @@ export const strings = {
     seriesSubtasksKeepModified: 'Conservar los modificados, sobrescribir el resto',
     series: {
       trashedMany: (n: number): string => `${n} tareas de esta serie guardadas.`,
-      editsApplied: (n: number): string => `Aplicado a ${n} ${n === 1 ? 'tarea futura' : 'tareas futuras'} de esta serie.`,
-      subtasksApplied: (n: number): string =>
-        n === 0 ? 'Nada que aplicar.' : `Pasos aplicados a ${n} ${n === 1 ? 'evento futuro' : 'eventos futuros'}.`,
-      editsNothing: 'Nada que aplicar.',
       applyToFutureA11y: 'Aplicar el texto, prioridad y categoría a todas las tareas futuras de esta serie',
     },
   },
@@ -1047,10 +1035,6 @@ export const strings = {
     seriesSubtasksKeepModified: 'Garder les modifiés, écraser le reste',
     series: {
       trashedMany: (n: number): string => `${n} tâches de cette série mises de côté.`,
-      editsApplied: (n: number): string => `Appliqué à ${n} ${n === 1 ? 'tâche future' : 'tâches futures'} de cette série.`,
-      subtasksApplied: (n: number): string =>
-        n === 0 ? 'Rien à appliquer.' : `Étapes appliquées à ${n} ${n === 1 ? 'événement futur' : 'événements futurs'}.`,
-      editsNothing: 'Rien à appliquer.',
       applyToFutureA11y: 'Appliquer le texte, la priorité et la catégorie à toutes les tâches futures de cette série',
     },
   },
@@ -1307,10 +1291,6 @@ export const strings = {
     seriesSubtasksKeepModified: '編集済みは残し、残りを上書き',
     series: {
       trashedMany: (n: number): string => `${n}件のシリーズタスクをしまいました。`,
-      editsApplied: (n: number): string => `このシリーズの今後${n}件のタスクに適用しました。`,
-      subtasksApplied: (n: number): string =>
-        n === 0 ? '反映する内容はありません。' : `今後${n}件のイベントにステップを反映しました。`,
-      editsNothing: '適用するものはありません。',
       applyToFutureA11y: 'このタスクのテキスト、優先度、カテゴリーをこのシリーズの今後すべてのタスクに適用',
     },
   },
@@ -1567,10 +1547,6 @@ export const strings = {
     seriesSubtasksKeepModified: 'Geänderte behalten, Rest überschreiben',
     series: {
       trashedMany: (n: number): string => `${n} Aufgaben dieser Serie weggeräumt.`,
-      editsApplied: (n: number): string => `Auf ${n} ${n === 1 ? 'zukünftige Aufgabe' : 'zukünftige Aufgaben'} dieser Serie angewendet.`,
-      subtasksApplied: (n: number): string =>
-        n === 0 ? 'Nichts anzuwenden.' : `Schritte auf ${n} ${n === 1 ? 'zukünftiges Ereignis' : 'zukünftige Ereignisse'} angewendet.`,
-      editsNothing: 'Nichts anzuwenden.',
       applyToFutureA11y: 'Text, Priorität und Kategorie auf alle zukünftigen Aufgaben dieser Serie anwenden',
     },
   },

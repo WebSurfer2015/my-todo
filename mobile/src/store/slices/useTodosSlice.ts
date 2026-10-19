@@ -37,6 +37,7 @@ import {
   migrateTodoReferences,
 } from "../../../../core/src/logic/derive";
 import { TodoStoreActions, mergeTodos } from "../../../../core/src/store";
+import { weekdayDate } from "../../../../core/src/logic/labels";
 import {
   todayLocal,
   addDaysISO,
@@ -154,10 +155,8 @@ export function seriesCommitMessage(
  * ("Deferred to Wed, Oct 21"). English-only launch. */
 export function deferredMessage(deferred: number, targetISO: string): string {
   if (deferred !== 1) return `${deferred} to-dos deferred.`;
-  const day = dueDateToDate(targetISO);
-  if (isNaN(day.getTime())) return "1 to-do deferred.";
-  const label = day.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-  return `Deferred to ${label}`;
+  if (isNaN(dueDateToDate(targetISO).getTime())) return "1 to-do deferred.";
+  return `Deferred to ${weekdayDate(targetISO)}`;
 }
 
 export function deferSnackbarMessage(deferredMessage: string, skipped: number): string {

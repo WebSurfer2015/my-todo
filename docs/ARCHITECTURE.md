@@ -94,7 +94,7 @@ parity tests in `mobile/src/__tests__`).
 | `aiInfer` | callable | One-shot modes: `suggest-todo-fields`, `classify-grocery-dept`, `breakdown-subtasks`, `link-store-to-items`. |
 | `revenuecatWebhook` | HTTPS | RevenueCat → `state/entitlement` (the client never writes it). Ignores events for deleted users. |
 | `onUserDeleted` | auth delete (gen-1) | Recursively erases `users/{uid}`; retries on failure. |
-| `metricsRollup` | daily 06:15 UTC | Aggregate counts → `metrics/{yesterday}` (no uids). |
+| `metricsRollup` | daily 06:15 UTC | Aggregate counts → `metrics/{yesterday}` (no uids). Same pass prunes Mochi conversation records idle ≥24h from each user's `agentUsage` (conditional on update time, so a live write is never clobbered). |
 
 **AI cost / safety knobs**: validate input before reserving quota; a flat
 150/day per-uid fair-use cap shared by both AI functions

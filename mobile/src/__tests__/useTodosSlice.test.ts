@@ -60,10 +60,7 @@ const t = {
   deletePermanently: 'Delete',
   changesSaved: 'Changes saved',
   series: {
-    editsApplied: (n: number) => `applied ${n}`,
-    editsNothing: 'Nothing to apply',
     trashedMany: (n: number) => `trashed ${n}`,
-    subtasksApplied: (n: number) => `steps ${n}`,
   },
   snooze: { toTomorrow: 'tomorrow', toNextWeek: 'next week', toDays: (n: number) => `${n} days` },
   defer: { done: (n: number) => `deferred ${n}` },
