@@ -1,4 +1,5 @@
 import * as Notifications from 'expo-notifications'
+import { nudgeAtFor } from '../../../core/src/logic/reminderPresets'
 import {
   REMINDER_ID_PREFIX,
   MAX_FIRES_PER_TODO,
@@ -159,13 +160,24 @@ interface TodoForReminder {
   trashed: boolean
 }
 
-export async function syncTodoReminders(todos: TodoForReminder[]): Promise<void> {
+const REMINDER_BODY = 'A gentle nudge from Mochi.'
+const NUDGE_BODY = 'No rush. Tap to pick a new day, or mark it done.'
+
+/**
+ * @param opts.gentleNudge — also schedule ONE follow-up per to-do at 9:00 the
+ *   morning after its last one-shot reminder (core nudgeAtFor). Done/trashed
+ *   to-dos drop out of `desired`, so their nudge is cancelled like any fire.
+ */
+export async function syncTodoReminders(
+  todos: TodoForReminder[],
+  opts: { gentleNudge?: boolean } = {},
+): Promise<void> {
   const settings = await Notifications.getPermissionsAsync().catch(() => null)
   if (!settings || settings.status !== 'granted') return
 
   // Desired schedule, keyed by (todoId, reminderId, fireIndex) so the diff can
   // be done in one pass. Walks each todo's reminders array.
-  const desired = new Map<string, { todoId: string; title: string; at: Date }>()
+  const desired = new Map<string, { todoId: string; title: string; body: string; at: Date }>()
   for (const td of todos) {
     if (td.trashed || td.done) continue
     for (const r of td.reminders ?? []) {
@@ -175,9 +187,19 @@ export async function syncTodoReminders(todos: TodoForReminder[]): Promise<void>
         desired.set(reminderIdFor(td.id, r.id, fire.index), {
           todoId: td.id,
           title: td.text,
+          body: REMINDER_BODY,
           at: fire.at,
         })
       }
+    }
+    const nudgeAt = opts.gentleNudge ? nudgeAtFor(td.reminders) : null
+    if (nudgeAt) {
+      desired.set(reminderIdFor(td.id, 'nudge', 0), {
+        todoId: td.id,
+        title: `Still on your list: ${td.text}`,
+        body: NUDGE_BODY,
+        at: new Date(nudgeAt),
+      })
     }
   }
 
@@ -234,7 +256,7 @@ export async function syncTodoReminders(todos: TodoForReminder[]): Promise<void>
         content: {
           title: spec.title,
           // Calm, never a command (no "!" — brand voice). English-only launch.
-          body: 'A gentle nudge from Mochi.',
+          body: spec.body,
           sound: false,
           data: { todoId: spec.todoId },
         },

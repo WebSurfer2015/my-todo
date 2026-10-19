@@ -958,8 +958,8 @@ function AppGate() {
   // sets a reminder); this sync silently skips if it isn't granted.
   useEffect(() => {
     if (!store.loaded) return;
-    void syncTodoReminders(store.todos);
-  }, [store.todos, store.loaded]);
+    void syncTodoReminders(store.todos, { gentleNudge: store.profile.gentleNudge === true });
+  }, [store.todos, store.loaded, store.profile.gentleNudge]);
 
   // Splash + sign-in + hydration + onboarding gates run BEFORE the tab
   // navigator mounts, so screens can assume store + user are ready.

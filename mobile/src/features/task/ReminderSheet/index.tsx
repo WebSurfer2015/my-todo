@@ -1,33 +1,27 @@
 /**
- * Multi-reminder picker — replaces the prior ReminderSubView.
+ * Reminder picker (Phase 2 design, 2026-10-18).
  *
- * Two chip sections + a live pill list at the top:
- *
- *   YOUR REMINDERS (N)
- *   ┌──────────────┐ ┌──────────────┐
- *   │ 1d before ✕ │ │ 1h before ✕  │   ← per-pill ✕ removes one
- *   └──────────────┘ └──────────────┘
- *
- *   BEFORE DUE DATE   (multi-select; only renders when dueDate set)
- *   Tap to add, tap again to remove
- *   [5m] [15m] [30m] [1h] [2h] [4h] [1d] [2d] [3d] [1w]
- *
- *   REPEATING REMINDER (single-select)
- *   Pick one — fires until you complete
- *   [15m] [30m] [1h] [2h] [4h] [6h] [12h]
- *
- *   ─────────────────────────────────
+ *   YOUR REMINDERS (N)          live pills; per-pill ✕ removes one
+ *   WHEN                        a few plain choices for THIS to-do, each with
+ *     Day before      Thu 6 PM  its time (core reminderPresetsFor): tap to add,
+ *     Morning of      9:00 AM   tap again to remove
+ *     1 hour before   2:00 PM
+ *     Other time…               reveals the date + time picker
+ *   Gentle nudge        [ ]     one follow-up the next morning (profile-wide)
  *   [        Done        ]
  *
- * Owns its own styles (no shared-styles prop from a parent). Mounted
- * as a sub-view inside ComposeSheet / TaskDetailsSheet's Modal.
+ * The old 10-chip "before due" grid and the "repeat every N min" nag are
+ * gone; existing repeating reminders still show (and can be removed) as pills.
+ * Mounted as a sub-view inside ComposeSheet / TaskDetailsSheet's Modal.
  */
 import React, { useMemo, useState } from 'react'
-import { Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { Platform, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native'
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker'
 import { useLang } from '../../../app/LangContext'
+import { useStore } from '../../../app/StoreContext'
+import { reminderPresetsFor, type ReminderPresetKey } from '../../../../../core/src/logic/reminderPresets'
 import { useTheme } from '../../../app/theme'
 import type { Reminder } from '../../../core-bindings/types'
 import { genUuid } from '../../../../../core/src/logic/utils'
@@ -44,19 +38,6 @@ const REMIND_BEFORE_DUE_CHOICES: Array<{ minutes: number; label: string }> = [
   { minutes: 240,   label: '4h' },
   { minutes: 1440,  label: '1d' },
   { minutes: 2880,  label: '2d' },
-  { minutes: 4320,  label: '3d' },
-  { minutes: 10080, label: '1w' },
-]
-
-const REMIND_EVERY_CHOICES: Array<{ minutes: number; label: string }> = [
-  { minutes: 15,    label: '15m' },
-  { minutes: 30,    label: '30m' },
-  { minutes: 60,    label: '1h' },
-  { minutes: 120,   label: '2h' },
-  { minutes: 240,   label: '4h' },
-  { minutes: 360,   label: '6h' },
-  { minutes: 720,   label: '12h' },
-  { minutes: 1440,  label: '1d' },
   { minutes: 4320,  label: '3d' },
   { minutes: 10080, label: '1w' },
 ]
@@ -87,12 +68,6 @@ function isoMinutesBeforeDue(dueDate: string, minutes: number): string {
   return `${yy}-${mo}-${da}T${hh2}:${mm2}`
 }
 
-/** ISO of now + N minutes. */
-function isoMinutesFromNow(minutes: number): string {
-  const d = new Date(Date.now() + minutes * 60_000)
-  return isoLocalDateTime(d)
-}
-
 /** Format a Date as local `yyyy-mm-ddTHH:mm` (no timezone) — the shape
  * reminders store in `at`. */
 function isoLocalDateTime(d: Date): string {
@@ -102,6 +77,18 @@ function isoLocalDateTime(d: Date): string {
   const hh = String(d.getHours()).padStart(2, '0')
   const mm = String(d.getMinutes()).padStart(2, '0')
   return `${yy}-${mo}-${da}T${hh}:${mm}`
+}
+
+/** "Thu 6:00 PM" for another day, "9:00 AM" for today. */
+function presetTimeLabel(at: string): string {
+  const d = new Date(at)
+  if (Number.isNaN(d.valueOf())) return ''
+  const sameDay = d.toDateString() === new Date().toDateString()
+  return d.toLocaleString(undefined, {
+    ...(sameDay ? {} : { weekday: 'short' }),
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 /** Short human label for a fixed absolute reminder, e.g. "Jun 7, 9:00 AM". */
@@ -180,43 +167,30 @@ export default function ReminderSheet({
     dedupeReminders(initial.map((r) => ({ ...r }))),
   )
 
-  // Selection lookups
-  function isBeforeDueSelected(minutes: number): boolean {
-    if (!dueDate) return false
-    const target = isoMinutesBeforeDue(dueDate, minutes)
-    return pending.some((r) => !r.intervalMinutes && r.at === target)
-  }
-  function repeatingMinutes(): number | null {
-    const r = pending.find((x) => !!x.intervalMinutes)
-    return r ? r.intervalMinutes! : null
+  const store = useStore()
+  const gentleNudge = store.profile.gentleNudge === true
+  const [otherOpen, setOtherOpen] = useState(false)
+  // Computed once per mount (the sheet is short-lived).
+  const presets = useMemo(() => reminderPresetsFor(dueDate), [dueDate])
+  const presetLabel: Record<ReminderPresetKey, string> = {
+    atTime: t.remindPresetAtTime,
+    hourBefore: t.remindPresetHourBefore,
+    morningOf: t.remindPresetMorningOf,
+    dayBefore: t.remindPresetDayBefore,
+    laterToday: t.remindPresetLaterToday,
+    tomorrowMorning: t.remindPresetTomorrowMorning,
   }
 
-  function toggleBeforeDue(minutes: number) {
-    if (!dueDate) return
-    const target = isoMinutesBeforeDue(dueDate, minutes)
-    if (!target) return
+  function isPresetSelected(at: string): boolean {
+    return pending.some((r) => !r.intervalMinutes && r.at === at)
+  }
+
+  function togglePreset(at: string) {
     setPending((prev) => {
-      const existing = prev.find(
-        (r) => !r.intervalMinutes && r.at === target,
-      )
+      const existing = prev.find((r) => !r.intervalMinutes && r.at === at)
       if (existing) return prev.filter((r) => r.id !== existing.id)
-      // Cap defense — refuse silently when at limit. Repeating
-      // slot stays replaceable (single-select).
-      const beforeDueCount = prev.filter((r) => !r.intervalMinutes).length
-      const total = prev.length
-      if (beforeDueCount >= MAX_REMINDERS_PER_TODO || total >= MAX_REMINDERS_PER_TODO) {
-        return prev
-      }
-      return [...prev, { id: genUuid(), at: target }]
-    })
-  }
-
-  function setRepeating(minutes: number | null) {
-    setPending((prev) => {
-      const withoutRepeating = prev.filter((r) => !r.intervalMinutes)
-      if (minutes === null) return withoutRepeating
-      const at = isoMinutesFromNow(minutes)
-      return [...withoutRepeating, { id: genUuid(), at, intervalMinutes: minutes }]
+      if (prev.length >= MAX_REMINDERS_PER_TODO) return prev
+      return [...prev, { id: genUuid(), at }]
     })
   }
 
@@ -371,82 +345,37 @@ export default function ReminderSheet({
           )}
         </View>
 
-        {/* Before due section */}
+        {/* WHEN — the plain choices for this to-do. */}
         <View style={styles.section}>
-          <Text style={styles.sectionHeader}>{t.remindBeforeDueSection}</Text>
-          {dueDate ? (
-            <>
-              <Text style={styles.sectionSubhelper}>
-                {t.remindBeforeDueHint}
-              </Text>
-              <View style={styles.chipsWrap}>
-                {REMIND_BEFORE_DUE_CHOICES.map((c) => {
-                  const active = isBeforeDueSelected(c.minutes)
-                  // At the cap, dim the inactive chips so it reads as "full"
-                  // rather than a silent no-op when tapped.
-                  const atCap =
-                    pending.filter((r) => !r.intervalMinutes).length >= MAX_REMINDERS_PER_TODO
-                  return (
-                    <TouchableOpacity
-                      key={`bd-${c.label}`}
-                      onPress={() => toggleBeforeDue(c.minutes)}
-                      style={[styles.chip, active && styles.chipActive, !active && atCap && { opacity: 0.4 }]}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: active, disabled: !active && atCap }}
-                      accessibilityLabel={beforeDuePillLabel(c.minutes, t)}
-                    >
-                      <Text
-                        style={[
-                          styles.chipText,
-                          active && styles.chipTextActive,
-                        ]}
-                      >
-                        {c.label}
-                      </Text>
-                    </TouchableOpacity>
-                  )
-                })}
-              </View>
-              {pending.filter((r) => !r.intervalMinutes).length >= MAX_REMINDERS_PER_TODO && (
-                <Text style={styles.sectionSubhelper}>
-                  Up to {MAX_REMINDERS_PER_TODO} reminders per task.
-                </Text>
-              )}
-            </>
-          ) : (
-            <View style={styles.notice}>
-              <Text style={styles.noticeText}>{t.remindBeforeDueNoDueDate}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Repeating section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionHeader}>{t.remindRepeatingSection}</Text>
-          <Text style={styles.sectionSubhelper}>{t.remindRepeatingHint}</Text>
-          <View style={styles.chipsWrap}>
-            {REMIND_EVERY_CHOICES.map((c) => {
-              const active = repeatingMinutes() === c.minutes
+          <Text style={styles.sectionHeader}>{t.composeWhen}</Text>
+          <View style={styles.presetList}>
+            {presets.map((p, i) => {
+              const active = isPresetSelected(p.at)
+              const label = presetLabel[p.key]
               return (
                 <TouchableOpacity
-                  key={`rep-${c.label}`}
-                  onPress={() => setRepeating(active ? null : c.minutes)}
-                  style={[styles.chip, active && styles.chipActive]}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                  accessibilityLabel={repeatingPillLabel(c.minutes, t)}
+                  key={p.key}
+                  style={[styles.presetRow, i > 0 && styles.presetRowDivider]}
+                  onPress={() => togglePreset(p.at)}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: active }}
+                  accessibilityLabel={`${label}, ${presetTimeLabel(p.at)}`}
                 >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      active && styles.chipTextActive,
-                    ]}
-                  >
-                    {c.label}
-                  </Text>
+                  <Text style={styles.presetRowLabel}>{label}</Text>
+                  <Text style={styles.presetRowTime}>{presetTimeLabel(p.at)}</Text>
+                  <Text style={[styles.presetRowCheck, !active && styles.presetRowCheckOff]}>✓</Text>
                 </TouchableOpacity>
               )
             })}
+            <TouchableOpacity
+              style={[styles.presetRow, presets.length > 0 && styles.presetRowDivider]}
+              onPress={() => setOtherOpen((v) => !v)}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: otherOpen }}
+            >
+              <Text style={styles.presetRowLabel}>{t.remindPresetOther}</Text>
+              <Text style={styles.presetRowTime}>{otherOpen ? '⌄' : '›'}</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -454,6 +383,7 @@ export default function ReminderSheet({
             reminder, independent of the due date. Works for todos with no
             due date too. On recurring todos the saved `at` is rebased per
             occurrence (core expandSeries), preserving the chosen offset. */}
+        {otherOpen && (
         <View style={styles.section}>
           <Text style={styles.sectionHeader}>{t.specificTime}</Text>
           <View style={styles.fixedRow}>
@@ -499,6 +429,21 @@ export default function ReminderSheet({
               <Text style={styles.fixedAddBtnText}>{t.add}</Text>
             </TouchableOpacity>
           </View>
+        </View>
+        )}
+
+        {/* Gentle nudge — profile-wide, remembered once set. */}
+        <View style={styles.nudgeCard}>
+          <View style={styles.nudgeText}>
+            <Text style={styles.nudgeTitle}>{t.gentleNudge}</Text>
+            <Text style={styles.nudgeHint}>{t.gentleNudgeHint}</Text>
+          </View>
+          <Switch
+            value={gentleNudge}
+            onValueChange={(v) => store.saveProfile((p) => ({ ...p, gentleNudge: v ? true : undefined }))}
+            trackColor={{ true: theme.primary, false: theme.surfaceAlt }}
+            accessibilityLabel={t.gentleNudge}
+          />
         </View>
       </ScrollView>
 

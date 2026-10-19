@@ -102,6 +102,38 @@ export function makeStyles(c: ThemeColors) {
     },
 
     /* Section block — header + sub-helper + chips */
+    presetList: {
+      backgroundColor: c.card,
+      borderRadius: RADIUS.card,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      overflow: 'hidden',
+    },
+    presetRow: {
+      minHeight: 52,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: SPACING.md,
+      gap: SPACING.sm,
+    },
+    presetRowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.separator },
+    presetRowLabel: { flex: 1, fontSize: TYPE.bodyLg, color: c.label },
+    presetRowTime: { fontSize: TYPE.body, color: c.label2 },
+    presetRowCheck: { width: 22, textAlign: 'right', fontSize: TYPE.bodyLg, fontWeight: '700', color: c.primary },
+    presetRowCheckOff: { color: 'transparent' },
+    nudgeCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.md,
+      padding: SPACING.md,
+      backgroundColor: c.card,
+      borderRadius: RADIUS.card,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+    },
+    nudgeText: { flex: 1, gap: 4 },
+    nudgeTitle: { fontSize: TYPE.bodyLg, fontWeight: '600', color: c.label },
+    nudgeHint: { fontSize: TYPE.body, lineHeight: 20, color: c.label2 },
     section: {
       gap: SPACING.md,
     },
@@ -134,64 +166,9 @@ export function makeStyles(c: ThemeColors) {
       letterSpacing: 0.8,
       textTransform: 'uppercase',
     },
-    sectionSubhelper: {
-      fontSize: TYPE.footnote,
-      color: c.label2,
-      lineHeight: 18,
-      marginTop: -8,
-    },
-    notice: {
-      backgroundColor: c.surfaceAlt,
-      borderRadius: RADIUS.card,
-      paddingHorizontal: SPACING.lg,
-      paddingVertical: SPACING.md,
-    },
-    noticeText: {
-      fontSize: TYPE.body,
-      color: c.label2,
-      fontStyle: 'italic',
-      textAlign: 'center',
-    },
 
     /* Chip grid — wraps to multiple lines so the user doesn't
        have to horizontally scroll to find an option. */
-    chipsWrap: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: SPACING.sm,
-    },
-    chip: {
-      minWidth: 56,
-      paddingHorizontal: SPACING.lg,
-      paddingVertical: SPACING.sm,
-      borderRadius: RADIUS.pill,
-      backgroundColor: c.primarySoft,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    chipActive: {
-      backgroundColor: c.primary,
-      shadowColor: '#000',
-      shadowOpacity: 0.08,
-      shadowOffset: { width: 0, height: 1 },
-      shadowRadius: 3,
-      elevation: 2,
-    },
-    chipDisabled: {
-      backgroundColor: c.surfaceAlt,
-      opacity: 0.6,
-    },
-    chipText: {
-      fontSize: TYPE.body,
-      fontWeight: '600',
-      color: c.primary,
-    },
-    chipTextActive: {
-      color: c.primaryOn,
-    },
-    chipTextDisabled: {
-      color: c.label3,
-    },
 
     /* Sticky bottom Done button */
     footer: {

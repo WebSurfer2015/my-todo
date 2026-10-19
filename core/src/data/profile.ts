@@ -119,6 +119,12 @@ export interface Profile {
    */
   agentEnabled?: boolean
   /**
+   * Gentle nudge: one quiet follow-up notification at 9:00 the morning after
+   * a to-do's last reminder, only if it's still open. Off by default; set
+   * from the reminder sheet and remembered for every to-do.
+   */
+  gentleNudge?: boolean
+  /**
    * Filters the user has pinned as quick-access pills in the FilterBar.
    * Stored as raw `Filter` strings (e.g. `'open'` or `'cat:home'`) so
    * category pins follow the user even if the category list reorders.
@@ -323,6 +329,7 @@ export function migrateProfile(raw: unknown): Profile {
     completionSound:
       typeof p.completionSound === 'boolean' ? p.completionSound : undefined,
     onboardingDone: p.onboardingDone === true ? true : undefined,
+    gentleNudge: p.gentleNudge === true ? true : undefined,
     guidesSeen: Array.isArray(p.guidesSeen)
       ? p.guidesSeen.filter(
           (id: unknown): id is string =>
