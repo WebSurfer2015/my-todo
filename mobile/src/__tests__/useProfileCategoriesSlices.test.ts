@@ -85,6 +85,28 @@ describe('useProfileSlice', () => {
     expect(hook.result.current.profile.pinnedFilters?.length).toBe(PIN_LIMIT)
   })
 
+  it('pinFilter reports the cap to its caller; silent shows no snackbar (a sheet says it inline)', async () => {
+    const { hook, messages } = await profileSetup()
+    for (let i = 0; i < PIN_LIMIT; i++) {
+      act(() => {
+        expect(hook.result.current.pinFilter([`cat:c${i}` as Filter])).toEqual({ limitReached: false })
+      })
+    }
+    act(() => {
+      expect(hook.result.current.pinFilter(['cat:extra' as Filter], { silent: true })).toEqual({ limitReached: true })
+    })
+    expect(messages).toEqual([])
+    act(() => {
+      expect(hook.result.current.pinFilter(['cat:extra' as Filter])).toEqual({ limitReached: true })
+    })
+    expect(messages).toEqual([`cap ${PIN_LIMIT}`])
+    // Unpinning at the cap is fine.
+    act(() => {
+      expect(hook.result.current.pinFilter(['cat:c0' as Filter])).toEqual({ limitReached: false })
+    })
+    expect(hook.result.current.profile.pinnedFilters?.length).toBe(PIN_LIMIT - 1)
+  })
+
   it('keepAndClearFilter at the pin cap says so calmly and still clears the selection', async () => {
     const { hook, messages, clearFilters } = await profileSetup()
     for (let i = 0; i < PIN_LIMIT; i++) act(() => hook.result.current.pinFilter([`cat:c${i}` as Filter]))

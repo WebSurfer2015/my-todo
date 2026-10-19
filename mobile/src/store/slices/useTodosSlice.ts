@@ -36,7 +36,7 @@ import {
   migrateTodos,
   migrateTodoReferences,
 } from "../../../../core/src/logic/derive";
-import { TodoStoreActions, mergeTodos } from "../../../../core/src/store";
+import { TodoStoreActions, mergeTodos, mergeTodoReferences } from "../../../../core/src/store";
 import { weekdayDate } from "../../../../core/src/logic/labels";
 import {
   todayLocal,
@@ -46,11 +46,12 @@ import {
 } from "../../../../core/src/logic/utils";
 import { useSyncedState } from "../useSyncedState";
 import { StorageAdapter } from "../../../../core/src/ports/persistence";
-import { unwrapEnvelope as unwrap, wrapEnvelope as serializeAny } from "../../../../core/src/ports/persistence";
+import { unwrapEnvelope, wrapEnvelope } from "../../../../core/src/ports/persistence";
+import { PARTIAL_UNDO_MESSAGE, type UndoOutcome } from "../undo";
 
-const parseTodos = (raw: string | null): Todo[] => migrateTodos(unwrap(raw));
+const parseTodos = (raw: string | null): Todo[] => migrateTodos(unwrapEnvelope(raw));
 const parseTodoReferences = (raw: string | null): TodoReference[] =>
-  migrateTodoReferences(unwrap(raw));
+  migrateTodoReferences(unwrapEnvelope(raw));
 
 export interface TodosSliceDeps {
   /** Current filter + ref. The selectedTrashIds auto-clear effect
@@ -107,11 +108,10 @@ export interface TodosSliceDeps {
   actions: TodoStoreActions;
 }
 
-/** What an Undo did: `true` — put back; `false` — nothing to put back
- * (everything it touched was changed since, or it is already undone);
- * `"partial"` — put back, but rows edited since were kept (truthy, so a plain
- * `if (undo())` still reads it as done). */
-export type UndoOutcome = boolean | "partial";
+// The single source of the Undo outcome type + partial copy (store/undo);
+// re-exported for existing importers.
+export type { UndoOutcome };
+export { PARTIAL_UNDO_MESSAGE };
 
 /** Reverses exactly what an action did (see applyTracked). */
 export type Undo = () => UndoOutcome;
@@ -154,8 +154,6 @@ export function recurrenceChangedMessage(replaced: number): string {
 export const MOVED_BACK_MESSAGE = "Moved back to your open list.";
 /** A to-do reopened anywhere else (Today, a list, details). */
 export const REOPENED_MESSAGE = "Reopened";
-/** An Undo that could only put back part of an action. */
-export const PARTIAL_UNDO_MESSAGE = "Undone — later changes were kept.";
 
 /** Reopen snackbar copy for the current view. */
 function reopenedMessage(filter: Filter): string {
@@ -367,7 +365,7 @@ export function useTodosSlice(
   // `todos` is one doc holding the whole list, so replace-on-snapshot was
   // last-writer-wins across devices: merge instead (3-way, by id/updatedAt).
   const [todos, setTodosRaw, todosLoaded, todosTrusted, todosServerConfirmed] =
-    useSyncedState<Todo[]>(adapter, "todos", [], parseTodos, serializeAny, {
+    useSyncedState<Todo[]>(adapter, "todos", [], parseTodos, wrapEnvelope, {
       merge: mergeTodos,
     });
   const [todoReferences, setTodoReferences] = useSyncedState<TodoReference[]>(
@@ -375,7 +373,10 @@ export function useTodosSlice(
     "todoReferences",
     [],
     parseTodoReferences,
-    serializeAny,
+    wrapEnvelope,
+    // One doc: merge (union by text, newest use wins) so two devices'
+    // histories don't overwrite each other.
+    { merge: mergeTodoReferences },
   );
   const [selectedTrashIds, setSelectedTrashIds] = useState<Set<string>>(
     new Set(),
@@ -430,8 +431,8 @@ export function useTodosSlice(
       });
       // Part of it was edited since and kept: say so, calmly (no Undo) — or
       // let a silent caller say it inline.
-      if (skipped > 0 && !opts?.silent) notify.showSnackbar({ message: PARTIAL_UNDO_MESSAGE });
       if (reverted === null) return false;
+      if (skipped > 0 && !opts?.silent) notify.showSnackbar({ message: PARTIAL_UNDO_MESSAGE });
       return skipped > 0 ? "partial" : true;
     },
     [applyTracked, todosRevertChangesWithReport, notify],
@@ -1005,10 +1006,14 @@ export function useTodosSlice(
       // Exact: removes just the rows this add created (every occurrence of a
       // new series), keeping anything changed since — and the title it put in
       // the suggestion history (its earlier entry, if any, comes back).
+      const createdIds = new Set(rows.map((r) => r.id));
       const undo: Undo = () => {
         if (!change) return false;
         const out = undoTracked(change, { silent: true });
-        if (out === false) return false;
+        // Nothing reverted because its rows are already gone (a capture Undo
+        // hard-deletes them first, which forgot the title): still put the
+        // suggestion history back. Rows kept (edited since) keep it as is.
+        if (out === false && todosRef.current.some((td) => createdIds.has(td.id))) return false;
         const stillUsed = todosRef.current.some((td) => td.text.trim().toLowerCase() === textLower);
         if (priorRef || !stillUsed) {
           setTodoReferences((prev) => {

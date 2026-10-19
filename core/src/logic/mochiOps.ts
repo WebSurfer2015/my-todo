@@ -126,8 +126,9 @@ export type MochiIntent =
       patch: { text?: string; stores?: string[]; groupId?: string }
     }
   | { type: 'toggleGroceryChecked'; groceryId: string }
-  /** Shopping removal is permanent, so it always asks first. */
-  | { type: 'askRemoveGrocery'; groceryId: string; text: string }
+  /** Remove a shopping item — the proposal card's Confirm is the ask, and
+   * the turn's inline Undo puts it back (no second confirm). */
+  | { type: 'removeGrocery'; groceryId: string }
   | { type: 'editCategory'; categoryId: string; label: string; color: string; icon: string }
   | { type: 'deleteCategory'; categoryId: string }
 
@@ -463,7 +464,7 @@ function planOne(ctx: PlanCtx, op: ProposedOperation): void {
     }
     case 'deleteGroceryItem': {
       const item = snap.groceries.find((g) => g.id === op.args.groceryId)
-      if (item) out.push({ type: 'askRemoveGrocery', groceryId: item.id, text: item.text })
+      if (item) out.push({ type: 'removeGrocery', groceryId: item.id })
       return
     }
     case 'pickTodos':

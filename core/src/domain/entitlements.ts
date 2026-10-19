@@ -152,14 +152,9 @@ export function tierAtLeast(tier: Tier, min: Tier): boolean {
 // Reminders + recurring tasks are intentionally NOT gated — they're free
 // on every tier.
 
-// NOTE: theme access is NOT actually gated through this helper. The live gate
-// is per-theme on the mobile side — `FREE_THEMES` in mobile/src/app/theme.ts
-// limits Free to Sage + Sky while Premium unlocks all six. This boolean
-// (themes:true for every tier) is legacy/unused; don't wire new theme gating
-// through it without first reconciling it with FREE_THEMES.
-export function canUseThemes(tier: Tier): boolean {
-  return TIER_LIMITS[tier].themes
-}
+// NOTE: theme access is gated per-theme on the mobile side — `FREE_THEMES` in
+// mobile/src/app/theme.ts. TIER_LIMITS[tier].themes (true for every tier) is
+// legacy; reconcile it with FREE_THEMES before gating anything through it.
 
 // AI allowance accounting is SERVER-ONLY (functions/src/quota.ts +
 // mochiReservation.ts). The client has no copy: a duplicate counter drifted

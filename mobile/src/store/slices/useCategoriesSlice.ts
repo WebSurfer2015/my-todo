@@ -15,10 +15,10 @@ import {
 } from "../../core-bindings/categories";
 import { TodoStoreActions } from "../../../../core/src/store";
 import { StorageAdapter } from "../../../../core/src/ports/persistence";
-import { unwrapEnvelope as unwrap, wrapEnvelope as serializeAny } from "../../../../core/src/ports/persistence";
+import { unwrapEnvelope, wrapEnvelope } from "../../../../core/src/ports/persistence";
 
 const parseCategories = (raw: string | null): CategoryDef[] => {
-  const data = unwrap(raw);
+  const data = unwrapEnvelope(raw);
   if (!Array.isArray(data) || data.length === 0) return SEED_CATEGORIES;
   return (data as Array<Partial<CategoryDef> & { id: string }>).map(
     migrateCategory,
@@ -54,7 +54,7 @@ export function useCategoriesSlice(
     "categories",
     SEED_CATEGORIES,
     parseCategories,
-    serializeAny,
+    wrapEnvelope,
   );
 
   const addCategory = useCallback(

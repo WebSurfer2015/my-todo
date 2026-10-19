@@ -22,6 +22,12 @@ export function makeStyles(c: ThemeColors) {
       letterSpacing: -0.1,
       flexShrink: 1,
     },
+    linkingBannerUndo: {
+      fontSize: TYPE.caption,
+      fontWeight: "700",
+      color: c.primary,
+      marginLeft: "auto",
+    },
     scroll: { flexShrink: 1 },
     scrollContent: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md },
     scrollContentCenter: {

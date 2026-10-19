@@ -32,12 +32,13 @@ import DraggableFlatList, {
 import {
   GroceryItem,
   MAX_GROCERY_STORE_LEN,
+  SEED_GROCERY_STORES,
 } from "../../../core-bindings/groceries";
 import { useLang } from "../../../app/LangContext";
 import { useTheme } from "../../../app/theme";
 import { useNotify } from "../../../app/notify";
 import { useStore } from "../../../app/StoreContext";
-import { newlyLinkedIds, unlinkPatches } from "./linkUndo";
+import { isStoreStillListed, linkResultMessage, newlyLinkedIds, unlinkPatches } from "./linkUndo";
 import { AI_QUOTA_ERROR, linkStoreToItems } from "../../../adapters/aiInfer";
 import GroceryIcon from "../GroceryIcon";
 import MochiThinking from "../../mochi/MochiThinking";
@@ -92,7 +93,7 @@ export default function StorePicker({
   const { t } = useLang();
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
-  const { showSnackbar } = useNotify();
+  const { showSnackbar, retractSnackbar } = useNotify();
   // The live shopping list + its edit, read when the AI link lands and when
   // its Undo runs (both after this render).
   const store = useStore();
@@ -110,6 +111,9 @@ export default function StorePicker({
   // The store being matched — surfaced in the thinking line ("Matching items
   // to <store>…") so the user sees what Mochi is actually doing.
   const [linkingStore, setLinkingStore] = useState("");
+  // The link's Undo, shown INLINE next to the result (the root snackbar sits
+  // behind this sheet's Modal); null when there's nothing to take back.
+  const [linkUndo, setLinkUndo] = useState<(() => void) | null>(null);
   const linkingClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     return () => {
@@ -118,7 +122,10 @@ export default function StorePicker({
   }, []);
   function clearLinkingLater() {
     if (linkingClearRef.current) clearTimeout(linkingClearRef.current);
-    linkingClearRef.current = setTimeout(() => setLinkingMessage(null), 4000);
+    linkingClearRef.current = setTimeout(() => {
+      setLinkingMessage(null);
+      setLinkUndo(null);
+    }, 4000);
   }
 
   function maybeLinkExistingItems(name: string) {
@@ -128,30 +135,44 @@ export default function StorePicker({
       .slice(0, 50)
       .map((it) => ({ id: it.id, text: it.text }));
     setLinkingStore(name);
+    setLinkUndo(null);
     setLinkingMessage(t.suggestStepsThinking);
     void linkStoreToItems({ storeName: name, items: payload }).then((res) => {
+      const live = storeRef.current;
+      // Renamed / deleted while Mochi was matching: don't tag items with a
+      // store that no longer exists.
+      if (!isStoreStillListed(live.profile.groceryStores ?? SEED_GROCERY_STORES, name)) {
+        setLinkingMessage(null);
+        return;
+      }
       if (res.linkedItemIds.length === 0) {
         setLinkingMessage(`No matching items for ${name}.`);
         showSnackbar({ message: `No matching items for ${name}.` });
         clearLinkingLater();
         return;
       }
-      // Only the items this link actually tags — Undo takes exactly those back.
-      const linked = newlyLinkedIds(storeRef.current.groceries, name, res.linkedItemIds);
-      onLinkItems(name, res.linkedItemIds);
-      const n = res.linkedItemIds.length;
-      const msg = `Linked ${n} ${n === 1 ? "item" : "items"} to ${name}.`;
+      // Only the items this link actually tags — the count says so, and Undo
+      // takes exactly those back.
+      const linked = newlyLinkedIds(live.groceriesRef.current, name, res.linkedItemIds);
+      const msg = linkResultMessage(linked.length, name);
       setLinkingMessage(msg);
-      showSnackbar({
-        message: msg,
-        actionLabel: linked.length > 0 ? t.undo : undefined,
-        onAction:
-          linked.length > 0
-            ? () => {
-                const { groceries, editGrocery } = storeRef.current;
-                for (const p of unlinkPatches(groceries, name, linked)) editGrocery(p.id, { stores: p.stores });
-              }
-            : undefined,
+      if (linked.length === 0) {
+        showSnackbar({ message: msg });
+        clearLinkingLater();
+        return;
+      }
+      onLinkItems(name, linked);
+      const unlink = () => {
+        const { groceriesRef, editGrocery } = storeRef.current;
+        for (const p of unlinkPatches(groceriesRef.current, name, linked)) editGrocery(p.id, { stores: p.stores });
+      };
+      showSnackbar({ message: msg, actionLabel: t.undo, onAction: unlink });
+      // Inline Undo (this sheet hides the snackbar): also retracts it.
+      setLinkUndo(() => () => {
+        retractSnackbar(unlink);
+        unlink();
+        setLinkUndo(null);
+        setLinkingMessage(null);
       });
       clearLinkingLater();
     }).catch((err) => {
@@ -492,6 +513,16 @@ export default function StorePicker({
                             <Text style={styles.linkingBannerText}>
                               {linkingMessage}
                             </Text>
+                          )}
+                          {linkUndo && linkingMessage !== t.suggestStepsThinking && (
+                            <TouchableOpacity
+                              onPress={linkUndo}
+                              accessibilityRole="button"
+                              accessibilityLabel={t.undo}
+                              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            >
+                              <Text style={styles.linkingBannerUndo}>{t.undo}</Text>
+                            </TouchableOpacity>
                           )}
                         </View>
                       )}

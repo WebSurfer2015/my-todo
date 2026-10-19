@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { newlyLinkedIds, unlinkPatches } from '../features/groceries/StorePicker/linkUndo'
+import { isStoreStillListed, linkResultMessage, newlyLinkedIds, unlinkPatches } from '../features/groceries/StorePicker/linkUndo'
 import { linkStoreToItems, type GroceryItem } from '../../../core/src/data/groceries'
 
 const item = (id: string, stores: string[] = []): GroceryItem =>
@@ -40,10 +40,26 @@ describe('store link Undo', () => {
     expect(unlinkPatches(now, 'Costco', ['a', 'c'])).toEqual([])
   })
 
-  it('StorePicker offers the Undo on the linked snackbar', () => {
+  it('StorePicker offers the Undo on the linked snackbar AND inline in the sheet', () => {
     const here = dirname(fileURLToPath(import.meta.url))
     const src = readFileSync(join(here, '..', 'features/groceries/StorePicker/index.tsx'), 'utf8')
-    expect(src).toMatch(/newlyLinkedIds\(storeRef\.current\.groceries, name, res\.linkedItemIds\)/)
-    expect(src).toMatch(/unlinkPatches\(groceries, name, linked\)/)
+    expect(src).toMatch(/newlyLinkedIds\(live\.groceriesRef\.current, name, res\.linkedItemIds\)/)
+    expect(src).toMatch(/unlinkPatches\(groceriesRef\.current, name, linked\)/)
+    // Links only what it counted, and skips a store gone meanwhile.
+    expect(src).toMatch(/onLinkItems\(name, linked\)/)
+    expect(src).toMatch(/isStoreStillListed\(/)
+    // The inline Undo in the banner (the root snackbar sits behind the sheet).
+    expect(src).toMatch(/onPress=\{linkUndo\}/)
+  })
+
+  it('the result line counts what was actually linked ("No new items" when 0)', () => {
+    expect(linkResultMessage(0, 'Costco')).toBe('No new items to link to Costco.')
+    expect(linkResultMessage(1, 'Costco')).toBe('Linked 1 item to Costco.')
+    expect(linkResultMessage(3, 'Costco')).toBe('Linked 3 items to Costco.')
+  })
+
+  it('the AI link lands only while the store is still listed', () => {
+    expect(isStoreStillListed(['Costco', 'Target'], 'Costco')).toBe(true)
+    expect(isStoreStillListed(['Target'], 'Costco')).toBe(false)
   })
 })

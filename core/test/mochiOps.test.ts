@@ -162,9 +162,9 @@ describe('planMochiOp — every op kind', () => {
     ['deleteTodo unknown id → no-op', { kind: 'deleteTodo', args: { todoId: 'nope' } }, []],
     ['deleteTodo already trashed → no-op', { kind: 'deleteTodo', args: { todoId: 'trashed' } }, []],
     [
-      'deleteGroceryItem → always asks (permanent)',
+      'deleteGroceryItem → removes (the card confirmed; Undo restores)',
       { kind: 'deleteGroceryItem', args: { groceryId: 'milk' } },
-      [{ type: 'askRemoveGrocery', groceryId: 'milk', text: 'Milk' }],
+      [{ type: 'removeGrocery', groceryId: 'milk' }],
     ],
     ['deleteGroceryItem unknown id → no-op', { kind: 'deleteGroceryItem', args: { groceryId: 'nope' } }, []],
     [

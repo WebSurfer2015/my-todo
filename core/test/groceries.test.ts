@@ -10,7 +10,6 @@ import {
   newGroceryGroup,
   migrateGroceries,
   migrateGroceryGroups,
-  resolveGroup,
   groceryToggleChecked,
   groceryEdit,
   groceryDelete,
@@ -136,23 +135,6 @@ describe('migrateGroceryGroups', () => {
     ])
     const othersCount = out.filter((g) => g.id === OTHERS_GROUP_ID).length
     expect(othersCount).toBe(1)
-  })
-})
-
-describe('resolveGroup', () => {
-  it('returns the matching group when found', () => {
-    const g = resolveGroup('dairy', [{ id: 'dairy', label: 'Dairy' }])
-    expect(g.id).toBe('dairy')
-  })
-  it('falls back to OTHERS when id missing but OTHERS present', () => {
-    const g = resolveGroup('missing', [{ id: OTHERS_GROUP_ID, label: 'Other' }])
-    expect(g.id).toBe(OTHERS_GROUP_ID)
-  })
-  it('falls back to the last seed group when nothing matches', () => {
-    const g = resolveGroup('missing', [])
-    expect(g.id).toBe(
-      SEED_GROCERY_GROUPS[SEED_GROCERY_GROUPS.length - 1].id,
-    )
   })
 })
 

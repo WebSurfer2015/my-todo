@@ -1017,3 +1017,69 @@ describe('useTodosSlice round 8', () => {
     expect(hook.result.current.todoReferences[0]).toEqual(prior)
   })
 })
+
+describe('useTodosSlice round 9', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 19, 12, 0, 0))
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it("a capture Undo (rows hard-deleted first) still puts back the history entry it replaced", async () => {
+    const { hook } = await setup([mk('other')])
+    act(() => {
+      hook.result.current.addTask('Water plants', 'high', '')
+    })
+    const prior = hook.result.current.todoReferences[0]
+    let added: { id: string; undo: Undo } | null = null
+    act(() => {
+      added = hook.result.current.addTaskWithUndo('water plants', 'low', '')
+    })
+    // As Ask Mochi's capture Undo does: remove the row by id, then the add's Undo.
+    act(() => {
+      hook.result.current.permanentlyDelete(added!.id)
+    })
+    act(() => {
+      expect(added!.undo()).toBe(false)
+    })
+    expect(hook.result.current.todoReferences[0]).toEqual(prior)
+  })
+
+  it('an Undo that reverted nothing shows no partial note', async () => {
+    const { hook, snacks } = await setup([mk('a')])
+    let undo: Undo | null = null
+    act(() => {
+      undo = hook.result.current.toggle('a', { silent: true })
+    })
+    // Reopen + rename: the toggled row is no longer as the toggle left it.
+    act(() => hook.result.current.updateText('a', 'renamed'))
+    let out: unknown
+    act(() => {
+      out = hook.result.current.undoTracked(
+        { before: [mk('a')], after: [mk('a', { done: true })] },
+      )
+    })
+    expect(out).toBe(false)
+    expect(snacks.some((s) => s.message === 'Undone — later changes were kept.')).toBe(false)
+    expect(undo).not.toBeNull()
+  })
+
+  it('deleting a COMPLETED to-do keeps its title in the history; a skipped one is forgotten', async () => {
+    const { hook } = await setup([mk('other')])
+    let done = ''
+    let skipped = ''
+    act(() => {
+      done = hook.result.current.addTask('Pay rent', 'medium', '')
+      skipped = hook.result.current.addTask('Call mom', 'medium', '')
+    })
+    act(() => {
+      hook.result.current.toggle(done)
+      hook.result.current.skipTodo(skipped)
+    })
+    act(() => {
+      hook.result.current.permanentlyDelete(done)
+      hook.result.current.permanentlyDelete(skipped)
+    })
+    expect(hook.result.current.todoReferences.map((r) => r.text)).toEqual(['Pay rent'])
+  })
+})

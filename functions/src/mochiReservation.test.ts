@@ -12,7 +12,6 @@ import {
   type Tier,
 } from './entitlements'
 import { MAX_CHAT_TURNS_PER_DAY } from './chatQuota'
-import { canUseThemes } from '../../core/src/domain/entitlements'
 
 /**
  * End-to-end-ish verification of the de-metered money logic, with no
@@ -102,7 +101,7 @@ describe('Premium — no daily sub-cap, invisible monthly fair-use ceiling', () 
 describe('feature gates match the offerings', () => {
   const tiers: Tier[] = ['free', 'premium']
   it('themes are free for everyone', () => {
-    expect(tiers.map(canUseThemes)).toEqual([true, true])
+    expect(tiers.map((t) => TIER_LIMITS[t].themes)).toEqual([true, true])
   })
 })
 

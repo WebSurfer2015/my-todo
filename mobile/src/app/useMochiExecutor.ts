@@ -27,7 +27,7 @@ import {
 } from '../../../core/src/logic/mochiOps'
 import { genUuid, todayLocal } from '../../../core/src/logic/utils'
 import { beginMochiTurn } from './mochiUndo'
-import type { UndoOutcome } from '../store/slices/useTodosSlice'
+import type { UndoOutcome } from '../store/undo'
 
 type Store = ReturnType<typeof useTodoStore>
 
@@ -98,7 +98,7 @@ export function useMochiExecutor(store: Store, t: Strings) {
   // same-turn categories) live in the planner, where they're table-tested.
   // Every applied intent contributes an Undo: the store's tracked Undo where
   // it has one, else a snapshot restore (to-do edits, category edits, store
-  // renames). Confirm Alerts (askDeleteScope / askRemoveGrocery) are answered
+  // renames). Confirm Alerts (askDeleteScope) are answered
   // later — each `asks` entry resolves true (applied) / false (kept as is).
   const runMochiIntents = useCallback(
     (intents: MochiIntent[]) => {
@@ -106,22 +106,19 @@ export function useMochiExecutor(store: Store, t: Strings) {
       const todoIds: string[] = []
       const groceryIds: string[] = []
       const asks: Array<Promise<boolean>> = []
-      // Pre-run state for snapshot Undos.
-      const todosBefore = store.todos
-      const snapshotted = new Set<string>()
-      // Run an untracked to-do edit; when it actually changed the list
-      // (applyTracked advances todosRef only then), its Undo puts the to-do
-      // back exactly as it was before this run (first touch wins, so several
-      // edits to one to-do revert to the pre-run state). A no-op edit adds
-      // no Undo — and so doesn't begin a new Mochi turn.
-      const editTodo = (id: string, apply: () => void) => {
-        const listBefore = store.todosRef.current
+      // Run an untracked to-do edit as a TRACKED change: when it actually
+      // changed the list (applyTracked advances todosRef only then), its Undo
+      // reverts exactly that change — and only while the row is still as the
+      // edit left it (a later manual edit, e.g. completing it, is kept and the
+      // Undo reports false / "partial", never a blind overwrite). Several
+      // edits to one to-do chain back newest-first to the pre-run state. A
+      // no-op edit adds no Undo — and so doesn't begin a new Mochi turn.
+      const editTodo = (apply: () => void) => {
+        const before = store.todosRef.current
         apply()
-        if (store.todosRef.current === listBefore) return
-        const before = todosBefore.find((td) => td.id === id)
-        if (!before || snapshotted.has(id)) return
-        snapshotted.add(id)
-        undos.push(() => store.revertTodo(before))
+        const after = store.todosRef.current
+        if (after === before) return
+        undos.push(() => storeRef.current.undoTracked({ before, after }, SILENT))
       }
       // Categories created by this run, by lower-cased label.
       const created = new Map<string, string>()
@@ -160,23 +157,23 @@ export function useMochiExecutor(store: Store, t: Strings) {
             break
           }
           case 'updateText':
-            editTodo(it.todoId, () => store.updateText(it.todoId, it.text))
+            editTodo(() => store.updateText(it.todoId, it.text))
             break
           case 'updatePriority':
-            editTodo(it.todoId, () => store.updatePriority(it.todoId, it.priority))
+            editTodo(() => store.updatePriority(it.todoId, it.priority))
             break
           case 'updateDueDate':
-            editTodo(it.todoId, () => store.updateDueDate(it.todoId, it.dueDate))
+            editTodo(() => store.updateDueDate(it.todoId, it.dueDate))
             break
           case 'updateCategory': {
             const id = categoryOf(it.category)
             if (id) {
-              editTodo(it.todoId, () => store.updateTaskCategory(it.todoId, id))
+              editTodo(() => store.updateTaskCategory(it.todoId, id))
             }
             break
           }
           case 'updateNotes':
-            editTodo(it.todoId, () => store.updateNotes(it.todoId, it.notes))
+            editTodo(() => store.updateNotes(it.todoId, it.notes))
             break
           case 'updateRecurrence':
             // Tracked: a series occurrence rebuilds the series' future rows
@@ -189,7 +186,7 @@ export function useMochiExecutor(store: Store, t: Strings) {
             undos.push(store.rescheduleSeriesFrom(it.todoId, it.dueDate, SILENT))
             break
           case 'updateReminders':
-            editTodo(it.todoId, () => store.updateReminders(it.todoId, it.reminders))
+            editTodo(() => store.updateReminders(it.todoId, it.reminders))
             break
           case 'addSubtask':
             undos.push(store.addSubtask(it.todoId, it.text, undefined, undefined, SILENT))
@@ -241,7 +238,7 @@ export function useMochiExecutor(store: Store, t: Strings) {
             undos.push(store.skipSeriesFuture(it.todoId, SILENT))
             break
           case 'restoreFromTrash':
-            editTodo(it.todoId, () => store.restoreFromTrash(it.todoId, SILENT))
+            editTodo(() => store.restoreFromTrash(it.todoId, SILENT))
             break
           case 'bulkDeferTodos':
             undos.push(store.bulkDeferTodos(it.todoIds, it.dueDate, SILENT))
@@ -255,7 +252,7 @@ export function useMochiExecutor(store: Store, t: Strings) {
             undos.push(store.removeSubtask(it.todoId, it.subtaskId, SILENT))
             break
           case 'updateSubtaskText':
-            editTodo(it.todoId, () => store.updateSubtaskText(it.todoId, it.subtaskId, it.text))
+            editTodo(() => store.updateSubtaskText(it.todoId, it.subtaskId, it.text))
             break
           case 'addGroceryStore':
             undos.push(store.addGroceryStore(it.name))
@@ -278,7 +275,7 @@ export function useMochiExecutor(store: Store, t: Strings) {
             break
           }
           case 'editGrocery': {
-            const before = store.groceries.find((g) => g.id === it.groceryId)
+            const before = store.groceriesRef.current.find((g) => g.id === it.groceryId)
             // Only a field that actually differs is an edit — a no-op adds no
             // Undo (and so doesn't begin a new Mochi turn).
             const p = it.patch
@@ -296,13 +293,14 @@ export function useMochiExecutor(store: Store, t: Strings) {
           }
           case 'toggleGroceryChecked': {
             const id = it.groceryId
-            const wasChecked = store.groceries.find((g) => g.id === id)?.checked
+            const wasChecked = store.groceriesRef.current.find((g) => g.id === id)?.checked
             store.toggleGroceryChecked(id)
             // Put back the ABSOLUTE previous state: a blind re-toggle would
-            // flip it the wrong way if it was changed again since.
+            // flip it the wrong way if it was changed again since. Read the
+            // synchronously advanced ref — `groceries` lags a render.
             if (wasChecked !== undefined) {
               undos.push((): boolean => {
-                const live = storeRef.current.groceries.find((g) => g.id === id)
+                const live = storeRef.current.groceriesRef.current.find((g) => g.id === id)
                 if (!live || live.checked === wasChecked) return false
                 storeRef.current.toggleGroceryChecked(id)
                 return true
@@ -310,32 +308,11 @@ export function useMochiExecutor(store: Store, t: Strings) {
             }
             break
           }
-          case 'askRemoveGrocery': {
-            const id = it.groceryId
-            const text = it.text
-            asks.push(
-              new Promise<boolean>((resolve) => {
-                // Neutral: Mochi's latest change always has an Undo.
-                Alert.alert(
-                  'Remove from shopping list?',
-                  `"${text}" comes off your shopping list.`,
-                  [
-                    { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-                    {
-                      text: 'Remove',
-                      onPress: () => {
-                        const undo = store.deleteGrocery(id)
-                        undos.push(undo)
-                        resolve(undo !== null)
-                      },
-                    },
-                  ],
-                  { cancelable: true, onDismiss: () => resolve(false) },
-                )
-              }),
-            )
+          case 'removeGrocery':
+            // The proposal card's Confirm was the ask; the inline Undo puts
+            // the item back in its slot.
+            undos.push(store.deleteGrocery(it.groceryId))
             break
-          }
           case 'editCategory': {
             const before = store.categories.find((c) => c.id === it.categoryId)
             // The planner merges the patch over the stored values (a
@@ -365,7 +342,7 @@ export function useMochiExecutor(store: Store, t: Strings) {
             break
           }
           case 'deleteCategory':
-            undos.push(store.deleteCategory(it.categoryId))
+            undos.push(store.deleteCategory(it.categoryId, SILENT))
             break
           default: {
             const unhandled: never = it

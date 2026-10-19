@@ -263,19 +263,6 @@ export function migrateGroceryGroups(raw: unknown): GroceryGroup[] {
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
-/** Resolve an item's group, falling back to Others if the stored id is
- * no longer in the groups list. */
-export function resolveGroup(
-  groupId: string,
-  groups: GroceryGroup[],
-): GroceryGroup {
-  return (
-    groups.find((g) => g.id === groupId) ??
-    groups.find((g) => g.id === OTHERS_GROUP_ID) ??
-    SEED_GROCERY_GROUPS[SEED_GROCERY_GROUPS.length - 1]
-  )
-}
-
 // ── Mutation helpers (pure) ─────────────────────────────────────────
 
 /** Toggle an item's checked state. Sets checkedAt on flip-to-checked,

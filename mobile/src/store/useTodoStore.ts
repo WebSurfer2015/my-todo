@@ -9,7 +9,8 @@ import { getOrderedPriorities } from "../../../core/src/domain/priorities";
 import { useCategoriesSlice } from "./slices/useCategoriesSlice";
 import { useProfileSlice } from "./slices/useProfileSlice";
 import { useGroceriesSlice } from "./slices/useGroceriesSlice";
-import { useTodosSlice, type Undo } from "./slices/useTodosSlice";
+import { useTodosSlice, type SilentOpt, type Undo } from "./slices/useTodosSlice";
+import type { UndoOutcome } from "./undo";
 import { useLang } from "../app/LangContext";
 import { useAuth } from "../app/AuthContext";
 import { useNotify } from "../app/notify";
@@ -302,6 +303,7 @@ export function useTodoStore() {
     setActiveGroceryStore,
     setActiveGroceryDept,
     pinGroceryDept,
+    groceriesRef,
   } = useGroceriesSlice(adapter, {
     setProfile,
     profileRef,
@@ -424,7 +426,9 @@ export function useTodoStore() {
 
   // Returns an Undo (Ask Mochi's inline "✓ Done · Undo") that puts the
   // category back in place and reverts the to-dos the cascade changed.
-  const deleteCategory = useCallback((id: string): Undo | null => {
+  // `silent`: a partial to-do revert reports "partial" without the store's
+  // snackbar (Ask Mochi says it inline).
+  const deleteCategory = useCallback((id: string, opts?: SilentOpt): Undo | null => {
     const res = store.actions.deleteCategoryCascade({
       todos: todosRef.current,
       categories,
@@ -481,10 +485,12 @@ export function useTodoStore() {
     const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
     // Puts back the category in its slot, the to-dos the cascade changed,
     // and the filter / pinned set / Home tiles it stripped — each only if
-    // still as the delete left it. True when anything came back.
-    return (): boolean => {
+    // still as the delete left it. True when anything came back; "partial"
+    // when the to-dos came back only in part (edited since, kept).
+    return (): UndoOutcome => {
       let restored = false;
-      if (todosChange && undoTracked(todosChange) !== false) restored = true;
+      const todosOut = todosChange ? undoTracked(todosChange, opts) : false;
+      if (todosOut !== false) restored = true;
       const r = removed as { cat: (typeof categories)[number]; idx: number } | null;
       if (r && !categoriesRef.current.some((c) => c.id === id)) {
         restored = true;
@@ -507,7 +513,7 @@ export function useTodoStore() {
           ...(putTiles && same(prev.homeStatTiles, res.homeStatTiles) ? { homeStatTiles: tilesBefore } : {}),
         }));
       }
-      return restored;
+      return todosOut === "partial" ? "partial" : restored;
     };
   }, [store, todosRef, categories, filter, filters, profile.pinnedFilters, profile.homeStatTiles, applyTracked, undoTracked, setCategories, setProfile]);
 
@@ -677,6 +683,10 @@ export function useTodoStore() {
     /** Latest to-dos (advanced synchronously by every local mutation) — for
      * Undos that must see the effect of an earlier Undo in the same tick. */
     todosRef,
+    /** Revert a tracked change exactly (see useTodosSlice.undoTracked). */
+    undoTracked,
+    /** Latest groceries (advanced synchronously by add / toggle / delete). */
+    groceriesRef,
     updateRecurrence,
     emptyTrash,
     selectedTrashIds,
@@ -703,7 +713,7 @@ export function useTodoStore() {
     pinFilter, pinGroceryDept, pinGroceryStore, profile,
     profileTrusted, reduceMotion, removeSubtask, renameGroceryStore, renameStatus,
     reorderCategories, reorderGroceryStores, reorderPriorities, reorderStatuses, restoreFromTrash,
-    revertTodo, saveProfile, selectedTrashIds, todosRef, setActiveGroceryDept, setActiveGroceryStore,
+    revertTodo, saveProfile, selectedTrashIds, todosRef, undoTracked, groceriesRef, setActiveGroceryDept, setActiveGroceryStore,
     setFilter, setFilters, skipSeriesFuture, skipTodo, snooze, today, todoReferences, todos, toggle,
     toggleFilter, toggleGroceryChecked, toggleGroceryStoreHidden, togglePriorityHidden,
     toggleStatusHidden, toggleSubtask, toggleTrashSelection, updateDueDate, updateNotes,
