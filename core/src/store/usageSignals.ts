@@ -1,4 +1,4 @@
-import { SCHEMA_VERSION, StorageAdapter } from '../ports/persistence'
+import { StorageAdapter, unwrapEnvelope, wrapEnvelope } from '../ports/persistence'
 
 /**
  * P0 Tier 2 privacy-preserving measurement signals (docs/MEASUREMENT-PLAN.md),
@@ -98,19 +98,16 @@ export async function refreshUsageSignals(
   let current: UsageSignals
   try {
     const stored = await adapter.getItem(USAGE_SIGNALS_KEY)
-    const parsed: unknown = stored ? JSON.parse(stored) : null
-    const data =
-      parsed && typeof parsed === 'object' && 'data' in parsed
-        ? (parsed as { data: unknown }).data
-        : null
-    current = migrateUsageSignals(data)
+    // Unreadable JSON: skip rather than overwrite it with defaults.
+    if (stored) JSON.parse(stored)
+    current = migrateUsageSignals(unwrapEnvelope(stored))
   } catch {
     return 'skipped'
   }
   const next = stampUsageSignals(current, opts)
   if (next === current) return 'unchanged'
   try {
-    await adapter.setItem(USAGE_SIGNALS_KEY, JSON.stringify({ version: SCHEMA_VERSION, data: next }))
+    await adapter.setItem(USAGE_SIGNALS_KEY, wrapEnvelope(next))
     return 'written'
   } catch {
     return 'skipped'

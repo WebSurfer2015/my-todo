@@ -1,18 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import {
-  StorageAdapter, SCHEMA_VERSION,
+  StorageAdapter,
   readVersioned as coreRead, writeVersioned as coreWrite,
 } from '../../../core/src/ports/persistence'
 
-export { SCHEMA_VERSION }
 export type { StorageAdapter }
 
-/** Async StorageAdapter wrapping React Native AsyncStorage. */
+/** Async StorageAdapter wrapping React Native AsyncStorage (the device-local
+ * language setting — everything else syncs through Firestore). */
 export const storage: StorageAdapter = {
   async getItem(key) { return await AsyncStorage.getItem(key) },
   async setItem(key, value) { await AsyncStorage.setItem(key, value) },
   async removeItem(key) { await AsyncStorage.removeItem(key) },
-  async clear() { await AsyncStorage.clear() },
 }
 
 export function readVersioned<T>(key: string, migrate: (raw: unknown) => T): Promise<T> {

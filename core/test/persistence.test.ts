@@ -11,14 +11,15 @@ import {
   stateDocPath,
   readVersioned,
   writeVersioned,
-  clearAllPersisted,
+  wrapEnvelope,
+  unwrapEnvelope,
   utf8ByteLength,
   exceedsSyncedValueCap,
   MAX_SYNCED_VALUE_BYTES,
   type StorageAdapter,
 } from '../src/ports/persistence'
 
-function makeFakeAdapter(): StorageAdapter & { store: Map<string, string>; failGet?: boolean; failSet?: boolean; failClear?: boolean } {
+function makeFakeAdapter(): StorageAdapter & { store: Map<string, string>; failGet?: boolean; failSet?: boolean } {
   const m = new Map<string, string>()
   return {
     store: m,
@@ -32,10 +33,6 @@ function makeFakeAdapter(): StorageAdapter & { store: Map<string, string>; failG
     },
     async removeItem(key) {
       m.delete(key)
-    },
-    async clear() {
-      if (this.failClear) throw new Error('clear failed')
-      m.clear()
     },
   }
 }
@@ -108,18 +105,20 @@ describe('writeVersioned', () => {
   })
 })
 
-describe('clearAllPersisted', () => {
-  it('calls clear on the adapter', async () => {
-    const adapter = makeFakeAdapter()
-    await adapter.setItem('a', '1')
-    await adapter.setItem('b', '2')
-    await clearAllPersisted(adapter)
-    expect(adapter.store.size).toBe(0)
+describe('wrapEnvelope / unwrapEnvelope', () => {
+  it('wraps as {"version":1,"data":…} and round-trips', () => {
+    expect(wrapEnvelope([1])).toBe('{"version":1,"data":[1]}')
+    for (const v of [[], { a: 1 }, 'x', 0, false, null]) expect(unwrapEnvelope(wrapEnvelope(v))).toEqual(v)
   })
-  it('swallows adapter errors silently', async () => {
-    const adapter = makeFakeAdapter()
-    adapter.failClear = true
-    await expect(clearAllPersisted(adapter)).resolves.toBeUndefined()
+  it('reads anything that is not an envelope as null (storage is untrusted)', () => {
+    expect(unwrapEnvelope(null)).toBeNull()
+    expect(unwrapEnvelope(undefined)).toBeNull()
+    expect(unwrapEnvelope('{bad')).toBeNull()
+    expect(unwrapEnvelope('[{"version":1,"data":2}]')).toBeNull()
+    expect(unwrapEnvelope('{"data":2}')).toBeNull()
+    // The version must be a number.
+    expect(unwrapEnvelope('{"version":"1","data":2}')).toBeNull()
+    expect(unwrapEnvelope('{"version":1}')).toBeNull()
   })
 })
 

@@ -16,6 +16,13 @@ import { strings } from '../../../core/src/data/i18n'
 import type { Strings } from '../core-bindings/i18n'
 import type { Todo } from '../../../core/src/domain/types'
 import type { ProposedOperation } from '../../../core/src/ports/aiContracts'
+import {
+  subtaskUpdateText,
+  todoPermanentlyDeleteSeries,
+  todoRevert,
+  todoSet,
+  todoSetReminders,
+} from '../../../core/src/logic/derive'
 
 const todo = (id: string, extra: Partial<Todo> = {}): Todo => ({
   id,
@@ -65,32 +72,55 @@ function fakeStore(): Fake {
     s.calls.push(`deleteCategory ${id}`)
     return null
   })
-  // Like the real store's applyTracked: todosRef advances only on a change.
-  const drop = (id: string) => {
-    if (s.todosRef.current.some((td) => td.id === id)) s.todosRef.current = s.todosRef.current.filter((td) => td.id !== id)
+  // Like the real store's applyTracked: run the REAL core transform on the
+  // latest list; todosRef advances only when it returned a new list (core
+  // setters hand back the same list for a no-op / unknown id).
+  const apply = (fn: (ts: Todo[]) => Todo[]): boolean => {
+    const next = fn(s.todosRef.current)
+    if (next === s.todosRef.current) return false
+    s.todosRef.current = next
+    return true
   }
-  const patch = (id: string, p: Partial<Todo>) => {
-    const cur = s.todosRef.current.find((td) => td.id === id)
-    if (!cur || Object.entries(p).every(([k, v]) => cur[k as keyof Todo] === v)) return
-    s.todosRef.current = s.todosRef.current.map((td) => (td.id === id ? { ...td, ...p } : td))
-  }
-  s.addTaskWithUndo = vi.fn(() => {
-    s.todosRef.current = [...s.todosRef.current, todo('t1')]
+  const drop = (id: string) => apply((ts) => (ts.some((td) => td.id === id) ? ts.filter((td) => td.id !== id) : ts))
+  s.addTaskWithUndo = vi.fn((_text: string, _p: unknown, _due: string, _cat: unknown, recurrence?: unknown) => {
+    // A repeating capture is a series: the head plus generated occurrences.
+    const rows = recurrence
+      ? [
+          todo('t1', { seriesId: 'S', recurrence: { freq: 'daily' }, dueDate: '2026-10-19' }),
+          todo('S_2026-10-20', { seriesId: 'S', recurrence: { freq: 'daily' }, dueDate: '2026-10-20' }),
+        ]
+      : [todo('t1')]
+    s.todosRef.current = [...s.todosRef.current, ...rows]
     return { id: 't1', undo: () => s.calls.push('undo add t1') }
   })
-  s.permanentlyDeleteSeriesFuture = vi.fn((id: string) => {
-    s.calls.push(`delete series ${id}`)
-    drop(id)
+  s.permanentlyDeleteSeries = vi.fn((sid: string) => {
+    s.calls.push(`delete series ${sid}`)
+    return apply((ts) => todoPermanentlyDeleteSeries(ts, sid))
   })
   s.permanentlyDelete = vi.fn((id: string) => {
     s.calls.push(`delete ${id}`)
     drop(id)
   })
-  s.revertTodo = vi.fn((td: Todo) => s.calls.push(`revert ${td.id}`))
-  s.updateText = vi.fn((id: string, text: string) => patch(id, { text }))
-  s.updatePriority = vi.fn((id: string, priority: Todo['priority']) => patch(id, { priority }))
-  s.updateDueDate = vi.fn((id: string, dueDate: string) => patch(id, { dueDate }))
-  s.updateTaskCategory = vi.fn((id: string, category: string | undefined) => patch(id, { category }))
+  s.rescheduleSeriesFrom = vi.fn((id: string, dueDate: string) => {
+    s.calls.push(`reschedule ${id} ${dueDate}`)
+    apply((ts) => todoSet(ts, id, 'dueDate', dueDate))
+    return null
+  })
+  s.revertTodo = vi.fn((td: Todo) => {
+    s.calls.push(`revert ${td.id}`)
+    return apply((ts) => todoRevert(ts, td))
+  })
+  s.updateText = vi.fn((id: string, text: string) => apply((ts) => todoSet(ts, id, 'text', text)))
+  s.updatePriority = vi.fn((id: string, priority: Todo['priority']) => apply((ts) => todoSet(ts, id, 'priority', priority)))
+  s.updateDueDate = vi.fn((id: string, dueDate: string) => apply((ts) => todoSet(ts, id, 'dueDate', dueDate)))
+  s.updateTaskCategory = vi.fn((id: string, category: string | undefined) =>
+    apply((ts) => todoSet(ts, id, 'category', category)),
+  )
+  s.updateNotes = vi.fn((id: string, notes: string) => apply((ts) => todoSet(ts, id, 'notes', notes)))
+  s.updateReminders = vi.fn((id: string, rs: NonNullable<Todo['reminders']>) => apply((ts) => todoSetReminders(ts, id, rs)))
+  s.updateSubtaskText = vi.fn((id: string, subId: string, text: string) =>
+    apply((ts) => subtaskUpdateText(ts, id, subId, text)),
+  )
   return s
 }
 
@@ -190,7 +220,32 @@ describe('useMochiExecutor — capture Undo', () => {
     })
     expect(result).toBe(true)
     expect(alert).not.toHaveBeenCalled()
-    expect(store.calls).toEqual(['addCategory', 'delete series t1', 'undo add t1', 'deleteCategory newcat'])
+    expect(store.calls).toEqual(['addCategory', 'delete series S', 'undo add t1', 'deleteCategory newcat'])
+    expect(store.todosRef.current.some((td) => td.seriesId === 'S')).toBe(false)
+  })
+
+  it('a repeating capture whose date chip moved the start: the chip re-expands the series; Undo removes every row', () => {
+    const { store, hook } = setup()
+    const cap = hook.result.current.applyCaptureWithUndo({
+      kind: 'createTodo',
+      args: { text: 'Stretch', recurrence: { freq: 'daily' } },
+    })
+    hook.result.current.editCapturedTodo('t1', { dueDate: '2026-10-21' })
+    // The series start moved (re-expanded), not just the head.
+    expect(store.rescheduleSeriesFrom).toHaveBeenCalledWith('t1', '2026-10-21')
+    expect(store.updateDueDate).not.toHaveBeenCalled()
+    expect(cap.undo()).toBe(true)
+    // Every row of the new series is gone — the one left on 10-20 included.
+    expect(store.permanentlyDeleteSeries).toHaveBeenCalledWith('S')
+    expect(store.todosRef.current.some((td) => td.seriesId === 'S')).toBe(false)
+  })
+
+  it("a one-off capture's date chip just moves it", () => {
+    const { store, hook } = setup()
+    hook.result.current.applyCaptureWithUndo({ kind: 'createTodo', args: { text: 'Call mom' } })
+    hook.result.current.editCapturedTodo('t1', { dueDate: '2026-10-21' })
+    expect(store.updateDueDate).toHaveBeenCalledWith('t1', '2026-10-21')
+    expect(store.rescheduleSeriesFrom).not.toHaveBeenCalled()
   })
 
   it('a one-off capture is removed by id (no series delete)', () => {
@@ -277,6 +332,14 @@ describe('mochiUndo', () => {
     combineUndos([() => calls.push(1), null, () => calls.push(2)])!()
     expect(calls).toEqual([2, 1])
   })
+
+  it('combineUndos reports false only when every part put nothing back (all still run)', () => {
+    const ran: string[] = []
+    expect(combineUndos([() => (ran.push('a'), false), () => (ran.push('b'), false)])!()).toBe(false)
+    expect(ran).toEqual(['b', 'a'])
+    expect(combineUndos([() => false, () => undefined])!()).toBe(true)
+    expect(combineUndos([() => true, () => false])!()).toBe(true)
+  })
 })
 
 /** Capture the Alert's buttons so a test can answer it. */
@@ -320,9 +383,23 @@ describe('useMochiExecutor — a new turn begins only once something applied', (
     store.todosRef.current = store.todos
     const r1 = hook.result.current.applyMochiOps([markDone('b')])
     const r2 = hook.result.current.applyMochiOps([{ kind: 'editTodo', args: { todoId: 'a', category: 'home' } }])
-    expect(store.updateTaskCategory).toHaveBeenCalledWith('a', 'home')
+    // The planner skips a field already at the asked value…
+    expect(store.updateTaskCategory).not.toHaveBeenCalled()
     expect(r2.undo).toBeNull()
     expect(isUndoLive(r1.undo)).toBe(true)
+    // …and the REAL core setter is a no-op too when an intent gets through.
+    const run = hook.result.current.runMochiIntents([
+      { type: 'updateCategory', todoId: 'a', category: { id: 'home' } },
+      { type: 'updateText', todoId: 'a', text: 'a' },
+      { type: 'updatePriority', todoId: 'a', priority: 'medium' },
+      { type: 'updateDueDate', todoId: 'a', dueDate: '' },
+      { type: 'updateNotes', todoId: 'a', notes: '' },
+      { type: 'updateReminders', todoId: 'a', reminders: [] },
+      { type: 'updateText', todoId: 'gone', text: 'x' },
+    ])
+    expect(store.updateTaskCategory).toHaveBeenCalledWith('a', 'home')
+    expect(run.appliedNow).toBe(false)
+    expect(store.todosRef.current).toBe(store.todos)
     // A real change does begin a new turn.
     const r3 = hook.result.current.applyMochiOps([{ kind: 'editTodo', args: { todoId: 'a', text: 'A2' } }])
     expect(r3.undo).not.toBeNull()
@@ -426,9 +503,62 @@ describe('useMochiExecutor — apply details', () => {
   it('several edits to one to-do revert to the pre-run state once (first touch wins)', () => {
     const { store, hook } = setup()
     const res = hook.result.current.applyMochiOps([{ kind: 'editTodo', args: { todoId: 'a', text: 'A2', priority: 'high' } }])
-    res.undo!()
+    expect(res.undo!()).toBe(true)
     expect(store.revertTodo).toHaveBeenCalledTimes(1)
     expect(store.revertTodo).toHaveBeenCalledWith(store.todos.find((x) => x.id === 'a'))
+    expect(store.todosRef.current.find((x) => x.id === 'a')).toMatchObject({ text: 'a', priority: 'medium' })
+  })
+
+  it('an Undo that puts nothing back reports false (so the card does not claim "Undone")', () => {
+    const { store, hook } = setup()
+    const res = hook.result.current.applyMochiOps([{ kind: 'editTodo', args: { todoId: 'a', text: 'A2' } }])
+    // The to-do is gone by the time Undo runs: nothing to revert.
+    store.todosRef.current = store.todosRef.current.filter((x) => x.id !== 'a')
+    expect(res.undo!()).toBe(false)
+  })
+
+  it('restoreFromTrash runs silently (the chat card owns its Undo)', () => {
+    const { store, hook } = setup()
+    store.todos = [todo('x', { trashed: true }), todo('b')]
+    store.todosRef.current = store.todos
+    store.restoreFromTrash = vi.fn()
+    hook.result.current.applyMochiOps([{ kind: 'restoreTodo', args: { todoId: 'x' } }])
+    expect(store.restoreFromTrash).toHaveBeenCalledWith('x', { silent: true })
+  })
+
+  it('updateRecurrence carries the original date as the cutoff when the same edit moved the row', () => {
+    const { store, hook } = setup()
+    store.todos = [todo('r', { seriesId: 's', recurrence: { freq: 'daily' }, dueDate: '2026-10-19' })]
+    store.todosRef.current = store.todos
+    store.updateRecurrence = vi.fn(() => null)
+    hook.result.current.applyMochiOps([
+      { kind: 'editTodo', args: { todoId: 'r', dueDate: '2026-10-22', recurrence: { freq: 'weekly', byWeekday: [4] } } },
+    ])
+    expect(store.updateDueDate).toHaveBeenCalledWith('r', '2026-10-22')
+    expect(store.updateRecurrence).toHaveBeenCalledWith('r', { freq: 'weekly', byWeekday: [4] }, { fromDue: '2026-10-19' })
+  })
+
+  it('editGrocery / editCategory with nothing different add no Undo (no new turn)', () => {
+    const { store, hook } = setup()
+    const r1 = hook.result.current.applyMochiOps([markDone('a')])
+    store.groceries = [{ id: 'g', text: 'milk', checked: false, stores: ['Aldi'] } as Fake['groceries'][number]]
+    store.editGrocery = vi.fn()
+    store.editCategory = vi.fn()
+    const same = hook.result.current.applyMochiOps([
+      { kind: 'editGroceryItem', args: { groceryId: 'g', text: 'milk', stores: ['Aldi'] } },
+      { kind: 'editCategory', args: { categoryId: 'home', label: 'Home', color: '#000' } },
+    ])
+    expect(same.undo).toBeNull()
+    expect(store.editGrocery).not.toHaveBeenCalled()
+    expect(store.editCategory).not.toHaveBeenCalled()
+    expect(isUndoLive(r1.undo)).toBe(true)
+    const changed = hook.result.current.applyMochiOps([
+      { kind: 'editGroceryItem', args: { groceryId: 'g', stores: ['Lidl'] } },
+      { kind: 'editCategory', args: { categoryId: 'home', icon: 'house' } },
+    ])
+    expect(changed.undo).not.toBeNull()
+    expect(store.editGrocery).toHaveBeenCalledWith('g', { stores: ['Lidl'] })
+    expect(store.editCategory).toHaveBeenCalledWith('home', { label: 'Home', color: '#000', icon: 'house' })
   })
 
   it('a category the capture created survives its Undo while another to-do uses it', () => {

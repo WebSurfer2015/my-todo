@@ -1,5 +1,5 @@
 import type { Todo } from '../domain/types'
-import { todosRestoreFromTrash } from './derive'
+import { keepSeriesHorizons, todosRestoreFromTrash } from './derive'
 
 export interface ToggleArgs {
   prev: Set<string>
@@ -34,6 +34,8 @@ export function applyBulkRestore(todos: Todo[], ids: Set<string>): Todo[] {
   return todosRestoreFromTrash(todos, ids)
 }
 
+/** Hard-delete the selected rows (a series keeps its horizon — see
+ * keepSeriesHorizons). */
 export function applyBulkDelete(todos: Todo[], ids: Set<string>): Todo[] {
-  return todos.filter((td) => !ids.has(td.id))
+  return keepSeriesHorizons(todos, todos.filter((td) => !ids.has(td.id)))
 }

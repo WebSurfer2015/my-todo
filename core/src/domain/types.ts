@@ -50,6 +50,14 @@ export interface Recurrence {
    * daily / weekly / Nth-weekday rules.
    */
   anchorDay?: number
+  /**
+   * ISO yyyy-mm-dd: the series already generated its occurrences through this
+   * day. Stamped on the surviving members when a hard delete (emptying the
+   * Done bin, Delete permanently) removes the series' latest rows, so top-up /
+   * completion never mint those days again. Cleared by a rule change or a
+   * resume (a fresh horizon). Absent while the rows themselves show it.
+   */
+  materializedThrough?: string
 }
 export const RECURRENCE_FREQS: RecurrenceFreq[] = ['daily', 'weekly', 'monthly', 'yearly']
 /** Weekday short labels — Sun=0. */

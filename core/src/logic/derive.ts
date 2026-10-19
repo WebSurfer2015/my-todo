@@ -427,8 +427,11 @@ export function todoRevert(prev: Todo[], snapshot: Todo): Todo[] {
  * Only rows still exactly as the action left them are touched: an added or
  * changed row that was edited since (completed, renamed, …) is kept as is —
  * deleting or rewinding it would silently lose that later action. Rows a
- * later action appended (not in `after`) are never touched, and a removed
- * row whose id is back in `prev` is left as is.
+ * later action appended (not in `after`) are left alone — except, when the
+ * action changed a series' RULE and the Undo puts the old rule back, the open
+ * generated rows appended under the new rule since (a top-up / completion);
+ * keeping them would leave a mixed series. A removed row whose id is back in
+ * `prev` is left as is.
  */
 export function todosRevertChanges(prev: Todo[], before: Todo[], after: Todo[]): Todo[] {
   return todosRevertChangesWithReport(prev, before, after).todos;
@@ -479,21 +482,63 @@ export function todosRevertChangesWithReport(
     return old ? [{ ...old, updatedAt: now }] : [];
   });
   if (!touched) return { todos: prev, skipped };
-  if (removed.length === 0) return { todos: out, skipped };
-  // Re-insert each removed row right after its nearest `before` predecessor
-  // that is in the list (or at the front when none is).
-  const removedIds = new Set(removed.map((td) => td.id));
-  let lastPos = -1;
-  for (const td of before) {
-    if (removedIds.has(td.id)) {
-      out.splice(lastPos + 1, 0, { ...td, updatedAt: now });
-      lastPos += 1;
-      continue;
+  if (removed.length > 0) {
+    // Re-insert each removed row right after its nearest `before`
+    // predecessor that is in the list (or at the front when none is).
+    const removedIds = new Set(removed.map((td) => td.id));
+    let lastPos = -1;
+    for (const td of before) {
+      if (removedIds.has(td.id)) {
+        out.splice(lastPos + 1, 0, { ...td, updatedAt: now });
+        lastPos += 1;
+        continue;
+      }
+      const at = out.findIndex((o) => o.id === td.id);
+      if (at !== -1) lastPos = at;
     }
-    const at = out.findIndex((o) => o.id === td.id);
-    if (at !== -1) lastPos = at;
   }
-  return { todos: out, skipped };
+  return { todos: dropForeignRuleAppends(out, after, beforeById, afterById), skipped };
+}
+
+/**
+ * Undoing a series' RULE change: occurrences a later top-up / completion
+ * appended under the new rule (generated ids, still open, in neither
+ * `before` nor `after`) would leave a mixed series behind — drop the ones
+ * whose rule isn't the restored one. `todos` itself when there are none.
+ */
+function dropForeignRuleAppends(
+  todos: Todo[],
+  after: Todo[],
+  beforeById: Map<string, Todo>,
+  afterById: Map<string, Todo>,
+): Todo[] {
+  // Series whose rule the action changed, with the rows it changed it on.
+  const restored = new Map<string, Recurrence>();
+  const ruleRows = new Map<string, string[]>();
+  for (const td of after) {
+    const old = beforeById.get(td.id);
+    if (!td.seriesId || !old?.recurrence || old.seriesId !== td.seriesId) continue;
+    if (td.recurrence && !sameRule(td.recurrence, old.recurrence)) {
+      restored.set(td.seriesId, old.recurrence);
+      ruleRows.set(td.seriesId, [...(ruleRows.get(td.seriesId) ?? []), td.id]);
+    }
+  }
+  if (restored.size === 0) return todos;
+  // Only once the old rule really is back on those rows (a kept later edit
+  // leaves the new rule in place, and its appended rows with it).
+  const byId = new Map(todos.map((td) => [td.id, td]));
+  for (const [sid, rule] of restored) {
+    const back = (ruleRows.get(sid) ?? []).every((rid) => sameRule(byId.get(rid)?.recurrence, rule));
+    if (!back) restored.delete(sid);
+  }
+  const foreign = (td: Todo) => {
+    const rule = td.seriesId ? restored.get(td.seriesId) : undefined;
+    return (
+      !!rule && !beforeById.has(td.id) && !afterById.has(td.id) && !td.done && !td.trashed &&
+      isGeneratedSeriesRow(td) && !sameRule(td.recurrence, rule)
+    );
+  };
+  return todos.some(foreign) ? todos.filter((td) => !foreign(td)) : todos;
 }
 
 /** A row's content for the Undo "untouched" check: no updatedAt, and an
@@ -585,6 +630,8 @@ export function subtaskUpdatePriority(
   subId: string,
   priority: Priority,
 ): Todo[] {
+  const sub = findSubtask(prev, todoId, subId);
+  if (!sub || sub.priority === priority) return prev;
   const now = Date.now();
   return prev.map((td) => {
     if (td.id !== todoId || !td.subtasks) return td;
@@ -595,12 +642,19 @@ export function subtaskUpdatePriority(
   });
 }
 
+/** The step `subId` of to-do `todoId`, if both exist. */
+function findSubtask(prev: Todo[], todoId: string, subId: string): Subtask | undefined {
+  return prev.find((td) => td.id === todoId)?.subtasks?.find((s) => s.id === subId);
+}
+
 export function subtaskUpdateDueDate(
   prev: Todo[],
   todoId: string,
   subId: string,
   dueDate: string,
 ): Todo[] {
+  const sub = findSubtask(prev, todoId, subId);
+  if (!sub || (sub.dueDate ?? "") === dueDate) return prev;
   const now = Date.now();
   return prev.map((td) => {
     if (td.id !== todoId || !td.subtasks) return td;
@@ -658,6 +712,9 @@ export function subtaskUpdateText(
   text: string,
 ): Todo[] {
   const trimmed = text.slice(0, MAX_SUBTASK_TEXT_LEN);
+  const sub = findSubtask(prev, todoId, subId);
+  // Missing, or already this text: no change (see todoSet).
+  if (!sub || sub.text === trimmed) return prev;
   const now = Date.now();
   return prev.map((td) => {
     if (td.id !== todoId || !td.subtasks) return td;
@@ -747,7 +804,8 @@ export function todoMoveToTrash(prev: Todo[], id: string): Todo[] {
 
 /**
  * Apply text / priority / category / notes from a target instance to all
- * future non-trashed siblings in the same series (dueDate >= target's).
+ * future non-trashed siblings in the same series (dueDate >= target's, or
+ * >= `fromDue` when given).
  * Past siblings are not touched — they're history. By default skips
  * any future siblings with `detachedFromSeries: true` (per-instance
  * customizations the user explicitly carved out); pass
@@ -763,11 +821,13 @@ export function todoApplySeriesFutureEdits(
     category?: Category | undefined;
     notes?: string;
   },
-  options: { overwriteDetached?: boolean } = {},
+  options: { overwriteDetached?: boolean; fromDue?: string } = {},
 ): { next: Todo[]; affected: number } {
   const target = prev.find((t) => t.id === id);
   if (!target || !target.seriesId) return { next: prev, affected: 0 };
-  const cutoff = target.dueDate;
+  // `fromDue`: the occurrence's ORIGINAL date when the same commit also
+  // moved this row — "this and future" is measured from where it was.
+  const cutoff = options.fromDue ?? target.dueDate;
   const now = Date.now();
   let affected = 0;
   const next = prev.map((td) => {
@@ -807,12 +867,13 @@ export function todoApplySeriesFutureEdits(
 export function todoApplySeriesSubtasks(
   prev: Todo[],
   id: string,
-  options: { keepDetached: boolean },
+  options: { keepDetached: boolean; fromDue?: string },
 ): { next: Todo[]; affected: number } {
   const target = prev.find((t) => t.id === id);
   if (!target || !target.seriesId) return { next: prev, affected: 0 };
   const sid = target.seriesId;
-  const cutoff = target.dueDate;
+  // `fromDue`: this occurrence's original date (see todoApplySeriesFutureEdits).
+  const cutoff = options.fromDue ?? target.dueDate;
   const subs = target.subtasks ?? [];
   const now = Date.now();
   let affected = 0;
@@ -869,24 +930,42 @@ export function seriesEndBefore(todos: Todo[], seriesId: string | undefined, cut
  * `keepDetached: true` preserves siblings the user explicitly
  * carved out via R6a's detach — they stay as one-off rows (seriesId
  * dropped); `false` removes them too ("Recreate all").
+ *
+ * `fromDue`: the occurrence's ORIGINAL date when the same commit also moved
+ * this row (the "this and future" cutoff) — defaults to its current date.
+ * `rebuild`: re-expand even when the rule is unchanged (a just-captured
+ * series whose start date moved).
+ *
+ * Resuming an ENDED series (its end date already past, the new rule open or
+ * ending today or later) drops the occurrences Skip all / "this & future to
+ * the bin" left in the Done bin AFTER today, so the series restarts tomorrow
+ * instead of after the skipped stretch (they'd otherwise read as its tail).
  */
 export function todoApplyRecurrenceChange(
   prev: Todo[],
   id: string,
   newRecurrence: Recurrence | undefined,
   todayISO: string,
-  options: { keepDetached?: boolean } = {},
+  options: { keepDetached?: boolean; fromDue?: string; rebuild?: boolean } = {},
 ): { next: Todo[]; trashedCount: number } {
   const target = prev.find((t) => t.id === id);
   if (!target || !target.seriesId) return { next: prev, trashedCount: 0 };
+  const sid = target.seriesId;
+  const today = dueDateOnly(todayISO);
+  const oldEnd = target.recurrence?.endDate;
+  const resumes =
+    !!newRecurrence && !!oldEnd && oldEnd < today && !(newRecurrence.endDate && newRecurrence.endDate < today);
+  // A new rule (or a resume) starts a fresh horizon — the old one's
+  // materializedThrough must not hold the new tail back.
+  const freshRule = newRecurrence ? withoutHorizon(newRecurrence) : undefined;
+  if (resumes) prev = dropSkippedAfter(prev, sid, id, today);
   // Same repeat rule (only the end date differs, or nothing): patch the
   // series' endDate instead of rebuilding it — a rebuild would re-anchor a
   // "31st" series on the target's own (shorter-month) day.
-  if (newRecurrence && sameRule(target.recurrence, newRecurrence)) {
-    return seriesSetEndDate(prev, target, newRecurrence.endDate, todayISO, !!options.keepDetached);
+  if (freshRule && sameRule(target.recurrence, freshRule) && !options.rebuild) {
+    return seriesSetEndDate(prev, target, freshRule.endDate, todayISO, !!options.keepDetached);
   }
-  const sid = target.seriesId;
-  const cutoff = target.dueDate;
+  const cutoff = options.fromDue ?? target.dueDate;
   const now = Date.now();
   // 1) Update target's recurrence (+ snap dueDate if a weekday
   //    filter dictates a different anchor day).
@@ -894,14 +973,18 @@ export function todoApplyRecurrenceChange(
     ? snapDueDateToRecurrence(target.dueDate, newRecurrence)
     : target.dueDate;
   let updated = prev.map((td) => {
-    if (td.id !== id) return td;
+    if (td.id !== id) {
+      // A member kept from before the change drops its old horizon.
+      if (td.seriesId !== sid || !td.recurrence?.materializedThrough) return td;
+      return { ...td, recurrence: withoutHorizon(td.recurrence), updatedAt: now };
+    }
     const next: Todo = {
       ...td,
       dueDate: snappedDueDate,
       updatedAt: now,
     };
     // A new rule anchors on the target's own (snapped) day.
-    if (newRecurrence) next.recurrence = recurrenceWithAnchor(newRecurrence, snappedDueDate);
+    if (freshRule) next.recurrence = recurrenceWithAnchor(freshRule, snappedDueDate);
     else delete next.recurrence;
     return next;
   });
@@ -929,7 +1012,7 @@ export function todoApplyRecurrenceChange(
     return [oneOff];
   });
   // 3) If recurrence is set, re-expand from the (newly-snapped) target.
-  if (!newRecurrence) return { next: seriesEndBefore(updated, sid, cutoff), trashedCount };
+  if (!freshRule) return { next: seriesEndBefore(updated, sid, cutoff), trashedCount };
   const updatedTarget = updated.find((t) => t.id === id);
   if (!updatedTarget) return { next: updated, trashedCount };
   // The new rule anchors on the target's own day — not the earliest member's
@@ -969,6 +1052,9 @@ function seriesSetEndDate(
   const sid = target.seriesId as string;
   const end = endDate ? dueDateOnly(endDate) : "";
   const now = Date.now();
+  // A resume (the old end already past) restarts the horizon too.
+  const oldEnd = target.recurrence?.endDate;
+  const resumes = !!oldEnd && oldEnd < dueDateOnly(todayISO) && !(end && end < dueDateOnly(todayISO));
   let trashedCount = 0;
   const next = prev.flatMap((td) => {
     if (td.seriesId !== sid) return [td];
@@ -984,13 +1070,31 @@ function seriesSetEndDate(
       delete oneOff.detachedFromSeries;
       return [oneOff];
     }
-    if (!td.recurrence || (td.recurrence.endDate ?? "") === end) return [td];
-    const rec: Recurrence = { ...td.recurrence };
+    if (!td.recurrence) return [td];
+    const dropHorizon = resumes && !!td.recurrence.materializedThrough;
+    if ((td.recurrence.endDate ?? "") === end && !dropHorizon) return [td];
+    const rec: Recurrence = dropHorizon ? withoutHorizon(td.recurrence) : { ...td.recurrence };
     if (end) rec.endDate = end;
     else delete rec.endDate;
     return [{ ...td, recurrence: rec, updatedAt: now }];
   });
   return { next: topUpSeries(next, sid, todayISO), trashedCount };
+}
+
+/** `rec` without its materializedThrough horizon (same object when absent). */
+function withoutHorizon(rec: Recurrence): Recurrence {
+  if (rec.materializedThrough === undefined) return rec;
+  const { materializedThrough: _m, ...rest } = rec;
+  return rest;
+}
+
+/** Drop `seriesId`'s binned, not-done rows (skipped / moved to the bin as
+ * "this & future") dated after `today` — except `exceptId`. A resumed
+ * series regrows those days. */
+function dropSkippedAfter(todos: Todo[], seriesId: string, exceptId: string, today: string): Todo[] {
+  const drop = (td: Todo) =>
+    td.seriesId === seriesId && td.id !== exceptId && td.trashed && !td.done && dueDateOnly(td.dueDate) > today;
+  return todos.some(drop) ? todos.filter((td) => !drop(td)) : todos;
 }
 
 /**
@@ -1360,8 +1464,9 @@ export function topUpSeries(
   const members = todos.filter((t) => t.seriesId === seriesId);
   if (members.length === 0) return todos;
   // The series' horizon: its latest occurrence day, any state (see
-  // seriesLatestDay — a row moved off its day doesn't count where it went).
-  const latest = seriesLatestDay(members, seriesId);
+  // seriesHorizon — a row moved off its day doesn't count where it went, and
+  // a deleted tail still counts).
+  const latest = seriesHorizon(members, seriesId);
   if (!latest) return todos;
   // A series is only alive while at least one OPEN member still repeats.
   // Delete series / this & future to the bin (todoMoveToTrashFutureSeries) /
@@ -1477,6 +1582,48 @@ function seriesLatestDay(members: Todo[], seriesId: string): string {
 }
 
 /**
+ * How far `seriesId` has been generated: seriesLatestDay, or a member's
+ * stamped materializedThrough when later (its latest rows were hard-deleted
+ * — those days must not be minted again).
+ */
+function seriesHorizon(members: Todo[], seriesId: string): string {
+  let h = seriesLatestDay(members, seriesId);
+  for (const m of members) {
+    const mt = m.recurrence?.materializedThrough;
+    if (mt && mt > h) h = mt;
+  }
+  return h;
+}
+
+/**
+ * After a hard delete (`after` = `before` minus some rows): every series that
+ * lost rows and whose horizon dropped gets the old horizon stamped on its
+ * surviving members (recurrence.materializedThrough), so the deleted latest
+ * occurrences are never regenerated by top-up / completion. Returns `after`
+ * unchanged when no horizon dropped.
+ */
+export function keepSeriesHorizons(before: Todo[], after: Todo[]): Todo[] {
+  if (after.length === before.length) return after;
+  const kept = new Set(after.map((td) => td.id));
+  const lost = new Set<string>();
+  for (const td of before) if (td.seriesId && !kept.has(td.id)) lost.add(td.seriesId);
+  if (lost.size === 0) return after;
+  const stamp = new Map<string, string>();
+  for (const sid of lost) {
+    const was = seriesHorizon(before.filter((td) => td.seriesId === sid), sid);
+    const remaining = after.filter((td) => td.seriesId === sid);
+    if (remaining.length > 0 && was && seriesHorizon(remaining, sid) < was) stamp.set(sid, was);
+  }
+  if (stamp.size === 0) return after;
+  const now = Date.now();
+  return after.map((td) => {
+    const h = td.seriesId ? stamp.get(td.seriesId) : undefined;
+    if (!h || !td.recurrence) return td;
+    return { ...td, recurrence: { ...td.recurrence, materializedThrough: h }, updatedAt: now };
+  });
+}
+
+/**
  * Days of `seriesId` already held by a row carrying that day's generated id —
  * a member, or a former member that left the series as a one-off (done,
  * skipped, binned or a kept detached edit), whatever its state or where it
@@ -1540,7 +1687,7 @@ export function appendNextSeriesInstance(
   // Cursor advances strictly after the series' latest occurrence day (any
   // state; see seriesLatestDay) so we don't double-up on a
   // recently-completed instance.
-  const latest = seriesLatestDay(members, seriesId);
+  const latest = seriesHorizon(members, seriesId);
   if (!latest) return todos;
   const anchor = currentRuleAnchorDay(members, rec);
   // With `todayISO`, a lapsed series resumes at today (as topUpSeries does)
@@ -1834,7 +1981,18 @@ export function todosRestoreFromTrash(prev: Todo[], ids: ReadonlySet<string>): T
 }
 
 export function todoPermanentlyDelete(prev: Todo[], id: string): Todo[] {
-  return prev.filter((td) => td.id !== id);
+  if (!prev.some((td) => td.id === id)) return prev;
+  return keepSeriesHorizons(prev, prev.filter((td) => td.id !== id));
+}
+
+/**
+ * Hard-remove EVERY row of `seriesId` (any date or state) — the Undo of a
+ * series that was only just created (an Ask Mochi capture). Returns `prev`
+ * when the series has no rows.
+ */
+export function todoPermanentlyDeleteSeries(prev: Todo[], seriesId: string): Todo[] {
+  if (!seriesId || !prev.some((td) => td.seriesId === seriesId)) return prev;
+  return prev.filter((td) => td.seriesId !== seriesId);
 }
 
 /**
@@ -1857,7 +2015,7 @@ export function todoPermanentlyDeleteSeriesFuture(prev: Todo[], id: string): Tod
 }
 
 export function todoEmptyTrash(prev: Todo[]): Todo[] {
-  return prev.filter((td) => !td.trashed);
+  return keepSeriesHorizons(prev, prev.filter((td) => !td.trashed));
 }
 
 /**
@@ -1876,31 +2034,35 @@ export function todoClearDone(prev: Todo[]): { todos: Todo[]; trashedIds: string
     }
     return true;
   });
-  return { todos, trashedIds: removedIds };
+  return { todos: keepSeriesHorizons(prev, todos), trashedIds: removedIds };
 }
 
+/**
+ * Set one field on a to-do. Returns `prev` itself when the id is missing or
+ * the (capped) value is already what the to-do has — a no-op edit must not
+ * read as a change (no updatedAt bump, no Undo, no new Ask Mochi turn).
+ */
 export function todoSet<K extends keyof Todo>(
   prev: Todo[],
   id: string,
   field: K,
   value: Todo[K],
 ): Todo[] {
+  const td = prev.find((x) => x.id === id);
+  if (!td) return prev;
+  let v: Todo[K] = value;
+  if (field === "text" && typeof value === "string") v = value.slice(0, MAX_TODO_TEXT_LEN) as Todo[K];
+  if (field === "notes" && typeof value === "string") v = value.slice(0, MAX_TODO_NOTES_LEN) as Todo[K];
+  // No notes and empty notes read the same.
+  const cur = field === "notes" ? (td.notes ?? "") : td[field];
+  if (jsonEqual(cur, v)) return prev;
   const now = Date.now();
-  return prev.map((td) => {
-    if (td.id !== id) return td;
-    const next = { ...td, [field]: value, updatedAt: now };
-    if (field === "dueDate" && typeof value === "string") {
-      const reminders = remindersForDueChange(td, value, now);
-      if (reminders) next.reminders = reminders;
-    }
-    if (field === "text" && typeof value === "string") {
-      next.text = value.slice(0, MAX_TODO_TEXT_LEN);
-    }
-    if (field === "notes" && typeof value === "string") {
-      next.notes = value.slice(0, MAX_TODO_NOTES_LEN);
-    }
-    return next;
-  });
+  const next = { ...td, [field]: v, updatedAt: now };
+  if (field === "dueDate" && typeof v === "string") {
+    const reminders = remindersForDueChange(td, v, now);
+    if (reminders) next.reminders = reminders;
+  }
+  return prev.map((x) => (x.id === id ? next : x));
 }
 
 /** Replace a todo's `reminders` array. An empty array clears reminders
@@ -1910,14 +2072,13 @@ export function todoSetReminders(
   id: string,
   reminders: Reminder[],
 ): Todo[] {
-  const now = Date.now();
-  return prev.map((td) => {
-    if (td.id !== id) return td;
-    const next: Todo = { ...td, updatedAt: now };
-    if (reminders.length > 0) next.reminders = reminders;
-    else delete next.reminders;
-    return next;
-  });
+  const td = prev.find((x) => x.id === id);
+  // Missing, or the same reminders already: no change (see todoSet).
+  if (!td || jsonEqual(td.reminders ?? [], reminders)) return prev;
+  const next: Todo = { ...td, updatedAt: Date.now() };
+  if (reminders.length > 0) next.reminders = reminders;
+  else delete next.reminders;
+  return prev.map((x) => (x.id === id ? next : x));
 }
 
 /** Set or clear a todo's `recurrence`. Passing undefined removes the
@@ -1927,6 +2088,8 @@ export function todoSetRecurrence(
   id: string,
   recurrence: Recurrence | undefined,
 ): Todo[] {
+  const target = prev.find((td) => td.id === id);
+  if (!target || (!recurrence && !target.recurrence)) return prev;
   const now = Date.now();
   return prev.map((td) => {
     if (td.id !== id) return td;
@@ -1947,9 +2110,10 @@ export function todoSetRecurrence(
       dueDate = snapDueDateToRecurrence(dueDate, recurrence);
       // Re-anchor unless the rule is unchanged (an endDate-only edit keeps
       // the series' original day, e.g. the 31st on a row clamped to the 30th).
-      const rec = td.recurrence && sameRule(td.recurrence, recurrence) && storedAnchorDay(td.recurrence) !== undefined
-        ? recurrenceWithAnchor(recurrence, dueDate, storedAnchorDay(td.recurrence))
-        : recurrenceWithAnchor(recurrence, dueDate);
+      const fresh = withoutHorizon(recurrence);
+      const rec = td.recurrence && sameRule(td.recurrence, fresh) && storedAnchorDay(td.recurrence) !== undefined
+        ? recurrenceWithAnchor(fresh, dueDate, storedAnchorDay(td.recurrence))
+        : recurrenceWithAnchor(fresh, dueDate);
       return { ...td, recurrence: rec, seriesId, dueDate, updatedAt: now };
     }
     const next: Todo = { ...td, updatedAt: now };
@@ -2316,6 +2480,9 @@ export function migrateTodo(raw: unknown, ctx: MigrateTodoCtx): Todo | null {
           r.anchorDay >= 1 && r.anchorDay <= 31 && usesAnchorDay(recurrence)
         ) {
           recurrence.anchorDay = r.anchorDay;
+        }
+        if (typeof r.materializedThrough === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.materializedThrough)) {
+          recurrence.materializedThrough = r.materializedThrough;
         }
       }
     }

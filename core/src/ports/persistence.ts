@@ -17,6 +17,30 @@ function isVersioned(raw: unknown): raw is Versioned<unknown> {
 }
 
 /**
+ * The versioned `{version, data}` envelope every persisted value is stored
+ * in — the same string on the device (AsyncStorage) and in the cloud
+ * (Firestore), so the payload is byte-identical across both.
+ */
+export function wrapEnvelope(data: unknown): string {
+  return JSON.stringify({ version: SCHEMA_VERSION, data });
+}
+
+/**
+ * The `data` of a stored envelope; null for anything that isn't one (null,
+ * bad JSON, a bare value, an array, a non-numeric version) — storage is
+ * untrusted, so a malformed value reads as empty.
+ */
+export function unwrapEnvelope(raw: string | null | undefined): unknown {
+  if (raw == null) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return isVersioned(parsed) ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Platform-agnostic storage interface. Implemented by AsyncStorage (device)
  * and Firestore (cloud) adapters in mobile/. All methods are async — a
  * synchronous KV store would just resolve immediately.
@@ -29,7 +53,6 @@ export interface StorageAdapter {
   getItem(key: string): Promise<string | null>;
   setItem(key: string, value: string): Promise<void>;
   removeItem(key: string): Promise<void>;
-  clear(): Promise<void>;
   /** `meta.trusted` is false for a snapshot that may not reflect the
    * server (e.g. an empty offline cache on a fresh device) — callers must not
    * treat it as "this key is empty" for write purposes. */
@@ -86,14 +109,13 @@ export async function readVersioned<T>(
   key: string,
   migrate: (raw: unknown) => T,
 ): Promise<T> {
-  let raw: unknown = null;
+  let stored: string | null = null;
   try {
-    const stored = await storage.getItem(key);
-    raw = stored ? JSON.parse(stored) : null;
+    stored = await storage.getItem(key);
   } catch {
-    raw = null;
+    stored = null;
   }
-  return migrate(isVersioned(raw) ? raw.data : null);
+  return migrate(unwrapEnvelope(stored));
 }
 
 export async function writeVersioned(
@@ -102,22 +124,9 @@ export async function writeVersioned(
   data: unknown,
 ): Promise<void> {
   try {
-    await storage.setItem(
-      key,
-      JSON.stringify({ version: SCHEMA_VERSION, data }),
-    );
+    await storage.setItem(key, wrapEnvelope(data));
   } catch {
     // storage unavailable — ignore
-  }
-}
-
-export async function clearAllPersisted(
-  storage: StorageAdapter,
-): Promise<void> {
-  try {
-    await storage.clear();
-  } catch {
-    // ignore
   }
 }
 

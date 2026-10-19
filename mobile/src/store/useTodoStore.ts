@@ -19,7 +19,7 @@ import { makeFirestoreAdapter } from "../adapters/firestoreAdapter";
 import {
   StorageAdapter,
   USER_STATE_KEYS,
-  SCHEMA_VERSION,
+  wrapEnvelope,
 } from "../../../core/src/ports/persistence";
 import { createTodoStore, refreshUsageSignals } from "../../../core/src/store";
 import { todayLocal } from "../../../core/src/logic/utils";
@@ -58,7 +58,6 @@ const SIGNED_OUT_ADAPTER: StorageAdapter = {
   getItem: async () => null,
   setItem: async () => {},
   removeItem: async () => {},
-  clear: async () => {},
 };
 
 export function useTodoStore() {
@@ -239,6 +238,8 @@ export function useTodoStore() {
     restoreFromTrash,
     permanentlyDelete,
     permanentlyDeleteSeriesFuture,
+    permanentlyDeleteSeries,
+    rescheduleSeriesFrom,
     updatePriority,
     updateDueDate,
     updateReminders,
@@ -388,7 +389,7 @@ export function useTodoStore() {
   // and go out when the device is back online); rejects if a write was
   // refused.
   const clearAllData = useCallback(async (): Promise<ClearDataResult> => {
-    const empty = JSON.stringify({ version: SCHEMA_VERSION, data: [] });
+    const empty = wrapEnvelope([]);
     const writes = Promise.all(USER_STATE_KEYS.map((key) => adapter.setItem(key, empty)));
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timedOut = new Promise<ClearDataResult>((resolve) => {
@@ -611,6 +612,8 @@ export function useTodoStore() {
     restoreFromTrash,
     permanentlyDelete,
     permanentlyDeleteSeriesFuture,
+    permanentlyDeleteSeries,
+    rescheduleSeriesFrom,
     updatePriority,
     updateDueDate,
     updateReminders,
@@ -655,7 +658,8 @@ export function useTodoStore() {
     filters, groceries, groceryGroups, headerLine, identityLine, identityLineIsQuote,
     keepAndClearFilter, linkItemsToStore, loaded, moveSeriesFutureToTrash, moveToTrash,
     orderedPriorities, orderedStatuses, orderedVisibleStatuses, permanentlyDelete,
-    permanentlyDeleteSeriesFuture, pinFilter, pinGroceryDept, pinGroceryStore, profile,
+    permanentlyDeleteSeriesFuture, permanentlyDeleteSeries, rescheduleSeriesFrom,
+    pinFilter, pinGroceryDept, pinGroceryStore, profile,
     profileTrusted, reduceMotion, removeSubtask, renameGroceryStore, renameStatus,
     reorderCategories, reorderGroceryStores, reorderPriorities, reorderStatuses, restoreFromTrash,
     revertTodo, saveProfile, selectedTrashIds, todosRef, setActiveGroceryDept, setActiveGroceryStore,

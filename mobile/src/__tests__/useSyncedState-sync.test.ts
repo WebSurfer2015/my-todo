@@ -30,7 +30,6 @@ function makeAdapter(opts: { initial?: string | null; failGet?: boolean; hangGet
       setCalls.push(value)
     },
     async removeItem() {},
-    async clear() {},
     subscribe(_key, cb) {
       sub = cb
       return () => { sub = null }

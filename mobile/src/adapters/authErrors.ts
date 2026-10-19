@@ -1,29 +1,38 @@
 /**
  * Map auth-flow errors (Firebase, Apple, Google native, network) to a
  * user-readable string. Unknown errors get calm copy — never the raw SDK
- * message or code; SignIn logs the code to Crashlytics for diagnosis.
+ * message or code, and never configuration jargon; SignIn logs the code
+ * (authErrorDiagnostic) to Crashlytics for diagnosis.
  *
- * The platform-pure Firebase `auth/*` code map + lookup live in
- * core/src/data/authMessages.ts (shared, no RN deps). The Apple/Google
- * NATIVE-SDK maps below are SDK-specific and stay mobile-side, layered on
- * top of the core Firebase lookup.
- *
- * The Apple/Google native SDKs throw their own error shapes; we surface
- * those too so the visible message is never just a silent failure.
+ * The platform-pure Firebase `auth/*` code map, the fallback copy and the
+ * code / diagnostic helpers live in core/src/data/authMessages.ts (shared,
+ * no RN deps). The Apple/Google NATIVE-SDK maps below are SDK-specific and
+ * stay mobile-side, layered on top of the core Firebase lookup.
  */
 
 import {
+  AUTH_FALLBACK_MESSAGE,
   AuthFlow,
+  authErrorCode,
+  authErrorDiagnostic as coreDiagnostic,
   mapFirebaseAuthError,
+  providerFailedMessage,
 } from "../../../core/src/data/authMessages";
 
 export type { AuthFlow };
+export { authErrorCode };
+/** Calm fallback for an error we don't recognise (core's AUTH_FALLBACK_MESSAGE). */
+export const AUTH_UNKNOWN_MESSAGE = AUTH_FALLBACK_MESSAGE;
 
 interface ErrLike {
   code?: string | number;
   message?: string;
 }
 
+const APPLE_FAILED = providerFailedMessage("apple");
+const GOOGLE_FAILED = providerFailedMessage("google");
+
+/** Apple native SDK codes ("" = the user cancelled: show nothing). */
 const APPLE_NATIVE_MESSAGES: Record<string, string> = {
   // ASAuthorizationError codes from AuthenticationServices.framework
   "1000": "Apple Sign-In is not available. Sign in to iCloud on this device and try again.",
@@ -32,32 +41,33 @@ const APPLE_NATIVE_MESSAGES: Record<string, string> = {
   "1003": "Apple Sign-In isn't handling this request right now. Try again.",
   "1004": "Apple Sign-In failed. Try again, or use a different option.",
   ERR_REQUEST_UNKNOWN: "Apple Sign-In failed unexpectedly. Try again.",
-  ERR_REQUEST_NOT_HANDLED:
-    "Apple Sign-In is not configured for this build. The app needs to be updated.",
+  ERR_REQUEST_NOT_HANDLED: APPLE_FAILED,
   ERR_REQUEST_NOT_INTERACTIVE: "Apple Sign-In needs a fresh tap. Try again.",
-  ERR_INVALID_RESPONSE:
-    "Apple Sign-In returned an unexpected response. Try again.",
+  ERR_INVALID_RESPONSE: "Apple Sign-In returned an unexpected response. Try again.",
   ERR_INVALID_OPERATION: "Apple Sign-In couldn't complete. Try again.",
-  ERR_INVALID_SCOPE: "Apple Sign-In scope is misconfigured for this build.",
+  ERR_INVALID_SCOPE: APPLE_FAILED,
 };
 
 const GOOGLE_NATIVE_MESSAGES: Record<string, string> = {
   PLAY_SERVICES_NOT_AVAILABLE:
     "Google Play Services is required and not available.",
   SIGN_IN_REQUIRED: "Sign in with Google again to continue.",
-  DEVELOPER_ERROR:
-    "Google Sign-In is misconfigured for this build. The app needs to be updated.",
+  DEVELOPER_ERROR: GOOGLE_FAILED,
   NETWORK_ERROR:
     "Can't reach Google to sign in. Check your connection and try again.",
 };
 
-/** Calm fallback for an error we don't recognise (the code is logged, not shown). */
-export const AUTH_UNKNOWN_MESSAGE = "Couldn't sign you in just now. Please try again.";
+/** What a native code most likely means — for the crash log only. */
+const NATIVE_DIAGNOSTICS: Record<string, string> = {
+  "1001": "user cancelled",
+  ERR_REQUEST_NOT_HANDLED: "Sign in with Apple capability / entitlement missing in this build",
+  ERR_INVALID_SCOPE: "Apple Sign-In requested scope misconfigured",
+  DEVELOPER_ERROR: "Google Sign-In misconfigured (client IDs / SHA fingerprint) for this build",
+};
 
-/** The error's code as a string ("" when none) — SignIn logs it to Crashlytics. */
-export function authErrorCode(err: unknown): string {
-  const c = (err as ErrLike | null | undefined)?.code;
-  return c != null ? String(c) : "";
+/** One line for the crash log (code, flow, likely cause) — never shown. */
+export function authErrorDiagnostic(err: unknown, flow?: AuthFlow): string {
+  return coreDiagnostic(err, flow, NATIVE_DIAGNOSTICS);
 }
 
 export function mapAuthError(err: unknown, flow?: AuthFlow): string {
@@ -70,16 +80,12 @@ export function mapAuthError(err: unknown, flow?: AuthFlow): string {
     return mapFirebaseAuthError(code, flow, rawMessage);
   }
 
-  // 2. Apple native SDK codes
-  if (code in APPLE_NATIVE_MESSAGES) {
-    const mapped = APPLE_NATIVE_MESSAGES[code];
-    return mapped || rawMessage;
-  }
+  // 2. Apple native SDK codes ("" = cancelled: nothing to show — never the
+  //    raw SDK message).
+  if (code in APPLE_NATIVE_MESSAGES) return APPLE_NATIVE_MESSAGES[code];
 
   // 3. Google native SDK codes
-  if (code in GOOGLE_NATIVE_MESSAGES) {
-    return GOOGLE_NATIVE_MESSAGES[code] || rawMessage;
-  }
+  if (code in GOOGLE_NATIVE_MESSAGES) return GOOGLE_NATIVE_MESSAGES[code];
 
   // 4. Provider-specific thrown messages from AuthContext fallbacks
   if (rawMessage.includes("no identity token")) {
