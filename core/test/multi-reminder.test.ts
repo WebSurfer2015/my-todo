@@ -73,11 +73,11 @@ describe('todoToggle — multi-reminder transfer on series completion', () => {
         !t.done &&
         t.dueDate.startsWith('2026-06-11'),
     )!
-    const rolled = getReminders(next)
-    expect(rolled).toHaveLength(2)
-    const byId = new Map(rolled.map((r) => [r.id, r.at]))
-    expect(byId.get('r-1d')).toBe('2026-06-10T09:00')
-    expect(byId.get('r-1h')).toBe('2026-06-11T08:00')
+    // The RAW array (what the scheduler reads), not getReminders (which
+    // dedupes and so hid a doubled reminder → two OS notifications).
+    const raw = next.reminders ?? []
+    expect(raw).toHaveLength(2)
+    expect(raw.map((r) => r.at).sort()).toEqual(['2026-06-10T09:00', '2026-06-11T08:00'])
   })
 
   it('preserves intervalMinutes + until on a recurring-interval entry', () => {
