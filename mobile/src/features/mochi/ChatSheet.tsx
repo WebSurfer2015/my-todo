@@ -25,7 +25,7 @@ import MochiThinking from './MochiThinking'
 import EditableCaptureCard from './EditableCaptureCard'
 import { type Priority } from '../../core-bindings/types'
 import { snapDueDateToRecurrence } from '../../../../core/src/logic/derive'
-import { buildFallbackCapture } from '../../../../core/src/logic/mochiFallback'
+import { buildFallbackCapture, mochiRestEndsAt } from '../../../../core/src/logic/mochiFallback'
 import { todayLocal, formatDisplayDate, isoDate } from '../../core-bindings/utils'
 import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 
@@ -104,7 +104,10 @@ interface Props {
    * applying it directly — the chat parsed the words, the manual form (the
    * same code a manual add uses) lets the user confirm/edit and save. When
    * provided, a single-createTodo confirmation routes here. */
-  onReviewCreateTodo?: (args: Extract<ProposedOperation, { kind: 'createTodo' }>['args']) => void
+  onReviewCreateTodo?: (
+    args: Extract<ProposedOperation, { kind: 'createTodo' }>['args'],
+    opts?: { note?: string },
+  ) => void
   /** Switch back to the manual compose form. Renders an "Enter manually
    * instead" action; omit to hide it. */
   onEnterManually?: () => void
@@ -210,6 +213,18 @@ function BreathingSparkle({ reduceMotion, color }: { reduceMotion: boolean; colo
  * Confirm. Every write goes through the same store mutations a manual tap
  * uses.
  */
+// Over the fair-use ceiling Mochi "rests" until the server's day resets
+// (00:00 UTC). Module-scope so reopening the chat the same day still shows
+// it — the hook's state resets on every open.
+let restingUntilMs = 0
+
+/** "8:00 PM", or "tomorrow, 1:00 AM" when the reset is on a later local day. */
+function restingUntilLabel(ms: number): string {
+  const d = new Date(ms)
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+  return d.toDateString() === new Date().toDateString() ? time : `tomorrow, ${time}`
+}
+
 export default function ChatSheet({
   visible,
   onClose,
@@ -306,9 +321,36 @@ export default function ChatSheet({
   // Mid-conversation the latest turn may be just an answer ("Friday"), so
   // rebuild the still-open request ("call mom — Friday").
   // `messages` here is the pre-send snapshot, so it excludes `turn`.
+  // Phase 2 (2026-10-18): don't yank the user out of the chat. Mochi says
+  // it's resting (with the real local reset time) and offers "Add it
+  // myself", which carries their words into Compose.
+  const [restingCapture, setRestingCapture] = useState<{ text: string } | null>(null)
+  // { until, label } while resting; null otherwise. Set from events/effects
+  // (never computed from the clock during render).
+  const [resting, setResting] = useState<{ until: number; label: string } | null>(null)
+  const isResting = resting !== null
+  const restLabel = resting?.label ?? ''
+  useEffect(() => {
+    if (!visible) return
+    setRestingCapture(null)
+    setResting(
+      Date.now() < restingUntilMs ? { until: restingUntilMs, label: restingUntilLabel(restingUntilMs) } : null,
+    )
+  }, [visible])
+  // Wake up when the rest ends while the sheet is open.
+  useEffect(() => {
+    if (!resting) return
+    const id = setTimeout(() => setResting(null), Math.max(0, resting.until - Date.now()))
+    return () => clearTimeout(id)
+  }, [resting])
   function fallBackToManual(turn: string) {
-    if (onReviewCreateTodo) {
-      onReviewCreateTodo(buildFallbackCapture(messages, turn))
+    restingUntilMs = mochiRestEndsAt(new Date()).valueOf()
+    setResting({ until: restingUntilMs, label: restingUntilLabel(restingUntilMs) })
+    setRestingCapture(buildFallbackCapture(messages, turn))
+  }
+  function addItMyself() {
+    if (restingCapture && onReviewCreateTodo) {
+      onReviewCreateTodo(restingCapture, { note: `Mochi's resting until ${restLabel}. I kept your words.` })
       close()
     } else {
       onEnterManually?.()
@@ -318,6 +360,12 @@ export default function ChatSheet({
   function handleSend(raw: string = input) {
     const turn = raw.trim()
     if (!turn || isThinking) return
+    if (Date.now() < restingUntilMs) {
+      // Still resting from earlier today — don't spend a call.
+      fallBackToManual(turn)
+      setInput('')
+      return
+    }
     Haptics.selectionAsync().catch(() => {})
     setInput('')
     lastSentRef.current = turn
@@ -649,6 +697,32 @@ export default function ChatSheet({
                 </View>
               )}
 
+              {isResting && (
+                <View style={styles.mochiRow}>
+                  <View style={styles.mochiAvatar}>
+                    <Sparkles size={14} color={theme.primary} strokeWidth={2.2} />
+                  </View>
+                  <View style={styles.mochiBubble}>
+                    <Text style={styles.mochiLine}>
+                      {restingCapture
+                        ? `I've helped with a lot today, so I'm resting until ${restLabel}. Your words are safe — you can add this yourself right now.`
+                        : `I'm resting until ${restLabel}. You can still add things yourself.`}
+                    </Text>
+                    <View style={styles.actionsRow}>
+                      <TouchableOpacity
+                        style={[styles.btn, styles.btnPrimary]}
+                        onPress={addItMyself}
+                        accessibilityRole="button"
+                      >
+                        <Text style={styles.btnPrimaryText}>
+                          {restingCapture ? 'Add it myself' : 'Add a to-do'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              )}
+
               {error && (
                 <View style={styles.errorBlock}>
                   <Text style={styles.errorLine}>{error}</Text>
@@ -690,9 +764,11 @@ export default function ChatSheet({
                 ref={inputRef}
                 style={styles.input}
                 placeholder={
-                  messages.length === 0
-                    ? `e.g. ${PLACEHOLDER_EXAMPLES[phIdx]}`
-                    : 'Message Mochi…'
+                  isResting
+                    ? `Mochi's resting — back at ${restLabel}`
+                    : messages.length === 0
+                      ? `e.g. ${PLACEHOLDER_EXAMPLES[phIdx]}`
+                      : 'Message Mochi…'
                 }
                 placeholderTextColor={theme.gray3}
                 autoCapitalize="sentences"
@@ -708,7 +784,7 @@ export default function ChatSheet({
                 multiline
                 maxLength={2000}
                 blurOnSubmit={false}
-                editable={!isThinking}
+                editable={!isThinking && !isResting}
               />
               <Pressable
                 style={({ pressed }) => [

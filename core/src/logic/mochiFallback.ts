@@ -60,3 +60,13 @@ export function buildFallbackCapture(
   const [first = '', ...answers] = openTurns.filter(Boolean)
   return { text: answers.length > 0 ? `${first} — ${answers.join(', ')}` : first }
 }
+
+/**
+ * When Mochi's fair-use day resets: the next 00:00 UTC (the server counts
+ * per UTC day — functions/src/quota.ts). Shown to the user in local time
+ * ("resting until 8 PM") rather than a vague "tomorrow", which would be
+ * wrong in the Americas, where UTC midnight falls in the evening.
+ */
+export function mochiRestEndsAt(now: Date = new Date()): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1))
+}

@@ -176,7 +176,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   // The agent's reminders carry no id (the model can't mint stable UUIDs), so
   // stamp one per entry, exactly as applyMochiOp does.
   const reviewCreateTodo = useCallback(
-    (args: Extract<ProposedOperation, { kind: 'createTodo' }>['args']) => {
+    (args: Extract<ProposedOperation, { kind: 'createTodo' }>['args'], opts?: { note?: string }) => {
       const reminders =
         args.reminders && args.reminders.length > 0
           ? args.reminders.map((r) => ({
@@ -193,6 +193,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         dueDate: args.dueDate,
         recurrence: args.recurrence,
         ...(reminders ? { reminders } : {}),
+        ...(opts?.note ? { note: opts.note } : {}),
       })
       // Close the chat first, then open Compose on the next tick — iOS can't
       // stack two <Modal>s reliably (same handoff dance as guide menu → guide).
@@ -835,8 +836,10 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           onClose={() => setMochiOpen(false)}
           onEnterManually={() => {
             store.saveProfile((p) => ({ ...p, lastComposeMode: 'manual' }))
+            setComposePrefill(null)
             setMochiOpen(false)
-            setComposeOpen(true)
+            // Same 280ms Modal handoff as the other sheet switches.
+            setTimeout(() => setComposeOpen(true), 280)
           }}
         />
       )}

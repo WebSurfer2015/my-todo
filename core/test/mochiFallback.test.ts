@@ -1,7 +1,7 @@
 // Locks in the mid-conversation fallback capture (P1.7): over the fair-use
 // ceiling, Compose should get the still-open request, not just the last reply.
 import { describe, expect, it } from 'vitest'
-import { buildFallbackCapture, type FallbackChatTurn } from '../src/logic/mochiFallback'
+import { buildFallbackCapture, mochiRestEndsAt, type FallbackChatTurn } from '../src/logic/mochiFallback'
 
 const user = (content: string): FallbackChatTurn => ({ role: 'user', content })
 const mochi = (content: string, operations?: unknown[]): FallbackChatTurn => ({
@@ -63,5 +63,13 @@ describe('buildFallbackCapture', () => {
   it('skips blank turns', () => {
     const history = [user('pay rent'), mochi('Due when?'), user('   ')]
     expect(buildFallbackCapture(history, '1st')).toEqual({ text: 'pay rent — 1st' })
+  })
+})
+
+describe('mochiRestEndsAt (fair-use day reset)', () => {
+  it('is the next 00:00 UTC', () => {
+    expect(mochiRestEndsAt(new Date('2026-10-18T19:30:00Z')).toISOString()).toBe('2026-10-19T00:00:00.000Z')
+    expect(mochiRestEndsAt(new Date('2026-10-18T00:00:00Z')).toISOString()).toBe('2026-10-19T00:00:00.000Z')
+    expect(mochiRestEndsAt(new Date('2026-12-31T23:59:59Z')).toISOString()).toBe('2027-01-01T00:00:00.000Z')
   })
 })

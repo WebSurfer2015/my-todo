@@ -194,6 +194,14 @@ export function makeStyles(c: ThemeColors) {
       alignItems: 'center',
     },
     addStepText: { fontSize: TYPE.body, color: c.blue, fontWeight: '600' },
+    prefillNote: {
+      marginBottom: SPACING.sm,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+      borderRadius: RADIUS.card,
+      backgroundColor: c.primarySoft,
+    },
+    prefillNoteText: { fontSize: TYPE.body, lineHeight: 20, color: c.label },
     // Two-line Compose — line 2 chip row (44pt targets).
     chipRow: {
       flexDirection: 'row',

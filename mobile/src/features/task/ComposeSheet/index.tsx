@@ -61,6 +61,8 @@ export interface ComposePrefill {
   dueDate?: string
   recurrence?: Recurrence
   reminders?: Reminder[]
+  /** A quiet line shown above the text (e.g. Mochi resting hand-off). */
+  note?: string
 }
 
 interface Props {
@@ -529,6 +531,12 @@ export default function ComposeSheet({
                     <Sparkles size={13} color={theme.primary} strokeWidth={2.2} />
                     <Text style={styles.askMochiText}>Ask Mochi instead</Text>
                   </TouchableOpacity>
+                )}
+
+                {!!prefill?.note && (
+                  <View style={styles.prefillNote} accessibilityRole="text">
+                    <Text style={styles.prefillNoteText}>{prefill.note}</Text>
+                  </View>
                 )}
 
                 {/* Title card lives OUTSIDE the scroll so the
