@@ -38,4 +38,6 @@ appId: com.websurfer.mytodo
 - waitForAnimationToEnd
 # Open again: an open row's a11y label is just its title (a done row
 # reads "<title>, completed").
-- assertVisible: "Review reading group chapter"
+- assertVisible:
+    # Row a11y label is "<title>, <date/category/…>" since round 8.
+    text: "Review reading group chapter.*"
