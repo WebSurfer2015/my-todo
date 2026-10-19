@@ -7,7 +7,12 @@
  */
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import { useTodosSlice, deferSnackbarMessage, type TodosSliceDeps } from '../store/slices/useTodosSlice'
+import {
+  useTodosSlice,
+  deferSnackbarMessage,
+  recurrenceChangedMessage,
+  type TodosSliceDeps,
+} from '../store/slices/useTodosSlice'
 import { createTodoStore } from '../../../core/src/store'
 import { strings } from '../../../core/src/data/i18n'
 import type { StorageAdapter } from '../../../core/src/ports/persistence'
@@ -425,5 +430,78 @@ describe('useTodosSlice exact Undos (round 3)', () => {
     act(() => added!.undo())
     await waitFor(() => expect(hook.result.current.todos.some((x) => x.text === 'Stretch')).toBe(false))
     expect(hook.result.current.todos.map((x) => x.text).sort()).toEqual(['Plain', 'keep'])
+  })
+})
+
+describe('useTodosSlice round 4', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 19, 12, 0, 0))
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('addTaskWithUndo returns the seed — the earliest occurrence — of a new series', async () => {
+    const { hook } = await setup([mk('keep')])
+    let added: { id: string } | null = null
+    act(() => {
+      added = hook.result.current.addTaskWithUndo('Stretch', 'medium', '2026-10-19', undefined, { freq: 'daily' })
+    })
+    const rows = hook.result.current.todos.filter((x) => x.text === 'Stretch')
+    expect(rows.length).toBeGreaterThan(1)
+    const earliest = [...rows].sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0]
+    expect(added!.id).toBe(earliest.id)
+    expect(earliest.dueDate.startsWith('2026-10-19')).toBe(true)
+  })
+
+  it('updateRecurrence keeps a detached sibling exactly as the user left it', async () => {
+    const todos = dailySeries().map((x) =>
+      x.id === 'd22' ? { ...x, text: 'Long walk', detachedFromSeries: true } : x,
+    )
+    const { hook } = await setup(todos)
+    act(() => {
+      hook.result.current.updateRecurrence('d19', { freq: 'weekly' })
+    })
+    const kept = hook.result.current.todos.find((x) => x.id === 'd22')
+    expect(kept).toBeDefined()
+    expect(kept!.text).toBe('Long walk')
+    expect(kept!.dueDate).toBe('2026-10-22')
+    expect(kept!.trashed).toBe(false)
+    // The plain daily siblings were replaced by the weekly tail.
+    expect(hook.result.current.todos.some((x) => x.id === 'd20')).toBe(false)
+  })
+
+  it('a series rule change from details offers an exact Undo on its snackbar', async () => {
+    const { hook, snacks } = await setup(dailySeries())
+    const before = hook.result.current.todos.map((x) => x.id)
+    let undo: (() => void) | null = null
+    act(() => {
+      undo = hook.result.current.applyRecurrenceChange('d19', { freq: 'weekly' }, { keepDetached: true })
+    })
+    const snack = snacks.at(-1)!
+    expect(snack.message).toBe('Repeat updated · 7 upcoming to-dos replaced')
+    expect(snack.actionLabel).toBe('Undo')
+    expect(snack.onAction).toBe(undo)
+    act(() => snack.onAction!())
+    await waitFor(() => expect(hook.result.current.todos.map((x) => x.id)).toEqual(before))
+    expect(hook.result.current.todos.every((x) => x.recurrence?.freq === 'daily')).toBe(true)
+  })
+
+  it('a rule change that changes nothing returns no Undo and says nothing', async () => {
+    const { hook, snacks } = await setup([mk('solo')])
+    const n = snacks.length
+    let undo: (() => void) | null = () => {}
+    act(() => {
+      undo = hook.result.current.applyRecurrenceChange('solo', { freq: 'weekly' }, { keepDetached: true })
+    })
+    expect(undo).toBeNull()
+    expect(snacks.length).toBe(n)
+  })
+})
+
+describe('recurrenceChangedMessage', () => {
+  it('pluralizes and drops the count when nothing was replaced', () => {
+    expect(recurrenceChangedMessage(0)).toBe('Repeat updated')
+    expect(recurrenceChangedMessage(1)).toBe('Repeat updated · 1 upcoming to-do replaced')
+    expect(recurrenceChangedMessage(3)).toBe('Repeat updated · 3 upcoming to-dos replaced')
   })
 })

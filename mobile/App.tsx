@@ -44,6 +44,7 @@ import type { Filter } from "./src/core-bindings/types";
 import { LangProvider, useLang } from "./src/app/LangContext";
 import { AuthProvider, useAuth } from "./src/app/AuthContext";
 import { NotifyProvider } from "./src/app/notify";
+import { MODAL_HANDOFF_MS } from "./src/app/modalTiming";
 import { ErrorBoundary } from "./src/app/ErrorBoundary";
 import { buildDoneGroups, type TodoGroup, type DoneGroup } from "../core/src/logic/groups";
 import { useLinger } from "./src/features/task/useLinger";
@@ -53,7 +54,7 @@ import SignIn from "./src/features/auth/SignIn";
 import EmptyStateCard from "./src/ui/EmptyStateCard";
 import Onboarding from "./src/features/onboarding/Onboarding";
 import SplashOverlay from "./src/app/SplashOverlay";
-import { cancelDailyCheckin, onReminderTapped, syncTodoReminders } from "./src/adapters/notifications";
+import { onReminderTapped, syncTodoReminders } from "./src/adapters/notifications";
 import { installCrashReporters } from "./src/adapters/crashReporting";
 import { initAppCheck } from "./src/adapters/appCheck";
 
@@ -215,15 +216,6 @@ function TodosScreen() {
       return next;
     });
   }, [displayGroups, collapsedGroups]);
-
-  // Daily check-in scheduling was removed pending a full notifications
-  // & reminders redesign. Cancel any orphaned schedules from previous
-  // versions so users don't keep getting old reminders. The profile
-  // fields stay in core so opted-in state isn't destroyed.
-  useEffect(() => {
-    if (!store.loaded) return;
-    cancelDailyCheckin().catch(() => {});
-  }, [store.loaded]);
 
   // Auth + store-hydration + onboarding gates moved to AppGate, which
   // wraps the whole tab navigator. By the time this screen mounts those
@@ -924,8 +916,8 @@ function FirstRunLayer() {
           // (openCapture follows lastComposeMode).
           store.saveProfile((p) => ({ ...p, onboardingDone: true, guidesPromptShown: true, lastComposeMode: 'mochi' }));
           // Hand the words to Mochi once the onboarding modal has animated
-          // out (iOS can't stack two Modals — same 280ms handoff).
-          setTimeout(() => sheets.openCaptureWith(text), 280);
+          // out (iOS can't stack two Modals — the shared handoff delay).
+          setTimeout(() => sheets.openCaptureWith(text), MODAL_HANDOFF_MS);
         }}
         onExplore={() => {
           setOnboardingNeeded(false);

@@ -38,6 +38,7 @@ import { sortedSubs, snapDueDateToRecurrence } from '../../../../../core/src/log
 import { useTheme } from '../../../app/theme'
 import { useLang } from '../../../app/LangContext'
 import { useNotify } from '../../../app/notify'
+import { useModalPresence } from '../../../app/modalPresence'
 import { useStore } from '../../../app/StoreContext'
 import PriorityDot from '../../../ui/PriorityDot'
 import CheckGlyph from '../../../ui/CheckGlyph'
@@ -306,6 +307,12 @@ export default function TaskDetailsSheet({
   // Pending value for the per-subtask iOS date modal (separate from the
   // sub-page editor's pendingEditSubDueDate).
   const [pendingSubModalDate, setPendingSubModalDate] = useState<string>('')
+  // "Busy": a step's own iOS date Modal, or an in-sheet picker page, holds a
+  // half-picked value — a reminder tap must not swap this sheet away (it's
+  // offered once details closes instead). See useDetailsRouter.
+  useModalPresence(
+    (Platform.OS === 'ios' && subDateForId !== null) || parentEditView !== 'main' || editSubPickerView !== 'main',
+  )
 
   // Latest todo, mirrored so the seed effect can read it without
   // re-running on every todo reference change (see below).

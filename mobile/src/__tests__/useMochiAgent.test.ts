@@ -181,6 +181,16 @@ describe('useMochiAgent', () => {
     expect(result.current.error).toMatch(/turned off/)
   })
 
+  it('a server error says so calmly — never a raw status code', async () => {
+    fetchMock.mockResolvedValueOnce(json({ error: { status: 'INTERNAL', message: 'boom' } }, 500))
+    const { result } = renderHook(() => useMochiAgent())
+    await act(async () => {
+      await result.current.send('hi', CTX as never)
+    })
+    expect(result.current.errorKind).toBe('fail')
+    expect(result.current.error).toBe("Mochi couldn't reach us just now. Try again in a moment.")
+  })
+
   it('sends conversationStart until the server has replied', async () => {
     fetchMock.mockResolvedValueOnce(reply({ reply: 'When should I set it for' })).mockResolvedValueOnce(reply({}))
     const { result } = renderHook(() => useMochiAgent())

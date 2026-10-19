@@ -83,7 +83,6 @@ export interface TodosSliceDeps {
       editsApplied: (n: number) => string;
       editsNothing: string;
       trashedMany: (n: number) => string;
-      recurrenceRecreated: (n: number) => string;
       subtasksApplied: (n: number) => string;
     };
     snooze: {
@@ -113,6 +112,13 @@ export type Undo = () => void;
 /** Defer snackbar: what moved, plus — when a repeating series had several
  * missed occurrences — how many older ones were tucked into Done instead of
  * piling onto one day (core todoDeferTo's `skipped`). English-only launch. */
+/** Snackbar after a series' repeat rule changed from details. English-only
+ * launch (v2 store copy). */
+export function recurrenceChangedMessage(replaced: number): string {
+  if (replaced <= 0) return "Repeat updated";
+  return `Repeat updated · ${replaced} upcoming ${replaced === 1 ? "to-do" : "to-dos"} replaced`;
+}
+
 export function deferSnackbarMessage(deferredMessage: string, skipped: number): string {
   if (skipped <= 0) return deferredMessage;
   const base = deferredMessage.replace(/\.$/, "");
@@ -177,7 +183,7 @@ export interface TodosSlice {
     id: string,
     newRecurrence: Recurrence | undefined,
     options: { keepDetached: boolean },
-  ) => void;
+  ) => Undo | null;
   /** R6c — Propagate the target's current subtasks shape to every
    * future non-trashed sibling. `keepDetached` lets per-instance
    * customizations survive ("Keep modified, overwrite the rest"). */
@@ -569,18 +575,25 @@ export function useTodosSlice(
     ) => {
       const today = todayLocal();
       let trashedCount = 0;
-      applyTracked((ts) => {
+      const change = applyTracked((ts) => {
         const result = todoApplyRecurrenceChange(ts, id, newRecurrence, today, {
           keepDetached: options.keepDetached,
         });
         trashedCount = result.trashedCount;
         return result.next;
       });
+      if (!change) return null;
+      // Exact: puts the old rule and the replaced occurrences back, keeping
+      // anything changed since.
+      const undo: Undo = () => undoTracked(change);
       notify.showSnackbar({
-        message: t.series.recurrenceRecreated(trashedCount),
+        message: recurrenceChangedMessage(trashedCount),
+        actionLabel: t.undo,
+        onAction: undo,
       });
+      return undo;
     },
-    [applyTracked, notify, t.series, todoApplyRecurrenceChange],
+    [applyTracked, undoTracked, notify, t.undo, todoApplyRecurrenceChange],
   );
 
   const moveSeriesFutureToTrash = useCallback(

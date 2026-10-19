@@ -341,35 +341,6 @@ export function makeStyles(c: ThemeColors) {
     langBtnTextActive: {
       color: c.primaryOn,
     },
-    checkinTimeRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingVertical: SPACING.md,
-      paddingHorizontal: SPACING.lg,
-      marginTop: -4,
-      marginBottom: SPACING.xs,
-      borderRadius: RADIUS.control,
-      backgroundColor: c.bg,
-    },
-    checkinTimeLabel: {
-      fontSize: TYPE.body,
-      fontWeight: "500",
-      color: c.label2,
-    },
-    checkinTimeValue: {
-      fontSize: TYPE.body,
-      fontWeight: "700",
-      color: c.primary,
-      fontVariant: ["tabular-nums"],
-    },
-    checkinTimePickerWrap: {
-      backgroundColor: c.card,
-      borderRadius: RADIUS.card,
-      paddingVertical: SPACING.xs,
-      marginBottom: SPACING.sm,
-      alignItems: "center",
-    },
     privacySectionLabel: {
       fontSize: TYPE.caption,
       fontWeight: "700",

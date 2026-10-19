@@ -86,6 +86,20 @@ describe('useProfileSlice', () => {
     expect(hook.result.current.profile.pinnedFilters?.length).toBe(PIN_LIMIT)
   })
 
+  it('keepAndClearFilter at the pin cap says so calmly and still clears the selection', async () => {
+    const { hook, messages, clearFilters } = await profileSetup()
+    for (let i = 0; i < PIN_LIMIT; i++) act(() => hook.result.current.pinFilter([`cat:c${i}` as Filter]))
+    expect(messages).toEqual([])
+    act(() => hook.result.current.keepAndClearFilter(['cat:extra' as Filter]))
+    expect(messages).toEqual([`cap ${PIN_LIMIT}`])
+    expect(hook.result.current.profile.pinnedFilters ?? []).not.toContainEqual(['cat:extra'])
+    expect(clearFilters).toHaveBeenCalledTimes(1)
+    // An already-pinned set is not "over the cap".
+    act(() => hook.result.current.keepAndClearFilter(['cat:c0' as Filter]))
+    expect(messages).toEqual([`cap ${PIN_LIMIT}`])
+    expect(hook.result.current.profile.pinnedFilters?.length).toBe(PIN_LIMIT)
+  })
+
   it('keepAndClearFilter pins the set and clears the selection', async () => {
     const { hook, clearFilters } = await profileSetup()
     act(() => hook.result.current.keepAndClearFilter(['done', 'pri:high']))

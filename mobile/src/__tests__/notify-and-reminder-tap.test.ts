@@ -65,10 +65,10 @@ describe('cancelAllReminders', () => {
     en.gate = null
   })
 
-  it('cancels every to-do reminder and the daily check-in, nothing else', async () => {
+  it('cancels every to-do reminder, nothing else', async () => {
     en.scheduled = ['todo:a:r:0', 'todo:a:nudge:0', 'other-app-thing']
     await cancelAllReminders()
-    expect(en.cancelled.sort()).toEqual(['sagely-daily-checkin', 'todo:a:nudge:0', 'todo:a:r:0'])
+    expect(en.cancelled.sort()).toEqual(['todo:a:nudge:0', 'todo:a:r:0'])
   })
 
   it('also clears already-delivered reminders from Notification Center', async () => {

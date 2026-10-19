@@ -12,10 +12,7 @@
  * tap time, so nothing needs to re-render when it changes.
  */
 import { useEffect } from 'react'
-
-/** A closed Modal still animates out; keep counting it for this long so a
- * tap during the dismiss doesn't try to present over it. */
-export const MODAL_DISMISS_GRACE_MS = 300
+import { MODAL_DISMISS_GRACE_MS } from './modalTiming'
 
 let presented = 0
 
@@ -35,4 +32,10 @@ export function useModalPresence(visible: boolean): void {
       }, MODAL_DISMISS_GRACE_MS)
     }
   }, [visible])
+}
+
+/** Test-only: forget every counted Modal (a test's pending grace timers
+ * would otherwise leak into the next one). */
+export function __resetModalPresenceForTests(): void {
+  presented = 0
 }

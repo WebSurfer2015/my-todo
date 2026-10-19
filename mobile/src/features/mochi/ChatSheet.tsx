@@ -19,6 +19,7 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { Sparkles, Bell, Check } from 'lucide-react-native'
 import { useLang } from '../../app/LangContext'
 import { useAuth } from '../../app/AuthContext'
+import { isUndoLive, useUndoLive } from '../../app/mochiUndo'
 import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
 import { useSheetDismiss, sheetGrabZone } from '../../ui/useSheetDismiss'
 import { useMochiAgent, type ProposedOperation } from './useMochiAgent'
@@ -703,6 +704,7 @@ export default function ChatSheet({
                               recurrenceText={repeatText(op.args.recurrence, t.recurrence)}
                               onEdit={onEditCapturedTodo}
                               onRemove={() => runUndo(i)}
+                              undoLive={isUndoLive(undoFnsRef.current[i])}
                             />
                           ) : op.kind === 'pickTodos' ? (
                             // Several tasks matched — let the user tick which
@@ -768,7 +770,8 @@ export default function ChatSheet({
                         ) : resolved[i] === 'applied' ? (
                           // Applied turns carry an inline Undo when the store
                           // could hand one back; otherwise just ✓ Done.
-                          undoFnsRef.current[i] ? (
+                          // Only the latest applied turn keeps its Undo.
+                          undoFnsRef.current[i] && (undone[i] || isUndoLive(undoFnsRef.current[i])) ? (
                             undone[i] ? (
                               <Text style={styles.appliedNote}>
                                 {capturedIdRef.current[i] ? 'Removed' : 'Undone'}
@@ -1065,8 +1068,10 @@ function AppliedWithUndo({
   styles: ReturnType<typeof makeStyles>
 }) {
   const [undone, setUndone] = useState(false)
+  // Retired once a newer Mochi turn applied changes.
+  const live = useUndoLive(undo)
   if (undone) return <Text style={styles.appliedNote}>Undone</Text>
-  if (!undo) return <Text style={styles.appliedNote}>✓ {note}</Text>
+  if (!undo || !live) return <Text style={styles.appliedNote}>✓ {note}</Text>
   return (
     <View style={styles.appliedRow}>
       <Text style={[styles.appliedNote, { marginTop: 0 }]}>✓ {note}</Text>
