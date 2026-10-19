@@ -66,7 +66,7 @@ const t = {
 
 async function setup(todos: Todo[]) {
   const snacks: Snack[] = []
-  const actions = createTodoStore({ now: () => Date.now(), genId: () => 'x', t: strings.en }).actions
+  const actions = createTodoStore({ t: strings.en }).actions
   const filter: Filter = 'all'
   const deps: TodosSliceDeps = {
     filter,
