@@ -316,7 +316,8 @@ export function migrateProfile(raw: unknown): Profile {
       typeof p.quoteShuffle === 'object' &&
       typeof (p.quoteShuffle as { date?: unknown }).date === 'string' &&
       /^\d{4}-\d{2}-\d{2}$/.test((p.quoteShuffle as { date: string }).date) &&
-      typeof (p.quoteShuffle as { index?: unknown }).index === 'number'
+      typeof (p.quoteShuffle as { index?: unknown }).index === 'number' &&
+      Number.isFinite((p.quoteShuffle as { index: number }).index)
         ? {
             date: (p.quoteShuffle as { date: string }).date,
             index: Math.max(0, Math.floor((p.quoteShuffle as { index: number }).index)),
@@ -331,10 +332,14 @@ export function migrateProfile(raw: unknown): Profile {
     onboardingDone: p.onboardingDone === true ? true : undefined,
     gentleNudge: p.gentleNudge === true ? true : undefined,
     guidesSeen: Array.isArray(p.guidesSeen)
-      ? p.guidesSeen.filter(
-          (id: unknown): id is string =>
-            typeof id === 'string' && id.length > 0 && id.length < 64,
-        )
+      ? [
+          ...new Set(
+            p.guidesSeen.filter(
+              (id: unknown): id is string =>
+                typeof id === 'string' && id.length > 0 && id.length < 64,
+            ),
+          ),
+        ].slice(0, MAX_GUIDES_SEEN)
       : undefined,
     guidesPromptShown: p.guidesPromptShown === true ? true : undefined,
     dailyCheckinEnabled: p.dailyCheckinEnabled === true ? true : undefined,
@@ -366,6 +371,9 @@ export function migrateProfile(raw: unknown): Profile {
   }
 }
 
+/** Ceiling on remembered guide ids — the catalog is a handful; this only
+ * bounds a malformed cloud write. */
+const MAX_GUIDES_SEEN = 64
 const MAX_GROCERY_STORES = 30
 const MAX_GROCERY_STORE_NAME_LEN = 64
 

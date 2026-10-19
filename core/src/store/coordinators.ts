@@ -13,7 +13,7 @@ import type { CategoryDef } from '../data/categories'
 import type { Filter, Todo } from '../domain/types'
 import { isCategoryFilter, categoryIdFromFilter } from '../domain/types'
 import { categoryDelete, todoToggle } from '../logic/derive'
-import { stripFilterFromPinned } from '../logic/filters'
+import { DEFAULT_HOME_STAT_TILES, filterSetKey, stripFilterFromPinned } from '../logic/filters'
 
 export interface DeleteCategoryInput {
   todos: Todo[]
@@ -21,7 +21,11 @@ export interface DeleteCategoryInput {
   id: string
   /** Active filter — reset to 'all' when it targets the deleted category. */
   filter: Filter
+  /** Active multi-filter selection — the deleted `cat:<id>` is removed. */
+  filters?: Filter[]
   pinnedFilters: string[][] | undefined
+  /** Profile's Dashboard stat tiles — the deleted `cat:<id>` is removed. */
+  homeStatTiles?: string[]
 }
 
 export interface DeleteCategoryResult {
@@ -33,13 +37,38 @@ export interface DeleteCategoryResult {
   filter: Filter | null
   /** Next pinnedFilters (same reference ⇒ no change). */
   pinnedFilters: string[][] | undefined
+  /** Next multi-filter selection, or null when it didn't contain the category. */
+  filters: Filter[] | null
+  /** Next homeStatTiles (same reference ⇒ no change). */
+  homeStatTiles: string[] | undefined
+}
+
+/** Strip `filterId` from every pinned set (stripFilterFromPinned), then drop
+ * sets that became duplicates of another — ['cat:x','done'] collapses to
+ * ['done'], which may already be pinned. Same reference when unchanged. */
+function stripAndDedupePinned(
+  pinned: string[][] | undefined,
+  filterId: string,
+): string[][] | undefined {
+  const stripped = stripFilterFromPinned(pinned, filterId)
+  if (stripped === pinned || !stripped) return stripped
+  const seen = new Set<string>()
+  return stripped.filter((set) => {
+    const key = filterSetKey(set)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 /**
  * Cascade for deleting a category across every slice it touches:
- *   - core `categoryDelete` drops the category + trashes its todos
- *   - reset the active filter to 'all' if it pointed at the deleted id
- *   - strip the ghost `cat:<id>` from every pinned filter set
+ *   - core `categoryDelete` drops the category, trashes its open todos and
+ *     clears the category on every todo that had it
+ *   - reset the active filter to 'all' if it pointed at the deleted id, and
+ *     drop it from the multi-filter selection
+ *   - strip the ghost `cat:<id>` from every pinned filter set (deduping sets
+ *     that collapse into each other) and from the Dashboard stat tiles
  *
  * Refuses to delete the last remaining category (`categoryDelete`
  * returns `deleted: false`). Pure — the glue applies the returned slices.
@@ -47,11 +76,16 @@ export interface DeleteCategoryResult {
 export function deleteCategoryCascade(
   input: DeleteCategoryInput,
 ): DeleteCategoryResult {
-  const { todos, categories, id, filter, pinnedFilters } = input
+  const { todos, categories, id, filter, filters, pinnedFilters, homeStatTiles } = input
   const next = categoryDelete(todos, categories, id)
   if (!next.deleted) {
-    return { changed: false, todos, categories, filter: null, pinnedFilters }
+    return {
+      changed: false, todos, categories, filter: null, pinnedFilters, filters: null, homeStatTiles,
+    }
   }
+  const catFilter: Filter = `cat:${id}`
+  // Unset tiles mean the default trio, which itself names categories.
+  const tiles = homeStatTiles ?? DEFAULT_HOME_STAT_TILES
   const filterReset =
     isCategoryFilter(filter) && categoryIdFromFilter(filter) === id
       ? ('all' as Filter)
@@ -61,7 +95,13 @@ export function deleteCategoryCascade(
     todos: next.todos,
     categories: next.categories,
     filter: filterReset,
-    pinnedFilters: stripFilterFromPinned(pinnedFilters, `cat:${id}`),
+    filters: filters && filters.includes(catFilter)
+      ? filters.filter((f) => f !== catFilter)
+      : null,
+    pinnedFilters: stripAndDedupePinned(pinnedFilters, catFilter),
+    homeStatTiles: tiles.includes(catFilter)
+      ? tiles.filter((f) => f !== catFilter)
+      : homeStatTiles,
   }
 }
 

@@ -15,7 +15,7 @@ import {
 } from "../domain/types";
 import { CategoryDef, categoryLabel } from "../data/categories";
 import { buildGroups, TodoGroup } from "./groups";
-import { genUuid, isoDate, todayLocal, dueDateOnly, nextOccurrence, expandRecurrence, MAX_RECURRENCE_INSTANCES } from "./utils";
+import { genUuid, isoDate, todayLocal, dueDateOnly, nextOccurrence, expandRecurrence, matchesRecurrence, MAX_RECURRENCE_INSTANCES } from "./utils";
 import type { Strings } from "../data/i18n";
 
 export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
@@ -90,18 +90,18 @@ export function newTodo(input: {
 /**
  * When a recurrence has a weekday filter, the dueDate is the FIRST
  * occurrence of the series — it must fall on one of the listed
- * weekdays. If `dueDate` is empty or its weekday isn't in
- * recurrence.byWeekday, snap forward to the next matching day
- * (starting from dueDate, or today if empty). Preserves any time
- * suffix on dueDate. No-op for recurrences without byWeekday and
- * for dueDates that already match.
+ * weekdays (and, for a monthly rule, at one of the listed positions:
+ * "2nd Thursday"). If `dueDate` is empty or doesn't match, snap
+ * forward to the next matching day (starting from dueDate, or today
+ * if empty). Preserves any time suffix on dueDate. No-op for
+ * recurrences without byWeekday and for dueDates that already match.
  *
  * Example: today=Sat, recurrence={freq:weekly, byWeekday:[3]} (Wed)
  *  → returns next Wednesday's ISO date.
  */
 export function snapDueDateToRecurrence(
   dueDate: string,
-  recurrence: { byWeekday?: number[] } | undefined,
+  recurrence: { freq?: RecurrenceFreq; byWeekday?: number[]; bySetPos?: number[] } | undefined,
 ): string {
   if (!recurrence?.byWeekday || recurrence.byWeekday.length === 0) {
     return dueDate;
@@ -109,17 +109,21 @@ export function snapDueDateToRecurrence(
   const dateOnly = dueDateOnly(dueDate);
   const base = dateOnly ? new Date(`${dateOnly}T00:00:00`) : new Date();
   if (Number.isNaN(base.valueOf())) return dueDate;
+  const tIdx = dueDate.indexOf("T");
+  const withTime = (datePart: string) => (tIdx === -1 ? datePart : datePart + dueDate.slice(tIdx));
+  // Monthly "Nth weekday": the next weekday alone isn't enough — mid-month,
+  // "2nd Thursday" snapped to the 4th Thursday. Use the full rule (interval
+  // 1: the first occurrence is the next match, not one a period later).
+  if (recurrence.freq === "monthly") {
+    const rule = { freq: "monthly" as const, byWeekday: recurrence.byWeekday, bySetPos: recurrence.bySetPos };
+    const baseISO = isoDate(base);
+    if (matchesRecurrence(baseISO, rule)) return withTime(baseISO);
+    return withTime(nextOccurrence(baseISO, "monthly", 1, rule.byWeekday, rule.bySetPos));
+  }
   for (let i = 0; i < 7; i++) {
     const d = new Date(base.valueOf());
     d.setDate(d.getDate() + i);
-    if (recurrence.byWeekday.includes(d.getDay())) {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const day = String(d.getDate()).padStart(2, "0");
-      const datePart = `${y}-${m}-${day}`;
-      const tIdx = dueDate.indexOf("T");
-      return tIdx === -1 ? datePart : datePart + dueDate.slice(tIdx);
-    }
+    if (recurrence.byWeekday.includes(d.getDay())) return withTime(isoDate(d));
   }
   return dueDate;
 }
@@ -236,12 +240,7 @@ export function todoToggle(prev: Todo[], id: string, todayISO?: string): Todo[] 
   // sees the next occurrence queued.
   if (target.seriesId && target.recurrence) {
     const nextDone = !target.done;
-    // R7 — capture the about-to-be-cleared reminders so they can
-    // be rolled onto the next-upcoming sibling after the tail
-    // extends.
-    const oldReminders = getReminders(target);
-    const oldDueDate = target.dueDate;
-    let result = prev.map((td) => {
+    const result = prev.map((td) => {
       if (td.id !== id) return td;
       const upd: Todo = {
         ...td,
@@ -265,20 +264,8 @@ export function todoToggle(prev: Todo[], id: string, todayISO?: string): Todo[] 
       return upd;
     });
     // Only on completion do we extend the tail — un-doing must not
-    // generate a brand-new instance the user didn't ask for. Use the
-    // append-one helper (distinct from the window-driven topUpSeries
-    // used by migration / app-open): "1 completion = 1 new tail"
-    // keeps the visible count stable as the user works through it.
-    if (nextDone) {
-      result = appendNextSeriesInstance(result, target.seriesId);
-      // R7 — transfer the just-cleared reminders forward.
-      if (oldReminders.length > 0) {
-        result = transferSeriesReminders(
-          result, id, oldReminders, oldDueDate, target.seriesId, today,
-        );
-      }
-    }
-    return result;
+    // generate a brand-new instance the user didn't ask for.
+    return nextDone ? seriesCompletionFollowUp(result, target, today) : result;
   }
 
   return prev.flatMap((td) => {
@@ -304,6 +291,74 @@ export function todoToggle(prev: Todo[], id: string, todayISO?: string): Todo[] 
     }
     return [next];
   });
+}
+
+/**
+ * What completing a series instance does beyond flagging the row (shared by
+ * todoToggle and the step paths, so finishing the last step rolls the series
+ * exactly like tapping the circle): append one fresh tail via the append-one
+ * helper (distinct from the window-driven topUpSeries used by migration /
+ * app-open — "1 completion = 1 new tail" keeps the visible count stable), and
+ * R7 — transfer the completed row's reminders (read from `target`, the row
+ * BEFORE completion cleared them) onto the next-upcoming sibling. No-op for a
+ * one-off.
+ */
+function seriesCompletionFollowUp(result: Todo[], target: Todo, today: string): Todo[] {
+  if (!target.seriesId || !target.recurrence) return result;
+  let out = appendNextSeriesInstance(result, target.seriesId);
+  const oldReminders = getReminders(target);
+  if (oldReminders.length > 0) {
+    out = transferSeriesReminders(out, target.id, oldReminders, target.dueDate, target.seriesId, today);
+  }
+  return out;
+}
+
+/**
+ * A to-do with steps: its done state is derived (done ⇔ every step done).
+ * Re-derive it after a step change and keep the Done-bin fields in lock-step
+ * with it, exactly as todoToggle sets them — completing sets trashed +
+ * trashedAt + completionDate and drops reminders; reopening clears all of
+ * them. A to-do left with no steps keeps whatever state the user last set.
+ */
+function syncParentDone(td: Todo, today: string, now: number): Todo {
+  const subs = td.subtasks;
+  if (!subs || subs.length === 0) return td;
+  const nextDone = subs.every((s) => s.done);
+  const wasDone = !!td.done;
+  if (nextDone === wasDone) return td;
+  const next: Todo = { ...td, done: nextDone, trashed: nextDone, updatedAt: now };
+  if (nextDone) {
+    next.trashedAt = now;
+    next.completionDate = today;
+    // Done items don't need future reminders (the scheduler diffs on this).
+    delete next.reminders;
+  } else {
+    delete next.trashedAt;
+    delete next.completionDate;
+  }
+  return next;
+}
+
+/**
+ * Apply a step change to one to-do, re-derive its done state, and — when that
+ * completes it — run the series follow-up. `change` returns the to-do with its
+ * new steps, or null for a no-op (then `prev` is returned unchanged).
+ */
+function applyStepChange(
+  prev: Todo[],
+  todoId: string,
+  change: (td: Todo) => Todo | null,
+  todayISO?: string,
+): Todo[] {
+  const target = prev.find((td) => td.id === todoId);
+  if (!target) return prev;
+  const changed = change(target);
+  if (!changed) return prev;
+  const now = Date.now();
+  const today = todayISO ?? todayLocal();
+  const next = syncParentDone({ ...changed, updatedAt: now }, today, now);
+  const result = prev.map((td) => (td.id === todoId ? next : td));
+  return !target.done && next.done ? seriesCompletionFollowUp(result, target, today) : result;
 }
 
 /**
@@ -352,11 +407,9 @@ export function subtaskAdd(
 ): Todo[] {
   const trimmed = text.trim().slice(0, MAX_SUBTASK_TEXT_LEN);
   if (!trimmed) return prev;
-  const now = Date.now();
-  return prev.map((td) => {
-    if (td.id !== todoId) return td;
+  return applyStepChange(prev, todoId, (td) => {
     const existing = td.subtasks ?? [];
-    if (existing.length >= MAX_SUBTASKS_PER_TODO) return td;
+    if (existing.length >= MAX_SUBTASKS_PER_TODO) return null;
     // Default the new step's dueDate to the parent's when the caller
     // didn't supply one. Initial-only — subtaskUpdateDueDate (the edit
     // path) accepts empty without re-defaulting, so a user who clears
@@ -377,15 +430,9 @@ export function subtaskAdd(
       effectiveDueDate && td.dueDate && effectiveDueDate > td.dueDate
         ? effectiveDueDate
         : td.dueDate;
-    // Adding an open subtask invalidates a previously-done parent.
-    const next: Todo = {
-      ...td,
-      subtasks: nextSubs,
-      dueDate: nextParentDueDate,
-      updatedAt: now,
-    };
-    next.done = nextSubs.every((s) => s.done);
-    return next;
+    // Adding an open subtask reopens a previously-done parent
+    // (applyStepChange → syncParentDone clears its Done-bin flags too).
+    return { ...td, subtasks: nextSubs, dueDate: nextParentDueDate };
   });
 }
 
@@ -436,15 +483,21 @@ export function subtaskUpdateDueDate(
   });
 }
 
+/**
+ * Toggle one step. Finishing the LAST open step completes the to-do through
+ * the same path as todoToggle — Done-bin flags, reminders dropped, and for a
+ * series instance the next occurrence appended + reminders transferred;
+ * reopening a step reopens the to-do.
+ */
 export function subtaskToggle(
   prev: Todo[],
   todoId: string,
   subId: string,
+  todayISO?: string,
 ): Todo[] {
-  const now = Date.now();
-  const today = todayLocal();
-  return prev.map((td) => {
-    if (td.id !== todoId || !td.subtasks) return td;
+  const today = todayISO ?? todayLocal();
+  return applyStepChange(prev, todoId, (td) => {
+    if (!td.subtasks || !td.subtasks.some((s) => s.id === subId)) return null;
     const nextSubs = td.subtasks.map((s) => {
       if (s.id !== subId) return s;
       const nextS = { ...s, done: !s.done };
@@ -454,34 +507,8 @@ export function subtaskToggle(
       else delete nextS.completionDate;
       return nextS;
     });
-    const nextDone = nextSubs.every((s) => s.done);
-    const wasDone = !!td.done;
-    const next: Todo = {
-      ...td,
-      subtasks: nextSubs,
-      done: nextDone,
-      updatedAt: now,
-    };
-    // Mirror todoToggle's Done-bin merge: a fully-done parent should
-    // also be `trashed: true` with a `trashedAt` so every filter and
-    // sync layer treats it identically to a directly-checked todo.
-    // Un-cascading (a sub goes from done back to open) clears all
-    // three flags so the parent comes back to the active list.
-    if (nextDone && !wasDone) {
-      next.completionDate = today;
-      next.trashed = true;
-      next.trashedAt = now;
-      // Done items don't need future reminders. The scheduler diffs on these
-      // fields and cancels every queued fire — mirror todoToggle so a task
-      // completed via its last subtask stops notifying.
-      delete next.reminders;
-    } else if (!nextDone && wasDone) {
-      delete next.completionDate;
-      next.trashed = false;
-      delete next.trashedAt;
-    }
-    return next;
-  });
+    return { ...td, subtasks: nextSubs };
+  }, today);
 }
 
 export function subtaskUpdateText(
@@ -528,15 +555,12 @@ export function subtaskRemove(
   todoId: string,
   subId: string,
 ): Todo[] {
-  const now = Date.now();
-  return prev.map((td) => {
-    if (td.id !== todoId || !td.subtasks) return td;
-    const nextSubs = td.subtasks.filter((s) => s.id !== subId);
-    const next: Todo = { ...td, subtasks: nextSubs, updatedAt: now };
-    // Only re-derive parent done when subs remain. If the list becomes empty,
-    // leave whatever state the user last set on the parent.
-    if (nextSubs.length > 0) next.done = nextSubs.every((s) => s.done);
-    return next;
+  return applyStepChange(prev, todoId, (td) => {
+    if (!td.subtasks || !td.subtasks.some((s) => s.id === subId)) return null;
+    // Parent done is re-derived only while steps remain (syncParentDone);
+    // removing the last open one completes it. If the list becomes empty,
+    // the parent keeps whatever state the user last set.
+    return { ...td, subtasks: td.subtasks.filter((s) => s.id !== subId) };
   });
 }
 
@@ -747,7 +771,11 @@ export function todoApplyRecurrenceChange(
   if (!newRecurrence) return { next: seriesEndBefore(updated, sid, cutoff), trashedCount };
   const updatedTarget = updated.find((t) => t.id === id);
   if (!updatedTarget) return { next: updated, trashedCount };
-  const expanded = expandSeries(updatedTarget, todayISO);
+  const expanded = expandSeries(
+    updatedTarget,
+    todayISO,
+    seriesAnchorDay(prev.filter((td) => td.seriesId === sid)),
+  );
   // expanded[0] is the target itself — already in `updated`.
   return { next: [...updated, ...expanded.slice(1)], trashedCount };
 }
@@ -891,8 +919,10 @@ export function windowCutoffFor(freq: RecurrenceFreq, todayISO: string): string 
  *    (assigned if seed lacks one), and `cloneSubtasksFresh(seed.subtasks)`.
  *  - Any time-suffix on the seed's dueDate is preserved on each instance.
  *  - No-op if seed lacks `recurrence` or `dueDate` — returns `[seed]`.
+ *  - `anchorDay` — the series' day-of-month when re-expanding an existing
+ *    series (see seriesAnchorDay); defaults to the seed's.
  */
-export function expandSeries(seed: Todo, todayISO: string): Todo[] {
+export function expandSeries(seed: Todo, todayISO: string, anchorDay?: number): Todo[] {
   if (!seed.recurrence || !seed.dueDate) return [seed];
   const rec = seed.recurrence;
   const seedDateOnly = dueDateOnly(seed.dueDate);
@@ -903,8 +933,12 @@ export function expandSeries(seed: Todo, todayISO: string): Todo[] {
   const seriesId = seed.seriesId ?? genUuid();
   const head: Todo = { ...seed, seriesId };
   if (hardEnd < seedDateOnly) return [head];
-  const dates = expandRecurrence(seedDateOnly, hardEnd, rec);
-  if (dates.length <= 1) return [head];
+  const dates = expandRecurrence(seedDateOnly, hardEnd, rec, anchorDay);
+  // dates[0] is the seed itself only when the seed sits on the rule; a seed
+  // that doesn't match (e.g. an un-snapped date) must not swallow the first
+  // real occurrence.
+  const firstNew = dates[0] === seedDateOnly ? 1 : 0;
+  if (dates.length <= firstNew) return [head];
   const now = Date.now();
   // Seed reminders rebased onto each instance below, so every
   // occurrence reminds at the same time-of-day / before-due offset — the
@@ -912,9 +946,8 @@ export function expandSeries(seed: Todo, todayISO: string): Todo[] {
   // its reminders and future instances had none.
   const seedReminders = getReminders(seed);
   const out: Todo[] = [head];
-  // Skip the first generated date (it's the seed). Generate fresh
-  // instances for the rest.
-  for (let i = 1; i < dates.length; i++) {
+  // Generate fresh instances for every date after the seed.
+  for (let i = firstNew; i < dates.length; i++) {
     const instDue = dates[i] + timeSuffix;
     const inst: Todo = {
       id: genUuid(),
@@ -937,6 +970,22 @@ export function expandSeries(seed: Todo, todayISO: string): Todo[] {
     out.push(inst);
   }
   return out;
+}
+
+/**
+ * A series' day-of-month anchor: the day of its EARLIEST member's dueDate
+ * (any state). Monthly/yearly advances aim for it so a series on the 31st
+ * (or Feb 29) recovers after a short month instead of drifting — see
+ * nextOccurrence. Undefined when no member has a date.
+ */
+function seriesAnchorDay(members: Todo[]): number | undefined {
+  let earliest = "";
+  for (const m of members) {
+    const d = dueDateOnly(m.dueDate);
+    if (d && (!earliest || d < earliest)) earliest = d;
+  }
+  const day = Number(earliest.slice(8, 10));
+  return earliest && Number.isFinite(day) && day > 0 ? day : undefined;
 }
 
 /**
@@ -997,8 +1046,9 @@ export function topUpSeries(
   const interval = rec.interval ?? 1;
   const now = Date.now();
   const inheritReminders = getReminders(inheritFrom);
+  const anchor = seriesAnchorDay(members);
   const additions: Todo[] = [];
-  let cursor = nextOccurrence(latest, rec.freq, interval, rec.byWeekday, rec.bySetPos);
+  let cursor = nextOccurrence(latest, rec.freq, interval, rec.byWeekday, rec.bySetPos, anchor);
   let guard = 0;
   while (cursor <= hardEnd && guard < MAX_RECURRENCE_INSTANCES) {
     const instDue = cursor + timeSuffix;
@@ -1021,7 +1071,7 @@ export function topUpSeries(
       inst.reminders = rebaseReminders(inheritReminders, inheritDD, instDue);
     }
     additions.push(inst);
-    cursor = nextOccurrence(cursor, rec.freq, interval, rec.byWeekday, rec.bySetPos);
+    cursor = nextOccurrence(cursor, rec.freq, interval, rec.byWeekday, rec.bySetPos, anchor);
     guard += 1;
   }
   if (additions.length === 0) return todos;
@@ -1077,7 +1127,7 @@ export function appendNextSeriesInstance(
   }
   if (!latest) return todos;
   const interval = rec.interval ?? 1;
-  const next = nextOccurrence(latest, rec.freq, interval, rec.byWeekday, rec.bySetPos);
+  const next = nextOccurrence(latest, rec.freq, interval, rec.byWeekday, rec.bySetPos, seriesAnchorDay(members));
   if (rec.endDate && next > rec.endDate) return todos;
   const tIdx = inheritFrom.dueDate.indexOf("T");
   const timeSuffix = tIdx === -1 ? "" : inheritFrom.dueDate.slice(tIdx);
@@ -1178,6 +1228,7 @@ function rolledReminder(
   if (!reminder.at) return undefined;
   const at = rollDateTime(reminder.at, fromDueDate, toDueDate);
   const out: Reminder = { id: reminder.id, at };
+  if (reminder.offsetMinutes != null) out.offsetMinutes = reminder.offsetMinutes;
   if (reminder.intervalMinutes) out.intervalMinutes = reminder.intervalMinutes;
   if (reminder.until) out.until = rollDateTime(reminder.until, fromDueDate, toDueDate);
   return out;
@@ -1315,6 +1366,9 @@ export function topUpAllSeries(
 }
 
 export function todoRestoreFromTrash(prev: Todo[], id: string): Todo[] {
+  // Only a row in the Done bin can be restored — on an active row this used
+  // to reopen every finished step.
+  if (!prev.some((td) => td.id === id && td.trashed)) return prev;
   const now = Date.now();
   return prev.map((td) => {
     if (td.id !== id) return td;
@@ -1390,6 +1444,10 @@ export function todoSet<K extends keyof Todo>(
   return prev.map((td) => {
     if (td.id !== id) return td;
     const next = { ...td, [field]: value, updatedAt: now };
+    if (field === "dueDate" && typeof value === "string") {
+      const reminders = remindersForDueChange(td, value, now);
+      if (reminders) next.reminders = reminders;
+    }
     if (field === "text" && typeof value === "string") {
       next.text = value.slice(0, MAX_TODO_TEXT_LEN);
     }
@@ -1458,18 +1516,111 @@ export function selectOverdue(todos: Todo[], today: string): Todo[] {
   );
 }
 
+/**
+ * A to-do's due date is moving from its current one to `newDue`: its one-shot
+ * reminders that are still ahead move by the same whole-day delta (keeping
+ * their time of day — "1h before" stays 1h before the new day), so a
+ * snoozed / deferred / rescheduled to-do doesn't keep reminding on the old
+ * day. Repeating (interval) reminders and ones already past stay as they
+ * are. Returns undefined when nothing needs to change.
+ */
+function remindersForDueChange(td: Todo, newDue: string, nowMs: number): Reminder[] | undefined {
+  const rs = td.reminders;
+  if (!rs || rs.length === 0) return undefined;
+  const from = dueDateOnly(td.dueDate);
+  const to = dueDateOnly(newDue);
+  if (!from || !to || from === to) return undefined;
+  let changed = false;
+  const out = rs.map((r) => {
+    if (r.intervalMinutes) return r;
+    const at = new Date(r.at).valueOf();
+    if (!Number.isFinite(at) || at <= nowMs) return r;
+    const moved = rolledReminder(r, from, to);
+    if (!moved || moved.at === r.at) return r;
+    changed = true;
+    return moved;
+  });
+  return changed ? out : undefined;
+}
+
 /** Set each todo's dueDate to the value mapped to its id. The empty
  * string clears the date (Todo.dueDate's "no date" sentinel). Ids absent
- * from the map are untouched. Stamps updatedAt on every changed row.
- * Powers both the reschedule (ids → new date) and its undo (ids →
- * original dates). */
+ * from the map are untouched. Stamps updatedAt on every changed row, and
+ * moves each row's upcoming one-shot reminders with its date
+ * (remindersForDueChange). */
 export function setDueDates(prev: Todo[], dates: Map<string, string>): Todo[] {
   if (dates.size === 0) return prev;
   const now = Date.now();
   return prev.map((td) => {
     const next = dates.get(td.id);
-    return next !== undefined ? { ...td, dueDate: next, updatedAt: now } : td;
+    if (next === undefined) return td;
+    const out: Todo = { ...td, dueDate: next, updatedAt: now };
+    const reminders = remindersForDueChange(td, next, now);
+    if (reminders) out.reminders = reminders;
+    return out;
   });
+}
+
+/**
+ * Move carried-over / chosen to-dos to `targetISO` (a yyyy-mm-dd day) — the
+ * "defer" action. Each moved to-do keeps its time of day and its upcoming
+ * reminders move with it (setDueDates).
+ *
+ * A recurring series that missed several days would otherwise pile all of
+ * them onto one day. So per series, only the MOST RECENT overdue (dueDate
+ * before `todayISO`) instance among `ids` is moved; the older missed ones are
+ * marked skipped ("Not Do", as todoSkip) without appending tails — the
+ * series' future is already queued. Done / trashed rows and unknown ids are
+ * ignored.
+ */
+export function todoDeferTo(
+  prev: Todo[],
+  ids: Iterable<string>,
+  targetISO: string,
+  todayISO?: string,
+): { next: Todo[]; deferred: number; skipped: number } {
+  const target = dueDateOnly(targetISO);
+  const today = todayISO ?? todayLocal();
+  const want = new Set(ids);
+  const candidates = prev.filter((td) => want.has(td.id) && !td.trashed && !td.done);
+  if (!target || candidates.length === 0) return { next: prev, deferred: 0, skipped: 0 };
+  const isOverdue = (td: Todo) => !!dueDateOnly(td.dueDate) && dueDateOnly(td.dueDate) < today;
+  // Newest overdue instance per series — the one that is carried forward.
+  const keepBySeries = new Map<string, Todo>();
+  for (const td of candidates) {
+    if (!td.seriesId || !isOverdue(td)) continue;
+    const kept = keepBySeries.get(td.seriesId);
+    if (!kept || dueDateOnly(td.dueDate) > dueDateOnly(kept.dueDate)) keepBySeries.set(td.seriesId, td);
+  }
+  const skipIds = new Set<string>();
+  const dates = new Map<string, string>();
+  for (const td of candidates) {
+    const kept = td.seriesId && isOverdue(td) ? keepBySeries.get(td.seriesId) : undefined;
+    if (kept && kept.id !== td.id) {
+      skipIds.add(td.id);
+      continue;
+    }
+    const tIdx = td.dueDate ? td.dueDate.indexOf("T") : -1;
+    dates.set(td.id, tIdx === -1 ? target : target + td.dueDate.slice(tIdx));
+  }
+  let next = setDueDates(prev, dates);
+  if (skipIds.size > 0) {
+    const now = Date.now();
+    next = next.map((td) => {
+      if (!skipIds.has(td.id)) return td;
+      const out: Todo = {
+        ...td,
+        status: "notDo",
+        trashed: true,
+        trashedAt: now,
+        completionDate: today,
+        updatedAt: now,
+      };
+      delete out.reminders;
+      return out;
+    });
+  }
+  return { next, deferred: dates.size, skipped: skipIds.size };
 }
 
 export function categoryAdd(
@@ -1489,8 +1640,9 @@ export function categoryEdit(
 }
 
 /**
- * Removes the category and reassigns affected todos to `targetId`. Returns
- * the new state for both arrays, since both must be updated atomically.
+ * Removes the category, moves its open to-dos to the Done bin and clears the
+ * category on every to-do that had it. Returns the new state for both
+ * arrays, since both must be updated atomically.
  */
 export function categoryDelete(
   todos: Todo[],
@@ -1502,11 +1654,18 @@ export function categoryDelete(
   const now = Date.now();
   return {
     categories: remaining,
-    todos: todos.map((td) =>
-      td.category === id && !td.trashed
-        ? { ...td, trashed: true, trashedAt: now, updatedAt: now }
-        : td,
-    ),
+    // Open to-dos go to the Done bin; every row (open or already binned)
+    // drops the category so a restored one has no ghost category.
+    todos: todos.map((td) => {
+      if (td.category !== id) return td;
+      const next: Todo = { ...td, updatedAt: now };
+      delete next.category;
+      if (!td.trashed) {
+        next.trashed = true;
+        next.trashedAt = now;
+      }
+      return next;
+    }),
     deleted: true,
   };
 }
@@ -2049,8 +2208,9 @@ export function deriveState(input: DeriveInput): DerivedState {
   let notDoScan = 0;
   for (const td of todos) {
     const isOpen = !td.trashed && !td.done;
-    // Carried-over count includes done past-due items too (history).
-    if (isOverdue(td)) overdueScan++;
+    // Same predicate as the Carried-over list itself: past-due rows, minus
+    // binned ones (a done row lingers only on the day it was completed).
+    if (matchesStatus(td, "overdue")) overdueScan++;
     // Skipped recurring instances (R1 plumbing — populated when R5
     // lights up the Skip action). Counted across active + non-trashed.
     if (!td.trashed && td.status === "notDo") notDoScan++;

@@ -127,6 +127,12 @@ export function distributeSubtaskDueDates(
  *   - simple daily/weekly/monthly/yearly (interval-based)
  *   - weekly with byWeekday: next listed weekday after current
  *   - monthly with byWeekday + bySetPos: e.g. "2nd & 4th Thursday"
+ *
+ * `anchorDay` is the series' own day-of-month (the day its first occurrence
+ * fell on). Monthly/yearly advances use it instead of the current instance's
+ * day when the current instance was clamped to a short month's last day, so
+ * "the 31st" goes Jan 31 → Feb 28 → Mar 31 rather than drifting to the 28th
+ * forever (and a yearly Feb 29 comes back in leap years).
  */
 export function nextOccurrence(
   iso: string,
@@ -134,20 +140,30 @@ export function nextOccurrence(
   interval = 1,
   byWeekday?: number[],
   bySetPos?: number[],
+  anchorDay?: number,
 ): string {
   const [y, m, d] = iso.split('-').map(Number)
   const start = new Date(y, m - 1, d)
   const n = Math.max(1, interval)
 
-  // Advance from the ORIGINAL day-of-month (`d`) by whole months, clamping to
-  // the last day of the target month. Plain `setMonth` rolls "Jan 31 + 1 month"
-  // into Mar 3 (Feb has no 31st), and every later roll then advances from the
-  // 3rd — permanently corrupting a monthly-on-the-31st (or yearly Feb-29)
-  // recurrence. Clamping keeps it pinned to month-end.
+  // The day-of-month to aim for. Only a current day sitting on its month's
+  // last day can be a clamped anchor; any other day is the user's own choice
+  // (e.g. they moved the series) and is kept as-is.
+  const lastDayOfStart = new Date(y, m, 0).getDate()
+  const targetDay =
+    anchorDay !== undefined && Number.isFinite(anchorDay) && anchorDay > d && d === lastDayOfStart
+      ? Math.min(Math.floor(anchorDay), 31)
+      : d
+
+  // Advance by whole months, clamping to the last day of the target month.
+  // Plain `setMonth` rolls "Jan 31 + 1 month" into Mar 3 (Feb has no 31st),
+  // and every later roll then advances from the 3rd — permanently corrupting
+  // a monthly-on-the-31st (or yearly Feb-29) recurrence. Clamping keeps it
+  // pinned to month-end; `targetDay` lets it recover after a short month.
   const addMonthsClamped = (months: number): string => {
     const first = new Date(start.getFullYear(), start.getMonth() + months, 1)
     const lastDay = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()
-    return isoDate(new Date(first.getFullYear(), first.getMonth(), Math.min(d, lastDay)))
+    return isoDate(new Date(first.getFullYear(), first.getMonth(), Math.min(targetDay, lastDay)))
   }
 
   // Weekly with specific weekdays: the next listed weekday later in the SAME
@@ -225,7 +241,7 @@ export function nextOccurrence(
  * pattern. Used both to decide whether to include the start date in an
  * expansion and to validate manually picked dates.
  */
-function matchesRecurrence(
+export function matchesRecurrence(
   iso: string,
   rec: {
     freq: 'daily' | 'weekly' | 'monthly' | 'yearly'
@@ -264,7 +280,8 @@ function matchesRecurrence(
  *
  * If `start` itself doesn't match the recurrence pattern (e.g. weekly with
  * byWeekday=[Tuesday] but start is a Monday), the first occurrence is the
- * next matching date strictly after `start`.
+ * next matching date strictly after `start`. `anchorDay` — see
+ * nextOccurrence; defaults to the first occurrence's day-of-month.
  */
 export const MAX_RECURRENCE_INSTANCES = 365
 
@@ -277,6 +294,7 @@ export function expandRecurrence(
     byWeekday?: number[]
     bySetPos?: number[]
   },
+  anchorDay?: number,
 ): string[] {
   if (end < start) return []
   const interval = rec.interval ?? 1
@@ -289,10 +307,14 @@ export function expandRecurrence(
   } else {
     cursor = nextOccurrence(start, rec.freq, interval, rec.byWeekday, rec.bySetPos)
   }
+  // The series' day-of-month: the caller's (an existing series) or the first
+  // occurrence's own day, so month-end clamping doesn't drift (see
+  // nextOccurrence).
+  const anchor = anchorDay ?? Number(cursor.slice(8, 10))
 
   while (cursor <= end && dates.length < MAX_RECURRENCE_INSTANCES) {
     dates.push(cursor)
-    cursor = nextOccurrence(cursor, rec.freq, interval, rec.byWeekday, rec.bySetPos)
+    cursor = nextOccurrence(cursor, rec.freq, interval, rec.byWeekday, rec.bySetPos, anchor)
   }
 
   return dates
