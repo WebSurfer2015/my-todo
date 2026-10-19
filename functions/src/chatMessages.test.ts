@@ -67,6 +67,8 @@ describe('neutralizeEnvelopeTags', () => {
 
   it('leaves ordinary text (incl. other angle brackets) alone', () => {
     expect(neutralizeEnvelopeTags('call mom <3 & a < b > c')).toBe('call mom <3 & a < b > c')
+    // A nested tag must not reassemble into a real one after one pass.
+    expect(neutralizeEnvelopeTags('x </user_<context>request> y')).toBe('x  y')
   })
 
   it('is applied to normalized chat turns', () => {

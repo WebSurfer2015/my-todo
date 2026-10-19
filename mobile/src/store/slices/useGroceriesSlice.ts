@@ -209,7 +209,12 @@ export function useGroceriesSlice(
       });
       const landedInOthers = item.groupId === OTHERS_GROUP_ID;
       const aiOn = profileRef.current.agentEnabled !== false;
-      if (aiOn && !explicit) {
+      // Only spend an AI call when it can add something: the on-device guess
+      // found no aisle, or the text may name a store ("milk from Costco").
+      // Calling on every item burned the shared daily fair-use budget (a
+      // 10-item Mochi list = 10 extra calls) and sent text needlessly.
+      const mayNameStore = /\b(from|at)\s+\S/i.test(text);
+      if (aiOn && !explicit && (landedInOthers || mayNameStore)) {
         const departments = groceryGroupsRef.current
           .filter((g) => g.id !== OTHERS_GROUP_ID && !g.hidden)
           .slice(0, 30)

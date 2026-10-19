@@ -240,7 +240,7 @@ export type ProposedOperation =
   | {
       kind: 'deleteCategory'
       args: {
-        /** Category id from context. Client reassigns affected to-dos + confirms. */
+        /** Category id from context. Its to-dos move to Done (restorable for 30 days). */
         categoryId: string
       }
     }
@@ -765,8 +765,9 @@ export const AGENT_TOOLS: AgentTool[] = [
     name: 'deleteCategory',
     description:
       "Delete an EXISTING category ('delete the Errands category'). Pick the categoryId " +
-      "from context. The app reassigns affected to-dos and asks the user to confirm, so " +
-      "use this only when the user clearly wants the category itself removed.",
+      "from context. Its to-dos move to Done (restorable for 30 days) after the user " +
+      "confirms — say so in your reply. Use this only when the user clearly wants the " +
+      "category itself removed.",
     input_schema: {
       type: 'object',
       properties: {
@@ -941,14 +942,18 @@ function validateReminders(raw: unknown): AgentReminder[] | undefined {
   for (const item of raw.slice(0, MAX_REMINDERS)) {
     if (!item || typeof item !== 'object') continue
     const at = (item as { at?: unknown }).at
-    if (typeof at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(at)) continue
+    // Anchored: a trailing "Z"/offset made new Date() read it as UTC and
+    // fire at the wrong local hour.
+    if (typeof at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(at)) continue
     const rem: AgentReminder = { at }
     const off = (item as { offsetMinutes?: unknown }).offsetMinutes
     if (typeof off === 'number' && Number.isFinite(off) && off >= 1) {
       rem.offsetMinutes = Math.floor(off)
     }
     const iv = (item as { intervalMinutes?: unknown }).intervalMinutes
-    if (typeof iv === 'number' && Number.isFinite(iv) && iv >= 1) {
+    // Same bounds as the suggest-fields parser: a tiny interval would flood
+    // iOS's 64-pending-notification budget.
+    if (typeof iv === 'number' && Number.isFinite(iv) && iv >= 15 && iv <= 10080) {
       rem.intervalMinutes = Math.floor(iv)
     }
     out.push(rem)
@@ -997,8 +1002,10 @@ function validateEditPatch(
     patch.category = a.category
     hasField = true
   }
-  if (typeof a.notes === 'string') {
-    // Including empty string here so the user can clear notes.
+  // Non-empty only: models often fill optional strings with "", which
+  // silently wiped the user's notes on an unrelated edit ("rename X").
+  // Clearing notes is a manual action in the details sheet.
+  if (typeof a.notes === 'string' && a.notes.trim()) {
     patch.notes = a.notes.slice(0, MAX_NOTES_LEN)
     hasField = true
   }

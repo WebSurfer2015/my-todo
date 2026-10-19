@@ -24,7 +24,14 @@ const ENVELOPE_TAG_RE = /<\/?\s*(user_request|context|todo|grocery)\s*>/gi
 
 /** Strip our envelope tags from user-supplied text before it is wrapped. */
 export function neutralizeEnvelopeTags(text: string): string {
-  return text.replace(ENVELOPE_TAG_RE, '')
+  // Repeat until stable: a single pass let a nested tag reassemble itself
+  // ("</user_<context>request>" → "</user_request>").
+  let out = text
+  for (let prev = ''; prev !== out; ) {
+    prev = out
+    out = out.replace(ENVELOPE_TAG_RE, '')
+  }
+  return out
 }
 
 export const MAX_TURNS = 40

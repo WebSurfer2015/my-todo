@@ -196,14 +196,16 @@ describe('validateOperation — editTodo', () => {
     )
     expect(op?.args.dueDate).toBe('')
   })
-  it('preserves empty-string notes as a clear signal', () => {
+  it('ignores empty-string notes (models fill optional fields with "")', () => {
+    // An unrelated edit must never wipe notes; clearing them is manual.
     const op = validateOperation(
       'editTodo',
-      { todoId: 't-1', notes: '' },
+      { todoId: 't-1', text: 'Renamed', notes: '' },
       knownCats,
       knownTodoIds,
     )
-    expect(op?.args.notes).toBe('')
+    expect(op?.args.notes).toBeUndefined()
+    expect(op?.args.text).toBe('Renamed')
   })
   it('only accepts known category ids', () => {
     expect(

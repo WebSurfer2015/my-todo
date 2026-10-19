@@ -160,8 +160,8 @@ Categories and groceries:
   checked true; "put eggs back" → checked false).
 - editCategory renames / recolors / re-icons an existing category ("rename Work
   to Office", "make Home green" → color a hex like #34C759). deleteCategory
-  removes one ("delete the Errands category") — the app reassigns its to-dos
-  and confirms. renameStore / deleteStore manage grocery stores by name.
+  removes one ("delete the Errands category") — its to-dos move to Done
+  (restorable for 30 days) after the user confirms; say so. renameStore / deleteStore manage grocery stores by name.
 
 Tasks — beyond create/edit/done/delete:
 - markUndone re-opens a completed task ("I didn't actually finish X").
