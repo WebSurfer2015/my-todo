@@ -41,6 +41,9 @@ export interface ProfileSlice {
   profile: Profile;
   setProfile: (next: Profile | ((prev: Profile) => Profile)) => void;
   profileLoaded: boolean;
+  /** The profile came from real data, not SEED_PROFILE after a failed /
+   * timed-out hydrate. */
+  profileTrusted: boolean;
   // ---- Mutations (PR 5 expansion) ----
   pinFilter: (set: Filter[]) => void;
   keepAndClearFilter: (set: Filter[]) => void;
@@ -75,7 +78,7 @@ export function useProfileSlice(
     defaultFilterForView,
   } = actions;
 
-  const [profile, setProfile, profileLoaded] = useSyncedState<Profile>(
+  const [profile, setProfile, profileLoaded, profileTrusted] = useSyncedState<Profile>(
     adapter,
     "profile",
     SEED_PROFILE,
@@ -205,6 +208,7 @@ export function useProfileSlice(
     profile,
     setProfile,
     profileLoaded,
+    profileTrusted,
     pinFilter,
     keepAndClearFilter,
     toggleHomeStatTile,

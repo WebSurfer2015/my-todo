@@ -24,6 +24,21 @@ import {
 import { createTodoStore, refreshUsageSignals } from "../../../core/src/store";
 import { todayLocal } from "../../../core/src/logic/utils";
 import { dailyQuoteIndex, quoteAt } from "../../../core/src/data/quotes";
+import { isSyncedKeyTrusted, onSyncIssue } from "./useSyncedState";
+
+// Sync-problem snackbars. English-only launch — TODO(i18n owner): move into
+// core/src/data/i18n.ts when the language picker returns.
+const SYNC_TOO_LARGE_MESSAGE =
+  "Your list is very large — clear finished to-dos in Done to keep syncing.";
+const SYNC_WRITE_FAILED_MESSAGE =
+  "Couldn't save your latest changes. They'll stay on this device for now.";
+
+/** ms until the next local midnight (+1s so todayLocal() has rolled over). */
+function msUntilNextLocalMidnight(now = new Date()): number {
+  const next = new Date(now);
+  next.setHours(24, 0, 1, 0);
+  return next.getTime() - now.getTime();
+}
 
 /** Signed out there is no account to sync with: reads are empty and writes
  * go nowhere. (The old AsyncStorage "local mode" and its local→cloud
@@ -89,6 +104,28 @@ export function useTodoStore() {
   const clearFilters = useCallback(() => setFiltersState([]), []);
   const setFilters = useCallback((f: Filter[]) => setFiltersState(f), []);
 
+  // ---- Day key ----
+  // The local "today" (YYYY-MM-DD). State, not a per-render todayLocal(), so
+  // everything date-bound (derive's Today/overdue groups, the daily quote,
+  // usage signals) recomputes when the day rolls over while the app stays
+  // open: a timer fires at the next local midnight, and returning to the
+  // foreground re-checks (timers don't run while suspended; time zone may
+  // have changed).
+  const [today, setToday] = useState(todayLocal);
+  useEffect(() => {
+    const handle = setTimeout(
+      () => setToday(todayLocal()),
+      msUntilNextLocalMidnight(),
+    );
+    return () => clearTimeout(handle);
+  }, [today]);
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") setToday(todayLocal());
+    });
+    return () => sub.remove();
+  }, []);
+
   // ---- Profile + categories slices ----
   // Profile slice now also owns every profile-touching mutation
   // (pinFilter, keepAndClearFilter, home tiles, status/priority
@@ -98,6 +135,7 @@ export function useTodoStore() {
     profile,
     setProfile,
     profileLoaded,
+    profileTrusted,
     pinFilter,
     keepAndClearFilter,
     renameStatus,
@@ -254,6 +292,37 @@ export function useTodoStore() {
     profileLoaded &&
     groceriesLoaded &&
     groceryGroupsLoaded;
+  // True only when profile AND todos came from real data — not defaults
+  // after a failed / timed-out hydrate. Effects that would act destructively
+  // on defaults (reminder sync cancelling every reminder, onboarding over an
+  // onboarded account) gate on this. The todos flag is read from the
+  // useSyncedState registry because the todos slice doesn't surface it;
+  // reading at render is safe — the flag flips together with a state update
+  // in the same component, so this re-renders.
+  const todosTrusted = isSyncedKeyTrusted(adapter, "todos");
+  const dataTrusted = loaded && profileTrusted && todosTrusted;
+
+  // Calm, once-per-session notices for sync problems the user can act on
+  // (or should at least know about). Reset per account.
+  const syncNoticeShownRef = useRef({ tooLarge: false, writeFailed: false });
+  useEffect(() => {
+    syncNoticeShownRef.current = { tooLarge: false, writeFailed: false };
+  }, [uid]);
+  useEffect(
+    () =>
+      onSyncIssue((issue) => {
+        const shown = syncNoticeShownRef.current;
+        if (shown[issue.kind]) return;
+        shown[issue.kind] = true;
+        notify.showSnackbar({
+          message:
+            issue.kind === "tooLarge"
+              ? SYNC_TOO_LARGE_MESSAGE
+              : SYNC_WRITE_FAILED_MESSAGE,
+        });
+      }),
+    [notify],
+  );
 
   // P0 Tier 2 measurement (docs/MEASUREMENT-PLAN.md): stamp the
   // privacy-preserving signals — createdAt (once), lastActiveDate (today),
@@ -346,15 +415,19 @@ export function useTodoStore() {
 
   // ---- Derived state (memoized via core.deriveState) ----
 
+  // `today` is a dep (deriveState reads the clock itself) so the Today /
+  // carried-over grouping is recomputed when the day rolls over.
   const derived = useMemo(
-    () =>
-      store.derive({
+    () => {
+      void today;
+      return store.derive({
         todos,
         filters,
         categories,
         t,
-      }),
-    [store, todos, filters, categories, t],
+      });
+    },
+    [store, todos, filters, categories, t, today],
   );
 
   const hour = new Date().getHours();
@@ -368,7 +441,7 @@ export function useTodoStore() {
     : t.greeting[greetingKey];
   const trimmedQuote =
     profile.quote && profile.quote.trim() ? profile.quote.trim() : '';
-  const todayDate = todayLocal();
+  const todayDate = today;
   // Subtitle source. Resolution:
   //   - 'daily'  → date-seeded curated quote, stable all day, rotates at
   //                midnight; honors a per-day "show me another" shuffle.
@@ -419,6 +492,14 @@ export function useTodoStore() {
     filter,
     view,
     loaded,
+    /** Profile came from real data (not SEED_PROFILE after a failed /
+     * timed-out hydrate). Gate one-shot decisions like onboarding on it. */
+    profileTrusted,
+    /** loaded AND profile + todos came from real data. */
+    dataTrusted,
+    /** Local day key (YYYY-MM-DD); changes at local midnight / on resume.
+     * Use as a dep for once-per-day work (e.g. the series top-up latch). */
+    today,
     ...derived,
     // FilterBar + CategorySheet both want the full per-category count
     // (open + done, excludes trashed) — matches the user mental model
