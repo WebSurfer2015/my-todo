@@ -46,6 +46,7 @@ import {
   reminderSummary,
 } from '../../../../../core/src/logic/labels'
 import { makeStyles } from './styles';
+import { absoluteDateLabel } from '../absoluteDateLabel'
 
 function CalendarIcon({ size = 18, color = '#8E8E93' }: { size?: number; color?: string }) {
   return (
@@ -820,10 +821,10 @@ export default function ComposeSheet({
                           }}
                           activeOpacity={0.6}
                           accessibilityRole="button"
-                          accessibilityLabel={`Repeat ends on, ${recurrence.endDate ?? 'never'}. Tap to change.`}
+                          accessibilityLabel={`Repeat ends, ${recurrence.endDate ? absoluteDateLabel(recurrence.endDate, t.locale) : 'never'}. Tap to change.`}
                         >
                           <CalendarIcon size={18} color={recurrence.endDate ? theme.blue : theme.gray3} />
-                          <Text style={styles.fieldLabel}>Repeat ends</Text>
+                          <Text style={styles.fieldLabel}>{t.edit.repeatEnds}</Text>
                           <Text
                             style={[
                               styles.fieldValue,
@@ -831,9 +832,7 @@ export default function ComposeSheet({
                             ]}
                             numberOfLines={1}
                           >
-                            {recurrence.endDate
-                              ? new Date(`${recurrence.endDate}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-                              : 'No end'}
+                            {recurrence.endDate ? absoluteDateLabel(recurrence.endDate, t.locale) : t.edit.noEnd}
                           </Text>
                           <Text style={styles.chevron}>›</Text>
                         </TouchableOpacity>

@@ -48,8 +48,9 @@ server when:
 
 - you send Mochi a message, or ask it to break a task into steps (the
   to-do's title and notes are sent for that);
-- you pause while typing a new to-do (about 1.5 seconds) — the text is sent
-  so Mochi can suggest a category, date, or reminder you can tap to apply;
+- you pause while typing or editing a to-do's title (after about 1.5
+  seconds) — the title is sent so Mochi can suggest a category, date, or
+  reminder you can tap to apply;
 - you add a shopping item the app can't sort into an aisle on the device, or
   that may name a store ("milk from Costco").
 

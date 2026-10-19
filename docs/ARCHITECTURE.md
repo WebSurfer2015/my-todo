@@ -56,6 +56,14 @@ parity tests in `mobile/src/__tests__`).
   hourly).
 - **`useSyncedState(adapter, key, …)`**: hydrate → subscribe (`onSnapshot`) →
   ~400 ms debounced writes; a failed/stalled read never writes defaults back.
+- **Todos merge, never replace** (`core/src/store/mergeTodos.ts`): the todos
+  slice passes a 3-way merge (by id / `updatedAt`, collapsing duplicate series
+  occurrences on the same day), so a remote snapshot or a late first read
+  can't clobber pending local edits.
+- **Automatic writes wait for `serverConfirmed`**: `useSyncedState` also
+  reports whether the latest snapshot came from the server; writes the app
+  makes on its own (the daily series top-up) wait on it, so a stale local
+  cache can't overwrite another device's newer doc.
 - **Every read is validated** (`migrateTodos`, `migrateProfile`, …): storage is
   untrusted, so shapes are checked, capped and defaulted on load.
 - **Usage signals** (`core/src/store/usageSignals.ts`): `createdAt`,

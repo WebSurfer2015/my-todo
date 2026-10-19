@@ -7,9 +7,9 @@
  *   │ Cancel              Defer all to         Done │
  *   │              {filter name} ({count})          │
  *   ├───────────────────────────────────────────────┤
- *   │ Tomorrow / Next day      tomorrow, Thu, May 19│
- *   │ A week later              Wed, May 25         │
- *   │ A month later             Fri, Jun 17         │
+ *   │ Tomorrow                       Thu, May 19    │
+ *   │ In a week                      Wed, May 25    │
+ *   │ In a month                     Fri, Jun 17    │
  *   │ Pick a date                                   │
  *   └───────────────────────────────────────────────┘
  *
@@ -17,8 +17,8 @@
  * the body to an inline date picker — its own Done commits, Cancel
  * goes BACK to the option list (not to the underlying screen).
  *
- * Date math is anchored on today so the label that's shown matches
- * what actually lands on the todo: every item in the bucket is set
+ * Date math is anchored on today, and every row shows its resulting
+ * date, so the label always matches what actually lands on the todo: every item in the bucket is set
  * to the same target ISO, mirroring the existing bulkDeferTodos
  * contract.
  */
@@ -42,9 +42,11 @@ interface Props {
    * subtitle's "(N)" suffix. Omit / 0 / 1 to hide the suffix (e.g.
    * single-todo long-press doesn't need a count). */
   count?: number
-  /** Tweaks the first option label: today's bucket says "Tomorrow",
-   * every other bucket says "Next day". Both target today + 1. */
-  isTodayGroup: boolean
+  /** @deprecated No longer affects the labels — every bucket reads
+   * "Tomorrow / In a week / In a month" with the resulting date, since
+   * all targets are measured from today. Optional so callers compile;
+   * safe to drop at the call site. */
+  isTodayGroup?: boolean
   onSelect: (targetISO: string) => void
   onClose: () => void
 }
@@ -55,7 +57,6 @@ export default function DeferModal({
   visible,
   filterLabel,
   count,
-  isTodayGroup,
   onSelect,
   onClose,
 }: Props) {
@@ -111,7 +112,7 @@ export default function DeferModal({
       onClose={onClose}
       scroll={false}
       title={isPicker ? t.snooze.pickDate : mainTitle}
-      subtitle={isPicker ? formatTargetDate(pickerDate) : subtitle || undefined}
+      subtitle={isPicker ? formatTargetDate(pickerDate, t.locale) : subtitle || undefined}
       // In the picker, the left action steps BACK to the options (not out).
       left={isPicker ? { label: t.cancel, onPress: () => setSubView('main') } : undefined}
       primary={
@@ -123,22 +124,22 @@ export default function DeferModal({
       {!isPicker ? (
         <View style={styles.card}>
           <OptionRow
-            label={isTodayGroup ? t.snooze.tomorrow : t.deferNextDay}
-            hint={isTodayGroup ? formatTargetDate(tomorrow) : undefined}
+            label={t.snooze.tomorrow}
+            hint={formatTargetDate(tomorrow, t.locale)}
             onPress={() => commit(tomorrow)}
             styles={styles}
           />
           <Divider styles={styles} />
           <OptionRow
             label={t.deferWeekLater}
-            hint={isTodayGroup ? formatTargetDate(inAWeek) : undefined}
+            hint={formatTargetDate(inAWeek, t.locale)}
             onPress={() => commit(inAWeek)}
             styles={styles}
           />
           <Divider styles={styles} />
           <OptionRow
             label={t.deferMonthLater}
-            hint={isTodayGroup ? formatTargetDate(inAMonth) : undefined}
+            hint={formatTargetDate(inAMonth, t.locale)}
             onPress={() => commit(inAMonth)}
             styles={styles}
           />
@@ -218,17 +219,17 @@ function Divider({ styles }: { styles: ReturnType<typeof makeStyles> }) {
 }
 
 /**
- * Format a target Date as "Thursday, May 19". The option-row label
- * already carries the relative cue ("Tomorrow", "A week later"), so
- * the hint stays purely calendrical to avoid redundancy.
+ * Format a target Date as "Wed, Oct 21" (year added when it isn't this
+ * year). The option-row label already carries the relative cue
+ * ("Tomorrow", "In a week"), so the hint stays purely calendrical.
  */
-function formatTargetDate(d: Date): string {
-  const weekday = d.toLocaleDateString(undefined, { weekday: 'long' })
-  const monthDay = d.toLocaleDateString(undefined, {
-    month: 'long',
+function formatTargetDate(d: Date, locale?: string): string {
+  return d.toLocaleDateString(locale, {
+    weekday: 'short',
+    month: 'short',
     day: 'numeric',
+    ...(d.getFullYear() === new Date().getFullYear() ? {} : { year: 'numeric' }),
   })
-  return `${weekday}, ${monthDay}`
 }
 
 function makeStyles(c: ThemeColors) {

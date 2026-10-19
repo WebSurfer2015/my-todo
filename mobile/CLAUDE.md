@@ -8,8 +8,8 @@ This is the **mobile** workspace of `my-todo` — the Sagely app (Expo SDK 54 + 
 
 Feature-folder layout:
 
-- `app/` — bootstrap & shell: contexts/providers (`AuthContext`, `LangContext`, `notify`, `StoreContext`, `PurchasesContext`, `SheetContext`, `FireworkOverlay`), `ErrorBoundary`, `theme`, `featureFlags`, and top-level chrome (`AppHeader`, `Fab`, `Footer`, `SplashOverlay`). `App.tsx` is at the workspace root.
-- `adapters/` — IO / platform edges: `firebase`, `firestoreAdapter`, `persistence` (AsyncStorage `StorageAdapter`), `crashReporting`, `notifications`, `aiInfer`, `purchases`, `completionChime`, `reminderId`, `authErrors`.
+- `app/` — bootstrap & shell: contexts/providers (`AuthContext`, `LangContext`, `notify`, `StoreContext`, `PurchasesContext`, `SheetContext`, `FireworkOverlay`), `ErrorBoundary`, `theme`, `featureFlags`, `detailsOpenPlan` (pure plan for opening the details sheet), `links`, `useReducedMotion`, and top-level chrome (`AppHeader`, `Fab`, `Footer`, `SplashOverlay`). `App.tsx` is at the workspace root.
+- `adapters/` — IO / platform edges: `firebase`, `firestoreAdapter`, `persistence` (AsyncStorage `StorageAdapter`), `crashReporting`, `notifications`, `aiInfer`, `appCheck`, `purchases`, `purchaseTier`, `completionChime`, `reminderId`, `authErrors`.
 - `storage/envelope.ts` — the versioned `{version, data}` envelope every `useSyncedState` call reads/writes.
 - `store/` — domain store: `useTodoStore`, `useSyncedState`, `slices/` (`useTodosSlice`, `useCategoriesSlice`, `useProfileSlice`, `useGroceriesSlice`).
 - `core-bindings/` — thin re-export shims over `../../core/src/*` (`types`, `groups`, `categories`, `i18n`, `profile`, `utils`, `groceries`, `entitlements`). Import core through these or via a relative path to the core ring (e.g. `../../../../core/src/logic/labels`).
