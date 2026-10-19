@@ -90,6 +90,11 @@ export interface ChatTurn {
   /** The server's signature for a real assistant reply (never on a local
    * canned turn); sent back with the turn so the server can verify it. */
   sig?: string
+  /** The server's reply EXACTLY as received — what `sig` signs. `content` is
+   * the display text (a no-op question may gain a "?"); the wire must echo
+   * the raw text or the server's signature check fails and the next turn is
+   * charged as a new conversation. Set on signed turns whose display differs. */
+  wireContent?: string
 }
 
 interface SendResult {
@@ -101,7 +106,7 @@ interface SendResult {
 /** The wire shape of one history turn: `sig` only on signed assistant turns. */
 export function toWireTurn(m: ChatTurn): { role: 'user' | 'assistant'; content: string; sig?: string } {
   return m.role === 'assistant' && m.sig
-    ? { role: m.role, content: m.content, sig: m.sig }
+    ? { role: m.role, content: m.wireContent ?? m.content, sig: m.sig }
     : { role: m.role, content: m.content }
 }
 
@@ -316,6 +321,7 @@ export function useMochiAgent() {
         const noOps =
           !result.awaitingConfirmation && (!operations || operations.length === 0)
         const reply = noOps ? normalizeNoOpReply(result.reply) : { text: result.reply, isQuestion: false }
+        const hasSig = typeof result.sig === 'string' && result.sig.length > 0
         setMessages((prev) => [
           ...prev,
           {
@@ -323,7 +329,9 @@ export function useMochiAgent() {
             content: reply.text,
             operations,
             awaitingConfirmation: result.awaitingConfirmation,
-            ...(typeof result.sig === 'string' && result.sig ? { sig: result.sig } : {}),
+            ...(hasSig ? { sig: result.sig } : {}),
+            // Display text may be normalized; the wire echoes the raw reply.
+            ...(hasSig && reply.text !== result.reply ? { wireContent: result.reply } : {}),
             // Only a real question asks the user for more of the same request.
             isFollowUp: reply.isQuestion,
           },

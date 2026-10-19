@@ -185,7 +185,7 @@ export interface TodosSlice {
   clearSubtasks: (id: string) => void;
   // Defer / snooze
   deferOverdue: (daysFromToday: number) => void;
-  bulkDeferTodos: (ids: string[], targetISO: string) => void;
+  bulkDeferTodos: (ids: string[], targetISO: string) => Undo | null;
   snooze: (id: string, daysFromToday: number) => void;
   // Non-stable
   addTask: (
@@ -629,22 +629,24 @@ export function useTodosSlice(
 
   const bulkDeferTodos = useCallback(
     (ids: string[], targetISO: string) => {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(targetISO)) return;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(targetISO)) return null;
       let deferred = 0;
       const change = applyTracked((ts) => {
         const r = todoDeferTo(ts, ids, targetISO, todayLocal());
         deferred = r.deferred;
         return r.next;
       });
-      if (!change) return;
+      if (!change) return null;
+      const undo: Undo = () => undoTracked(change);
       notify.showSnackbar({
         message:
           deferred === 1
             ? "1 to-do deferred."
             : `${deferred} to-dos deferred.`,
         actionLabel: t.undoAll,
-        onAction: () => undoTracked(change),
+        onAction: undo,
       });
+      return undo;
     },
     [applyTracked, undoTracked, todoDeferTo, notify, t.undoAll],
   );

@@ -101,6 +101,18 @@ describe('useSuggestSteps', () => {
     expect(result.current.thinking).toBe(false)
   })
 
+  it('a client TIMEOUT abort (not our own cancel) shows the calm error, not silence', async () => {
+    const abort = new Error('Aborted')
+    abort.name = 'AbortError'
+    suggestSubtasksMock.mockRejectedValueOnce(abort)
+    const { result } = renderHook(() => useSuggestSteps({ parentTitle: 'X' }))
+    await act(async () => {
+      await result.current.request()
+    })
+    expect(result.current.error).toBe('Could not suggest steps.')
+    expect(result.current.thinking).toBe(false)
+  })
+
   it('over the fair-use ceiling: a gentle note WITH the reset time (never the server text)', async () => {
     clearMochiRest()
     const quota = new Error('Daily AI limit reached (150 per day).')

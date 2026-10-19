@@ -22,7 +22,7 @@ import { useAuth } from '../../app/AuthContext'
 import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
 import { useSheetDismiss, sheetGrabZone } from '../../ui/useSheetDismiss'
 import { useMochiAgent, type ProposedOperation } from './useMochiAgent'
-import { pickTruncationNote, supersededProposalTurns } from './chatTurns'
+import { pickMatchHeader, supersededProposalTurns } from './chatTurns'
 import MochiThinking from './MochiThinking'
 import EditableCaptureCard from './EditableCaptureCard'
 import { type Priority } from '../../core-bindings/types'
@@ -31,6 +31,17 @@ import { buildFallbackCapture } from '../../../../core/src/logic/mochiFallback'
 import { markMochiResting, mochiRestLabel, mochiRestUntil } from './mochiRest'
 import { todayLocal, formatDisplayDate, fullDateLabel, isoDate } from '../../core-bindings/utils'
 import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
+import type { AgentRecurrence } from '../../../../core/src/ports/aiContracts'
+import { recurrenceShortLabel, type RecurrenceFreqStrings } from '../../../../core/src/logic/labels'
+
+/** What applying a confirmed turn did. `pending` is set when the turn raised
+ * confirm Alerts (a repeating to-do's scope, a permanent shopping removal):
+ * it resolves once they're all answered — `applied` false means the user kept
+ * everything as is, so the card must not say "✓ Done". */
+export interface MochiApplyResult {
+  undo: (() => void) | null
+  pending?: Promise<{ undo: (() => void) | null; applied: boolean; keptSome: boolean }>
+}
 
 interface Props {
   visible: boolean
@@ -61,7 +72,7 @@ interface Props {
     /** Step texts, so subtaskAction can target one. */
     subtasks?: string[]
     /** Surfaced so the pick-list can differentiate identical-titled tasks. */
-    recurrence?: { freq: string; interval?: number; byWeekday?: number[] }
+    recurrence?: AgentRecurrence
     /** Present when this to-do is one instance of a generated series — drives
      * the "Delete series" option on the delete card. */
     seriesId?: string
@@ -87,7 +98,7 @@ interface Props {
    * kind to the existing store mutation so the agent shares the manual write
    * surface — confirm-before-apply keeps the user in control. Returns the
    * turn's combined inline Undo, or null. */
-  onApplyOperations: (ops: ProposedOperation[]) => (() => void) | null
+  onApplyOperations: (ops: ProposedOperation[]) => MochiApplyResult
   /** Optimistically apply a single new to-do / grocery item. Returns the live
    * id (for inline chip-editing; null for groceries), the to-do's resolved
    * category id, and an `undo` the card renders inline. The no-Confirm
@@ -120,8 +131,10 @@ interface Props {
     opts?: { note?: string },
   ) => void
   /** Switch back to the manual compose form. Renders an "Enter manually
-   * instead" action; omit to hide it. */
-  onEnterManually?: () => void
+   * instead" action; omit to hide it. `remember: false` opens Compose as a
+   * one-off without making manual the remembered capture mode (Mochi's
+   * resting "Add it myself"). */
+  onEnterManually?: (opts?: { remember?: boolean }) => void
 }
 
 /** Example chips — tapping one PRE-FILLS the capture box (it doesn't ask a
@@ -264,7 +277,11 @@ export default function ChatSheet({
   const lastSentRef = useRef('')
   // Per-proposal resolution so a confirmed/declined turn swaps its action
   // row for a quiet footer. Keyed by message index (append-only, stable).
-  const [resolved, setResolved] = useState<Record<number, 'applied' | 'declined'>>({})
+  // 'pending' = waiting on a confirm Alert; 'kept' = every Alert was cancelled
+  // and nothing else applied (the card says "Kept as is", never "✓ Done").
+  const [resolved, setResolved] = useState<Record<number, 'applied' | 'declined' | 'pending' | 'kept'>>({})
+  // Set when some (not all) of a turn's confirm Alerts were cancelled.
+  const [keptSome, setKeptSome] = useState<Record<number, true>>({})
   // Optimistic-capture bookkeeping. appliedRef is a SYNCHRONOUS guard so the
   // auto-apply effect can never double-apply a turn (e.g. under a re-run before
   // setResolved commits). confirmedRef is the same kind of guard for the
@@ -361,10 +378,15 @@ export default function ChatSheet({
   }, [resting])
   // Forget this conversation's local bookkeeping (the hook's reset() aborts
   // any in-flight turn and clears the messages).
+  // Bumped on every clear, so a late confirm-Alert answer can't land on a
+  // NEW conversation's turn at the same index.
+  const conversationGenRef = useRef(0)
   function clearConversation() {
+    conversationGenRef.current += 1
     reset()
     setInput('')
     setResolved({})
+    setKeptSome({})
     setUndone({})
     appliedRef.current.clear()
     confirmedRef.current.clear()
@@ -391,7 +413,8 @@ export default function ChatSheet({
       onReviewCreateTodo(restingCapture, { note: `Mochi's resting until ${restLabel}. I kept your words.` })
       close()
     } else {
-      onEnterManually?.()
+      // A one-off while Mochi rests — don't flip the remembered FAB mode.
+      onEnterManually?.({ remember: false })
     }
   }
 
@@ -449,9 +472,24 @@ export default function ChatSheet({
     }
     // Keep the Undos (mark done / delete / skip) so the turn shows an inline
     // "✓ Done · Undo" — the store's snackbar is hidden behind this Modal.
-    const undo = onApplyOperations(ops)
-    if (undo) undoFnsRef.current[index] = undo
-    setResolved((prev) => ({ ...prev, [index]: 'applied' }))
+    const res = onApplyOperations(ops)
+    if (!res.pending) {
+      if (res.undo) undoFnsRef.current[index] = res.undo
+      setResolved((prev) => ({ ...prev, [index]: 'applied' }))
+      return
+    }
+    // Confirm Alerts are up — only claim "Done" once they're answered.
+    setResolved((prev) => ({ ...prev, [index]: 'pending' }))
+    const generation = conversationGenRef.current
+    void res.pending.then((out) => {
+      // The chat was cleared while the Alert was up — this turn is gone.
+      if (conversationGenRef.current !== generation) return
+      if (out.undo) undoFnsRef.current[index] = out.undo
+      if (out.keptSome && out.applied) setKeptSome((prev) => ({ ...prev, [index]: true }))
+      setResolved((prev) =>
+        prev[index] === 'pending' ? { ...prev, [index]: out.applied ? 'applied' : 'kept' } : prev,
+      )
+    })
   }
 
   function close() {
@@ -466,9 +504,12 @@ export default function ChatSheet({
       close()
       return
     }
-    Alert.alert(t.endChatTitle, t.endChatBody, [
+    // Calm, accurate copy (English launch literal, like the rest of this
+    // sheet): ending clears only the chat — nothing the user saved. Not a
+    // destructive action, so a neutral button.
+    Alert.alert(t.endChatTitle, 'Your to-dos are saved. Only this conversation will be cleared.', [
       { text: t.keepChatting, style: 'cancel' },
-      { text: t.endChat, style: 'destructive', onPress: close },
+      { text: t.endChat, onPress: close },
     ])
   }
 
@@ -631,7 +672,7 @@ export default function ChatSheet({
                               args={{ ...op.args, category: capturedCategoryRef.current[i] ?? op.args.category }}
                               id={capturedIdRef.current[i]!}
                               categories={categories}
-                              recurrenceText={recurrenceLabel(op.args.recurrence)}
+                              recurrenceText={repeatText(op.args.recurrence, t.recurrence)}
                               onEdit={onEditCapturedTodo}
                               onRemove={() => undoFnsRef.current[i]?.()}
                             />
@@ -692,9 +733,13 @@ export default function ChatSheet({
                             m.operations[0].kind === 'pickTodos' ||
                             m.operations[0].kind === 'deleteTodo')
                         ) && (
-                        resolved[i] === 'applied' ? (
-                          // Optimistically-applied turns carry an inline Undo;
-                          // Confirm-applied turns just show ✓ Done.
+                        resolved[i] === 'pending' ? (
+                          <Text style={styles.appliedNote}>Waiting for your answer…</Text>
+                        ) : resolved[i] === 'kept' ? (
+                          <Text style={styles.appliedNote}>Kept as is</Text>
+                        ) : resolved[i] === 'applied' ? (
+                          // Applied turns carry an inline Undo when the store
+                          // could hand one back; otherwise just ✓ Done.
                           undoFnsRef.current[i] ? (
                             undone[i] ? (
                               <Text style={styles.appliedNote}>
@@ -703,7 +748,11 @@ export default function ChatSheet({
                             ) : (
                               <View style={styles.appliedRow}>
                                 <Text style={[styles.appliedNote, { marginTop: 0 }]}>
-                                  {capturedIdRef.current[i] ? '✓ Added' : '✓ Done'}
+                                  {capturedIdRef.current[i]
+                                    ? '✓ Added'
+                                    : keptSome[i]
+                                      ? '✓ Done · some kept as is'
+                                      : '✓ Done'}
                                 </Text>
                                 <TouchableOpacity
                                   hitSlop={8}
@@ -719,29 +768,56 @@ export default function ChatSheet({
                               </View>
                             )
                           ) : (
-                            <Text style={styles.appliedNote}>✓ Done</Text>
+                            <Text style={styles.appliedNote}>
+                              {keptSome[i] ? '✓ Done · some kept as is' : '✓ Done'}
+                            </Text>
                           )
                         ) : m.awaitingConfirmation ? (
-                          <View style={styles.actionsRow}>
-                            <TouchableOpacity
-                              style={[styles.btn, styles.btnPrimary]}
-                              onPress={() => handleConfirm(i, m.operations!)}
-                            >
-                              <Text style={styles.btnPrimaryText}>
-                                {onReviewCreateTodo &&
-                                m.operations!.length === 1 &&
-                                m.operations![0].kind === 'createTodo'
-                                  ? 'Review & add'
-                                  : m.operations!.every(
-                                        (o) =>
-                                          o.kind === 'deleteTodo' ||
-                                          o.kind === 'deleteGroceryItem',
-                                      )
-                                    ? 'Delete'
-                                    : 'Confirm'}
-                              </Text>
-                            </TouchableOpacity>
-                          </View>
+                          (() => {
+                            const ops = m.operations!
+                            // To-do "deletes" only move to Done (30 days, Undo)
+                            // — a neutral button that says so. Red is kept for
+                            // the one permanent removal: shopping items.
+                            const cta =
+                              onReviewCreateTodo && ops.length === 1 && ops[0].kind === 'createTodo'
+                                ? { label: 'Review & add', tone: 'primary' as const }
+                                : ops.every((o) => o.kind === 'deleteTodo')
+                                  ? {
+                                      label: ops.length === 1 ? 'Move to Done' : `Move ${ops.length} to Done`,
+                                      tone: 'neutral' as const,
+                                    }
+                                  : ops.every((o) => o.kind === 'deleteGroceryItem')
+                                    ? { label: 'Remove from shopping', tone: 'danger' as const }
+                                    : { label: 'Confirm', tone: 'primary' as const }
+                            return (
+                              <View style={styles.actionsRow}>
+                                <TouchableOpacity
+                                  style={[
+                                    styles.btn,
+                                    cta.tone === 'neutral'
+                                      ? styles.btnNeutral
+                                      : cta.tone === 'danger'
+                                        ? styles.btnDanger
+                                        : styles.btnPrimary,
+                                  ]}
+                                  onPress={() => handleConfirm(i, ops)}
+                                  accessibilityRole="button"
+                                >
+                                  <Text
+                                    style={
+                                      cta.tone === 'neutral'
+                                        ? styles.btnNeutralText
+                                        : cta.tone === 'danger'
+                                          ? styles.btnDangerText
+                                          : styles.btnPrimaryText
+                                    }
+                                  >
+                                    {cta.label}
+                                  </Text>
+                                </TouchableOpacity>
+                              </View>
+                            )
+                          })()
                         ) : null
                       )}
                     </View>
@@ -873,7 +949,7 @@ type PickCandidate = {
   priority?: string
   category?: string
   dueDate?: string
-  recurrence?: { freq: string; interval?: number; byWeekday?: number[] }
+  recurrence?: AgentRecurrence
   /** Set when this is one instance of a generated series. */
   seriesId?: string
 }
@@ -885,7 +961,7 @@ const PICK_VERB: Record<'delete' | 'markDone' | 'edit' | 'addSteps', string> = {
   addSteps: 'add steps to',
 }
 const PICK_CTA: Record<'delete' | 'markDone' | 'edit' | 'addSteps', string> = {
-  delete: 'Delete',
+  delete: 'Move to Done',
   markDone: 'Mark done',
   edit: 'Apply to',
   addSteps: 'Add steps to',
@@ -897,18 +973,28 @@ const PICK_DONE: Record<'delete' | 'markDone' | 'edit' | 'addSteps', string> = {
   addSteps: 'Updated',
 }
 
+/** The core cadence label ("Weekly", "Every 2 weeks", "Weekly · Mon, Wed"),
+ * or null when the proposal doesn't repeat. */
+function repeatText(r: AgentRecurrence | undefined, strings: RecurrenceFreqStrings): string | null {
+  return r ? recurrenceShortLabel(r, strings) : null
+}
+
 /** One-line summary of an edit patch for the pick-list header. */
 function pickEditSummary(
   edit: Extract<ProposedOperation, { kind: 'pickTodos' }>['args']['edit'],
   categoryLabelLookup: (id: string) => string,
+  t: { locale: string; recurrence: RecurrenceFreqStrings },
 ): string | null {
   if (!edit) return null
   const parts: string[] = []
   if (edit.text !== undefined) parts.push(`rename to "${edit.text}"`)
-  if (edit.dueDate !== undefined) parts.push(edit.dueDate ? `due ${edit.dueDate}` : 'clear due date')
+  if (edit.dueDate !== undefined) {
+    parts.push(edit.dueDate ? `complete by ${formatDisplayDate(edit.dueDate, t.locale)}` : 'clear the date')
+  }
   if (edit.priority) parts.push(`${edit.priority} priority`)
   if (edit.category) parts.push(categoryLabelLookup(edit.category))
-  if (recurrenceLabel(edit.recurrence)) parts.push(recurrenceLabel(edit.recurrence)!)
+  const repeat = repeatText(edit.recurrence, t.recurrence)
+  if (repeat) parts.push(repeat)
   if (edit.reminders && edit.reminders.length > 0) parts.push('set reminder')
   if (edit.notes !== undefined) parts.push(edit.notes ? 'update notes' : 'clear notes')
   return parts.length > 0 ? `Set: ${parts.join(' · ')}` : null
@@ -1068,7 +1154,6 @@ function PickTodosCard({
     // Reversible (30-day Trash), so no confirm dialog.
     setSeriesDeleted({ undo: onDeleteTodo(candidates[0].id, 'series') })
   }
-  const truncation = pickTruncationNote(candidates.length, op.args.totalMatches)
 
   if (seriesDeleted) {
     return <AppliedWithUndo note="Series tucked into Done" undo={seriesDeleted.undo} styles={styles} />
@@ -1095,18 +1180,18 @@ function PickTodosCard({
             <Text style={styles.btnNeutralText}>Pick which ones</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.btn, styles.btnDanger]}
+            style={[styles.btn, styles.btnNeutral]}
             onPress={deleteSeries}
             accessibilityRole="button"
           >
-            <Text style={styles.btnDangerText}>Delete series</Text>
+            <Text style={styles.btnNeutralText}>Move series to Done</Text>
           </TouchableOpacity>
         </View>
       </View>
     )
   }
 
-  const editSummary = action === 'edit' ? pickEditSummary(op.args.edit, categoryLabelLookup) : null
+  const editSummary = action === 'edit' ? pickEditSummary(op.args.edit, categoryLabelLookup, t) : null
   const stepsNote =
     action === 'addSteps' && op.args.steps
       ? `Add ${op.args.steps.length} step${op.args.steps.length === 1 ? '' : 's'}`
@@ -1116,9 +1201,8 @@ function PickTodosCard({
     <View>
       <Text style={styles.proposalKind}>Choose which to {PICK_VERB[action]}</Text>
       <Text style={styles.pickSubtitle}>
-        {candidates.length} {query ? `match "${query}"` : 'matches'}
+        {pickMatchHeader(candidates.length, op.args.totalMatches, query)}
       </Text>
-      {!!truncation && <Text style={styles.pickSubtitle}>{truncation}</Text>}
       {!!editSummary && <Text style={styles.pickSummary}>{editSummary}</Text>}
       {!!stepsNote && <Text style={styles.pickSummary}>{stepsNote}</Text>}
 
@@ -1130,9 +1214,9 @@ function PickTodosCard({
       <ScrollView style={styles.pickList} nestedScrollEnabled>
         {candidates.map((c) => {
           const meta = [
-            c.dueDate ? `Due ${formatDisplayDate(c.dueDate, t.locale)}` : null,
+            c.dueDate ? `Complete by ${formatDisplayDate(c.dueDate, t.locale)}` : null,
             c.category ? categoryLabelLookup(c.category) : null,
-            recurrenceLabel(c.recurrence),
+            repeatText(c.recurrence, t.recurrence),
           ]
             .filter(Boolean)
             .join(' · ')
@@ -1179,12 +1263,14 @@ function PickTodosCard({
               <Text style={styles.btnNeutralText}>Defer{selected.size > 0 ? ` ${selected.size}` : ''}</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.btn, styles.btnDanger, selected.size === 0 && styles.btnDisabled]}
+              style={[styles.btn, styles.btnNeutral, selected.size === 0 && styles.btnDisabled]}
               disabled={selected.size === 0}
               onPress={doDelete}
               accessibilityRole="button"
             >
-              <Text style={styles.btnDangerText}>Delete{selected.size > 0 ? ` ${selected.size}` : ''}</Text>
+              <Text style={styles.btnNeutralText}>
+                {selected.size > 0 ? `Move ${selected.size} to Done` : 'Move to Done'}
+              </Text>
             </TouchableOpacity>
           </View>
           {deferOpen && (
@@ -1268,23 +1354,23 @@ function DeleteTodoCard({
               onPress={() => confirmDelete('one')}
               accessibilityRole="button"
             >
-              <Text style={styles.btnNeutralText}>Delete this one</Text>
+              <Text style={styles.btnNeutralText}>Move this one to Done</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.btn, styles.btnDanger]}
+              style={[styles.btn, styles.btnNeutral]}
               onPress={() => confirmDelete('series')}
               accessibilityRole="button"
             >
-              <Text style={styles.btnDangerText}>Delete series</Text>
+              <Text style={styles.btnNeutralText}>Move series to Done</Text>
             </TouchableOpacity>
           </>
         ) : (
           <TouchableOpacity
-            style={[styles.btn, styles.btnDanger]}
+            style={[styles.btn, styles.btnNeutral]}
             onPress={() => confirmDelete('one')}
             accessibilityRole="button"
           >
-            <Text style={styles.btnDangerText}>Delete</Text>
+            <Text style={styles.btnNeutralText}>Move to Done</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -1343,8 +1429,11 @@ function OperationPreview({
   styles: ReturnType<typeof makeStyles>
   theme: ThemeColors
 }) {
+  const { t } = useLang()
   const reminderIcon = <Bell size={12} color={theme.primary} strokeWidth={2.4} />
-  const reminderText = (at: string) => at.replace('T', ' ')
+  // "Remind Tomorrow, 9:00 AM" — never the raw "2026-10-20T09:00".
+  const reminderText = (at: string) => `Remind ${formatDisplayDate(at, t.locale)}`
+  const repeat = (r: AgentRecurrence | undefined) => repeatText(r, t.recurrence)
   if (op.kind === 'createTodo') {
     const a = op.args
     // Mirror what "Review & add" will actually save: a recurrence anchors the
@@ -1365,12 +1454,12 @@ function OperationPreview({
           ) : (
             a.category && <Chip styles={styles}>{categoryLabelLookup(a.category)}</Chip>
           )}
-          {effectiveDue && <Chip styles={styles}>{`Due ${formatDisplayDate(effectiveDue)}`}</Chip>}
+          {effectiveDue && (
+            <Chip styles={styles}>{`Complete by ${formatDisplayDate(effectiveDue, t.locale)}`}</Chip>
+          )}
           {/* Priority only when it's not the default — nobody asked for "medium". */}
           {a.priority && a.priority !== 'medium' && <Chip styles={styles}>{`${capitalize(a.priority)} priority`}</Chip>}
-          {recurrenceLabel(a.recurrence) && (
-            <Chip styles={styles}>{recurrenceLabel(a.recurrence)}</Chip>
-          )}
+          {repeat(a.recurrence) && <Chip styles={styles}>{repeat(a.recurrence)}</Chip>}
           {a.reminders && a.reminders.length > 0 &&
             a.reminders.map((r, i) => (
               <Chip key={i} styles={styles} icon={reminderIcon}>
@@ -1410,11 +1499,11 @@ function OperationPreview({
                 ? categoryLabelLookup(category)
                 : 'No category'}
           </Chip>
-          <Chip styles={styles}>{dueDate ? `Due ${formatDisplayDate(dueDate)}` : 'No due date'}</Chip>
+          <Chip styles={styles}>
+            {dueDate ? `Complete by ${formatDisplayDate(dueDate, t.locale)}` : t.noDate}
+          </Chip>
           <Chip styles={styles}>{`${capitalize(priority)} priority`}</Chip>
-          {recurrenceLabel(a.recurrence) && (
-            <Chip styles={styles}>{recurrenceLabel(a.recurrence)}</Chip>
-          )}
+          {repeat(a.recurrence) && <Chip styles={styles}>{repeat(a.recurrence)}</Chip>}
           {reminders.map((r, i) => (
             <Chip key={i} styles={styles} icon={reminderIcon}>
               {reminderText(r.at)}
@@ -1644,12 +1733,11 @@ function OperationPreview({
   if (op.kind === 'pickTodos') {
     // Only reached for a replaced (read-only) proposal — a live one renders
     // the interactive PickTodosCard.
-    const shown = op.args.todoIds.length
     return (
       <View>
         <Text style={styles.proposalKind}>Choose which to {PICK_VERB[op.args.action]}</Text>
         <Text style={styles.pickSubtitle}>
-          {shown} {op.args.query ? `match "${op.args.query}"` : 'matches'}
+          {pickMatchHeader(op.args.todoIds.length, op.args.totalMatches, op.args.query)}
         </Text>
       </View>
     )
@@ -1680,30 +1768,6 @@ function FrozenTitle({
       <Text style={styles.proposalTitle}>{text}</Text>
     </View>
   )
-}
-
-const WEEKDAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-/** Human-readable label for a proposed recurrence, e.g. "Repeats weekly ·
- * Mon, Wed" or "Every 2 weeks". */
-function recurrenceLabel(
-  r?: { freq: string; interval?: number; byWeekday?: number[] },
-): string | null {
-  if (!r) return null
-  const units: Record<string, string> = {
-    daily: 'days',
-    weekly: 'weeks',
-    monthly: 'months',
-    yearly: 'years',
-  }
-  const base =
-    r.interval && r.interval > 1
-      ? `Every ${r.interval} ${units[r.freq] ?? r.freq}`
-      : `Repeats ${r.freq}`
-  const days =
-    r.byWeekday && r.byWeekday.length > 0
-      ? ` · ${r.byWeekday.map((d) => WEEKDAY_ABBR[d] ?? d).join(', ')}`
-      : ''
-  return `${base}${days}`
 }
 
 function makeStyles(c: ThemeColors) {

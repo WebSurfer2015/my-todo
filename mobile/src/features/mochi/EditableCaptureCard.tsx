@@ -137,7 +137,7 @@ export default function EditableCaptureCard({
           style={styles.editChip}
           onPress={() => setOpen((p) => (p === 'date' ? null : 'date'))}
           accessibilityRole="button"
-          accessibilityLabel={`Due ${dueDate ? formatDisplayDate(dueDate, t.locale) : 'not set'}. Tap to change.`}
+          accessibilityLabel={`Complete by, ${dueDate ? formatDisplayDate(dueDate, t.locale) : t.noDate}. Tap to change.`}
         >
           <Text style={styles.editChipText}>
             {dueDate ? formatDisplayDate(dueDate, t.locale) : 'Add date'}
@@ -163,7 +163,7 @@ export default function EditableCaptureCard({
         {args.reminders?.map((r, i) => (
           <View key={i} style={styles.roChip}>
             <Bell size={11} color={theme.label3} strokeWidth={2.2} />
-            <Text style={styles.roChipText}>{r.at.replace('T', ' ')}</Text>
+            <Text style={styles.roChipText}>{`Remind ${formatDisplayDate(r.at, t.locale)}`}</Text>
           </View>
         ))}
       </View>

@@ -56,6 +56,21 @@ export interface GroceriesSliceDeps {
   actions: TodoStoreActions;
 }
 
+/** The fields a re-add of an already-known item overwrites — what its Undo
+ * puts back. */
+export type GroceryReaddSnapshot = Pick<GroceryItem, "checked" | "checkedAt" | "addedAt" | "stores">;
+
+/** What addGrocery did: the item's id, plus — when it re-added an item that
+ * already existed — that item's previous state (so Undo restores it rather
+ * than deleting an item the user already had). */
+export interface GroceryAddResult {
+  id: string;
+  previous?: GroceryReaddSnapshot;
+}
+
+/** Undo for a store rename/delete — puts the store list + item tags back. */
+export type GroceryUndo = () => void;
+
 export interface GroceriesSlice {
   groceries: GroceryItem[];
   groceriesLoaded: boolean;
@@ -65,7 +80,9 @@ export interface GroceriesSlice {
     text: string;
     groupId?: string;
     stores?: string[];
-  }) => string | undefined;
+  }) => GroceryAddResult | undefined;
+  /** Undo a re-add: put an existing item's previous fields back. */
+  restoreGrocery: (id: string, previous: GroceryReaddSnapshot) => void;
   /** Returns 1 when this toggle just checked the item off (drives the
    * row's completion animation), 0 otherwise. */
   toggleGroceryChecked: (id: string) => number;
@@ -76,8 +93,8 @@ export interface GroceriesSlice {
   deleteGrocery: (id: string) => void;
   addGroceryGroup: (label: string) => string | undefined;
   addGroceryStore: (name: string) => void;
-  renameGroceryStore: (oldName: string, newName: string) => void;
-  deleteGroceryStore: (name: string) => void;
+  renameGroceryStore: (oldName: string, newName: string) => GroceryUndo | null;
+  deleteGroceryStore: (name: string) => GroceryUndo | null;
   linkItemsToStore: (storeName: string, itemIds: string[]) => void;
   reorderGroceryStores: (next: string[]) => void;
   toggleGroceryStoreHidden: (name: string) => void;
@@ -148,7 +165,7 @@ export function useGroceriesSlice(
   }, [groceries]);
 
   const addGrocery = useCallback(
-    (args: { text: string; groupId?: string; stores?: string[] }) => {
+    (args: { text: string; groupId?: string; stores?: string[] }): GroceryAddResult | undefined => {
       // Strip a leading shopping verb ("Buy Milk" → "Milk"), case-insensitively,
       // so the list holds the item itself. Applies to manual + Mochi adds alike.
       const text = normalizeGroceryText(args.text);
@@ -177,7 +194,15 @@ export function useGroceriesSlice(
           };
           return [updated, ...prev.filter((it) => it.id !== existing.id)];
         });
-        return;
+        return {
+          id: existing.id,
+          previous: {
+            checked: existing.checked,
+            checkedAt: existing.checkedAt,
+            addedAt: existing.addedAt,
+            stores: existing.stores,
+          },
+        };
       }
       const explicit =
         args.groupId && args.groupId !== OTHERS_GROUP_ID
@@ -333,15 +358,45 @@ export function useGroceriesSlice(
           });
         }
       }
-      return item.id;
+      return { id: item.id };
     },
     [inferGroceryGroupLocal, newGroceryItem, setGroceries, setProfile, profileRef, notify, t, newGroceryGroup, setGroceryGroups, insertGroupBeforeOthers],
+  );
+
+  // Snapshot-restore Undo for a store rename/delete: the profile's store
+  // fields go back as they were, and each item's store tags go back for the
+  // items that still exist (later adds/edits to other fields survive).
+  const storeUndo = useCallback(
+    (profileBefore: Profile, itemsBefore: GroceryItem[]): GroceryUndo => () => {
+      setProfile((p) => ({
+        ...p,
+        groceryStores: profileBefore.groceryStores,
+        activeGroceryStore: profileBefore.activeGroceryStore,
+      }));
+      const storesById = new Map(itemsBefore.map((it) => [it.id, it.stores]));
+      setGroceries((prev) =>
+        prev.map((it) => {
+          const stores = storesById.get(it.id);
+          return stores && stores !== it.stores ? { ...it, stores } : it;
+        }),
+      );
+    },
+    [setProfile, setGroceries],
+  );
+
+  const restoreGrocery = useCallback(
+    (id: string, previous: GroceryReaddSnapshot) => {
+      setGroceries((prev) => prev.map((it) => (it.id === id ? { ...it, ...previous } : it)));
+    },
+    [setGroceries],
   );
 
   const renameGroceryStore = useCallback(
     (oldName: string, newName: string) => {
       const next = newName.trim();
-      if (!next || next === oldName) return;
+      if (!next || next === oldName) return null;
+      const profileBefore = profileRef.current;
+      const itemsBefore = groceriesRef.current;
       setProfile((p) => {
         const list = p.groceryStores ?? SEED_GROCERY_STORES;
         const activeUpdated =
@@ -353,12 +408,15 @@ export function useGroceriesSlice(
         };
       });
       setGroceries((prev) => renameStoreInItems(prev, oldName, next));
+      return storeUndo(profileBefore, itemsBefore);
     },
-    [setProfile, setGroceries, renameStoreInList, renameStoreInItems],
+    [setProfile, setGroceries, renameStoreInList, renameStoreInItems, profileRef, storeUndo],
   );
 
   const deleteGroceryStore = useCallback(
     (name: string) => {
+      const profileBefore = profileRef.current;
+      const itemsBefore = groceriesRef.current;
       setProfile((p) => {
         const list = (p.groceryStores ?? SEED_GROCERY_STORES).filter((s) => s !== name);
         const active =
@@ -366,8 +424,9 @@ export function useGroceriesSlice(
         return { ...p, groceryStores: list, activeGroceryStore: active };
       });
       setGroceries((prev) => removeStoreFromItems(prev, name));
+      return storeUndo(profileBefore, itemsBefore);
     },
-    [setProfile, setGroceries, removeStoreFromItems],
+    [setProfile, setGroceries, removeStoreFromItems, profileRef, storeUndo],
   );
 
   const linkItemsToStore = useCallback(
@@ -525,6 +584,7 @@ export function useGroceriesSlice(
     groceryGroups,
     groceryGroupsLoaded,
     addGrocery,
+    restoreGrocery,
     toggleGroceryChecked,
     editGrocery,
     deleteGrocery,
