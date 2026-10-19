@@ -6,8 +6,9 @@
  * rebuild the still-open request from the conversation.
  *
  * The open request = the trailing run of user turns in which every
- * intervening Mochi turn was a follow-up QUESTION (no proposed operations,
- * ends with "?" — useMochiAgent normalizes follow-ups to end in "?"). A Mochi
+ * intervening Mochi turn was a follow-up QUESTION — the client's `isFollowUp`
+ * tag (set only for a reply that ends in "?" or starts like a question),
+ * else no proposed operations + a trailing "?". A Mochi
  * turn that proposed operations, or made a statement, closes the previous
  * request. The first turn of the open request leads the to-do text and the
  * answers follow it ("call mom — Friday"), so nothing the user typed is lost
@@ -30,8 +31,8 @@ export interface FallbackCapture {
 
 function isFollowUpQuestion(turn: FallbackChatTurn): boolean {
   if (turn.role !== 'assistant') return false
-  // Prefer the explicit tag: the client's toQuestion() makes every no-op reply
-  // end in "?", so the text alone can't tell a statement from a question.
+  // Prefer the explicit tag: the client classifies the server's RAW reply
+  // (Haiku often omits the "?"), which the displayed text alone can't redo.
   if (turn.isFollowUp !== undefined) return turn.isFollowUp
   return !(turn.operations && turn.operations.length > 0) && turn.content.trimEnd().endsWith('?')
 }

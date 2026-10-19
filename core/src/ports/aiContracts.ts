@@ -12,6 +12,11 @@
  *   - aiInferSuggestFields.ts  (SuggestFieldsInput / SuggestFieldsOutput)
  *   - aiInferLinkStore.ts      (LinkStoreInput / LinkStoreOutput)
  *
+ * It also owns the CLIENT copy of the agentChat `ProposedOperation` union
+ * (server: functions/src/agentTools.ts), guarded by mobile/src/__tests__/
+ * proposedOperation-parity.test.ts, so core's pure op planner
+ * (logic/mochiOps.ts) can type against it.
+ *
  * No React, Firebase, or platform deps — this stays importable from both apps.
  */
 
@@ -117,3 +122,169 @@ export interface LinkStoreResult {
  * 429s are retried — a hard quota cap (RESOURCE_EXHAUSTED) never is.
  */
 export const COLD_START_RETRY_MS = 1500
+
+// ---------------------------------------------------------------------------
+// agentChat (Ask Mochi) — proposed operations
+// ---------------------------------------------------------------------------
+
+export type AgentPriority = 'high' | 'medium' | 'low'
+
+/** Mirrors the server's AgentRecurrence (agentTools.ts) — the safe subset
+ * the agent can propose. The client maps this onto the real Recurrence. */
+export interface AgentRecurrence {
+  freq: 'daily' | 'weekly' | 'monthly' | 'yearly'
+  interval?: number
+  byWeekday?: number[]
+}
+
+/** Mirrors the server's AgentReminder. `at` is a local ISO datetime; the
+ * client mints the stable `id` on apply. */
+export interface AgentReminder {
+  at: string
+  offsetMinutes?: number
+  intervalMinutes?: number
+}
+
+/**
+ * Mirrors the server's ProposedOperation union (functions/src/
+ * agentTools.ts). Keep in lockstep — the server validates + returns these,
+ * the client applies them after the user confirms.
+ *
+ * `newCategoryLabel` (createTodo / editTodo) names a category being created
+ * in the SAME turn — the client resolves it to that category's id on apply.
+ * `editTodo.dueDate: ''` means "clear the date" (the server only sends it
+ * when the user asked to clear). `pickTodos.totalMatches` is how many to-dos
+ * matched in all, when more matched than the candidates listed.
+ */
+export type ProposedOperation =
+  | {
+      kind: 'createTodo'
+      args: {
+        text: string
+        dueDate?: string
+        priority?: AgentPriority
+        category?: string
+        newCategoryLabel?: string
+        notes?: string
+        recurrence?: AgentRecurrence
+        reminders?: AgentReminder[]
+      }
+    }
+  | {
+      kind: 'editTodo'
+      args: {
+        todoId: string
+        text?: string
+        dueDate?: string
+        priority?: AgentPriority
+        category?: string
+        newCategoryLabel?: string
+        notes?: string
+        recurrence?: AgentRecurrence
+        reminders?: AgentReminder[]
+      }
+    }
+  | {
+      kind: 'addSteps'
+      args: { todoId: string; steps: Array<{ text: string }> }
+    }
+  | {
+      kind: 'markDone'
+      args: { todoId: string }
+    }
+  | {
+      kind: 'createCategory'
+      args: { label: string; color?: string; icon?: string }
+    }
+  | {
+      kind: 'createStore'
+      args: { name: string }
+    }
+  | {
+      kind: 'addGroceryItem'
+      args: { text: string; stores?: string[]; groupId?: string }
+    }
+  | {
+      kind: 'deleteTodo'
+      args: { todoId: string }
+    }
+  | {
+      kind: 'deleteGroceryItem'
+      args: { groceryId: string }
+    }
+  | {
+      kind: 'pickTodos'
+      args: {
+        action: 'delete' | 'markDone' | 'edit' | 'addSteps'
+        todoIds: string[]
+        query?: string
+        totalMatches?: number
+        edit?: {
+          text?: string
+          dueDate?: string
+          priority?: AgentPriority
+          category?: string
+          notes?: string
+          recurrence?: AgentRecurrence
+          reminders?: AgentReminder[]
+        }
+        steps?: Array<{ text: string }>
+      }
+    }
+  | {
+      kind: 'editGroceryItem'
+      args: {
+        groceryId: string
+        text?: string
+        stores?: string[]
+        groupId?: string
+      }
+    }
+  | {
+      kind: 'editCategory'
+      args: { categoryId: string; label?: string; color?: string; icon?: string }
+    }
+  | {
+      kind: 'deleteCategory'
+      args: { categoryId: string }
+    }
+  | {
+      kind: 'setGroceryChecked'
+      args: { groceryId: string; checked: boolean }
+    }
+  | {
+      kind: 'renameStore'
+      args: { from: string; to: string }
+    }
+  | {
+      kind: 'deleteStore'
+      args: { name: string }
+    }
+  | {
+      kind: 'skipTodo'
+      args: { todoId: string; scope?: 'one' | 'series' }
+    }
+  | {
+      kind: 'markUndone'
+      args: { todoId: string }
+    }
+  | {
+      kind: 'deferOverdue'
+      args: { dueDate: string }
+    }
+  | {
+      kind: 'restoreTodo'
+      args: { todoId: string }
+    }
+  | {
+      kind: 'subtaskAction'
+      args: {
+        todoId: string
+        subtaskText: string
+        action: 'complete' | 'uncomplete' | 'remove' | 'rename'
+        newText?: string
+      }
+    }
+
+/** The op of one kind, e.g. `OpOf<'pickTodos'>`. */
+export type OpOf<K extends ProposedOperation['kind']> = Extract<ProposedOperation, { kind: K }>

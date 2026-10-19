@@ -18,14 +18,17 @@ import * as Haptics from 'expo-haptics'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Sparkles, Bell, Check } from 'lucide-react-native'
 import { useLang } from '../../app/LangContext'
+import { useAuth } from '../../app/AuthContext'
 import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
 import { useSheetDismiss, sheetGrabZone } from '../../ui/useSheetDismiss'
 import { useMochiAgent, type ProposedOperation } from './useMochiAgent'
+import { pickTruncationNote, supersededProposalTurns } from './chatTurns'
 import MochiThinking from './MochiThinking'
 import EditableCaptureCard from './EditableCaptureCard'
 import { type Priority } from '../../core-bindings/types'
 import { snapDueDateToRecurrence } from '../../../../core/src/logic/derive'
-import { buildFallbackCapture, mochiRestEndsAt } from '../../../../core/src/logic/mochiFallback'
+import { buildFallbackCapture } from '../../../../core/src/logic/mochiFallback'
+import { markMochiResting, mochiRestLabel, mochiRestUntil } from './mochiRest'
 import { todayLocal, formatDisplayDate, fullDateLabel, isoDate } from '../../core-bindings/utils'
 import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 
@@ -62,6 +65,8 @@ interface Props {
     /** Present when this to-do is one instance of a generated series — drives
      * the "Delete series" option on the delete card. */
     seriesId?: string
+    /** Current reminders, so an edit that leaves them alone shows them. */
+    reminders?: Array<{ at: string }>
   }>
   /** Trashed todos (id + text) so Mochi can restore one and the preview can
    * name it. */
@@ -77,14 +82,17 @@ interface Props {
   frequentChips: Array<{ label: string; prefill: string }>
   /** Grocery store names so Mochi can tag items / detect a missing store. */
   stores: string[]
-  /** Apply one validated proposed operation. The parent maps each kind to
-   * the existing store mutation so the agent shares the manual write
-   * surface — confirm-before-apply keeps the user in control. */
-  onApplyOperation: (op: ProposedOperation) => (() => void) | null
+  /** Apply one confirmed turn's validated operations (as a batch, so a to-do
+   * can land in a category the same turn creates). The parent maps each
+   * kind to the existing store mutation so the agent shares the manual write
+   * surface — confirm-before-apply keeps the user in control. Returns the
+   * turn's combined inline Undo, or null. */
+  onApplyOperations: (ops: ProposedOperation[]) => (() => void) | null
   /** Optimistically apply a single new to-do / grocery item. Returns the live
-   * id (for inline chip-editing; null for groceries) + an `undo` the card
-   * renders inline. The no-Confirm capture path. */
-  onCaptureWithUndo: (op: ProposedOperation) => { id: string | null; undo: () => void }
+   * id (for inline chip-editing; null for groceries), the to-do's resolved
+   * category id, and an `undo` the card renders inline. The no-Confirm
+   * capture path. */
+  onCaptureWithUndo: (op: ProposedOperation) => { id: string | null; category?: string; undo: () => void }
   /** Edit a field on a just-captured to-do straight from its card. */
   onEditCapturedTodo: (
     id: string,
@@ -215,18 +223,6 @@ function BreathingSparkle({ reduceMotion, color }: { reduceMotion: boolean; colo
  * Confirm. Every write goes through the same store mutations a manual tap
  * uses.
  */
-// Over the fair-use ceiling Mochi "rests" until the server's day resets
-// (00:00 UTC). Module-scope so reopening the chat the same day still shows
-// it — the hook's state resets on every open.
-let restingUntilMs = 0
-
-/** "8:00 PM", or "tomorrow, 1:00 AM" when the reset is on a later local day. */
-function restingUntilLabel(ms: number): string {
-  const d = new Date(ms)
-  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-  return d.toDateString() === new Date().toDateString() ? time : `tomorrow at ${time}`
-}
-
 export default function ChatSheet({
   visible,
   onClose,
@@ -240,7 +236,7 @@ export default function ChatSheet({
   groceries,
   frequentChips,
   stores,
-  onApplyOperation,
+  onApplyOperations,
   onCaptureWithUndo,
   onEditCapturedTodo,
   onApplyPickedTodos,
@@ -251,6 +247,8 @@ export default function ChatSheet({
   autoSendInitial = false,
 }: Props) {
   const { t } = useLang()
+  // Mochi's rest is per account (mochiRest is keyed by uid).
+  const uid = useAuth().user?.uid ?? null
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
   // Swipe-the-grabber-down to dismiss. confirmsClose: requestClose confirms
@@ -269,12 +267,18 @@ export default function ChatSheet({
   const [resolved, setResolved] = useState<Record<number, 'applied' | 'declined'>>({})
   // Optimistic-capture bookkeeping. appliedRef is a SYNCHRONOUS guard so the
   // auto-apply effect can never double-apply a turn (e.g. under a re-run before
-  // setResolved commits). undoFnsRef holds each applied turn's inline undo;
-  // `undone` flips the card to a "Removed" note after Undo.
+  // setResolved commits). confirmedRef is the same kind of guard for the
+  // Confirm button: a fast double tap lands before the re-render hides it, so
+  // without it the turn would apply twice. undoFnsRef holds each applied
+  // turn's inline undo; `undone` flips the card to a "Removed" note after Undo.
   const appliedRef = useRef<Set<number>>(new Set())
+  const confirmedRef = useRef<Set<number>>(new Set())
   const undoFnsRef = useRef<Record<number, () => void>>({})
   // Live id of each auto-applied to-do, so its card chips can edit it in place.
   const capturedIdRef = useRef<Record<number, string | null>>({})
+  // …and its resolved category id (a same-turn new category has no id in the
+  // proposal itself).
+  const capturedCategoryRef = useRef<Record<number, string | undefined>>({})
   const [undone, setUndone] = useState<Record<number, true>>({})
   const inputRef = useRef<TextInput>(null)
   const scrollRef = useRef<ScrollView>(null)
@@ -305,7 +309,10 @@ export default function ChatSheet({
   // Optimistic capture: a SINGLE new to-do / grocery item is applied the
   // moment Mochi proposes it (no Confirm tap), with an inline Undo. Multi-op
   // turns and edits/mark-done keep the explicit Confirm. The appliedRef guard
-  // makes this idempotent — a turn is applied exactly once.
+  // makes this idempotent — a turn is applied exactly once. Only while the
+  // sheet is VISIBLE: a reply that lands after the chat was hidden is never
+  // auto-created behind the user's back — it's marked handled and, if the
+  // chat is shown again, waits for an explicit Confirm.
   useEffect(() => {
     messages.forEach((m, i) => {
       if (m.role !== 'assistant' || appliedRef.current.has(i)) return
@@ -314,13 +321,15 @@ export default function ChatSheet({
       const op = ops[0]
       if (op.kind !== 'createTodo' && op.kind !== 'addGroceryItem') return
       appliedRef.current.add(i)
+      if (!visible) return
       const res = onCaptureWithUndo(op)
       undoFnsRef.current[i] = res.undo
       capturedIdRef.current[i] = res.id
+      capturedCategoryRef.current[i] = res.category
       setResolved((prev) => ({ ...prev, [i]: 'applied' }))
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
     })
-  }, [messages, onCaptureWithUndo])
+  }, [messages, onCaptureWithUndo, visible])
 
   // P1.4/P1.7 graceful local fallback: over the INVISIBLE fair-use ceiling,
   // never wall or paywall — hand the raw text to the manual compose form so
@@ -341,33 +350,40 @@ export default function ChatSheet({
   useEffect(() => {
     if (!visible) return
     setRestingCapture(null)
-    setResting(
-      Date.now() < restingUntilMs ? { until: restingUntilMs, label: restingUntilLabel(restingUntilMs) } : null,
-    )
-  }, [visible])
+    const until = mochiRestUntil(uid)
+    setResting(until ? { until, label: mochiRestLabel(until) } : null)
+  }, [visible, uid])
   // Wake up when the rest ends while the sheet is open.
   useEffect(() => {
     if (!resting) return
     const id = setTimeout(() => setResting(null), Math.max(0, resting.until - Date.now()))
     return () => clearTimeout(id)
   }, [resting])
-  // Switching to the manual form abandons this conversation: abort an
-  // in-flight request (a late reply would otherwise auto-create the to-do
-  // behind Compose — a duplicate of what the user is typing) and clear it.
-  function enterManually() {
+  // Forget this conversation's local bookkeeping (the hook's reset() aborts
+  // any in-flight turn and clears the messages).
+  function clearConversation() {
     reset()
     setInput('')
     setResolved({})
     setUndone({})
     appliedRef.current.clear()
+    confirmedRef.current.clear()
     undoFnsRef.current = {}
     capturedIdRef.current = {}
+    capturedCategoryRef.current = {}
+  }
+
+  // Switching to the manual form abandons this conversation: abort an
+  // in-flight request (a late reply would otherwise auto-create the to-do
+  // behind Compose — a duplicate of what the user is typing) and clear it.
+  function enterManually() {
+    clearConversation()
     onEnterManually?.()
   }
 
   function fallBackToManual(turn: string) {
-    restingUntilMs = mochiRestEndsAt(new Date()).valueOf()
-    setResting({ until: restingUntilMs, label: restingUntilLabel(restingUntilMs) })
+    const until = markMochiResting(uid)
+    setResting({ until, label: mochiRestLabel(until) })
     setRestingCapture(buildFallbackCapture(messages, turn))
   }
   function addItMyself() {
@@ -382,7 +398,7 @@ export default function ChatSheet({
   function handleSend(raw: string = input) {
     const turn = raw.trim()
     if (!turn || isThinking) return
-    if (Date.now() < restingUntilMs) {
+    if (mochiRestUntil(uid)) {
       // Still resting from earlier today — don't spend a call.
       fallBackToManual(turn)
       setInput('')
@@ -416,6 +432,9 @@ export default function ChatSheet({
   handleSendRef.current = handleSend
 
   function handleConfirm(index: number, ops: ProposedOperation[]) {
+    // Synchronous double-tap guard — apply a turn once.
+    if (confirmedRef.current.has(index)) return
+    confirmedRef.current.add(index)
     // Gentle success beat — the satisfying "Mochi got it" moment.
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
     // A single new-todo turn is handed to the manual ComposeSheet (the same
@@ -430,19 +449,13 @@ export default function ChatSheet({
     }
     // Keep the Undos (mark done / delete / skip) so the turn shows an inline
     // "✓ Done · Undo" — the store's snackbar is hidden behind this Modal.
-    const undos = ops.map((op) => onApplyOperation(op)).filter((u): u is () => void => !!u)
-    if (undos.length > 0) undoFnsRef.current[index] = () => [...undos].reverse().forEach((u) => u())
+    const undo = onApplyOperations(ops)
+    if (undo) undoFnsRef.current[index] = undo
     setResolved((prev) => ({ ...prev, [index]: 'applied' }))
   }
 
   function close() {
-    reset()
-    setInput('')
-    setResolved({})
-    setUndone({})
-    appliedRef.current.clear()
-    undoFnsRef.current = {}
-    capturedIdRef.current = {}
+    clearConversation()
     onClose()
   }
 
@@ -492,6 +505,21 @@ export default function ChatSheet({
   // so the checklist rows can show due date / category / recurrence.
   const pickCandidates = (ids: string[]) =>
     ids.map((id) => todos.find((td) => td.id === id)).filter((t): t is PickCandidate => !!t)
+  // Unresolved proposals a newer Mochi turn has replaced — read-only now.
+  const superseded = supersededProposalTurns(messages, resolved)
+  const renderPreview = (op: ProposedOperation) => (
+    <OperationPreview
+      op={op}
+      categoryLabelLookup={categoryLookup}
+      todoTextLookup={todoTextLookup}
+      todoLookup={todoLookup}
+      groupLabelLookup={groupLookup}
+      groceryTextLookup={groceryTextLookup}
+      trashedTextLookup={trashedTextLookup}
+      styles={styles}
+      theme={theme}
+    />
+  )
 
   return (
     <Modal
@@ -591,13 +619,16 @@ export default function ChatSheet({
                       {!!m.content && <Text style={styles.mochiLine}>{m.content}</Text>}
                       {m.operations?.map((op, j) => (
                         <View key={j} style={styles.proposalCard}>
-                          {/* A just-captured to-do gets editable chips (tap to
-                              fix category/date/priority on the live task). */}
-                          {op.kind === 'createTodo' &&
+                          {/* A replaced proposal is read-only: preview only. */}
+                          {superseded.has(i) ? (
+                            renderPreview(op)
+                          ) : /* A just-captured to-do gets editable chips (tap
+                              to fix category/date/priority on the live task). */
+                          op.kind === 'createTodo' &&
                           resolved[i] === 'applied' &&
                           capturedIdRef.current[i] ? (
                             <EditableCaptureCard
-                              args={op.args}
+                              args={{ ...op.args, category: capturedCategoryRef.current[i] ?? op.args.category }}
                               id={capturedIdRef.current[i]!}
                               categories={categories}
                               recurrenceText={recurrenceLabel(op.args.recurrence)}
@@ -643,23 +674,15 @@ export default function ChatSheet({
                               styles={styles}
                             />
                           ) : (
-                            <OperationPreview
-                              op={op}
-                              categoryLabelLookup={categoryLookup}
-                              todoTextLookup={todoTextLookup}
-                              todoLookup={todoLookup}
-                              groupLabelLookup={groupLookup}
-                              groceryTextLookup={groceryTextLookup}
-                              trashedTextLookup={trashedTextLookup}
-                              styles={styles}
-                              theme={theme}
-                            />
+                            renderPreview(op)
                           )}
                         </View>
                       ))}
                       {/* EditableCaptureCard, PickTodosCard and DeleteTodoCard
                           render their OWN action rows — skip the generic one. */}
-                      {m.operations &&
+                      {superseded.has(i) ? (
+                        <Text style={styles.appliedNote}>Replaced by the newer suggestion</Text>
+                      ) : m.operations &&
                         m.operations.length > 0 &&
                         !(
                           m.operations.length === 1 &&
@@ -1004,20 +1027,28 @@ function PickTodosCard({
     setSelected(allOn ? new Set() : new Set(candidates.map((c) => c.id)))
   }
   const selectedIds = () => candidates.filter((c) => selected.has(c.id)).map((c) => c.id)
+  // Synchronous once-only guard: a fast double tap lands before the re-render
+  // swaps the buttons for the "✓ done" row, and would apply twice.
+  const actedRef = useRef(false)
+  const actOnce = () => {
+    if (actedRef.current) return false
+    actedRef.current = true
+    return true
+  }
   const confirm = () => {
-    if (selected.size === 0) return
+    if (selected.size === 0 || !actOnce()) return
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
     const undo = onConfirm(selectedIds())
     setDone({ verb: PICK_DONE[action], n: selected.size, undo })
   }
   const doSkip = () => {
-    if (selected.size === 0) return
+    if (selected.size === 0 || !actOnce()) return
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
     const undo = onPickAction('skip', selectedIds())
     setDone({ verb: 'Skipped', n: selected.size, undo })
   }
   const doDelete = () => {
-    if (selected.size === 0) return
+    if (selected.size === 0 || !actOnce()) return
     const ids = selectedIds()
     // Reversible (30-day Trash + Undo), so no confirm dialog.
     const undo = onPickAction('delete', ids)
@@ -1025,7 +1056,7 @@ function PickTodosCard({
   }
   const onDeferDate = (e: DateTimePickerEvent, d?: Date) => {
     setDeferOpen(false)
-    if (e.type === 'set' && d && selected.size > 0) {
+    if (e.type === 'set' && d && selected.size > 0 && actOnce()) {
       const ids = selectedIds()
       const undo = onPickAction('defer', ids, isoDate(d))
       setDone({ verb: 'Deferred', n: ids.length, undo })
@@ -1033,10 +1064,11 @@ function PickTodosCard({
   }
 
   const deleteSeries = () => {
-    if (!seriesId) return
+    if (!seriesId || !actOnce()) return
     // Reversible (30-day Trash), so no confirm dialog.
     setSeriesDeleted({ undo: onDeleteTodo(candidates[0].id, 'series') })
   }
+  const truncation = pickTruncationNote(candidates.length, op.args.totalMatches)
 
   if (seriesDeleted) {
     return <AppliedWithUndo note="Series tucked into Done" undo={seriesDeleted.undo} styles={styles} />
@@ -1086,6 +1118,7 @@ function PickTodosCard({
       <Text style={styles.pickSubtitle}>
         {candidates.length} {query ? `match "${query}"` : 'matches'}
       </Text>
+      {!!truncation && <Text style={styles.pickSubtitle}>{truncation}</Text>}
       {!!editSummary && <Text style={styles.pickSummary}>{editSummary}</Text>}
       {!!stepsNote && <Text style={styles.pickSummary}>{stepsNote}</Text>}
 
@@ -1203,8 +1236,12 @@ function DeleteTodoCard({
   const [text] = useState(textProp)
   const [isSeries] = useState(isSeriesProp)
   const [done, setDone] = useState<null | { scope: 'one' | 'series'; undo: (() => void) | null }>(null)
+  // Synchronous double-tap guard — delete once.
+  const actedRef = useRef(false)
 
   const confirmDelete = (scope: 'one' | 'series') => {
+    if (actedRef.current) return
+    actedRef.current = true
     // Reversible (30-day Done bin + inline Undo), so no confirm dialog.
     setDone({ scope, undo: onDelete(scope) })
   }
@@ -1297,7 +1334,9 @@ function OperationPreview({
   op: ProposedOperation
   categoryLabelLookup: (id: string) => string
   todoTextLookup: (id: string) => string
-  todoLookup: (id: string) => { priority?: string; category?: string; dueDate?: string } | undefined
+  todoLookup: (
+    id: string,
+  ) => { priority?: string; category?: string; dueDate?: string; reminders?: Array<{ at: string }> } | undefined
   groupLabelLookup: (id: string) => string
   groceryTextLookup: (id: string) => string
   trashedTextLookup: (id: string) => string
@@ -1321,7 +1360,11 @@ function OperationPreview({
         <Text style={styles.proposalKind}>New to-do</Text>
         <Text style={styles.proposalTitle}>{a.text}</Text>
         <View style={styles.proposalMeta}>
-          {a.category && <Chip styles={styles}>{categoryLabelLookup(a.category)}</Chip>}
+          {a.newCategoryLabel ? (
+            <Chip styles={styles}>{a.newCategoryLabel}</Chip>
+          ) : (
+            a.category && <Chip styles={styles}>{categoryLabelLookup(a.category)}</Chip>
+          )}
           {effectiveDue && <Chip styles={styles}>{`Due ${formatDisplayDate(effectiveDue)}`}</Chip>}
           {/* Priority only when it's not the default — nobody asked for "medium". */}
           {a.priority && a.priority !== 'medium' && <Chip styles={styles}>{`${capitalize(a.priority)} priority`}</Chip>}
@@ -1349,6 +1392,10 @@ function OperationPreview({
     const category = a.category ?? existing?.category
     const dueDate = a.dueDate !== undefined ? a.dueDate : existing?.dueDate
     const priority = a.priority ?? existing?.priority ?? 'medium'
+    // Reminders: the edit only touches them when it carries a non-empty list
+    // (which REPLACES the current ones); otherwise the to-do keeps its own.
+    const replacesReminders = !!a.reminders && a.reminders.length > 0
+    const reminders = replacesReminders ? a.reminders! : (existing?.reminders ?? [])
     return (
       <View>
         <Text style={styles.proposalKind}>Edit to-do</Text>
@@ -1357,23 +1404,24 @@ function OperationPreview({
         </Text>
         <View style={styles.proposalMeta}>
           <Chip styles={styles}>
-            {category ? categoryLabelLookup(category) : 'No category'}
+            {a.newCategoryLabel
+              ? a.newCategoryLabel
+              : category
+                ? categoryLabelLookup(category)
+                : 'No category'}
           </Chip>
           <Chip styles={styles}>{dueDate ? `Due ${formatDisplayDate(dueDate)}` : 'No due date'}</Chip>
           <Chip styles={styles}>{`${capitalize(priority)} priority`}</Chip>
           {recurrenceLabel(a.recurrence) && (
             <Chip styles={styles}>{recurrenceLabel(a.recurrence)}</Chip>
           )}
-          {a.reminders && a.reminders.length > 0 ? (
-            a.reminders.map((r, i) => (
-              <Chip key={i} styles={styles} icon={reminderIcon}>
-                {reminderText(r.at)}
-              </Chip>
-            ))
-          ) : (
-            <Chip styles={styles} icon={reminderIcon}>No reminder</Chip>
-          )}
+          {reminders.map((r, i) => (
+            <Chip key={i} styles={styles} icon={reminderIcon}>
+              {reminderText(r.at)}
+            </Chip>
+          ))}
         </View>
+        {replacesReminders && <Text style={styles.proposalNotes}>Replaces your reminders</Text>}
         {a.notes && <Text style={styles.proposalNotes}>{a.notes}</Text>}
       </View>
     )
@@ -1593,8 +1641,23 @@ function OperationPreview({
     )
   }
 
-  // deleteTodo renders via DeleteTodoCard and pickTodos via PickTodosCard
-  // (both in the message loop) — nothing to preview here.
+  if (op.kind === 'pickTodos') {
+    // Only reached for a replaced (read-only) proposal — a live one renders
+    // the interactive PickTodosCard.
+    const shown = op.args.todoIds.length
+    return (
+      <View>
+        <Text style={styles.proposalKind}>Choose which to {PICK_VERB[op.args.action]}</Text>
+        <Text style={styles.pickSubtitle}>
+          {shown} {op.args.query ? `match "${op.args.query}"` : 'matches'}
+        </Text>
+      </View>
+    )
+  }
+
+  // Exhaustive: every op kind has a preview above.
+  const unhandled: never = op
+  void unhandled
   return null
 }
 

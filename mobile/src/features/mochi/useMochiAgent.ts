@@ -1,7 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import auth from '@react-native-firebase/auth'
 import { isoDate } from '../../core-bindings/utils'
-import { COLD_START_RETRY_MS } from '../../../../core/src/ports/aiContracts'
+import {
+  COLD_START_RETRY_MS,
+  type ProposedOperation,
+} from '../../../../core/src/ports/aiContracts'
+
+// The op union lives in core (ports/aiContracts) so the pure planner
+// (core/src/logic/mochiOps) can type against it; re-exported for callers.
+export type {
+  AgentPriority,
+  AgentRecurrence,
+  AgentReminder,
+  ProposedOperation,
+} from '../../../../core/src/ports/aiContracts'
 
 /**
  * Multi-turn client for the agentChat Cloud Function. Holds the running
@@ -16,9 +28,9 @@ import { COLD_START_RETRY_MS } from '../../../../core/src/ports/aiContracts'
  * Conversation flow: each user turn → one server call. The server replies
  * with a short question (operations:[] ⇒ still gathering) OR a final
  * proposal (operations.length>0, awaitingConfirmation true ⇒ render a
- * Confirm/Try again row). The ProposedOperation union below mirrors the
- * server's (functions/src/agentTools.ts) — a parity test guards them
- * against drift.
+ * Confirm/Try again row). The ProposedOperation union (core/src/ports/
+ * aiContracts.ts) mirrors the server's (functions/src/agentTools.ts) — a
+ * parity test guards them against drift.
  */
 
 const AGENT_CHAT_URL =
@@ -31,162 +43,15 @@ const AGENT_CHAT_URL =
 // a slow-but-successful turn isn't shown as a failure and charged twice.
 const AGENT_FETCH_TIMEOUT_MS = 35000
 
-export type AgentPriority = 'high' | 'medium' | 'low'
-
-/** Mirrors the server's AgentRecurrence (agentTools.ts) — the safe subset
- * the agent can propose. The client maps this onto the real Recurrence. */
-export interface AgentRecurrence {
-  freq: 'daily' | 'weekly' | 'monthly' | 'yearly'
-  interval?: number
-  byWeekday?: number[]
-}
-
-/** Mirrors the server's AgentReminder. `at` is a local ISO datetime; the
- * client mints the stable `id` on apply. */
-export interface AgentReminder {
-  at: string
-  offsetMinutes?: number
-  intervalMinutes?: number
-}
-
-/**
- * Mirrors the server's ProposedOperation union (functions/src/
- * agentTools.ts). Keep in lockstep — the server validates + returns these,
- * the client applies them after the user confirms.
- */
-export type ProposedOperation =
-  | {
-      kind: 'createTodo'
-      args: {
-        text: string
-        dueDate?: string
-        priority?: AgentPriority
-        category?: string
-        notes?: string
-        recurrence?: AgentRecurrence
-        reminders?: AgentReminder[]
-      }
-    }
-  | {
-      kind: 'editTodo'
-      args: {
-        todoId: string
-        text?: string
-        dueDate?: string
-        priority?: AgentPriority
-        category?: string
-        notes?: string
-        recurrence?: AgentRecurrence
-        reminders?: AgentReminder[]
-      }
-    }
-  | {
-      kind: 'addSteps'
-      args: { todoId: string; steps: Array<{ text: string }> }
-    }
-  | {
-      kind: 'markDone'
-      args: { todoId: string }
-    }
-  | {
-      kind: 'createCategory'
-      args: { label: string; color?: string; icon?: string }
-    }
-  | {
-      kind: 'createStore'
-      args: { name: string }
-    }
-  | {
-      kind: 'addGroceryItem'
-      args: { text: string; stores?: string[]; groupId?: string }
-    }
-  | {
-      kind: 'deleteTodo'
-      args: { todoId: string }
-    }
-  | {
-      kind: 'deleteGroceryItem'
-      args: { groceryId: string }
-    }
-  | {
-      kind: 'pickTodos'
-      args: {
-        action: 'delete' | 'markDone' | 'edit' | 'addSteps'
-        todoIds: string[]
-        query?: string
-        edit?: {
-          text?: string
-          dueDate?: string
-          priority?: AgentPriority
-          category?: string
-          notes?: string
-          recurrence?: AgentRecurrence
-          reminders?: AgentReminder[]
-        }
-        steps?: Array<{ text: string }>
-      }
-    }
-  | {
-      kind: 'editGroceryItem'
-      args: {
-        groceryId: string
-        text?: string
-        stores?: string[]
-        groupId?: string
-      }
-    }
-  | {
-      kind: 'editCategory'
-      args: { categoryId: string; label?: string; color?: string; icon?: string }
-    }
-  | {
-      kind: 'deleteCategory'
-      args: { categoryId: string }
-    }
-  | {
-      kind: 'setGroceryChecked'
-      args: { groceryId: string; checked: boolean }
-    }
-  | {
-      kind: 'renameStore'
-      args: { from: string; to: string }
-    }
-  | {
-      kind: 'deleteStore'
-      args: { name: string }
-    }
-  | {
-      kind: 'skipTodo'
-      args: { todoId: string; scope?: 'one' | 'series' }
-    }
-  | {
-      kind: 'markUndone'
-      args: { todoId: string }
-    }
-  | {
-      kind: 'deferOverdue'
-      args: { dueDate: string }
-    }
-  | {
-      kind: 'restoreTodo'
-      args: { todoId: string }
-    }
-  | {
-      kind: 'subtaskAction'
-      args: {
-        todoId: string
-        subtaskText: string
-        action: 'complete' | 'uncomplete' | 'remove' | 'rename'
-        newText?: string
-      }
-    }
-
 export interface AgentResponse {
   reply: string
   operations: ProposedOperation[]
   awaitingConfirmation: boolean
   usage: { input: number; output: number }
   model: string
+  /** Server signature over this assistant turn. Echoed back with the turn
+   * in later histories so the server can verify its own past replies. */
+  sig?: string
 }
 
 interface AgentContext {
@@ -210,19 +75,23 @@ interface AgentContext {
 }
 
 /** One rendered conversation turn. `assistant` turns may carry proposed
- * operations + the awaiting-confirmation flag; only `role`+`content` go
- * back to the server on the next turn. */
+ * operations + the awaiting-confirmation flag; only `role`+`content` (+ the
+ * server's `sig` on assistant turns) go back to the server on the next turn. */
 export interface ChatTurn {
   role: 'user' | 'assistant'
   content: string
   operations?: ProposedOperation[]
   awaitingConfirmation?: boolean
   /** Assistant turn that asks the user for more info (no operations, not
-   * awaiting confirmation). Tagged at receipt — the text can't be trusted to
-   * tell, since toQuestion() makes every such reply end in "?". */
+   * awaiting confirmation). Tagged at receipt from the server's raw reply
+   * (normalizeNoOpReply) — a question is NOT always marked by a "?" (Haiku
+   * often omits it), and a statement may still read like one. */
   isFollowUp?: boolean
   /** Canned reply added on-device by an intent chip (no server call). */
   isLocal?: boolean
+  /** The server's signature for a real assistant reply (never on a local
+   * canned turn); sent back with the turn so the server can verify it. */
+  sig?: string
 }
 
 interface SendResult {
@@ -231,9 +100,19 @@ interface SendResult {
   error?: string
 }
 
-/** Starts like a question (English — the v2.0.0 launch language). */
+/** The wire shape of one history turn: `sig` only on signed assistant turns. */
+export function toWireTurn(m: ChatTurn): { role: 'user' | 'assistant'; content: string; sig?: string } {
+  return m.role === 'assistant' && m.sig
+    ? { role: m.role, content: m.content, sig: m.sig }
+    : { role: m.role, content: m.content }
+}
+
+/** Starts like a question (English — the v2.0.0 launch language): a
+ * wh-word, or an auxiliary followed by its subject ("Do you…", "Should I…",
+ * "Is that…"). A bare auxiliary isn't enough — "Will do — added it." and
+ * "Can do!" are statements. */
 const QUESTION_START =
-  /^(what|when|which|where|who|whom|whose|how|why|do|does|did|is|are|was|were|can|could|would|should|shall|will|any|want|anything)\b/i
+  /^(?:(?:what|when|which|where|who|whom|whose|how|why)\b|(?:do|does|did|is|are|was|were|can|could|would|should|shall|will|don't|doesn't|didn't|isn't|aren't|won't)\s+(?:i|you|we|they|he|she|it|that|this|these|those|there|the|a|an|your|my|any)\b|anything\s+else\b|want\s+me\b)/i
 
 /** Normalize a no-operation Mochi reply. Haiku doesn't reliably end its
  * follow-up questions with "?", so a reply that STARTS like a question gets
@@ -264,8 +143,10 @@ export function useMochiAgent() {
   const [errorKind, setErrorKind] = useState<MochiErrorKind>(null)
 
   // The in-flight turn's controller — aborted on unmount (close the sheet
-  // mid-request) and when a fresh send supersedes a pending one, so the
-  // model call stops billing once nobody's waiting on it.
+  // mid-request) and when a fresh send supersedes a pending one, so a late
+  // reply can't land in state. Aborting only drops the CLIENT side: the
+  // server's model call still runs to completion and is still billed (and
+  // still counts toward the fair-use cap).
   const controllerRef = useRef<AbortController | null>(null)
   useEffect(() => () => controllerRef.current?.abort(), [])
 
@@ -313,10 +194,10 @@ export function useMochiAgent() {
           },
           // Firebase callable functions wrap the payload in `{data: ...}`
           // and return `{result: ...}`. Strip operations off the wire —
-          // assistant turns carry text only.
+          // assistant turns carry text (+ the server's sig) only.
           body: JSON.stringify({
             data: {
-              messages: history.map((m) => ({ role: m.role, content: m.content })),
+              messages: history.map(toWireTurn),
               // Fair use counts conversations: tell the server this request
               // starts one when no SERVER reply exists yet (an intent chip's
               // canned local exchange would otherwise make it look like a
@@ -445,6 +326,7 @@ export function useMochiAgent() {
             content: reply.text,
             operations,
             awaitingConfirmation: result.awaitingConfirmation,
+            ...(typeof result.sig === 'string' && result.sig ? { sig: result.sig } : {}),
             // Only a real question asks the user for more of the same request.
             isFollowUp: reply.isQuestion,
           },
