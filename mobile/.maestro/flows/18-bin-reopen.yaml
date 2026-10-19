@@ -27,10 +27,18 @@ appId: com.websurfer.mytodo
 - waitForAnimationToEnd
 # Bin chrome renders (retention notice + bulk delete).
 - assertVisible: ".*Delete all permanently.*"
-# A trashed seed row is present and tappable; tapping reopens it.
+# A trashed seed row is present; swipe → Reopen brings it back (a body tap
+# now OPENS the to-do — this flow used to pass without asserting anything).
 - scrollUntilVisible:
     element:
       text: ".*Unread newsletter cleanup.*"
     direction: DOWN
-- tapOn: ".*Unread newsletter cleanup.*"
-- waitForAnimationToEnd
+- swipe:
+    from:
+      text: ".*Unread newsletter cleanup.*"
+    direction: LEFT
+    duration: 600
+- tapOn: "Reopen"
+- extendedWaitUntil:
+    visible: "Moved back to your open list."
+    timeout: 4000

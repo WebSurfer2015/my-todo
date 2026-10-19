@@ -16,7 +16,22 @@ appId: com.websurfer.mytodo
 - tapOn:
     text: "Todos, tab.*"
 # Complete a row (body-tap toggles done) so the Done bin is non-empty.
-- tapOn: ".*Email therapist about Friday.*"
+# Row body tap OPENS a to-do now; complete via the swipe "Mark done" action
+# (a row is one VoiceOver element, so the circle isn't separately targetable).
+- swipe:
+    from:
+      text: "Email therapist about Friday"
+    direction: RIGHT
+    duration: 600
+- runFlow:
+    when:
+      visible: "Mark done"
+    commands:
+      - tapOn: "Mark done"
+- extendedWaitUntil:
+    visible:
+      text: "Done: Email therapist about Friday.*"
+    timeout: 4000
 - waitForAnimationToEnd:
     timeout: 2500
 # Switch to the Done filter (funnel → status row → title-bar Done).

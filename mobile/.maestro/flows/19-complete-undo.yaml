@@ -1,0 +1,26 @@
+# Flow 19 — Every completion has Undo (Phase 2, 2026-10-18).
+# Swipe → "Mark done" → "Done: <title> · Undo" → Undo → the row is open again.
+appId: com.websurfer.mytodo
+---
+- stopApp
+- launchApp
+- tapOn:
+    text: "Todos, tab.*"
+- waitForAnimationToEnd
+- swipe:
+    from:
+      text: "Refill prescription"
+    direction: RIGHT
+    duration: 600
+- runFlow:
+    when:
+      visible: "Mark done"
+    commands:
+      - tapOn: "Mark done"
+- extendedWaitUntil:
+    visible:
+      text: "Done: Refill prescription.*"
+    timeout: 4000
+- tapOn: "Undo"
+- waitForAnimationToEnd
+- assertVisible: "Refill prescription"

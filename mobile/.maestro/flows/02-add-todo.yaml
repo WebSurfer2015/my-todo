@@ -18,7 +18,15 @@ appId: com.websurfer.mytodo
 # the only way in (no FAB visible). On a populated list, the FAB at
 # bottom-right opens the same sheet.
 - tapOn:
-    text: ".*Add a to-do.*"   # FAB on seeded list (label: "Add a to-do, e.g. …"); empty-state CTA only exists when list is empty
+    text: ".*Add a to-do.*"   # FAB (label "Add a to-do"); empty-state CTA only exists when list is empty
+# The + button opens Mochi by default (the front door, 2026-10-18) — switch
+# to the manual form when the chat is what opened.
+- runFlow:
+    when:
+      visible: "Switch to entering the to-do manually"
+    commands:
+      - tapOn: "Switch to entering the to-do manually"
+      - waitForAnimationToEnd
 # ComposeSheet header reads "Cancel  Add to-do  Done" as one
 # concatenated accessibility label, so substring-match.
 - assertVisible:

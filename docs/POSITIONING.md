@@ -191,6 +191,7 @@ THE BASICS, DONE GENTLY
 • Categories with custom colors and an 80+ icon library — configurable and drag to reorder
 • Sign in with Apple, Google, or email
 • Cross-device sync via secure cloud storage
+• A simple shopping list, sorted by aisle
 
 WHAT MAKES IT DIFFERENT
 
@@ -205,12 +206,7 @@ Mochi, your steady mascot, shows up with a soft daily line. Never pushy. Never h
 
 TODAY, AND ONLY TODAY
 
-Open Sagely and you land on Today — a quiet view of just today and whatever carried over from yesterday. The whole backlog isn't shouting at you the moment you open the app. Changed your mind about a check-off? Tap it again to undo.
-
-
-GROCERIES, BY AISLE
-
-A second tab for the list you keep on the way to the store. Items group themselves by department — Produce, Dairy & Eggs, Bread & Bakery, Frozen, Pantry, and more — so the list reads in the order you actually walk the store. Items don't disappear when you check them off; uncheck to bring them back next time. Rename or hide built-in departments, add your own. The filter and "All" pill behave exactly like Todos, so you don't relearn the UI between trips.
+Open Sagely and you land on Today — a quiet view of just today and whatever carried over from yesterday. The whole backlog isn't shouting at you the moment you open the app. Every check-off comes with an Undo.
 
 
 DESIGNED FOR THE HARD MOMENTS

@@ -23,7 +23,22 @@ appId: com.websurfer.mytodo
     text: "Done"
 - waitForAnimationToEnd
 # Body-tap toggles done (TaskItem default tapBehavior: 'toggle').
-- tapOn: ".*Refill prescription.*"
+# Row body tap OPENS a to-do now; complete via the swipe "Mark done" action
+# (a row is one VoiceOver element, so the circle isn't separately targetable).
+- swipe:
+    from:
+      text: "Refill prescription"
+    direction: RIGHT
+    duration: 600
+- runFlow:
+    when:
+      visible: "Mark done"
+    commands:
+      - tapOn: "Mark done"
+- extendedWaitUntil:
+    visible:
+      text: "Done: Refill prescription.*"
+    timeout: 4000
 - waitForAnimationToEnd:
     timeout: 3000
 # Switch to the Done filter; the toggled row is now there.

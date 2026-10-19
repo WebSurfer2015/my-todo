@@ -1,6 +1,6 @@
 # Sagely — Privacy Policy
 
-**Last updated**: October 17, 2026
+**Last updated**: October 18, 2026
 
 This policy describes what Sagely does with your data, who has access to it,
 and what choices you have. We've tried to keep it short and plain.
@@ -36,20 +36,26 @@ devices.
 | --- | --- | --- |
 | Your to-dos and steps | The whole point of the app | Firebase Firestore, your private subtree |
 | Categories (custom + default) | To organize your to-dos | Firebase Firestore, your private subtree |
-| Profile settings (theme, daily check-in time, etc.) | To remember your preferences | Firebase Firestore, your private subtree |
-| Pebble counts (your daily completion tally) | To show your cairn progress | Firebase Firestore, your private subtree |
+| Profile settings (theme, reminder preferences, etc.) | To remember your preferences | Firebase Firestore, your private subtree |
 | Optional avatar image you upload | To personalize the app | Firebase Firestore, your private subtree (compressed) |
 
 ### When you use Mochi (the AI assistant)
 
-Mochi is optional. When you send Mochi a message, or ask it to fill in or
-break down a task, the app sends what that request needs to **Anthropic**
-(the company that makes the Claude AI model) through our server:
+Mochi (AI assistance) is on by default and can be turned off any time in
+Settings → AI assistance. While it's on, the app sends what a request needs
+to **Anthropic** (the company that makes the Claude AI model) through our
+server when:
+
+- you send Mochi a message, or ask it to break a task into steps;
+- you pause while typing a new to-do (about 1.5 seconds) — the text is sent
+  so Mochi can suggest a category, date, or reminder you can tap to apply;
+- you add a shopping item the app can't sort into an aisle on the device, or
+  that may name a store ("milk from Costco").
 
 | Data | Why | Where it goes |
 | --- | --- | --- |
 | Your message and the conversation so far | So Mochi can understand and reply | Sent to Anthropic for that request |
-| Today's date, your category names, the text of your to-dos (open and in the bin, up to 100), your shopping-list items and store names | So Mochi can find, add, or change the right items ("move the dentist to Friday") | Sent to Anthropic for that request |
+| Today's date, your category names, the text of your to-dos and their steps (open, done, and in the bin, up to 100), your shopping-list items and store names | So Mochi can find, add, or change the right items ("move the dentist to Friday") | Sent to Anthropic for that request |
 | How many Mochi requests you've made | To keep a fair-use limit on AI costs | Firebase Firestore, your private subtree |
 
 - We do **not** send your name, email, or account ID to Anthropic.
@@ -59,7 +65,7 @@ break down a task, the app sends what that request needs to **Anthropic**
   it within 30 days; if a request is flagged under Anthropic's Usage Policy, it
   may be kept for up to 2 years for safety review. See
   [Anthropic's privacy policy](https://www.anthropic.com/legal/privacy).
-- If you never use Mochi, nothing is sent to Anthropic.
+- If you turn AI assistance off, nothing is sent to Anthropic.
 
 ### When you subscribe
 
@@ -137,13 +143,13 @@ data as a routine practice.
 
 ### Export your data
 
-The app has an "Export my data" button in Profile → Privacy. It produces a
+The app has an "Export data" button in Settings → Data. It produces a
 JSON file containing every to-do, category, and profile setting on your
 account. You can save this anywhere.
 
 ### Delete your account
 
-Profile → Privacy → "Delete account" wipes everything:
+Settings → Data → "Delete account" wipes everything:
 
 - Your Firebase Authentication account
 - Everything stored under your account in Firestore: to-dos, categories,
@@ -163,12 +169,6 @@ privacy policies.
 Sign out from Profile. Your data stays in the cloud; your local cache on
 this device is cleared so the next user signing in on this device sees a
 clean state.
-
-### Skip cloud sync (signed-out mode)
-
-If you don't sign in, your data stays on the device only (in the iOS local
-storage). It's not sent anywhere. The trade-off is that it doesn't sync
-across devices.
 
 ---
 

@@ -42,8 +42,11 @@ brew install --HEAD maestro
 1. iOS simulator booted with Sagely's dev client installed.
 2. Signed in as `sagely.todo@gmail.com` with the seed dataset present
    (run `scripts/seed_sample_data.py` first).
-3. Dashboard tab is the active tab (cold-launch lands here — flow `01`
-   asserts that). v1.5 renamed Home → Dashboard.
+3. Today tab is the active tab (cold-launch lands here — flow `01`
+   asserts that). Renamed Dashboard → Today on 2026-10-18.
+   Interaction model (2026-10-18): a row body tap OPENS the to-do; flows
+   complete a row with swipe RIGHT → "Mark done" (a row is one VoiceOver
+   element, so the circle isn't separately targetable).
 
 ## Run
 
@@ -60,24 +63,25 @@ at the running sim and it'll show element selectors live.
 
 | File | What it covers | Manual-plan test # |
 | --- | --- | --- |
-| `flows/01-cold-launch-lands-on-home.yaml` | App launches to Dashboard tab; TODAY section renders | 1.1, 3.1 |
+| `flows/01-cold-launch-lands-on-home.yaml` | App launches to Today tab; TODAY section renders | 1.1, 3.1 |
 | `flows/02-add-todo.yaml` | FAB → Compose → Done → row appears in list | 4.1–4.3 |
-| `flows/03-toggle-done-and-strike.yaml` | Filter Open → tap row toggles done → appears under Done filter | 4.7, 3.2 |
+| `flows/03-toggle-done-and-strike.yaml` | Filter Open → swipe → Mark done → appears under Done filter | 4.7, 3.2 |
 | `flows/04-swipe-to-trash-and-undo.yaml` | Swipe-right → Not Do → snackbar Undo restores row | 4.10 |
 | `flows/05-defer-all-group.yaml` | Group header "Defer all →" → modal title check → Tomorrow | 7.5–7.7 |
-| `flows/06-pebble-lifetime-count.yaml` | ProfileSheet "YOUR JOURNEY" shows lifetime pebble count (replaces removed PebbleStrip flow) | P1.11 |
 | `flows/07-defer-single-via-swipe.yaml` | Swipe-right → Defer → modal "Defer to" → Tomorrow | 7.1–7.3 |
-| `flows/08-recurring-rolling.yaml` | Tap recurring → snapshot in Done bin + rolled-forward instance | 9.1–9.3 |
+| `flows/08-recurring-rolling.yaml` | Complete recurring (swipe → Mark done) → Done bin + rolled-forward instance | 9.1–9.3 |
 | `flows/09-shopping-add-item.yaml` | Empty Shopping → Add CTA → GroceryComposeSheet renders (STORES section visible) | (v1.5) |
 | `flows/10-shopping-empty-state.yaml` | Empty Shopping → "Start shopping." → "Add your first item" → GroceryComposeSheet | (v1.5) ⚠ needs empty acct |
 | `flows/11-shopping-add-store.yaml` | Gear → Manage Store renders → "Add a store" CTA visible | (v1.5) |
 | `flows/12-todos-empty-state.yaml` | Empty Todos → EmptyStateCard → Add a to-do → compose opens | (v1.5) |
-| `flows/13-tab-navigation.yaml` | Dashboard → Todos → Shopping → Dashboard all mount/switch | P0.3 |
+| `flows/13-tab-navigation.yaml` | Today → Todos → Shopping → Today all mount/switch | P0.3 |
 | `flows/14-relaunch-persists-data.yaml` | Seeded row survives a cold stopApp/launchApp (hydration) | P0.4 |
 | `flows/15-open-task-details-sheet.yaml` | Long-press row → TaskDetailsSheet "Steps" renders (render-only) | P1.6 |
 | `flows/16-sign-out.yaml` | Avatar → ProfileSheet → Sign out → SignIn screen ⚠ destructive | P0.2 |
 | `flows/17-clear-completed.yaml` | Complete row → Done filter → "Delete all permanently" → confirm ⚠ destructive | P1.8 |
-| `flows/18-bulk-trash-restore.yaml` | Trash view → select rows → bulk Restore ⚠ **blocked until #15** | P1.7 |
+| `flows/18-bin-reopen.yaml` | Done bin → swipe → Reopen → "Moved back to your open list." | P1.7 |
+| `flows/19-complete-undo.yaml` | Swipe → Mark done → "Done: … · Undo" → Undo restores the row | Phase 2 |
+| `flows/20-onboarding.yaml` | View intro again → one-screen onboarding; starter chip pre-fills; look around → Today (no AI call) | Phase 2 |
 
 > **Flows 13–15 are verified green; 16/17/18 are destructive/precondition
 > flows** (see below). Flows 03–08 were rewritten in the #16 pass to use
@@ -100,7 +104,6 @@ at the running sim and it'll show element selectors live.
 | P1.9 reminders | — | reachable (ReminderSheet is addressable) — flow not yet written |
 | P1.10 defer (single + all) | `05`, `07` | ✅ swipe Defer (07) + group Defer-all (05) |
 | P1.10 recurrence / series-edit | `08` | ✅ expand UPCOMING → roll weekly → snapshot in Done |
-| P1.11 pebbles | `06` | ✅ reworked → ProfileSheet lifetime count (PebbleStrip removed) |
 
 **Passing on device:** all 18 flows (verified 2026-06 after #15 + the
 filter-sheet selector rewrite). 01–09, 11, 13–18 run on the seeded sim;
@@ -168,7 +171,7 @@ FAB reads `"Add a to-do, e.g. …"`. Maestro **anchors** a bare `text:`
 match, so `tapOn: "Refill prescription"` fails while `tapOn: { text:
 ".*Refill prescription.*" }` matches. **Rule: select rows/items/FAB by
 `.*substring.*` regex.** Section headers are uppercase (`"CARRIED OVER"`).
-The Todos/Dashboard/Shopping lists ARE individually addressable this way.
+The Todos/Today/Shopping lists ARE individually addressable this way.
 
 **2. Modal sheets used to flatten into one a11y leaf — FIXED by #15.**
 Previously every `<Modal>` sheet that WRAPPED its body in a backdrop
@@ -204,10 +207,9 @@ scrolled into; tap the header to expand first, then `scrollUntilVisible`.
 ### TODO flows (write when relevant)
 
 - `signin-apple.yaml` / `signin-google.yaml` — native OAuth sheets aren't reliably scriptable; covered by manual QA today.
-- `mark-done-pebble.yaml` — overlaps with 06; extend if pebble math changes.
 - `add-grocery-mochi-thinking.yaml` — would assert "Mochi's thinking…" appears within 1s of typing. CF call latency is non-deterministic, so this needs a stub or generous timeout.
 - `recalibrate.yaml` — Reset Lifetime Count → Recalibrate confirm dialog copy.
-- `dark-mode.yaml` — toggle system dark → Dashboard chrome adapts.
+- `dark-mode.yaml` — toggle system dark → Today chrome adapts.
 - `voiceover.yaml` — Maestro doesn't natively drive VoiceOver; document manual approach.
 
 ## Tips when flows fail

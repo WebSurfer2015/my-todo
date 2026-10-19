@@ -1,4 +1,4 @@
-# Flow 13 — Bottom-tab navigation: Dashboard → Todos → Shopping → Dashboard.
+# Flow 13 — Bottom-tab navigation: Today → Todos → Shopping → Today.
 # Session manual-plan P0.3 (+ smoke for the #8 feature-folder reorg).
 #
 # Why this matters now: task #8 physically moved every screen/component
@@ -13,9 +13,9 @@ appId: com.websurfer.mytodo
 ---
 - stopApp
 - launchApp
-- assertVisible: "Dashboard, tab, 1 of 3"
+- assertVisible: "Today, tab, 1 of 3"
 - assertVisible:
-    text: "Open Todos showing.*"        # Dashboard sentinel (TODAY section aria)
+    text: "Open Todos.*"        # Today sentinel (TODAY section aria)
 - tapOn:
     text: "Todos, tab.*"
 - waitForAnimationToEnd:
@@ -25,8 +25,8 @@ appId: com.websurfer.mytodo
 - waitForAnimationToEnd:
     timeout: 1500
 - tapOn:
-    text: "Dashboard, tab.*"
+    text: "Today, tab.*"
 - waitForAnimationToEnd:
     timeout: 1500
 - assertVisible:
-    text: "Open Todos showing.*"        # round-tripped back to Dashboard (TODAY section)
+    text: "Open Todos.*"        # round-tripped back to Today (TODAY section)

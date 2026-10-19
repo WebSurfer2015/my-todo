@@ -32,7 +32,22 @@ appId: com.websurfer.mytodo
     element:
       text: ".*Yoga class.*"
     direction: DOWN
-- tapOn: ".*Yoga class.*"
+# Row body tap OPENS a to-do now; complete via the swipe "Mark done" action
+# (a row is one VoiceOver element, so the circle isn't separately targetable).
+- swipe:
+    from:
+      text: "Yoga class"
+    direction: RIGHT
+    duration: 600
+- runFlow:
+    when:
+      visible: "Mark done"
+    commands:
+      - tapOn: "Mark done"
+- extendedWaitUntil:
+    visible:
+      text: "Done: Yoga class.*"
+    timeout: 4000
 - waitForAnimationToEnd:
     timeout: 3000
 # Switch to the Done filter and confirm the rolled snapshot landed there.

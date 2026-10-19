@@ -1,0 +1,19 @@
+# Flow 20 — One-screen onboarding (Settings → View intro again).
+# Starter chips PRE-FILL (never send); "I'll look around first" lands on Today.
+# No AI call is made.
+appId: com.websurfer.mytodo
+---
+- stopApp
+- launchApp
+- tapOn:
+    id: "settings-button"
+- tapOn: "View Mochi's intro again"
+- extendedWaitUntil:
+    visible: "Hi, I'm Mochi."
+    timeout: 8000
+- assertVisible: ".*Anthropic.*"
+- tapOn: "Call someone"
+- assertVisible: "Call someone "
+- tapOn: "I'll look around first"
+- waitForAnimationToEnd
+- assertVisible: "Today, tab, 1 of 3"
