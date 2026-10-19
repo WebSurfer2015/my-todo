@@ -12,6 +12,7 @@ import {
   type LinkStoreInput,
   type LinkStoreResult,
 } from '../../../core/src/ports/aiContracts'
+import { markMochiResting, mochiRestUntil } from '../features/mochi/mochiRest'
 
 /**
  * Client wrappers for the aiInfer Cloud Function. Same pattern as
@@ -156,9 +157,19 @@ export async function suggestSubtasks(
  * errors so the caller can ignore failures silently.
  */
 export async function classifyGroceryDept(input: ClassifyDeptInput): Promise<ClassifyDeptResult> {
+  const empty: ClassifyDeptResult = { groupId: null, newGroupLabel: null, storeHint: null, recommendedStores: [] }
+  // Mochi's resting (the shared daily cap is spent): don't spend a request
+  // on a "no" — same gate as every other ambient AI call.
+  const uid = currentAiUid()
+  if (mochiRestUntil(uid)) return empty
   try {
     return await callAiInfer<ClassifyDeptResult>('classify-grocery-dept', input)
   } catch (err) {
+    if (isAiQuotaError(err)) {
+      // Hit the cap: every AI surface goes quiet until the reset.
+      markMochiResting(uid)
+      return empty
+    }
     // Surface 429s + network errors to the console so they don't
     // disappear into the all-null fallback. Catching at all is
     // intentional — this is an ambient feature, not a load-bearing
@@ -169,7 +180,7 @@ export async function classifyGroceryDept(input: ClassifyDeptInput): Promise<Cla
     } else {
       console.warn('[ai] classifyGroceryDept failed:', msg)
     }
-    return { groupId: null, newGroupLabel: null, storeHint: null, recommendedStores: [] }
+    return empty
   }
 }
 
@@ -210,5 +221,14 @@ export async function linkStoreToItems(input: LinkStoreInput): Promise<LinkStore
   // Throws on failure (network, 429, quota) — the caller distinguishes "no
   // match" from "couldn't check". Swallowing errors into an empty result made
   // every failure read as "No matching items" (a false negative).
-  return callAiInfer<LinkStoreResult>('link-store-to-items', input)
+  // While Mochi rests, fail fast with the same quota error the caller already
+  // handles quietly — no request spent on a "no".
+  const uid = currentAiUid()
+  if (mochiRestUntil(uid)) throw quotaError()
+  try {
+    return await callAiInfer<LinkStoreResult>('link-store-to-items', input)
+  } catch (err) {
+    if (isAiQuotaError(err)) markMochiResting(uid)
+    throw err
+  }
 }

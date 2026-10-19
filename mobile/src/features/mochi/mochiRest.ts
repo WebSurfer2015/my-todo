@@ -26,8 +26,14 @@ export function markMochiResting(uid: string | null | undefined, now: Date = new
   return until
 }
 
-/** Forget any rest (sign-out). */
+/** Forget any rest (sign-out). An account switch needs no reset: the rest is
+ * keyed by uid, so mochiRestUntil() is 0 for any other account. */
 export function clearMochiRest(): void {
+  rest = null
+}
+
+/** Test-only: reset the module state between tests. */
+export function __resetForTests(): void {
   rest = null
 }
 

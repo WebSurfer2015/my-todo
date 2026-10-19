@@ -4,8 +4,9 @@
  * resting window + its reset-time label.
  */
 import { afterEach, describe, expect, it } from 'vitest'
-import { pickTruncationNote, supersededProposalTurns } from '../features/mochi/chatTurns'
+import { pickMatchHeader, supersededProposalTurns } from '../features/mochi/chatTurns'
 import {
+  __resetForTests,
   clearMochiRest,
   markMochiResting,
   mochiRestLabel,
@@ -43,16 +44,30 @@ describe('supersededProposalTurns', () => {
   })
 })
 
-describe('pickTruncationNote', () => {
-  it('only when more matched than are shown', () => {
-    expect(pickTruncationNote(10, 23)).toBe('Showing 10 of 23 — say more to narrow it')
-    expect(pickTruncationNote(10, 10)).toBeNull()
-    expect(pickTruncationNote(10, undefined)).toBeNull()
+describe('pickMatchHeader', () => {
+  it('one consistent line when the list was cut short (total first, then what shows)', () => {
+    expect(pickMatchHeader(20, 37, 'milk')).toBe('37 match "milk" · showing 20 — say more to narrow it')
+    expect(pickMatchHeader(10, 23)).toBe('23 matches · showing 10 — say more to narrow it')
+  })
+  it('just the count when every match is listed (or the server did not say)', () => {
+    expect(pickMatchHeader(20, 20, 'milk')).toBe('20 match "milk"')
+    expect(pickMatchHeader(3, undefined)).toBe('3 matches')
+    expect(pickMatchHeader(1, undefined)).toBe('1 match')
   })
 })
 
 describe('mochiRest', () => {
   afterEach(() => clearMochiRest())
+
+  it('is keyed by uid — an account switch never inherits the rest; __resetForTests clears it', () => {
+    const now = new Date('2026-10-19T15:00:00Z')
+    markMochiResting('uid-a', now)
+    expect(mochiRestUntil('uid-b', now.valueOf())).toBe(0)
+    expect(mochiRestUntil(null, now.valueOf())).toBe(0)
+    expect(mochiRestUntil('uid-a', now.valueOf())).toBeGreaterThan(0)
+    __resetForTests()
+    expect(mochiRestUntil('uid-a', now.valueOf())).toBe(0)
+  })
 
   it('rests until the next 00:00 UTC, for that account only', () => {
     const now = new Date('2026-10-19T15:00:00Z')

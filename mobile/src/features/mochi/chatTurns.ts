@@ -27,9 +27,13 @@ export function supersededProposalTurns(
   return out
 }
 
-/** "Showing 10 of 23 — say more to narrow it" when a pick-list was cut
- * short; null when every match is listed (or the server didn't say). */
-export function pickTruncationNote(shown: number, totalMatches: number | undefined): string | null {
-  if (typeof totalMatches !== 'number' || !(totalMatches > shown)) return null
-  return `Showing ${shown} of ${totalMatches} — say more to narrow it`
+/** The pick-list header: `20 match "milk"` when every match is listed, or —
+ * when the server cut the list short — one consistent line,
+ * `37 match "milk" · showing 20 — say more to narrow it` (the count is the
+ * TOTAL; it used to say "20 match" above "Showing 20 of 37"). */
+export function pickMatchHeader(shown: number, totalMatches: number | undefined, query?: string): string {
+  const cutShort = typeof totalMatches === 'number' && totalMatches > shown
+  const n = cutShort ? totalMatches : shown
+  const head = query ? `${n} match "${query}"` : `${n} ${n === 1 ? 'match' : 'matches'}`
+  return cutShort ? `${head} · showing ${shown} — say more to narrow it` : head
 }

@@ -215,4 +215,23 @@ describe('useMochiAgent', () => {
     })
     expect(result.current.messages[3].isFollowUp).toBe(false)
   })
+
+  it('a normalized question (display gains "?") still echoes the RAW server reply on the wire', async () => {
+    fetchMock
+      .mockResolvedValueOnce(reply({ reply: 'When should I set it for.  ', sig: 'sig-raw' }))
+      .mockResolvedValueOnce(reply({ reply: 'ok' }))
+    const { result } = renderHook(() => useMochiAgent())
+    await act(async () => {
+      await result.current.send('call mom', CTX as never)
+    })
+    expect(result.current.messages[1].content).toBe('When should I set it for?')
+    await act(async () => {
+      await result.current.send('Friday', CTX as never)
+    })
+    expect(wireMessages(1)[1]).toEqual({
+      role: 'assistant',
+      content: 'When should I set it for.  ',
+      sig: 'sig-raw',
+    })
+  })
 })

@@ -62,9 +62,11 @@ export function useSuggestSteps({
       }
       setSuggestions(texts)
     } catch (e) {
-      // A cancelled request (unmount / new request) is not a failure —
-      // stay silent rather than flashing an error as the panel closes.
-      if (e instanceof Error && e.name === 'AbortError') return
+      // A request WE cancelled (unmount / a newer request) is not a failure —
+      // stay silent rather than flashing an error as the panel closes. Any
+      // other abort (the adapter's 35s timeout) is a real failure: show the
+      // calm error instead of silently dropping the spinner.
+      if (controller.signal.aborted) return
       // Over the invisible fair-use ceiling (P1.7): a gentle "Mochi's
       // resting until <time>" note — never the server's text, never a wall
       // — and every ambient AI call stays quiet until the reset. Typing
@@ -73,7 +75,9 @@ export function useSuggestSteps({
         isAiQuotaError(e) ? suggestStepsRestingText(markMochiResting(uid)) : t.suggestStepsError,
       )
     } finally {
-      setThinking(false)
+      // Only the live request owns the spinner — a superseded one must not
+      // flip it off under the newer in-flight request.
+      if (controllerRef.current === controller) setThinking(false)
     }
   }
 

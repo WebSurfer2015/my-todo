@@ -158,4 +158,28 @@ describe('useTodosSlice snackbars', () => {
     })
     expect(hook.result.current.todos.map((x) => x.dueDate).sort()).toEqual(before.map((x) => x.dueDate).sort())
   })
+
+  it('bulkDeferTodos (Ask Mochi defer) keeps the time and returns an exact Undo', async () => {
+    const { hook } = await setup([mk('a', { dueDate: '2026-10-10T09:30' }), mk('b', { dueDate: '2026-10-11' })])
+    let undo: (() => void) | null = null
+    act(() => {
+      undo = hook.result.current.bulkDeferTodos(['a', 'b'], '2026-10-25')
+    })
+    const byId = () => Object.fromEntries(hook.result.current.todos.map((x) => [x.id, x]))
+    expect(byId().a.dueDate).toBe('2026-10-25T09:30')
+    expect(byId().b.dueDate).toBe('2026-10-25')
+    expect(undo).not.toBeNull()
+    act(() => undo!())
+    await waitFor(() => expect(byId().a.dueDate).toBe('2026-10-10T09:30'))
+    expect(byId().b.dueDate).toBe('2026-10-11')
+  })
+
+  it('bulkDeferTodos returns null when nothing moved', async () => {
+    const { hook } = await setup([mk('a', { dueDate: '2026-10-10' })])
+    let undo: (() => void) | null = () => {}
+    act(() => {
+      undo = hook.result.current.bulkDeferTodos(['a'], 'not-a-date')
+    })
+    expect(undo).toBeNull()
+  })
 })

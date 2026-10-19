@@ -39,7 +39,7 @@ import GuideSheet from '../features/onboarding/GuideSheet'
 import GuidesPrompt from '../features/onboarding/GuidesPrompt'
 import ComposeSheet, { type ComposePrefill } from '../features/task/ComposeSheet'
 import TaskDetailsSheet from '../features/task/TaskDetailsSheet'
-import ChatSheet from '../features/mochi/ChatSheet'
+import ChatSheet, { type MochiApplyResult } from '../features/mochi/ChatSheet'
 import type { OpOf, ProposedOperation } from '../../../core/src/ports/aiContracts'
 import {
   planMochiOp,
@@ -274,17 +274,52 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     [store.todos, store.categories, store.groceries, t],
   )
 
+  // Latest store, for Undos that run later and must read the CURRENT to-dos
+  // (the render-time `store` an Undo closed over is stale by then).
+  const storeRef = useRef(store)
+  useEffect(() => {
+    storeRef.current = store
+  }, [store])
+
   // The thin executor: run each planned intent through the SAME store
   // mutation a manual tap uses (the agent has no privileged write path), and
   // collect the Undos the store hands back into one inline Undo — the
   // store's own snackbar renders BEHIND the chat Modal. All the guards
   // (unknown id, idempotent mark-done, Done-bin-only deletes, step matching,
   // same-turn categories) live in the planner, where they're table-tested.
+  // Every applied intent contributes an Undo: the store's tracked Undo where
+  // it has one, else a snapshot restore (to-do edits, category edits, store
+  // renames). Confirm Alerts (askDeleteScope / askRemoveGrocery) are answered
+  // later — each `asks` entry resolves true (applied) / false (kept as is).
   const runMochiIntents = useCallback(
     (intents: MochiIntent[]) => {
       const undos: Array<(() => void) | null> = []
       const todoIds: string[] = []
       const groceryIds: string[] = []
+      const asks: Array<Promise<boolean>> = []
+      // Pre-run state for snapshot Undos.
+      const todosBefore = store.todos
+      const beforeIds = new Set(todosBefore.map((td) => td.id))
+      const snapshotted = new Set<string>()
+      // Put a to-do back exactly as it was before this run (first touch wins,
+      // so several edits to one to-do revert to the pre-run state).
+      const snapshotTodo = (id: string, opts?: { dropNewSeriesRows?: boolean }) => {
+        const before = todosBefore.find((td) => td.id === id)
+        if (!before || snapshotted.has(id)) return
+        snapshotted.add(id)
+        undos.push(() => {
+          store.revertTodo(before)
+          if (!opts?.dropNewSeriesRows) return
+          // A recurrence edit tops up the series right away — remove the
+          // occurrences it generated (rows that didn't exist before the run).
+          const live = storeRef.current.todos
+          const sid = live.find((td) => td.id === id)?.seriesId
+          if (!sid) return
+          live
+            .filter((td) => td.seriesId === sid && td.id !== id && !beforeIds.has(td.id))
+            .forEach((td) => store.permanentlyDelete(td.id))
+        })
+      }
       // Categories created by this run, by lower-cased label.
       const created = new Map<string, string>()
       const categoryOf = (ref: CategoryRef): string | undefined =>
@@ -313,29 +348,39 @@ export function SheetProvider({ children }: { children: ReactNode }) {
             )
             break
           case 'updateText':
+            snapshotTodo(it.todoId)
             store.updateText(it.todoId, it.text)
             break
           case 'updatePriority':
+            snapshotTodo(it.todoId)
             store.updatePriority(it.todoId, it.priority)
             break
           case 'updateDueDate':
+            snapshotTodo(it.todoId)
             store.updateDueDate(it.todoId, it.dueDate)
             break
           case 'updateCategory': {
             const id = categoryOf(it.category)
-            if (id) store.updateTaskCategory(it.todoId, id)
+            if (id) {
+              snapshotTodo(it.todoId)
+              store.updateTaskCategory(it.todoId, id)
+            }
             break
           }
           case 'updateNotes':
+            snapshotTodo(it.todoId)
             store.updateNotes(it.todoId, it.notes)
             break
           case 'updateRecurrence':
+            snapshotTodo(it.todoId, { dropNewSeriesRows: true })
             store.updateRecurrence(it.todoId, it.recurrence)
             break
           case 'updateReminders':
+            snapshotTodo(it.todoId)
             store.updateReminders(it.todoId, it.reminders)
             break
           case 'addSubtask':
+            snapshotTodo(it.todoId)
             store.addSubtask(it.todoId, it.text)
             break
           case 'toggle':
@@ -349,14 +394,32 @@ export function SheetProvider({ children }: { children: ReactNode }) {
             break
           case 'askDeleteScope': {
             const id = it.todoId
-            Alert.alert(
-              'Delete repeating to-do?',
-              `"${it.text}" — just this one, or this and all future? Deleted to-dos stay in Done for 30 days.`,
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Just this one', onPress: () => store.moveToTrash(id) },
-                { text: 'This & future', onPress: () => store.moveSeriesFutureToTrash(id) },
-              ],
+            const text = it.text
+            asks.push(
+              new Promise<boolean>((resolve) => {
+                Alert.alert(
+                  'Move repeating to-do to Done?',
+                  `"${text}" — just this one, or this and all future? They stay in Done for 30 days.`,
+                  [
+                    { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                    {
+                      text: 'Just this one',
+                      onPress: () => {
+                        undos.push(store.moveToTrash(id))
+                        resolve(true)
+                      },
+                    },
+                    {
+                      text: 'This & future',
+                      onPress: () => {
+                        undos.push(store.moveSeriesFutureToTrash(id))
+                        resolve(true)
+                      },
+                    },
+                  ],
+                  { cancelable: true, onDismiss: () => resolve(false) },
+                )
+              }),
             )
             break
           }
@@ -367,57 +430,103 @@ export function SheetProvider({ children }: { children: ReactNode }) {
             undos.push(store.skipSeriesFuture(it.todoId))
             break
           case 'restoreFromTrash':
+            snapshotTodo(it.todoId)
             store.restoreFromTrash(it.todoId)
             break
           case 'bulkDeferTodos':
-            store.bulkDeferTodos(it.todoIds, it.dueDate)
+            undos.push(store.bulkDeferTodos(it.todoIds, it.dueDate))
             break
           case 'toggleSubtask':
+            snapshotTodo(it.todoId)
             store.toggleSubtask(it.todoId, it.subtaskId)
             break
           case 'removeSubtask':
+            snapshotTodo(it.todoId)
             store.removeSubtask(it.todoId, it.subtaskId)
             break
           case 'updateSubtaskText':
+            snapshotTodo(it.todoId)
             store.updateSubtaskText(it.todoId, it.subtaskId, it.text)
             break
           case 'addGroceryStore':
             store.addGroceryStore(it.name)
             break
           case 'renameGroceryStore':
-            store.renameGroceryStore(it.from, it.to)
+            undos.push(store.renameGroceryStore(it.from, it.to))
             break
           case 'deleteGroceryStore':
-            store.deleteGroceryStore(it.name)
+            undos.push(store.deleteGroceryStore(it.name))
             break
           case 'addGrocery': {
-            const id = store.addGrocery({ text: it.text, groupId: it.groupId, stores: it.stores })
-            if (id) groceryIds.push(id)
+            const res = store.addGrocery({ text: it.text, groupId: it.groupId, stores: it.stores })
+            if (res) {
+              groceryIds.push(res.id)
+              // A re-add of an item the user already had puts its previous
+              // state back; a brand-new item is removed.
+              const { id, previous } = res
+              undos.push(() => (previous ? store.restoreGrocery(id, previous) : store.deleteGrocery(id)))
+            }
             break
           }
-          case 'editGrocery':
+          case 'editGrocery': {
+            const before = store.groceries.find((g) => g.id === it.groceryId)
             store.editGrocery(it.groceryId, it.patch)
+            if (before) {
+              undos.push(() =>
+                store.editGrocery(before.id, { text: before.text, groupId: before.groupId, stores: before.stores }),
+              )
+            }
             break
-          case 'toggleGroceryChecked':
-            store.toggleGroceryChecked(it.groceryId)
+          }
+          case 'toggleGroceryChecked': {
+            const id = it.groceryId
+            store.toggleGroceryChecked(id)
+            undos.push(() => store.toggleGroceryChecked(id))
             break
+          }
           case 'askRemoveGrocery': {
             const id = it.groceryId
-            Alert.alert(
-              'Remove from shopping?',
-              `Permanently remove "${it.text}" from your shopping list. This can't be undone.`,
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Remove', style: 'destructive', onPress: () => store.deleteGrocery(id) },
-              ],
+            const text = it.text
+            asks.push(
+              new Promise<boolean>((resolve) => {
+                Alert.alert(
+                  'Remove from shopping?',
+                  `Permanently remove "${text}" from your shopping list. This can't be undone.`,
+                  [
+                    { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                    {
+                      text: 'Remove',
+                      style: 'destructive',
+                      onPress: () => {
+                        store.deleteGrocery(id)
+                        resolve(true)
+                      },
+                    },
+                  ],
+                  { cancelable: true, onDismiss: () => resolve(false) },
+                )
+              }),
             )
             break
           }
-          case 'editCategory':
+          case 'editCategory': {
+            const before = store.categories.find((c) => c.id === it.categoryId)
             store.editCategory(it.categoryId, { label: it.label, color: it.color, icon: it.icon })
+            if (before) {
+              // A built-in's label is undefined (its localized name) — restore
+              // exactly that, not "".
+              undos.push(() =>
+                store.editCategory(before.id, {
+                  label: before.label,
+                  color: before.color,
+                  icon: before.icon,
+                } as { label: string; color: string; icon: string }),
+              )
+            }
             break
+          }
           case 'deleteCategory':
-            store.deleteCategory(it.categoryId)
+            undos.push(store.deleteCategory(it.categoryId))
             break
           default: {
             const unhandled: never = it
@@ -425,7 +534,12 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           }
         }
       }
-      return { undo: combineUndos(undos), todoIds, groceryIds, categoryOf }
+      // Read the list at call time: an Alert answered later adds its Undo.
+      const undo = () => combineUndos(undos)?.()
+      const hasUndo = () => undos.some((u) => !!u)
+      // Whether anything applied right away (everything but the confirm Alerts).
+      const appliedNow = intents.some((i) => i.type !== 'askDeleteScope' && i.type !== 'askRemoveGrocery')
+      return { undo, hasUndo, asks, appliedNow, todoIds, groceryIds, categoryOf }
     },
     [store],
   )
@@ -460,9 +574,22 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   // Apply one confirmed Mochi turn. Planning the WHOLE turn at once lets a
   // to-do land in a category created by the same turn. Returns the combined
   // inline Undo (mark done / delete / skip), or null.
+  // A turn with confirm Alerts reports through `pending` once they're all
+  // answered, so the card never says "✓ Done" for something the user kept.
   const applyMochiOps = useCallback(
-    (ops: ProposedOperation[]): (() => void) | null =>
-      runMochiIntents(planMochiOps(ops, mochiSnapshot(), { genId: genUuid })).undo,
+    (ops: ProposedOperation[]): MochiApplyResult => {
+      const run = runMochiIntents(planMochiOps(ops, mochiSnapshot(), { genId: genUuid }))
+      const current = () => (run.hasUndo() ? run.undo : null)
+      if (run.asks.length === 0) return { undo: current() }
+      return {
+        undo: null,
+        pending: Promise.all(run.asks).then((answers) => ({
+          undo: current(),
+          applied: run.appliedNow || answers.some(Boolean),
+          keptSome: answers.some((a) => !a),
+        })),
+      }
+    },
     [mochiSnapshot, runMochiIntents],
   )
 
@@ -476,9 +603,9 @@ export function SheetProvider({ children }: { children: ReactNode }) {
       const intents = planMochiOp(op, mochiSnapshot(), { genId: genUuid })
       const run = runMochiIntents(intents)
       if (op.kind === 'addGroceryItem') {
-        const gid = run.groceryIds[0]
-        // null id → no inline chip-editing for groceries (Undo only).
-        return { id: null, undo: () => (gid ? store.deleteGrocery(gid) : undefined) }
+        // null id → no inline chip-editing for groceries (Undo only). The
+        // Undo removes a new item, or restores one that was already listed.
+        return { id: null, undo: run.undo }
       }
       const id = run.todoIds[0] ?? null
       const task = intents.find((i): i is Extract<MochiIntent, { type: 'addTask' }> => i.type === 'addTask')
@@ -530,7 +657,10 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     (op: OpOf<'pickTodos'>, ids: string[]) =>
       ids.length === 0
         ? null
-        : runMochiIntents(planPickedTodos(op, ids, mochiSnapshot(), { genId: genUuid })).undo,
+        : (() => {
+            const run = runMochiIntents(planPickedTodos(op, ids, mochiSnapshot(), { genId: genUuid }))
+            return run.hasUndo() ? run.undo : null
+          })(),
     [mochiSnapshot, runMochiIntents],
   )
 
@@ -548,7 +678,9 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     (action: 'skip' | 'defer' | 'delete', ids: string[], dueDate?: string) => {
       if (action === 'skip') return combineUndos(ids.map((id) => store.skipTodo(id)))
       if (action === 'delete') return combineUndos(ids.map((id) => store.moveToTrash(id)))
-      if (action === 'defer' && dueDate) ids.forEach((id) => store.updateDueDate(id, dueDate))
+      // Defer like the Today "Defer" action (todoDeferTo): keeps each to-do's
+      // time, moves its reminders, handles a series, and has an exact Undo.
+      if (action === 'defer' && dueDate) return store.bulkDeferTodos(ids, dueDate)
       return null
     },
     [store],
@@ -891,8 +1023,12 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           onPickAction={applyPickAction}
           onReviewCreateTodo={reviewCreateTodo}
           onClose={() => setMochiOpen(false)}
-          onEnterManually={() => {
-            store.saveProfile((p) => ({ ...p, lastComposeMode: 'manual' }))
+          onEnterManually={(opts?: { remember?: boolean }) => {
+            // "Add it myself" while Mochi rests is a one-off — it must not make
+            // manual the remembered FAB mode.
+            if (opts?.remember !== false) {
+              store.saveProfile((p) => ({ ...p, lastComposeMode: 'manual' }))
+            }
             setComposePrefill(null)
             setComposeStartsToday(
               sheetNavigationRef.isReady() && sheetNavigationRef.getCurrentRoute()?.name === 'Home',

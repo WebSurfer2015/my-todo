@@ -265,6 +265,7 @@ export function useTodoStore() {
     groceryGroups,
     groceryGroupsLoaded,
     addGrocery,
+    restoreGrocery,
     toggleGroceryChecked,
     editGrocery,
     deleteGrocery,
@@ -383,7 +384,9 @@ export function useTodoStore() {
   }, [adapter]);
 
 
-  function deleteCategory(id: string) {
+  // Returns an Undo (Ask Mochi's inline "✓ Done · Undo") that puts the
+  // category back in place and reverts the to-dos the cascade changed.
+  function deleteCategory(id: string): (() => void) | null {
     const res = store.actions.deleteCategoryCascade({
       todos,
       categories,
@@ -393,7 +396,7 @@ export function useTodoStore() {
       pinnedFilters: profile.pinnedFilters,
       homeStatTiles: profile.homeStatTiles,
     });
-    if (!res.changed) return;
+    if (!res.changed) return null;
     // Functional updates: a Mochi batch ("create Work, delete Errands", or
     // "move X to Home, delete Errands") applies earlier ops in the same tick,
     // and writing the render-time result clobbered them.
@@ -419,6 +422,18 @@ export function useTodoStore() {
     if (res.homeStatTiles !== profile.homeStatTiles) {
       setProfile((prev) => ({ ...prev, homeStatTiles: res.homeStatTiles }));
     }
+    const idx = categories.findIndex((c) => c.id === id);
+    const removed = categories[idx];
+    const todosBefore = todos;
+    const todosAfter = res.todos;
+    return () => {
+      setTodos((prev) => store.actions.todosRevertChanges(prev, todosBefore, todosAfter));
+      if (removed) {
+        setCategories((prev) =>
+          prev.some((c) => c.id === id) ? prev : [...prev.slice(0, idx), removed, ...prev.slice(idx)],
+        );
+      }
+    };
   }
 
 
@@ -482,6 +497,7 @@ export function useTodoStore() {
     categories,
     groceries,
     addGrocery,
+    restoreGrocery,
     toggleGroceryChecked,
     editGrocery,
     deleteGrocery,
