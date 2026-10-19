@@ -34,4 +34,20 @@ describe('Ask Mochi conversation is per account (source guard)', () => {
     const tag = /<ChatSheet\b[\s\S]*?>/.exec(src)?.[0] ?? ''
     expect(tag).toMatch(/\bkey=\{accountUid \?\? 'signed-out'\}/)
   })
+
+  it('the re-keyed chat never mounts visible for a different account than it was opened for', () => {
+    const src = read('app/SheetContext.tsx')
+    const tag = /<ChatSheet\b[\s\S]*?>/.exec(src)?.[0] ?? ''
+    expect(tag).toMatch(/visible=\{mochiOpen && mochiOpenedFor === accountUid\}/)
+    // Every open goes through showMochi (which records the account).
+    expect(src).not.toMatch(/setMochiOpen\(true\)[\s\S]*setMochiOpen\(true\)/)
+    expect(src).toMatch(/setMochiOpenedFor\(accountUid\)\s*\n\s*setMochiOpen\(true\)/)
+  })
+
+  it("the account reset also drops the previous account's seed and auto-send", () => {
+    const src = read('app/SheetContext.tsx')
+    const reset = /useEffect\(\(\) => \{\s*setProfileOpen\(false\)[\s\S]*?\}, \[accountUid, dismissSnackbar\]\)/.exec(src)?.[0] ?? ''
+    expect(reset).toMatch(/setMochiSeed\(''\)/)
+    expect(reset).toMatch(/setMochiAutoSend\(false\)/)
+  })
 })

@@ -424,7 +424,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: 'Start fresh',
-        body: "Tap «Clear all steps» below the list to start over. The to-do itself stays — only the checklist resets.",
+        body: "Tap «Clear all steps» next to STEPS to start over. The to-do itself stays — only the checklist resets.",
         visual: (
           <MockupSheet title="Edit to-do">
             <View style={[inlineStyles.subsHeader, inlineStyles.subsHeaderRow]}>

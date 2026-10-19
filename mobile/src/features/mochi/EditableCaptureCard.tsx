@@ -15,7 +15,8 @@ import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 import { Priority, PRIORITY_VALUES } from '../../core-bindings/types'
 import { dueDateToDate, dueDateWithDay } from '../../core-bindings/utils'
 import { formatCalendarDate } from '../../../../core/src/logic/labels'
-import { isCaptureCardEditable } from './captureCardEditable'
+import { captureCardRemovalNote, isCaptureCardEditable } from './captureCardEditable'
+import type { UndoResult } from './undoOutcome'
 
 interface CreateTodoArgs {
   text: string
@@ -44,10 +45,11 @@ interface Props {
    * snaps a picked day onto the rule) — the chip then shows that. */
   onEdit: (id: string, patch: CapturedTodoPatch) => void | { dueDate?: string }
   /** Remove the captured to-do entirely (the bottom of the undo stack).
-   * May ask first (a repeating to-do's scope Alert) — resolve false when
-   * the user cancels, so the card keeps its Undo instead of reading
-   * "Removed" over a to-do that still exists. void counts as removed. */
-  onRemove: () => void | boolean | Promise<boolean>
+   * Resolves what the removal did ('nothing' when the to-do was already
+   * gone or the Undo was retired — the card then says "Nothing to undo"
+   * instead of keeping a dead Undo), or null when it was ignored (already
+   * running / already ran). */
+  onRemove: () => Promise<UndoResult | null>
   /** False once a newer Mochi turn applied changes: the card turns
    * read-only — no chip edits and no Undo (its absolute "put back" values
    * could overwrite what the newer turn did). */
@@ -70,14 +72,16 @@ export default function EditableCaptureCard({
   const [priority, setPriority] = useState<Priority>(args.priority ?? 'medium')
   const [dueDate, setDueDate] = useState<string>(args.dueDate ?? '')
   const [open, setOpen] = useState<'category' | 'date' | null>(null)
-  const [removed, setRemoved] = useState(false)
+  // What the final Undo (the removal) did; null until it ran.
+  const [removal, setRemoval] = useState<UndoResult | null>(null)
+  const removingRef = useRef(false)
   // Each change pushes its reverse; "Undo" pops the most recent. When empty,
   // the next Undo removes the to-do (the original add).
   const undoStack = useRef<(() => void)[]>([])
   const [, bumpUndo] = useState(0) // force a re-render when the stack changes
   const sync = () => bumpUndo((n) => n + 1)
 
-  const editable = isCaptureCardEditable(undoLive, removed)
+  const editable = isCaptureCardEditable(undoLive, removal !== null)
   const tray = editable ? open : null
   const activeCat = categories.find((c) => c.id === category)
   // Guard against a malformed dueDate → Invalid Date would crash the picker.
@@ -135,10 +139,16 @@ export default function EditableCaptureCard({
       fn()
       sync()
     } else {
-      // Only read "Removed" once a removal actually happened.
-      void Promise.resolve(onRemove()).then((ok) => {
-        if (ok !== false) setRemoved(true)
-      })
+      // One removal at a time — a fast double tap can't run it twice.
+      if (removingRef.current) return
+      removingRef.current = true
+      void onRemove()
+        .then((r) => {
+          if (r) setRemoval(r)
+        })
+        .finally(() => {
+          removingRef.current = false
+        })
     }
   }
 
@@ -242,8 +252,8 @@ export default function EditableCaptureCard({
       {/* Multi-level undo: each Undo reverts the most recent change; the last
           one removes the to-do. */}
       <View style={styles.actionRow}>
-        {removed ? (
-          <Text style={styles.removedNote}>Removed</Text>
+        {removal ? (
+          <Text style={styles.removedNote}>{captureCardRemovalNote(removal)}</Text>
         ) : (
           <>
             <Text style={styles.addedNote}>✓ Added</Text>

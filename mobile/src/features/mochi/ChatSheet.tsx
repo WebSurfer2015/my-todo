@@ -26,8 +26,9 @@ import { useMochiAgent, type ProposedOperation } from './useMochiAgent'
 import { pickMatchHeader, supersededProposalTurns } from './chatTurns'
 import MochiThinking from './MochiThinking'
 import EditableCaptureCard, { type CapturedTodoPatch } from './EditableCaptureCard'
-import { PARTIAL_UNDO_NOTE, undoResult, type UndoFn } from './undoOutcome'
-import { useInlineUndo } from './useInlineUndo'
+import { type UndoFn, type UndoResult } from './undoOutcome'
+import { useInlineUndo, useInlineUndos } from './useInlineUndo'
+import { PARTIAL_UNDO_MESSAGE } from '../../store/slices/useTodosSlice'
 import { snapDueDateToRecurrence } from '../../../../core/src/logic/derive'
 import { buildFallbackCapture } from '../../../../core/src/logic/mochiFallback'
 import { markMochiResting, mochiRestLabel, mochiRestUntil, type MochiRestScope } from './mochiRest'
@@ -39,7 +40,7 @@ import CategoryIcon from '../../ui/CategoryIcon'
 import { formatCalendarDate, recurrenceShortLabel, type RecurrenceFreqStrings } from '../../../../core/src/logic/labels'
 
 /** What applying a confirmed turn did. `pending` is set when the turn raised
- * confirm Alerts (a repeating to-do's scope, a permanent shopping removal):
+ * confirm Alerts (a repeating to-do's scope, a shopping removal):
  * it resolves once they're all answered — `applied` false means the user kept
  * everything as is, so the card must not say "✓ Done". */
 export interface MochiApplyResult {
@@ -295,7 +296,7 @@ export default function ChatSheet({
   // setResolved commits). confirmedRef is the same kind of guard for the
   // Confirm button: a fast double tap lands before the re-render hides it, so
   // without it the turn would apply twice. undoFnsRef holds each applied
-  // turn's inline undo; `undone` flips the card to a "Removed" note after Undo.
+  // turn's inline undo; `undone` records what pressing it did.
   const appliedRef = useRef<Set<number>>(new Set())
   const confirmedRef = useRef<Set<number>>(new Set())
   const undoFnsRef = useRef<Record<number, UndoFn>>({})
@@ -304,14 +305,14 @@ export default function ChatSheet({
   // …and its resolved category id (a same-turn new category has no id in the
   // proposal itself).
   const capturedCategoryRef = useRef<Record<number, string | undefined>>({})
-  const [undone, setUndone] = useState<Record<number, true | 'partial'>>({})
-  // Run turn i's inline Undo; flip it to "Removed"/"Undone" only when the
-  // undo actually happened (a Cancel in its confirm keeps the Undo live).
-  const runUndo = useCallback(async (i: number): Promise<boolean> => {
-    const r = await undoResult(undoFnsRef.current[i])
-    if (r !== 'nothing') setUndone((prev) => ({ ...prev, [i]: r === 'partial' ? 'partial' : true }))
-    return r !== 'nothing'
-  }, [])
+  // Turn i's inline Undo runs at most once (a fast double tap can't run a
+  // combined Undo twice) and records what it did — 'nothing' included, so the
+  // footer says "Nothing to undo" rather than keeping a dead Undo button.
+  const { results: undone, run: runTurnUndo, clear: clearUndone } = useInlineUndos()
+  const runUndo = useCallback(
+    (i: number): Promise<UndoResult | null> => runTurnUndo(i, undoFnsRef.current[i]),
+    [runTurnUndo],
+  )
   const inputRef = useRef<TextInput>(null)
   const scrollRef = useRef<ScrollView>(null)
 
@@ -402,7 +403,7 @@ export default function ChatSheet({
     setInput('')
     setResolved({})
     setKeptSome({})
-    setUndone({})
+    clearUndone()
     appliedRef.current.clear()
     confirmedRef.current.clear()
     undoFnsRef.current = {}
@@ -768,8 +769,10 @@ export default function ChatSheet({
                             undone[i] ? (
                               <Text style={styles.appliedNote}>
                                 {undone[i] === 'partial'
-                                  ? PARTIAL_UNDO_NOTE
-                                  : capturedIdRef.current[i] ? 'Removed' : 'Undone'}
+                                  ? PARTIAL_UNDO_MESSAGE
+                                  : undone[i] === 'nothing'
+                                    ? `${capturedIdRef.current[i] ? '✓ Added' : '✓ Done'} · Nothing to undo`
+                                    : capturedIdRef.current[i] ? 'Removed' : 'Undone'}
                               </Text>
                             ) : (
                               <View style={styles.appliedRow}>
@@ -801,8 +804,9 @@ export default function ChatSheet({
                           (() => {
                             const ops = m.operations!
                             // To-do "deletes" only move to Done (30 days, Undo)
-                            // — a neutral button that says so. Red is kept for
-                            // the one permanent removal: shopping items.
+                            // and a shopping removal has its inline Undo too —
+                            // neutral buttons that say what they do. No red:
+                            // nothing here is beyond an Undo.
                             const cta =
                               onReviewCreateTodo && ops.length === 1 && ops[0].kind === 'createTodo'
                                 ? { label: 'Review & add', tone: 'primary' as const }
@@ -812,29 +816,21 @@ export default function ChatSheet({
                                       tone: 'neutral' as const,
                                     }
                                   : ops.every((o) => o.kind === 'deleteGroceryItem')
-                                    ? { label: 'Remove from shopping', tone: 'danger' as const }
+                                    ? { label: 'Remove from shopping', tone: 'neutral' as const }
                                     : { label: 'Confirm', tone: 'primary' as const }
                             return (
                               <View style={styles.actionsRow}>
                                 <TouchableOpacity
                                   style={[
                                     styles.btn,
-                                    cta.tone === 'neutral'
-                                      ? styles.btnNeutral
-                                      : cta.tone === 'danger'
-                                        ? styles.btnDanger
-                                        : styles.btnPrimary,
+                                    cta.tone === 'neutral' ? styles.btnNeutral : styles.btnPrimary,
                                   ]}
                                   onPress={() => handleConfirm(i, ops)}
                                   accessibilityRole="button"
                                 >
                                   <Text
                                     style={
-                                      cta.tone === 'neutral'
-                                        ? styles.btnNeutralText
-                                        : cta.tone === 'danger'
-                                          ? styles.btnDangerText
-                                          : styles.btnPrimaryText
+                                      cta.tone === 'neutral' ? styles.btnNeutralText : styles.btnPrimaryText
                                     }
                                   >
                                     {cta.label}
@@ -1067,7 +1063,7 @@ function AppliedWithUndo({
   // Retired once a newer Mochi turn applied changes.
   const live = useUndoLive(undo)
   if (state === 'undone') return <Text style={styles.appliedNote}>Undone</Text>
-  if (state === 'partial') return <Text style={styles.appliedNote}>{PARTIAL_UNDO_NOTE}</Text>
+  if (state === 'partial') return <Text style={styles.appliedNote}>{PARTIAL_UNDO_MESSAGE}</Text>
   if (state === 'nothing') return <Text style={styles.appliedNote}>✓ {note} · Nothing to undo</Text>
   if (!undo || !live) return <Text style={styles.appliedNote}>✓ {note}</Text>
   return (
@@ -1993,8 +1989,6 @@ function makeStyles(c: ThemeColors) {
     },
     btnPrimary: { backgroundColor: c.primary },
     btnPrimaryText: { color: c.primaryOn, fontSize: TYPE.body, fontWeight: '600' },
-    btnDanger: { backgroundColor: c.red },
-    btnDangerText: { color: '#FFFFFF', fontSize: TYPE.body, fontWeight: '700' },
     btnDisabled: { opacity: 0.4 },
     btnNeutral: { backgroundColor: c.surfaceAlt },
     btnNeutralText: { color: c.label, fontSize: TYPE.body, fontWeight: '600' },

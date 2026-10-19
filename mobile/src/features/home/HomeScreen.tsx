@@ -206,13 +206,16 @@ export default function HomeScreen() {
   if (store.activeCount === 0) {
     const firstName =
       store.profile.firstName?.trim() || store.profile.name?.trim() || ''
+    // A returning user who finished everything isn't new: no first-day
+    // welcome — a quiet day, and where their finished work went.
+    const hasDone = store.todos.some((td) => td.done || td.trashed)
     return (
       <View style={styles.flex}>
         <AppHeader onGearPress={sheets.openSettings} />
         <View style={styles.dayOneEmptyWrap}>
           <EmptyStateCard
-            title={firstName ? `Welcome, ${firstName}.` : 'Welcome.'}
-            hint="Let's add your first to-do."
+            title={hasDone ? 'Nothing on your plate. Quiet day.' : firstName ? `Welcome, ${firstName}.` : 'Welcome.'}
+            hint={hasDone ? 'What you finished is resting in Done.' : "Let's add your first to-do."}
             actionLabel="Add a to-do"
             onAction={() => {
               // Same front door as the + button (Mochi when that's the
@@ -341,7 +344,7 @@ export default function HomeScreen() {
                   onPress={() => openTodos('open', 'overdue')}
                   activeOpacity={0.7}
                   accessibilityRole="button"
-                  accessibilityLabel={`Open Todos, ${carriedOverItems.length} carried over`}
+                  accessibilityLabel="Open Todos at Carried over"
                 >
                   <Text style={styles.sectionHeader}>CARRIED OVER</Text>
                   <View style={styles.sectionRight}>

@@ -35,6 +35,7 @@ import StatusIcon, { statusColor } from "../../../ui/StatusIcon";
 import PriorityBars from "../../../ui/PriorityBars";
 import { useLang } from "../../../app/LangContext";
 import { useTheme } from "../../../app/theme";
+import { PIN_LIMIT } from "../../../../../core/src/logic/filters";
 
 export interface StatusEntry {
   id: StatusFilter;
@@ -84,7 +85,10 @@ interface Props {
     id: string,
     data: { label: string; color: string; icon: string },
   ) => void;
-  onDelete: (id: string) => void;
+  /** Delete a category. Returns what to say inline (its to-dos moved to
+   * Done) and the store's Undo — the sheet shows them itself, since a
+   * snackbar would sit behind this Modal. */
+  onDelete: (id: string) => { message: string; undo: (() => unknown) | null } | null;
   onReorder: (fromIndex: number, toIndex: number) => void;
   onRenameStatus: (id: StatusFilter, label: string) => void;
   onToggleStatusHidden: (id: StatusFilter) => void;
@@ -176,6 +180,19 @@ export default function CategorySheet({
   const isFilterPinned = (f: Filter) =>
     pinnedFilters.some((set) => set.length === 1 && set[0] === f);
 
+  // An inline note under the header — the store's snackbar would render
+  // behind this Modal. A category delete carries its Undo here; a pin past
+  // the cap says so here (and isn't sent to the store).
+  const [notice, setNotice] = useState<{ message: string; undo: (() => unknown) | null } | null>(null);
+  function pinRow(f: Filter) {
+    if (!isFilterPinned(f) && pinnedFilters.length >= PIN_LIMIT) {
+      setNotice({ message: t.pinCapReached(PIN_LIMIT), undo: null });
+      return;
+    }
+    setNotice(null);
+    onPinFilter([f]);
+  }
+
   // Case-insensitive duplicate guard for category labels. Returns true
   // (and surfaces an Alert) when `label` collides with an existing
   // category other than `ignoreId`.
@@ -223,6 +240,7 @@ export default function CategorySheet({
     // sheet doesn't change `defaultMode`, so a re-open from the same
     // entry-point lands in the same place.
     if (visible) setMode({ kind: defaultMode });
+    setNotice(null);
   }, [visible, defaultMode]);
 
   function startAdd() {
@@ -282,7 +300,13 @@ export default function CategorySheet({
       {
         // Neutral, not red: a category delete has an Undo.
         text: t.deleteCategoryAction,
-        onPress: () => onDelete(c.id),
+        onPress: () => {
+          const res = onDelete(c.id);
+          // Back to the list (the deleted category's form is gone), with
+          // what happened + its Undo inline.
+          setMode({ kind: "edit" });
+          setNotice(res);
+        },
       },
     ]);
   }
@@ -428,6 +452,26 @@ export default function CategorySheet({
                     )}
                   </View>
 
+                  {notice && (
+                    <View style={styles.noticeRow} accessibilityLiveRegion="polite">
+                      <Text style={styles.noticeText}>{notice.message}</Text>
+                      {notice.undo && (
+                        <TouchableOpacity
+                          onPress={() => {
+                            const undo = notice.undo;
+                            setNotice(null);
+                            undo?.();
+                          }}
+                          hitSlop={10}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${t.undo}: ${notice.message}`}
+                        >
+                          <Text style={styles.noticeAction}>{t.undo}</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
+
                   {isEditing ? (
                     <ScrollView
                       style={styles.body}
@@ -505,7 +549,7 @@ export default function CategorySheet({
                                   )}
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                  onPress={() => onPinFilter([s.id])}
+                                  onPress={() => pinRow(s.id)}
                                   hitSlop={10}
                                   style={styles.rowAction}
                                   accessibilityRole="button"
@@ -585,7 +629,7 @@ export default function CategorySheet({
                                   )}
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                  onPress={() => onPinFilter([f])}
+                                  onPress={() => pinRow(f)}
                                   hitSlop={10}
                                   style={styles.rowAction}
                                   accessibilityRole="button"
@@ -684,7 +728,7 @@ export default function CategorySheet({
                                   <Trash2 size={14} color={theme.label2} strokeWidth={2} />
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                  onPress={() => onPinFilter([catFilter])}
+                                  onPress={() => pinRow(catFilter)}
                                   hitSlop={10}
                                   style={styles.rowAction}
                                   accessibilityRole="button"

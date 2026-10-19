@@ -1,7 +1,8 @@
 /**
  * Small pure helpers behind round-5 fixes:
  *   - store snackbar copy (series commit, single-day defer, category delete)
- *   - ChatSheet's `undoOutcome` (void / boolean / Promise<boolean>)
+ *   - Ask Mochi's `undoResult` (void / boolean / 'partial' / Promise of one)
+ *     and the capture card's footer after its final Undo
  *   - details' step-done footer plan
  *   - alertWithPresence / actionSheetWithPresence count until answered
  */
@@ -9,8 +10,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ActionSheetIOS, Alert, AppState } from 'react-native'
 import { seriesCommitMessage, deferredMessage } from '../store/slices/useTodosSlice'
 import { categoryDeletedMessage, EXPORT_FAILED_MESSAGE } from '../app/sheetMessages'
-import { undoOutcome } from '../features/mochi/undoOutcome'
-import { isCaptureCardEditable } from '../features/mochi/captureCardEditable'
+import { undoResult } from '../features/mochi/undoOutcome'
+import { captureCardRemovalNote, isCaptureCardEditable } from '../features/mochi/captureCardEditable'
 import { planStepDoneFooter, stepDoneUndoAfterToggle } from '../features/task/TaskDetailsSheet/stepDoneFooter'
 import { ACTION_SHEET_MAX_PRESENCE_MS, actionSheetWithPresence, alertWithPresence, isAnyModalPresented, __resetModalPresenceForTests } from '../app/modalPresence'
 import { MODAL_DISMISS_GRACE_MS } from '../app/modalTiming'
@@ -44,20 +45,31 @@ describe('store snackbar copy', () => {
   })
 })
 
-describe('undoOutcome', () => {
-  it('no Undo → false', async () => {
-    expect(await undoOutcome(undefined)).toBe(false)
+describe('undoResult', () => {
+  it('no Undo → nothing', async () => {
+    expect(await undoResult(undefined)).toBe('nothing')
+    expect(await undoResult(null)).toBe('nothing')
   })
-  it('void → undone; boolean is taken as is', async () => {
+  it('void → undone; a boolean / partial is taken as is', async () => {
     const fn = vi.fn()
-    expect(await undoOutcome(fn)).toBe(true)
+    expect(await undoResult(fn)).toBe('undone')
     expect(fn).toHaveBeenCalledTimes(1)
-    expect(await undoOutcome(() => true)).toBe(true)
-    expect(await undoOutcome(() => false)).toBe(false)
+    expect(await undoResult(() => true)).toBe('undone')
+    expect(await undoResult(() => false)).toBe('nothing')
+    expect(await undoResult(() => 'partial')).toBe('partial')
   })
-  it('awaits a Promise<boolean> (an Undo that asks first)', async () => {
-    expect(await undoOutcome(() => Promise.resolve(true))).toBe(true)
-    expect(await undoOutcome(() => Promise.resolve(false))).toBe(false)
+  it('awaits a Promise of an outcome', async () => {
+    expect(await undoResult(() => Promise.resolve(true))).toBe('undone')
+    expect(await undoResult(() => Promise.resolve(false))).toBe('nothing')
+    expect(await undoResult(() => Promise.resolve('partial' as const))).toBe('partial')
+  })
+})
+
+describe('captureCardRemovalNote', () => {
+  it('says "Removed" only when the to-do was actually removed', () => {
+    expect(captureCardRemovalNote('undone')).toBe('Removed')
+    expect(captureCardRemovalNote('partial')).toBe('Undone — later changes were kept.')
+    expect(captureCardRemovalNote('nothing')).toBe('✓ Added · Nothing to undo')
   })
 })
 

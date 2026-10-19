@@ -46,6 +46,7 @@ import {
   recurrenceLabel,
   recurrenceShortLabel,
   reminderSummary,
+  rowDateLabel,
 } from '../../../../../core/src/logic/labels'
 import { makeStyles } from './styles';
 import { absoluteDateLabel } from '../absoluteDateLabel'
@@ -585,11 +586,11 @@ export default function ComposeSheet({
                     onPress={() => setDatePanelOpen((v) => !v)}
                     accessibilityRole="button"
                     accessibilityState={{ expanded: datePanelOpen }}
-                    accessibilityLabel={`${t.composeDateLabel}, ${dueDate ? formatDisplayDate(dueDate, t.locale) : t.presetNoDate}`}
+                    accessibilityLabel={`${t.composeDateLabel}, ${dueDate ? rowDateLabel(dueDate, t.locale) : t.presetNoDate}`}
                   >
                     <CalendarIcon size={15} color={dueDate ? theme.primary : theme.label2} />
                     <Text style={[styles.chipText, !dueDate && styles.chipTextMuted]} numberOfLines={1}>
-                      {dueDate ? formatDisplayDate(dueDate, t.locale) : t.presetNoDate}
+                      {dueDate ? rowDateLabel(dueDate, t.locale) : t.presetNoDate}
                     </Text>
                   </TouchableOpacity>
                   {!!dueDate && (

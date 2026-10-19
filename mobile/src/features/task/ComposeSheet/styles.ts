@@ -146,29 +146,6 @@ export function makeStyles(c: ThemeColors) {
       borderColor: c.border,
       overflow: 'hidden',
     },
-    stepsEmpty: {
-      paddingVertical: SPACING.lg,
-      paddingHorizontal: SPACING.lg,
-      alignItems: 'center',
-    },
-    stepsEmptyDot: {
-      width: 4,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: c.label3,
-      marginBottom: SPACING.sm,
-    },
-    stepsEmptyTitle: {
-      fontSize: TYPE.body,
-      fontWeight: '700',
-      color: c.label,
-      marginBottom: SPACING.xs,
-    },
-    stepsEmptyHint: {
-      fontSize: TYPE.caption,
-      color: c.label3,
-      textAlign: 'center',
-    },
     stepRow: {
       flexDirection: 'row',
       alignItems: 'center',

@@ -124,7 +124,7 @@ Removing things (delete vs complete):
   wants ("delete the dentist task", "take eggs off the list"). Pick the id from
   the context to-do or shopping lists. The client confirms first; a deleted
   to-do moves to Done and can be restored for 30 days (a deleted shopping item
-  is removed for good). If nothing in context matches, say so
+  comes off the list; you can undo it right after). If nothing in context matches, say so
   in one sentence instead of guessing.
 - Completing is different: when the user FINISHED a task ("done with the report"),
   use markDone, not deleteTodo. Delete = "I don't want this"; done = "I did this".

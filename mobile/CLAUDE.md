@@ -117,7 +117,7 @@ TaskItem is `React.memo`, so the callbacks passed to it (`toggle`, `moveToTrash`
 ### Row interaction + Undo
 
 - **Row tap opens the to-do** (also in the Done bin); only the **circle completes** it. TaskItem calls `openTaskDetails` from `TaskDetailsOpenContext`; `TaskDetailsSheet` is hosted **once** in `SheetContext` and mounted only while a details request is open (so its state is fresh per open). It reads callbacks as required props from SheetContext.
-- **Every completion / trash has an exact Undo.** `useTodosSlice` runs mutations through `applyTracked(fn)` (pure transform on the freshest list, returns `{before, after}`); the snackbar's Undo calls `undoTracked`, which applies core's `todosRevertChanges(prev, before, after)` — it reverts only what that action changed, so later edits survive.
+- **Every completion / trash has an exact Undo.** `useTodosSlice` runs mutations through `applyTracked(fn)` (pure transform on the freshest list, returns `{before, after}`); the snackbar's Undo calls `undoTracked`, which applies core's `todosRevertChanges(prev, before, after)` — it reverts only what that action changed, so later edits survive. When some of the rows it touched were edited since, the Undo is **partial** (`UndoOutcome` `'partial'`): it puts back the rest, keeps those edits, and says "Undone — later changes were kept." (`PARTIAL_UNDO_MESSAGE`) — in the snackbar, or inline in the Mochi chat. Ask Mochi threads it through `combineUndos` (any part partial → partial) → `undoResult` (`'undone' | 'partial' | 'nothing'`) → `useInlineUndo` / `useInlineUndos`, which run an inline Undo at most once and render `'nothing'` as "✓ … · Nothing to undo" rather than a dead Undo button.
 
 ### Notifications
 

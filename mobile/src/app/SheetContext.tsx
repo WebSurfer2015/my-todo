@@ -232,7 +232,16 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     )
     setComposeOpen(true)
   }, [])
-  const openMochi = useCallback(() => setMochiOpen(true), [])
+  // The account Ask Mochi was opened for. The chat is shown only while it
+  // still matches: on an account change the re-keyed ChatSheet mounts before
+  // the reset effect below runs, and must not mount visible (or auto-send the
+  // previous account's seed for the new one).
+  const [mochiOpenedFor, setMochiOpenedFor] = useState<string | null>(null)
+  const showMochi = useCallback(() => {
+    setMochiOpenedFor(accountUid)
+    setMochiOpen(true)
+  }, [accountUid])
+  const openMochi = showMochi
   const [mochiAutoSend, setMochiAutoSend] = useState(false)
   const agentOn = MOCHI_AGENT_ENABLED && store.profile.agentEnabled !== false
   const openCaptureWith = useCallback(
@@ -240,13 +249,13 @@ export function SheetProvider({ children }: { children: ReactNode }) {
       if (agentOn) {
         setMochiSeed(text)
         setMochiAutoSend(true)
-        setMochiOpen(true)
+        showMochi()
       } else {
         setComposePrefill({ text })
         setComposeOpen(true)
       }
     },
-    [agentOn],
+    [agentOn, showMochi],
   )
 
   // The FAB reopens whichever capture surface you used last — manual compose
@@ -259,9 +268,9 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   // switches the remembered mode to manual.
   const lastComposeMode = store.profile.lastComposeMode ?? 'mochi'
   const openCapture = useCallback(() => {
-    if (MOCHI_AGENT_ENABLED && agentEnabled && lastComposeMode === 'mochi') setMochiOpen(true)
+    if (MOCHI_AGENT_ENABLED && agentEnabled && lastComposeMode === 'mochi') showMochi()
     else openCompose()
-  }, [agentEnabled, lastComposeMode, openCompose])
+  }, [agentEnabled, lastComposeMode, openCompose, showMochi])
 
   // Every sheet is per account. SheetProvider sits ABOVE AppGate, so a
   // sign-out doesn't unmount it — reset all open state when the account
@@ -277,6 +286,9 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     setComposeOpen(false)
     setComposePrefill(null)
     setMochiOpen(false)
+    // The previous account's words never carry into the next account's chat.
+    setMochiSeed('')
+    setMochiAutoSend(false)
     setAnimationSoundOpen(false)
     setCategorySheetOpen(false)
     setPromptOpen(false)
@@ -324,16 +336,14 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   )
 
   // Manual category delete (CategorySheet): its to-dos move to Done, so it
-  // gets the store's exact Undo on a snackbar.
-  const deleteCategoryWithUndo = useCallback(
-    (id: string) => {
-      const live = storeRef.current
-      const moved = live.todosRef.current.filter((td) => td.category === id && !td.trashed).length
-      const undo = live.deleteCategory(id)
-      if (undo) showSnackbar({ message: categoryDeletedMessage(moved), actionLabel: t.undo, onAction: undo })
-    },
-    [showSnackbar, t.undo],
-  )
+  // gets the store's exact Undo — shown INLINE in the sheet (a snackbar
+  // would render behind its Modal).
+  const deleteCategoryWithUndo = useCallback((id: string) => {
+    const live = storeRef.current
+    const moved = live.todosRef.current.filter((td) => td.category === id && !td.trashed).length
+    const undo = live.deleteCategory(id)
+    return undo ? { message: categoryDeletedMessage(moved), undo } : null
+  }, [])
 
   const openManageFilter = useCallback(() => {
     setCategorySheetMode('edit')
@@ -632,7 +642,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
                 setComposeOpen(false)
                 // Same handoff as the other sheet switches — iOS can't
                 // reliably stack two Modals.
-                afterModalClose(() => setMochiOpen(true))
+                afterModalClose(showMochi)
               }
             : undefined
         }
@@ -648,7 +658,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
       {MOCHI_AGENT_ENABLED && (
         <ChatSheet
           key={accountUid ?? 'signed-out'}
-          visible={mochiOpen}
+          visible={mochiOpen && mochiOpenedFor === accountUid}
           initialInput={mochiSeed}
           autoSendInitial={mochiAutoSend}
           greetingName={
