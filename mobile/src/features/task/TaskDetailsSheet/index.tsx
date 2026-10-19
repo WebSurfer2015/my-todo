@@ -148,7 +148,7 @@ interface Props {
    * series-eligible field in "Edit this only" mode on a series row. */
   onDetachFromSeries: (id: string) => void
   /** R6b — Apply a new recurrence to the whole series and recreate
-   * the tail. Called by the "Recreate all / Keep modified" dialog
+   * the tail. Called by the "Replace all / Keep my edits" dialog
    * fired at Save in series mode when the user changes the
    * recurrence shape. */
   onApplyRecurrenceChange: (
@@ -157,15 +157,17 @@ interface Props {
     options: { keepDetached: boolean },
   ) => void
   /** R6c — Propagate the target's current subtasks shape to every
-   * future non-trashed sibling. Called by the "Overwrite all /
-   * Keep modified" dialog fired at Save in series mode when the
+   * future non-trashed sibling. Called by the "Replace all /
+   * Keep my edits" dialog fired at Save in series mode when the
    * user changed the subtask shape during the session. */
   onApplySeriesSubtasks: (
     id: string,
     options: { keepDetached: boolean },
   ) => void
   onAddSubtask: (id: string, text: string, priority?: Priority, dueDate?: string) => void
-  onToggleSubtask: (id: string, subId: string) => void
+  /** Returns the exact Undo for the toggle (null on a no-op) — the sheet
+   * shows it inline when finishing the last step completes the to-do. */
+  onToggleSubtask: (id: string, subId: string) => (() => void) | null
   onUpdateSubtaskText: (id: string, subId: string, text: string) => void
   onUpdateSubtaskPriority: (id: string, subId: string, priority: Priority) => void
   onUpdateSubtaskDueDate: (id: string, subId: string, dueDate: string) => void
@@ -219,7 +221,7 @@ export default function TaskDetailsSheet({
   const detachToastShownRef = useRef(false)
   // R6c — snapshot of the subtask shape (text/priority/dueDate/order)
   // taken when the sheet opens. Diffed at Save in series mode to
-  // decide whether to fire the "Overwrite all / Keep modified"
+  // decide whether to fire the "Replace all / Keep my edits"
   // dialog. Sub.done changes intentionally don't count — those are
   // per-instance progress markers, not series edits.
   const initialSubtasksRef = useRef<Subtask[] | undefined>(undefined)
@@ -311,6 +313,24 @@ export default function TaskDetailsSheet({
   // re-running on every todo reference change (see below).
   const todoRef = useRef(todo)
   todoRef.current = todo
+
+  // Finishing the LAST step completes the to-do. The store's "Done · Undo"
+  // snackbar sits behind this sheet, so the sheet shows that Undo inline
+  // and keeps its normal footer (instead of flipping to the Done-bin
+  // "Delete forever / Reopen" pair) until it closes.
+  const [stepDoneUndo, setStepDoneUndo] = useState<(() => void) | null>(null)
+  const toggleStep = (id: string, subId: string) => {
+    const before = todoRef.current
+    const willComplete =
+      !before.done &&
+      (before.subtasks ?? []).every((st) => (st.id === subId ? !st.done : st.done))
+    const undo = onToggleSubtask(id, subId)
+    setStepDoneUndo(willComplete && undo ? () => undo : null)
+  }
+  const showStepDoneRow = stepDoneUndo !== null && !!todo.done
+  // The Done-bin footer (Delete forever / Reopen) — not for a to-do that
+  // was just finished from its steps while the sheet is open.
+  const isBinFooter = !!todo.trashed && !showStepDoneRow
 
   // Seed the form (and the per-open series bookkeeping) when the sheet
   // opens or the task identity changes.
@@ -438,7 +458,7 @@ export default function TaskDetailsSheet({
   function applyRecurrence(r: Recurrence | undefined) {
     setEditRecurrence(r)
     // R6b — in series mode the change is buffered until Save so the
-    // commit path can fire the "Recreate all / Keep modified" dialog
+    // commit path can fire the "Replace all / Keep my edits" dialog
     // before mutating cloud state. In "this only" mode the change
     // commits live (existing R6a behavior).
     const seriesBuffer = editMode === 'series' && isSeriesRow
@@ -557,7 +577,6 @@ export default function TaskDetailsSheet({
           },
           {
             text: t.seriesFreqRecreateAll,
-            style: 'destructive',
             onPress: () => {
               commitBufferedSeriesFields()
               onApplyRecurrenceChange(todo.id, editRecurrence, { keepDetached: false })
@@ -588,7 +607,6 @@ export default function TaskDetailsSheet({
           },
           {
             text: t.seriesSubtasksOverwriteAll,
-            style: 'destructive',
             onPress: () => {
               commitBufferedSeriesFields()
               onApplySeriesSubtasks(todo.id, { keepDetached: false })
@@ -1512,7 +1530,7 @@ export default function TaskDetailsSheet({
                       parentId={todo.id}
                       subtask={s}
                       styles={styles}
-                      onToggle={onToggleSubtask}
+                      onToggle={toggleStep}
                       onUpdateText={onUpdateSubtaskText}
                       onTap={() => startEditSubtask(s)}
                     />
@@ -1551,6 +1569,23 @@ export default function TaskDetailsSheet({
             {/* Sticky footer — actions pinned to the bottom; the fields +
                 STEPS above scroll independently. */}
             <View style={styles.stickyFooter}>
+              {showStepDoneRow && (
+                <View style={styles.stepDoneRow}>
+                  <Text style={styles.stepDoneText}>✓ Done</Text>
+                  <Text style={styles.stepDoneText}> · </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      stepDoneUndo?.()
+                      setStepDoneUndo(null)
+                    }}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Undo — reopen this to-do"
+                  >
+                    <Text style={styles.stepDoneUndoText}>{t.undo}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
               {/* Action row — Delete · Skip · Mark done (Delete forever ·
                   Reopen for a row in Done). In "Edit series"
                   mode these apply to this + all future occurrences
@@ -1563,7 +1598,7 @@ export default function TaskDetailsSheet({
                     // An active to-do goes to the Done bin (30 days, with
                     // Undo) — permanent delete is only for rows already in
                     // the bin. The App Store copy promises this.
-                    if (!todo.trashed) {
+                    if (!isBinFooter) {
                       if (seriesScope) {
                         Alert.alert(
                           'Delete this and future to-dos?',
@@ -1608,20 +1643,20 @@ export default function TaskDetailsSheet({
                   activeOpacity={0.6}
                   accessibilityRole="button"
                   accessibilityLabel={
-                    todo.trashed ? (seriesScope ? 'Delete series' : t.deletePermanently) : t.deleteTask
+                    isBinFooter ? (seriesScope ? 'Delete series' : t.deletePermanently) : t.deleteTask
                   }
                 >
                   {/* Red only when it's permanent (already in Done); a
                       reversible delete reads neutral. */}
-                  <Text style={[styles.deleteActionText, !todo.trashed && { color: theme.label2 }]}>
-                    {seriesScope ? 'Delete series' : todo.trashed ? t.deletePermanently : t.deleteTask}
+                  <Text style={[styles.deleteActionText, !isBinFooter && { color: theme.label2 }]}>
+                    {seriesScope ? 'Delete series' : isBinFooter ? t.deletePermanently : t.deleteTask}
                   </Text>
                 </TouchableOpacity>
 
                 {/* A row already in Done offers only Reopen (back to the open
                     list) and the permanent delete — Skip / Mark done make no
                     sense for something finished or deleted. */}
-                {todo.trashed ? (
+                {isBinFooter ? (
                   <>
                     <View />
                     <TouchableOpacity

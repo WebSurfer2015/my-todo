@@ -20,7 +20,7 @@ my-todo/
 │   │                  authMessages),
 │   │                store/ (createTodoStore, coordinators, mergeTodos,
 │   │                  usageSignals, types, index);
-│   │                index.ts is the barrel
+│   │                no package entry point — import by ring path
 │   └── test/        core's tests (vitest, node env)
 ├── mobile/          Expo SDK 54 + React Native 0.81 + TypeScript (the app)
 ├── functions/       Firebase Cloud Functions (Node 22): agentChat, aiInfer,

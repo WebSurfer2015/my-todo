@@ -630,6 +630,22 @@ export function makeStyles(c: ThemeColors) {
     editFieldRowDisabled: {
       opacity: 0.4,
     },
+    // Inline "✓ Done · Undo" after the last step completes the to-do.
+    stepDoneRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingTop: SPACING.sm,
+    },
+    stepDoneText: {
+      color: c.label2,
+      fontSize: TYPE.body,
+    },
+    stepDoneUndoText: {
+      color: c.primary,
+      fontSize: TYPE.body,
+      fontWeight: '600',
+    },
     bottomActionRow: {
       flexDirection: 'row',
       alignItems: 'center',

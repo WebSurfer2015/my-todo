@@ -32,6 +32,8 @@ import { markMochiResting, mochiRestLabel, mochiRestUntil, type MochiRestScope }
 import { todayLocal, isoDate } from '../../core-bindings/utils'
 import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 import type { AgentRecurrence } from '../../../../core/src/ports/aiContracts'
+import { deferPresets } from '../task/DeferModal'
+import CategoryIcon from '../../ui/CategoryIcon'
 import { formatCalendarDate, recurrenceShortLabel, type RecurrenceFreqStrings } from '../../../../core/src/logic/labels'
 
 /** What applying a confirmed turn did. `pending` is set when the turn raised
@@ -926,7 +928,7 @@ export default function ChatSheet({
                 style={styles.input}
                 placeholder={
                   isResting
-                    ? `Mochi's resting — back ${restLabel.startsWith('tomorrow') ? restLabel : `at ${restLabel}`}`
+                    ? `Mochi's resting until ${restLabel}`
                     : messages.length === 0
                       ? `e.g. ${PLACEHOLDER_EXAMPLES[phIdx]}`
                       : 'Message Mochi…'
@@ -1109,7 +1111,8 @@ function PickTodosCard({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [done, setDone] = useState<{ note: string; undo: (() => void) | null } | null>(null)
   const [seriesDeleted, setSeriesDeleted] = useState<{ undo: (() => void) | null } | null>(null)
-  const [deferOpen, setDeferOpen] = useState(false)
+  // Defer: closed → the DeferModal-style preset rows → (Pick a date) a picker.
+  const [deferOpen, setDeferOpen] = useState<false | 'presets' | 'picker'>(false)
   // delete lists let the user choose Skip / Defer / Delete on the ticked
   // items; markDone / edit / addSteps get one primary button for what the user
   // actually asked ("Mark done 3") — markDone used to land in the delete row
@@ -1168,13 +1171,17 @@ function PickTodosCard({
     const undo = onPickAction('delete', ids)
     setDone({ note: PICK_DONE.delete(ids.length), undo })
   }
-  const onDeferDate = (e: DateTimePickerEvent, d?: Date) => {
+  const deferTo = (d: Date) => {
     setDeferOpen(false)
-    if (e.type === 'set' && d && selected.size > 0 && actOnce()) {
+    if (selected.size > 0 && actOnce()) {
       const ids = selectedIds()
       const undo = onPickAction('defer', ids, isoDate(d))
       setDone({ note: `${ids.length} deferred`, undo })
     }
+  }
+  const onDeferDate = (e: DateTimePickerEvent, d?: Date) => {
+    if (e.type === 'set' && d) deferTo(d)
+    else if (e.type === 'dismissed') setDeferOpen('presets')
   }
 
   const deleteSeries = () => {
@@ -1285,7 +1292,7 @@ function PickTodosCard({
             <TouchableOpacity
               style={[styles.btn, styles.btnNeutral, selected.size === 0 && styles.btnDisabled]}
               disabled={selected.size === 0}
-              onPress={() => setDeferOpen(true)}
+              onPress={() => setDeferOpen(deferOpen ? false : 'presets')}
               accessibilityRole="button"
             >
               <Text style={styles.btnNeutralText}>Defer{selected.size > 0 ? ` ${selected.size}` : ''}</Text>
@@ -1301,12 +1308,37 @@ function PickTodosCard({
               </Text>
             </TouchableOpacity>
           </View>
-          {deferOpen && (
+          {deferOpen === 'presets' && (
+            <View style={styles.pickDeferCard}>
+              {/* Same choices as the Defer sheet (DeferModal). */}
+              {deferPresets(t).map((p) => (
+                <TouchableOpacity
+                  key={p.key}
+                  style={styles.pickDeferRow}
+                  onPress={() => deferTo(p.date)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${p.label}, ${p.hint}`}
+                >
+                  <Text style={styles.pickDeferRowLabel}>{p.label}</Text>
+                  <Text style={styles.pickDeferRowHint}>· {p.hint}</Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={styles.pickDeferRow}
+                onPress={() => setDeferOpen('picker')}
+                accessibilityRole="button"
+              >
+                <Text style={styles.pickDeferRowLabel}>{t.snooze.pickDate}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {deferOpen === 'picker' && (
             <View style={styles.pickDeferWrap}>
               <Text style={styles.pickDeferLabel}>Move {selected.size} to:</Text>
               <DateTimePicker
                 value={new Date()}
                 mode="date"
+                minimumDate={new Date()}
                 display={Platform.OS === 'ios' ? 'compact' : 'default'}
                 themeVariant={theme.statusBar === 'light-content' ? 'dark' : 'light'}
                 onChange={onDeferDate}
@@ -1614,9 +1646,10 @@ function OperationPreview({
         <Text style={styles.proposalKind}>Edit category</Text>
         <View style={styles.swatchRow}>
           {a.color && <View style={[styles.swatch, { backgroundColor: a.color }]} />}
+          {/* Show the new icon itself, not its raw key ("shopping-cart"). */}
+          {a.icon ? <CategoryIcon icon={a.icon} size={16} color={a.color} /> : null}
           <Text style={styles.proposalTitle}>{a.label ?? categoryLabelLookup(a.categoryId)}</Text>
         </View>
-        {a.icon ? <Text style={styles.proposalNotes}>Icon: {a.icon}</Text> : null}
       </View>
     )
   }
@@ -1674,7 +1707,7 @@ function OperationPreview({
   if (op.kind === 'markUndone') {
     return (
       <FrozenTitle
-        kindLabel="Re-open"
+        kindLabel="Reopen"
         resolve={() => todoTextLookup(op.args.todoId)}
         styles={styles}
       />
@@ -1693,7 +1726,7 @@ function OperationPreview({
   if (op.kind === 'restoreTodo') {
     return (
       <FrozenTitle
-        kindLabel="Restore from Done"
+        kindLabel="Reopen"
         resolve={() => trashedTextLookup(op.args.todoId)}
         styles={styles}
       />
@@ -1704,7 +1737,7 @@ function OperationPreview({
     const a = op.args
     const kindLabel = {
       complete: 'Complete step',
-      uncomplete: 'Re-open step',
+      uncomplete: 'Reopen step',
       remove: 'Remove step',
       rename: 'Rename step',
     }[a.action]
@@ -2003,6 +2036,22 @@ function makeStyles(c: ThemeColors) {
       marginTop: 1,
     },
     pickCheckboxOn: { backgroundColor: c.primary, borderColor: c.primary },
+    pickDeferCard: {
+      marginTop: SPACING.sm,
+      backgroundColor: c.surfaceAlt,
+      borderRadius: RADIUS.card,
+      overflow: 'hidden',
+    },
+    pickDeferRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+      paddingVertical: SPACING.md,
+      paddingHorizontal: SPACING.md,
+      minHeight: 44,
+    },
+    pickDeferRowLabel: { fontSize: TYPE.body, fontWeight: '500', color: c.label },
+    pickDeferRowHint: { fontSize: TYPE.footnote, color: c.label3 },
     pickDeferWrap: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, marginTop: SPACING.sm },
     pickDeferLabel: { fontSize: TYPE.footnote, fontWeight: '600', color: c.label2 },
     meter: {

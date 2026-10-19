@@ -146,8 +146,8 @@ export default function ProfileSheet({
       setPhotoBusy(true);
       try {
         setAvatar({ kind: "image", uri: await compressToDataUri(result.assets[0].uri) });
-      } catch (err) {
-        Alert.alert("Photo error", err instanceof Error ? err.message : String(err));
+      } catch {
+        Alert.alert("Couldn't use that photo. Please try another.");
       } finally {
         setPhotoBusy(false);
       }
@@ -170,8 +170,8 @@ export default function ProfileSheet({
       setPhotoBusy(true);
       try {
         setAvatar({ kind: "image", uri: await compressToDataUri(result.assets[0].uri) });
-      } catch (err) {
-        Alert.alert("Photo error", err instanceof Error ? err.message : String(err));
+      } catch {
+        Alert.alert("Couldn't use that photo. Please try another.");
       } finally {
         setPhotoBusy(false);
       }
@@ -361,7 +361,7 @@ export default function ProfileSheet({
               </View>
             </View>
 
-            {/* ACCOUNT — email + a full-width destructive Sign out row.
+            {/* ACCOUNT — email + a full-width Sign out row (neutral: it's reversible).
                 (Export / Delete data / Delete account live in Settings.) */}
             <Text style={styles.sectionLabel}>ACCOUNT</Text>
             <View style={styles.card}>
@@ -380,7 +380,6 @@ export default function ProfileSheet({
                         { text: t.cancel, style: "cancel" },
                         {
                           text: t.signOut,
-                          style: "destructive",
                           onPress: () => {
                             onClose();
                             signOut();

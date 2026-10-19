@@ -211,8 +211,8 @@ Open Sagely and you land on Today — a quiet view of just today and whatever ca
 DESIGNED FOR THE HARD MOMENTS
 
 • Notes per to-do — write what's blocking you, the smallest first step, why it matters. Your thinking stays with the task, not in your head.
-• Defer (Tomorrow / Next week / Pick a date) for the days you can't face an item yet.
-• "Defer all to a future date" for when Carried over feels heavy. One tap. Undoable.
+• Defer (Tomorrow / In a week / In a month / Pick a date) for the days you can't face an item yet.
+• Defer all, for when Carried over feels heavy. Undoable.
 • Steps for breaking the scary into the doable. Each step has its own priority and date.
 • Deleted to-dos stay in Done for 30 days — nothing is gone by accident.
 
@@ -798,7 +798,7 @@ Slot plan is canonical in `mobile/scripts/screenshots/capture.sh`. Keep this tab
 | 6 | `ai-pills-compose` | NEW — Add to-do sheet open with sample text like "pickup Mia at 3pm tomorrow"; the AI pill row visible above the field card showing Sparkles ✨ + a Date pill + a Bell pill. | **AI fills the fields — only when you tap** |
 | 7 | `reminder-subview` | NEW — Edit to-do → Remind me sub-view showing the datetime picker + the interval chip row (Once / 15m / 30m / 1h / **2h** / 4h …) with 2h selected + an "Until" row underneath. | **One nudge — or many, with an end** |
 | 8 | `tips-and-guides` | NEW — Tips & guides bottom sheet open, listing the 6 guides with a check mark on 2–3 of them. | **Tips for the hidden parts** |
-| 9 | `defer-to-sheet` | DeferModal open showing Tomorrow / Next week / Pick a date / Cancel | **Snooze without guilt** |
+| 9 | `defer-to-sheet` | DeferModal open showing Tomorrow / In a week / In a month / Pick a date / Cancel | **Snooze without guilt** |
 | 10 | `recurring-repeats` | Repeat picker open showing the weekday filter (Mon · Wed selected) + optional "Repeat ends" row. | **Recurring tasks, without the streak guilt** |
 
 **Tip**: populate sample data with humane content ("Refill prescription,"

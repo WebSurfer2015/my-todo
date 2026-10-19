@@ -46,6 +46,9 @@ jobs:
       - name: Typecheck
         working-directory: mobile
         run: npx tsc --noEmit -p tsconfig.json
+      - name: App Store copy (offline validate — limits, calm rules, version match)
+        working-directory: mobile
+        run: python3 scripts/asc/asc_release.py validate
       - name: Test + coverage gate (thresholds in mobile/vitest.config.ts)
         working-directory: mobile
         run: npm run test:coverage

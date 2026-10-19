@@ -215,7 +215,8 @@ export default function FilterBar({
           options: [pinLabel, removeLabel, t.cancel],
           title: label,
           cancelButtonIndex: 2,
-          destructiveButtonIndex: 1,
+          // No destructiveButtonIndex — removing a pill is reversible,
+          // and red is reserved for permanent deletes.
         },
         (i) => {
           if (i === 0) onPinFilter(targetSet)
@@ -225,7 +226,7 @@ export default function FilterBar({
     } else {
       Alert.alert(label, undefined, [
         { text: pinLabel, onPress: () => onPinFilter(targetSet) },
-        { text: removeLabel, style: 'destructive', onPress: onRemove },
+        { text: removeLabel, onPress: onRemove },
         { text: t.cancel, style: 'cancel' },
       ])
     }

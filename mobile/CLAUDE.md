@@ -8,7 +8,8 @@ This is the **mobile** workspace of `my-todo` — the Sagely app (Expo SDK 54 + 
 
 Feature-folder layout:
 
-- `app/` — bootstrap & shell: contexts/providers (`AuthContext`, `LangContext`, `notify`, `StoreContext`, `PurchasesContext`, `SheetContext`, `FireworkOverlay`), `ErrorBoundary`, `theme`, `featureFlags`, `detailsOpenPlan` (pure plan for opening the details sheet), `links`, `useReducedMotion`, and top-level chrome (`AppHeader`, `Fab`, `Footer`, `SplashOverlay`). `App.tsx` is at the workspace root.
+- `app/` — bootstrap & shell: contexts/providers (`AuthContext`, `LangContext`, `notify`, `StoreContext`, `PurchasesContext`, `SheetContext`, `FireworkOverlay`), `ErrorBoundary`, `theme`, `featureFlags`, `detailsOpenPlan` (pure plan for opening the details sheet), `modalPresence` (`useModalPresence` — counts presented RN `<Modal>`s), `accountErrors` (calm copy for a failed account action), `links`, `useReducedMotion`, and top-level chrome (`AppHeader`, `Fab`, `Footer`, `SplashOverlay`). `App.tsx` is at the workspace root.
+  - **Modal rule:** any new RN `<Modal>` must call `useModalPresence(visible)` (unconditionally, before any early return) or be a sheet tracked by `SheetProvider`. iOS can't present a Modal over another, so SheetProvider checks `isAnyModalPresented()` before opening the details sheet from a reminder tap.
 - `adapters/` — IO / platform edges: `firebase`, `firestoreAdapter`, `persistence` (AsyncStorage `StorageAdapter`), `crashReporting`, `notifications`, `aiInfer`, `appCheck`, `purchases`, `purchaseTier`, `completionChime`, `reminderId`, `authErrors`.
 - `storage/envelope.ts` — the versioned `{version, data}` envelope every `useSyncedState` call reads/writes.
 - `store/` — domain store: `useTodoStore`, `useSyncedState`, `slices/` (`useTodosSlice`, `useCategoriesSlice`, `useProfileSlice`, `useGroceriesSlice`).

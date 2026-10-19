@@ -66,7 +66,7 @@ export function makeStyles(c: ThemeColors) {
     accountSignOutText: {
       fontSize: TYPE.body,
       fontWeight: "600",
-      color: c.red,
+      color: c.label,
     },
     sectionLabel: {
       fontSize: TYPE.caption,
