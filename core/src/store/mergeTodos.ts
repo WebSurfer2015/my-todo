@@ -21,8 +21,14 @@
  *
  * Order follows `local` (so the user's list doesn't jump under them), with
  * remote-only rows appended. Pure: no clock, no ids, inputs untouched.
+ *
+ * Finally, two OPEN occurrences of the same series on the same day are one
+ * occurrence generated twice (two devices topped the series up before
+ * syncing). Only one survives — the one already in `base` or `remote` (the
+ * copy the other side has), so the list converges instead of stacking.
  */
 import type { Todo } from '../domain/types'
+import { dueDateOnly } from '../logic/utils'
 
 const stamp = (td: Todo): number => td.updatedAt ?? 0
 
@@ -52,5 +58,31 @@ export function mergeTodos(
     if (localIds.has(r.id)) continue
     if (keepOneSided(r, baseById)) out.push(r)
   }
-  return out
+  return dedupeSeriesDays(out, (id) => baseById.has(id) || remoteById.has(id))
+}
+
+/** Drop all but one open row per (seriesId, day); the kept row is the first
+ * one `isShared` accepts, else the first seen. Returns `rows` itself when
+ * there is nothing to drop. */
+function dedupeSeriesDays(rows: Todo[], isShared: (id: string) => boolean): Todo[] {
+  const keeper = new Map<string, Todo>()
+  let dup = false
+  for (const td of rows) {
+    if (!td.seriesId || td.trashed || td.done) continue
+    const day = dueDateOnly(td.dueDate)
+    if (!day) continue
+    const key = `${td.seriesId}|${day}`
+    const kept = keeper.get(key)
+    if (!kept) keeper.set(key, td)
+    else {
+      dup = true
+      if (!isShared(kept.id) && isShared(td.id)) keeper.set(key, td)
+    }
+  }
+  if (!dup) return rows
+  const keep = new Set([...keeper.values()].map((td) => td.id))
+  return rows.filter((td) => {
+    if (!td.seriesId || td.trashed || td.done || !dueDateOnly(td.dueDate)) return true
+    return keep.has(td.id)
+  })
 }

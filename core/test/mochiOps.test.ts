@@ -23,6 +23,10 @@ const SNAP: MochiSnapshot = {
     { id: 'series', text: 'Run', done: false, seriesId: 's1', dueDate: '2026-10-18T07:00' },
     { id: 'trashed', text: 'Old thing', done: false, trashed: true, dueDate: '2026-10-01' },
     { id: 'future', text: 'Dentist', done: false, dueDate: '2026-10-25' },
+    // Due TODAY (with a time) — not carried over, so never deferred.
+    { id: 'today', text: 'Stretch', done: false, dueDate: '2026-10-19T08:00' },
+    // Done but with a past due date (not trashed) — done wins, never deferred.
+    { id: 'donePast', text: 'File taxes', done: true, dueDate: '2026-10-10' },
     {
       id: 'steps',
       text: 'Plan trip',
@@ -204,7 +208,7 @@ describe('planMochiOp — every op kind', () => {
     ],
     ['skipTodo unknown id → no-op', { kind: 'skipTodo', args: { todoId: 'nope' } }, []],
     [
-      'deferOverdue moves only open, untrashed, past-due to-dos',
+      'deferOverdue moves only open, untrashed, past-due to-dos (not due-today, not done)',
       { kind: 'deferOverdue', args: { dueDate: '2026-10-21' } },
       [{ type: 'bulkDeferTodos', todoIds: ['open', 'series'], dueDate: '2026-10-21' }],
     ],

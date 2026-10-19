@@ -423,17 +423,34 @@ export function subtaskAdd(
       dueDate: effectiveDueDate,
     };
     const nextSubs = [...existing, newSub];
-    // If the new sub's date is later than the parent's, push the parent's
-    // dueDate forward so the parent never finishes before its sub. ISO
-    // YYYY-MM-DD strings sort lexically.
-    const nextParentDueDate =
-      effectiveDueDate && td.dueDate && effectiveDueDate > td.dueDate
-        ? effectiveDueDate
-        : td.dueDate;
+    // If the new sub's day is later than the parent's, push the parent's
+    // dueDate forward so the parent never finishes before its sub (keeping
+    // its time of day + moving its reminders). ISO days sort lexically.
+    const subDay = dueDateOnly(effectiveDueDate);
+    const parentDay = dueDateOnly(td.dueDate);
+    const withSubs: Todo = { ...td, subtasks: nextSubs };
     // Adding an open subtask reopens a previously-done parent
     // (applyStepChange → syncParentDone clears its Done-bin flags too).
-    return { ...td, subtasks: nextSubs, dueDate: nextParentDueDate };
+    return subDay && parentDay && subDay > parentDay
+      ? withParentDay(withSubs, td, subDay, Date.now())
+      : withSubs;
   });
+}
+
+/**
+ * `next` (a to-do whose steps changed) with its due DAY moved to `day`,
+ * keeping the original to-do's time-of-day suffix and moving its upcoming
+ * reminders by the same whole-day delta (remindersForDueChange). No-op when
+ * the day is unchanged.
+ */
+function withParentDay(next: Todo, original: Todo, day: string, now: number): Todo {
+  if (dueDateOnly(original.dueDate) === day) return next;
+  const tIdx = original.dueDate ? original.dueDate.indexOf("T") : -1;
+  const due = tIdx === -1 ? day : day + original.dueDate.slice(tIdx);
+  const out: Todo = { ...next, dueDate: due };
+  const reminders = remindersForDueChange(original, due, now);
+  if (reminders) out.reminders = reminders;
+  return out;
 }
 
 export function subtaskUpdatePriority(
@@ -469,17 +486,14 @@ export function subtaskUpdateDueDate(
     // that moves it earlier). ISO yyyy-mm-dd strings sort lexically. If no
     // sub has a date, the parent keeps its existing date so we don't
     // accidentally clear it.
-    const maxSubDate = nextSubs.reduce<string>((acc, s) => {
-      if (s.dueDate && s.dueDate > acc) return s.dueDate;
-      return acc;
+    const maxSubDay = nextSubs.reduce<string>((acc, s) => {
+      const d = dueDateOnly(s.dueDate);
+      return d && d > acc ? d : acc;
     }, '');
-    const nextParentDueDate = maxSubDate || td.dueDate;
-    return {
-      ...td,
-      subtasks: nextSubs,
-      dueDate: nextParentDueDate,
-      updatedAt: now,
-    };
+    const withSubs: Todo = { ...td, subtasks: nextSubs, updatedAt: now };
+    // Only the DAY follows the steps: the parent keeps its own time of day,
+    // and its reminders move with it.
+    return maxSubDay ? withParentDay(withSubs, td, maxSubDay, now) : withSubs;
   });
 }
 
@@ -716,17 +730,19 @@ export function seriesEndBefore(todos: Todo[], seriesId: string | undefined, cut
 /**
  * R6b — Frequency-change apply for a series. Writes the new
  * recurrence to the target row, snaps its `dueDate` to the first
- * matching occurrence if needed, trashes every future non-trashed
- * sibling (modulo `keepDetached`), then re-expands a fresh tail
- * from the target via `expandSeries`.
+ * matching occurrence if needed, REMOVES every future open sibling
+ * (modulo `keepDetached`; `trashedCount` counts them — the UI says
+ * "replaced"), detaches the future ones already in the bin into plain
+ * one-offs, then re-expands a fresh tail from the target via
+ * `expandSeries`.
  *
  * Pass `newRecurrence === undefined` to stop the series here: the
  * target keeps its `seriesId` for "delete this and all future"
  * symmetry, but no new tail is generated.
  *
  * `keepDetached: true` preserves siblings the user explicitly
- * carved out via R6a's detach — they sit as one-off rows on the
- * old pattern; `false` trashes them too ("Recreate all").
+ * carved out via R6a's detach — they stay as one-off rows (seriesId
+ * dropped); `false` removes them too ("Recreate all").
  */
 export function todoApplyRecurrenceChange(
   prev: Todo[],
@@ -756,25 +772,42 @@ export function todoApplyRecurrenceChange(
     else delete next.recurrence;
     return next;
   });
-  // 2) Trash future siblings of the same series. Respect keepDetached.
+  // 2) Replace the future siblings (old rule) of the same series: open ones
+  //    are removed outright; ones already in the bin, and detached ones kept
+  //    via keepDetached, leave the series as plain one-offs. Either way no
+  //    superseded row stays a series member — top-up / append measure the
+  //    tail from the latest member, so an old-rule row weeks out would
+  //    otherwise open a gap in the new tail.
   let trashedCount = 0;
-  updated = updated.map((td) => {
-    if (td.id === id) return td;
-    if (td.seriesId !== sid) return td;
-    if (td.trashed) return td;
-    if (cutoff && td.dueDate && td.dueDate < cutoff) return td;
-    if (options.keepDetached && td.detachedFromSeries) return td;
-    trashedCount += 1;
-    return { ...td, trashed: true, trashedAt: now, updatedAt: now };
+  const superseded = (td: Todo) =>
+    td.id !== id && td.seriesId === sid && !(cutoff && td.dueDate && td.dueDate < cutoff);
+  updated = updated.flatMap((td) => {
+    if (!superseded(td)) return [td];
+    const isOpen = !td.trashed;
+    const keep = !isOpen || (options.keepDetached && td.detachedFromSeries);
+    if (!keep) {
+      trashedCount += 1;
+      return [];
+    }
+    const oneOff: Todo = { ...td, updatedAt: now };
+    delete oneOff.seriesId;
+    delete oneOff.recurrence;
+    delete oneOff.detachedFromSeries;
+    return [oneOff];
   });
   // 3) If recurrence is set, re-expand from the (newly-snapped) target.
   if (!newRecurrence) return { next: seriesEndBefore(updated, sid, cutoff), trashedCount };
   const updatedTarget = updated.find((t) => t.id === id);
   if (!updatedTarget) return { next: updated, trashedCount };
+  // The new rule anchors on the target's own day — not the earliest member's
+  // under the OLD rule (daily from the 31st changed to monthly on Nov 30 must
+  // go Dec 30, Jan 30).
+  const ownDay = Number(dueDateOnly(updatedTarget.dueDate).slice(8, 10));
   const expanded = expandSeries(
     updatedTarget,
     todayISO,
-    seriesAnchorDay(prev.filter((td) => td.seriesId === sid)),
+    Number.isFinite(ownDay) && ownDay > 0 ? ownDay : undefined,
+    new Set(updated.map((td) => td.id)),
   );
   // expanded[0] is the target itself — already in `updated`.
   return { next: [...updated, ...expanded.slice(1)], trashedCount };
@@ -915,14 +948,21 @@ export function windowCutoffFor(freq: RecurrenceFreq, todayISO: string): string 
  * Behavior:
  *  - Seed retains its existing `id`, `reminders`, `subtasks`, `notes`;
  *    each generated instance gets the seed's reminders rebased onto it.
- *  - Generated instances get fresh UUIDs, the shared `seriesId`
+ *  - Generated instances get deterministic ids (seriesInstanceId), the shared `seriesId`
  *    (assigned if seed lacks one), and `cloneSubtasksFresh(seed.subtasks)`.
  *  - Any time-suffix on the seed's dueDate is preserved on each instance.
+ *  - Occurrences before `todayISO` are not generated (no back-fill).
+ *  - `takenIds` — ids already in the list; a clash falls back to a UUID.
  *  - No-op if seed lacks `recurrence` or `dueDate` — returns `[seed]`.
  *  - `anchorDay` — the series' day-of-month when re-expanding an existing
  *    series (see seriesAnchorDay); defaults to the seed's.
  */
-export function expandSeries(seed: Todo, todayISO: string, anchorDay?: number): Todo[] {
+export function expandSeries(
+  seed: Todo,
+  todayISO: string,
+  anchorDay?: number,
+  takenIds?: ReadonlySet<string>,
+): Todo[] {
   if (!seed.recurrence || !seed.dueDate) return [seed];
   const rec = seed.recurrence;
   const seedDateOnly = dueDateOnly(seed.dueDate);
@@ -946,11 +986,19 @@ export function expandSeries(seed: Todo, todayISO: string, anchorDay?: number): 
   // its reminders and future instances had none.
   const seedReminders = getReminders(seed);
   const out: Todo[] = [head];
-  // Generate fresh instances for every date after the seed.
+  // Generate instances for every date after the seed — but never for a day
+  // already past: a seed in the past is itself the one carried-over row; the
+  // occurrences it missed are not back-filled.
+  const today = dueDateOnly(todayISO);
+  const taken = new Set(takenIds ?? []);
+  taken.add(seed.id);
   for (let i = firstNew; i < dates.length; i++) {
+    if (dates[i] < today) continue;
     const instDue = dates[i] + timeSuffix;
+    const id = seriesInstanceId(seriesId, dates[i], taken);
+    taken.add(id);
     const inst: Todo = {
-      id: genUuid(),
+      id,
       text: seed.text,
       done: false,
       priority: seed.priority,
@@ -970,6 +1018,72 @@ export function expandSeries(seed: Todo, todayISO: string, anchorDay?: number): 
     out.push(inst);
   }
   return out;
+}
+
+/** Max length of a generated series-instance id (the agent tools cap todo
+ * ids at 64 chars). Longer (untrusted) seriesIds fall back to a UUID. */
+const MAX_SERIES_INSTANCE_ID_LEN = 64;
+
+/**
+ * Deterministic id for a GENERATED series occurrence: `${seriesId}_${day}`.
+ * Two devices topping up the same series on the same days mint the same ids,
+ * so the three-way merge collapses them instead of keeping duplicates. The
+ * separator is `_`, not `:` — notification identifiers split todo ids on
+ * colons (mobile/src/adapters/reminderId.ts). Falls back to a fresh UUID when
+ * the id is already taken (e.g. a superseded row kept after a rule change)
+ * or would be too long.
+ */
+export function seriesInstanceId(
+  seriesId: string,
+  day: string,
+  taken?: ReadonlySet<string>,
+): string {
+  const id = `${seriesId}_${dueDateOnly(day)}`;
+  if (id.length > MAX_SERIES_INSTANCE_ID_LEN || taken?.has(id)) return genUuid();
+  return id;
+}
+
+/** Same repeat rule, ignoring endDate (which "end the series" rewrites). */
+function sameRule(a: Recurrence | undefined, b: Recurrence): boolean {
+  if (!a) return false;
+  const list = (v: number[] | undefined) => (v && v.length > 0 ? v.join(",") : "");
+  return (
+    a.freq === b.freq &&
+    (a.interval ?? 1) === (b.interval ?? 1) &&
+    list(a.byWeekday) === list(b.byWeekday) &&
+    list(a.bySetPos) === list(b.bySetPos)
+  );
+}
+
+/**
+ * First occurrence strictly after `from` that lands on/after `today` — where
+ * a lapsed series' new rows start. A series that sat idle (last row weeks
+ * ago) resumes from today rather than back-filling every missed occurrence:
+ * its existing newest missed row stays as the one "carried over" item.
+ */
+function firstOccurrenceFrom(
+  from: string,
+  today: string,
+  rec: Recurrence,
+  anchor: number | undefined,
+): string {
+  const interval = rec.interval ?? 1;
+  let cursor = nextOccurrence(from, rec.freq, interval, rec.byWeekday, rec.bySetPos, anchor);
+  // Bounded: a daily series idle for ten years is ~3650 steps.
+  for (let guard = 0; cursor < today && guard < 10000; guard++) {
+    cursor = nextOccurrence(cursor, rec.freq, interval, rec.byWeekday, rec.bySetPos, anchor);
+  }
+  return cursor;
+}
+
+/**
+ * The anchor day for a series' CURRENT rule: seriesAnchorDay over only the
+ * members that repeat by `rec` — members left from before a rule change
+ * (e.g. daily from the 31st, changed to monthly on the 30th) must not drag
+ * the new rule's day-of-month back to the old one.
+ */
+function currentRuleAnchorDay(members: Todo[], rec: Recurrence): number | undefined {
+  return seriesAnchorDay(members.filter((m) => sameRule(m.recurrence, rec)));
 }
 
 /**
@@ -1046,14 +1160,18 @@ export function topUpSeries(
   const interval = rec.interval ?? 1;
   const now = Date.now();
   const inheritReminders = getReminders(inheritFrom);
-  const anchor = seriesAnchorDay(members);
+  const anchor = currentRuleAnchorDay(members, rec);
   const additions: Todo[] = [];
-  let cursor = nextOccurrence(latest, rec.freq, interval, rec.byWeekday, rec.bySetPos, anchor);
+  const taken = new Set(todos.map((t) => t.id));
+  // A lapsed series resumes at today — no flood of back-filled overdue rows.
+  let cursor = firstOccurrenceFrom(latest, dueDateOnly(todayISO), rec, anchor);
   let guard = 0;
   while (cursor <= hardEnd && guard < MAX_RECURRENCE_INSTANCES) {
     const instDue = cursor + timeSuffix;
+    const id = seriesInstanceId(seriesId, cursor, taken);
+    taken.add(id);
     const inst: Todo = {
-      id: genUuid(),
+      id,
       text: inheritFrom.text,
       done: false,
       priority: inheritFrom.priority,
@@ -1127,14 +1245,14 @@ export function appendNextSeriesInstance(
   }
   if (!latest) return todos;
   const interval = rec.interval ?? 1;
-  const next = nextOccurrence(latest, rec.freq, interval, rec.byWeekday, rec.bySetPos, seriesAnchorDay(members));
+  const next = nextOccurrence(latest, rec.freq, interval, rec.byWeekday, rec.bySetPos, currentRuleAnchorDay(members, rec));
   if (rec.endDate && next > rec.endDate) return todos;
   const tIdx = inheritFrom.dueDate.indexOf("T");
   const timeSuffix = tIdx === -1 ? "" : inheritFrom.dueDate.slice(tIdx);
   const now = Date.now();
   const instDue = next + timeSuffix;
   const inst: Todo = {
-    id: genUuid(),
+    id: seriesInstanceId(seriesId, next, new Set(todos.map((t) => t.id))),
     text: inheritFrom.text,
     done: false,
     priority: inheritFrom.priority,
@@ -1570,7 +1688,9 @@ export function setDueDates(prev: Todo[], dates: Map<string, string>): Todo[] {
  * them onto one day. So per series, only the MOST RECENT overdue (dueDate
  * before `todayISO`) instance among `ids` is moved; the older missed ones are
  * marked skipped ("Not Do", as todoSkip) without appending tails — the
- * series' future is already queued. Done / trashed rows and unknown ids are
+ * series' future is already queued. Likewise an occurrence whose series
+ * already has an open occurrence on the target day is skipped rather than
+ * stacked as a second one. Done / trashed rows and unknown ids are
  * ignored.
  */
 export function todoDeferTo(
@@ -1592,6 +1712,17 @@ export function todoDeferTo(
     const kept = keepBySeries.get(td.seriesId);
     if (!kept || dueDateOnly(td.dueDate) > dueDateOnly(kept.dueDate)) keepBySeries.set(td.seriesId, td);
   }
+  // Days already holding an open occurrence of a series (rows not being
+  // moved) — deferring another occurrence of that series onto such a day
+  // would stack two, so it is skipped instead.
+  const slot = (sid: string, day: string) => `${sid}|${day}`;
+  const candidateIds = new Set(candidates.map((td) => td.id));
+  const occupied = new Set<string>();
+  for (const td of prev) {
+    if (!td.seriesId || td.trashed || td.done || candidateIds.has(td.id)) continue;
+    const day = dueDateOnly(td.dueDate);
+    if (day) occupied.add(slot(td.seriesId, day));
+  }
   const skipIds = new Set<string>();
   const dates = new Map<string, string>();
   for (const td of candidates) {
@@ -1599,6 +1730,13 @@ export function todoDeferTo(
     if (kept && kept.id !== td.id) {
       skipIds.add(td.id);
       continue;
+    }
+    if (td.seriesId) {
+      if (occupied.has(slot(td.seriesId, target))) {
+        skipIds.add(td.id);
+        continue;
+      }
+      occupied.add(slot(td.seriesId, target));
     }
     const tIdx = td.dueDate ? td.dueDate.indexOf("T") : -1;
     dates.set(td.id, tIdx === -1 ? target : target + td.dueDate.slice(tIdx));
@@ -1652,22 +1790,33 @@ export function categoryDelete(
   if (categories.length <= 1) return { categories, todos, deleted: false };
   const remaining = categories.filter((c) => c.id !== id);
   const now = Date.now();
-  return {
-    categories: remaining,
-    // Open to-dos go to the Done bin; every row (open or already binned)
-    // drops the category so a restored one has no ghost category.
-    todos: todos.map((td) => {
-      if (td.category !== id) return td;
-      const next: Todo = { ...td, updatedAt: now };
-      delete next.category;
-      if (!td.trashed) {
-        next.trashed = true;
-        next.trashedAt = now;
+  // Earliest open member per series this delete bins — the series is ended
+  // before it below, so restoring one binned occurrence can't re-grow it.
+  const binnedFrom = new Map<string, string>();
+  // Open to-dos go to the Done bin; every row (open or already binned)
+  // drops the category so a restored one has no ghost category.
+  let next = todos.map((td) => {
+    if (td.category !== id) return td;
+    const out: Todo = { ...td, updatedAt: now };
+    delete out.category;
+    if (!td.trashed) {
+      out.trashed = true;
+      out.trashedAt = now;
+      const day = dueDateOnly(td.dueDate);
+      if (td.seriesId && day) {
+        const prior = binnedFrom.get(td.seriesId);
+        if (!prior || day < prior) binnedFrom.set(td.seriesId, day);
       }
-      return next;
-    }),
-    deleted: true,
-  };
+    }
+    return out;
+  });
+  for (const [sid, day] of binnedFrom) {
+    // Only a series left with no open member was fully binned; one with an
+    // open row elsewhere (another category) keeps going.
+    if (next.some((td) => td.seriesId === sid && !td.trashed && !td.done)) continue;
+    next = seriesEndBefore(next, sid, day);
+  }
+  return { categories: remaining, todos: next, deleted: true };
 }
 
 export function categoryReorder(
