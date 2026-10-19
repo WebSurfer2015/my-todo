@@ -10,6 +10,8 @@ const en = vi.hoisted(() => ({
   last: null as unknown,
   remove: () => {},
   clear: () => Promise.resolve(),
+  scheduled: [] as string[],
+  cancelled: [] as string[],
 }))
 
 vi.mock('expo-notifications', () => ({
@@ -21,10 +23,24 @@ vi.mock('expo-notifications', () => ({
   },
   getLastNotificationResponseAsync: () => Promise.resolve(en.last),
   clearLastNotificationResponseAsync: () => en.clear(),
+  getAllScheduledNotificationsAsync: () => Promise.resolve(en.scheduled.map((identifier) => ({ identifier }))),
+  cancelScheduledNotificationAsync: (id: string) => {
+    en.cancelled.push(id)
+    return Promise.resolve()
+  },
 }))
 
 import { runNewestFirst } from '../app/notify'
-import { onReminderTapped } from '../adapters/notifications'
+import { cancelAllReminders, onReminderTapped } from '../adapters/notifications'
+
+describe('cancelAllReminders', () => {
+  it('cancels every to-do reminder and the daily check-in, nothing else', async () => {
+    en.scheduled = ['todo:a:r:0', 'todo:a:nudge:0', 'other-app-thing']
+    en.cancelled = []
+    await cancelAllReminders()
+    expect(en.cancelled.sort()).toEqual(['sagely-daily-checkin', 'todo:a:nudge:0', 'todo:a:r:0'])
+  })
+})
 
 describe('runNewestFirst', () => {
   it('runs the latest action, then the accumulated ones in reverse', () => {

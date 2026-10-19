@@ -95,6 +95,7 @@ import PickerModal from '../../../ui/PickerModal'
 import { TaskDetailsOpenContext } from '../../../app/SheetContext'
 import { useLang } from '../../../app/LangContext'
 import { makeStyles } from './styles';
+import { shouldIgnoreToggleTap } from './toggleGuard'
 
 export type SubtaskVisibility = 'all' | 'open' | 'done'
 
@@ -149,10 +150,6 @@ interface Props {
    * the "today's work is finished" state. Home uses this. */
   subtaskDateFilter?: 'due-today'
 }
-
-/** How long after a completion a further tap on the circle is ignored — the
- * same span as the held completion, so a double-tap can't complete then reopen. */
-const UNCOMPLETE_GUARD_MS = 650
 
 function TaskItem({
   todo, inTrash = false, binFilterView = false, selected = false, onToggleSelect,
@@ -356,9 +353,14 @@ function TaskItem({
     }
     // Ignore taps while a completion is already animating/held, and for a
     // moment after it commits (the second tap of a double-tap).
-    if (pendingCompleteRef.current) return
     // (The prop may not show the completion yet, so don't gate on todo.done.)
-    if (Date.now() - completedAtRef.current < UNCOMPLETE_GUARD_MS) return
+    if (
+      shouldIgnoreToggleTap({
+        hasPendingCompletion: !!pendingCompleteRef.current,
+        lastCompletedAt: completedAtRef.current,
+        now: Date.now(),
+      })
+    ) return
     // Completing a row: fire the chime + calm firework NOW (measured from the
     // leading control, rendered by the app-level overlay so it survives the
     // row leaving), show the row as done optimistically, and HOLD the real

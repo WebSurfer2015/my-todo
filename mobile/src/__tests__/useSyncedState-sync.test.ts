@@ -6,10 +6,11 @@
  */
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import { useSyncedState, onSyncIssue, isSyncedKeyTrusted, type SyncIssue } from '../store/useSyncedState'
+import { useSyncedState, onSyncIssue, type SyncIssue } from '../store/useSyncedState'
 import type { StorageAdapter } from '../../../core/src/ports/persistence'
 import { MAX_SYNCED_VALUE_BYTES } from '../../../core/src/ports/persistence'
 import type { Todo } from '../../../core/src/domain/types'
+import { mergeTodos } from '../../../core/src/store'
 
 type Cb = (value: string | null, meta?: { trusted: boolean }) => void
 
@@ -83,12 +84,10 @@ describe('useSyncedState — sync robustness', () => {
     expect(setCalls).toEqual([])
   })
 
-  it('trusted is true after a resolved read, and the registry agrees', async () => {
+  it('trusted is true after a resolved read', async () => {
     const { adapter } = makeAdapter({ initial: '4' })
     const { result } = renderHook(() => useSyncedState(adapter, 'reg', 0, parse, serialize))
     await waitFor(() => expect(result.current[3]).toBe(true))
-    expect(isSyncedKeyTrusted(adapter, 'reg')).toBe(true)
-    expect(isSyncedKeyTrusted(adapter, 'other')).toBe(false)
   })
 
   it('a hydrate timeout leaves loaded=true but trusted=false', async () => {
@@ -170,7 +169,7 @@ describe('useSyncedState — sync robustness', () => {
       const base = [td('a', 1), td('b', 1)]
       const { adapter, setCalls, pushRemote } = makeAdapter({ initial: serializeTodos(base) })
       const { result } = renderHook(() =>
-        useSyncedState<Todo[]>(adapter, 'todos', [], parseTodos, serializeTodos),
+        useSyncedState<Todo[]>(adapter, 'todos', [], parseTodos, serializeTodos, { merge: mergeTodos }),
       )
       await waitFor(() => expect(result.current[3]).toBe(true))
       // Local edit + local add, still inside the 400ms debounce…
@@ -189,7 +188,7 @@ describe('useSyncedState — sync robustness', () => {
     it('with no pending local change a snapshot simply replaces (no echo write)', async () => {
       const { adapter, setCalls, pushRemote } = makeAdapter({ initial: serializeTodos([td('a', 1)]) })
       const { result } = renderHook(() =>
-        useSyncedState<Todo[]>(adapter, 'todos', [], parseTodos, serializeTodos),
+        useSyncedState<Todo[]>(adapter, 'todos', [], parseTodos, serializeTodos, { merge: mergeTodos }),
       )
       await waitFor(() => expect(result.current[3]).toBe(true))
       act(() => pushRemote(serializeTodos([])))

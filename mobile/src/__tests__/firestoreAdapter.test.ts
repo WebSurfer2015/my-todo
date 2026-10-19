@@ -92,6 +92,52 @@ describe('makeFirestoreAdapter', () => {
       expect(unsubs[1]).toHaveBeenCalled()
     })
 
+    describe('snapshot routing', () => {
+      type Next = (s: Snap) => void
+      let next: Next
+      let opts: unknown
+      beforeEach(() => {
+        fs.onSnapshot.mockImplementation((_ref: unknown, o: unknown, n: Next) => {
+          opts = o
+          next = n
+          return vi.fn()
+        })
+      })
+      const pending = (value: string | null, fromCache = false): Snap => ({
+        ...snap(value, fromCache),
+        metadata: { hasPendingWrites: true, fromCache },
+      })
+
+      it('listens with metadata changes (so the server-confirmed snapshot arrives)', () => {
+        makeFirestoreAdapter(db, 'u1').subscribe!('todos', () => {})
+        expect(opts).toEqual({ includeMetadataChanges: true })
+      })
+
+      it('a cache-only missing doc is untrusted; a server one is trusted', () => {
+        const cb = vi.fn()
+        makeFirestoreAdapter(db, 'u1').subscribe!('todos', cb)
+        next(snap(null, true))
+        expect(cb).toHaveBeenLastCalledWith(null, { trusted: false, fromServer: false })
+        next(snap(null, false))
+        expect(cb).toHaveBeenLastCalledWith(null, { trusted: true, fromServer: true })
+      })
+
+      it('a cached existing doc is trusted but not server-confirmed', () => {
+        const cb = vi.fn()
+        makeFirestoreAdapter(db, 'u1').subscribe!('todos', cb)
+        next(snap('v', true))
+        expect(cb).toHaveBeenLastCalledWith('v', { trusted: true, fromServer: false })
+      })
+
+      it('skips snapshots while a local write is pending', () => {
+        const cb = vi.fn()
+        makeFirestoreAdapter(db, 'u1').subscribe!('todos', cb)
+        next(pending('stale'))
+        next(pending(null, true))
+        expect(cb).not.toHaveBeenCalled()
+      })
+    })
+
     it('does not resubscribe after unsubscribe (sign-out teardown)', () => {
       const stop = makeFirestoreAdapter(db, 'u1').subscribe!('todos', () => {})
       errorHandlers[0]({ code: 'firestore/permission-denied' })

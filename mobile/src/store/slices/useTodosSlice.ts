@@ -36,8 +36,13 @@ import {
   migrateTodos,
   migrateTodoReferences,
 } from "../../../../core/src/logic/derive";
-import { TodoStoreActions } from "../../../../core/src/store";
-import { todayLocal, addDaysISO } from "../../../../core/src/logic/utils";
+import { TodoStoreActions, mergeTodos } from "../../../../core/src/store";
+import {
+  todayLocal,
+  addDaysISO,
+  dueDateToDate,
+  dueDateWithDay,
+} from "../../../../core/src/logic/utils";
 import { useSyncedState } from "../useSyncedState";
 import { StorageAdapter } from "../../../../core/src/ports/persistence";
 import { unwrap, serializeAny } from "../../storage/envelope";
@@ -105,11 +110,23 @@ export interface TodosSliceDeps {
 /** Reverses exactly what an action did (see applyTracked). */
 export type Undo = () => void;
 
+/** Defer snackbar: what moved, plus — when a repeating series had several
+ * missed occurrences — how many older ones were tucked into Done instead of
+ * piling onto one day (core todoDeferTo's `skipped`). English-only launch. */
+export function deferSnackbarMessage(deferredMessage: string, skipped: number): string {
+  if (skipped <= 0) return deferredMessage;
+  const base = deferredMessage.replace(/\.$/, "");
+  return `${base} · ${skipped} earlier ${skipped === 1 ? "repeat" : "repeats"} tucked into Done.`;
+}
+
 export interface TodosSlice {
   // Persisted state
   todos: Todo[];
   setTodos: Dispatch<SetStateAction<Todo[]>>;
   todosLoaded: boolean;
+  /** Todos came from real data (a resolved read or a trusted snapshot), not
+   * defaults after a failed / timed-out hydrate. */
+  todosTrusted: boolean;
   todoReferences: TodoReference[];
   // Session state
   selectedTrashIds: Set<string>;
@@ -264,13 +281,12 @@ export function useTodosSlice(
     toggleOutcome,
   } = actions;
 
-  const [todos, setTodos, todosLoaded] = useSyncedState<Todo[]>(
-    adapter,
-    "todos",
-    [],
-    parseTodos,
-    serializeAny,
-  );
+  // `todos` is one doc holding the whole list, so replace-on-snapshot was
+  // last-writer-wins across devices: merge instead (3-way, by id/updatedAt).
+  const [todos, setTodosRaw, todosLoaded, todosTrusted, todosServerConfirmed] =
+    useSyncedState<Todo[]>(adapter, "todos", [], parseTodos, serializeAny, {
+      merge: mergeTodos,
+    });
   const [todoReferences, setTodoReferences] = useSyncedState<TodoReference[]>(
     adapter,
     "todoReferences",
@@ -282,24 +298,64 @@ export function useTodosSlice(
     new Set(),
   );
 
+  // Latest todos. Remote snapshots land here on commit; every LOCAL mutation
+  // advances it synchronously through applyTracked (below).
   const todosRef = useRef(todos);
   useEffect(() => {
     todosRef.current = todos;
   }, [todos]);
 
-  // Series horizon top-up. Runs once per uid per DAY, after todos have
-  // loaded, so a long-idle device extends its series tails to today's
-  // window before the user sees the list — and an app left open past
-  // midnight extends them too. The ref guard prevents re-entry.
+  // THE todos setter — every mutation goes through it. Applies a pure
+  // transform to the FRESHEST list, advances todosRef synchronously, and
+  // keeps before/after for an exact Undo. The synchronous advance is what
+  // lets several actions in one tick (a Mochi batch: "add X and mark the
+  // series done") chain on each other's result — an untracked setter left
+  // the ref behind, so a later tracked toggle re-ran its transform on the
+  // fresher list with new ids for the appended occurrence, and its Undo
+  // couldn't find them. Returns null when nothing changed.
+  const applyTracked = useCallback(
+    (fn: (ts: Todo[]) => Todo[]): { before: Todo[]; after: Todo[] } | null => {
+      const before = todosRef.current;
+      const after = fn(before);
+      if (after === before) return null;
+      todosRef.current = after;
+      setTodosRaw((prev) => (prev === before ? after : fn(prev)));
+      return { before, after };
+    },
+    [setTodosRaw],
+  );
+  // Dispatch-shaped wrapper for the composer's cross-slice work (same path).
+  const setTodos = useCallback<Dispatch<SetStateAction<Todo[]>>>(
+    (action) => {
+      applyTracked(typeof action === "function" ? action : () => action);
+    },
+    [applyTracked],
+  );
+  const undoTracked = useCallback(
+    (c: { before: Todo[]; after: Todo[] }) => {
+      applyTracked((prev) => todosRevertChanges(prev, c.before, c.after));
+    },
+    [applyTracked, todosRevertChanges],
+  );
+
+  // Series horizon top-up. Runs once per uid per DAY so a long-idle device
+  // extends its series tails to today's window — and an app left open past
+  // midnight extends them too. Only on SERVER-confirmed todos: the first
+  // hydrate is cache-first, and topping up a stale cached list (then writing
+  // the whole doc) could clobber another device's newer server copy. The
+  // latch is set only when it actually ran on confirmed data, so an offline
+  // launch tops up once the server answers.
   const topUpForKeyRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (!todosLoaded) return;
+    if (!todosLoaded || !todosServerConfirmed) return;
     const k = `${uid ?? "(none)"}|${today}`;
     if (topUpForKeyRef.current === k) return;
     topUpForKeyRef.current = k;
-    const tu = topUpAllSeries(todosRef.current, today);
-    if (tu.changed) setTodos(tu.todos);
-  }, [todosLoaded, uid, today, setTodos, topUpAllSeries]);
+    applyTracked((ts) => {
+      const tu = topUpAllSeries(ts, today);
+      return tu.changed ? tu.todos : ts;
+    });
+  }, [todosLoaded, todosServerConfirmed, uid, today, applyTracked, topUpAllSeries]);
 
   // Auto-clear trash selection when leaving trash view.
   useEffect(() => {
@@ -307,28 +363,6 @@ export function useTodosSlice(
       setSelectedTrashIds(new Set());
     }
   }, [filter, selectedTrashIds.size]);
-
-  // Apply a pure transform to the FRESHEST list and keep before/after for an
-  // exact Undo. todosRef is advanced synchronously so several actions in one
-  // tick (a Mochi batch: "mark these 3 done") chain on each other's result —
-  // reading the render-time ref made later ones recompute with new random
-  // ids that their Undo then couldn't find. Returns null when nothing changed.
-  const applyTracked = useCallback(
-    (fn: (ts: Todo[]) => Todo[]): { before: Todo[]; after: Todo[] } | null => {
-      const before = todosRef.current;
-      const after = fn(before);
-      if (after === before) return null;
-      todosRef.current = after;
-      setTodos((prev) => (prev === before ? after : fn(prev)));
-      return { before, after };
-    },
-    [setTodos],
-  );
-  const undoTracked = useCallback(
-    (c: { before: Todo[]; after: Todo[] }) =>
-      setTodos((prev) => todosRevertChanges(prev, c.before, c.after)),
-    [setTodos, todosRevertChanges],
-  );
 
   const toggle = useCallback(
     (id: string) => {
@@ -368,20 +402,20 @@ export function useTodosSlice(
   );
 
   const revertTodo = useCallback(
-    (snapshot: Todo) => setTodos((prev) => todoRevert(prev, snapshot)),
-    [setTodos, todoRevert],
+    (snapshot: Todo) => applyTracked((prev) => todoRevert(prev, snapshot)),
+    [applyTracked, todoRevert],
   );
 
   const restoreFromTrash = useCallback(
     (id: string) => {
       const beforeTodo = todosRef.current.find((td) => td.id === id);
-      setTodos((prev) => todoRestoreFromTrash(prev, id));
+      applyTracked((prev) => todoRestoreFromTrash(prev, id));
       if (!beforeTodo) return;
       if (filterRef.current === "done" || filterRef.current === "trash") {
         notify.showSnackbar({ message: "Moved back to your open list." });
       }
     },
-    [setTodos, filterRef, todoRestoreFromTrash, notify],
+    [applyTracked, filterRef, todoRestoreFromTrash, notify],
   );
 
   const moveToTrash = useCallback(
@@ -491,9 +525,9 @@ export function useTodosSlice(
   // save without checking state.
   const detachFromSeries = useCallback(
     (id: string) => {
-      setTodos((prev) => todoDetachFromSeries(prev, id));
+      applyTracked((prev) => todoDetachFromSeries(prev, id));
     },
-    [setTodos, todoDetachFromSeries],
+    [applyTracked, todoDetachFromSeries],
   );
 
   // R6c — propagate the target's current subtasks shape (live edits
@@ -566,40 +600,40 @@ export function useTodosSlice(
 
   const permanentlyDelete = useCallback(
     (id: string) => {
-      setTodos((prev) => todoPermanentlyDelete(prev, id));
+      applyTracked((prev) => todoPermanentlyDelete(prev, id));
     },
-    [setTodos, todoPermanentlyDelete],
+    [applyTracked, todoPermanentlyDelete],
   );
 
   // "Delete series" — hard-remove this + all future siblings.
   const permanentlyDeleteSeriesFuture = useCallback(
     (id: string) => {
-      setTodos((prev) => todoPermanentlyDeleteSeriesFuture(prev, id));
+      applyTracked((prev) => todoPermanentlyDeleteSeriesFuture(prev, id));
     },
-    [setTodos, todoPermanentlyDeleteSeriesFuture],
+    [applyTracked, todoPermanentlyDeleteSeriesFuture],
   );
 
   const updatePriority = useCallback(
     (id: string, priority: Priority) => {
-      setTodos((prev) => todoSet(prev, id, "priority", priority));
+      applyTracked((prev) => todoSet(prev, id, "priority", priority));
     },
-    [setTodos, todoSet],
+    [applyTracked, todoSet],
   );
 
   const updateDueDate = useCallback(
     (id: string, dueDate: string) => {
-      setTodos((prev) => todoSet(prev, id, "dueDate", dueDate));
+      applyTracked((prev) => todoSet(prev, id, "dueDate", dueDate));
     },
-    [setTodos, todoSet],
+    [applyTracked, todoSet],
   );
 
   // Writes the reminders array on the row (empty input clears it). The
   // scheduler diffs and reconciles via the existing syncTodoReminders effect.
   const updateReminders = useCallback(
     (id: string, reminders: Reminder[]) => {
-      setTodos((prev) => todoSetReminders(prev, id, reminders));
+      applyTracked((prev) => todoSetReminders(prev, id, reminders));
     },
-    [setTodos, todoSetReminders],
+    [applyTracked, todoSetReminders],
   );
 
   // Defer moves each to-do's date (keeping its time + moving its upcoming
@@ -612,14 +646,16 @@ export function useTodosSlice(
       const ids = selectOverdue(todosRef.current, today).map((td) => td.id);
       if (ids.length === 0) return;
       let deferred = 0;
+      let skipped = 0;
       const change = applyTracked((ts) => {
         const r = todoDeferTo(ts, ids, addDaysISO(daysFromToday), today);
         deferred = r.deferred;
+        skipped = r.skipped;
         return r.next;
       });
       if (!change) return;
       notify.showSnackbar({
-        message: t.defer.done(deferred),
+        message: deferSnackbarMessage(t.defer.done(deferred), skipped),
         actionLabel: t.undoAll,
         onAction: () => undoTracked(change),
       });
@@ -631,17 +667,19 @@ export function useTodosSlice(
     (ids: string[], targetISO: string) => {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(targetISO)) return;
       let deferred = 0;
+      let skipped = 0;
       const change = applyTracked((ts) => {
         const r = todoDeferTo(ts, ids, targetISO, todayLocal());
         deferred = r.deferred;
+        skipped = r.skipped;
         return r.next;
       });
       if (!change) return;
       notify.showSnackbar({
-        message:
-          deferred === 1
-            ? "1 to-do deferred."
-            : `${deferred} to-dos deferred.`,
+        message: deferSnackbarMessage(
+          deferred === 1 ? "1 to-do deferred." : `${deferred} to-dos deferred.`,
+          skipped,
+        ),
         actionLabel: t.undoAll,
         onAction: () => undoTracked(change),
       });
@@ -651,11 +689,14 @@ export function useTodosSlice(
 
   const snooze = useCallback(
     (id: string, daysFromToday: number) => {
-      const newDate = addDaysISO(daysFromToday);
-      // Exact Undo: the snooze also moves the to-do's upcoming reminders.
-      const change = applyTracked((ts) =>
-        ts.some((td) => td.id === id) ? todoSet(ts, id, "dueDate", newDate) : ts,
-      );
+      const day = dueDateToDate(addDaysISO(daysFromToday));
+      // Keeps a time of day (`…T15:00` stays 15:00 on the new day), and
+      // todoSet moves the to-do's upcoming reminders by the same delta.
+      // Exact Undo covers both.
+      const change = applyTracked((ts) => {
+        const td = ts.find((x) => x.id === id);
+        return td ? todoSet(ts, id, "dueDate", dueDateWithDay(td.dueDate, day)) : ts;
+      });
       if (!change) return;
       const label =
         daysFromToday === 1
@@ -674,30 +715,30 @@ export function useTodosSlice(
 
   const updateTaskCategory = useCallback(
     (id: string, category: Category) => {
-      setTodos((prev) => todoSet(prev, id, "category", category));
+      applyTracked((prev) => todoSet(prev, id, "category", category));
     },
-    [setTodos, todoSet],
+    [applyTracked, todoSet],
   );
 
   const updateText = useCallback(
     (id: string, text: string) => {
-      setTodos((prev) => todoSet(prev, id, "text", text));
+      applyTracked((prev) => todoSet(prev, id, "text", text));
     },
-    [setTodos, todoSet],
+    [applyTracked, todoSet],
   );
 
   const updateNotes = useCallback(
     (id: string, notes: string) => {
-      setTodos((prev) => todoSet(prev, id, "notes", notes));
+      applyTracked((prev) => todoSet(prev, id, "notes", notes));
     },
-    [setTodos, todoSet],
+    [applyTracked, todoSet],
   );
 
   const addSubtask = useCallback(
     (id: string, text: string, priority?: Priority, dueDate?: string) => {
-      setTodos((prev) => subtaskAdd(prev, id, text, priority, dueDate));
+      applyTracked((prev) => subtaskAdd(prev, id, text, priority, dueDate));
     },
-    [setTodos, subtaskAdd],
+    [applyTracked, subtaskAdd],
   );
 
   const toggleSubtask = useCallback(
@@ -734,37 +775,37 @@ export function useTodosSlice(
 
   const updateSubtaskText = useCallback(
     (id: string, subId: string, text: string) => {
-      setTodos((prev) => subtaskUpdateText(prev, id, subId, text));
+      applyTracked((prev) => subtaskUpdateText(prev, id, subId, text));
     },
-    [setTodos, subtaskUpdateText],
+    [applyTracked, subtaskUpdateText],
   );
 
   const updateSubtaskPriority = useCallback(
     (id: string, subId: string, priority: Priority) => {
-      setTodos((prev) => subtaskUpdatePriority(prev, id, subId, priority));
+      applyTracked((prev) => subtaskUpdatePriority(prev, id, subId, priority));
     },
-    [setTodos, subtaskUpdatePriority],
+    [applyTracked, subtaskUpdatePriority],
   );
 
   const updateSubtaskDueDate = useCallback(
     (id: string, subId: string, dueDate: string) => {
-      setTodos((prev) => subtaskUpdateDueDate(prev, id, subId, dueDate));
+      applyTracked((prev) => subtaskUpdateDueDate(prev, id, subId, dueDate));
     },
-    [setTodos, subtaskUpdateDueDate],
+    [applyTracked, subtaskUpdateDueDate],
   );
 
   const removeSubtask = useCallback(
     (id: string, subId: string) => {
-      setTodos((prev) => subtaskRemove(prev, id, subId));
+      applyTracked((prev) => subtaskRemove(prev, id, subId));
     },
-    [setTodos, subtaskRemove],
+    [applyTracked, subtaskRemove],
   );
 
   const clearSubtasks = useCallback(
     (id: string) => {
-      setTodos((prev) => subtaskClearAll(prev, id));
+      applyTracked((prev) => subtaskClearAll(prev, id));
     },
-    [setTodos, subtaskClearAll],
+    [applyTracked, subtaskClearAll],
   );
 
   // ---- Non-stable mutations ----
@@ -802,25 +843,20 @@ export function useTodosSlice(
         notes,
         reminders,
       });
-      setTodos((prev) => {
-        // R1 — pre-expand the recurring series so the user
-        // immediately sees their daily/weekly/monthly/yearly window
-        // populated (head + tail). For one-offs, fall through to the
-        // single-instance prepend.
-        if (recurrence) {
-          const expanded = expandSeries(seed, todayLocal());
-          return [...expanded, ...prev];
-        }
-        return [seed, ...prev];
-      });
+      // R1 — pre-expand the recurring series so the user immediately sees
+      // their daily/weekly/monthly/yearly window populated (head + tail).
+      // Expanded ONCE, outside the transform, so a re-run on a fresher list
+      // prepends the very same rows (same ids).
+      const rows = recurrence ? expandSeries(seed, todayLocal()) : [seed];
+      applyTracked((prev) => [...rows, ...prev]);
       return seed.id;
     },
-    [setTodoReferences, newTodo, setTodos, recordTodoReference, expandSeries],
+    [setTodoReferences, newTodo, applyTracked, recordTodoReference, expandSeries],
   );
 
   const updateRecurrence = useCallback(
     (id: string, recurrence: Recurrence | undefined) => {
-      setTodos((prev) => {
+      applyTracked((prev) => {
         const next = todoSetRecurrence(prev, id, recurrence);
         // Fill the series window right away — otherwise a newly-repeating
         // to-do had only its one occurrence until the next cold launch.
@@ -828,7 +864,7 @@ export function useTodosSlice(
         return sid ? topUpSeries(next, sid, todayLocal()) : next;
       });
     },
-    [setTodos, todoSetRecurrence, topUpSeries],
+    [applyTracked, todoSetRecurrence, topUpSeries],
   );
 
   const emptyTrash = useCallback(() => {
@@ -839,10 +875,10 @@ export function useTodosSlice(
       {
         text: t.emptyTrash,
         style: "destructive",
-        onPress: () => setTodos(todoEmptyTrash),
+        onPress: () => { applyTracked(todoEmptyTrash); },
       },
     ]);
-  }, [setTodos, t, todoEmptyTrash]);
+  }, [applyTracked, t, todoEmptyTrash]);
 
   const toggleTrashSelection = useCallback((id: string) => {
     setSelectedTrashIds((prev) =>
@@ -862,9 +898,9 @@ export function useTodosSlice(
 
   const bulkRestore = useCallback(() => {
     if (selectedTrashIds.size === 0) return;
-    setTodos((prev) => applyBulkRestore(prev, selectedTrashIds));
+    applyTracked((prev) => applyBulkRestore(prev, selectedTrashIds));
     clearTrashSelection();
-  }, [selectedTrashIds, setTodos, clearTrashSelection, applyBulkRestore]);
+  }, [selectedTrashIds, applyTracked, clearTrashSelection, applyBulkRestore]);
 
   const bulkPermanentDelete = useCallback(() => {
     const ids = selectedTrashIds;
@@ -875,12 +911,12 @@ export function useTodosSlice(
         text: t.bulkDeletePermanently,
         style: "destructive",
         onPress: () => {
-          setTodos((prev) => applyBulkDelete(prev, ids));
+          applyTracked((prev) => applyBulkDelete(prev, ids));
           clearTrashSelection();
         },
       },
     ]);
-  }, [selectedTrashIds, t, setTodos, clearTrashSelection, applyBulkDelete]);
+  }, [selectedTrashIds, t, applyTracked, clearTrashSelection, applyBulkDelete]);
 
   const clearDone = useCallback(() => {
     const count = todosRef.current.filter(
@@ -893,16 +929,17 @@ export function useTodosSlice(
         text: t.deletePermanently,
         style: "destructive",
         onPress: () => {
-          setTodos((prev) => todoClearDone(prev).todos);
+          applyTracked((prev) => todoClearDone(prev).todos);
         },
       },
     ]);
-  }, [setTodos, t, todoClearDone]);
+  }, [applyTracked, t, todoClearDone]);
 
   return {
     todos,
     setTodos,
     todosLoaded,
+    todosTrusted,
     todoReferences,
     selectedTrashIds,
     todosRef,

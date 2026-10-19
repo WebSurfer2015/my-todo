@@ -26,6 +26,7 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
 import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
 import { auth, db } from "../adapters/firebase";
+import { cancelAllReminders } from "../adapters/notifications";
 import { stateDocPath, SCHEMA_VERSION } from "../../../core/src/ports/persistence";
 import { Profile, SEED_PROFILE, MAX_PROFILE_NAME_LEN } from "../../../core/src/data/profile";
 
@@ -69,7 +70,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [appleAvailable, setAppleAvailable] = useState(false);
 
   useEffect(() => {
+    let hadUser = false;
     return onAuthStateChanged(auth, (u) => {
+      // Signed out by any route (incl. a revoked session or the account
+      // deleted elsewhere): the scheduled reminders carry that account's
+      // to-do text — stop them. signOut/deleteAccount also await this.
+      if (hadUser && !u) void cancelAllReminders().catch(() => {});
+      hadUser = !!u;
       setUser(u);
       setLoading(false);
     });
@@ -286,7 +293,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     // User state lives only in Firestore (per-uid paths), so there is no
-    // device-local copy to clear.
+    // device-local copy to clear — except the OS-scheduled reminders, which
+    // carry to-do text and would keep firing for a signed-out account.
+    await cancelAllReminders().catch(() => {});
     await fbSignOut(auth);
   }, []);
 
@@ -304,6 +313,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       throw err;
     }
+    await cancelAllReminders().catch(() => {});
   }, []);
 
   const value = useMemo<AuthApi>(

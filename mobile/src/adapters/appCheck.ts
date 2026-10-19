@@ -20,13 +20,22 @@
  */
 import { getApp } from '@react-native-firebase/app'
 
+type AppCheckModule = typeof import('@react-native-firebase/app-check')
+
+/** Guarded dynamic require — throws when the native module is missing. */
+function loadAppCheckModule(): AppCheckModule {
+  return require('@react-native-firebase/app-check') as AppCheckModule
+}
+
 let started = false
 
-export function initAppCheck(): void {
+/** Start App Check once. `load` is injectable for tests (the real one is a
+ * guarded require of the native module). */
+export function initAppCheck(load: () => AppCheckModule = loadAppCheckModule): void {
   if (started) return
   started = true
   try {
-    const mod = require('@react-native-firebase/app-check') as typeof import('@react-native-firebase/app-check')
+    const mod = load()
     const provider = new mod.ReactNativeFirebaseAppCheckProvider()
     provider.configure({
       apple: { provider: __DEV__ ? 'debug' : 'appAttestWithDeviceCheckFallback' },
@@ -41,4 +50,9 @@ export function initAppCheck(): void {
     // Native module missing (older dev client) — run without App Check.
     console.warn('App Check unavailable (continuing without it):', err)
   }
+}
+
+/** Test-only: forget that App Check was started. */
+export function __resetAppCheckForTests(): void {
+  started = false
 }

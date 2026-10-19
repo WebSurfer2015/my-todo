@@ -299,6 +299,26 @@ async function syncOnce(
   )
 }
 
+/**
+ * Cancel every scheduled to-do reminder (and the daily check-in) — on
+ * sign-out, "Delete data only" and account deletion. They carry the to-do's
+ * text, so they must not keep firing for an account that's no longer here.
+ * Drops any queued sync and waits out one in flight first, so a sync that
+ * started before sign-out can't reschedule after this ran.
+ */
+export async function cancelAllReminders(): Promise<void> {
+  pendingArgs = null
+  if (syncInFlight) await syncInFlight.catch(() => {})
+  const scheduled: Notifications.NotificationRequest[] =
+    await Notifications.getAllScheduledNotificationsAsync().catch(() => [])
+  await Promise.all(
+    scheduled
+      .filter((req) => req.identifier.startsWith(REMINDER_ID_PREFIX))
+      .map((req) => Notifications.cancelScheduledNotificationAsync(req.identifier).catch(() => {})),
+  )
+  await cancelDailyCheckin()
+}
+
 // ── Tap handling ──────────────────────────────────────────────────────
 
 /** Responses already routed (a launch response may also reach the listener,

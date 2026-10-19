@@ -14,6 +14,7 @@ import React, {
   createContext,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   ReactNode,
@@ -58,6 +59,7 @@ import { SEED_GROCERY_STORES, frequentGroceries } from '../core-bindings/groceri
 import type { Filter, Priority } from '../core-bindings/types'
 import type { Guide } from '../features/onboarding/guides'
 import { genUuid, todayLocal } from '../../../core/src/logic/utils'
+import { planDetailsOpen, type DetailsReq } from './detailsOpenPlan'
 
 /** How long a sheet takes to animate out before the next one may open —
  * iOS can't reliably present a <Modal> while another is still dismissing. */
@@ -180,11 +182,8 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   // an edit that moved the row (date → tomorrow on Today, a group change on
   // Todos) unmounted the row and closed the sheet mid-edit, losing typed
   // text. Hosted here, it always shows the live to-do from the store.
-  const [detailsReq, setDetailsReq] = useState<{ id: string; subtaskId: string | null } | null>(null)
-  const openTaskDetails = useCallback(
-    (todoId: string, subtaskId: string | null = null) => setDetailsReq({ id: todoId, subtaskId }),
-    [],
-  )
+  const [detailsReq, setDetailsReq] = useState<DetailsReq | null>(null)
+  // (openTaskDetails is defined below afterModalClose, which it uses.)
   const detailsTodo = detailsReq ? store.todos.find((td) => td.id === detailsReq.id) : undefined
   // The to-do vanished while open (e.g. deleted on another device): forget
   // the request, or the sheet would pop back if that id reappeared.
@@ -255,6 +254,60 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     }, MODAL_HANDOFF_MS)
     handoffTimers.current.add(id)
   }, [])
+
+  // Open a to-do's details from anywhere — a row tap, or a reminder tap that
+  // can arrive while ANY sheet is up. iOS can't stack <Modal>s (the details
+  // sheet was dropped and detailsReq stayed stuck), so: close the other
+  // sheets first and open after they've dismissed; if details is already
+  // showing another to-do, close it through its own save path (commits
+  // typed text / series edits) and open the new one once it has closed.
+  const anySheetOpen =
+    profileOpen || settingsOpen || themePickerOpen || guideMenuOpen || composeOpen ||
+    mochiOpen || animationSoundOpen || categorySheetOpen || promptOpen || !!activeGuide
+  const openStateRef = useRef({ anySheetOpen, detailsId: null as string | null })
+  openStateRef.current = { anySheetOpen, detailsId: detailsReq?.id ?? null }
+  // Registered by the mounted TaskDetailsSheet: its close-and-save path.
+  const detailsCloseRef = useRef<(() => void) | null>(null)
+  const registerDetailsClose = useCallback((fn: (() => void) | null) => {
+    detailsCloseRef.current = fn
+  }, [])
+  const pendingDetailsRef = useRef<DetailsReq | null>(null)
+  const openTaskDetails = useCallback(
+    (todoId: string, subtaskId: string | null = null) => {
+      const req: DetailsReq = { id: todoId, subtaskId }
+      switch (planDetailsOpen({ ...openStateRef.current, todoId })) {
+        case 'already-open':
+          return
+        case 'swap':
+          pendingDetailsRef.current = req
+          if (detailsCloseRef.current) detailsCloseRef.current()
+          else setDetailsReq(null)
+          return
+        case 'after-close':
+          setProfileOpen(false)
+          setSettingsOpen(false)
+          setThemePickerOpen(false)
+          setGuideMenuOpen(false)
+          setComposeOpen(false)
+          setMochiOpen(false)
+          setAnimationSoundOpen(false)
+          setCategorySheetOpen(false)
+          setPromptOpen(false)
+          setActiveGuide(null)
+          afterModalClose(() => setDetailsReq(req))
+          return
+        case 'now':
+          setDetailsReq(req)
+      }
+    },
+    [afterModalClose],
+  )
+  const closeTaskDetails = useCallback(() => {
+    setDetailsReq(null)
+    const next = pendingDetailsRef.current
+    pendingDetailsRef.current = null
+    if (next) afterModalClose(() => setDetailsReq(next))
+  }, [afterModalClose])
 
   // Read-only view of the store for the pure Mochi op planner (core
   // logic/mochiOps). Built at apply time so it sees the latest store.
@@ -610,19 +663,35 @@ export function SheetProvider({ children }: { children: ReactNode }) {
 
   const handleDeleteData = useCallback(async () => {
     try {
-      await store.clearAllData()
+      // Waits (≤ ~5s, Settings shows "Deleting…") for the server to confirm
+      // the wipe — signing out with the writes still unsent used to say
+      // "done" while nothing had left the device.
+      const result = await store.clearAllData()
       setSettingsOpen(false)
       // Force a sign-out → sign-in cycle so the user gets a fresh
       // hydrate. The in-place setter reset can lose to a Firestore
       // subscribe race + the useSyncedState write debounce, and the
       // user explicitly asked for "log out to refresh the view" as
       // the calmer fallback. They sign back in to a clean slate.
+      // (signOut also cancels this account's scheduled reminders.)
       await signOut()
+      if (result === 'pending') {
+        // Offline: Firestore keeps the writes queued. Say so calmly, once
+        // Settings has dismissed (iOS drops an Alert raised mid-dismiss).
+        // English-only launch.
+        afterModalClose(() =>
+          Alert.alert(
+            t.deleteDataOnly,
+            "You seem to be offline. Your data will finish deleting the next time you're online and signed in.",
+          ),
+        )
+      }
     } catch (err) {
+      setSettingsOpen(false)
       const message = err instanceof Error ? err.message : String(err)
-      Alert.alert(t.deleteDataOnly, message)
+      afterModalClose(() => Alert.alert(t.deleteDataOnly, message))
     }
-  }, [store, signOut, t])
+  }, [store, signOut, t, afterModalClose])
 
   const handleDeleteAccount = useCallback(async () => {
     try {
@@ -688,9 +757,16 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     })
   }
 
+  // Stable provider value: an inline literal re-rendered every useSheets()
+  // consumer on every SheetProvider render (i.e. every store change).
+  const sheetsValue = useMemo<Sheets>(
+    () => ({ openProfile, openSettings, openTheme, openGuides, openCompose, openCapture, openMochi, openCaptureWith, openManageFilter, openSelectFilter, openManageGroceries, manageRequest, requestTodosScroll, todosScrollRequest }),
+    [openProfile, openSettings, openTheme, openGuides, openCompose, openCapture, openMochi, openCaptureWith, openManageFilter, openSelectFilter, openManageGroceries, manageRequest, requestTodosScroll, todosScrollRequest],
+  )
+
   return (
     <TaskDetailsOpenContext.Provider value={openTaskDetails}>
-    <SheetContext.Provider value={{ openProfile, openSettings, openTheme, openGuides, openCompose, openCapture, openMochi, openCaptureWith, openManageFilter, openSelectFilter, openManageGroceries, manageRequest, requestTodosScroll, todosScrollRequest }}>
+    <SheetContext.Provider value={sheetsValue}>
       {children}
       {/* Sheets are only relevant once signed in. Crucially, mounting these
           <Modal>s on the signed-out SignIn screen FLATTENS its iOS a11y tree
@@ -948,7 +1024,8 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           todo={detailsTodo}
           categories={store.categories}
           initialSubtaskEditId={detailsReq.subtaskId}
-          onClose={() => setDetailsReq(null)}
+          onClose={closeTaskDetails}
+          registerClose={registerDetailsClose}
           onUpdateText={store.updateText}
           onUpdateNotes={store.updateNotes}
           onUpdatePriority={store.updatePriority}

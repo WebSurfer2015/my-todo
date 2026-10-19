@@ -24,14 +24,25 @@ import {
 import { createTodoStore, refreshUsageSignals } from "../../../core/src/store";
 import { todayLocal } from "../../../core/src/logic/utils";
 import { dailyQuoteIndex, quoteAt } from "../../../core/src/data/quotes";
-import { isSyncedKeyTrusted, onSyncIssue } from "./useSyncedState";
+import type { Profile } from "../../../core/src/data/profile";
+import { onSyncIssue } from "./useSyncedState";
 
 // Sync-problem snackbars. English-only launch — TODO(i18n owner): move into
 // core/src/data/i18n.ts when the language picker returns.
 const SYNC_TOO_LARGE_MESSAGE =
   "Your list is very large — clear finished to-dos in Done to keep syncing.";
+// Truthful: a rejected write is retried with the next edit (useSyncedState
+// rolls back its "last saved" marker), it doesn't "stay on this device".
 const SYNC_WRITE_FAILED_MESSAGE =
-  "Couldn't save your latest changes. They'll stay on this device for now.";
+  "Couldn't save your latest change. It'll try again with your next edit.";
+
+/** How long "Delete data only" waits for the server to confirm the wipe
+ * before signing out anyway (offline: Firestore keeps the writes queued). */
+const CLEAR_DATA_CONFIRM_MS = 5000;
+
+/** Outcome of clearAllData: `synced` = the server confirmed every key;
+ * `pending` = still queued (offline) when the wait ran out. */
+export type ClearDataResult = "synced" | "pending";
 
 /** ms until the next local midnight (+1s so todayLocal() has rolled over). */
 function msUntilNextLocalMidnight(now = new Date()): number {
@@ -216,6 +227,7 @@ export function useTodoStore() {
     todos,
     setTodos,
     todosLoaded,
+    todosTrusted,
     todoReferences,
     selectedTrashIds,
     todosRef,
@@ -296,11 +308,7 @@ export function useTodoStore() {
   // True only when profile AND todos came from real data — not defaults
   // after a failed / timed-out hydrate. Effects that would act destructively
   // on defaults (reminder sync cancelling every reminder, onboarding over an
-  // onboarded account) gate on this. The todos flag is read from the
-  // useSyncedState registry because the todos slice doesn't surface it;
-  // reading at render is safe — the flag flips together with a state update
-  // in the same component, so this re-renders.
-  const todosTrusted = isSyncedKeyTrusted(adapter, "todos");
+  // onboarded account) gate on this.
   const dataTrusted = loaded && profileTrusted && todosTrusted;
 
   // Calm, once-per-session notices for sync problems the user can act on
@@ -370,20 +378,40 @@ export function useTodoStore() {
   // No setX calls: those triggered useSyncedState write-debounces
   // that raced everything else. Letting signOut re-hydrate is the
   // calmer guarantee.
-  const clearAllData = useCallback(async () => {
+  //
+  // Waits (bounded) for the server: Firestore resolves setDoc only once the
+  // server confirms, so unbounded this hung "Deleting…" forever offline —
+  // but fire-and-forget then signOut meant the user was told it was done
+  // while nothing had reached the server. Resolves `synced` when every key
+  // is confirmed, `pending` when the wait ran out (the writes stay queued
+  // and go out when the device is back online); rejects if a write was
+  // refused.
+  const clearAllData = useCallback(async (): Promise<ClearDataResult> => {
     const empty = JSON.stringify({ version: SCHEMA_VERSION, data: [] });
-    // Fire the cloud overwrites but don't wait for the server: Firestore
-    // only resolves setDoc once the server confirms, so offline this hung
-    // "Deleting…" forever. The writes are queued and sync when back online.
-    USER_STATE_KEYS.forEach((key) => {
-      adapter.setItem(key, empty).catch((err) => {
-        console.warn(`clearAllData: cloud overwrite failed for ${key}`, err);
-      });
+    const writes = Promise.all(USER_STATE_KEYS.map((key) => adapter.setItem(key, empty)));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<ClearDataResult>((resolve) => {
+      timer = setTimeout(() => resolve("pending"), CLEAR_DATA_CONFIRM_MS);
     });
+    try {
+      return await Promise.race([writes.then((): ClearDataResult => "synced"), timedOut]);
+    } finally {
+      clearTimeout(timer);
+      // A rejection after the timeout won the race must not go unhandled.
+      writes.catch((err) => console.warn("clearAllData: cloud overwrite failed", err));
+    }
   }, [adapter]);
 
+  // Patch, or an updater for read-modify-write. Updater form avoids
+  // clobbering a profile change that landed since the caller rendered.
+  const saveProfile = useCallback(
+    (patch: Partial<Profile> | ((p: Profile) => Profile)) => {
+      setProfile(typeof patch === "function" ? patch : (p) => ({ ...p, ...patch }));
+    },
+    [setProfile],
+  );
 
-  function deleteCategory(id: string) {
+  const deleteCategory = useCallback((id: string) => {
     const res = store.actions.deleteCategoryCascade({
       todos,
       categories,
@@ -419,7 +447,7 @@ export function useTodoStore() {
     if (res.homeStatTiles !== profile.homeStatTiles) {
       setProfile((prev) => ({ ...prev, homeStatTiles: res.homeStatTiles }));
     }
-  }
+  }, [store, todos, categories, filter, filters, profile.pinnedFilters, profile.homeStatTiles, setTodos, setCategories, setFilter, setProfile]);
 
 
   // ---- Derived state (memoized via core.deriveState) ----
@@ -472,11 +500,18 @@ export function useTodoStore() {
   const identityLineIsQuote = identityLine !== '';
   // Legacy: still expose quoteLine for any caller that wants the raw
   // value, but App.tsx now reads identityLine + identityLineIsQuote.
-  const orderedStatuses = getOrderedStatuses(profile, t);
-  const orderedPriorities = getOrderedPriorities(profile, t);
-  const orderedVisibleStatuses = getOrderedVisibleStatuses(profile, t);
+  // Memoized: fresh arrays every render would bust the store memo below.
+  const orderedStatuses = useMemo(() => getOrderedStatuses(profile, t), [profile, t]);
+  const orderedPriorities = useMemo(() => getOrderedPriorities(profile, t), [profile, t]);
+  const orderedVisibleStatuses = useMemo(
+    () => getOrderedVisibleStatuses(profile, t),
+    [profile, t],
+  );
 
-  return {
+  // ONE stable object per state change: StoreContext hands this to every
+  // screen, so a fresh literal each render re-rendered every consumer on
+  // every tick of the provider (snackbar, timers, unrelated parent state).
+  return useMemo(() => ({
     todos,
     todoReferences,
     categories,
@@ -541,7 +576,7 @@ export function useTodoStore() {
     clearFilters,
     pinFilter,
     keepAndClearFilter,
-    saveProfile: setProfile,
+    saveProfile,
     renameStatus,
     toggleStatusHidden,
     reorderStatuses,
@@ -590,5 +625,23 @@ export function useTodoStore() {
     deleteCategory,
     reorderCategories,
     clearAllData,
-  };
+  }), [
+    addCategory, addGrocery, addGroceryGroup, addGroceryStore, addSubtask, addTask, animationOn,
+    applyRecurrenceChange, applySeriesFutureEdits, applySeriesSubtasks, bulkDeferTodos,
+    bulkPermanentDelete, bulkRestore, categories, clearAllData, clearDone, clearFilters,
+    clearSubtasks, clearTrashSelection, dataTrusted, deferOverdue, deleteCategory, deleteGrocery,
+    deleteGroceryStore, derived, detachFromSeries, editCategory, editGrocery, emptyTrash, filter,
+    filters, groceries, groceryGroups, headerLine, identityLine, identityLineIsQuote,
+    keepAndClearFilter, linkItemsToStore, loaded, moveSeriesFutureToTrash, moveToTrash,
+    orderedPriorities, orderedStatuses, orderedVisibleStatuses, permanentlyDelete,
+    permanentlyDeleteSeriesFuture, pinFilter, pinGroceryDept, pinGroceryStore, profile,
+    profileTrusted, reduceMotion, removeSubtask, renameGroceryStore, renameStatus,
+    reorderCategories, reorderGroceryStores, reorderPriorities, reorderStatuses, restoreFromTrash,
+    revertTodo, saveProfile, selectedTrashIds, setActiveGroceryDept, setActiveGroceryStore,
+    setFilter, setFilters, skipSeriesFuture, skipTodo, snooze, today, todoReferences, todos, toggle,
+    toggleFilter, toggleGroceryChecked, toggleGroceryStoreHidden, togglePriorityHidden,
+    toggleStatusHidden, toggleSubtask, toggleTrashSelection, updateDueDate, updateNotes,
+    updatePriority, updateRecurrence, updateReminders, updateSubtaskDueDate,
+    updateSubtaskPriority, updateSubtaskText, updateTaskCategory, updateText, view,
+  ]);
 }
