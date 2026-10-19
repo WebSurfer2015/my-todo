@@ -8,12 +8,13 @@ This is the **mobile** workspace of `my-todo` — the Sagely app (Expo SDK 54 + 
 
 Feature-folder layout:
 
-- `app/` — bootstrap & shell: contexts/providers (`AuthContext`, `LangContext`, `notify`, `StoreContext`, `SheetContext`), `ErrorBoundary`, `theme`, and top-level chrome (`AppHeader`, `AppBackground`, `Fab`, `Footer`, `SplashOverlay`). `App.tsx` is at the workspace root.
-- `adapters/` — IO / platform edges: `firebase`, `firestoreAdapter`, `persistence`, `crashReporting`, `notifications`, `aiInfer`, `authErrors`.
-- `store/` — domain store: `useTodoStore`, `useSyncedState`, `slices/`.
-- `core-bindings/` — thin re-export shims over `../../core/src/*` (`types`, `groups`, `categories`, `i18n`, `profile`, `utils`, `groceries`). Import core through these (or core directly), not by reaching across.
-- `ui/` — shared, feature-agnostic presentational components (`Avatar`, `CategoryIcon`, `EmptyState`, `InlinePicker`, …).
-- `features/<domain>/` — co-located feature UI + hooks: `task/`, `category/`, `groceries/`, `profile/`, `filters/`, `mochi/` (chat + pebbles), `onboarding/`, `auth/`, `home/`. Multi-file components keep their own dir (`features/task/TaskItem/{index,styles}`).
+- `app/` — bootstrap & shell: contexts/providers (`AuthContext`, `LangContext`, `notify`, `StoreContext`, `PurchasesContext`, `SheetContext`, `FireworkOverlay`), `ErrorBoundary`, `theme`, `featureFlags`, and top-level chrome (`AppHeader`, `Fab`, `Footer`, `SplashOverlay`). `App.tsx` is at the workspace root.
+- `adapters/` — IO / platform edges: `firebase`, `firestoreAdapter`, `persistence` (AsyncStorage `StorageAdapter`), `crashReporting`, `notifications`, `aiInfer`, `purchases`, `completionChime`, `reminderId`, `authErrors`.
+- `storage/envelope.ts` — the versioned `{version, data}` envelope every `useSyncedState` call reads/writes.
+- `store/` — domain store: `useTodoStore`, `useSyncedState`, `slices/` (`useTodosSlice`, `useCategoriesSlice`, `useProfileSlice`, `useGroceriesSlice`).
+- `core-bindings/` — thin re-export shims over `../../core/src/*` (`types`, `groups`, `categories`, `i18n`, `profile`, `utils`, `groceries`, `entitlements`). Import core through these or via a relative path to the core ring (e.g. `../../../../core/src/logic/labels`).
+- `ui/` — shared, feature-agnostic presentational components (`Avatar`, `CategoryIcon`, `EmptyStateCard`, `InlinePicker`, `PickerModal`, `SheetShell`, …). Every empty state renders through `EmptyStateCard`.
+- `features/<domain>/` — co-located feature UI + hooks: `task/`, `category/`, `groceries/`, `profile/`, `filters/`, `mochi/` (Ask Mochi chat + agent hook), `membership/` (paywall), `onboarding/`, `auth/`, `home/`. Multi-file components keep their own dir (`features/task/TaskItem/{index,styles}`).
 
 When adding a file, place it by feature; keep shared presentational bits in `ui/` and IO in `adapters/`.
 
@@ -31,11 +32,11 @@ When adding a file, place it by feature; keep shared presentational bits in `ui/
 - `eas build --platform ios --profile development` — simulator-targeted dev client build.
 - `appVersionSource: remote` — version state is owned by EAS, not local files. Don't bump `buildNumber` in `app.json`; let `autoIncrement` handle it.
 - `requireCommit: true` — uncommitted changes block builds. Commit before invoking EAS.
-- Android builds work (`buildType: app-bundle`) but Play Store submission is currently parked — see `../../.claude/projects/-Users-yingnming-WebProjects-my-todo/memory/project_android_paused.md`. App is fully wired; blocker is Google's account-verification step requiring a real Android device.
+- Android builds work (`buildType: app-bundle`) but Android is not shipped — the app is iOS-only for now (Android code and config are kept; see the `project_ios_only_no_web` note in `~/.claude/projects/-Users-yingnming-AIProjects-my-todo/memory/`).
 
 ### Screenshot upload
 
-`../scripts/asc_upload_screenshots.py <dir>` uploads to ASC version `5024a18a-…`. Maps PNG dims → display type via `SUPPORTED_SIZES` (1242×2688→APP_IPHONE_65, 1290×2796→APP_IPHONE_67, 2048×2732→APP_IPAD_PRO_3GEN_129). `APP_IPHONE_69` is **not** a valid ASC slot yet — downscale 1320×2868 captures to 1290×2796. `--replace` deletes existing shots in matching sets first. The `upload_chunk` retries 5× on Apple's intermittent TLS drops (BrokenPipe / SSL bad-record-mac).
+`scripts/asc_upload_screenshots.py <dir>` (in this workspace) uploads to the ASC version in its `APP_STORE_VERSION_ID` — retarget it to the in-flight version first (shipped versions are locked). Maps PNG dims → display type via `SUPPORTED_SIZES` (1242×2688→APP_IPHONE_65, 1290×2796→APP_IPHONE_67, 2048×2732→APP_IPAD_PRO_3GEN_129). `APP_IPHONE_69` is **not** a valid ASC slot yet — downscale 1320×2868 captures to 1290×2796. `--replace` deletes existing shots in matching sets first. The `upload_chunk` retries 5× on Apple's intermittent TLS drops (BrokenPipe / SSL bad-record-mac).
 
 ## Architecture
 
@@ -45,13 +46,18 @@ When adding a file, place it by feature; keep shared presentational bits in `ui/
 SafeAreaProvider
   GestureHandlerRootView
     ErrorBoundary
-      AuthProvider           // Firebase auth + 3rd-party SDK config
-        LangProvider         // i18n; persisted to AsyncStorage key `lang`
-          NotifyProvider     // snackbar + Alert.alert wrapper
-            <AppInner>
+      AuthProvider               // Firebase auth + 3rd-party SDK config
+        LangProvider             // i18n (English-only while LANGUAGE_PICKER_ENABLED is off)
+          NotifyProvider         // snackbar + Alert.alert wrapper
+            StoreProvider        // the one useTodoStore instance
+              PurchasesProvider  // RevenueCat; inert while IAP_ENABLED is off
+                ThemeGate        // ThemeOverrideProvider with profile.theme
+                  FireworkOverlayProvider
+                    SheetProvider  // app-level sheets (compose, details, Mochi, …)
+                      <AppGate>
 ```
 
-`AppInner` blocks on `auth.loading`, then on `!user` (renders `<SignIn>`), then on `!store.loaded` (waits for first hydrate from Firestore/AsyncStorage). Auth must wrap `LangProvider` because `useTodoStore` consumes both `useAuth()` (for the uid → adapter switch) and `useLang()` (for derived strings).
+`AppGate` blocks on `auth.loading`, then on `!user` (renders `<SignIn>`), then on `!store.loaded` (waits for first hydrate from Firestore/AsyncStorage), then mounts the tab navigator. Auth must wrap `LangProvider` and the store because `useTodoStore` consumes both `useAuth()` (for the uid → adapter switch) and `useLang()` (for derived strings). `AppGate` also owns the local-reminder sync (`syncTodoReminders` on todo changes and on foreground).
 
 ### Persistence: per-uid adapter swap
 
@@ -69,7 +75,7 @@ const adapter = useMemo<StorageAdapter>(
 
 **Memoize on `uid`, never on `user`.** Firebase rotates the `User` reference roughly hourly on token refresh. Memoizing on `user` would tear down Firestore listeners and re-fire `migrateLocalToCloud` every refresh.
 
-`migrateLocalToCloud(adapter)` runs once per uid: for each key in `["todos","categories","profile"]`, if cloud is empty, push the local AsyncStorage value up. **Per-key gating** is intentional — checking only `profile` would let stale local todos overwrite cloud todos on a device whose cloud profile happened to be missing.
+`migrateLocalToCloud(adapter, localAdapter, keys)` (core) runs once per uid: for each key in `["todos","categories","profile","groceries","groceryGroups"]`, if cloud is empty, push the local AsyncStorage value up. **Per-key gating** is intentional — checking only `profile` would let stale local todos overwrite cloud todos on a device whose cloud profile happened to be missing.
 
 `useSyncedState(adapter, key, initial, parse, serialize)` handles each entity:
 
@@ -79,47 +85,52 @@ const adapter = useMemo<StorageAdapter>(
 
 The Firestore adapter writes each entity to `users/{uid}/state/{key}` as `{ value: <json envelope>, updatedAt }`. `value` is the same versioned envelope (`{version, data}`) that AsyncStorage uses, so local and cloud data share one shape.
 
-### Auth (`src/AuthContext.tsx`)
+### Auth (`src/app/AuthContext.tsx`)
 
 Two social providers (Apple, Google) + email/password, all funnel through `signInWithCredential(auth, …)`. Facebook was removed in v1.0.1 — its native dep (`react-native-fbsdk-next`) is unlinked, so don't reintroduce a Facebook path without re-adding the native module.
 
 - **Apple** — `expo-apple-authentication` + Firebase nonce flow. Generates a raw nonce (`Crypto.randomUUID`), sends SHA-256 hash to Apple, passes the raw nonce alongside the JWT to Firebase. Apple sends `fullName` only on **first** sign-in — seed the profile then or it's lost forever.
 - **Google** — `@react-native-google-signin/google-signin` v16. Configure happens in a `useEffect` on mount. **iOS requires both `webClientId` and `iosClientId`** — v16's wrapper does NOT auto-read `GIDClientID` from `Info.plist`; omitting `iosClientId` produces `must specify |clientID| in |GIDConfiguration|`. Don't "simplify" this.
 - **Sign-in modes** — `src/features/auth/SignIn.tsx` is a 4-mode state machine: `"social"` (landing — Apple/Google + email-link toggle + create-account toggle) → `"signin"` | `"signup"` | `"reset"`. The email page intentionally has **no** social buttons (one path per page).
-- `signOut()` clears `["todos","categories","profile"]` from AsyncStorage so the next signed-in user on this device can't bleed prior-user data into a brand-new Firestore doc via `migrateLocalToCloud`.
+- `signOut()` clears every key in `USER_STATE_KEYS` (`core/src/ports/persistence.ts` — todos, todoReferences, categories, profile, groceries, groceryGroups, signals) from AsyncStorage so the next signed-in user on this device can't bleed prior-user data into a brand-new Firestore doc via `migrateLocalToCloud`.
 - `deleteAccount()` calls `deleteUser`, then clears local data (same as sign-out). The **`onUserDeleted` Cloud Function** (`functions/src/deleteUserData.ts`) recursively erases `users/{uid}` server-side — clients can't delete state docs (`firestore.rules`). Throws `RecentLoginRequiredError` on `auth/requires-recent-login` so UI can prompt re-auth.
 
-### Domain store (`src/useTodoStore.ts`)
+### Domain store (`src/store/useTodoStore.ts`)
 
 **Functional core / imperative shell (`createTodoStore`).** All pure logic lives in `core/` and is reached through one orchestration surface, `core/src/store` → `createTodoStore({ now, genId, t })`:
 
-- `store.actions` — a flat table of **pure** transforms (`(state, …args) => state`) + cross-slice **coordinators** (`deleteCategoryCascade`, `toggleOutcome`, `reconcileTodayPebbles`), assembled by spreading the core transform modules so it auto-syncs as helpers land.
+- `store.actions` — a flat table of **pure** transforms (`(state, …args) => state`) + cross-slice **coordinators** (`deleteCategoryCascade`, `toggleOutcome`), assembled by spreading the core transform modules so it auto-syncs as helpers land.
 - `store.derive(input)` — platform-agnostic derived state (`deriveState`). **Localized** presentation derived (greeting/mascot/identity lines) stays in this shell, *not* in core, to keep i18n out of `core`.
 
-The composer builds the store once (`useMemo` on `t`) and threads `store.actions` into each slice via deps. The slices (`src/slices/*`) + composer are the **imperative shell**: they own persisted state (`useSyncedState`), reference-stable `useCallback`s, refs, snackbars/`Alert`, and animation timing — none of which can move to `core`. Because `actions` are pure (not state-bound closures) and stable across ordinary renders, the slices destructure them and keep their existing `useCallback` deps, preserving the TaskItem/`React.memo` contract. **Don't import core transforms directly into a slice — pull them from `store.actions`** (exceptions: module-scope migrators used in parsers, plain data/consts, and date utils, which stay direct imports).
+The composer builds the store once (`useMemo` on `t`) and threads `store.actions` into each slice via deps. The slices (`src/store/slices/*`) + composer are the **imperative shell**: they own persisted state (`useSyncedState`), reference-stable `useCallback`s, refs, snackbars/`Alert`, and animation timing — none of which can move to `core`. Because `actions` are pure (not state-bound closures) and stable across ordinary renders, the slices destructure them and keep their existing `useCallback` deps, preserving the TaskItem/`React.memo` contract. **Don't import core transforms directly into a slice — pull them from `store.actions`** (exceptions: module-scope migrators used in parsers, plain data/consts, and date utils, which stay direct imports).
 
 Mobile-specific shape:
 
-- Adds a `view: ViewMode` (`category` vs status). `changeView` resets filter (`'all'` for category, `'open'` for status views).
-- Returns `headerLine` (greeting from local hour + profile name, or profile.quote override) and `appTitle` (`t.ownerTitle(firstName)` falling back to `profile.name`, then `t.title`).
+- `view: ViewMode` (`profile.view`, default `'status'`).
+- Returns `headerLine` (greeting from local hour + first name / name) and `identityLine` / `identityLineIsQuote` (subtitle per `profile.quoteMode`: the user's quote, a daily curated quote, or off), plus `orderedPriorities` / `orderedStatuses` in the user's order.
 - `selectedTrashIds: Set<string>` — todo ids are **strings** here (mobile uses `crypto.randomUUID`-style ids generated in `core`'s `newTodo`).
 
-The same TaskItem-stability rules apply: callbacks passed to `TaskItem` (`toggle`, `moveToTrash`, `restoreFromTrash`, `permanentlyDelete`, `updatePriority`, `updateDueDate`, `updateTaskCategory`, `updateText`, `toggleTrashSelection`) are `useCallback`-wrapped with **only setter deps** and use functional `setTodos(prev => …)`. `toggleTrashSelection` uses a `todosRef` so selection bulk ops can read current todos without breaking the stable reference.
+TaskItem is `React.memo`, so the callbacks passed to it (`toggle`, `moveToTrash`, `restoreFromTrash`, `permanentlyDelete`, `updatePriority`, `updateDueDate`, `updateTaskCategory`, `toggleTrashSelection`, …) must stay reference-stable: `useCallback` with only setters, refs and the stable `store.actions` as deps. Reads of "current" todos go through `todosRef` (advanced synchronously by `applyTracked`), not a todos dep.
+
+### Row interaction + Undo
+
+- **Row tap opens the to-do** (also in the Done bin); only the **circle completes** it. TaskItem calls `openTaskDetails` from `TaskDetailsOpenContext`; `TaskDetailsSheet` is hosted **once** in `SheetContext` and mounted only while a details request is open (so its state is fresh per open). It reads callbacks as required props from SheetContext.
+- **Every completion / trash has an exact Undo.** `useTodosSlice` runs mutations through `applyTracked(fn)` (pure transform on the freshest list, returns `{before, after}`); the snackbar's Undo calls `undoTracked`, which applies core's `todosRevertChanges(prev, before, after)` — it reverts only what that action changed, so later edits survive.
 
 ### Notifications
 
-Use `useNotify()` for snackbars (Undo on `moveToTrash`). For destructive confirms, use **`Alert.alert(...)` directly** with a `style: "destructive"` button — the store does this in `emptyTrash` and `bulkPermanentDelete`.
+Use `useNotify()` for snackbars (the exact Undo on completions and trash; Ask Mochi shows its Undo inline in the chat, since the snackbar sits behind the chat Modal). For destructive confirms, use **`Alert.alert(...)` directly** with a `style: "destructive"` button — the store does this in `emptyTrash` and `bulkPermanentDelete`.
 
-### Theming (`src/theme.ts`)
+### Theming (`src/app/theme.ts`)
 
-`useTheme()` returns a `ThemeColors` palette (`LIGHT` / `DARK`) keyed off `useColorScheme()`. Components compute `StyleSheet.create` inside `useMemo(() => makeStyles(theme), [theme])` so dark-mode flips don't allocate new stylesheets per render. Match this pattern when adding screens — every component that uses theme colors goes through `makeStyles(c)`.
+`useTheme()` returns a `ThemeColors` palette for the selected theme (`THEMES[name]`, provided by `ThemeOverrideProvider` from `profile.theme`) in its light or dark variant, keyed off `useColorScheme()`. Components compute `StyleSheet.create` inside `useMemo(() => makeStyles(theme), [theme])` so dark-mode flips don't allocate new stylesheets per render. Match this pattern when adding screens — every component that uses theme colors goes through `makeStyles(c)`.
 
 ### Crash + error reporting
 
 The app uses **Firebase Crashlytics** (`@react-native-firebase/crashlytics`) — it shares the `@react-native-firebase` stack we already use for Auth + Firestore, so there's no second native SDK. Crashlytics never receives a user id.
 
 - **Native crashes** are auto-collected by the Crashlytics SDK at app launch — no JS code involved.
-- **JS errors** are forwarded by `src/ErrorBoundary.tsx` via `crashlytics().log(componentStack)` + `crashlytics().recordError(error)`. Wrapped in try/catch so a crash in the crash reporter can't take down the app.
+- **JS errors** are forwarded by `src/app/ErrorBoundary.tsx` via `crashlytics().log(componentStack)` + `crashlytics().recordError(error)`. Wrapped in try/catch so a crash in the crash reporter can't take down the app.
 - **Unhandled promise rejections** in production ARE forwarded — `installCrashReporters()` (`src/adapters/crashReporting.ts`, called at the top of `App.tsx`) enables `promise/setimmediate/rejection-tracking` and records to Crashlytics. The record is debounced (~2s, cancelled by `onHandled`) so a rejection handled a tick later isn't reported as a crash. That module also installs the single `ErrorUtils.setGlobalHandler` for uncaught JS errors — don't re-add a second one.
 - **Activation:** Crashlytics needs to be enabled once in the Firebase Console (Console → Crashlytics → Get started). The SDK starts collecting on first launch after that, regardless of whether this code path has run.
 
@@ -128,12 +139,13 @@ The app uses **Firebase Crashlytics** (`@react-native-firebase/crashlytics`) —
 - **`plugins/withFmtCxx17.js`** is a config plugin that patches the iOS `Podfile` to force `fmt 11.0.2` to compile with C++17. Without it, Xcode 16's clang rejects `consteval` calls in `format-inl.h` and the build breaks. **Do not remove this** unless RN bumps fmt past the bug. The plugin is idempotent across `expo prebuild --clean`.
 - `expo-build-properties` sets `ios.useFrameworks: "static"` (required by `@react-native-firebase/*`).
 - `newArchEnabled: false` — sticking with the legacy bridge until the third-party deps catch up.
-- `googleServicesFile` points to `./GoogleService-Info.plist` (iOS) and `./google-services.json` (Android). `@react-native-firebase` auto-initializes from these at native launch — `src/firebase.ts` just calls `getApp()`.
+- `googleServicesFile` points to `./GoogleService-Info.plist` (iOS) and `./google-services.json` (Android). `@react-native-firebase` auto-initializes from these at native launch — `src/adapters/firebase.ts` just calls `getApp()` and exports `auth` / `db`.
 - `app.json > ios.config.usesNonExemptEncryption: false` — required for App Store submission to skip the ITSAppUsesNonExemptEncryption prompt.
 
 ### Things to know before bigger changes
 
 - Pure domain logic belongs in `core/` with tests in `core/test/` (run from the repo root); mobile tests cover hooks, adapters and parity guards.
 - `any` is a lint error; dependency arrays must be complete — when an effect must deliberately ignore a value, mirror it in a ref (see `useSyncedState`'s `initialRef`) rather than disabling the rule.
-- The mobile `src/persistence.ts` and `src/categories.ts`/`src/profile.ts`/etc. are thin re-export shims over `core/src/*`. Add new shared logic to core, not here.
+- `src/core-bindings/*` are thin re-export shims over `core/src/*`, and `src/adapters/persistence.ts` / `firestoreAdapter.ts` implement core's `StorageAdapter` port. Add new shared logic to core (e.g. display labels live in `core/src/logic/labels.ts`, Home's Today rules in `core/src/logic/homeDashboard.ts`), not here.
+- **Feature flags** (`src/app/featureFlags.ts`): `IAP_ENABLED = false` — the v2.0.0 release is **free-only** (RevenueCat never initialized, paywall entry points hidden, all themes free); `LANGUAGE_PICKER_ENABLED = false` — **English-only** launch (stored `lang` is ignored, picker hidden; other locales stay in `core/src/data/i18n.ts`); `MOCHI_AGENT_ENABLED` — kill-switch for Ask Mochi.
 - iOS bundle id and Android package: `com.websurfer.mytodo`. EAS project id `c564f1cd-…` lives in `app.json > extra.eas.projectId`.

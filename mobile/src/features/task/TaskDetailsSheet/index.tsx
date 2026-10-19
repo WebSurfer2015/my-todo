@@ -25,21 +25,9 @@ import { genUuid } from '../../../../../core/src/logic/utils'
 import type { SuggestedReminder } from '../../../../../core/src/logic/suggestFields'
 import ReminderSheet from '../ReminderSheet'
 
-function recurrenceFreqLabel(
-  freq: 'none' | RecurrenceFreq,
-  t: ReturnType<typeof useLang>['t'],
-): string {
-  switch (freq) {
-    case 'daily': return t.recurrence.daily
-    case 'weekly': return t.recurrence.weekly
-    case 'monthly': return t.recurrence.monthly
-    case 'yearly': return t.recurrence.yearly
-    default: return t.recurrence.never
-  }
-}
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
-import { dueDateToDate, dueDateWithDay, formatDisplayDate, formatRecurrence, fullDateLabel, isoDate, todayLocal } from '../../../core-bindings/utils'
+import { dueDateToDate, dueDateWithDay, formatDisplayDate, fullDateLabel, isoDate, todayLocal } from '../../../core-bindings/utils'
 import {
   endOfWeekLocal,
   endOfMonthLocal,
@@ -66,31 +54,13 @@ import {
 import { useTodoFieldSuggestions, TodoFieldSuggestPills } from '../TodoFieldSuggestPills'
 import { ensurePermission } from '../../../adapters/notifications'
 import CustomRecurrenceForm from '../CustomRecurrenceForm'
+import {
+  recurrenceFreqLabel,
+  recurrenceLabel,
+  recurrenceShortLabel,
+  reminderSummary,
+} from '../../../../../core/src/logic/labels'
 import { makeStyles } from './styles';
-
-function recurrenceLabel(
-  rec: Recurrence | undefined,
-  t: ReturnType<typeof useLang>['t'],
-): string {
-  if (!rec) return t.recurrence.never
-  let base: string
-  if (rec.byWeekday && rec.byWeekday.length > 0) {
-    base = formatRecurrence(rec)
-  } else {
-    base = recurrenceFreqLabel(rec.freq, t)
-  }
-  if (rec.endDate) {
-    const d = new Date(`${rec.endDate}T00:00:00`)
-    const sameYear = d.getFullYear() === new Date().getFullYear()
-    const ends = d.toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      ...(sameYear ? {} : { year: 'numeric' }),
-    })
-    return `${base} · ends ${ends}`
-  }
-  return base
-}
 
 /**
  * Absolute date label for "Completed by" — "May 17" (current year) or
@@ -123,54 +93,6 @@ function isCustomRecurrence(rec: Recurrence | undefined): boolean {
   return !!rec && Array.isArray(rec.byWeekday) && rec.byWeekday.length > 0
 }
 
-/** Friendly label for a datetime: short date + local time. */
-function formatDateTime(at: string): string {
-  const d = new Date(at)
-  if (Number.isNaN(d.valueOf())) return at
-  const sameYear = d.getFullYear() === new Date().getFullYear()
-  const datePart = d.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    ...(sameYear ? {} : { year: 'numeric' }),
-  })
-  const timePart = d.toLocaleTimeString(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-  return `${datePart}, ${timePart}`
-}
-
-/** Compact label for an interval — "1h", "30m", "2h 30m". */
-function formatInterval(minutes: number): string {
-  if (minutes < 60) return `${minutes}m`
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  return m === 0 ? `${h}h` : `${h}h ${m}m`
-}
-
-/** Compose the user-visible label for a reminder. One-shot → just
- * the datetime. Recurring → "every Xh until Wed 3pm". */
-function formatReminder(reminder: Reminder | undefined): string {
-  if (!reminder?.at) return ''
-  if (!reminder.intervalMinutes) return formatDateTime(reminder.at)
-  const cadence = formatInterval(reminder.intervalMinutes)
-  return reminder.until
-    ? `every ${cadence} until ${formatDateTime(reminder.until)}`
-    : `every ${cadence}`
-}
-
-/** Summary string for the Bell row field-value when a todo carries
- * the multi-reminder array. 0 → t.remindNone. 1 → formatReminder.
- * N → t.remindYourRemindersWithCount(N) ("Your reminders (N)"). */
-function reminderSummary(
-  reminders: Reminder[],
-  t: ReturnType<typeof useLang>['t'],
-): string {
-  if (reminders.length === 0) return t.remindNone
-  if (reminders.length === 1) return formatReminder(reminders[0])
-  return t.remindYourRemindersWithCount(reminders.length)
-}
-
 // Reminder-picker chip constants + helpers moved to
 // ../ReminderSheet/index.tsx. defaultRemindDate / XIcon / dueDateAsUntil
 // retired with the inline ReminderSubView.
@@ -196,6 +118,8 @@ function CalendarIcon({ size = 18, color = '#8E8E93' }: { size?: number; color?:
   )
 }
 
+/** Hosted once in SheetContext (mounted only while a details request is
+ * open); every callback is the store's action, so all are required. */
 interface Props {
   visible: boolean
   todo: Todo
@@ -205,39 +129,34 @@ interface Props {
   initialSubtaskEditId?: string | null
   onClose: () => void
   onUpdateText: (id: string, text: string) => void
-  onUpdateNotes?: (id: string, notes: string) => void
+  onUpdateNotes: (id: string, notes: string) => void
   onUpdatePriority: (id: string, priority: Priority) => void
   onUpdateDueDate: (id: string, dueDate: string) => void
   onUpdateCategory: (id: string, category: Category) => void
   onUpdateRecurrence: (id: string, recurrence: Recurrence | undefined) => void
-  /** Set/clear the reminder. Pass `undefined` to clear; pass a
-   * reminder object for one-shot (`{at}`) or recurring (`{at,
-   * intervalMinutes, until}`). The OS-level schedule is reconciled
-   * separately by App.tsx's syncTodoReminders effect. */
-  /** Multi-reminder write — replaces the entire `reminders[]` on a
-   * todo. Used by the new ReminderSheet (multi-select chips, "Your
-   * reminders" pill list, Clear all). */
-  onUpdateReminders?: (id: string, reminders: Reminder[]) => void
+  /** Multi-reminder write — replaces the entire `reminders[]` on a todo
+   * (ReminderSheet's Done, the AI reminder pill). The OS-level schedule
+   * is reconciled separately by App.tsx's reminder sync effect. */
+  onUpdateReminders: (id: string, reminders: Reminder[]) => void
   onMoveToTrash: (id: string) => void
   /** Complete the to-do the same way the row's circle does (completion
    * date, steps, next occurrence, "Done: … · Undo"). */
-  onToggle?: (id: string) => void
-  /** Optional — used by the "Delete to-do" action to permanently delete a
-   * done item (skipping the trash step). Open items still go to trash. */
-  onPermanentDelete?: (id: string) => void
-  /** Optional — when provided, "Delete to-do" on a recurring instance with
-   * a seriesId offers a "Delete this and all future" option. */
-  onMoveSeriesFutureToTrash?: (id: string) => void
+  onToggle: (id: string) => void
+  /** "Delete to-do" on a done item permanently deletes it (skipping the
+   * trash step). Open items still go to trash. */
+  onPermanentDelete: (id: string) => void
+  /** "Delete" in series scope: this + all future occurrences to trash. */
+  onMoveSeriesFutureToTrash: (id: string) => void
   /** Skip this occurrence (recurring/series). */
-  onSkip?: (id: string) => void
+  onSkip: (id: string) => void
   /** Skip this + all future occurrences in the series. */
-  onSkipSeries?: (id: string) => void
+  onSkipSeries: (id: string) => void
   /** Permanently delete this + all future occurrences in the series. */
-  onPermanentDeleteSeries?: (id: string) => void
-  /** Optional — copies text/priority/category/notes from this instance to
-   * every future non-trashed sibling in the same series. Skips detached
+  onPermanentDeleteSeries: (id: string) => void
+  /** Copies text/priority/category/notes from this instance to every
+   * future non-trashed sibling in the same series. Skips detached
    * instances unless `options.overwriteDetached` is true. */
-  onApplySeriesFutureEdits?: (
+  onApplySeriesFutureEdits: (
     id: string,
     fields: {
       text?: string;
@@ -250,12 +169,12 @@ interface Props {
   /** R6a — Mark this series instance as detached so later series-wide
    * edits skip it by default. Fires when the user edits a
    * series-eligible field in "Edit this only" mode on a series row. */
-  onDetachFromSeries?: (id: string) => void
+  onDetachFromSeries: (id: string) => void
   /** R6b — Apply a new recurrence to the whole series and recreate
    * the tail. Called by the "Recreate all / Keep modified" dialog
    * fired at Save in series mode when the user changes the
    * recurrence shape. */
-  onApplyRecurrenceChange?: (
+  onApplyRecurrenceChange: (
     id: string,
     newRecurrence: Recurrence | undefined,
     options: { keepDetached: boolean },
@@ -264,23 +183,21 @@ interface Props {
    * future non-trashed sibling. Called by the "Overwrite all /
    * Keep modified" dialog fired at Save in series mode when the
    * user changed the subtask shape during the session. */
-  onApplySeriesSubtasks?: (
+  onApplySeriesSubtasks: (
     id: string,
     options: { keepDetached: boolean },
   ) => void
   onAddSubtask: (id: string, text: string, priority?: Priority, dueDate?: string) => void
   onToggleSubtask: (id: string, subId: string) => void
   onUpdateSubtaskText: (id: string, subId: string, text: string) => void
-  onUpdateSubtaskPriority?: (id: string, subId: string, priority: Priority) => void
-  onUpdateSubtaskDueDate?: (id: string, subId: string, dueDate: string) => void
+  onUpdateSubtaskPriority: (id: string, subId: string, priority: Priority) => void
+  onUpdateSubtaskDueDate: (id: string, subId: string, dueDate: string) => void
   onRemoveSubtask: (id: string, subId: string) => void
-  /** Optional bulk clear — when provided, the sheet renders a
-   * "Clear all steps" link below the subtask list. */
-  onClearSubtasks?: (id: string) => void
-  /** When true, shows the AI "Suggest steps" panel in the empty
-   * subtask state. Off by default; flipped by profile.agentEnabled at
-   * the call site. */
-  agentEnabled?: boolean
+  /** Bulk clear behind the "Clear all steps" link below the step list. */
+  onClearSubtasks: (id: string) => void
+  /** When true, shows the AI "Suggest steps" panel in the empty subtask
+   * state and the ambient field pills (profile.agentEnabled). */
+  agentEnabled: boolean
 }
 
 /** Did the to-do's content change (ignoring the updatedAt stamp)? */
@@ -309,9 +226,8 @@ export default function TaskDetailsSheet({
   })
   const subs = todo.subtasks ?? []
   // R6a — Edit-scope toggle for series instances. Hidden when the
-  // row has no seriesId. Default "this only" is the safer choice.
-  // Reset on every visible-true so reopening the sheet doesn't
-  // remember a previous session's pick.
+  // row has no seriesId. Default "this only" is the safer choice;
+  // re-seeded with the form below so each open starts fresh.
   const isSeriesRow = !!todo.seriesId
   const [editMode, setEditMode] = useState<'this' | 'series'>('this')
   // Recurrence is locked (visible but non-editable) when editing a single
@@ -322,8 +238,7 @@ export default function TaskDetailsSheet({
   // otherwise they act on this single todo/occurrence.
   const seriesScope = isSeriesRow && editMode === 'series'
   // Toast bookkeeping: only show the detach toast the first time the
-  // user makes a series-eligible edit per sheet-open. Resets on each
-  // visible toggle.
+  // user makes a series-eligible edit per sheet-open.
   const detachToastShownRef = useRef(false)
   // R6c — snapshot of the subtask shape (text/priority/dueDate/order)
   // taken when the sheet opens. Diffed at Save in series mode to
@@ -331,30 +246,10 @@ export default function TaskDetailsSheet({
   // dialog. Sub.done changes intentionally don't count — those are
   // per-instance progress markers, not series edits.
   const initialSubtasksRef = useRef<Subtask[] | undefined>(undefined)
-  useEffect(() => {
-    if (visible) {
-      setEditMode('this')
-      detachToastShownRef.current = false
-      initialSubtasksRef.current = todo.subtasks
-        ? todo.subtasks.map((s) => ({ ...s }))
-        : undefined
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible])
+  // The sheet is hosted once in SheetContext and mounted only while a
+  // details request is open, so the AI hooks (steps + field pills) start
+  // with fresh state on every open — no per-open reset effect needed.
   const ai = useSuggestSteps({ parentTitle: todo.text, parentNotes: todo.notes })
-
-  // The sheet is a Modal — it stays mounted across close→reopen
-  // cycles, so without an explicit reset the `ai.suggestions` from
-  // a previous open lingers. That breaks the Suggest pill render
-  // (gated on !ai.suggestions) and shows a stale review panel
-  // instead. Same reasoning applies to fieldAi (defined below).
-  useEffect(() => {
-    if (visible) {
-      ai.reset()
-      fieldAi.clear()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible])
 
   const [addSubtaskOpen, setAddSubtaskOpen] = useState(false)
 
@@ -435,9 +330,21 @@ export default function TaskDetailsSheet({
   // sub-page editor's pendingEditSubDueDate).
   const [pendingSubModalDate, setPendingSubModalDate] = useState<string>('')
 
-  // Re-seed form values when sheet opens or task changes.
+  // Latest todo, mirrored so the seed effect can read it without
+  // re-running on every todo reference change (see below).
+  const todoRef = useRef(todo)
+  todoRef.current = todo
+
+  // Seed the form (and the per-open series bookkeeping) when the sheet
+  // opens or the task identity changes.
   useEffect(() => {
     if (visible) {
+      const todo = todoRef.current
+      setEditMode('this')
+      detachToastShownRef.current = false
+      initialSubtasksRef.current = todo.subtasks
+        ? todo.subtasks.map((s) => ({ ...s }))
+        : undefined
       setEditText(todo.text)
       setEditNotes(todo.notes ?? '')
       setEditPriority(todo.priority)
@@ -469,12 +376,10 @@ export default function TaskDetailsSheet({
       }
     }
     // Re-seed ONLY when the sheet opens or the task identity changes — NOT on
-    // every `todo` reference change. The old `[visible, todo, …]` deps re-ran
-    // this whenever any field of the live todo mutated (a subtask toggle, a
-    // remote sync tick, or the user's own debounced write round-tripping),
-    // silently clobbering title/notes the user had typed but not yet blurred.
-    // Field edits are read live in render; we only need a fresh seed per open.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // every `todo` reference change (hence todoRef). Re-running whenever any
+    // field of the live todo mutated (a subtask toggle, a remote sync tick,
+    // or the user's own debounced write round-tripping) would silently
+    // clobber title/notes typed but not yet blurred.
   }, [visible, todo.id, initialSubtaskEditId])
 
   const editActiveCat = categories.find((c) => c.id === editCategory) ?? categories[0]
@@ -509,7 +414,7 @@ export default function TaskDetailsSheet({
     if (!isSeriesRow) return
     if (todo.detachedFromSeries) return
     if (editMode !== 'this') return
-    onDetachFromSeries?.(todo.id)
+    onDetachFromSeries(todo.id)
     if (!detachToastShownRef.current) {
       detachToastShownRef.current = true
       notify.showSnackbar({ message: t.detachedToast })
@@ -530,7 +435,6 @@ export default function TaskDetailsSheet({
     maybeDetachOnEdit()
   }
   function applyNotes(next: string) {
-    if (!onUpdateNotes) return
     if (next === (todo.notes ?? '')) return
     if (editMode === 'series' && isSeriesRow) return // buffered until Save
     onUpdateNotes(todo.id, next)
@@ -596,7 +500,7 @@ export default function TaskDetailsSheet({
       setEditReminders(getReminders(todo))
       return
     }
-    onUpdateReminders?.(todo.id, next)
+    onUpdateReminders(todo.id, next)
   }
   // Footer actions (Delete / Skip / Mark done) sit outside the ScrollView,
   // so tapping one doesn't blur the title/notes input — save what was typed
@@ -621,7 +525,7 @@ export default function TaskDetailsSheet({
     const seriesCommit = editMode === 'series' && isSeriesRow
     const trimmedText = editText.trim()
     const textChanged = !!trimmedText && trimmedText !== todo.text
-    const notesChanged = onUpdateNotes !== undefined && editNotes !== (todo.notes ?? '')
+    const notesChanged = editNotes !== (todo.notes ?? '')
     const priorityChanged = editPriority !== todo.priority
     const categoryChanged = editCategory !== todo.category
     const recurrenceChanged =
@@ -633,7 +537,7 @@ export default function TaskDetailsSheet({
     // either way.
     function commitBufferedSeriesFields() {
       if (textChanged) onUpdateText(todo.id, trimmedText)
-      if (notesChanged) onUpdateNotes!(todo.id, editNotes)
+      if (notesChanged) onUpdateNotes(todo.id, editNotes)
       if (priorityChanged) onUpdatePriority(todo.id, editPriority)
       if (categoryChanged && editCategory !== undefined) onUpdateCategory(todo.id, editCategory)
       const fields: {
@@ -647,7 +551,7 @@ export default function TaskDetailsSheet({
       if (priorityChanged) fields.priority = editPriority
       if (categoryChanged) fields.category = editCategory
       if (Object.keys(fields).length > 0) {
-        onApplySeriesFutureEdits?.(todo.id, fields)
+        onApplySeriesFutureEdits(todo.id, fields)
       }
     }
 
@@ -660,7 +564,7 @@ export default function TaskDetailsSheet({
     // the new tail is freshly expanded from the target row, which
     // already carries the user's just-edited subtasks; so the R6c
     // propagation is redundant in this branch and skipped.
-    if (seriesCommit && recurrenceChanged && onApplyRecurrenceChange) {
+    if (seriesCommit && recurrenceChanged) {
       Alert.alert(
         t.seriesFreqChangeTitle,
         t.seriesFreqChangeBody,
@@ -691,7 +595,7 @@ export default function TaskDetailsSheet({
 
     // R6c — series + subtask shape change (and no recurrence change):
     // ask whether to overwrite all or keep modified.
-    if (subtasksChanged && onApplySeriesSubtasks) {
+    if (subtasksChanged) {
       Alert.alert(
         t.seriesSubtasksChangeTitle,
         t.seriesSubtasksChangeBody,
@@ -815,7 +719,7 @@ export default function TaskDetailsSheet({
   }
   function applySubPriority(p: Priority) {
     setEditSubPriority(p)
-    if (!editingSubtaskId || !onUpdateSubtaskPriority) return
+    if (!editingSubtaskId) return
     const current = subs.find((s) => s.id === editingSubtaskId)
     if (current && p !== (current.priority ?? 'medium')) {
       onUpdateSubtaskPriority(todo.id, editingSubtaskId, p)
@@ -823,7 +727,7 @@ export default function TaskDetailsSheet({
   }
   function applySubDueDate(d: string) {
     setEditSubDueDate(d)
-    if (!editingSubtaskId || !onUpdateSubtaskDueDate) return
+    if (!editingSubtaskId) return
     const current = subs.find((s) => s.id === editingSubtaskId)
     if (current && d !== (current.dueDate ?? '')) {
       onUpdateSubtaskDueDate(todo.id, editingSubtaskId, d)
@@ -850,12 +754,8 @@ export default function TaskDetailsSheet({
       if (orig.text.trim()) {
         onUpdateSubtaskText(todo.id, subId, orig.text)
       }
-      if (onUpdateSubtaskPriority) {
-        onUpdateSubtaskPriority(todo.id, subId, orig.priority)
-      }
-      if (onUpdateSubtaskDueDate) {
-        onUpdateSubtaskDueDate(todo.id, subId, orig.dueDate)
-      }
+      onUpdateSubtaskPriority(todo.id, subId, orig.priority)
+      onUpdateSubtaskDueDate(todo.id, subId, orig.dueDate)
     }
     setEditingSubtaskId(null)
     setEditSubPickerView('main')
@@ -1076,7 +976,7 @@ export default function TaskDetailsSheet({
                 { key: 'none', label: t.recurrence.never, color: theme.label },
                 ...RECURRENCE_FREQS.map((f) => ({
                   key: f,
-                  label: recurrenceFreqLabel(f, t),
+                  label: recurrenceFreqLabel(f, t.recurrence),
                   color: theme.label,
                   icon: <Repeat size={16} color={theme.blue} strokeWidth={2} />,
                 })),
@@ -1364,28 +1264,26 @@ export default function TaskDetailsSheet({
                   maxLength={4096}
                   textAlignVertical="top"
                 />
-                {onUpdateNotes && (
-                  <>
-                    <View style={styles.editGroupDivider} />
-                    {/* Notes inline below the title — matches the
-                        ComposeSheet (Add To-do) arrangement so the
-                        "what & why" sit together at the top of the
-                        sheet. Standalone notes card lower in the
-                        layout was removed. */}
-                    <TextInput
-                      style={styles.notesInputInGroup}
-                      value={editNotes}
-                      onChangeText={setEditNotes}
-                      onBlur={() => applyNotes(editNotes)}
-                      placeholder={t.notes.placeholder}
-                      placeholderTextColor={theme.label2}
-                      multiline
-                      maxLength={8192}
-                      textAlignVertical="top"
-                      accessibilityLabel="Notes — anything that helps you externalize the thinking around this task"
-                    />
-                  </>
-                )}
+                <>
+                  <View style={styles.editGroupDivider} />
+                  {/* Notes inline below the title — matches the
+                      ComposeSheet (Add To-do) arrangement so the
+                      "what & why" sit together at the top of the
+                      sheet. Standalone notes card lower in the
+                      layout was removed. */}
+                  <TextInput
+                    style={styles.notesInputInGroup}
+                    value={editNotes}
+                    onChangeText={setEditNotes}
+                    onBlur={() => applyNotes(editNotes)}
+                    placeholder={t.notes.placeholder}
+                    placeholderTextColor={theme.label2}
+                    multiline
+                    maxLength={8192}
+                    textAlignVertical="top"
+                    accessibilityLabel="Notes — anything that helps you externalize the thinking around this task"
+                  />
+                </>
                 {/* No separate "Reading your to-do…" row: TodoFieldSuggestPills
                     shows fieldAi.thinking itself, and Suggest steps shows its
                     own (two stacked indicators read as a glitch). */}
@@ -1417,10 +1315,10 @@ export default function TaskDetailsSheet({
                     applyRecurrence(rec)
                     Haptics.selectionAsync().catch(() => {})
                   }}
-                  onApplyReminder={onUpdateReminders ? (rem) => {
+                  onApplyReminder={(rem) => {
                     applySuggestedReminder(rem)
                     Haptics.selectionAsync().catch(() => {})
-                  } : undefined}
+                  }}
                   onDismissField={fieldAi.dismissField}
                 />
                 <TouchableOpacity
@@ -1495,7 +1393,7 @@ export default function TaskDetailsSheet({
                   activeOpacity={0.6}
                   accessibilityRole="button"
                   accessibilityState={{ disabled: repeatLocked }}
-                  accessibilityLabel={`Repeat, ${recurrenceLabel(editRecurrence, t)}. Tap to change.`}
+                  accessibilityLabel={`Repeat, ${recurrenceLabel(editRecurrence, t.recurrence)}. Tap to change.`}
                 >
                   <Repeat size={18} color={editRecurrence ? theme.blue : theme.gray3} strokeWidth={2} />
                   <Text style={styles.editFieldLabel}>{t.edit.repeat}</Text>
@@ -1506,11 +1404,7 @@ export default function TaskDetailsSheet({
                     ]}
                     numberOfLines={1}
                   >
-                    {editRecurrence
-                      ? (editRecurrence.byWeekday && editRecurrence.byWeekday.length > 0
-                          ? formatRecurrence(editRecurrence)
-                          : recurrenceFreqLabel(editRecurrence.freq, t))
-                      : t.recurrence.never}
+                    {recurrenceShortLabel(editRecurrence, t.recurrence)}
                   </Text>
                   {repeatLocked ? (
                     <Text style={styles.editFieldLockHint}>Series only</Text>
@@ -1518,31 +1412,29 @@ export default function TaskDetailsSheet({
                     <Text style={styles.editChevron}>›</Text>
                   )}
                 </TouchableOpacity>
-                {onUpdateReminders && (
-                  <>
-                    <View style={styles.editGroupDivider} />
-                    <TouchableOpacity
-                      style={styles.editFieldRowInGroup}
-                      onPress={() => setParentEditView('remindAt')}
-                      activeOpacity={0.6}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${t.remindMe}, ${reminderSummary(editReminders, t)}. Tap to change.`}
+                <>
+                  <View style={styles.editGroupDivider} />
+                  <TouchableOpacity
+                    style={styles.editFieldRowInGroup}
+                    onPress={() => setParentEditView('remindAt')}
+                    activeOpacity={0.6}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t.remindMe}, ${reminderSummary(editReminders, { none: t.remindNone, withCount: t.remindYourRemindersWithCount })}. Tap to change.`}
+                  >
+                    <Bell size={18} color={editReminders.length > 0 ? theme.blue : theme.gray3} strokeWidth={2} />
+                    <Text style={styles.editFieldLabel}>{t.remindMe}</Text>
+                    <Text
+                      style={[
+                        styles.editFieldValue,
+                        editReminders.length === 0 && styles.editFieldValueMuted,
+                      ]}
+                      numberOfLines={1}
                     >
-                      <Bell size={18} color={editReminders.length > 0 ? theme.blue : theme.gray3} strokeWidth={2} />
-                      <Text style={styles.editFieldLabel}>{t.remindMe}</Text>
-                      <Text
-                        style={[
-                          styles.editFieldValue,
-                          editReminders.length === 0 && styles.editFieldValueMuted,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {reminderSummary(editReminders, t)}
-                      </Text>
-                      <Text style={styles.editChevron}>›</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
+                      {reminderSummary(editReminders, { none: t.remindNone, withCount: t.remindYourRemindersWithCount })}
+                    </Text>
+                    <Text style={styles.editChevron}>›</Text>
+                  </TouchableOpacity>
+                </>
                 {editRecurrence && (
                   <>
                     <View style={styles.editGroupDivider} />
@@ -1596,7 +1488,7 @@ export default function TaskDetailsSheet({
                     onClick={ai.request}
                   />
                 )}
-                {onClearSubtasks && subs.length > 0 && (
+                {subs.length > 0 && (
                   <TouchableOpacity
                     style={styles.clearStepsLink}
                     onPress={() => {
@@ -1678,78 +1570,74 @@ export default function TaskDetailsSheet({
                   mode these apply to this + all future occurrences
                   ("Delete series" / "Skip all" / "Mark all done"). */}
               <View style={styles.bottomActionRow}>
-                {(seriesScope ? !!onPermanentDeleteSeries : !!onPermanentDelete) ? (
-                  <TouchableOpacity
-                    style={styles.bottomActionButton}
-                    onPress={() => {
-                    flushTypedText()
-                      // An active to-do goes to the Done bin (30 days, with
-                      // Undo) — permanent delete is only for rows already in
-                      // the bin. The App Store copy promises this.
-                      if (!todo.trashed) {
-                        if (seriesScope && onMoveSeriesFutureToTrash) {
-                          Alert.alert(
-                            'Delete this and future to-dos?',
-                            'They move to Done, where they stay for 30 days. Past ones are kept.',
-                            [
-                              { text: t.cancel, style: 'cancel' },
-                              {
-                                text: 'Delete',
-                                style: 'destructive',
-                                onPress: () => {
-                                  onMoveSeriesFutureToTrash(todo.id)
-                                  onClose()
-                                },
+                <TouchableOpacity
+                  style={styles.bottomActionButton}
+                  onPress={() => {
+                  flushTypedText()
+                    // An active to-do goes to the Done bin (30 days, with
+                    // Undo) — permanent delete is only for rows already in
+                    // the bin. The App Store copy promises this.
+                    if (!todo.trashed) {
+                      if (seriesScope) {
+                        Alert.alert(
+                          'Delete this and future to-dos?',
+                          'They move to Done, where they stay for 30 days. Past ones are kept.',
+                          [
+                            { text: t.cancel, style: 'cancel' },
+                            {
+                              text: 'Delete',
+                              style: 'destructive',
+                              onPress: () => {
+                                onMoveSeriesFutureToTrash(todo.id)
+                                onClose()
                               },
-                            ],
-                          )
-                        } else {
-                          onMoveToTrash(todo.id)
-                          onClose()
-                        }
-                        return
-                      }
-                      Alert.alert(
-                        seriesScope ? 'Delete series?' : t.deletePermanently,
-                        seriesScope
-                          ? 'Permanently delete this and all future to-dos in this series. Past instances are kept.'
-                          : t.deletePermanentlyConfirm(todo.text),
-                        [
-                          { text: t.cancel, style: 'cancel' },
-                          {
-                            text: seriesScope ? 'Delete series' : t.deletePermanently,
-                            style: 'destructive',
-                            onPress: () => {
-                              if (seriesScope) onPermanentDeleteSeries!(todo.id)
-                              else onPermanentDelete!(todo.id)
-                              onClose()
                             },
-                          },
-                        ],
-                      )
-                    }}
-                    activeOpacity={0.6}
-                    accessibilityRole="button"
-                    accessibilityLabel={
-                      todo.trashed ? (seriesScope ? 'Delete series' : t.deletePermanently) : t.deleteTask
+                          ],
+                        )
+                      } else {
+                        onMoveToTrash(todo.id)
+                        onClose()
+                      }
+                      return
                     }
-                  >
-                    {/* Red only when it's permanent (already in Done); a
-                        reversible delete reads neutral. */}
-                    <Text style={[styles.deleteActionText, !todo.trashed && { color: theme.label2 }]}>
-                      {seriesScope ? 'Delete series' : t.deleteTask}
-                    </Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View />
-                )}
+                    Alert.alert(
+                      seriesScope ? 'Delete series?' : t.deletePermanently,
+                      seriesScope
+                        ? 'Permanently delete this and all future to-dos in this series. Past instances are kept.'
+                        : t.deletePermanentlyConfirm(todo.text),
+                      [
+                        { text: t.cancel, style: 'cancel' },
+                        {
+                          text: seriesScope ? 'Delete series' : t.deletePermanently,
+                          style: 'destructive',
+                          onPress: () => {
+                            if (seriesScope) onPermanentDeleteSeries(todo.id)
+                            else onPermanentDelete(todo.id)
+                            onClose()
+                          },
+                        },
+                      ],
+                    )
+                  }}
+                  activeOpacity={0.6}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    todo.trashed ? (seriesScope ? 'Delete series' : t.deletePermanently) : t.deleteTask
+                  }
+                >
+                  {/* Red only when it's permanent (already in Done); a
+                      reversible delete reads neutral. */}
+                  <Text style={[styles.deleteActionText, !todo.trashed && { color: theme.label2 }]}>
+                    {seriesScope ? 'Delete series' : t.deleteTask}
+                  </Text>
+                </TouchableOpacity>
 
-                {onSkip && !(todo.subtasks && todo.subtasks.length > 0) ? (
+                {!(todo.subtasks && todo.subtasks.length > 0) ? (
                   <TouchableOpacity
                     style={styles.bottomActionButton}
                     onPress={() => {
                     flushTypedText()
-                      if (seriesScope && onSkipSeries) onSkipSeries(todo.id)
+                      if (seriesScope) onSkipSeries(todo.id)
                       else onSkip(todo.id)
                       onClose()
                     }}
@@ -1769,14 +1657,12 @@ export default function TaskDetailsSheet({
                   style={styles.bottomActionButton}
                   onPress={() => {
                     flushTypedText()
-                    if (seriesScope && onMoveSeriesFutureToTrash) {
+                    if (seriesScope) {
                       onMoveSeriesFutureToTrash(todo.id)
-                    } else if (onToggle) {
-                      // A real completion (was: just tucked into Done, with
-                      // no completion date, Undo toast, or next occurrence).
-                      if (!todo.done) onToggle(todo.id)
-                    } else {
-                      onMoveToTrash(todo.id)
+                    } else if (!todo.done) {
+                      // A real completion (completion date, Undo toast,
+                      // next occurrence) — same as the row's circle.
+                      onToggle(todo.id)
                     }
                     onClose()
                   }}
@@ -1835,27 +1721,25 @@ export default function TaskDetailsSheet({
               above (parentEditView === 'date'). No Modal-on-Modal. */}
 
           {/* Per-subtask priority picker */}
-          {onUpdateSubtaskPriority && (
-            <PickerModal
-              visible={subPriorityForId !== null}
-              selectedKey={subPriorityForId
-                ? (subs.find((s) => s.id === subPriorityForId)?.priority ?? 'medium')
-                : 'medium'}
-              onSelect={(k) => {
-                if (subPriorityForId) onUpdateSubtaskPriority(todo.id, subPriorityForId, k as Priority)
-              }}
-              onClose={() => setSubPriorityForId(null)}
-              options={PRIORITY_VALUES.map((v) => ({
-                key: v,
-                label: t.priority[v],
-                color: PRIORITY_COLORS[v],
-                icon: <PriorityDot level={v} size={12} />,
-              }))}
-            />
-          )}
+          <PickerModal
+            visible={subPriorityForId !== null}
+            selectedKey={subPriorityForId
+              ? (subs.find((s) => s.id === subPriorityForId)?.priority ?? 'medium')
+              : 'medium'}
+            onSelect={(k) => {
+              if (subPriorityForId) onUpdateSubtaskPriority(todo.id, subPriorityForId, k as Priority)
+            }}
+            onClose={() => setSubPriorityForId(null)}
+            options={PRIORITY_VALUES.map((v) => ({
+              key: v,
+              label: t.priority[v],
+              color: PRIORITY_COLORS[v],
+              icon: <PriorityDot level={v} size={12} />,
+            }))}
+          />
 
           {/* Per-subtask date picker */}
-          {onUpdateSubtaskDueDate && subDateForId !== null && Platform.OS === 'ios' && (
+          {subDateForId !== null && Platform.OS === 'ios' && (
             <Modal
               visible
               transparent
@@ -1902,7 +1786,7 @@ export default function TaskDetailsSheet({
               </View>
             </Modal>
           )}
-          {onUpdateSubtaskDueDate && subDateForId !== null && Platform.OS === 'android' && (
+          {subDateForId !== null && Platform.OS === 'android' && (
             <DateTimePicker
               value={subPickerDate}
               mode="date"

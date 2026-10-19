@@ -77,6 +77,11 @@ export default function CalmFirework({
     [color, theme.primary, theme.green],
   )
 
+  // Mirrored so a parent passing a fresh onDone each render doesn't re-fire
+  // (or cancel) the burst — only a new trigger should.
+  const onDoneRef = useRef(onDone)
+  onDoneRef.current = onDone
+
   useEffect(() => {
     if (trigger <= 0 || reduceMotion) return
     setActive(true)
@@ -102,13 +107,12 @@ export default function CalmFirework({
     anim.start(({ finished }) => {
       if (finished) {
         setActive(false)
-        onDone?.()
+        onDoneRef.current?.()
       }
     })
     return () => anim.stop()
-    // Re-fire only on a new trigger; the animated values + callbacks are stable.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trigger, reduceMotion])
+    // burst / drift are created once (stable); listed only to satisfy the rule.
+  }, [trigger, reduceMotion, burst, drift])
 
   if (reduceMotion || !active) return null
 

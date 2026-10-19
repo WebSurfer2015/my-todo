@@ -16,7 +16,7 @@ import { snapDueDateToRecurrence } from '../../../../../core/src/logic/derive'
 import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
 import { useLang } from '../../../app/LangContext'
 import { useTheme } from '../../../app/theme'
-import { dueDateToDate, dueDateWithDay, duePresetDates, formatDisplayDate, formatRecurrence, fullDateLabel, isoDate } from '../../../core-bindings/utils'
+import { dueDateToDate, dueDateWithDay, duePresetDates, formatDisplayDate, fullDateLabel, isoDate } from '../../../core-bindings/utils'
 import {
   todayLocal,
   endOfWeekLocal,
@@ -38,6 +38,13 @@ import {
   SuggestStepsTrigger,
   SuggestStepsReview,
 } from '../SuggestStepsPanel'
+import {
+  isoLocalDateTime,
+  recurrenceFreqLabel,
+  recurrenceLabel,
+  recurrenceShortLabel,
+  reminderSummary,
+} from '../../../../../core/src/logic/labels'
 import { makeStyles } from './styles';
 
 function CalendarIcon({ size = 18, color = '#8E8E93' }: { size?: number; color?: string }) {
@@ -118,105 +125,15 @@ function defaultEndDateFor(freq: RecurrenceFreq): Date {
   return d
 }
 
-function recurrenceFreqLabel(
-  freq: 'none' | RecurrenceFreq,
-  t: ReturnType<typeof useLang>['t'],
-): string {
-  switch (freq) {
-    case 'daily': return t.recurrence.daily
-    case 'weekly': return t.recurrence.weekly
-    case 'monthly': return t.recurrence.monthly
-    case 'yearly': return t.recurrence.yearly
-    default: return t.recurrence.never
-  }
-}
-
-function recurrenceLabel(
-  rec: Recurrence | undefined,
-  t: ReturnType<typeof useLang>['t'],
-): string {
-  if (!rec) return t.recurrence.never
-  let base: string
-  if (rec.byWeekday && rec.byWeekday.length > 0) {
-    base = formatRecurrence(rec)
-  } else {
-    base = recurrenceFreqLabel(rec.freq, t)
-  }
-  if (rec.endDate) {
-    const d = new Date(`${rec.endDate}T00:00:00`)
-    const sameYear = d.getFullYear() === new Date().getFullYear()
-    const ends = d.toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      ...(sameYear ? {} : { year: 'numeric' }),
-    })
-    return `${base} · ends ${ends}`
-  }
-  return base
-}
-
 function isCustomRecurrence(rec: Recurrence | undefined): boolean {
   return !!rec && Array.isArray(rec.byWeekday) && rec.byWeekday.length > 0
-}
-
-/** ISO-8601 local datetime without timezone — what we store for
- * remindAt. Matches the format the AI suggest-todo-fields prompt is
- * told to emit so the scheduler can read either source identically. */
-function isoLocalDateTime(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mm = String(d.getMinutes()).padStart(2, '0')
-  return `${y}-${m}-${day}T${hh}:${mm}`
-}
-
-/** Compact label for a datetime value: short date + local time. */
-function formatDateTime(at: string): string {
-  const d = new Date(at)
-  if (Number.isNaN(d.valueOf())) return at
-  const sameYear = d.getFullYear() === new Date().getFullYear()
-  const datePart = d.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    ...(sameYear ? {} : { year: 'numeric' }),
-  })
-  const timePart = d.toLocaleTimeString(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-  return `${datePart}, ${timePart}`
-}
-
-/** Reminder label used in the manual Remind me row. One-shot shows
- * the datetime; recurring shows "every Xh until ...". */
-function formatReminder(reminder: Reminder): string {
-  if (!reminder.intervalMinutes) return formatDateTime(reminder.at)
-  const cadence = reminder.intervalMinutes < 60
-    ? `${reminder.intervalMinutes}m`
-    : `${Math.floor(reminder.intervalMinutes / 60)}h`
-  return reminder.until
-    ? `every ${cadence} until ${formatDateTime(reminder.until)}`
-    : `every ${cadence}`
-}
-
-/** Compose-side Bell row summary. 0 → t.remindNone. 1 →
- * formatReminder. N → "Your reminders (N)". Mirrors
- * TaskDetailsSheet's reminderSummary so the two sheets feel the
- * same on the row. */
-function reminderSummary(
-  reminders: Reminder[],
-  t: ReturnType<typeof useLang>['t'],
-): string {
-  if (reminders.length === 0) return t.remindNone
-  if (reminders.length === 1) return formatReminder(reminders[0])
-  return t.remindYourRemindersWithCount(reminders.length)
 }
 
 export default function ComposeSheet({
   visible, categories, defaultCategory, references, agentEnabled = false, onCreateCategory, onAdd, onClose, onAskMochi, prefill, startsToday = false,
 }: Props) {
   const { t } = useLang()
+  const reminderStrings = { none: t.remindNone, withCount: t.remindYourRemindersWithCount }
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
   const inputRef = useRef<TextInput>(null)
@@ -301,12 +218,14 @@ export default function ComposeSheet({
   // attached when the user taps Add).
   const stepsAi = useSuggestSteps({ parentTitle: text, parentNotes: '' })
 
-  // Reset stepsAi state when the sheet opens so suggestions from a
-  // prior compose session don't bleed into the new one.
-  useEffect(() => {
-    if (visible) stepsAi.reset()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible])
+  // The AI hooks return fresh function identities every render; mirror the
+  // two the open effect calls so it only re-runs on its real triggers.
+  const aiHandlesRef = useRef({ markApplied: ai.markApplied, resetSteps: stepsAi.reset })
+  aiHandlesRef.current = { markApplied: ai.markApplied, resetSteps: stepsAi.reset }
+
+  // Quick-pick dates for the When page — recomputed per open so a sheet
+  // left mounted past midnight stays right.
+  const [presetDates, setPresetDates] = useState(() => duePresetDates())
 
   // Suggestion list — once the user has typed ≥3 chars, surface any
   // historic completions (deduplicated by lowercased text, sorted by
@@ -381,6 +300,9 @@ export default function ComposeSheet({
     wasVisibleRef.current = visible
     if (opening) {
       setSubView('main')
+      setPresetDates(duePresetDates())
+      // Suggestions from a prior compose session must not bleed into this one.
+      aiHandlesRef.current.resetSteps()
       if (prefill) {
         // Opened from Ask Mochi → fill every blank from the chat's proposal
         // and run the SAME dueDate snap a manual recurrence pick does (so a
@@ -402,7 +324,7 @@ export default function ComposeSheet({
         setDatePanelOpen(false)
         setPendingSubtasks([])
         setAppliedTextLower(prefill.text.trim().toLowerCase())
-        ai.markApplied(prefill.text)
+        aiHandlesRef.current.markApplied(prefill.text)
         setPendingFreq(null)
         return
       }
@@ -423,13 +345,9 @@ export default function ComposeSheet({
       const id = setTimeout(() => inputRef.current?.focus(), 120)
       return () => clearTimeout(id)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, defaultCategory, prefill, startsToday])
 
   const activeCat = categories.find((c) => c.id === category) ?? categories[0]
-  // Recomputed per open so a sheet left open past midnight stays right.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const presetDates = useMemo(() => duePresetDates(), [visible])
   const canSubmit = text.trim().length > 0 && !!activeCat
 
   function submit() {
@@ -642,10 +560,7 @@ export default function ComposeSheet({
                                       style={styles.dupeRowMeta}
                                       numberOfLines={1}
                                     >
-                                      {ref.recurrence.byWeekday &&
-                                      ref.recurrence.byWeekday.length > 0
-                                        ? formatRecurrence(ref.recurrence)
-                                        : recurrenceFreqLabel(ref.recurrence.freq, t)}
+                                      {recurrenceShortLabel(ref.recurrence, t.recurrence)}
                                     </Text>
                                   </View>
                                 )}
@@ -873,7 +788,7 @@ export default function ComposeSheet({
                       onPress={() => setSubView('repeat')}
                       activeOpacity={0.6}
                       accessibilityRole="button"
-                      accessibilityLabel={`Repeat, ${recurrenceLabel(recurrence, t)}. Tap to change.`}
+                      accessibilityLabel={`Repeat, ${recurrenceLabel(recurrence, t.recurrence)}. Tap to change.`}
                     >
                       <Repeat size={18} color={recurrence ? theme.blue : theme.gray3} strokeWidth={2} />
                       <Text style={styles.fieldLabel}>Repeat</Text>
@@ -884,11 +799,7 @@ export default function ComposeSheet({
                         ]}
                         numberOfLines={1}
                       >
-                        {recurrence
-                          ? (isCustomRecurrence(recurrence)
-                              ? formatRecurrence(recurrence)
-                              : recurrenceFreqLabel(recurrence.freq, t))
-                          : t.recurrence.never}
+                        {recurrenceShortLabel(recurrence, t.recurrence)}
                       </Text>
                       <Text style={styles.chevron}>›</Text>
                     </TouchableOpacity>
@@ -936,7 +847,7 @@ export default function ComposeSheet({
                       onPress={() => setSubView('remindAt')}
                       activeOpacity={0.6}
                       accessibilityRole="button"
-                      accessibilityLabel={`${t.remindMe}, ${reminderSummary(reminders, t)}. Tap to change.`}
+                      accessibilityLabel={`${t.remindMe}, ${reminderSummary(reminders, reminderStrings)}. Tap to change.`}
                     >
                       <Bell
                         size={18}
@@ -951,7 +862,7 @@ export default function ComposeSheet({
                         ]}
                         numberOfLines={1}
                       >
-                        {reminderSummary(reminders, t)}
+                        {reminderSummary(reminders, reminderStrings)}
                       </Text>
                       <Text style={styles.chevron}>›</Text>
                     </TouchableOpacity>
@@ -1107,7 +1018,7 @@ export default function ComposeSheet({
                   { key: 'none', label: t.recurrence.never, color: theme.label },
                   ...RECURRENCE_FREQS.map((f) => ({
                     key: f,
-                    label: recurrenceFreqLabel(f, t),
+                    label: recurrenceFreqLabel(f, t.recurrence),
                     color: theme.label,
                     icon: <Repeat size={16} color={theme.blue} strokeWidth={2} />,
                   })),
