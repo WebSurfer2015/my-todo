@@ -344,7 +344,7 @@ export const strings = {
     },
     binFooter: {
       peek: (n: number): string => `${n} tucked away · tap to peek →`,
-      a11y: (n: number): string => `${n} to-dos tucked away in the bin. Tap to view.`,
+      a11y: (n: number): string => `${n} to-dos resting in Done. Tap to view.`,
     },
     notes: {
       header: 'NOTES',

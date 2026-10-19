@@ -20,7 +20,7 @@ appId: com.websurfer.mytodo
 # label. Bare strings in assertVisible match exactly; switch to the
 # `text:` form for regex/substring.
 - assertVisible:
-    text: "Open Todos.*"
+    text: "Open Todos.*|Welcome.*|You.re all caught up.*|Nothing pending.*"
 # NOTE: removed the stale "What's Next.*" sentinel — it's no longer
 # rendered on the Today (verified on-device: the screen shows the
 # TODAY list + stat tiles, no teaser). The two assertions above

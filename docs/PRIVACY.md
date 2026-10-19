@@ -46,7 +46,8 @@ Settings → AI assistance. While it's on, the app sends what a request needs
 to **Anthropic** (the company that makes the Claude AI model) through our
 server when:
 
-- you send Mochi a message, or ask it to break a task into steps;
+- you send Mochi a message, or ask it to break a task into steps (the
+  to-do's title and notes are sent for that);
 - you pause while typing a new to-do (about 1.5 seconds) — the text is sent
   so Mochi can suggest a category, date, or reminder you can tap to apply;
 - you add a shopping item the app can't sort into an aisle on the device, or
@@ -55,7 +56,7 @@ server when:
 | Data | Why | Where it goes |
 | --- | --- | --- |
 | Your message and the conversation so far | So Mochi can understand and reply | Sent to Anthropic for that request |
-| Today's date, your category names, the text of your to-dos and their steps (open, done, and in the bin, up to 100), your shopping-list items and store names | So Mochi can find, add, or change the right items ("move the dentist to Friday") | Sent to Anthropic for that request |
+| Today's date, your category names, the text of your to-dos and their steps (open, done, and in Done, up to 100), your shopping-list items and store names | So Mochi can find, add, or change the right items ("move the dentist to Friday") | Sent to Anthropic for that request |
 | How many Mochi requests you've made | To keep a fair-use limit on AI costs | Firebase Firestore, your private subtree |
 
 - We do **not** send your name, email, or account ID to Anthropic.
@@ -68,6 +69,10 @@ server when:
 - If you turn AI assistance off, nothing is sent to Anthropic.
 
 ### When you subscribe
+
+Subscriptions aren't offered in this version of Sagely, and the purchase
+service (RevenueCat) isn't active. This section applies once they are.
+
 
 Purchases are handled by Apple through the App Store. **We never see your
 payment card or billing details.** We use **RevenueCat** to manage
@@ -144,7 +149,8 @@ data as a routine practice.
 ### Export your data
 
 The app has an "Export data" button in Settings → Data. It produces a
-JSON file containing every to-do, category, and profile setting on your
+JSON file containing every to-do, category, shopping-list item, and profile
+setting on your
 account. You can save this anywhere.
 
 ### Delete your account
@@ -157,7 +163,13 @@ Settings → Data → "Delete account" wipes everything:
   subscription status
 
 This is irreversible. There is no 30-day grace period for account deletion
-(unlike the in-app 30-day bin for individual to-dos).
+(unlike deleted to-dos, which stay in Done for 30 days).
+
+### Delete your data but keep your account
+
+Settings → Data → "Delete data only" clears your to-dos, shopping list,
+categories, and settings from your account, then signs you out. Your sign-in
+stays, so you can start fresh.
 
 **Deleting your account does not cancel a subscription.** Cancel it first in
 iOS Settings → your name → Subscriptions. Apple and RevenueCat keep records

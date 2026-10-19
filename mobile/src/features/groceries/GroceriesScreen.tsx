@@ -92,7 +92,11 @@ export default function GroceriesScreen() {
         // The add FAB matches the other tabs: it opens whichever capture you
         // used last (manual grocery sheet OR Ask Mochi — which adds groceries
         // too). The grocery sheet's "Ask Mochi instead" link flips the mode.
-        lastComposeMode={store.profile.lastComposeMode ?? 'manual'}
+        // Shopping's + always opens the item sheet (groceries are frozen and
+        // de-marketed; Mochi is the front door for to-dos). "Ask Mochi
+        // instead" stays in the sheet. Its "Enter manually" opens the TO-DO
+        // form, which would be the wrong place from here.
+        lastComposeMode="manual"
         onAskMochi={() => {
           store.saveProfile((p) => ({ ...p, lastComposeMode: 'mochi' }))
           sheets.openMochi()

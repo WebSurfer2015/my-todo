@@ -13,6 +13,9 @@ const FULL_SWIPE_THRESHOLD = SCREEN_WIDTH * 0.3
 // swipe menu on tap — Reminders.app convention. Single-open-at-a-time
 // across all TaskItem instances. Reset when the open row's swipe
 // closes itself.
+// Dark ink on the pastel swipe buttons — white text was 2–3:1 there (AA
+// needs 4.5). Red stays for permanent deletes only, with theme.onDanger.
+const SWIPE_INK = '#1F2A24'
 let openSwipeable: { ref: React.RefObject<Swipeable | null>; id: string } | null = null
 function trackOpenSwipeable(
   ref: React.RefObject<Swipeable | null>,
@@ -451,8 +454,8 @@ function TaskItem({
           </TouchableOpacity>
         )}
         <TouchableOpacity style={[styles.swipeAction, styles.swipeMarkDone]} onPress={handleMarkDone}>
-          <Check size={20} color="#fff" strokeWidth={2} />
-          <Text style={styles.swipeActionText} numberOfLines={1}>{todo.done ? t.markNotDone : t.markDone}</Text>
+          <Check size={20} color={SWIPE_INK} strokeWidth={2} />
+          <Text style={[styles.swipeActionText, styles.swipeActionTextInk]} numberOfLines={1}>{todo.done ? t.markNotDone : t.markDone}</Text>
         </TouchableOpacity>
       </View>
     )
@@ -463,12 +466,12 @@ function TaskItem({
       return (
         <View style={styles.swipeActionsRow}>
           <TouchableOpacity style={[styles.swipeAction, styles.swipeRestore]} onPress={handleRestore}>
-            <RotateCcw size={20} color="#fff" strokeWidth={2} />
-            <Text style={styles.swipeActionText} numberOfLines={1}>{t.restoreTask}</Text>
+            <RotateCcw size={20} color={SWIPE_INK} strokeWidth={2} />
+            <Text style={[styles.swipeActionText, styles.swipeActionTextInk]} numberOfLines={1}>{t.restoreTask}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.swipeAction, styles.swipeDelete]} onPress={confirmPermanentDelete}>
-            <Trash2 size={20} color="#fff" strokeWidth={2} />
-            <Text style={styles.swipeActionText} numberOfLines={1}>{t.deleteTask}</Text>
+            <Trash2 size={20} color={theme.onDanger} strokeWidth={2} />
+            <Text style={[styles.swipeActionText, { color: theme.onDanger }]} numberOfLines={1}>{t.deleteTask}</Text>
           </TouchableOpacity>
         </View>
       )
@@ -482,8 +485,8 @@ function TaskItem({
             onLongPressDefer?.(todo)
           }}
         >
-          <Calendar size={20} color="#fff" strokeWidth={2} />
-          <Text style={styles.swipeActionText} numberOfLines={1}>{t.deferTask}</Text>
+          <Calendar size={20} color={SWIPE_INK} strokeWidth={2} />
+          <Text style={[styles.swipeActionText, styles.swipeActionTextInk]} numberOfLines={1}>{t.deferTask}</Text>
         </TouchableOpacity>
         {/* Not Do can't apply to a to-do with steps (its done state comes
             from the steps), so don't offer it there. */}
@@ -502,14 +505,14 @@ function TaskItem({
           <View style={styles.notDoIcon}>
             <Text style={styles.notDoIconX}>✕</Text>
           </View>
-          <Text style={styles.swipeActionText} numberOfLines={1}>{t.notDo}</Text>
+          <Text style={[styles.swipeActionText, styles.swipeActionTextInk]} numberOfLines={1}>{t.notDo}</Text>
         </TouchableOpacity>
         )}
         {/* Delete on an active row goes to the Done bin (30 days, with
             Undo); permanent delete lives only in the bin (above). */}
-        <TouchableOpacity style={[styles.swipeAction, styles.swipeDelete]} onPress={handleMoveToTrash}>
-          <Trash2 size={20} color="#fff" strokeWidth={2} />
-          <Text style={styles.swipeActionText} numberOfLines={1}>{t.deleteTask}</Text>
+        <TouchableOpacity style={[styles.swipeAction, styles.swipeTrash]} onPress={handleMoveToTrash}>
+          <Trash2 size={20} color={SWIPE_INK} strokeWidth={2} />
+          <Text style={[styles.swipeActionText, styles.swipeActionTextInk]} numberOfLines={1}>{t.deleteTask}</Text>
         </TouchableOpacity>
       </View>
     )

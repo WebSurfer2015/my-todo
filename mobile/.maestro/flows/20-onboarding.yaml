@@ -7,6 +7,9 @@ appId: com.websurfer.mytodo
 - launchApp
 - tapOn:
     id: "settings-button"
+- scrollUntilVisible:
+    element: "View Mochi's intro again"
+    direction: DOWN
 - tapOn: "View Mochi's intro again"
 - extendedWaitUntil:
     visible: "Hi, I'm Mochi."
@@ -14,6 +17,9 @@ appId: com.websurfer.mytodo
 - assertVisible: ".*Anthropic.*"
 - tapOn: "Call someone"
 - assertVisible: "Call someone "
+# hideKeyboard is flaky on the iOS sim (README) — tapping the heading
+# dismisses it (the ScrollView uses keyboardShouldPersistTaps="handled").
+- tapOn: "Hi, I'm Mochi."
 - tapOn: "I'll look around first"
 - waitForAnimationToEnd
 - assertVisible: "Today, tab, 1 of 3"

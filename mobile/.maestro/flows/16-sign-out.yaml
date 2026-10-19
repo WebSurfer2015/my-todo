@@ -20,6 +20,10 @@ appId: com.websurfer.mytodo
     timeout: 1500
 # Sign out row — independently labeled (accessibilityLabel={t.signOut}).
 - tapOn: "Sign out"
+# Sign out now asks for confirmation (Alert) — confirm it.
+- tapOn:
+    text: "Sign out"
+    index: 1
 - waitForAnimationToEnd:
     timeout: 2000
 # Back on the SignIn screen — the create-account toggle is a stable sentinel

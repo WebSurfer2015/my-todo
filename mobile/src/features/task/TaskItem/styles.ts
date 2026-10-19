@@ -264,12 +264,13 @@ export function makeStyles(c: ThemeColors) {
     swipeEdit:    { backgroundColor: c.blue },
     swipeDefer:   { backgroundColor: c.orange },
     swipeMarkDone: { backgroundColor: c.green },
-    // swipeTrash sends a row to the reversible 30-day bin (same destination
-    // as the checkbox/Mark-done). Calm muted sage — red is reserved for
-    // truly irreversible actions (Empty bin, Delete permanently).
+    // swipeTrash = the reversible actions (Not Do, Delete on an active row →
+    // the 30-day Done bin). Calm muted sage — red is reserved for truly
+    // irreversible actions (Delete permanently in the bin, Delete all).
     swipeTrash:   { backgroundColor: c.gray },
     swipeRestore: { backgroundColor: c.green },
     swipeDelete:  { backgroundColor: c.red },
+    swipeActionTextInk: { color: '#1F2A24' },
     swipeActionText: {
       color: '#fff',
       fontSize: TYPE.footnote,

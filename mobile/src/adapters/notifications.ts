@@ -160,7 +160,8 @@ interface TodoForReminder {
   trashed: boolean
 }
 
-const REMINDER_BODY = 'A gentle nudge from Mochi.'
+// Not "gentle nudge" — that's the name of the separate follow-up setting.
+const REMINDER_BODY = "Here when you're ready."
 // Promise only what a tap does (it opens the app — no actions/deep link yet).
 const NUDGE_BODY = "No rush. It'll be here when you're ready."
 

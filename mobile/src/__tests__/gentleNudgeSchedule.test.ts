@@ -40,7 +40,7 @@ describe('syncTodoReminders — Gentle nudge', () => {
 
   it('off (default): only the reminder itself', async () => {
     await syncTodoReminders([TODO])
-    expect(scheduled.map((s) => s.content.body)).toEqual(['A gentle nudge from Mochi.'])
+    expect(scheduled.map((s) => s.content.body)).toEqual(["Here when you're ready."])
   })
 
   it('on: one follow-up at 9:00 the next morning, calm copy', async () => {
@@ -61,14 +61,17 @@ describe('syncTodoReminders — Gentle nudge', () => {
   })
 
   it('caps pending notifications at 60, soonest first', async () => {
+    // Built LATEST-first, so the cap only keeps the right 60 if it sorts.
     const many = Array.from({ length: 80 }, (_, i) => ({
       ...TODO,
       id: `t${i}`,
       reminders: [{ id: 'r', at: `2099-01-01T${String(Math.floor(i / 4)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}` }],
-    }))
+    })).reverse()
     await syncTodoReminders(many)
     expect(scheduled).toHaveLength(60)
-    expect(scheduled.map((s) => s.identifier)).not.toContain(expect.stringContaining('t79'))
+    const kept = new Set(scheduled.map((s) => s.identifier.split(':')[1]))
+    // t0..t59 are the 60 earliest; t60..t79 must be the ones dropped.
+    for (let i = 0; i < 80; i++) expect(kept.has(`t${i}`)).toBe(i < 60)
   })
 
   it('done to-dos get neither', async () => {

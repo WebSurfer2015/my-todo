@@ -10,6 +10,14 @@ appId: com.websurfer.mytodo
     text: "Todos, tab.*"
 - assertVisible: "You're all caught up."
 - tapOn: "Add a to-do"
+# Both the empty-state CTA and the + button open Mochi (the front door,
+# 2026-10-18); switch to the manual form to check Compose.
+- runFlow:
+    when:
+      visible: "Switch to entering the to-do manually"
+    commands:
+      - tapOn: "Switch to entering the to-do manually"
+      - waitForAnimationToEnd
 # ComposeSheet's header reads "Cancel  Add to-do  Done" as one
 # concatenated accessibility label, so use a regex substring match.
 - assertVisible:

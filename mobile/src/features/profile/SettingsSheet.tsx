@@ -432,7 +432,7 @@ function makeStyles(c: ThemeColors) {
     sectionLabel: {
       fontSize: TYPE.caption,
       fontWeight: "700",
-      color: c.label3,
+      color: c.label2,
       letterSpacing: 0.6,
       paddingHorizontal: SPACING.xl,
       marginTop: SPACING.lg,
@@ -454,7 +454,7 @@ function makeStyles(c: ThemeColors) {
       // Small explanatory text that sits between a section label and
       // its card — pulled close to the label, not floating.
       fontSize: TYPE.caption,
-      color: c.label3,
+      color: c.label2,
       lineHeight: 16,
       paddingHorizontal: SPACING.xl,
       marginTop: -2,
@@ -483,19 +483,19 @@ function makeStyles(c: ThemeColors) {
     },
     rowHint: {
       fontSize: TYPE.caption,
-      color: c.label3,
+      color: c.label2,
       marginTop: SPACING.xs,
       lineHeight: 16,
     },
     rowValue: {
       fontSize: TYPE.body,
-      color: c.label3,
+      color: c.label2,
       marginLeft: "auto",
       maxWidth: 160,
     },
     rowChevron: {
       fontSize: TYPE.h2,
-      color: c.label3,
+      color: c.label2,
       lineHeight: 22,
       marginLeft: SPACING.xs,
     },

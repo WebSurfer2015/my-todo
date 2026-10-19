@@ -197,11 +197,11 @@ WHAT MAKES IT DIFFERENT
 
 Past-due is "Carried over," not "Late." A soft re-entry, not a failure.
 
-Done items get tucked away into a 30-day bin — reversible for a month. Change your mind? They're still there.
+Finished and deleted to-dos rest in Done for 30 days — change your mind and they're still there.
 
 Finishing something gets a small, quiet celebration — no streaks, no scores, no counter that resets when life happens.
 
-Mochi, your steady mascot, shows up with a soft daily line. Never pushy. Never hyped. Just there.
+Mochi, your steady companion, turns what's on your mind into a to-do. Never pushy. Never hyped. Just there.
 
 
 TODAY, AND ONLY TODAY
@@ -212,10 +212,10 @@ Open Sagely and you land on Today — a quiet view of just today and whatever ca
 DESIGNED FOR THE HARD MOMENTS
 
 • Notes per to-do — write what's blocking you, the smallest first step, why it matters. Your thinking stays with the task, not in your head.
-• Snooze (Tomorrow / Next week / Pick a date) for the days you can't face an item yet.
+• Defer (Tomorrow / Next week / Pick a date) for the days you can't face an item yet.
 • "Defer all to a future date" for when Carried over feels heavy. One tap. Undoable.
 • Steps for breaking the scary into the doable. Each step has its own priority and date.
-• 30-day bin — deleted to-dos are reversible for a month.
+• Deleted to-dos stay in Done for 30 days — nothing is gone by accident.
 
 GENTLE ON YOUR SENSES
 

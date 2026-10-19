@@ -1118,7 +1118,7 @@ export default function TaskDetailsSheet({
                 <TouchableOpacity onPress={() => setParentEditView('main')} hitSlop={10} style={styles.headerSideBtn}>
                   <Text style={styles.cancelText}>{`‹ ${t.back}`}</Text>
                 </TouchableOpacity>
-                <Text style={styles.editHeaderTitle}>Completed by</Text>
+                <Text style={styles.editHeaderTitle}>Complete by</Text>
                 <TouchableOpacity
                   onPress={() => setPendingEditDueDate('')}
                   hitSlop={10}
@@ -1462,7 +1462,7 @@ export default function TaskDetailsSheet({
                   onPress={openEditDatePicker}
                   activeOpacity={0.6}
                   accessibilityRole="button"
-                  accessibilityLabel={`Completed by, ${editDueDate ? absoluteDateLabel(editDueDate) : t.noDate}. Tap to change.`}
+                  accessibilityLabel={`Complete by, ${editDueDate ? absoluteDateLabel(editDueDate) : t.noDate}. Tap to change.`}
                 >
                   <CalendarIcon size={18} color={editDueDate ? theme.blue : theme.gray3} />
                   <Text style={styles.editFieldLabel}>{t.edit.completedBy}</Text>
@@ -1734,7 +1734,9 @@ export default function TaskDetailsSheet({
                       todo.trashed ? (seriesScope ? 'Delete series' : t.deletePermanently) : t.deleteTask
                     }
                   >
-                    <Text style={styles.deleteActionText}>
+                    {/* Red only when it's permanent (already in Done); a
+                        reversible delete reads neutral. */}
+                    <Text style={[styles.deleteActionText, !todo.trashed && { color: theme.label2 }]}>
                       {seriesScope ? 'Delete series' : t.deleteTask}
                     </Text>
                   </TouchableOpacity>

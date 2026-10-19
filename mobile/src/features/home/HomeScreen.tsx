@@ -422,11 +422,9 @@ export default function HomeScreen() {
                 >
                   <Text style={styles.sectionHeader}>CARRIED OVER</Text>
                   <View style={styles.sectionRight}>
-                    <Text style={styles.sectionCount}>
-                      {carriedOverItems.length === 1
-                        ? '1 to do'
-                        : `${carriedOverItems.length} to do`}
-                    </Text>
+                    {/* No count here: a carried-over number is a guilt counter
+                        (FilterBar hides it for the same reason). */}
+                    <Text style={styles.sectionCount}>View</Text>
                     <ChevronRight size={14} color={theme.label3} strokeWidth={2.5} />
                   </View>
                 </TouchableOpacity>
@@ -590,7 +588,7 @@ function makeStyles(c: ThemeColors) {
       fontSize: TYPE.caption,
       fontWeight: '700',
       letterSpacing: 0.8,
-      color: c.label3,
+      color: c.label2,
     },
     sectionRight: {
       flexDirection: 'row',
@@ -600,13 +598,13 @@ function makeStyles(c: ThemeColors) {
     sectionCount: {
       fontSize: TYPE.caption,
       fontWeight: '600',
-      color: c.label3,
+      color: c.label2,
       letterSpacing: 0.2,
     },
     sectionCollapse: {
       fontSize: TYPE.title,
       lineHeight: 18,
-      color: c.label3,
+      color: c.label2,
       fontWeight: '300',
       marginLeft: 2,
     },
@@ -657,7 +655,7 @@ function makeStyles(c: ThemeColors) {
       lineHeight: 20,
     },
     todayTextDone: {
-      color: c.label3,
+      color: c.label2,
       textDecorationLine: 'line-through',
     },
     todayMetaRow: {
@@ -668,12 +666,12 @@ function makeStyles(c: ThemeColors) {
     },
     todayMeta: {
       fontSize: TYPE.caption,
-      color: c.label3,
+      color: c.label2,
       maxWidth: 120,
     },
     todayMetaSep: {
       fontSize: TYPE.caption,
-      color: c.label3,
+      color: c.label2,
     },
     todayDivider: {
       height: StyleSheet.hairlineWidth,

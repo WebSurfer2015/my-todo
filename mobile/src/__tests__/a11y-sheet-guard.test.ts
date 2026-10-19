@@ -40,7 +40,9 @@ describe('#15 a11y sheet guard', () => {
     // Capture the element tag that carries a backdrop/overlay style. Overlay
     // names were added after QA (2026-10-18) found PickerModal + the date
     // pop-ups wrapping their content in a TouchableOpacity overlay.
-    const re = /<(\w+)[^>]*style=\{styles\.(?:backdrop|overlay|dateOverlay)\}/g
+    // `(?:[^>]|=>)*?` lets the scan cross arrow-function props (an `onPress={() =>`
+    // used to end the match at its `>`), and `\[?` also catches style arrays.
+    const re = /<(\w+)\b(?:[^>]|=>)*?style=\{\[?\s*styles\.(?:backdrop|overlay|dateOverlay)\b/g
     const TOUCHABLES = new Set(['Pressable', 'TouchableOpacity', 'TouchableWithoutFeedback', 'TouchableHighlight'])
     const offenders: string[] = []
 
@@ -67,5 +69,13 @@ describe('#15 a11y sheet guard', () => {
     )
     // We have well over a dozen Modal sheets using a backdrop.
     expect(withBackdrop.length).toBeGreaterThan(8)
+  })
+
+  it('the pattern catches arrow-function props and style arrays (no false negatives)', () => {
+    const re = /<(\w+)\b(?:[^>]|=>)*?style=\{\[?\s*styles\.(?:backdrop|overlay|dateOverlay)\b/g
+    const hits = (src: string) => [...src.matchAll(re)].map((m) => m[1])
+    expect(hits('<Pressable onPress={() => close()} style={styles.backdrop}>')).toEqual(['Pressable'])
+    expect(hits('<TouchableOpacity style={[styles.overlay, x]} onPress={f}>')).toEqual(['TouchableOpacity'])
+    expect(hits('<View style={styles.backdrop}>')).toEqual(['View'])
   })
 })

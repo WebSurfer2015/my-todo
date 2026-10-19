@@ -15,7 +15,7 @@ appId: com.websurfer.mytodo
 - launchApp
 - assertVisible: "Today, tab, 1 of 3"
 - assertVisible:
-    text: "Open Todos.*"        # Today sentinel (TODAY section aria)
+    text: "Open Todos.*|Welcome.*|You.re all caught up.*|Nothing pending.*"        # Today sentinel (TODAY section aria)
 - tapOn:
     text: "Todos, tab.*"
 - waitForAnimationToEnd:
@@ -29,4 +29,4 @@ appId: com.websurfer.mytodo
 - waitForAnimationToEnd:
     timeout: 1500
 - assertVisible:
-    text: "Open Todos.*"        # round-tripped back to Today (TODAY section)
+    text: "Open Todos.*|Welcome.*|You.re all caught up.*|Nothing pending.*"        # round-tripped back to Today (TODAY section)

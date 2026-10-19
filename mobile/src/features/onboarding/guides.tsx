@@ -272,7 +272,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: 'Times + dates',
-        body: "Try «pickup Mia at 3pm tomorrow». Completed by fills with the time. «every Mon and Wed» sets a weekly recurrence on those days.",
+        body: "Try «pickup Mia at 3pm tomorrow». Complete by fills with the time. «every Mon and Wed» sets a weekly recurrence on those days.",
         visual: (
           <MockupSheet title="Add to-do">
             <MockupTextField text="Pickup Mia at 3pm tomorrow" />
@@ -281,7 +281,7 @@ export const GUIDES: Guide[] = [
             />
             <MockupRow
               icon={<IconCalendar />}
-              label="Completed by"
+              label="Complete by"
               value="Tomorrow, 3:00 PM"
               highlight
             />
@@ -309,7 +309,7 @@ export const GUIDES: Guide[] = [
           <MockupSheet title="Settings">
             <MockupRow label="Completion animation" value="On" />
             <MockupRow label="AI assistance" value="On" highlight />
-            <MockupRow label="Background" value="Sea-glass" muted />
+            <MockupRow label="Theme" value="Sage" muted />
           </MockupSheet>
         ),
       },
@@ -327,7 +327,7 @@ export const GUIDES: Guide[] = [
         body: "Open any to-do → Remind me → pick a date + time. iOS asks for notification permission the first time. The phone fires a quiet local notification at the chosen moment.",
         visual: (
           <MockupSheet title="Edit to-do">
-            <MockupRow icon={<IconCalendar />} label="Completed by" value="Tomorrow" />
+            <MockupRow icon={<IconCalendar />} label="Complete by" value="Tomorrow" />
             <MockupRow icon={<IconRepeat />} label="Repeat" value="Never" muted />
             <MockupRow icon={<IconBell />} label="Remind me" value="None" muted highlight />
           </MockupSheet>
@@ -444,7 +444,7 @@ export const GUIDES: Guide[] = [
               <MockupTodo text="Mail tax return" />
             </View>
             <View style={inlineStyles.swipeAction}>
-              <Text style={inlineStyles.swipeActionText}>Trash</Text>
+              <Text style={inlineStyles.swipeActionText}>Delete</Text>
             </View>
           </View>
         ),
@@ -456,8 +456,8 @@ export const GUIDES: Guide[] = [
           <View style={inlineStyles.filterBar}>
             {[
               { label: 'All', pinned: false },
-              { label: 'Today', pinned: true },
-              { label: 'Overdue', pinned: false },
+              { label: 'Open', pinned: true },
+              { label: 'Carried over', pinned: false },
             ].map((f) => (
               <View
                 key={f.label}
@@ -499,7 +499,7 @@ export const GUIDES: Guide[] = [
   {
     id: 'personalize',
     title: 'Make it yours',
-    blurb: 'Backgrounds, avatar theme, motion, sound.',
+    blurb: 'Themes, motion, sound.',
     icon: Palette,
     glyph: '🎨',
     slides: [

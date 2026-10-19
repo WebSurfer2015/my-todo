@@ -26,6 +26,13 @@ describe('theme contrast (WCAG AA)', () => {
         expect(contrast(c.label3, c.card)).toBeGreaterThanOrEqual(3)
         // Warm text (carried over / today chips) on cards.
         expect(contrast(c.warmText, c.card)).toBeGreaterThanOrEqual(4.5)
+        // Red: as text (Delete actions) and as a fill under onDanger text.
+        expect(contrast(c.red, c.card)).toBeGreaterThanOrEqual(4.5)
+        expect(contrast(c.onDanger, c.red)).toBeGreaterThanOrEqual(4.5)
+        // Dark ink on the pastel swipe buttons (TaskItem SWIPE_INK).
+        for (const bg of [c.orange, c.green, c.gray]) {
+          expect(contrast('#1F2A24', bg)).toBeGreaterThanOrEqual(4.5)
+        }
       })
     }
   }

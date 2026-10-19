@@ -472,7 +472,9 @@ export const AGENT_TOOLS: AgentTool[] = [
         },
         notes: {
           type: 'string',
-          description: 'New notes text. Empty string CLEARS the existing notes.',
+          description:
+            'New notes text. Omit to leave unchanged (an empty string is ignored — ' +
+            'clearing notes is done by the user in the app).',
           maxLength: MAX_NOTES_LEN,
         },
         recurrence: RECURRENCE_SCHEMA,

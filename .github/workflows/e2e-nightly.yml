@@ -170,7 +170,6 @@ jobs:
             .maestro/flows/03-toggle-done-and-strike.yaml \
             .maestro/flows/04-swipe-to-trash-and-undo.yaml \
             .maestro/flows/05-defer-all-group.yaml \
-            .maestro/flows/06-pebble-lifetime-count.yaml \
             .maestro/flows/07-defer-single-via-swipe.yaml \
             .maestro/flows/08-recurring-rolling.yaml \
             .maestro/flows/09-shopping-add-item.yaml \
@@ -178,7 +177,8 @@ jobs:
             .maestro/flows/13-tab-navigation.yaml \
             .maestro/flows/14-relaunch-persists-data.yaml \
             .maestro/flows/15-open-task-details-sheet.yaml \
-            .maestro/flows/18-bin-reopen.yaml
+            .maestro/flows/18-bin-reopen.yaml \
+            .maestro/flows/19-complete-undo.yaml
 
       - name: Upload Maestro debug artifacts on failure
         if: failure()

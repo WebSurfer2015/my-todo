@@ -224,7 +224,7 @@ let restingUntilMs = 0
 function restingUntilLabel(ms: number): string {
   const d = new Date(ms)
   const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-  return d.toDateString() === new Date().toDateString() ? time : `tomorrow, ${time}`
+  return d.toDateString() === new Date().toDateString() ? time : `tomorrow at ${time}`
 }
 
 export default function ChatSheet({
@@ -800,7 +800,7 @@ export default function ChatSheet({
                 style={styles.input}
                 placeholder={
                   isResting
-                    ? `Mochi's resting — back at ${restLabel}`
+                    ? `Mochi's resting — back ${restLabel.startsWith('tomorrow') ? restLabel : `at ${restLabel}`}`
                     : messages.length === 0
                       ? `e.g. ${PLACEHOLDER_EXAMPLES[phIdx]}`
                       : 'Message Mochi…'
@@ -1278,6 +1278,11 @@ function Chip({
 
 /** Renders a confirm-preview for any proposed operation, so the user sees
  * exactly what Mochi will do before tapping Confirm. */
+/** "high" → "High" (raw enum values leaked into the proposal cards). */
+function capitalize(w: string): string {
+  return w ? w[0].toUpperCase() + w.slice(1) : w
+}
+
 function OperationPreview({
   op,
   categoryLabelLookup,
@@ -1317,8 +1322,9 @@ function OperationPreview({
         <Text style={styles.proposalTitle}>{a.text}</Text>
         <View style={styles.proposalMeta}>
           {a.category && <Chip styles={styles}>{categoryLabelLookup(a.category)}</Chip>}
-          {effectiveDue && <Chip styles={styles}>{`Due ${effectiveDue}`}</Chip>}
-          <Chip styles={styles}>Priority: {a.priority ?? 'medium'}</Chip>
+          {effectiveDue && <Chip styles={styles}>{`Due ${formatDisplayDate(effectiveDue)}`}</Chip>}
+          {/* Priority only when it's not the default — nobody asked for "medium". */}
+          {a.priority && a.priority !== 'medium' && <Chip styles={styles}>{`${capitalize(a.priority)} priority`}</Chip>}
           {recurrenceLabel(a.recurrence) && (
             <Chip styles={styles}>{recurrenceLabel(a.recurrence)}</Chip>
           )}
@@ -1345,7 +1351,7 @@ function OperationPreview({
     const priority = a.priority ?? existing?.priority ?? 'medium'
     return (
       <View>
-        <Text style={styles.proposalKind}>Edit todo</Text>
+        <Text style={styles.proposalKind}>Edit to-do</Text>
         <Text style={styles.proposalTitle}>
           {a.text ? a.text : todoTextLookup(a.todoId)}
         </Text>
@@ -1353,8 +1359,8 @@ function OperationPreview({
           <Chip styles={styles}>
             {category ? categoryLabelLookup(category) : 'No category'}
           </Chip>
-          <Chip styles={styles}>{dueDate ? `Due ${dueDate}` : 'No due date'}</Chip>
-          <Chip styles={styles}>Priority: {priority}</Chip>
+          <Chip styles={styles}>{dueDate ? `Due ${formatDisplayDate(dueDate)}` : 'No due date'}</Chip>
+          <Chip styles={styles}>{`${capitalize(priority)} priority`}</Chip>
           {recurrenceLabel(a.recurrence) && (
             <Chip styles={styles}>{recurrenceLabel(a.recurrence)}</Chip>
           )}
@@ -1703,7 +1709,7 @@ function makeStyles(c: ThemeColors) {
     bodyContent: { paddingVertical: SPACING.md, gap: SPACING.sm },
     // Greeting + intent chips (pre-first-turn).
     greeting: { fontSize: TYPE.bodyLg, fontWeight: '600', color: c.label, marginBottom: SPACING.sm },
-    captureHint: { fontSize: TYPE.footnote, color: c.label3, lineHeight: 18, marginBottom: SPACING.md },
+    captureHint: { fontSize: TYPE.footnote, color: c.label2, lineHeight: 18, marginBottom: SPACING.md },
     chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
     intentChip: {
       paddingHorizontal: SPACING.md,
@@ -1766,7 +1772,7 @@ function makeStyles(c: ThemeColors) {
     proposalKind: {
       fontSize: TYPE.caption,
       fontWeight: '700',
-      color: c.label3,
+      color: c.label2,
       textTransform: 'uppercase',
       letterSpacing: 0.5,
       marginBottom: 2,
@@ -1783,10 +1789,10 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.primarySoft,
     },
     chipText: { fontSize: TYPE.footnote, fontWeight: '600', color: c.primary },
-    proposalNotes: { fontSize: TYPE.footnote, color: c.label3, fontStyle: 'italic' },
+    proposalNotes: { fontSize: TYPE.footnote, color: c.label2, fontStyle: 'italic' },
     swatchRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
     swatch: { width: 16, height: 16, borderRadius: 8 },
-    appliedNote: { fontSize: TYPE.footnote, fontWeight: '600', color: c.label3, marginTop: SPACING.xs },
+    appliedNote: { fontSize: TYPE.footnote, fontWeight: '600', color: c.label2, marginTop: SPACING.xs },
     appliedRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, marginTop: SPACING.xs },
     undoText: { fontSize: TYPE.footnote, fontWeight: '700', color: c.primary },
     actionsRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.xs },
@@ -1805,7 +1811,7 @@ function makeStyles(c: ThemeColors) {
     btnNeutral: { backgroundColor: c.surfaceAlt },
     btnNeutralText: { color: c.label, fontSize: TYPE.body, fontWeight: '600' },
     // ── Pick-list (multi-select checklist) ──
-    pickSubtitle: { fontSize: TYPE.footnote, color: c.label3, marginTop: 1, marginBottom: SPACING.xs },
+    pickSubtitle: { fontSize: TYPE.footnote, color: c.label2, marginTop: 1, marginBottom: SPACING.xs },
     pickSummary: {
       fontSize: TYPE.caption,
       fontWeight: '600',
@@ -1830,7 +1836,7 @@ function makeStyles(c: ThemeColors) {
     },
     pickRowBody: { flex: 1 },
     pickRowText: { fontSize: TYPE.body, fontWeight: '500', color: c.label },
-    pickRowMeta: { fontSize: TYPE.caption, color: c.label3, marginTop: 1 },
+    pickRowMeta: { fontSize: TYPE.caption, color: c.label2, marginTop: 1 },
     pickCheckbox: {
       width: 22,
       height: 22,
@@ -1847,7 +1853,7 @@ function makeStyles(c: ThemeColors) {
     meter: {
       fontSize: TYPE.caption,
       fontWeight: '600',
-      color: c.label3,
+      color: c.label2,
       textAlign: 'center',
       paddingTop: SPACING.sm,
     },

@@ -8,7 +8,7 @@
     "lint:arch:baseline": "depcruise \"core/src/**/*.{ts,tsx}\" \"mobile/src/**/*.{ts,tsx}\" \"functions/src/**/*.ts\" --config .dependency-cruiser.cjs --output-type baseline > .dependency-cruiser-known-violations.json",
     "typecheck:core": "tsc --noEmit -p core && tsc --noEmit -p core/tsconfig.test.json",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "COVERAGE=1 vitest run --coverage"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
