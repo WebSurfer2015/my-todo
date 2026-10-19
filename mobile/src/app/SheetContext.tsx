@@ -53,9 +53,10 @@ import { SEED_GROCERY_STORES, frequentGroceries } from '../core-bindings/groceri
 import type { Filter } from '../core-bindings/types'
 import type { Guide } from '../features/onboarding/guides'
 import { genUuid } from '../../../core/src/logic/utils'
-import { useDetailsRouter } from './useDetailsRouter'
+import { useDetailsRouter, type DetailsRouter } from './useDetailsRouter'
 import { useModalPresence } from './modalPresence'
 import { useMochiExecutor } from './useMochiExecutor'
+import { EXPORT_FAILED_MESSAGE, categoryDeletedMessage } from './sheetMessages'
 import {
   deleteAccountErrorMessage,
   DELETE_DATA_DONE,
@@ -112,9 +113,7 @@ const SheetContext = createContext<Sheets | null>(null)
 /** Opens the to-do details sheet (optionally jumped into a step's editor).
  * A separate, STABLE context so memoized list rows don't re-render whenever
  * the sheet layer does. */
-export const TaskDetailsOpenContext = createContext<(todoId: string, subtaskId?: string | null) => void>(
-  () => {},
-)
+export const TaskDetailsOpenContext = createContext<DetailsRouter['openTaskDetails']>(() => {})
 
 /**
  * Module-level NavigationContainer ref. SheetProvider is mounted ABOVE
@@ -322,6 +321,18 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     [mochiSnapshot, runMochiIntents, afterModalClose],
   )
 
+  // Manual category delete (CategorySheet): its to-dos move to Done, so it
+  // gets the store's exact Undo on a snackbar.
+  const deleteCategoryWithUndo = useCallback(
+    (id: string) => {
+      const live = storeRef.current
+      const moved = live.todosRef.current.filter((td) => td.category === id && !td.trashed).length
+      const undo = live.deleteCategory(id)
+      if (undo) showSnackbar({ message: categoryDeletedMessage(moved), actionLabel: t.undo, onAction: undo })
+    },
+    [showSnackbar, t.undo],
+  )
+
   const openManageFilter = useCallback(() => {
     setCategorySheetMode('edit')
     setCategorySheetOpen(true)
@@ -363,9 +374,9 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         title: 'sagely-data.json',
         message: json,
       })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      Alert.alert(t.exportFailed, message)
+    } catch {
+      // Calm copy, never the raw error text.
+      Alert.alert(t.exportFailed, EXPORT_FAILED_MESSAGE)
     }
   }, [
     store.todos,
@@ -727,7 +738,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         orderedPriorities={store.orderedPriorities}
         onAdd={store.addCategory}
         onEdit={store.editCategory}
-        onDelete={store.deleteCategory}
+        onDelete={deleteCategoryWithUndo}
         onReorder={store.reorderCategories}
         onRenameStatus={store.renameStatus}
         onToggleStatusHidden={store.toggleStatusHidden}
@@ -760,10 +771,8 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           onSkip={store.skipTodo}
           onSkipSeries={store.skipSeriesFuture}
           onPermanentDeleteSeries={store.permanentlyDeleteSeriesFuture}
-          onApplySeriesFutureEdits={store.applySeriesFutureEdits}
+          onCommitSeriesEdits={store.commitSeriesEdits}
           onDetachFromSeries={store.detachFromSeries}
-          onApplyRecurrenceChange={store.applyRecurrenceChange}
-          onApplySeriesSubtasks={store.applySeriesSubtasks}
           onAddSubtask={store.addSubtask}
           onToggleSubtask={store.toggleSubtask}
           onUpdateSubtaskText={store.updateSubtaskText}

@@ -411,7 +411,7 @@ function makeStyles(c: ThemeColors) {
     clearLinkText: {
       fontSize: TYPE.footnote,
       fontWeight: '500',
-      color: c.red,
+      color: c.label2,
     },
   })
 }

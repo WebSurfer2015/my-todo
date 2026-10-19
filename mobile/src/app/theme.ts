@@ -200,11 +200,6 @@ export function themeSwatch(name: ThemeName, scheme: 'light' | 'dark') {
   return { brand: h.brand, accent: h.accent, accentBright: h.accentBright }
 }
 
-// Legacy aliases — a few modules historically imported LIGHT/DARK directly.
-// They now resolve to the default (sage) theme.
-export const LIGHT = THEMES.sage.light
-export const DARK = THEMES.sage.dark
-
 // --- Selected-theme context ----------------------------------------------
 
 const ThemeNameContext = createContext<ThemeName>(DEFAULT_THEME)

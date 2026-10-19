@@ -1,5 +1,5 @@
 import React, { memo, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { View, Text, TouchableOpacity, Platform, Modal, Alert, Pressable, Animated, Easing, Dimensions, StyleSheet } from 'react-native'
+import { View, Text, TouchableOpacity, Platform, Modal, Pressable, Animated, Easing, Dimensions, StyleSheet } from 'react-native'
 
 const SCREEN_WIDTH = Dimensions.get('window').width
 // Trigger-to-commit threshold for full-swipe gestures. Pairs with the
@@ -92,7 +92,7 @@ import PriorityDot from '../../../ui/PriorityDot'
 import CheckGlyph from '../../../ui/CheckGlyph'
 import CategoryIcon from '../../../ui/CategoryIcon'
 import PickerModal from '../../../ui/PickerModal'
-import { useModalPresence } from '../../../app/modalPresence'
+import { alertWithPresence, useModalPresence } from '../../../app/modalPresence'
 import { TaskDetailsOpenContext } from '../../../app/SheetContext'
 import { useLang } from '../../../app/LangContext'
 import { makeStyles } from './styles';
@@ -338,13 +338,13 @@ function TaskItem({
     swipeableRef.current?.close()
     // Interaction model (2026-10-18): tapping the row body opens the to-do
     // (also in the bin); only the circle completes it. Long-press opens too.
-    if (detailsAvailable) openTaskDetails(todo.id)
+    if (detailsAvailable) openTaskDetails(todo.id, null, { source: 'user' })
   }
 
   function openSubtaskEdit(subId: string) {
     swipeableRef.current?.close()
     if (inTrash || !detailsAvailable) return
-    openTaskDetails(todo.id, subId)
+    openTaskDetails(todo.id, subId, { source: 'user' })
   }
 
   function handleToggle() {
@@ -412,7 +412,7 @@ function TaskItem({
   function confirmPermanentDelete() {
     swipeableRef.current?.close()
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {})
-    Alert.alert(
+    alertWithPresence(
       t.deletePermanently,
       t.deletePermanentlyConfirm(todo.text),
       [

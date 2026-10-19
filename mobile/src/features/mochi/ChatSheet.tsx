@@ -25,8 +25,8 @@ import { useSheetDismiss, sheetGrabZone } from '../../ui/useSheetDismiss'
 import { useMochiAgent, type ProposedOperation } from './useMochiAgent'
 import { pickMatchHeader, supersededProposalTurns } from './chatTurns'
 import MochiThinking from './MochiThinking'
-import EditableCaptureCard from './EditableCaptureCard'
-import { type Priority } from '../../core-bindings/types'
+import EditableCaptureCard, { type CapturedTodoPatch } from './EditableCaptureCard'
+import { undoOutcome, type UndoFn } from './undoOutcome'
 import { snapDueDateToRecurrence } from '../../../../core/src/logic/derive'
 import { buildFallbackCapture } from '../../../../core/src/logic/mochiFallback'
 import { markMochiResting, mochiRestLabel, mochiRestUntil, type MochiRestScope } from './mochiRest'
@@ -46,17 +46,6 @@ export interface MochiApplyResult {
   pending?: Promise<{ undo: (() => void) | null; applied: boolean; keptSome: boolean }>
 }
 
-/** An inline Undo. Returns nothing (undone at once), a boolean, or a Promise
- * of one when it asks first — false means the user cancelled and nothing
- * was undone. */
-export type UndoFn = () => void | boolean | Promise<boolean>
-
-/** Run an Undo and report whether it actually undid anything. */
-export async function undoOutcome(fn: UndoFn | undefined): Promise<boolean> {
-  if (!fn) return false
-  const r = fn()
-  return (await r) !== false
-}
 
 interface Props {
   visible: boolean
@@ -125,7 +114,7 @@ interface Props {
   /** Edit a field on a just-captured to-do straight from its card. */
   onEditCapturedTodo: (
     id: string,
-    patch: { category?: string; priority?: Priority; dueDate?: string },
+    patch: CapturedTodoPatch,
   ) => void
   /** Apply a pick-list proposal to the user's chosen subset of ids. The parent
    * runs the action (delete / markDone / edit / addSteps) per id via the same
@@ -1944,7 +1933,7 @@ function makeStyles(c: ThemeColors) {
       gap: SPACING.sm,
     },
     mochiLine: { fontSize: TYPE.body, color: c.label, lineHeight: 22 },
-    errorLine: { fontSize: TYPE.footnote, color: c.red },
+    errorLine: { fontSize: TYPE.footnote, color: c.label2 },
     errorBlock: { gap: SPACING.sm, paddingVertical: SPACING.xs },
     errorActions: { flexDirection: 'row', gap: SPACING.sm },
     errorBtn: {

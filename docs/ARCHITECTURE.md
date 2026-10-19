@@ -75,8 +75,14 @@ parity tests in `mobile/src/__tests__`).
   (`core/src/logic/homeDashboard.ts`); mobile renders their output.
 - **Sheets**: app-level sheets (compose, to-do details, Ask Mochi, …) are hosted
   once in `mobile/src/app/SheetContext.tsx`; a row tap opens details through
-  `TaskDetailsOpenContext`. Completions/trash go through `applyTracked` so each
-  has an exact Undo (`todosRevertChanges`).
+  `TaskDetailsOpenContext`, routed by `useDetailsRouter` (iOS can't stack
+  Modals: a reminder tap while anything is presented is parked and offered as
+  a "Reminder: … · Open" snackbar once the screen is clear — it re-checks when
+  it would show and expires after 3 min; the user's own row tap retries
+  briefly instead). Ask Mochi applies through `useMochiExecutor` + `mochiUndo`
+  (only the newest applied turn's inline Undo is live). Completions/trash and
+  "Edit series" commits go through `applyTracked` so each has an exact Undo
+  (`todosRevertChanges`); an inline Undo retracts its own snackbar.
 
 ---
 
@@ -84,7 +90,7 @@ parity tests in `mobile/src/__tests__`).
 
 | Function | Trigger | Does |
 |---|---|---|
-| `agentChat` | callable | Multi-turn Mochi (Haiku + tool_use). Proposes operations (the `ProposedOperation` union lives in `core/src/ports/aiContracts.ts`, parity-tested against the functions copy); the client turns them into store calls with the pure planner `core/src/logic/mochiOps.ts` and applies them after confirm, with inline Undo. History windowed to 40 turns starting on a user turn; a conversation start mints a server `convId` (recorded with its mint time in `users/{uid}/state/agentUsage` `convs`, a list of up to 120 records that expire 24h after last use, least-recently-used evicted, updated in the reservation transaction) and each reply carries an opaque `sig` = `convId.iat.hmac` over `uid | convId | iat | sha256(preceding user turn) | final reply text` that the client echoes back byte-for-byte (display tweaks live in a separate field). A follow-up is free only if every assistant sig verifies and the newest reply's convId is recorded, has had fewer than 30 follow-ups, and the newest reply was signed < 60 min ago (older replies aren't re-checked); anything else (fabricated, cross-user, stale or prefix-replayed history) is a new conversation. A start re-sent with identical history within 2 min reuses its convId (timeout retry, no second slot). Chat-only ceilings return RESOURCE_EXHAUSTED with `details.reason` `'turns'` (daily turn backstop) or `'tier'` (tier conversation ceiling), which pause only the chat. Context is budgeted (≤5 steps per to-do, ~20k chars). The fair-use slot is refunded if the model call fails. |
+| `agentChat` | callable | Multi-turn Mochi (Haiku + tool_use). Proposes operations (the `ProposedOperation` union lives in `core/src/ports/aiContracts.ts`, parity-tested against the functions copy); the client turns them into store calls with the pure planner `core/src/logic/mochiOps.ts` (`mobile/src/app/useMochiExecutor.ts`, silent store calls — no root snackbar). A single `createTodo` / `addGroceryItem` applies optimistically (no Confirm) with an inline Undo; everything else applies after Confirm, with inline Undo. Only the newest applied turn keeps a live Undo (`mobile/src/app/mochiUndo.ts`; a turn that applied nothing — cancelled confirm, empty plan — retires nothing). History windowed to 40 turns starting on a user turn; a conversation start mints a server `convId` (recorded with its mint time in `users/{uid}/state/agentUsage` `convs`, a list of up to 120 records that expire 24h after last use, least-recently-used evicted, updated in the reservation transaction) and each reply carries an opaque `sig` = `convId.iat.hmac` over `uid | convId | iat | sha256(preceding user turn) | final reply text` that the client echoes back byte-for-byte (display tweaks live in a separate field). A follow-up is free only if every assistant sig verifies and the newest reply's convId is recorded, has had fewer than 30 follow-ups, and the newest reply was signed < 60 min ago (older replies aren't re-checked); anything else (fabricated, cross-user, stale or prefix-replayed history) is a new conversation. A start re-sent with identical history within 2 min reuses its convId (timeout retry, no second slot). Chat-only ceilings return RESOURCE_EXHAUSTED with `details.reason` `'turns'` (daily turn backstop) or `'tier'` (tier conversation ceiling), which pause only the chat. Context is budgeted (≤5 steps per to-do, ~20k chars). The fair-use slot is refunded if the model call fails. |
 | `aiInfer` | callable | One-shot modes: `suggest-todo-fields`, `classify-grocery-dept`, `breakdown-subtasks`, `link-store-to-items`. |
 | `revenuecatWebhook` | HTTPS | RevenueCat → `state/entitlement` (the client never writes it). Ignores events for deleted users. |
 | `onUserDeleted` | auth delete (gen-1) | Recursively erases `users/{uid}`; retries on failure. |

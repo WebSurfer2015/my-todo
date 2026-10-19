@@ -21,7 +21,7 @@ vi.mock('../../../core/src/ports/aiContracts', async (importOriginal) => ({
   COLD_START_RETRY_MS: 0,
 }))
 
-import { useMochiAgent } from '../features/mochi/useMochiAgent'
+import { useMochiAgent, MOCHI_LOST_THREAD } from '../features/mochi/useMochiAgent'
 
 const CTX = { today: '2026-10-18', categories: [], todos: [], trashedTodos: [], groceries: [], stores: [] }
 const json = (body: unknown, status = 200) =>
@@ -189,6 +189,21 @@ describe('useMochiAgent', () => {
     })
     expect(result.current.errorKind).toBe('fail')
     expect(result.current.error).toBe("Mochi couldn't reach us just now. Try again in a moment.")
+  })
+
+  it.each([
+    ['an error body (raw server text never shown)', () => json({ error: { message: 'TypeError: x is undefined' } })],
+    ['a malformed body', () => new Response('not json', { status: 200 })],
+    ['an empty result', () => json({})],
+  ])('%s → one calm "lost the thread" line', async (_label, res) => {
+    fetchMock.mockResolvedValueOnce(res())
+    const { result } = renderHook(() => useMochiAgent())
+    await act(async () => {
+      await result.current.send('hi', CTX as never)
+    })
+    expect(result.current.errorKind).toBe('fail')
+    expect(result.current.error).toBe(MOCHI_LOST_THREAD)
+    expect(MOCHI_LOST_THREAD).toBe('Mochi lost the thread for a moment. Try again, or add it yourself.')
   })
 
   it('sends conversationStart until the server has replied', async () => {

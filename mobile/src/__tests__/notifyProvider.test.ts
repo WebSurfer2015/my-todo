@@ -17,7 +17,8 @@ vi.mock('react-native', () => {
   return {
     View: host,
     Text: host,
-    TouchableOpacity: host,
+    TouchableOpacity: ({ children, onPress }: { children?: React.ReactNode; onPress?: () => void }) =>
+      React.createElement('button', { onClick: onPress }, children),
     Animated: {
       View: host,
       Value: class {
@@ -111,5 +112,119 @@ describe('NotifyProvider snackbar slot', () => {
     act(() => show('a'))
     act(() => show('b'))
     expect(document.body.textContent).toContain('2 done')
+  })
+
+  it('a queued offer that can no longer be seen when the Undo ends is handed back, not played hidden', () => {
+    const hook = setup()
+    let visible = true
+    const onBlocked = vi.fn()
+    act(() => hook.result.current.showSnackbar({ message: 'Added', actionLabel: 'Undo', durationMs: 1000 }))
+    act(() =>
+      hook.result.current.showSnackbar({
+        message: 'Reminder',
+        durationMs: 8000,
+        queue: true,
+        canShow: () => visible,
+        onBlocked,
+      }),
+    )
+    // A sheet opened over the app meanwhile.
+    visible = false
+    act(() => vi.advanceTimersByTime(1000))
+    expect(onBlocked).toHaveBeenCalledTimes(1)
+    expect(document.body.textContent).not.toContain('Reminder')
+    expect(document.body.textContent).not.toContain('Added')
+  })
+
+  it('a queued offer that can be seen plays normally (canShow re-checked when the slot frees)', () => {
+    const hook = setup()
+    const canShow = vi.fn(() => true)
+    const onBlocked = vi.fn()
+    act(() => hook.result.current.showSnackbar({ message: 'Added', durationMs: 1000 }))
+    act(() => hook.result.current.showSnackbar({ message: 'Reminder', durationMs: 8000, queue: true, canShow, onBlocked }))
+    expect(canShow).not.toHaveBeenCalled()
+    act(() => vi.advanceTimersByTime(1000))
+    expect(canShow).toHaveBeenCalled()
+    expect(onBlocked).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('Reminder')
+  })
+
+  it('a queued offer shown straight away is also checked', () => {
+    const hook = setup()
+    const onBlocked = vi.fn()
+    act(() => hook.result.current.showSnackbar({ message: 'Reminder', queue: true, canShow: () => false, onBlocked }))
+    expect(onBlocked).toHaveBeenCalledTimes(1)
+    expect(document.body.textContent).not.toContain('Reminder')
+  })
+
+  it('a waiting snackbar meant to outlive the account survives an account change', () => {
+    const hook = setup()
+    act(() => hook.result.current.showSnackbar({ message: 'Done', durationMs: 1000 }))
+    act(() => hook.result.current.showSnackbar({ message: 'Kept', durationMs: 5000, queue: true, outlivesAccount: true }))
+    act(() => hook.result.current.dismissSnackbar({ accountChange: true }))
+    expect(document.body.textContent).not.toContain('Done')
+    expect(document.body.textContent).toContain('Kept')
+  })
+
+  it('retractSnackbar drops a single toast whose action ran elsewhere', () => {
+    const hook = setup()
+    const undo = vi.fn()
+    act(() => hook.result.current.showSnackbar({ message: 'Completed', actionLabel: 'Undo', onAction: undo }))
+    // Not showing → no-op.
+    act(() => hook.result.current.retractSnackbar(() => {}))
+    expect(document.body.textContent).toContain('Completed')
+    act(() => hook.result.current.retractSnackbar(undo))
+    expect(document.body.textContent).not.toContain('Completed')
+    expect(undo).not.toHaveBeenCalled()
+  })
+
+  it('retractSnackbar removes only its part of a merged toast', () => {
+    const hook = setup()
+    const a = vi.fn()
+    const b = vi.fn()
+    const c = vi.fn()
+    const show = (message: string, onAction: () => void) =>
+      hook.result.current.showSnackbar({
+        message,
+        actionLabel: 'Undo',
+        onAction,
+        mergeKey: 'done',
+        mergedMessage: (n) => `${n} completed`,
+        mergedActionLabel: 'Undo all',
+      })
+    act(() => show('Completed A', a))
+    act(() => show('Completed B', b))
+    act(() => show('Completed C', c))
+    expect(document.body.textContent).toContain('3 completed')
+    act(() => hook.result.current.retractSnackbar(b))
+    expect(document.body.textContent).toContain('2 completed')
+    act(() => hook.result.current.retractSnackbar(c))
+    // Back to the remaining single toast, with its own label.
+    expect(document.body.textContent).toContain('Completed A')
+    expect(document.body.textContent).toContain('Undo')
+    expect(document.body.textContent).not.toContain('Undo all')
+    // A re-completion merges into "2 completed", not "3".
+    act(() => show('Completed B', b))
+    expect(document.body.textContent).toContain('2 completed')
+  })
+
+  it('after a retract, "Undo all" runs only the remaining actions, newest first', () => {
+    const hook = setup()
+    const order: string[] = []
+    const mk = (n: string) => () => order.push(n)
+    const a = mk('a')
+    const b = mk('b')
+    const c = mk('c')
+    const show = (onAction: () => void) =>
+      hook.result.current.showSnackbar({ message: 'x', actionLabel: 'Undo', onAction, mergeKey: 'k', mergedMessage: (n) => `${n} x` })
+    act(() => show(a))
+    act(() => show(b))
+    act(() => show(c))
+    act(() => hook.result.current.retractSnackbar(b))
+    expect(document.body.textContent).toContain('2 x')
+    const undoBtn = Array.from(document.querySelectorAll('button')).find((el) => el.textContent === 'Undo')!
+    act(() => undoBtn.click())
+    expect(order).toEqual(['c', 'a'])
+    expect(document.body.textContent).not.toContain('2 x')
   })
 })

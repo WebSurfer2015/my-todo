@@ -537,11 +537,7 @@ function makeStyles(c: ThemeColors) {
     },
     error: {
       fontSize: TYPE.footnote,
-      color: c.red,
-      backgroundColor: "rgba(255,59,48,0.08)",
-      paddingVertical: SPACING.sm,
-      paddingHorizontal: SPACING.md,
-      borderRadius: 6,
+      color: c.label2,
       marginTop: SPACING.xs,
       marginBottom: SPACING.xs,
     },
