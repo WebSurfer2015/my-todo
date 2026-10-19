@@ -859,6 +859,9 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           onEnterManually={() => {
             store.saveProfile((p) => ({ ...p, lastComposeMode: 'manual' }))
             setComposePrefill(null)
+            setComposeStartsToday(
+              sheetNavigationRef.isReady() && sheetNavigationRef.getCurrentRoute()?.name === 'Home',
+            )
             setMochiOpen(false)
             // Same 280ms Modal handoff as the other sheet switches.
             setTimeout(() => setComposeOpen(true), 280)

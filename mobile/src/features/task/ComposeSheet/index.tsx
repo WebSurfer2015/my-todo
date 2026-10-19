@@ -240,10 +240,11 @@ export default function ComposeSheet({
   // 2026-10-18) — an undated capture is the calm default; the "When?"
   // presets are one tap away.
   const [dueDate, setDueDate] = useState('')
-  // Two-line Compose: line 2 is the chip row. "When?" presets expand
-  // inline; More reveals reminders / repeat / priority / notes / steps.
+  // Line 2 is the chip row (When · Category); "When?" presets expand inline.
+  // The other fields (remind / repeat / priority / notes / steps) are always
+  // listed below — hiding them behind a "More" chip made the sheet look
+  // empty with nothing to fill in (device feedback 2026-10-18).
   const [datePanelOpen, setDatePanelOpen] = useState(false)
-  const [moreOpen, setMoreOpen] = useState(false)
   const [notes, setNotes] = useState('')
   const [pickerDate, setPickerDate] = useState<Date>(new Date())
   // Pending buffer for the date subview. Mirrors TaskDetailsSheet's
@@ -389,8 +390,6 @@ export default function ComposeSheet({
         setReminders(prefill.reminders ?? [])
         setNotes('')
         setDatePanelOpen(false)
-        // Show the details the chat filled in.
-        setMoreOpen(!!prefill.recurrence || (prefill.reminders?.length ?? 0) > 0)
         setPendingSubtasks([])
         setAppliedTextLower(prefill.text.trim().toLowerCase())
         ai.markApplied(prefill.text)
@@ -403,7 +402,6 @@ export default function ComposeSheet({
       setDueDate(startsToday ? todayLocal() : '')
       setNotes('')
       setDatePanelOpen(false)
-      setMoreOpen(false)
       setRecurrence(undefined)
       setReminders([])
       setPendingSubtasks([])
@@ -656,7 +654,7 @@ export default function ComposeSheet({
                   )}
                 </View>
 
-                {/* Line 2 — the chip row: When · Category · More. */}
+                {/* Line 2 — the chip row: When · Category. */}
                 <View style={styles.chipRow}>
                   <TouchableOpacity
                     style={[styles.chip, (!!dueDate || datePanelOpen) && styles.chipActive]}
@@ -693,16 +691,6 @@ export default function ComposeSheet({
                     {activeCat && <CategoryIcon icon={activeCat.icon} size={15} color={activeCat.color} />}
                     <Text style={styles.chipText} numberOfLines={1}>
                       {activeCat ? categoryLabel(activeCat, t) : ''}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.chip, moreOpen && styles.chipActive]}
-                    onPress={() => setMoreOpen((v) => !v)}
-                    accessibilityRole="button"
-                    accessibilityState={{ expanded: moreOpen }}
-                  >
-                    <Text style={[styles.chipText, !moreOpen && styles.chipTextMuted]}>
-                      {moreOpen ? t.composeLess : t.composeMore}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -848,8 +836,6 @@ export default function ComposeSheet({
                     }}
                     onDismissField={ai.dismissField}
                   />
-                  {moreOpen && (
-                  <>
                   <View style={styles.fieldGroup}>
                     <TouchableOpacity
                       style={styles.fieldRow}
@@ -1064,8 +1050,6 @@ export default function ComposeSheet({
                       <Text style={styles.addStepText}>+ Add a step…</Text>
                     </TouchableOpacity>
                   </View>
-                  </>
-                  )}
                 </ScrollView>
               </>
             )}
