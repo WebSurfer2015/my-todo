@@ -32,3 +32,6 @@ scripts/.seed-backup-*.json
 icons/backup/
 icons/turtle-icon-5.jpg
 coverage/
+
+# Claude Code agent worktrees
+.claude/worktrees/
