@@ -100,9 +100,15 @@ export function useMochiExecutor(store: Store, t: Strings) {
       // Pre-run state for snapshot Undos.
       const todosBefore = store.todos
       const snapshotted = new Set<string>()
-      // Put a to-do back exactly as it was before this run (first touch wins,
-      // so several edits to one to-do revert to the pre-run state).
-      const snapshotTodo = (id: string) => {
+      // Run an untracked to-do edit; when it actually changed the list
+      // (applyTracked advances todosRef only then), its Undo puts the to-do
+      // back exactly as it was before this run (first touch wins, so several
+      // edits to one to-do revert to the pre-run state). A no-op edit adds
+      // no Undo — and so doesn't begin a new Mochi turn.
+      const editTodo = (id: string, apply: () => void) => {
+        const listBefore = store.todosRef.current
+        apply()
+        if (store.todosRef.current === listBefore) return
         const before = todosBefore.find((td) => td.id === id)
         if (!before || snapshotted.has(id)) return
         snapshotted.add(id)
@@ -145,36 +151,30 @@ export function useMochiExecutor(store: Store, t: Strings) {
             break
           }
           case 'updateText':
-            snapshotTodo(it.todoId)
-            store.updateText(it.todoId, it.text)
+            editTodo(it.todoId, () => store.updateText(it.todoId, it.text))
             break
           case 'updatePriority':
-            snapshotTodo(it.todoId)
-            store.updatePriority(it.todoId, it.priority)
+            editTodo(it.todoId, () => store.updatePriority(it.todoId, it.priority))
             break
           case 'updateDueDate':
-            snapshotTodo(it.todoId)
-            store.updateDueDate(it.todoId, it.dueDate)
+            editTodo(it.todoId, () => store.updateDueDate(it.todoId, it.dueDate))
             break
           case 'updateCategory': {
             const id = categoryOf(it.category)
             if (id) {
-              snapshotTodo(it.todoId)
-              store.updateTaskCategory(it.todoId, id)
+              editTodo(it.todoId, () => store.updateTaskCategory(it.todoId, id))
             }
             break
           }
           case 'updateNotes':
-            snapshotTodo(it.todoId)
-            store.updateNotes(it.todoId, it.notes)
+            editTodo(it.todoId, () => store.updateNotes(it.todoId, it.notes))
             break
           case 'updateRecurrence':
             // Tracked: a series occurrence rebuilds the series' future rows.
             undos.push(store.updateRecurrence(it.todoId, it.recurrence))
             break
           case 'updateReminders':
-            snapshotTodo(it.todoId)
-            store.updateReminders(it.todoId, it.reminders)
+            editTodo(it.todoId, () => store.updateReminders(it.todoId, it.reminders))
             break
           case 'addSubtask':
             undos.push(store.addSubtask(it.todoId, it.text))
@@ -226,8 +226,7 @@ export function useMochiExecutor(store: Store, t: Strings) {
             undos.push(store.skipSeriesFuture(it.todoId, SILENT))
             break
           case 'restoreFromTrash':
-            snapshotTodo(it.todoId)
-            store.restoreFromTrash(it.todoId)
+            editTodo(it.todoId, () => store.restoreFromTrash(it.todoId))
             break
           case 'bulkDeferTodos':
             undos.push(store.bulkDeferTodos(it.todoIds, it.dueDate, SILENT))
@@ -241,8 +240,7 @@ export function useMochiExecutor(store: Store, t: Strings) {
             undos.push(store.removeSubtask(it.todoId, it.subtaskId))
             break
           case 'updateSubtaskText':
-            snapshotTodo(it.todoId)
-            store.updateSubtaskText(it.todoId, it.subtaskId, it.text)
+            editTodo(it.todoId, () => store.updateSubtaskText(it.todoId, it.subtaskId, it.text))
             break
           case 'addGroceryStore':
             undos.push(store.addGroceryStore(it.name))
@@ -341,8 +339,10 @@ export function useMochiExecutor(store: Store, t: Strings) {
       // Read the list at call time: an Alert answered later adds its Undo.
       const undo = () => combineUndos(undos)?.()
       const hasUndo = () => undos.some((u) => !!u)
-      // Whether anything applied right away (everything but the confirm Alerts).
-      const appliedNow = intents.some((i) => i.type !== 'askDeleteScope' && i.type !== 'askRemoveGrocery')
+      // Whether anything applied right away: every store call that changed
+      // something hands back an Undo (a no-op — an unchanged category, a
+      // toggle of a gone row — hands back none). Confirm Alerts answer later.
+      const appliedNow = hasUndo()
       return { undo, hasUndo, asks, appliedNow, todoIds, groceryIds, categoryOf }
     },
     [store],
@@ -361,7 +361,7 @@ export function useMochiExecutor(store: Store, t: Strings) {
     (ops: ProposedOperation[]): MochiApplyResult => {
       const run = runMochiIntents(planMochiOps(ops, mochiSnapshot(), { genId: genUuid }))
       const turn = lazyTurn()
-      if (run.appliedNow || run.hasUndo()) turn.begin()
+      if (run.appliedNow) turn.begin()
       const current = () => turn.stamp(run.hasUndo() ? run.undo : null)
       if (run.asks.length === 0) return { undo: current() }
       return {
@@ -402,14 +402,21 @@ export function useMochiExecutor(store: Store, t: Strings) {
       return {
         id,
         category: task?.category ? run.categoryOf(task.category) : undefined,
-        // Resolves whether anything was removed (false when stale).
+        // Resolves whether anything was removed (false when stale, or when
+        // the to-do is already gone).
         undo: beginMochiTurn()((): boolean => {
-          // A series also drops occurrences topped up since (all of them
-          // belong to this new series); the run's exact Undo then removes the
-          // rows it created and a category it created, now unused.
-          if (isRecurring) storeRef.current.permanentlyDeleteSeriesFuture(id)
+          // Remove the captured to-do BY ID — even after a chip edit, the
+          // card's Undo means "I didn't want this". A series also drops
+          // occurrences topped up since (all of them belong to this new
+          // series). The run's Undo then removes a category it created, now
+          // unused.
+          const live = storeRef.current
+          const listBefore = live.todosRef.current
+          if (isRecurring) live.permanentlyDeleteSeriesFuture(id)
+          else live.permanentlyDelete(id)
+          const removed = live.todosRef.current !== listBefore
           run.undo()
-          return true
+          return removed
         }),
       }
     },

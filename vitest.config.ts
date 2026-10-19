@@ -19,7 +19,6 @@ export default defineConfig({
       exclude: [
         '**/*.test.ts',
         '**/*.d.ts',
-        'core/src/**/index.ts',
         'core/src/domain/types.ts',
         // i18n is a 6-language string table (mostly data + per-language
         // formatter fns); line/fn coverage is meaningless here.

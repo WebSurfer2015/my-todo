@@ -348,7 +348,9 @@ function seriesOwesTail(todos: Todo[], target: Todo, today: string): boolean {
     if (m.seriesId !== sid) continue;
     const d = dueDateOnly(m.dueDate);
     if (!d) continue;
-    if (d > cutoff) beyond += 1;
+    // A row moved past the window still stands for its own (earlier) day —
+    // it isn't one of the tails earlier completions appended.
+    if (occurrenceDay(m, sid) > cutoff) beyond += 1;
     if (m.id === target.id || ((m.done || m.status === "notDo") && d >= day0)) owed += 1;
   }
   return beyond < owed;
@@ -429,6 +431,20 @@ export function todoRevert(prev: Todo[], snapshot: Todo): Todo[] {
  * row whose id is back in `prev` is left as is.
  */
 export function todosRevertChanges(prev: Todo[], before: Todo[], after: Todo[]): Todo[] {
+  return todosRevertChangesWithReport(prev, before, after).todos;
+}
+
+/**
+ * todosRevertChanges plus how many rows it could NOT put back: rows the
+ * action added or changed that were edited since (so they're kept as is).
+ * `skipped > 0` means the Undo was partial — callers can say "Some later
+ * changes were kept." `todos === prev` when nothing was reverted.
+ */
+export function todosRevertChangesWithReport(
+  prev: Todo[],
+  before: Todo[],
+  after: Todo[],
+): { todos: Todo[]; skipped: number } {
   const beforeById = new Map(before.map((td) => [td.id, td]));
   const afterById = new Map(after.map((td) => [td.id, td]));
   const added = new Set<string>();
@@ -440,29 +456,30 @@ export function todosRevertChanges(prev: Todo[], before: Todo[], after: Todo[]):
   }
   const prevIds = new Set(prev.map((td) => td.id));
   const removed = before.filter((td) => !afterById.has(td.id) && !prevIds.has(td.id));
-  if (added.size === 0 && changed.size === 0 && removed.length === 0) return prev;
-  // Untouched since the action: the very object it produced, or (after a
-  // merge / remote snapshot rebuilt it) a deep-equal copy.
+  if (added.size === 0 && changed.size === 0 && removed.length === 0) return { todos: prev, skipped: 0 };
+  // Untouched since the action: the very object it produced, or a copy with
+  // the same CONTENT — after a merge / remote snapshot rebuilt it, or after a
+  // later change that was itself undone (which restamps updatedAt). So
+  // updatedAt is ignored, as are optional empty arrays a parser may drop.
   const untouched = (td: Todo) => {
     const a = afterById.get(td.id);
-    return a !== undefined && (a === td || jsonEqual(a, td));
+    return a !== undefined && (a === td || jsonEqual(revertContent(a), revertContent(td)));
   };
   const now = Date.now();
   let touched = removed.length > 0;
+  let skipped = 0;
   const out = prev.flatMap((td) => {
-    if (added.has(td.id) && untouched(td)) {
-      touched = true;
-      return [];
-    }
     const old = changed.get(td.id);
-    if (old && untouched(td)) {
-      touched = true;
-      return [{ ...old, updatedAt: now }];
+    if (!old && !added.has(td.id)) return [td];
+    if (!untouched(td)) {
+      skipped += 1;
+      return [td];
     }
-    return [td];
+    touched = true;
+    return old ? [{ ...old, updatedAt: now }] : [];
   });
-  if (!touched) return prev;
-  if (removed.length === 0) return out;
+  if (!touched) return { todos: prev, skipped };
+  if (removed.length === 0) return { todos: out, skipped };
   // Re-insert each removed row right after its nearest `before` predecessor
   // that is in the list (or at the front when none is).
   const removedIds = new Set(removed.map((td) => td.id));
@@ -475,6 +492,18 @@ export function todosRevertChanges(prev: Todo[], before: Todo[], after: Todo[]):
     }
     const at = out.findIndex((o) => o.id === td.id);
     if (at !== -1) lastPos = at;
+  }
+  return { todos: out, skipped };
+}
+
+/** A row's content for the Undo "untouched" check: no updatedAt, and an
+ * empty optional array (subtasks: [], reminders: []) reads as absent. */
+function revertContent(td: Todo): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(td)) {
+    if (k === "updatedAt" || v === undefined) continue;
+    if (Array.isArray(v) && v.length === 0) continue;
+    out[k] = v;
   }
   return out;
 }
@@ -885,13 +914,8 @@ export function todoApplyRecurrenceChange(
   let trashedCount = 0;
   const superseded = (td: Todo) =>
     td.id !== id && td.seriesId === sid && !(cutoff && td.dueDate && td.dueDate < cutoff);
-  // Days the user already settled (completed / skipped) — the new tail must
-  // not mint a fresh occurrence on them (it would land as a `_2` duplicate
-  // next to the now one-off done / skipped row).
-  const settledDays = new Set<string>();
   updated = updated.flatMap((td) => {
     if (!superseded(td)) return [td];
-    if (td.done || td.status === "notDo") settledDays.add(dueDateOnly(td.dueDate));
     const isOpen = !td.trashed;
     const keep = !isOpen || (options.keepDetached && td.detachedFromSeries);
     if (!keep) {
@@ -918,8 +942,12 @@ export function todoApplyRecurrenceChange(
     Number.isFinite(ownDay) && ownDay > 0 ? ownDay : undefined,
     new Set(updated.map((td) => td.id)),
   );
-  // expanded[0] is the target itself — already in `updated`.
-  const tail = expanded.slice(1).filter((td) => !settledDays.has(dueDateOnly(td.dueDate)));
+  // expanded[0] is the target itself — already in `updated`. Days a former
+  // member still holds (a done / skipped / binned / kept-detached one-off,
+  // now or from an earlier change) aren't minted again — that would land as
+  // a `_2` duplicate next to it.
+  const held = heldSeriesDays(updated, sid, id);
+  const tail = expanded.slice(1).filter((td) => !held.has(dueDateOnly(td.dueDate)));
   return { next: [...updated, ...tail], trashedCount };
 }
 
@@ -1331,13 +1359,9 @@ export function topUpSeries(
   if (!seriesId) return todos;
   const members = todos.filter((t) => t.seriesId === seriesId);
   if (members.length === 0) return todos;
-  // Latest dueDate of ANY member (done/trashed/detached) — that's the
-  // current horizon of the series, regardless of state.
-  let latest = "";
-  for (const m of members) {
-    const d = dueDateOnly(m.dueDate);
-    if (d && d > latest) latest = d;
-  }
+  // The series' horizon: its latest occurrence day, any state (see
+  // seriesLatestDay — a row moved off its day doesn't count where it went).
+  const latest = seriesLatestDay(members, seriesId);
   if (!latest) return todos;
   // A series is only alive while at least one OPEN member still repeats.
   // Delete series / this & future to the bin (todoMoveToTrashFutureSeries) /
@@ -1373,12 +1397,12 @@ export function topUpSeries(
   const anchor = currentRuleAnchorDay(members, rec);
   const additions: Todo[] = [];
   const taken = new Set(todos.map((t) => t.id));
-  const settled = settledSeriesDays(todos, seriesId);
+  const held = heldSeriesDays(todos, seriesId);
   // A lapsed series resumes at today — no flood of back-filled overdue rows.
   let cursor = firstOccurrenceFrom(latest, dueDateOnly(todayISO), rec, anchor);
   let guard = 0;
   while (cursor <= hardEnd && guard < MAX_RECURRENCE_INSTANCES) {
-    if (settled.has(cursor)) {
+    if (held.has(cursor)) {
       cursor = nextOccurrence(cursor, rec.freq, interval, rec.byWeekday, rec.bySetPos, anchor);
       guard += 1;
       continue;
@@ -1413,18 +1437,58 @@ export function topUpSeries(
 }
 
 /**
- * Days of `seriesId` the user already settled (done / skipped) on a row that
- * still holds that day's generated id — typically a former member that left
- * the series as a one-off when its end was shortened or its rule changed.
- * Minting that day again would add a `_2` duplicate next to it.
+ * The day a series occurrence id names (`${seriesId}_${day}` or a `_2`…`_9`
+ * clash variant), else "" (a UUID seed, another series' id).
  */
-function settledSeriesDays(todos: Todo[], seriesId: string): Set<string> {
-  const days = new Set<string>();
+function seriesIdDay(id: string, seriesId: string): string {
   const prefix = `${seriesId}_`;
+  if (!id.startsWith(prefix)) return "";
+  const m = /^(\d{4}-\d{2}-\d{2})(?:_[2-9])?$/.exec(id.slice(prefix.length));
+  return m ? m[1] : "";
+}
+
+/** The occurrence day a series row stands for: the day its generated id
+ * names — a row moved (snoozed / rescheduled) elsewhere still stands for
+ * it — else its own due day. */
+function occurrenceDay(td: Todo, seriesId: string): string {
+  return seriesIdDay(td.id, seriesId) || dueDateOnly(td.dueDate);
+}
+
+/**
+ * The series' latest occurrence day, measured from its generated rows by the
+ * day their id names — NOT where a row was moved to: an occurrence moved past
+ * the window must not read as the tail (that left a permanent gap), and one
+ * moved earlier must not let its own day be minted again. Rows without a
+ * generated id (the user's seed) count only when no generated row exists.
+ */
+function seriesLatestDay(members: Todo[], seriesId: string): string {
+  let latest = "";
+  let fallback = "";
+  for (const m of members) {
+    const idDay = seriesIdDay(m.id, seriesId);
+    if (idDay) {
+      if (idDay > latest) latest = idDay;
+      continue;
+    }
+    const d = dueDateOnly(m.dueDate);
+    if (d && d > fallback) fallback = d;
+  }
+  return latest || fallback;
+}
+
+/**
+ * Days of `seriesId` already held by a row carrying that day's generated id —
+ * a member, or a former member that left the series as a one-off (done,
+ * skipped, binned or a kept detached edit), whatever its state or where it
+ * was moved. Minting that day again would add a `_2` duplicate next to it.
+ * `exceptId` (the row a rule change re-anchors) holds nothing.
+ */
+function heldSeriesDays(todos: Todo[], seriesId: string, exceptId?: string): Set<string> {
+  const days = new Set<string>();
   for (const td of todos) {
-    if (!td.id.startsWith(prefix) || !(td.done || td.status === "notDo")) continue;
-    const day = dueDateOnly(td.dueDate);
-    if (day && isGeneratedSeriesRow({ ...td, seriesId })) days.add(day);
+    if (td.id === exceptId) continue;
+    const day = seriesIdDay(td.id, seriesId);
+    if (day) days.add(day);
   }
   return days;
 }
@@ -1473,21 +1537,22 @@ export function appendNextSeriesInstance(
   if (!inheritFrom) inheritFrom = members.find((m) => m.recurrence);
   if (!inheritFrom || !inheritFrom.recurrence) return todos;
   const rec = inheritFrom.recurrence;
-  // Cursor advances strictly after the latest dueDate of ANY member
-  // (done/trashed/detached included) so we don't double-up on a
+  // Cursor advances strictly after the series' latest occurrence day (any
+  // state; see seriesLatestDay) so we don't double-up on a
   // recently-completed instance.
-  let latest = "";
-  for (const m of members) {
-    const d = dueDateOnly(m.dueDate);
-    if (d && d > latest) latest = d;
-  }
+  const latest = seriesLatestDay(members, seriesId);
   if (!latest) return todos;
   const anchor = currentRuleAnchorDay(members, rec);
   // With `todayISO`, a lapsed series resumes at today (as topUpSeries does)
   // instead of appending one more already-overdue occurrence.
-  const next = todayISO
+  let next = todayISO
     ? firstOccurrenceFrom(latest, dueDateOnly(todayISO), rec, anchor)
     : nextOccurrence(latest, rec.freq, rec.interval ?? 1, rec.byWeekday, rec.bySetPos, anchor);
+  // A day a former member still holds isn't minted again (a `_2` duplicate).
+  const held = heldSeriesDays(todos, seriesId);
+  for (let guard = 0; held.has(next) && guard < MAX_RECURRENCE_INSTANCES; guard++) {
+    next = nextOccurrence(next, rec.freq, rec.interval ?? 1, rec.byWeekday, rec.bySetPos, anchor);
+  }
   if (rec.endDate && next > rec.endDate) return todos;
   const tIdx = inheritFrom.dueDate.indexOf("T");
   const timeSuffix = tIdx === -1 ? "" : inheritFrom.dueDate.slice(tIdx);
