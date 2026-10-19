@@ -80,7 +80,7 @@ interface Props {
   /** Apply one validated proposed operation. The parent maps each kind to
    * the existing store mutation so the agent shares the manual write
    * surface — confirm-before-apply keeps the user in control. */
-  onApplyOperation: (op: ProposedOperation) => void
+  onApplyOperation: (op: ProposedOperation) => (() => void) | null
   /** Optimistically apply a single new to-do / grocery item. Returns the live
    * id (for inline chip-editing; null for groceries) + an `undo` the card
    * renders inline. The no-Confirm capture path. */
@@ -96,13 +96,13 @@ interface Props {
   onApplyPickedTodos: (
     op: Extract<ProposedOperation, { kind: 'pickTodos' }>,
     selectedIds: string[],
-  ) => void
+  ) => (() => void) | null
   /** Move one to-do to the Trash — `scope:'series'` also moves all future
    * occurrences. Reversible, so the cards don't confirm. */
-  onDeleteTodo: (id: string, scope: 'one' | 'series') => void
+  onDeleteTodo: (id: string, scope: 'one' | 'series') => (() => void) | null
   /** Bulk-act on the pick-list's ticked items: skip / defer (to dueDate) /
    * delete. The card owns the date picker + delete confirm. */
-  onPickAction: (action: 'skip' | 'defer' | 'delete', ids: string[], dueDate?: string) => void
+  onPickAction: (action: 'skip' | 'defer' | 'delete', ids: string[], dueDate?: string) => (() => void) | null
   /** Review a proposed NEW todo in the manual ComposeSheet instead of
    * applying it directly — the chat parsed the words, the manual form (the
    * same code a manual add uses) lets the user confirm/edit and save. When
@@ -428,7 +428,10 @@ export default function ChatSheet({
       close()
       return
     }
-    for (const op of ops) onApplyOperation(op)
+    // Keep the Undos (mark done / delete / skip) so the turn shows an inline
+    // "✓ Done · Undo" — the store's snackbar is hidden behind this Modal.
+    const undos = ops.map((op) => onApplyOperation(op)).filter((u): u is () => void => !!u)
+    if (undos.length > 0) undoFnsRef.current[index] = () => [...undos].reverse().forEach((u) => u())
     setResolved((prev) => ({ ...prev, [index]: 'applied' }))
   }
 
@@ -609,16 +612,16 @@ export default function ChatSheet({
                               candidates={pickCandidates(op.args.todoIds)}
                               categoryLabelLookup={categoryLookup}
                               onConfirm={(ids) => {
-                                onApplyPickedTodos(op, ids)
                                 setResolved((prev) => ({ ...prev, [i]: 'applied' }))
+                                return onApplyPickedTodos(op, ids)
                               }}
                               onDeleteTodo={(id, scope) => {
-                                onDeleteTodo(id, scope)
                                 setResolved((prev) => ({ ...prev, [i]: 'applied' }))
+                                return onDeleteTodo(id, scope)
                               }}
                               onPickAction={(act, ids, dueDate) => {
-                                onPickAction(act, ids, dueDate)
                                 setResolved((prev) => ({ ...prev, [i]: 'applied' }))
+                                return onPickAction(act, ids, dueDate)
                               }}
                               styles={styles}
                               theme={theme}
@@ -634,8 +637,8 @@ export default function ChatSheet({
                               text={todoTextLookup(op.args.todoId)}
                               isSeries={!!todoLookup(op.args.todoId)?.seriesId}
                               onDelete={(scope) => {
-                                onDeleteTodo(op.args.todoId, scope)
                                 setResolved((prev) => ({ ...prev, [i]: 'applied' }))
+                                return onDeleteTodo(op.args.todoId, scope)
                               }}
                               styles={styles}
                             />
@@ -671,10 +674,14 @@ export default function ChatSheet({
                           // Confirm-applied turns just show ✓ Done.
                           undoFnsRef.current[i] ? (
                             undone[i] ? (
-                              <Text style={styles.appliedNote}>Removed</Text>
+                              <Text style={styles.appliedNote}>
+                                {capturedIdRef.current[i] ? 'Removed' : 'Undone'}
+                              </Text>
                             ) : (
                               <View style={styles.appliedRow}>
-                                <Text style={[styles.appliedNote, { marginTop: 0 }]}>✓ Added</Text>
+                                <Text style={[styles.appliedNote, { marginTop: 0 }]}>
+                                  {capturedIdRef.current[i] ? '✓ Added' : '✓ Done'}
+                                </Text>
                                 <TouchableOpacity
                                   hitSlop={8}
                                   onPress={() => {
@@ -908,6 +915,39 @@ function PickCheck({
  * distinguishable. Owns its own confirm row; for delete, the parent's apply
  * still fires the permanent-delete warning.
  */
+/** "✓ <note> · Undo" for an action applied from the chat. The store's own
+ * Undo snackbar renders BEHIND the chat Modal and expires unseen, so the
+ * chat carries the Undo inline (like a captured to-do's "✓ Added · Undo"). */
+function AppliedWithUndo({
+  note,
+  undo,
+  styles,
+}: {
+  note: string
+  undo: (() => void) | null
+  styles: ReturnType<typeof makeStyles>
+}) {
+  const [undone, setUndone] = useState(false)
+  if (undone) return <Text style={styles.appliedNote}>Undone</Text>
+  if (!undo) return <Text style={styles.appliedNote}>✓ {note}</Text>
+  return (
+    <View style={styles.appliedRow}>
+      <Text style={[styles.appliedNote, { marginTop: 0 }]}>✓ {note}</Text>
+      <TouchableOpacity
+        hitSlop={8}
+        onPress={() => {
+          undo()
+          setUndone(true)
+        }}
+        accessibilityRole="button"
+        accessibilityLabel={`Undo: ${note}`}
+      >
+        <Text style={styles.undoText}>Undo</Text>
+      </TouchableOpacity>
+    </View>
+  )
+}
+
 function PickTodosCard({
   op,
   candidates,
@@ -921,17 +961,17 @@ function PickTodosCard({
   op: Extract<ProposedOperation, { kind: 'pickTodos' }>
   candidates: PickCandidate[]
   categoryLabelLookup: (id: string) => string
-  onConfirm: (selectedIds: string[]) => void
-  onDeleteTodo: (id: string, scope: 'one' | 'series') => void
-  onPickAction: (action: 'skip' | 'defer' | 'delete', ids: string[], dueDate?: string) => void
+  onConfirm: (selectedIds: string[]) => (() => void) | null
+  onDeleteTodo: (id: string, scope: 'one' | 'series') => (() => void) | null
+  onPickAction: (action: 'skip' | 'defer' | 'delete', ids: string[], dueDate?: string) => (() => void) | null
   styles: ReturnType<typeof makeStyles>
   theme: ThemeColors
 }) {
   const { t } = useLang()
   const { action, query } = op.args
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [done, setDone] = useState<{ verb: string; n: number } | null>(null)
-  const [seriesDeleted, setSeriesDeleted] = useState(false)
+  const [done, setDone] = useState<{ verb: string; n: number; undo: (() => void) | null } | null>(null)
+  const [seriesDeleted, setSeriesDeleted] = useState<{ undo: (() => void) | null } | null>(null)
   const [deferOpen, setDeferOpen] = useState(false)
   // delete lists let the user choose Skip / Defer / Delete on the ticked
   // items; markDone / edit / addSteps get one primary button for what the user
@@ -967,47 +1007,42 @@ function PickTodosCard({
   const confirm = () => {
     if (selected.size === 0) return
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
-    onConfirm(selectedIds())
-    setDone({ verb: PICK_DONE[action], n: selected.size })
+    const undo = onConfirm(selectedIds())
+    setDone({ verb: PICK_DONE[action], n: selected.size, undo })
   }
   const doSkip = () => {
     if (selected.size === 0) return
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
-    onPickAction('skip', selectedIds())
-    setDone({ verb: 'Skipped', n: selected.size })
+    const undo = onPickAction('skip', selectedIds())
+    setDone({ verb: 'Skipped', n: selected.size, undo })
   }
   const doDelete = () => {
     if (selected.size === 0) return
     const ids = selectedIds()
     // Reversible (30-day Trash + Undo), so no confirm dialog.
-    onPickAction('delete', ids)
-    setDone({ verb: 'Tucked into Done', n: ids.length })
+    const undo = onPickAction('delete', ids)
+    setDone({ verb: 'Tucked into Done', n: ids.length, undo })
   }
   const onDeferDate = (e: DateTimePickerEvent, d?: Date) => {
     setDeferOpen(false)
     if (e.type === 'set' && d && selected.size > 0) {
       const ids = selectedIds()
-      onPickAction('defer', ids, isoDate(d))
-      setDone({ verb: 'Deferred', n: ids.length })
+      const undo = onPickAction('defer', ids, isoDate(d))
+      setDone({ verb: 'Deferred', n: ids.length, undo })
     }
   }
 
   const deleteSeries = () => {
     if (!seriesId) return
     // Reversible (30-day Trash), so no confirm dialog.
-    onDeleteTodo(candidates[0].id, 'series')
-    setSeriesDeleted(true)
+    setSeriesDeleted({ undo: onDeleteTodo(candidates[0].id, 'series') })
   }
 
   if (seriesDeleted) {
-    return <Text style={styles.appliedNote}>✓ Series tucked into Done</Text>
+    return <AppliedWithUndo note="Series tucked into Done" undo={seriesDeleted.undo} styles={styles} />
   }
   if (done) {
-    return (
-      <Text style={styles.appliedNote}>
-        ✓ {done.verb} {done.n}
-      </Text>
-    )
+    return <AppliedWithUndo note={`${done.verb} ${done.n}`} undo={done.undo} styles={styles} />
   }
 
   // Series-delete fork: drop the whole repeat, or pick individual occurrences.
@@ -1162,22 +1197,25 @@ function DeleteTodoCard({
 }: {
   text: string
   isSeries: boolean
-  onDelete: (scope: 'one' | 'series') => void
+  onDelete: (scope: 'one' | 'series') => (() => void) | null
   styles: ReturnType<typeof makeStyles>
 }) {
   const [text] = useState(textProp)
   const [isSeries] = useState(isSeriesProp)
-  const [done, setDone] = useState<null | 'one' | 'series'>(null)
+  const [done, setDone] = useState<null | { scope: 'one' | 'series'; undo: (() => void) | null }>(null)
 
   const confirmDelete = (scope: 'one' | 'series') => {
-    // Reversible (30-day Trash + Undo), so no confirm dialog.
-    onDelete(scope)
-    setDone(scope)
+    // Reversible (30-day Done bin + inline Undo), so no confirm dialog.
+    setDone({ scope, undo: onDelete(scope) })
   }
 
   if (done) {
     return (
-      <Text style={styles.appliedNote}>✓ {done === 'series' ? 'Series tucked into Done' : 'Tucked into Done'}</Text>
+      <AppliedWithUndo
+        note={done.scope === 'series' ? 'Series tucked into Done' : 'Tucked into Done'}
+        undo={done.undo}
+        styles={styles}
+      />
     )
   }
 

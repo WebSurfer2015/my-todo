@@ -115,6 +115,13 @@ export const sheetNavigationRef = createNavigationContainerRef<{
   Groceries: undefined
 }>()
 
+/** Combine several actions' Undos into one (newest first); null if none. */
+function combineUndos(undos: Array<(() => void) | null | undefined>): (() => void) | null {
+  const list = undos.filter((u): u is () => void => !!u)
+  if (list.length === 0) return null
+  return () => [...list].reverse().forEach((u) => u())
+}
+
 export function SheetProvider({ children }: { children: ReactNode }) {
   const store = useStore()
   const { user, deleteAccount, signOut } = useAuth()
@@ -253,7 +260,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   // manual tap uses — so the agent has no privileged write path. Each kind
   // maps to existing actions; the user already confirmed in ChatSheet.
   const applyMochiOp = useCallback(
-    (op: ProposedOperation) => {
+    (op: ProposedOperation): (() => void) | null => {
       // Agent reminders carry no id (the model can't mint stable UUIDs);
       // stamp one per entry on apply so the scheduler's per-fire key stays
       // distinct. Returns undefined for an empty/absent list.
@@ -300,7 +307,9 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         // against re-opening a todo that's already done (markDone means
         // "make it done", never "un-done it").
         const td = store.todos.find((t) => t.id === op.args.todoId)
-        if (td && !td.done) store.toggle(op.args.todoId)
+        // Its Undo is shown inline in the chat (the store snackbar is hidden
+        // behind the chat Modal).
+        if (td && !td.done) return store.toggle(op.args.todoId)
       } else if (op.kind === 'createCategory') {
         const a = op.args
         store.addCategory({
@@ -318,7 +327,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         // never permanent — an AI misreading must always be recoverable. For a
         // series, ask the scope (this one vs this + future).
         const td = store.todos.find((t) => t.id === op.args.todoId)
-        if (!td) return
+        if (!td) return null
         if (td.seriesId) {
           Alert.alert(
             'Delete repeating to-do?',
@@ -330,7 +339,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
             ],
           )
         } else {
-          store.moveToTrash(td.id)
+          return store.moveToTrash(td.id)
         }
       } else if (op.kind === 'editGroceryItem') {
         const a = op.args
@@ -359,7 +368,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         // built-in fallback).
         const a = op.args
         const cat = store.categories.find((c) => c.id === a.categoryId)
-        if (!cat) return
+        if (!cat) return null
         store.editCategory(a.categoryId, {
           label: a.label ?? cat.label ?? '',
           color: a.color ?? cat.color,
@@ -380,9 +389,10 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         store.deleteGroceryStore(op.args.name)
       } else if (op.kind === 'skipTodo') {
         const td = store.todos.find((t) => t.id === op.args.todoId)
-        if (!td) return
-        if (op.args.scope === 'series' && td.seriesId) store.skipSeriesFuture(td.id)
-        else store.skipTodo(td.id)
+        if (!td) return null
+        return op.args.scope === 'series' && td.seriesId
+          ? store.skipSeriesFuture(td.id)
+          : store.skipTodo(td.id)
       } else if (op.kind === 'markUndone') {
         const td = store.todos.find((t) => t.id === op.args.todoId)
         if (td && td.done) store.toggle(td.id)
@@ -399,13 +409,14 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         const td = store.todos.find((t) => t.id === a.todoId)
         const q = a.subtaskText.trim().toLowerCase()
         const sub = td?.subtasks?.find((s) => s.text.toLowerCase().includes(q))
-        if (!td || !sub) return
+        if (!td || !sub) return null
         if (a.action === 'complete' && !sub.done) store.toggleSubtask(td.id, sub.id)
         else if (a.action === 'uncomplete' && sub.done) store.toggleSubtask(td.id, sub.id)
         else if (a.action === 'remove') store.removeSubtask(td.id, sub.id)
         else if (a.action === 'rename' && a.newText)
           store.updateSubtaskText(td.id, sub.id, a.newText)
       }
+      return null
     },
     [store],
   )
@@ -498,20 +509,23 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   // the agent has no privileged write path; deletes go to the Trash.
   const applyPickedTodos = useCallback(
     (op: Extract<ProposedOperation, { kind: 'pickTodos' }>, ids: string[]) => {
-      if (ids.length === 0) return
+      if (ids.length === 0) return null
       const { action } = op.args
+      // delete / markDone return a combined Undo the chat card shows inline
+      // (the store's snackbar renders behind the chat Modal).
       if (action === 'delete') {
-        // To the 30-day Trash with a merged "Moved N to Trash · Undo all".
-        ids.forEach((id) => store.moveToTrash(id))
+        return combineUndos(ids.map((id) => store.moveToTrash(id)))
       } else if (action === 'markDone') {
         // Idempotent — only flip ones that aren't already done.
-        ids.forEach((id) => {
-          const td = store.todos.find((t) => t.id === id)
-          if (td && !td.done) store.toggle(id)
-        })
+        return combineUndos(
+          ids.map((id) => {
+            const td = store.todos.find((t) => t.id === id)
+            return td && !td.done ? store.toggle(id) : null
+          }),
+        )
       } else if (action === 'edit') {
         const e = op.args.edit
-        if (!e) return
+        if (!e) return null
         const reminders =
           e.reminders && e.reminders.length > 0
             ? e.reminders.map((r) => ({
@@ -534,6 +548,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         const steps = op.args.steps ?? []
         ids.forEach((id) => steps.forEach((s) => store.addSubtask(id, s.text)))
       }
+      return null
     },
     [store],
   )
@@ -541,10 +556,8 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   // Scoped delete for the Mochi delete card — to the Trash: one instance, or
   // this + every future occurrence in the series.
   const deleteTodoScoped = useCallback(
-    (id: string, scope: 'one' | 'series') => {
-      if (scope === 'series') store.moveSeriesFutureToTrash(id)
-      else store.moveToTrash(id)
-    },
+    (id: string, scope: 'one' | 'series') =>
+      scope === 'series' ? store.moveSeriesFutureToTrash(id) : store.moveToTrash(id),
     [store],
   )
 
@@ -552,10 +565,10 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   // delete goes to the Trash.
   const applyPickAction = useCallback(
     (action: 'skip' | 'defer' | 'delete', ids: string[], dueDate?: string) => {
-      if (action === 'skip') ids.forEach((id) => store.skipTodo(id))
-      else if (action === 'defer' && dueDate)
-        ids.forEach((id) => store.updateDueDate(id, dueDate))
-      else if (action === 'delete') ids.forEach((id) => store.moveToTrash(id))
+      if (action === 'skip') return combineUndos(ids.map((id) => store.skipTodo(id)))
+      if (action === 'delete') return combineUndos(ids.map((id) => store.moveToTrash(id)))
+      if (action === 'defer' && dueDate) ids.forEach((id) => store.updateDueDate(id, dueDate))
+      return null
     },
     [store],
   )

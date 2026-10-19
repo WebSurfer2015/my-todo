@@ -99,6 +99,9 @@ export interface TodosSliceDeps {
   actions: TodoStoreActions;
 }
 
+/** Reverses exactly what an action did (see applyTracked). */
+export type Undo = () => void;
+
 export interface TodosSlice {
   // Persisted state
   todos: Todo[];
@@ -111,13 +114,13 @@ export interface TodosSlice {
   // can read the latest todos without a fresh prop).
   todosRef: MutableRefObject<Todo[]>;
   // TaskItem-stable callbacks
-  toggle: (id: string) => void;
-  moveToTrash: (id: string) => void;
+  toggle: (id: string) => Undo | null;
+  moveToTrash: (id: string) => Undo | null;
   /** R5 — Skip. Marks status='notDo' and routes to the Done bin
    * without flipping done. Series instances also get a fresh tail
    * appended. */
-  skipTodo: (id: string) => void;
-  skipSeriesFuture: (id: string) => void;
+  skipTodo: (id: string) => Undo | null;
+  skipSeriesFuture: (id: string) => Undo | null;
   restoreFromTrash: (id: string) => void;
   permanentlyDelete: (id: string) => void;
   permanentlyDeleteSeriesFuture: (id: string) => void;
@@ -161,7 +164,7 @@ export interface TodosSlice {
     id: string,
     options: { keepDetached: boolean },
   ) => void;
-  moveSeriesFutureToTrash: (id: string) => void;
+  moveSeriesFutureToTrash: (id: string) => Undo | null;
   // Subtasks
   addSubtask: (
     id: string,
@@ -329,7 +332,8 @@ export function useTodosSlice(
       // Undo reverses EXACTLY what this toggle did — a series completion
       // also appends the next occurrence and moves reminders.
       const change = applyTracked((ts) => todoToggle(ts, id));
-      if (!beforeTodo || !change) return;
+      if (!beforeTodo || !change) return null;
+      const undo: Undo = () => undoTracked(change);
       const { after, referenceRow } = toggleOutcome(beforeTodo);
       if (referenceRow) {
         setTodoReferences((prev) => recordTodoReference(prev, referenceRow));
@@ -342,7 +346,7 @@ export function useTodosSlice(
         notify.showSnackbar({
           message: t.completedSnackbar(text),
           actionLabel: t.undo,
-          onAction: () => undoTracked(change),
+          onAction: undo,
           mergeKey: "done",
           mergedMessage: (n: number) => t.completedSnackbarMany(n),
           mergedActionLabel: t.undoAll,
@@ -354,6 +358,7 @@ export function useTodosSlice(
       ) {
         notify.showSnackbar({ message: "Moved back to your open list." });
       }
+      return undo;
     },
     [applyTracked, undoTracked, toggleOutcome, filterRef, todoToggle, setTodoReferences, recordTodoReference, notify, t],
   );
@@ -378,16 +383,18 @@ export function useTodosSlice(
   const moveToTrash = useCallback(
     (id: string) => {
       const change = applyTracked((ts) => todoMoveToTrash(ts, id));
-      if (!change) return;
+      if (!change) return null;
+      const undo: Undo = () => undoTracked(change);
       notify.showSnackbar({
         message: t.movedToTrash,
         actionLabel: t.undo,
         // Exact: restoreFromTrash reopened every step (2/5 came back 0/5).
-        onAction: () => undoTracked(change),
+        onAction: undo,
         mergeKey: "trash",
         mergedMessage: (n: number) => t.movedToTrashMany(n),
         mergedActionLabel: t.undoAll,
       });
+      return undo;
     },
     [applyTracked, undoTracked, notify, t, todoMoveToTrash],
   );
@@ -401,14 +408,16 @@ export function useTodosSlice(
       // null = nothing changed (e.g. a to-do with steps can't be skipped) —
       // don't claim "Skipped" for a no-op.
       const change = applyTracked((ts) => todoSkip(ts, id));
-      if (!change) return;
+      if (!change) return null;
+      const undo: Undo = () => undoTracked(change);
       notify.showSnackbar({
         message: t.skippedSnackbar,
         actionLabel: t.undo,
         // Exact: restoreFromTrash lost the occurrence's reminders and left
         // the appended next occurrence behind.
-        onAction: () => undoTracked(change),
+        onAction: undo,
       });
+      return undo;
     },
     [applyTracked, undoTracked, notify, t.skippedSnackbar, t.undo, todoSkip],
   );
@@ -426,12 +435,14 @@ export function useTodosSlice(
         affected = r.affected;
         return r.next;
       });
-      if (!change) return;
+      if (!change) return null;
+      const undo: Undo = () => undoTracked(change);
       notify.showSnackbar({
         message: affected > 1 ? `Skipped ${affected} to-dos in this series.` : t.skippedSnackbar,
         actionLabel: t.undo,
-        onAction: () => undoTracked(change),
+        onAction: undo,
       });
+      return undo;
     },
     [applyTracked, undoTracked, notify, t.skippedSnackbar, t.undo, todoSkipSeriesFuture],
   );
@@ -533,12 +544,14 @@ export function useTodosSlice(
         affected = r.affected;
         return r.next;
       });
-      if (!change) return;
+      if (!change) return null;
+      const undo: Undo = () => undoTracked(change);
       notify.showSnackbar({
         message: affected > 1 ? t.series.trashedMany(affected) : t.movedToTrash,
         actionLabel: t.undo,
-        onAction: () => undoTracked(change),
+        onAction: undo,
       });
+      return undo;
     },
     [applyTracked, undoTracked, notify, t.series, t.movedToTrash, t.undo, todoMoveToTrashFutureSeries],
   );
