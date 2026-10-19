@@ -40,7 +40,7 @@ import CategoryIcon from '../../ui/CategoryIcon'
 import { formatCalendarDate, recurrenceShortLabel, type RecurrenceFreqStrings } from '../../../../core/src/logic/labels'
 
 /** What applying a confirmed turn did. `pending` is set when the turn raised
- * confirm Alerts (a repeating to-do's scope, a shopping removal):
+ * confirm Alerts (a repeating to-do's delete scope):
  * it resolves once they're all answered — `applied` false means the user kept
  * everything as is, so the card must not say "✓ Done". */
 export interface MochiApplyResult {
