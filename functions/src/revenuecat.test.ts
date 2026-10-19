@@ -162,6 +162,15 @@ describe('revenuecatWebhook — lifecycle → entitlement', () => {
     expect(entitlementOf('u1')?.tier).toBe('free')
     expect(h.writes).toEqual([])
   })
+  it('the per-user dedupe log keeps only the newest 50 event ids', async () => {
+    for (let i = 1; i <= 51; i++) {
+      await send({ id: `e${i}`, type: 'RENEWAL', app_user_id: 'u1', product_id: PRODUCT_IDS.premiumMonthly, expiration_at_ms: EXP })
+    }
+    const ids = (h.store.get('users/u1/state/rcWebhook') as { ids: string[] }).ids
+    expect(ids).toHaveLength(50)
+    expect(ids[0]).toBe('e2')
+    expect(ids.at(-1)).toBe('e51')
+  })
   it('TRANSFER moves the subscription between accounts', async () => {
     h.users.add('u2')
     await send({ id: 'e1', type: 'INITIAL_PURCHASE', app_user_id: 'u1', product_id: PRODUCT_IDS.premiumMonthly, expiration_at_ms: EXP })

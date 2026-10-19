@@ -3,7 +3,7 @@
  * reservations return their charge, refundUsage gives exactly that back in
  * one transaction, and refund failures never mask the caller's error.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const h = vi.hoisted(() => {
   const store = new Map<string, Record<string, unknown>>()
@@ -38,6 +38,7 @@ vi.mock('firebase-admin', () => ({
 }))
 
 import {
+  CHAT_TIER_EXHAUSTED_DETAILS,
   CHAT_TURNS_EXHAUSTED_DETAILS,
   DAILY_CALL_LIMIT,
   refundUsage,
@@ -58,7 +59,25 @@ const today = () => new Date().toISOString().slice(0, 10)
 const envelope = (data: unknown) => ({ value: JSON.stringify({ version: 1, data }), updatedAt: 1 })
 const agentUsage = () => parseAgentUsage(h.store.get(AGENT))
 
+/** A conversation-start claim; each call a distinct history (no retry de-dup). */
+let seq = 0
+const start = () => ({ claimedConvId: null, startHash: `start-${++seq}` })
+/** A recorded conversation and a follow-up claim on it. */
+const CONV = 'AAAAAAAAAAAAAAAA'
+const CONV_REC = () => ({ id: CONV, t: Date.now() - 60_000, h: 'orig' })
+const followUp = () => ({ claimedConvId: CONV, startHash: `fu-${++seq}` })
+
+// Pinned clock (mid-day UTC): code and test both derive "today" from Date, so
+// a run straddling UTC midnight can't flake.
+const FIXED_NOW = new Date('2026-10-19T12:00:00.000Z')
+
+afterEach(() => {
+  vi.useRealTimers()
+})
+
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(FIXED_NOW)
   h.store.clear()
   h.state.failTx = false
   h.state.failProfileRead = false
@@ -68,11 +87,15 @@ beforeEach(() => {
 
 describe('reserve → refund round trip', () => {
   it('a conversation start is charged, then fully refunded', async () => {
-    const charge = await reserveChatTurn('u1', true)
-    expect(charge).toMatchObject({ calls: 1, chatTurns: 1, chatConversations: 1, mochi: null })
+    const { charge, convId, startsConversation } = await reserveChatTurn('u1', start())
+    expect(startsConversation).toBe(true)
+    expect(charge).toMatchObject({ calls: 1, chatTurns: 1, chatConversations: 1, mochi: null, convId })
     expect(agentUsage()).toMatchObject({ calls: 1, chatTurns: 1, chatConversations: 1 })
+    expect(agentUsage()?.convs?.map((c) => c.id)).toEqual([convId])
     await refundUsage('u1', charge)
     expect(agentUsage()).toMatchObject({ calls: 0, chatTurns: 0, chatConversations: 0 })
+    // The minted conversation is forgotten too (no sig was ever issued for it).
+    expect(agentUsage()?.convs).toBeUndefined()
   })
   it('aiInfer: a flat call is charged, then refunded', async () => {
     const charge = await reserveDailyCall('u1')
@@ -83,11 +106,13 @@ describe('reserve → refund round trip', () => {
   it('over the cap → resource-exhausted, nothing charged', async () => {
     h.store.set(AGENT, envelope({ date: today(), calls: DAILY_CALL_LIMIT }))
     await expect(reserveDailyCall('u1')).rejects.toMatchObject({ code: 'resource-exhausted' })
-    await expect(reserveChatTurn('u1', true)).rejects.toMatchObject({ code: 'resource-exhausted' })
+    await expect(reserveChatTurn('u1', start())).rejects.toMatchObject({ code: 'resource-exhausted' })
+    // A rejected start records no conversation.
+    expect(agentUsage()?.convs).toBeUndefined()
   })
   it('a transaction failure on reserve fails closed', async () => {
     h.state.failTx = true
-    await expect(reserveChatTurn('u1', true)).rejects.toMatchObject({ code: 'internal' })
+    await expect(reserveChatTurn('u1', start())).rejects.toMatchObject({ code: 'internal' })
     await expect(reserveDailyCall('u1')).rejects.toMatchObject({ code: 'internal' })
   })
 })
@@ -124,20 +149,20 @@ describe('refundUsage', () => {
 describe('chat turn backstop → distinguishable resource-exhausted', () => {
   it("the chat-only turn cap carries details {reason:'turns'}; the shared cap carries none", async () => {
     h.store.set(AGENT, envelope({ date: today(), calls: 0, chatTurns: MAX_CHAT_TURNS_PER_DAY }))
-    const turns = await reserveChatTurn('u1', false).catch((e) => e)
+    const turns = await reserveChatTurn('u1', followUp()).catch((e) => e)
     expect(turns).toMatchObject({ code: 'resource-exhausted', details: { reason: 'turns' } })
     expect(CHAT_TURNS_EXHAUSTED_DETAILS).toEqual({ reason: 'turns' })
     // …and the shared flat cap still has room: aiInfer is unaffected.
     await expect(reserveDailyCall('u1')).resolves.toMatchObject({ calls: 1 })
 
     h.store.set(AGENT, envelope({ date: today(), calls: DAILY_CALL_LIMIT }))
-    const shared = await reserveChatTurn('u1', true).catch((e) => e)
+    const shared = await reserveChatTurn('u1', start()).catch((e) => e)
     expect(shared).toMatchObject({ code: 'resource-exhausted' })
     expect(shared.details).toBeUndefined()
   })
   it('the tier path also flags the turn backstop', async () => {
     h.store.set(AGENT, envelope({ date: today(), calls: 0, chatTurns: MAX_CHAT_TURNS_PER_DAY }))
-    await expect(reserveMochiRequest('u1', false)).rejects.toMatchObject({ details: { reason: 'turns' } })
+    await expect(reserveMochiRequest('u1', followUp())).rejects.toMatchObject({ details: { reason: 'turns' } })
   })
 })
 
@@ -154,17 +179,19 @@ describe('reserveMochiRequest — tier + comp paths', () => {
     envelope({ tier: 'premium', validUntil: new Date(Date.now() + 86_400_000).toISOString() })
   const profileNamed = (firstName: string, lastName: string) => envelope({ firstName, lastName })
 
-  it('free user at the daily ceiling → resource-exhausted (no details), mochiUsage unchanged', async () => {
+  it("free user at the daily ceiling → resource-exhausted with details {reason:'tier'} (chat-only), mochiUsage unchanged", async () => {
     h.store.set(MOCHI, atFreeDailyCeiling())
-    const err = await reserveMochiRequest('u1', true).catch((e) => e)
-    expect(err).toMatchObject({ code: 'resource-exhausted' })
-    expect(err.details).toBeUndefined()
+    const err = await reserveMochiRequest('u1', start()).catch((e) => e)
+    expect(err).toMatchObject({ code: 'resource-exhausted', details: { reason: 'tier' } })
+    expect(CHAT_TIER_EXHAUSTED_DETAILS).toEqual({ reason: 'tier' })
+    // The tier ceiling is Mochi-only: aiInfer's flat counter still has room.
+    await expect(reserveDailyCall('u1')).resolves.toMatchObject({ calls: 1 })
     expect(mochiUsage()).toMatchObject({ dayCalls: TIER_LIMITS.free.mochiDaily })
   })
   it('premium user over the FREE ceiling is allowed and mochiUsage is written', async () => {
     h.store.set(MOCHI, atFreeDailyCeiling())
     h.store.set(ENT, premium())
-    const charge = await reserveMochiRequest('u1', true)
+    const { charge } = await reserveMochiRequest('u1', start())
     expect(charge.mochi).toEqual({ date: d(), month: d().slice(0, 7) })
     expect(mochiUsage()).toMatchObject({ dayCalls: TIER_LIMITS.free.mochiDaily + 1 })
     expect(agentUsage()).toMatchObject({ chatTurns: 1, chatConversations: 1, calls: 0 })
@@ -172,30 +199,96 @@ describe('reserveMochiRequest — tier + comp paths', () => {
   it('a lapsed premium entitlement is treated as free', async () => {
     h.store.set(MOCHI, atFreeDailyCeiling())
     h.store.set(ENT, envelope({ tier: 'premium', validUntil: '2000-01-01T00:00:00.000Z' }))
-    await expect(reserveMochiRequest('u1', true)).rejects.toMatchObject({ code: 'resource-exhausted' })
+    await expect(reserveMochiRequest('u1', start())).rejects.toMatchObject({ code: 'resource-exhausted' })
   })
-  it('a follow-up does not touch mochiUsage', async () => {
+  it('an unknown tier string ("pro") gets the FREE decision (not a crash / internal)', async () => {
     h.store.set(MOCHI, atFreeDailyCeiling())
-    await expect(reserveMochiRequest('u1', false)).resolves.toMatchObject({ mochi: null, chatTurns: 1 })
+    h.store.set(ENT, envelope({ tier: 'pro', validUntil: new Date(Date.now() + 86_400_000).toISOString() }))
+    await expect(reserveMochiRequest('u1', start())).rejects.toMatchObject({
+      code: 'resource-exhausted',
+      details: { reason: 'tier' },
+    })
+    h.store.delete(MOCHI)
+    const { charge } = await reserveMochiRequest('u1', start())
+    expect(mochiUsage()).toMatchObject({ dayCalls: 1, monthCalls: 1 })
+    expect(charge.mochi).not.toBeNull()
+  })
+  it('a follow-up of a RECORDED conversation does not touch mochiUsage', async () => {
+    h.store.set(MOCHI, atFreeDailyCeiling())
+    h.store.set(AGENT, envelope({ date: d(), calls: 0, convs: [CONV_REC()] }))
+    await expect(reserveMochiRequest('u1', followUp())).resolves.toMatchObject({
+      convId: CONV,
+      startsConversation: false,
+      charge: { mochi: null, chatTurns: 1, chatConversations: 0 },
+    })
+  })
+  it('a follow-up claim on an UNRECORDED convId is a start → hits the free ceiling', async () => {
+    h.store.set(MOCHI, atFreeDailyCeiling())
+    await expect(reserveMochiRequest('u1', followUp())).rejects.toMatchObject({ details: { reason: 'tier' } })
   })
   it('a profile READ ERROR is NOT treated as comp (free ceiling still applies)', async () => {
     h.store.set(MOCHI, atFreeDailyCeiling())
     h.store.set(PROFILE, profileNamed('Ying', 'Qin'))
     h.state.failProfileRead = true
-    await expect(reserveMochiRequest('u1', true)).rejects.toMatchObject({ code: 'resource-exhausted' })
+    await expect(reserveMochiRequest('u1', start())).rejects.toMatchObject({ code: 'resource-exhausted' })
   })
   it('comp user skips the tier ceiling (flat path) and mochiUsage is NOT written', async () => {
     h.store.set(MOCHI, atFreeDailyCeiling())
     h.store.set(PROFILE, profileNamed(' Ying ', 'QIN'))
     const before = h.store.get(MOCHI)
-    const charge = await reserveMochiRequest('u1', true)
+    const { charge } = await reserveMochiRequest('u1', start())
     expect(charge).toMatchObject({ calls: 1, mochi: null })
     expect(h.store.get(MOCHI)).toBe(before)
   })
   it('comp user still hits the flat cap, and mochiUsage is NOT written', async () => {
     h.store.set(PROFILE, profileNamed('ying', 'qin'))
     h.store.set(AGENT, envelope({ date: d(), calls: DAILY_CALL_LIMIT }))
-    await expect(reserveMochiRequest('u1', true)).rejects.toMatchObject({ code: 'resource-exhausted' })
+    const err = await reserveMochiRequest('u1', start()).catch((e) => e)
+    expect(err).toMatchObject({ code: 'resource-exhausted' })
+    // The comp path is the SHARED flat cap → no details (pause all AI).
+    expect(err.details).toBeUndefined()
     expect(h.store.has(MOCHI)).toBe(false)
+  })
+})
+
+describe('conversation ids (reservation transaction)', () => {
+  it('a start mints + records a convId; a follow-up on it is free; the record survives a UTC rollover', async () => {
+    const first = await reserveChatTurn('u1', start())
+    expect(first.convId).toMatch(/^[A-Za-z0-9_-]{16}$/)
+    const fu = await reserveChatTurn('u1', { claimedConvId: first.convId, startHash: 'x' })
+    expect(fu).toMatchObject({ convId: first.convId, startsConversation: false, charge: { calls: 0, chatConversations: 0 } })
+    expect(fu.charge.convId).toBeUndefined()
+    expect(agentUsage()).toMatchObject({ calls: 1, chatTurns: 2, chatConversations: 1 })
+    // Next UTC day, 30 min later: counters reset, the conversation continues free.
+    vi.setSystemTime(new Date('2026-10-20T00:10:00.000Z'))
+    h.store.set(
+      AGENT,
+      envelope({ date: '2026-10-19', calls: 1, chatTurns: 2, chatConversations: 1, convs: [{ id: first.convId, t: Date.now() - 30 * 60_000, h: 'x' }] }),
+    )
+    const next = await reserveChatTurn('u1', { claimedConvId: first.convId, startHash: 'y' })
+    expect(next.startsConversation).toBe(false)
+    expect(agentUsage()).toMatchObject({ date: '2026-10-20', calls: 0, chatTurns: 1, chatConversations: 0 })
+  })
+  it('a start RETRY (same history within 2 min) reuses the convId without a second slot', async () => {
+    const claim = { claimedConvId: null, startHash: 'same-history' }
+    const a = await reserveChatTurn('u1', claim)
+    vi.setSystemTime(new Date(FIXED_NOW.getTime() + 90_000))
+    const b = await reserveChatTurn('u1', claim)
+    expect(b).toMatchObject({ convId: a.convId, startsConversation: false })
+    expect(agentUsage()).toMatchObject({ calls: 1, chatConversations: 1, chatTurns: 2 })
+    // Past the window it's a genuinely new conversation.
+    vi.setSystemTime(new Date(FIXED_NOW.getTime() + 121_000))
+    const c = await reserveChatTurn('u1', claim)
+    expect(c.startsConversation).toBe(true)
+    expect(c.convId).not.toBe(a.convId)
+  })
+  it('a REFUNDED start is forgotten, so its retry takes a (new) slot', async () => {
+    const claim = { claimedConvId: null, startHash: 'failed-start' }
+    const a = await reserveChatTurn('u1', claim)
+    await refundUsage('u1', a.charge)
+    const b = await reserveChatTurn('u1', claim)
+    expect(b.startsConversation).toBe(true)
+    expect(b.convId).not.toBe(a.convId)
+    expect(agentUsage()).toMatchObject({ calls: 1, chatConversations: 1 })
   })
 })

@@ -12,7 +12,7 @@
 import { mochiRestEndsAt } from '../../../../core/src/logic/mochiFallback'
 
 /** 'all' = the shared cap (every AI surface pauses); 'chat' = only the
- * chat's own turn backstop (server details.reason 'turns') — field
+ * chat's own ceilings (server details.reason 'turns' or 'tier') — field
  * suggestions and suggest-steps keep working. */
 export type MochiRestScope = 'all' | 'chat'
 

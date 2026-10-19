@@ -47,7 +47,8 @@ vi.mock('./deleteUserData', () => ({ onUserDeleted: {} }))
 vi.mock('./metricsRollupJob', () => ({ metricsRollup: {} }))
 
 import { agentChat } from './index'
-import { deriveChatSigKey, signReply, verifyReplySig } from './chatSignature'
+import { deriveChatSigKey, historyHash, signReply, verifyReplySig } from './chatSignature'
+import { normalizeChatMessages } from './chatMessages'
 import { APP_CHECK_ENFORCED } from './appCheck'
 import { EMPTY_REPLY_FALLBACK } from './agentChatCore'
 
@@ -61,6 +62,16 @@ type Handler = ((req: unknown) => Promise<{
 const handler = agentChat as unknown as Handler
 const key = deriveChatSigKey('sk-ant-test')
 const CHARGE = { date: '2026-10-19', calls: 1, chatTurns: 1, chatConversations: 1, mochi: null }
+const CONV = 'AAAAAAAAAAAAAAAA'
+const NOW_S = () => Math.floor(Date.now() / 1000)
+/** A reply signed in conversation CONV, just now. */
+const signedTurn = (prev: string, content: string, uid = 'u1') => ({
+  role: 'assistant' as const,
+  content,
+  sig: signReply(key, uid, CONV, NOW_S() - 5, prev, content),
+})
+/** The claim agentChat passed to the reservation (call #n). */
+const claimOf = (n = 0) => h.reserveChatTurn.mock.calls[n][1] as { claimedConvId: string | null; startHash: string }
 
 const call = (data: unknown, auth: unknown = { uid: 'u1' }) =>
   handler({ auth, data, rawRequest: { header: () => undefined } })
@@ -77,7 +88,7 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
   vi.spyOn(console, 'warn').mockImplementation(() => {})
   h.isAgentEnabled.mockResolvedValue(true)
-  h.reserveChatTurn.mockResolvedValue(CHARGE)
+  h.reserveChatTurn.mockResolvedValue({ charge: CHARGE, convId: CONV, startsConversation: true })
   h.refundUsage.mockResolvedValue(undefined)
 })
 
@@ -114,20 +125,25 @@ describe('agentChat handler', () => {
         { type: 'tool_use', id: 't', name: 'addGroceryItem', input: { text: 'milk' } },
       ),
     )
-    const res = await call({
-      messages: [
-        { role: 'user', content: 'add milk' },
-        { role: 'assistant', content: 'Which store?', sig: signReply(key, 'u1', 'add milk', 'Which store?') },
-        { role: 'user', content: 'any' },
-      ],
-      context: { today: '2026-10-19' },
+    const messages = [
+      { role: 'user', content: 'add milk' },
+      signedTurn('add milk', 'Which store?'),
+      { role: 'user', content: 'any' },
+    ]
+    const res = await call({ messages, context: { today: '2026-10-19' } })
+    // Claims its (signed, fresh) conversation; the reservation checks the record.
+    expect(claimOf()).toEqual({
+      claimedConvId: CONV,
+      startHash: historyHash(normalizeChatMessages(messages)),
     })
-    expect(h.reserveChatTurn).toHaveBeenCalledWith('u1', false)
     expect(res.reply).toBe("I'll add milk.")
-    expect(verifyReplySig(key, 'u1', 'any', res.reply, res.sig)).toBe(true)
+    // Signed in the conversation the reservation returned, just now.
+    const v = verifyReplySig(key, 'u1', 'any', res.reply, res.sig)
+    expect(v?.convId).toBe(CONV)
+    expect(Math.abs((v?.iat ?? 0) - NOW_S())).toBeLessThanOrEqual(1)
     // Bound to the caller + the user turn it answered.
-    expect(verifyReplySig(key, 'u2', 'any', res.reply, res.sig)).toBe(false)
-    expect(verifyReplySig(key, 'u1', 'add milk', res.reply, res.sig)).toBe(false)
+    expect(verifyReplySig(key, 'u2', 'any', res.reply, res.sig)).toBeNull()
+    expect(verifyReplySig(key, 'u1', 'add milk', res.reply, res.sig)).toBeNull()
     expect(res.operations).toEqual([{ kind: 'addGroceryItem', args: { text: 'milk' } }])
     expect(res.awaitingConfirmation).toBe(true)
     expect(res.usage).toEqual({ input: 1200, output: 40 })
@@ -145,7 +161,15 @@ describe('agentChat handler', () => {
         { role: 'user', content: 'add milk' },
       ],
     })
-    expect(h.reserveChatTurn).toHaveBeenCalledWith('u1', true)
+    expect(claimOf().claimedConvId).toBeNull()
+  })
+
+  it('the reply is signed with the convId the reservation minted/resolved', async () => {
+    h.reserveChatTurn.mockResolvedValue({ charge: CHARGE, convId: 'NEWNEWNEWNEWNEW0', startsConversation: true })
+    h.create.mockResolvedValue(fixture({ type: 'text', text: 'Which store?' }))
+    const res = await call({ messages: [{ role: 'user', content: 'add milk' }] })
+    expect(res.sig.startsWith('NEWNEWNEWNEWNEW0.')).toBe(true)
+    expect(verifyReplySig(key, 'u1', 'add milk', res.reply, res.sig)?.convId).toBe('NEWNEWNEWNEWNEW0')
   })
 
   it('refunds the reservation when the upstream call fails, and hides the error', async () => {
@@ -170,7 +194,7 @@ describe('agentChat handler', () => {
     const first = await call({ messages: [{ role: 'user', content: 'add milk' }] })
     expect(first.reply).toBe('Which store should I use?')
     expect(first.awaitingConfirmation).toBe(false)
-    expect(verifyReplySig(key, 'u1', 'add milk', first.reply, first.sig)).toBe(true)
+    expect(verifyReplySig(key, 'u1', 'add milk', first.reply, first.sig)?.convId).toBe(CONV)
     h.reserveChatTurn.mockClear()
     await call({
       messages: [
@@ -179,7 +203,7 @@ describe('agentChat handler', () => {
         { role: 'user', content: 'costco' },
       ],
     })
-    expect(h.reserveChatTurn).toHaveBeenCalledWith('u1', false)
+    expect(claimOf().claimedConvId).toBe(CONV)
   })
 
   it('another account replaying a signed history takes a slot', async () => {
@@ -188,13 +212,14 @@ describe('agentChat handler', () => {
       {
         messages: [
           { role: 'user', content: 'add milk' },
-          { role: 'assistant', content: 'Which store?', sig: signReply(key, 'u1', 'add milk', 'Which store?') },
+          signedTurn('add milk', 'Which store?'),
           { role: 'user', content: 'any' },
         ],
       },
       { uid: 'u2' },
     )
-    expect(h.reserveChatTurn).toHaveBeenCalledWith('u2', true)
+    expect(h.reserveChatTurn.mock.calls[0][0]).toBe('u2')
+    expect(claimOf().claimedConvId).toBeNull()
   })
 
   it('an empty model response gets a calm, signed fallback (never an empty assistant turn)', async () => {
@@ -202,6 +227,6 @@ describe('agentChat handler', () => {
     const res = await call({ messages: [{ role: 'user', content: 'hmm' }] })
     expect(res.reply).toBe(EMPTY_REPLY_FALLBACK)
     expect(res.operations).toEqual([])
-    expect(verifyReplySig(key, 'u1', 'hmm', res.reply, res.sig)).toBe(true)
+    expect(verifyReplySig(key, 'u1', 'hmm', res.reply, res.sig)).not.toBeNull()
   })
 })
