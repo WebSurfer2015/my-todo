@@ -10,9 +10,10 @@
 #        SAGELY_DEMO_EMAIL             (demo account email)
 #        SAGELY_DEMO_PASSWORD          (demo account password)
 #      ⚠ There is ONE Firebase project, so these flows (and the seed step)
-#      WRITE TO PRODUCTION under the demo account's uid. The workflow is
-#      currently disabled in GitHub (disabled_inactivity) — re-enabling it
-#      is the owner's call; don't flip it on as a side effect of a fix.
+#      WRITE TO PRODUCTION under the demo account's uid. The owner re-enabled
+#      the workflow (2026-10-19). Scheduled runs build the DEFAULT branch
+#      (main), so flow/app fixes on dev reach the nightly only once dev is
+#      promoted; use workflow_dispatch with ref=dev to test dev directly.
 #   2. Confirm the iOS Simulator device name below matches an image
 #      available on the macOS runner (`xcrun simctl list devices`).
 #
@@ -121,7 +122,7 @@ jobs:
           # so the app sits on the dev launcher and the app JS never runs.
           # Release embeds the JS bundle (the "Bundle React Native code and
           # images" phase) so the app launches standalone. The first cold
-          # compile of gRPC/Folly/abseil is slow (hence 120-min timeout +
+          # compile of gRPC/Folly/abseil is slow (hence the long timeout +
           # the Pods/DerivedData cache); subsequent runs reuse the cache.
           # COMPILER_INDEX_STORE_ENABLE=NO skips index work CI doesn't need.
           xcodebuild \

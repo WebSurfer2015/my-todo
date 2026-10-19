@@ -36,8 +36,11 @@ appId: com.websurfer.mytodo
     timeout: 4000
 - tapOn: "Undo"
 - waitForAnimationToEnd
-# Open again: an open row's a11y label is just its title (a done row
-# reads "<title>, completed").
+# Open again. The row's a11y label is "<title>, <state/date/category/…>";
+# a done row reads "<title>, completed, …" — so assert the row is present
+# AND that it no longer says completed (a prefix match alone would pass even
+# if Undo broke, since a just-completed row stays mounted).
 - assertVisible:
-    # Row a11y label is "<title>, <date/category/…>" since round 8.
     text: "Review reading group chapter.*"
+- assertNotVisible:
+    text: "Review reading group chapter, completed.*"

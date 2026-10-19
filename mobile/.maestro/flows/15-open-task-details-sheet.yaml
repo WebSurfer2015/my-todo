@@ -9,17 +9,22 @@
 # "Add a step…" affordance lands on the parent center, not the field.
 # assertVisible still works via substring against the concatenated label.
 #
-# Precondition: seeded row "Buy groceries". Not yet run on a sim.
+# Precondition: seeded row "Buy groceries".
+# The row's own a11y label already contains "… of 2 steps done", so a
+# "Steps" match alone would pass before the sheet opens — assert the
+# sheet-only "Add a step" affordance instead (absent before, present after).
 appId: com.websurfer.mytodo
 ---
 - stopApp
 - launchApp
 - tapOn:
     text: "Todos, tab.*"
+- assertNotVisible:
+    text: ".*Add a step.*"
 # Both a body tap and a long-press open the details/edit sheet.
 - longPressOn: ".*Buy groceries.*"
 - waitForAnimationToEnd:
     timeout: 1500
-# "Steps" is the subtasks section header (i18n subtasks: 'Steps').
+# Only the details sheet renders the "Add a step" affordance.
 - assertVisible:
-    text: ".*Steps.*"
+    text: ".*Add a step.*"
