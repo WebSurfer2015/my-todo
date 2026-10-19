@@ -16,7 +16,7 @@ import { Filter, Priority, StatusFilter, ViewMode } from "../../core-bindings/ty
 import { PIN_LIMIT } from "../../../../core/src/logic/filters";
 import { TodoStoreActions } from "../../../../core/src/store";
 import { StorageAdapter } from "../../../../core/src/ports/persistence";
-import { unwrap, serializeAny } from "../../storage/envelope";
+import { unwrapEnvelope as unwrap, wrapEnvelope as serializeAny } from "../../../../core/src/ports/persistence";
 
 const parseProfile = (raw: string | null): Profile => {
   const data = unwrap(raw);

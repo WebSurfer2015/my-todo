@@ -34,7 +34,7 @@ import { chatDaysFromUsage, parseAgentUsage, pruneExpiredConvs } from './chatQuo
 if (admin.apps.length === 0) admin.initializeApp()
 
 // Users per getAll batch (each user contributes 2 doc refs).
-const GET_ALL_CHUNK = 150
+export const GET_ALL_CHUNK = 150
 
 /** state/signals doc → the two client-stamped signals (envelope: {value: '{"version","data"}'}). */
 function parseSignals(raw: unknown): Pick<RollupUser, 'lastActiveDate' | 'activatedDay'> {

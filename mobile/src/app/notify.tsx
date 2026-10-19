@@ -249,9 +249,13 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
     [endCurrent],
   )
 
+  // End the pressed snackbar BEFORE running its action: the action may show
+  // a follow-up snackbar (e.g. a partial-Undo notice), which ending afterwards
+  // would wipe out.
   const handleAction = useCallback(() => {
-    if (snackbar?.onAction) snackbar.onAction()
+    const action = snackbar?.onAction
     endCurrent()
+    action?.()
   }, [snackbar, endCurrent])
 
   const value = useMemo<NotifyApi>(

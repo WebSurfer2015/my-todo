@@ -36,6 +36,8 @@ import {
 import { useLang } from "../../../app/LangContext";
 import { useTheme } from "../../../app/theme";
 import { useNotify } from "../../../app/notify";
+import { useStore } from "../../../app/StoreContext";
+import { newlyLinkedIds, unlinkPatches } from "./linkUndo";
 import { AI_QUOTA_ERROR, linkStoreToItems } from "../../../adapters/aiInfer";
 import GroceryIcon from "../GroceryIcon";
 import MochiThinking from "../../mochi/MochiThinking";
@@ -91,6 +93,13 @@ export default function StorePicker({
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const { showSnackbar } = useNotify();
+  // The live shopping list + its edit, read when the AI link lands and when
+  // its Undo runs (both after this render).
+  const store = useStore();
+  const storeRef = useRef(store);
+  useEffect(() => {
+    storeRef.current = store;
+  }, [store]);
 
   // Inline banner state for the AI link-items flow. Snackbars
   // render at the React root which on iOS sits BELOW a native
@@ -127,11 +136,23 @@ export default function StorePicker({
         clearLinkingLater();
         return;
       }
+      // Only the items this link actually tags — Undo takes exactly those back.
+      const linked = newlyLinkedIds(storeRef.current.groceries, name, res.linkedItemIds);
       onLinkItems(name, res.linkedItemIds);
       const n = res.linkedItemIds.length;
       const msg = `Linked ${n} ${n === 1 ? "item" : "items"} to ${name}.`;
       setLinkingMessage(msg);
-      showSnackbar({ message: msg });
+      showSnackbar({
+        message: msg,
+        actionLabel: linked.length > 0 ? t.undo : undefined,
+        onAction:
+          linked.length > 0
+            ? () => {
+                const { groceries, editGrocery } = storeRef.current;
+                for (const p of unlinkPatches(groceries, name, linked)) editGrocery(p.id, { stores: p.stores });
+              }
+            : undefined,
+      });
       clearLinkingLater();
     }).catch((err) => {
       // Over the fair-use ceiling: the store was added fine — just drop the

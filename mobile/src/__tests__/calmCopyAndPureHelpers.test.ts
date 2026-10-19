@@ -6,7 +6,7 @@
  *   - alertWithPresence / actionSheetWithPresence count until answered
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { ActionSheetIOS, Alert } from 'react-native'
+import { ActionSheetIOS, Alert, AppState } from 'react-native'
 import { seriesCommitMessage, deferredMessage } from '../store/slices/useTodosSlice'
 import { categoryDeletedMessage, EXPORT_FAILED_MESSAGE } from '../app/sheetMessages'
 import { undoOutcome } from '../features/mochi/undoOutcome'
@@ -210,6 +210,7 @@ describe('actionSheetWithPresence', () => {
     expect(cb).toHaveBeenCalledWith(1)
     vi.advanceTimersByTime(MODAL_DISMISS_GRACE_MS)
     expect(isAnyModalPresented()).toBe(true)
+    calls[1].cb(1) // answer it so its AppState listener doesn't leak
   })
 
   it('an answered sheet cancels its max-lifetime timer', () => {
@@ -218,6 +219,55 @@ describe('actionSheetWithPresence', () => {
     calls[0].cb(0)
     vi.advanceTimersByTime(MODAL_DISMISS_GRACE_MS)
     expect(vi.getTimerCount()).toBe(0)
+  })
+
+  const stubAppState = AppState as unknown as { __emit: (s: string) => void; __listenerCount: () => number }
+
+  it('the max lifetime pauses while backgrounded and re-arms a fresh one on return', () => {
+    const before = stubAppState.__listenerCount()
+    try {
+      capture()
+      actionSheetWithPresence({ options: ['Pin', 'Cancel'], cancelButtonIndex: 1 }, () => {})
+      vi.advanceTimersByTime(ACTION_SHEET_MAX_PRESENCE_MS - 1000)
+      stubAppState.__emit('background')
+      // Backgrounded far past the lifetime: the sheet is still up on return.
+      vi.advanceTimersByTime(ACTION_SHEET_MAX_PRESENCE_MS * 5)
+      expect(isAnyModalPresented()).toBe(true)
+      stubAppState.__emit('active')
+      // A fresh full lifetime, not the 1s that was left.
+      vi.advanceTimersByTime(ACTION_SHEET_MAX_PRESENCE_MS - 1)
+      expect(isAnyModalPresented()).toBe(true)
+      vi.advanceTimersByTime(1 + MODAL_DISMISS_GRACE_MS)
+      expect(isAnyModalPresented()).toBe(false)
+      // Released: its AppState listener is gone.
+      expect(stubAppState.__listenerCount()).toBe(before)
+    } finally {
+      stubAppState.__emit('active')
+    }
+  })
+
+  it('a sheet opened while not active only starts its lifetime once active', () => {
+    try {
+      capture()
+      stubAppState.__emit('inactive')
+      actionSheetWithPresence({ options: ['Pin', 'Cancel'], cancelButtonIndex: 1 }, () => {})
+      vi.advanceTimersByTime(ACTION_SHEET_MAX_PRESENCE_MS * 2)
+      expect(isAnyModalPresented()).toBe(true)
+      stubAppState.__emit('active')
+      vi.advanceTimersByTime(ACTION_SHEET_MAX_PRESENCE_MS + MODAL_DISMISS_GRACE_MS)
+      expect(isAnyModalPresented()).toBe(false)
+    } finally {
+      stubAppState.__emit('active')
+    }
+  })
+
+  it('an answered sheet removes its AppState listener', () => {
+    const calls = capture()
+    const before = stubAppState.__listenerCount()
+    actionSheetWithPresence({ options: ['Pin', 'Cancel'], cancelButtonIndex: 1 }, () => {})
+    expect(stubAppState.__listenerCount()).toBe(before + 1)
+    calls[0].cb(1)
+    expect(stubAppState.__listenerCount()).toBe(before)
   })
 })
 

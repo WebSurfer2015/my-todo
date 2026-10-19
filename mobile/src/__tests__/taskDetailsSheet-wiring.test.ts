@@ -122,4 +122,19 @@ describe('details ghost-guard wiring (source guard)', () => {
   it('the series close commits through buildSeriesCommit', () => {
     expect(sheet).toMatch(/buildSeriesCommit\(/)
   })
+
+  it("the sheet's own confirms count as presented (a reminder tap parks instead of swapping details out from under them)", () => {
+    expect(sheet).not.toMatch(/\bAlert\.alert\(/)
+    expect(sheet).not.toMatch(/^\s*Alert,\s*$/m)
+    expect((sheet.match(/\balertWithPresence\(/g) ?? []).length).toBeGreaterThanOrEqual(7)
+  })
+
+  it('the close "Changes saved · Undo" also unwinds the session\'s repeat changes', () => {
+    expect(sheet).toMatch(/onAction: buildDetailsUndo\(snapshot, recurrenceStepsRef\.current, store\.revertTodo\)/)
+    expect(sheet).toMatch(/recurrenceStepsRef\.current\.push\(\{ rowAfter, undo \}\)/)
+  })
+
+  it('the Edit-series Delete button says "Delete series" to VoiceOver too', () => {
+    expect(sheet).toMatch(/accessibilityLabel=\{seriesScope \? 'Delete series' : isBinFooter \? t\.deletePermanently : t\.deleteTask\}/)
+  })
 })

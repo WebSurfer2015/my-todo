@@ -99,6 +99,7 @@ import { TaskDetailsOpenContext } from '../../../app/SheetContext'
 import { useLang } from '../../../app/LangContext'
 import { makeStyles } from './styles';
 import { shouldIgnoreToggleTap } from './toggleGuard'
+import { rowAccessibilityActions, rowAccessibilityLabel, type RowA11yAction } from './rowA11y'
 
 export type SubtaskVisibility = 'all' | 'open' | 'done'
 
@@ -339,6 +340,22 @@ function TaskItem({
   // upcoming rows with steps; a carried-over row always shows its day.
   const hideHomeDateChip = dateChipFormat === 'home-today' && (isToday || (hasSubs && !overdue))
   const cat = todo.category ? categories.find((c) => c.id === todo.category) : undefined
+  // The date chip's text (also spoken in the row's VoiceOver label).
+  const binChipText =
+    todo.status === 'notDo'
+      ? t.notDoChip
+      : todo.completionDate
+        ? doneOnLabel(todo.completionDate, t.locale)
+        : todo.trashed
+          ? 'Deleted · here for 30 days'
+          : 'Done'
+  const dueChipText = todo.dueDate
+    ? overdue
+      ? // Carried over: the day it was for ("Mon, Oct 5"),
+        // never a count of days behind ("23 days ago").
+        weekdayDate(dueDateOnly(todo.dueDate), { locale: t.locale })
+      : formatDisplayDate(todo.dueDate, t.locale)
+    : t.noDate
 
   function openDetails() {
     swipeableRef.current?.close()
@@ -458,6 +475,61 @@ function TaskItem({
   //     - Done / Not-Do: Restore + Delete
   const isBin = inTrash || binFilterView || trashedRow
 
+  // VoiceOver: the row is one element, so its label speaks the chips and its
+  // custom actions mirror the swipes (which VoiceOver can't perform).
+  const rowA11yLabel = rowAccessibilityLabel({
+    text: todo.text,
+    dateLabel: hideHomeDateChip ? null : binFilterView ? binChipText : todo.dueDate ? dueChipText : null,
+    dateKind: binFilterView ? 'status' : overdue ? 'carriedOver' : 'due',
+    priority: todo.priority,
+    recurring: !!todo.recurrence,
+    categoryLabel: cat ? categoryLabel(cat, t) : null,
+    hasReminder: getReminders(todo).length > 0,
+    steps: hasSubs ? { done: subsDoneCount, total: subs.length } : null,
+    done: todo.done,
+    skipped: todo.status === 'notDo',
+    trashed: todo.trashed,
+  })
+  const rowA11yActions = rowAccessibilityActions({
+    inTrash,
+    isBin,
+    hasSubs,
+    canDefer: !!onLongPressDefer,
+    canRestore: !!onRestore,
+    canDeleteForever: !!onPermanentDelete,
+  })
+  const rowA11yActionLabels: Record<RowA11yAction, string> = {
+    toggleDone: todo.done || todo.trashed ? t.markNotDone : t.markDone,
+    toggleSteps: expanded ? 'Hide steps' : 'Show steps',
+    edit: t.editTask,
+    defer: t.deferTask,
+    skip: t.notDo,
+    delete: t.deleteTask,
+    restore: t.restoreTask,
+    deleteForever: t.deletePermanently,
+  }
+  function handleSkip() {
+    swipeableRef.current?.close()
+    if (onSkip) onSkip(todo.id)
+    else handleMoveToTrash()
+  }
+  function handleDefer() {
+    swipeableRef.current?.close()
+    onLongPressDefer?.(todo)
+  }
+  function runRowA11yAction(name: string) {
+    switch (name as RowA11yAction) {
+      case 'toggleDone': handleToggle(); break
+      case 'toggleSteps': setExpanded((v) => !v); break
+      case 'edit': openDetails(); break
+      case 'defer': handleDefer(); break
+      case 'skip': handleSkip(); break
+      case 'delete': handleMoveToTrash(); break
+      case 'restore': handleRestore(); break
+      case 'deleteForever': confirmPermanentDelete(); break
+    }
+  }
+
   function renderLeftActions(_progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) {
     // Parent todos with steps suppress the swipe Edit action — the
     // steps live INSIDE the row and have their own tap-to-edit on the
@@ -506,10 +578,7 @@ function TaskItem({
       <View style={styles.swipeActionsRow}>
         <TouchableOpacity
           style={[styles.swipeAction, styles.swipeDefer]}
-          onPress={() => {
-            swipeableRef.current?.close()
-            onLongPressDefer?.(todo)
-          }}
+          onPress={handleDefer}
         >
           <Calendar size={20} color={SWIPE_INK} strokeWidth={2} />
           <Text style={[styles.swipeActionText, styles.swipeActionTextInk]} numberOfLines={1}>{t.deferTask}</Text>
@@ -519,11 +588,7 @@ function TaskItem({
         {!hasSubs && (
         <TouchableOpacity
           style={[styles.swipeAction, styles.swipeTrash]}
-          onPress={() => {
-            swipeableRef.current?.close()
-            if (onSkip) onSkip(todo.id)
-            else handleMoveToTrash()
-          }}
+          onPress={handleSkip}
         >
           {/* Solid white disc + dark X — lucide's XCircle outline reads
               as "dotted" / thin at button scale, so we draw a filled
@@ -590,28 +655,14 @@ function TaskItem({
         // and offer completion as an action — the circle's own label used to
         // lead ("…Mark as done.") while a double-tap actually opened it.
         accessibilityRole="button"
-        accessibilityLabel={[
-          todo.text,
-          todo.done ? 'completed' : todo.trashed ? 'removed' : null,
-          hasSubs ? `${subsDoneCount} of ${subs.length} steps done` : null,
-        ]
-          .filter(Boolean)
-          .join(', ')}
+        accessibilityLabel={rowA11yLabel}
         accessibilityHint={inTrash && onToggleSelect ? 'Selects this to-do' : 'Opens the to-do'}
         accessibilityActions={
-          inTrash
-            ? undefined
-            : [
-                { name: 'toggleDone', label: todo.done ? 'Reopen' : 'Mark done' },
-                // The steps pill sits inside this one VoiceOver element, so
-                // expanding steps must be offered as an action too.
-                ...(hasSubs ? [{ name: 'toggleSteps', label: expanded ? 'Hide steps' : 'Show steps' }] : []),
-              ]
+          rowA11yActions.length > 0
+            ? rowA11yActions.map((name) => ({ name, label: rowA11yActionLabels[name] }))
+            : undefined
         }
-        onAccessibilityAction={(e) => {
-          if (e.nativeEvent.actionName === 'toggleDone') handleToggle()
-          else if (e.nativeEvent.actionName === 'toggleSteps') setExpanded((v) => !v)
-        }}
+        onAccessibilityAction={(e) => runRowA11yAction(e.nativeEvent.actionName)}
         onTouchStart={onRowTouchStart}
         onTouchMove={onRowTouchMove}
         onPress={() => {
@@ -748,13 +799,7 @@ function TaskItem({
                   {/* R5 — the Done bin tells its three kinds of rows apart:
                       skipped ("Skipped"), finished ("Done <date>"), and
                       deleted-never-finished ("Deleted · here for 30 days"). */}
-                  {todo.status === 'notDo'
-                    ? t.notDoChip
-                    : todo.completionDate
-                      ? doneOnLabel(todo.completionDate, t.locale)
-                      : todo.trashed
-                        ? 'Deleted · here for 30 days'
-                        : 'Done'}
+                  {binChipText}
                 </Text>
               ) : (
                 <Text style={[
@@ -767,13 +812,7 @@ function TaskItem({
                         ? styles.chipTextMuted
                         : styles.chipTextDate,
                 ]}>
-                  {todo.dueDate
-                    ? overdue
-                      ? // Carried over: the day it was for ("Mon, Oct 5"),
-                        // never a count of days behind ("23 days ago").
-                        weekdayDate(dueDateOnly(todo.dueDate), { locale: t.locale })
-                      : formatDisplayDate(todo.dueDate, t.locale)
-                    : t.noDate}
+                  {dueChipText}
                 </Text>
               )}
             </View>

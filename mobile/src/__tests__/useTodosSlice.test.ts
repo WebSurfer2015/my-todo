@@ -17,7 +17,7 @@ import { createTodoStore } from '../../../core/src/store'
 import { strings } from '../../../core/src/data/i18n'
 import type { StorageAdapter } from '../../../core/src/ports/persistence'
 import type { Filter, Todo } from '../../../core/src/domain/types'
-import { wrap } from '../storage/envelope'
+import { wrapEnvelope as wrap } from '../../../core/src/ports/persistence'
 import { todayLocal } from '../../../core/src/logic/utils'
 
 type Snack = Parameters<TodosSliceDeps['notify']['showSnackbar']>[0]

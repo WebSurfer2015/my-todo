@@ -15,7 +15,7 @@ import {
 } from "../../core-bindings/categories";
 import { TodoStoreActions } from "../../../../core/src/store";
 import { StorageAdapter } from "../../../../core/src/ports/persistence";
-import { unwrap, serializeAny } from "../../storage/envelope";
+import { unwrapEnvelope as unwrap, wrapEnvelope as serializeAny } from "../../../../core/src/ports/persistence";
 
 const parseCategories = (raw: string | null): CategoryDef[] => {
   const data = unwrap(raw);

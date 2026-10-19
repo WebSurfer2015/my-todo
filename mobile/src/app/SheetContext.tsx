@@ -641,9 +641,13 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           Mochi" affordance. Applies via the same store mutations as a
           manual tap, after the user confirms each proposal. Gated by the
           MOCHI_AGENT_ENABLED kill-switch so the sheet never mounts when
-          the feature is paused. */}
+          the feature is paused. Keyed on the account: the chat stays
+          mounted between opens (SheetProvider sits above AppGate), so a new
+          account must get a fresh conversation — remounting drops the
+          previous account's messages and aborts its in-flight turn. */}
       {MOCHI_AGENT_ENABLED && (
         <ChatSheet
+          key={accountUid ?? 'signed-out'}
           visible={mochiOpen}
           initialInput={mochiSeed}
           autoSendInitial={mochiAutoSend}

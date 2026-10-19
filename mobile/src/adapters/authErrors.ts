@@ -13,16 +13,12 @@
 import {
   AUTH_FALLBACK_MESSAGE,
   AuthFlow,
-  authErrorCode,
   authErrorDiagnostic as coreDiagnostic,
   mapFirebaseAuthError,
   providerFailedMessage,
 } from "../../../core/src/data/authMessages";
 
 export type { AuthFlow };
-export { authErrorCode };
-/** Calm fallback for an error we don't recognise (core's AUTH_FALLBACK_MESSAGE). */
-export const AUTH_UNKNOWN_MESSAGE = AUTH_FALLBACK_MESSAGE;
 
 interface ErrLike {
   code?: string | number;
@@ -59,7 +55,6 @@ const GOOGLE_NATIVE_MESSAGES: Record<string, string> = {
 
 /** What a native code most likely means — for the crash log only. */
 const NATIVE_DIAGNOSTICS: Record<string, string> = {
-  "1001": "user cancelled",
   ERR_REQUEST_NOT_HANDLED: "Sign in with Apple capability / entitlement missing in this build",
   ERR_INVALID_SCOPE: "Apple Sign-In requested scope misconfigured",
   DEVELOPER_ERROR: "Google Sign-In misconfigured (client IDs / SHA fingerprint) for this build",
@@ -101,5 +96,5 @@ export function mapAuthError(err: unknown, flow?: AuthFlow): string {
   }
 
   // 6. Fallback: calm copy (the code goes to Crashlytics, not the screen).
-  return AUTH_UNKNOWN_MESSAGE;
+  return AUTH_FALLBACK_MESSAGE;
 }
