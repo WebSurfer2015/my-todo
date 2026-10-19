@@ -11,7 +11,7 @@ import { ActionSheetIOS, Alert, AppState } from 'react-native'
 import { seriesCommitMessage, deferredMessage } from '../store/slices/useTodosSlice'
 import { categoryDeletedMessage, EXPORT_FAILED_MESSAGE } from '../app/sheetMessages'
 import { undoResult } from '../features/mochi/undoOutcome'
-import { captureCardRemovalNote, isCaptureCardEditable } from '../features/mochi/captureCardEditable'
+import { addedReplyText, captureCardRemovalNote, isCaptureCardEditable } from '../features/mochi/captureCardEditable'
 import { planStepDoneFooter, stepDoneUndoAfterToggle } from '../features/task/TaskDetailsSheet/stepDoneFooter'
 import { ACTION_SHEET_MAX_PRESENCE_MS, actionSheetWithPresence, alertWithPresence, isAnyModalPresented, __resetModalPresenceForTests } from '../app/modalPresence'
 import { MODAL_DISMISS_GRACE_MS } from '../app/modalTiming'
@@ -69,7 +69,7 @@ describe('captureCardRemovalNote', () => {
   it('says "Removed" only when the to-do was actually removed', () => {
     expect(captureCardRemovalNote('undone')).toBe('Removed')
     expect(captureCardRemovalNote('partial')).toBe('Undone — later changes were kept.')
-    expect(captureCardRemovalNote('nothing')).toBe('✓ Added · Nothing to undo')
+    expect(captureCardRemovalNote('nothing')).toBe('Nothing to undo')
   })
 })
 
@@ -291,5 +291,18 @@ describe('isCaptureCardEditable', () => {
     [false, true, false],
   ])('undoLive=%s removed=%s → %s', (undoLive, removed, expected) => {
     expect(isCaptureCardEditable(undoLive, removed)).toBe(expected)
+  })
+})
+
+describe('addedReplyText — an already-added capture reads in the past tense', () => {
+  it('turns a promise into what happened', () => {
+    expect(addedReplyText("I'll add milk to your shopping list.")).toBe('Added milk to your shopping list.')
+    expect(addedReplyText('I will add the dentist for Friday.')).toBe('Added the dentist for Friday.')
+    expect(addedReplyText("I'll put gym on Monday.")).toBe('Added gym on Monday.')
+  })
+  it('leaves other replies alone', () => {
+    expect(addedReplyText('Added milk.')).toBe('Added milk.')
+    expect(addedReplyText('Which day works?')).toBe('Which day works?')
+    expect(addedReplyText("Sure — I'll add it.")).toBe("Sure — I'll add it.")
   })
 })

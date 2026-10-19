@@ -13,6 +13,13 @@ export function isCaptureCardEditable(undoLive: boolean, removed: boolean): bool
  * only "Removed" when something was actually removed. */
 export function captureCardRemovalNote(r: UndoResult): string {
   if (r === 'partial') return PARTIAL_UNDO_MESSAGE
-  if (r === 'nothing') return '✓ Added · Nothing to undo'
+  if (r === 'nothing') return 'Nothing to undo'
   return 'Removed'
+}
+
+/** Mochi often phrases a capture as a promise ("I'll add milk."), but a single
+ * to-do / shopping item is added the moment the reply lands — show it in the
+ * past tense. Display-only: the signed wire text is never changed. */
+export function addedReplyText(content: string): string {
+  return content.replace(/^\s*I(?:'ll| will) (?:add|put|pop|jot(?: down)?)\b\s*/i, 'Added ')
 }

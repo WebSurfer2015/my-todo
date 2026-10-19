@@ -22,7 +22,7 @@ import { useAuth } from '../../app/AuthContext'
 import { isUndoLive, useUndoLive } from '../../app/mochiUndo'
 import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
 import { useSheetDismiss, sheetGrabZone } from '../../ui/useSheetDismiss'
-import { useMochiAgent, type ProposedOperation } from './useMochiAgent'
+import { useMochiAgent, type ChatTurn, type ProposedOperation } from './useMochiAgent'
 import { pickMatchHeader, supersededProposalTurns } from './chatTurns'
 import MochiThinking from './MochiThinking'
 import EditableCaptureCard, { type CapturedTodoPatch } from './EditableCaptureCard'
@@ -38,6 +38,7 @@ import type { AgentRecurrence } from '../../../../core/src/ports/aiContracts'
 import { deferPresets } from '../task/DeferModal'
 import CategoryIcon from '../../ui/CategoryIcon'
 import { formatCalendarDate, recurrenceShortLabel, type RecurrenceFreqStrings } from '../../../../core/src/logic/labels'
+import { addedReplyText } from './captureCardEditable'
 
 /** What applying a confirmed turn did. `pending` is set when the turn raised
  * confirm Alerts (a repeating to-do's delete scope):
@@ -313,6 +314,14 @@ export default function ChatSheet({
     (i: number): Promise<UndoResult | null> => runTurnUndo(i, undoFnsRef.current[i]),
     [runTurnUndo],
   )
+  // A single to-do / shopping item Mochi already added (auto-capture, or a
+  // confirmed one) — its card says "Added…", the footer is only Undo, and the
+  // reply reads in the past tense.
+  const isAppliedCapture = (m: ChatTurn, i: number): boolean =>
+    m.role === 'assistant' &&
+    m.operations?.length === 1 &&
+    (m.operations[0].kind === 'createTodo' || m.operations[0].kind === 'addGroceryItem') &&
+    resolved[i] === 'applied'
   const inputRef = useRef<TextInput>(null)
   const scrollRef = useRef<ScrollView>(null)
 
@@ -563,9 +572,10 @@ export default function ChatSheet({
     ids.map((id) => todos.find((td) => td.id === id)).filter((t): t is PickCandidate => !!t)
   // Unresolved proposals a newer Mochi turn has replaced — read-only now.
   const superseded = supersededProposalTurns(messages, resolved)
-  const renderPreview = (op: ProposedOperation) => (
+  const renderPreview = (op: ProposedOperation, added = false) => (
     <OperationPreview
       op={op}
+      added={added}
       categoryLabelLookup={categoryLookup}
       todoTextLookup={todoTextLookup}
       todoLookup={todoLookup}
@@ -680,7 +690,11 @@ export default function ChatSheet({
                       <Sparkles size={14} color={theme.primary} strokeWidth={2.2} />
                     </View>
                     <View style={styles.mochiBubble}>
-                      {!!m.content && <Text style={styles.mochiLine}>{m.content}</Text>}
+                      {!!m.content && (
+                        <Text style={styles.mochiLine}>
+                          {isAppliedCapture(m, i) ? addedReplyText(m.content) : m.content}
+                        </Text>
+                      )}
                       {m.operations?.map((op, j) => (
                         <View key={j} style={styles.proposalCard}>
                           {/* A replaced proposal is read-only: preview only. */}
@@ -700,6 +714,8 @@ export default function ChatSheet({
                               onRemove={() => runUndo(i)}
                               undoLive={isUndoLive(undoFnsRef.current[i])}
                             />
+                          ) : op.kind === 'addGroceryItem' && isAppliedCapture(m, i) ? (
+                            renderPreview(op, true)
                           ) : op.kind === 'pickTodos' ? (
                             // Several tasks matched — let the user tick which
                             // ones to action. Owns its own confirm row.
@@ -747,6 +763,33 @@ export default function ChatSheet({
                           render their OWN action rows — skip the generic one. */}
                       {superseded.has(i) ? (
                         <Text style={styles.appliedNote}>Replaced by the newer suggestion</Text>
+                      ) : m.operations?.length === 1 &&
+                        m.operations[0].kind === 'addGroceryItem' &&
+                        isAppliedCapture(m, i) ? (
+                        // Already added — the card header says so; the footer
+                        // is only Undo (then what the Undo did).
+                        undone[i] ? (
+                          <Text style={styles.appliedNote}>
+                            {undone[i] === 'partial'
+                              ? PARTIAL_UNDO_MESSAGE
+                              : undone[i] === 'nothing'
+                                ? 'Nothing to undo'
+                                : 'Removed'}
+                          </Text>
+                        ) : undoFnsRef.current[i] && isUndoLive(undoFnsRef.current[i]) ? (
+                          <View style={[styles.appliedRow, { justifyContent: 'flex-end' }]}>
+                            <TouchableOpacity
+                              hitSlop={8}
+                              onPress={() => {
+                                void runUndo(i)
+                              }}
+                              accessibilityRole="button"
+                              accessibilityLabel="Undo adding this"
+                            >
+                              <Text style={styles.undoText}>Undo</Text>
+                            </TouchableOpacity>
+                          </View>
+                        ) : null
                       ) : m.operations &&
                         m.operations.length > 0 &&
                         !(
@@ -1464,6 +1507,7 @@ function capitalize(w: string): string {
 
 function OperationPreview({
   op,
+  added = false,
   categoryLabelLookup,
   todoTextLookup,
   todoLookup,
@@ -1474,6 +1518,8 @@ function OperationPreview({
   theme,
 }: {
   op: ProposedOperation
+  /** Already applied (an auto-added shopping item) — say so, not "Add …". */
+  added?: boolean
   categoryLabelLookup: (id: string) => string
   todoTextLookup: (id: string) => string
   todoLookup: (
@@ -1611,7 +1657,7 @@ function OperationPreview({
     const a = op.args
     return (
       <View>
-        <Text style={styles.proposalKind}>Add to shopping list</Text>
+        <Text style={styles.proposalKind}>{added ? 'Added to shopping list' : 'Add to shopping list'}</Text>
         <Text style={styles.proposalTitle}>{a.text}</Text>
         <View style={styles.proposalMeta}>
           {a.groupId && <Chip styles={styles}>{groupLabelLookup(a.groupId)}</Chip>}

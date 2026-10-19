@@ -154,7 +154,7 @@ export default function EditableCaptureCard({
 
   return (
     <View>
-      <Text style={styles.kind}>New to-do</Text>
+      <Text style={styles.kind}>Added to your to-dos</Text>
       <Text style={styles.title}>{args.text}</Text>
       <View style={styles.chipRow}>
         <TouchableOpacity
@@ -256,7 +256,7 @@ export default function EditableCaptureCard({
           <Text style={styles.removedNote}>{captureCardRemovalNote(removal)}</Text>
         ) : (
           <>
-            <Text style={styles.addedNote}>✓ Added</Text>
+            {/* Already added — the header says so; the footer is only Undo. */}
             {editable && (
             <TouchableOpacity
               onPress={undoLast}
@@ -340,8 +340,7 @@ function makeStyles(c: ThemeColors) {
     catOptionText: { fontSize: 13, fontWeight: '600', color: c.label2 },
     catOptionTextActive: { color: c.primaryOn },
     notes: { fontSize: 13, color: c.label3, fontStyle: 'italic', marginTop: 6 },
-    actionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
-    addedNote: { fontSize: 13, fontWeight: '600', color: c.label3 },
+    actionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 12, marginTop: 8 },
     removedNote: { fontSize: 13, fontWeight: '600', color: c.label3, marginTop: 8 },
     undoText: { fontSize: 13, fontWeight: '700', color: c.primary },
   })
