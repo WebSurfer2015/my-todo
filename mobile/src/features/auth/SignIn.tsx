@@ -22,7 +22,7 @@ import { useLang } from "../../app/LangContext";
 import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from "../../app/theme";
 import { Lang, LANG_NAMES, LANG_ORDER } from "../../../../core/src/data/i18n";
 import { LANGUAGE_PICKER_ENABLED } from "../../app/featureFlags";
-import { authErrorCode, mapAuthError, AuthFlow } from "../../adapters/authErrors";
+import { authErrorDiagnostic, mapAuthError, AuthFlow } from "../../adapters/authErrors";
 
 type Mode = "social" | "signin" | "signup" | "reset";
 
@@ -91,7 +91,7 @@ export default function SignIn() {
     } catch (err) {
       console.error("[auth] email sign-in failed", err);
       try {
-        crashlytics().log(`auth error code (email): ${authErrorCode(err) || "(none)"}`);
+        crashlytics().log(`auth error (email): ${authErrorDiagnostic(err, "email") || "(none)"}`);
         crashlytics().recordError(err instanceof Error ? err : new Error(String(err)));
       } catch {
         // best-effort
@@ -120,7 +120,7 @@ export default function SignIn() {
       }
       console.error("[auth] sign-in failed", { flow, code, err });
       try {
-        crashlytics().log(`auth error code (${flow}): ${authErrorCode(err) || "(none)"}`);
+        crashlytics().log(`auth error (${flow}): ${authErrorDiagnostic(err, flow) || "(none)"}`);
         crashlytics().recordError(err instanceof Error ? err : new Error(String(err)));
       } catch {
         // never let crash reporting take down sign-in
