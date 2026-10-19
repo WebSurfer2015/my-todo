@@ -10,8 +10,9 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { AI_QUOTA_ERROR, suggestSubtasks } from '../../adapters/aiInfer'
+import { currentAiUid, isAiQuotaError, suggestSubtasks } from '../../adapters/aiInfer'
 import { useLang } from '../../app/LangContext'
+import { markMochiResting, mochiRestUntil, suggestStepsRestingText } from '../mochi/mochiRest'
 
 export function useSuggestSteps({
   parentTitle,
@@ -26,11 +27,20 @@ export function useSuggestSteps({
   const [error, setError] = useState<string | null>(null)
 
   // Abort the in-flight request when the panel unmounts (or a new request
-  // supersedes it) so the model call doesn't bill after the UI is gone.
+  // supersedes it) so a late response never lands in a closed panel. (The
+  // server's model call still completes and bills — abort is client-side.)
   const controllerRef = useRef<AbortController | null>(null)
   useEffect(() => () => controllerRef.current?.abort(), [])
 
   async function request() {
+    // Mochi's resting (the shared daily cap is spent — maybe by the chat):
+    // say until when, and don't spend a request on a "no".
+    const uid = currentAiUid()
+    const restingUntil = mochiRestUntil(uid)
+    if (restingUntil) {
+      setError(suggestStepsRestingText(restingUntil))
+      return
+    }
     controllerRef.current?.abort()
     const controller = new AbortController()
     controllerRef.current = controller
@@ -55,13 +65,12 @@ export function useSuggestSteps({
       // A cancelled request (unmount / new request) is not a failure —
       // stay silent rather than flashing an error as the panel closes.
       if (e instanceof Error && e.name === 'AbortError') return
-      // Over the invisible fair-use ceiling (P1.7): a gentle, localized
-      // "Mochi's resting" note — never the server's text, never a wall.
-      // Typing steps by hand still works.
+      // Over the invisible fair-use ceiling (P1.7): a gentle "Mochi's
+      // resting until <time>" note — never the server's text, never a wall
+      // — and every ambient AI call stays quiet until the reset. Typing
+      // steps by hand still works.
       setError(
-        e instanceof Error && e.name === AI_QUOTA_ERROR
-          ? t.suggestStepsResting
-          : t.suggestStepsError,
+        isAiQuotaError(e) ? suggestStepsRestingText(markMochiResting(uid)) : t.suggestStepsError,
       )
     } finally {
       setThinking(false)

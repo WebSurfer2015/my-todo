@@ -43,6 +43,16 @@ function quotaError(message?: string): Error {
   return err
 }
 
+/** True for a fair-use-ceiling rejection (see AI_QUOTA_ERROR). */
+export function isAiQuotaError(e: unknown): boolean {
+  return e instanceof Error && e.name === AI_QUOTA_ERROR
+}
+
+/** The signed-in uid the AI calls run as (Mochi's rest is per account). */
+export function currentAiUid(): string | null {
+  return auth().currentUser?.uid ?? null
+}
+
 // A stalled connection (no response, no error) would otherwise hang the
 // caller forever — bound every client fetch with a manual timeout. We use
 // setTimeout + AbortController rather than AbortSignal.timeout(), which
@@ -167,8 +177,10 @@ export async function classifyGroceryDept(input: ClassifyDeptInput): Promise<Cla
  * Reads a typed to-do title and suggests field values (category,
  * priority, dueDate) the user can tap to apply. Every field is
  * independently nullable — the model is told to be conservative.
- * Same null-on-failure contract: any error returns all-null so the
- * caller never has to try/catch for an ambient feature.
+ * Null-on-failure contract: any error returns all-null — EXCEPT the
+ * fair-use ceiling (AI_QUOTA_ERROR), which is rethrown so the caller can
+ * stop its ambient calls until the cap resets instead of spending more
+ * requests on a "no".
  */
 export async function suggestTodoFields(
   input: SuggestFieldsInput,
@@ -179,9 +191,10 @@ export async function suggestTodoFields(
     // Drop a recurrence-cadence-as-reminder mis-parse (pure helper in core,
     // unit-tested there).
     return { ...res, reminder: normalizeSuggestedReminder(res.recurrence, res.reminder) }
-  } catch {
-    // Any failure (incl. an aborted request on unmount/supersede) resolves
-    // to the all-null no-op — this is an ambient feature, never surfaced.
+  } catch (e) {
+    if (isAiQuotaError(e)) throw e
+    // Any other failure (incl. an aborted request on unmount/supersede)
+    // resolves to the all-null no-op — an ambient feature, never surfaced.
     return { category: null, newCategoryLabel: null, priority: null, dueDate: null, recurrence: null, reminder: null, cleanedText: null }
   }
 }
