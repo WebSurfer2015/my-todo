@@ -26,6 +26,7 @@ import { useTheme } from '../../../app/theme'
 import type { Reminder } from '../../../core-bindings/types'
 import { genUuid } from '../../../../../core/src/logic/utils'
 import { dedupeReminders } from '../../../../../core/src/logic/derive'
+import { isoLocalDateTime } from '../../../../../core/src/logic/labels'
 import { makeStyles } from './styles'
 import AndroidDateFlow from '../../../ui/AndroidDateFlow'
 
@@ -60,23 +61,7 @@ function isoMinutesBeforeDue(dueDate: string, minutes: number): string {
   if (!y || !m || !d) return ''
   const base = new Date(y, m - 1, d, hh ?? 9, mm ?? 0)
   base.setMinutes(base.getMinutes() - minutes)
-  const yy = base.getFullYear()
-  const mo = String(base.getMonth() + 1).padStart(2, '0')
-  const da = String(base.getDate()).padStart(2, '0')
-  const hh2 = String(base.getHours()).padStart(2, '0')
-  const mm2 = String(base.getMinutes()).padStart(2, '0')
-  return `${yy}-${mo}-${da}T${hh2}:${mm2}`
-}
-
-/** Format a Date as local `yyyy-mm-ddTHH:mm` (no timezone) — the shape
- * reminders store in `at`. */
-function isoLocalDateTime(d: Date): string {
-  const yy = d.getFullYear()
-  const mo = String(d.getMonth() + 1).padStart(2, '0')
-  const da = String(d.getDate()).padStart(2, '0')
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mm = String(d.getMinutes()).padStart(2, '0')
-  return `${yy}-${mo}-${da}T${hh}:${mm}`
+  return isoLocalDateTime(base)
 }
 
 /** "Thu 6:00 PM" for another day, "9:00 AM" for today. */

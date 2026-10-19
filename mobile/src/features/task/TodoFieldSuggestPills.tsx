@@ -7,6 +7,7 @@ import { useTheme, ThemeColors } from '../../app/theme'
 import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 import { Priority, RecurrenceFreq } from '../../core-bindings/types'
 import { formatDisplayDate, formatRecurrence } from '../../core-bindings/utils'
+import { formatReminder } from '../../../../core/src/logic/labels'
 import CategoryIcon from '../../ui/CategoryIcon'
 import PriorityDot from '../../ui/PriorityDot'
 import MochiThinking from '../mochi/MochiThinking'
@@ -240,44 +241,13 @@ export function TodoFieldSuggestPills({
             onDismissField('reminder')
           }}
           onDismiss={() => onDismissField('reminder')}
-          accessibilityLabel={`${t.aiSuggestionA11y}: ${t.remindAiSuggest} ${formatReminderForPill(suggestions!.reminder!)}`}
+          accessibilityLabel={`${t.aiSuggestionA11y}: ${t.remindAiSuggest} ${formatReminder(suggestions!.reminder!)}`}
           icon={<Bell size={11} color={theme.primary} strokeWidth={2.2} />}
-          label={formatReminderForPill(suggestions!.reminder!)}
+          label={formatReminder(suggestions!.reminder!)}
         />
       )}
     </View>
   )
-}
-
-/** Compact label for an AI-suggested reminder pill. One-shot →
- * datetime. Recurring → "every Xh until <datetime>". Kept in this
- * file so the pill component can render it without a util import
- * dance. */
-function formatReminderForPill(reminder: { at: string; intervalMinutes?: number; until?: string }): string {
-  const datePart = formatDateTimeForPill(reminder.at)
-  if (!reminder.intervalMinutes) return datePart
-  const cadence = reminder.intervalMinutes < 60
-    ? `${reminder.intervalMinutes}m`
-    : `${Math.floor(reminder.intervalMinutes / 60)}h`
-  return reminder.until
-    ? `every ${cadence} until ${formatDateTimeForPill(reminder.until)}`
-    : `every ${cadence}`
-}
-
-function formatDateTimeForPill(at: string): string {
-  const d = new Date(at)
-  if (Number.isNaN(d.valueOf())) return at
-  const sameYear = d.getFullYear() === new Date().getFullYear()
-  const datePart = d.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    ...(sameYear ? {} : { year: 'numeric' }),
-  })
-  const timePart = d.toLocaleTimeString(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-  return `${datePart}, ${timePart}`
 }
 
 interface PillProps {

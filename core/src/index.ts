@@ -15,4 +15,6 @@ export * from "./logic/derive";
 export * from "./logic/groups";
 export * from "./logic/filters";
 export * from "./logic/reminderPresets";
+export * from "./logic/labels";
+export * from "./logic/homeDashboard";
 export * from "./store";

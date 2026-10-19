@@ -3,10 +3,9 @@
  * "Today" bucket so a quick check-in on Home immediately answers
  * "what do I need to do right now?" without jumping to Todos.
  *
- * "Today" includes: open todos with dueDate === today AND open todos
- * with dueDate < today (carried-over). Done-today items show in their
- * struck-through form to acknowledge progress without crowding the
- * actionable rows.
+ * "Today" = open to-dos with work still due today or earlier, split into
+ * TODAY and CARRIED OVER (own date before today). The rules are pure and
+ * tested in core/src/logic/homeDashboard.ts; done rows leave the section.
  */
 
 import React, { useCallback, useMemo, useState } from 'react'
@@ -23,8 +22,13 @@ import { useStore } from '../../app/StoreContext'
 import { useLang } from '../../app/LangContext'
 import { useSheets } from '../../app/SheetContext'
 import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
-import { dueDateOnly, todayLocal } from '../../../../core/src/logic/utils'
-import { type Todo, type Filter } from '../../../../core/src/domain/types'
+import { todayLocal } from '../../../../core/src/logic/utils'
+import {
+  completionCounts,
+  splitCarriedOver,
+  todayActionable,
+} from '../../../../core/src/logic/homeDashboard'
+import { type Todo, type Filter, type Priority } from '../../../../core/src/domain/types'
 import { buildGroups, type GroupKey } from '../../../../core/src/logic/groups'
 
 // "What's Next?" walks Todos' time buckets in this order.
@@ -50,19 +54,6 @@ import Fab from '../../app/Fab'
 import TaskItem from '../task/TaskItem'
 import DeferModal from '../task/DeferModal'
 
-function isoDate(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-function ago(days: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - days)
-  return isoDate(d)
-}
-
 const TODAY_PREVIEW_CAP = 6
 
 export default function HomeScreen() {
@@ -75,109 +66,26 @@ export default function HomeScreen() {
 
   const today = todayLocal()
 
-  // Stats: pre-existing buckets (Yesterday / Week / Month done counts).
-  const counts = useMemo(() => {
-    const yesterday = ago(1)
-    const weekStart = ago(6)
-    const monthStart = ago(29)
-    let dToday = 0
-    let dYesterday = 0
-    let dWeek = 0
-    let dMonth = 0
-    const bumpFor = (cd: string) => {
-      if (cd === today) dToday += 1
-      if (cd === yesterday) dYesterday += 1
-      if (cd >= weekStart) dWeek += 1
-      if (cd >= monthStart) dMonth += 1
-    }
-    for (const t of store.todos) {
-      // Parent completion contributes whenever the row carries a
-      // completionDate (regardless of trashed-state — done items live
-      // in the merged Done bin so trashed:true is expected).
-      if (t.done && t.completionDate) bumpFor(t.completionDate)
-      // Per-sub completion dates (added 2026-05-19) — each done sub
-      // contributes independently of its parent's done state, so
-      // checking off steps updates the stats even when the parent
-      // isn't fully done yet.
-      const subs = t.subtasks ?? []
-      for (const s of subs) {
-        if (s.done && s.completionDate) bumpFor(s.completionDate)
-      }
-    }
-    return { dToday, dYesterday, dWeek, dMonth }
-  }, [store.todos, today])
-
-  // Today bucket — Open-only (parent.done=false, !trashed). Two
-  // inclusion shapes:
-  //   1. Parent's own dueDate <= today.
-  //   2. Parent has at least one open subtask whose dueDate <= today
-  //      (the parent shows even if its own dueDate is future or
-  //      absent — the today-subs drive presence).
-  // No grace period here — done rows leave the section as soon as
-  // they flip, matching the Todos-tab Open filter's behavior.
-  const todayBucket = useMemo(() => {
-    // TODAY-actionable rule: a row appears only when there's still
-    // work to do TODAY.
-    //   • Parents with subs: at least one OPEN sub has dueDate <= today.
-    //     Once every today-or-earlier sub is checked off, the parent
-    //     leaves TODAY even if future-dated / no-date subs remain
-    //     (those are tomorrow's problem).
-    //   • Parents without subs: parent's own dueDate <= today.
-    const hasOpenTodaySub = (td: Todo) => {
-      const subs = td.subtasks ?? []
-      return subs.some(
-        (s) => !s.done && !!s.dueDate && dueDateOnly(s.dueDate) <= today,
-      )
-    }
-    return store.todos
-      .filter((td) => {
-        if (td.trashed) return false
-        if (td.done) return false
-        const subs = td.subtasks ?? []
-        const parentDue = !!td.dueDate && dueDateOnly(td.dueDate) <= today
-        if (subs.length > 0) {
-          // Dated steps decide; but if NO open step has a date, fall back to
-          // the parent's own date (a to-do due today with undated steps
-          // otherwise never showed on Today).
-          const openSubs = subs.filter((s) => !s.done)
-          if (openSubs.some((s) => !!s.dueDate)) return hasOpenTodaySub(td)
-          return parentDue
-        }
-        return parentDue
-      })
-      .sort((a, b) => {
-        // Done rows sink to the bottom; everything else (including
-        // partial-done parents with future subs remaining) sorts as
-        // open. Within the open group: priority then earliest dueDate.
-        if (a.done !== b.done) return a.done ? 1 : -1
-        const rank: Record<string, number> = { high: 0, medium: 1, low: 2 }
-        const pa = rank[a.priority] ?? 1
-        const pb = rank[b.priority] ?? 1
-        if (pa !== pb) return pa - pb
-        return (a.dueDate ?? '').localeCompare(b.dueDate ?? '')
-      })
-  }, [store.todos, today])
-
-  // Section count — every non-done item in the bucket is still "to do"
-  // even if today's steps are done (future steps keep the parent live).
-  const openCount = useMemo(
-    () => todayBucket.filter((td) => !td.done).length,
-    [todayBucket],
+  // Dashboard rules live in core (homeDashboard): completion counts, the
+  // today-actionable inclusion rule + sort (in the user's priority order),
+  // and the carried-over / due-today split. No grace period — done rows
+  // leave as soon as they flip, matching the Todos-tab Open filter.
+  const counts = useMemo(() => completionCounts(store.todos, today), [store.todos, today])
+  // orderedPriorities is rebuilt every store render; key the memo on its
+  // contents so the bucket only re-sorts when the order really changes.
+  const priorityKey = store.orderedPriorities.map((p) => p.id).join(',')
+  const priorityOrder = useMemo(
+    () => priorityKey.split(',') as Priority[],
+    [priorityKey],
   )
-
-  // Split the today-actionable bucket so the dashboard can title each
-  // group separately: "Carried over" = own dueDate strictly before today;
-  // "Today" = everything else (due today, or sub-driven with no/future
-  // own date). No cap — the outer ScrollView scrolls.
-  const carriedOverItems = useMemo(
-    () => todayBucket.filter((td) => !!td.dueDate && dueDateOnly(td.dueDate) < today),
+  const todayBucket = useMemo(
+    () => todayActionable(store.todos, today, priorityOrder),
+    [store.todos, today, priorityOrder],
+  )
+  const { carriedOver: carriedOverItems, dueToday: todayDueItems } = useMemo(
+    () => splitCarriedOver(todayBucket, today),
     [todayBucket, today],
   )
-  const todayDueItems = useMemo(
-    () => todayBucket.filter((td) => !(td.dueDate && dueDateOnly(td.dueDate) < today)),
-    [todayBucket, today],
-  )
-
 
   // "What's Next?" cycles through Todos' time buckets in order. State:
   //   `nextExpanded` — section visible / TODAY's content collapsed.
@@ -346,7 +254,7 @@ export default function HomeScreen() {
         {nextExpanded ? null : todayBucket.length === 0 ? (
           <>
             {/* Quiet TODAY header above the empty state. */}
-            {openCount === 0 && counts.dToday === 0 ? (
+            {counts.today === 0 ? (
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionHeader}>TODAY</Text>
               </View>
@@ -377,7 +285,7 @@ export default function HomeScreen() {
             ) : (
               <EmptyStateCard
                 title="Nothing pending."
-                subline={counts.dToday === 0 ? undefined : 'What you finished is resting in Done.'}
+                subline={counts.today === 0 ? undefined : 'What you finished is resting in Done.'}
                 hint="Enjoy the breathing room."
                 actionLabel="Peek ahead"
                 onAction={openWhatsNext}

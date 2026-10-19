@@ -25,21 +25,9 @@ import { genUuid } from '../../../../../core/src/logic/utils'
 import type { SuggestedReminder } from '../../../../../core/src/logic/suggestFields'
 import ReminderSheet from '../ReminderSheet'
 
-function recurrenceFreqLabel(
-  freq: 'none' | RecurrenceFreq,
-  t: ReturnType<typeof useLang>['t'],
-): string {
-  switch (freq) {
-    case 'daily': return t.recurrence.daily
-    case 'weekly': return t.recurrence.weekly
-    case 'monthly': return t.recurrence.monthly
-    case 'yearly': return t.recurrence.yearly
-    default: return t.recurrence.never
-  }
-}
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
-import { dueDateToDate, dueDateWithDay, formatDisplayDate, formatRecurrence, fullDateLabel, isoDate, todayLocal } from '../../../core-bindings/utils'
+import { dueDateToDate, dueDateWithDay, formatDisplayDate, fullDateLabel, isoDate, todayLocal } from '../../../core-bindings/utils'
 import {
   endOfWeekLocal,
   endOfMonthLocal,
@@ -66,31 +54,13 @@ import {
 import { useTodoFieldSuggestions, TodoFieldSuggestPills } from '../TodoFieldSuggestPills'
 import { ensurePermission } from '../../../adapters/notifications'
 import CustomRecurrenceForm from '../CustomRecurrenceForm'
+import {
+  recurrenceFreqLabel,
+  recurrenceLabel,
+  recurrenceShortLabel,
+  reminderSummary,
+} from '../../../../../core/src/logic/labels'
 import { makeStyles } from './styles';
-
-function recurrenceLabel(
-  rec: Recurrence | undefined,
-  t: ReturnType<typeof useLang>['t'],
-): string {
-  if (!rec) return t.recurrence.never
-  let base: string
-  if (rec.byWeekday && rec.byWeekday.length > 0) {
-    base = formatRecurrence(rec)
-  } else {
-    base = recurrenceFreqLabel(rec.freq, t)
-  }
-  if (rec.endDate) {
-    const d = new Date(`${rec.endDate}T00:00:00`)
-    const sameYear = d.getFullYear() === new Date().getFullYear()
-    const ends = d.toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      ...(sameYear ? {} : { year: 'numeric' }),
-    })
-    return `${base} · ends ${ends}`
-  }
-  return base
-}
 
 /**
  * Absolute date label for "Completed by" — "May 17" (current year) or
@@ -121,54 +91,6 @@ function absoluteDateLabel(iso: string): string {
 
 function isCustomRecurrence(rec: Recurrence | undefined): boolean {
   return !!rec && Array.isArray(rec.byWeekday) && rec.byWeekday.length > 0
-}
-
-/** Friendly label for a datetime: short date + local time. */
-function formatDateTime(at: string): string {
-  const d = new Date(at)
-  if (Number.isNaN(d.valueOf())) return at
-  const sameYear = d.getFullYear() === new Date().getFullYear()
-  const datePart = d.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    ...(sameYear ? {} : { year: 'numeric' }),
-  })
-  const timePart = d.toLocaleTimeString(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-  return `${datePart}, ${timePart}`
-}
-
-/** Compact label for an interval — "1h", "30m", "2h 30m". */
-function formatInterval(minutes: number): string {
-  if (minutes < 60) return `${minutes}m`
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  return m === 0 ? `${h}h` : `${h}h ${m}m`
-}
-
-/** Compose the user-visible label for a reminder. One-shot → just
- * the datetime. Recurring → "every Xh until Wed 3pm". */
-function formatReminder(reminder: Reminder | undefined): string {
-  if (!reminder?.at) return ''
-  if (!reminder.intervalMinutes) return formatDateTime(reminder.at)
-  const cadence = formatInterval(reminder.intervalMinutes)
-  return reminder.until
-    ? `every ${cadence} until ${formatDateTime(reminder.until)}`
-    : `every ${cadence}`
-}
-
-/** Summary string for the Bell row field-value when a todo carries
- * the multi-reminder array. 0 → t.remindNone. 1 → formatReminder.
- * N → t.remindYourRemindersWithCount(N) ("Your reminders (N)"). */
-function reminderSummary(
-  reminders: Reminder[],
-  t: ReturnType<typeof useLang>['t'],
-): string {
-  if (reminders.length === 0) return t.remindNone
-  if (reminders.length === 1) return formatReminder(reminders[0])
-  return t.remindYourRemindersWithCount(reminders.length)
 }
 
 // Reminder-picker chip constants + helpers moved to
@@ -1076,7 +998,7 @@ export default function TaskDetailsSheet({
                 { key: 'none', label: t.recurrence.never, color: theme.label },
                 ...RECURRENCE_FREQS.map((f) => ({
                   key: f,
-                  label: recurrenceFreqLabel(f, t),
+                  label: recurrenceFreqLabel(f, t.recurrence),
                   color: theme.label,
                   icon: <Repeat size={16} color={theme.blue} strokeWidth={2} />,
                 })),
@@ -1495,7 +1417,7 @@ export default function TaskDetailsSheet({
                   activeOpacity={0.6}
                   accessibilityRole="button"
                   accessibilityState={{ disabled: repeatLocked }}
-                  accessibilityLabel={`Repeat, ${recurrenceLabel(editRecurrence, t)}. Tap to change.`}
+                  accessibilityLabel={`Repeat, ${recurrenceLabel(editRecurrence, t.recurrence)}. Tap to change.`}
                 >
                   <Repeat size={18} color={editRecurrence ? theme.blue : theme.gray3} strokeWidth={2} />
                   <Text style={styles.editFieldLabel}>{t.edit.repeat}</Text>
@@ -1506,11 +1428,7 @@ export default function TaskDetailsSheet({
                     ]}
                     numberOfLines={1}
                   >
-                    {editRecurrence
-                      ? (editRecurrence.byWeekday && editRecurrence.byWeekday.length > 0
-                          ? formatRecurrence(editRecurrence)
-                          : recurrenceFreqLabel(editRecurrence.freq, t))
-                      : t.recurrence.never}
+                    {recurrenceShortLabel(editRecurrence, t.recurrence)}
                   </Text>
                   {repeatLocked ? (
                     <Text style={styles.editFieldLockHint}>Series only</Text>
@@ -1526,7 +1444,7 @@ export default function TaskDetailsSheet({
                       onPress={() => setParentEditView('remindAt')}
                       activeOpacity={0.6}
                       accessibilityRole="button"
-                      accessibilityLabel={`${t.remindMe}, ${reminderSummary(editReminders, t)}. Tap to change.`}
+                      accessibilityLabel={`${t.remindMe}, ${reminderSummary(editReminders, { none: t.remindNone, withCount: t.remindYourRemindersWithCount })}. Tap to change.`}
                     >
                       <Bell size={18} color={editReminders.length > 0 ? theme.blue : theme.gray3} strokeWidth={2} />
                       <Text style={styles.editFieldLabel}>{t.remindMe}</Text>
@@ -1537,7 +1455,7 @@ export default function TaskDetailsSheet({
                         ]}
                         numberOfLines={1}
                       >
-                        {reminderSummary(editReminders, t)}
+                        {reminderSummary(editReminders, { none: t.remindNone, withCount: t.remindYourRemindersWithCount })}
                       </Text>
                       <Text style={styles.editChevron}>›</Text>
                     </TouchableOpacity>
