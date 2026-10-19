@@ -48,7 +48,6 @@ import { ErrorBoundary } from "./src/app/ErrorBoundary";
 import { buildDoneGroups, type TodoGroup, type DoneGroup } from "../core/src/logic/groups";
 import { useLinger } from "./src/features/task/useLinger";
 import { fullDateLabel } from "./src/core-bindings/utils";
-import { dueDateOnly, todayLocal } from "../core/src/logic/utils";
 import type { Todo } from "./src/core-bindings/types";
 import SignIn from "./src/features/auth/SignIn";
 import EmptyStateCard from "./src/ui/EmptyStateCard";
@@ -160,7 +159,6 @@ function TodosScreen() {
   const [deferTarget, setDeferTarget] = useState<{
     label: string
     ids: string[]
-    isTodayGroup: boolean
   } | null>(null);
   // Stable callback for the per-row long-press defer. Opens the same
   // bottom-sheet picker the group action uses, scoped to one todo.
@@ -168,7 +166,6 @@ function TodosScreen() {
     setDeferTarget({
       label: todo.text,
       ids: [todo.id],
-      isTodayGroup: !!todo.dueDate && dueDateOnly(todo.dueDate) === todayLocal(),
     });
   }, []);
   // Collapse state for All-view group headers. All four groups
@@ -359,7 +356,6 @@ function TodosScreen() {
                 setDeferTarget({
                   label: headerLabel,
                   ids: openInGroup.map((td) => td.id),
-                  isTodayGroup: group.key === 'today',
                 })
               }
               style={styles.groupHeaderDeferBtn}
@@ -712,7 +708,6 @@ function TodosScreen() {
                           ids: displayFiltered
                             .filter((td) => !td.done)
                             .map((td) => td.id),
-                          isTodayGroup: false,
                         })
                       }
                       style={styles.deferAllRow}
@@ -870,7 +865,6 @@ function TodosScreen() {
         visible={deferTarget !== null}
         filterLabel={deferTarget?.label}
         count={deferTarget?.ids.length ?? 0}
-        isTodayGroup={deferTarget?.isTodayGroup ?? false}
         onSelect={(targetISO) => {
           if (deferTarget) store.bulkDeferTodos(deferTarget.ids, targetISO);
         }}

@@ -42,11 +42,6 @@ interface Props {
    * subtitle's "(N)" suffix. Omit / 0 / 1 to hide the suffix (e.g.
    * single-todo long-press doesn't need a count). */
   count?: number
-  /** @deprecated No longer affects the labels — every bucket reads
-   * "Tomorrow / In a week / In a month" with the resulting date, since
-   * all targets are measured from today. Optional so callers compile;
-   * safe to drop at the call site. */
-  isTodayGroup?: boolean
   onSelect: (targetISO: string) => void
   onClose: () => void
 }

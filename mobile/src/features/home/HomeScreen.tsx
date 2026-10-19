@@ -460,7 +460,6 @@ export default function HomeScreen() {
         visible={deferTarget !== null}
         filterLabel={deferTarget?.text}
         count={1}
-        isTodayGroup={false}
         onSelect={(targetISO) => {
           if (deferTarget) store.bulkDeferTodos([deferTarget.id], targetISO)
         }}

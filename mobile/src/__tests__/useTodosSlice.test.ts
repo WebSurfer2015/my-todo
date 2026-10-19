@@ -358,6 +358,7 @@ describe('useTodosSlice exact Undos (round 3)', () => {
 
   it('updateRecurrence on a series occurrence changes the series rule, with an Undo', async () => {
     const { hook } = await setup(dailySeries())
+    const before = hook.result.current.todos.map((x) => x.id)
     let undo: (() => void) | null = null
     act(() => {
       undo = hook.result.current.updateRecurrence('d19', { freq: 'weekly' })
@@ -370,6 +371,8 @@ describe('useTodosSlice exact Undos (round 3)', () => {
     act(() => undo!())
     await waitFor(() => expect(byId(hook.result.current.todos).d19.recurrence?.freq).toBe('daily'))
     expect(hook.result.current.todos.some((x) => x.recurrence?.freq === 'weekly')).toBe(false)
+    // The removed daily siblings come back, in their original order.
+    expect(hook.result.current.todos.map((x) => x.id)).toEqual(before)
   })
 
   it('updateRecurrence on a one-off starts a series and fills its window; Undo removes it all', async () => {
