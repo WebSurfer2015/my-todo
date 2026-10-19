@@ -503,13 +503,13 @@ export const GUIDES: Guide[] = [
   {
     id: 'hidden-actions',
     title: 'Hidden gestures',
-    blurb: 'Long-press, swipe, drag — the shortcuts.',
+    blurb: 'Tap, swipe, drag — the shortcuts.',
     icon: HandIcon,
     glyph: '👆',
     slides: [
       {
-        title: 'Swipe + long-press',
-        body: "Swipe a to-do left to send it to the trash bin. Long-press to open the defer picker (tomorrow, next week, custom). Tap to toggle done.",
+        title: 'Tap, check, swipe',
+        body: "Tap a to-do to open it. Tap its circle to mark it done — every check-off can be undone. Swipe a row for quick actions.",
         visual: (
           <View style={inlineStyles.swipeWrap}>
             <View style={inlineStyles.swipeRow}>

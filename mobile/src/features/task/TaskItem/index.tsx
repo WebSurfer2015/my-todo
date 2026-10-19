@@ -210,8 +210,7 @@ function TaskItem({
   // When set, TaskDetailsSheet opens jumped straight into the named
   // subtask's edit view. Cleared on close.
   const [pendingSubtaskEditId, setPendingSubtaskEditId] = useState<string | null>(null)
-  // Rows start collapsed; user taps the chevron (or the row body when
-  // tapBehavior='expandIfHasSubs') to reveal subtasks.
+  // Rows start collapsed; the steps pill (N/M ›) expands them.
   const [expanded, setExpanded] = useState(false)
   // Shared per-subtask pickers — track which sub has the modal open.
   const [subPriorityForId, setSubPriorityForId] = useState<string | null>(null)
@@ -375,10 +374,8 @@ function TaskItem({
   function openDetails() {
     swipeableRef.current?.close()
     setPendingSubtaskEditId(null)
-    // Unified model: long-press always opens the edit sheet (including
-    // in the bin), so the user can correct a row's metadata without
-    // first restoring. Tap on the row body toggles done — that's the
-    // un-check path; this function is for the long-press/edit path.
+    // Interaction model (2026-10-18): tapping the row body opens the to-do
+    // (also in the bin); only the circle completes it. Long-press opens too.
     if (detailsAvailable) setDetailsOpen(true)
   }
 
@@ -396,11 +393,6 @@ function TaskItem({
       onRestore?.(todo.id)
       return
     }
-    // Parent rows with subtasks: parent.done is derived from subs, so
-    // a tap-toggle is a no-op at the data layer. Don't celebrate for
-    // "nothing happened" — step rows toggle individually via their own
-    // checkbox (which fires its own firework + chime).
-    if (hasSubs) return
     // Ignore taps while a completion is already animating/held.
     if (pendingCompleteRef.current) return
     // Completing a row: fire the chime + calm firework NOW (measured from the
@@ -619,15 +611,8 @@ function TaskItem({
             onToggleSelect(todo.id)
             return
           }
-          // A parent row's done state is derived from its subs, so a body
-          // tap can't toggle it — expand/collapse the steps instead of doing
-          // nothing. (Was gated on tapBehavior='expandIfHasSubs'; the default
-          // 'toggle' left parent taps as a dead no-op.)
-          if (hasSubs) {
-            setExpanded((v) => !v)
-            return
-          }
-          handleToggle()
+          // Tap opens; the circle is the only way to complete (with Undo).
+          openDetails()
         }}
         onLongPress={() => {
           if (touchMovedRef.current || swipeOpen) return
@@ -655,25 +640,9 @@ function TaskItem({
             { opacity: rowFlash.interpolate({ inputRange: [0, 1], outputRange: [0, 0.45] }) },
           ]}
         />
-        {/* Leading control (checkbox, or steps chevron for parent rows).
+        {/* Leading control: the completion circle (parent rows too — it completes every step).
             Measured on tap to anchor the app-level firework burst. */}
         <View ref={leadingRef}>
-          {!inTrash && hasSubs ? (
-            <TouchableOpacity
-              style={styles.expandToggle}
-              onPress={() => setExpanded((v) => !v)}
-              hitSlop={10}
-              accessibilityLabel={t.subtasks}
-              accessibilityRole="button"
-              accessibilityState={{ expanded }}
-            >
-              {expanded ? (
-                <ChevronDown size={16} color={theme.label2} strokeWidth={2.5} />
-              ) : (
-                <ChevronRight size={16} color={theme.label2} strokeWidth={2.5} />
-              )}
-            </TouchableOpacity>
-          ) : (
             <Animated.View style={{ transform: [{ scale: checkboxScale }] }}>
               <TouchableOpacity
                 style={[
@@ -684,7 +653,8 @@ function TaskItem({
                 ]}
                 onPress={inTrash && onToggleSelect ? () => onToggleSelect(todo.id) : handleToggle}
                 disabled={inTrash && !onToggleSelect}
-                hitSlop={10}
+                // ~50pt target: the circle is now the ONLY completion control.
+                hitSlop={14}
                 accessibilityRole="checkbox"
                 accessibilityState={
                   inTrash && onToggleSelect
@@ -708,7 +678,6 @@ function TaskItem({
                 ) : null}
               </TouchableOpacity>
             </Animated.View>
-          )}
         </View>
 
         <View style={styles.body}>
@@ -817,11 +786,23 @@ function TaskItem({
                 with the rest of the meta — kept in the same right-
                 edge spot where the priority dot used to sit. */}
             {!inTrash && hasSubs && (
-              <View style={styles.progressPill}>
+              <TouchableOpacity
+                style={styles.progressPill}
+                onPress={() => setExpanded((v) => !v)}
+                hitSlop={{ top: 14, bottom: 14, left: 10, right: 10 }}
+                accessibilityRole="button"
+                accessibilityLabel={`${t.subtasks}, ${t.subtaskProgress(subsDoneCount, subs.length)}`}
+                accessibilityState={{ expanded }}
+              >
                 <Text style={styles.progressPillText}>
                   {t.subtaskProgress(subsDoneCount, subs.length)}
                 </Text>
-              </View>
+                {expanded ? (
+                  <ChevronDown size={12} color={theme.label2} strokeWidth={2.5} />
+                ) : (
+                  <ChevronRight size={12} color={theme.label2} strokeWidth={2.5} />
+                )}
+              </TouchableOpacity>
             )}
           </View>
 

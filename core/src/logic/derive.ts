@@ -209,6 +209,22 @@ function rebaseReminders(
  * `todayISO` defaults to `todayLocal()` so existing callers stay the
  * same; tests pass an explicit value for determinism.
  */
+/** Every step set to `done` (stamping / clearing each step's completionDate). */
+function stepsSetAll(subs: Subtask[], done: boolean, today: string): Subtask[] {
+  return subs.map((s) => {
+    if (s.done === done) return s;
+    const next: Subtask = { ...s, done };
+    if (done) next.completionDate = today;
+    else delete next.completionDate;
+    return next;
+  });
+}
+
+/**
+ * Toggle a to-do done / not done. A to-do WITH steps toggles all of them at
+ * once (the row's circle "completes the whole thing"); its done state stays
+ * consistent with subtaskToggle's derived rule (done ⇔ every step done).
+ */
 export function todoToggle(prev: Todo[], id: string, todayISO?: string): Todo[] {
   const now = Date.now();
   const today = todayISO ?? todayLocal();
@@ -217,10 +233,8 @@ export function todoToggle(prev: Todo[], id: string, todayISO?: string): Todo[] 
 
   // Series instance: mark done/un-do in place, no snapshot, no
   // dueDate roll. On completion, append one tail so the user always
-  // sees the next occurrence queued. Parent-with-subs rule still
-  // applies (toggling the parent is a no-op when subs exist).
+  // sees the next occurrence queued.
   if (target.seriesId && target.recurrence) {
-    if (target.subtasks && target.subtasks.length > 0) return prev;
     const nextDone = !target.done;
     // R7 — capture the about-to-be-cleared reminders so they can
     // be rolled onto the next-upcoming sibling after the tail
@@ -235,6 +249,9 @@ export function todoToggle(prev: Todo[], id: string, todayISO?: string): Todo[] 
         trashed: nextDone,
         updatedAt: now,
       };
+      if (td.subtasks && td.subtasks.length > 0) {
+        upd.subtasks = stepsSetAll(td.subtasks, nextDone, today);
+      }
       if (nextDone) {
         upd.trashedAt = now;
         upd.completionDate = today;
@@ -266,9 +283,6 @@ export function todoToggle(prev: Todo[], id: string, todayISO?: string): Todo[] 
 
   return prev.flatMap((td) => {
     if (td.id !== id) return [td];
-    // Parent.done is derived from subs — toggling the parent directly is
-    // a no-op. The user expands the row and toggles subs to mark progress.
-    if (td.subtasks && td.subtasks.length > 0) return [td];
     const nextDone = !td.done;
     const next: Todo = {
       ...td,
@@ -276,15 +290,31 @@ export function todoToggle(prev: Todo[], id: string, todayISO?: string): Todo[] 
       trashed: nextDone,
       updatedAt: now,
     };
+    if (td.subtasks && td.subtasks.length > 0) {
+      next.subtasks = stepsSetAll(td.subtasks, nextDone, today);
+    }
     if (nextDone) {
       next.trashedAt = now;
       next.completionDate = today;
+      // Done items don't need future reminders (mirrors the series path).
+      delete next.reminders;
     } else {
       delete next.trashedAt;
       delete next.completionDate;
     }
     return [next];
   });
+}
+
+/**
+ * Put one to-do back exactly as `snapshot` (matched by id) — the completion
+ * Undo. Exact, unlike toggling back: a to-do with steps gets its previous
+ * per-step state, not "all open". No-op if the to-do is gone.
+ */
+export function todoRevert(prev: Todo[], snapshot: Todo): Todo[] {
+  if (!prev.some((td) => td.id === snapshot.id)) return prev;
+  const now = Date.now();
+  return prev.map((td) => (td.id === snapshot.id ? { ...snapshot, updatedAt: now } : td));
 }
 
 export function subtaskAdd(

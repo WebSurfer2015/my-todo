@@ -58,6 +58,8 @@ export interface TodosSliceDeps {
     movedToTrash: string;
     movedToTrashMany: (n: number) => string;
     skippedSnackbar: string;
+    completedSnackbar: (text: string) => string;
+    completedSnackbarMany: (n: number) => string;
     undo: string;
     undoAll: string;
     emptyTrash: string;
@@ -216,6 +218,7 @@ export function useTodosSlice(
   const {
     newTodo,
     todoToggle,
+    todoRevert,
     todoMoveToTrash,
     todoMoveToTrashFutureSeries,
     todoApplySeriesFutureEdits,
@@ -303,7 +306,20 @@ export function useTodosSlice(
       if (referenceRow) {
         setTodoReferences((prev) => recordTodoReference(prev, referenceRow));
       }
-      if (
+      if (!beforeTodo.done && after.done) {
+        // Every completion is undoable. Undo restores the exact snapshot
+        // (incl. per-step state), not a toggle-back. Several completions in
+        // a row merge into one "N done · Undo all".
+        const text = beforeTodo.text.length > 40 ? `${beforeTodo.text.slice(0, 39)}…` : beforeTodo.text;
+        notify.showSnackbar({
+          message: t.completedSnackbar(text),
+          actionLabel: t.undo,
+          onAction: () => setTodos((prev) => todoRevert(prev, beforeTodo)),
+          mergeKey: "done",
+          mergedMessage: (n: number) => t.completedSnackbarMany(n),
+          mergedActionLabel: t.undoAll,
+        });
+      } else if (
         beforeTodo.done &&
         !after.done &&
         (filterRef.current === "done" || filterRef.current === "trash")
@@ -311,7 +327,7 @@ export function useTodosSlice(
         notify.showSnackbar({ message: "Moved back to your open list." });
       }
     },
-    [setTodos, toggleOutcome, filterRef, todoToggle, setTodoReferences, recordTodoReference, notify],
+    [setTodos, toggleOutcome, filterRef, todoToggle, todoRevert, setTodoReferences, recordTodoReference, notify, t],
   );
 
   const restoreFromTrash = useCallback(

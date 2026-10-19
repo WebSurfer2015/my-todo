@@ -82,7 +82,7 @@ describe("todoToggle — series instance completion (R3)", () => {
     expect(after.done).toBe(true);
   });
 
-  it("parent toggle is a no-op when subs exist", () => {
+  it("parent toggle completes every step on a series instance", () => {
     const withSubs = seed({
       subtasks: [
         { id: "sub-a", text: "Fill jug", done: false, priority: "medium" },
@@ -91,8 +91,9 @@ describe("todoToggle — series instance completion (R3)", () => {
     const expanded = expandSeries(withSubs, "2026-05-28");
     const before = expanded[0];
     const out = todoToggle(expanded, before.id, "2026-05-28");
-    expect(out).toBe(expanded); // same reference — no mutation
-    expect(out.find((t) => t.id === before.id)).toBe(before);
+    const after = out.find((t) => t.id === before.id)!;
+    expect(after.done).toBe(true);
+    expect(after.subtasks!.every((s) => s.done)).toBe(true);
   });
 });
 

@@ -10,6 +10,7 @@ import {
   todoMoveToTrash,
   todoRestoreFromTrash,
   todoToggle,
+  todoRevert,
   todoSet,
   todoSetRecurrence,
   todoSkipSeriesFuture,
@@ -323,15 +324,30 @@ describe("subtasks", () => {
     expect(out[0].dueDate).toBe("2026-05-10");
   });
 
-  it("todoToggle is a no-op when subs exist (parent done is derived)", () => {
+  it("todoToggle on a to-do with steps completes every step, and reopens them", () => {
     let state = [makeTodo()];
     state = subtaskAdd(state, state[0].id, "a");
     state = subtaskAdd(state, state[0].id, "b");
-    const before = state[0];
-    state = todoToggle(state, state[0].id);
-    expect(state[0]).toBe(before); // same reference — no mutation
+    state = todoToggle(state, state[0].id, "2026-10-18");
+    expect(state[0].done).toBe(true);
+    expect(state[0].trashed).toBe(true);
+    expect(state[0].subtasks!.every((s) => s.done && s.completionDate === "2026-10-18")).toBe(true);
+    state = todoToggle(state, state[0].id, "2026-10-18");
     expect(state[0].done).toBe(false);
-    expect(state[0].subtasks!.every((s) => !s.done)).toBe(true);
+    expect(state[0].subtasks!.every((s) => !s.done && !s.completionDate)).toBe(true);
+  });
+
+  it("todoRevert restores the exact pre-completion snapshot (per-step state)", () => {
+    let state = [makeTodo()];
+    state = subtaskAdd(state, state[0].id, "a");
+    state = subtaskAdd(state, state[0].id, "b");
+    state = subtaskToggle(state, state[0].id, state[0].subtasks![0].id);
+    const snapshot = state[0];
+    state = todoToggle(state, state[0].id);
+    state = todoRevert(state, snapshot);
+    expect(state[0].done).toBe(false);
+    expect(state[0].subtasks!.map((s) => s.done)).toEqual([true, false]);
+    expect(todoRevert(state, { ...snapshot, id: "gone" })).toBe(state);
   });
 
   it("subtaskAdd defaults priority=medium and dueDate='' when parent has no date", () => {
