@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  formatCalendarDate,
   DEFAULT_RECURRENCE_FREQ_STRINGS,
   formatDateTime,
   formatInterval,
@@ -140,5 +141,19 @@ describe('reminderSummary', () => {
   })
   it('N → count', () => {
     expect(reminderSummary([{ at: 'a' }, { at: 'b' }], strings)).toBe('Your reminders (2)')
+  })
+})
+
+describe('formatCalendarDate', () => {
+  const now = new Date(2026, 9, 19, 10, 0) // Mon Oct 19 2026, local
+  it('Today / Tomorrow, then an absolute weekday date — never "in 4 days"', () => {
+    expect(formatCalendarDate('2026-10-19', { now, locale: 'en-US' })).toBe('Today')
+    expect(formatCalendarDate('2026-10-20', { now, locale: 'en-US' })).toBe('Tomorrow')
+    expect(formatCalendarDate('2026-10-23', { now, locale: 'en-US' })).toBe('Fri, Oct 23')
+    expect(formatCalendarDate('2027-01-05', { now, locale: 'en-US' })).toBe('Tue, Jan 5, 2027')
+  })
+  it('appends the time when present; unparseable input passes through', () => {
+    expect(formatCalendarDate('2026-10-20T09:00', { now, locale: 'en-US' })).toBe('Tomorrow, 9:00 AM')
+    expect(formatCalendarDate('soon', { now })).toBe('soon')
   })
 })

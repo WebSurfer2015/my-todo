@@ -13,7 +13,8 @@ import { useTheme, ThemeColors } from '../../app/theme'
 import { useLang } from '../../app/LangContext'
 import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 import { Priority, PRIORITY_VALUES } from '../../core-bindings/types'
-import { dueDateToDate, formatDisplayDate, isoDate } from '../../core-bindings/utils'
+import { dueDateToDate, isoDate } from '../../core-bindings/utils'
+import { formatCalendarDate } from '../../../../core/src/logic/labels'
 
 interface CreateTodoArgs {
   text: string
@@ -137,10 +138,10 @@ export default function EditableCaptureCard({
           style={styles.editChip}
           onPress={() => setOpen((p) => (p === 'date' ? null : 'date'))}
           accessibilityRole="button"
-          accessibilityLabel={`Complete by, ${dueDate ? formatDisplayDate(dueDate, t.locale) : t.noDate}. Tap to change.`}
+          accessibilityLabel={`Complete by, ${dueDate ? formatCalendarDate(dueDate, { locale: t.locale }) : t.noDate}. Tap to change.`}
         >
           <Text style={styles.editChipText}>
-            {dueDate ? formatDisplayDate(dueDate, t.locale) : 'Add date'}
+            {dueDate ? formatCalendarDate(dueDate, { locale: t.locale }) : 'Add date'}
           </Text>
           <ChevronDown size={12} color={theme.primary} strokeWidth={2.4} />
         </TouchableOpacity>
@@ -163,7 +164,7 @@ export default function EditableCaptureCard({
         {args.reminders?.map((r, i) => (
           <View key={i} style={styles.roChip}>
             <Bell size={11} color={theme.label3} strokeWidth={2.2} />
-            <Text style={styles.roChipText}>{`Remind ${formatDisplayDate(r.at, t.locale)}`}</Text>
+            <Text style={styles.roChipText}>{`Remind ${formatCalendarDate(r.at, { locale: t.locale })}`}</Text>
           </View>
         ))}
       </View>

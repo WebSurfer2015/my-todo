@@ -28,11 +28,11 @@ import EditableCaptureCard from './EditableCaptureCard'
 import { type Priority } from '../../core-bindings/types'
 import { snapDueDateToRecurrence } from '../../../../core/src/logic/derive'
 import { buildFallbackCapture } from '../../../../core/src/logic/mochiFallback'
-import { markMochiResting, mochiRestLabel, mochiRestUntil } from './mochiRest'
-import { todayLocal, formatDisplayDate, fullDateLabel, isoDate } from '../../core-bindings/utils'
+import { markMochiResting, mochiRestLabel, mochiRestUntil, type MochiRestScope } from './mochiRest'
+import { todayLocal, fullDateLabel, isoDate } from '../../core-bindings/utils'
 import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 import type { AgentRecurrence } from '../../../../core/src/ports/aiContracts'
-import { recurrenceShortLabel, type RecurrenceFreqStrings } from '../../../../core/src/logic/labels'
+import { formatCalendarDate, recurrenceShortLabel, type RecurrenceFreqStrings } from '../../../../core/src/logic/labels'
 
 /** What applying a confirmed turn did. `pending` is set when the turn raised
  * confirm Alerts (a repeating to-do's scope, a permanent shopping removal):
@@ -367,7 +367,7 @@ export default function ChatSheet({
   useEffect(() => {
     if (!visible) return
     setRestingCapture(null)
-    const until = mochiRestUntil(uid)
+    const until = mochiRestUntil(uid, Date.now(), 'chat')
     setResting(until ? { until, label: mochiRestLabel(until) } : null)
   }, [visible, uid])
   // Wake up when the rest ends while the sheet is open.
@@ -403,8 +403,8 @@ export default function ChatSheet({
     onEnterManually?.()
   }
 
-  function fallBackToManual(turn: string) {
-    const until = markMochiResting(uid)
+  function fallBackToManual(turn: string, scope: MochiRestScope = 'all') {
+    const until = markMochiResting(uid, new Date(), scope)
     setResting({ until, label: mochiRestLabel(until) })
     setRestingCapture(buildFallbackCapture(messages, turn))
   }
@@ -421,9 +421,9 @@ export default function ChatSheet({
   function handleSend(raw: string = input) {
     const turn = raw.trim()
     if (!turn || isThinking) return
-    if (mochiRestUntil(uid)) {
+    if (mochiRestUntil(uid, Date.now(), 'chat')) {
       // Still resting from earlier today — don't spend a call.
-      fallBackToManual(turn)
+      fallBackToManual(turn, 'chat')
       setInput('')
       return
     }
@@ -448,7 +448,7 @@ export default function ChatSheet({
       groceries: groceries.map((g) => ({ id: g.id, text: g.text })),
       stores,
     }).then((res) => {
-      if (res.error === 'quota') fallBackToManual(turn)
+      if (res.error === 'quota') fallBackToManual(turn, res.chatOnly ? 'chat' : 'all')
     })
   }
 
@@ -989,7 +989,7 @@ function pickEditSummary(
   const parts: string[] = []
   if (edit.text !== undefined) parts.push(`rename to "${edit.text}"`)
   if (edit.dueDate !== undefined) {
-    parts.push(edit.dueDate ? `complete by ${formatDisplayDate(edit.dueDate, t.locale)}` : 'clear the date')
+    parts.push(edit.dueDate ? `complete by ${formatCalendarDate(edit.dueDate, { locale: t.locale })}` : 'clear the date')
   }
   if (edit.priority) parts.push(`${edit.priority} priority`)
   if (edit.category) parts.push(categoryLabelLookup(edit.category))
@@ -1214,7 +1214,7 @@ function PickTodosCard({
       <ScrollView style={styles.pickList} nestedScrollEnabled>
         {candidates.map((c) => {
           const meta = [
-            c.dueDate ? `Complete by ${formatDisplayDate(c.dueDate, t.locale)}` : null,
+            c.dueDate ? `Complete by ${formatCalendarDate(c.dueDate, { locale: t.locale })}` : null,
             c.category ? categoryLabelLookup(c.category) : null,
             repeatText(c.recurrence, t.recurrence),
           ]
@@ -1432,7 +1432,7 @@ function OperationPreview({
   const { t } = useLang()
   const reminderIcon = <Bell size={12} color={theme.primary} strokeWidth={2.4} />
   // "Remind Tomorrow, 9:00 AM" — never the raw "2026-10-20T09:00".
-  const reminderText = (at: string) => `Remind ${formatDisplayDate(at, t.locale)}`
+  const reminderText = (at: string) => `Remind ${formatCalendarDate(at, { locale: t.locale })}`
   const repeat = (r: AgentRecurrence | undefined) => repeatText(r, t.recurrence)
   if (op.kind === 'createTodo') {
     const a = op.args
@@ -1455,7 +1455,7 @@ function OperationPreview({
             a.category && <Chip styles={styles}>{categoryLabelLookup(a.category)}</Chip>
           )}
           {effectiveDue && (
-            <Chip styles={styles}>{`Complete by ${formatDisplayDate(effectiveDue, t.locale)}`}</Chip>
+            <Chip styles={styles}>{`Complete by ${formatCalendarDate(effectiveDue, { locale: t.locale })}`}</Chip>
           )}
           {/* Priority only when it's not the default — nobody asked for "medium". */}
           {a.priority && a.priority !== 'medium' && <Chip styles={styles}>{`${capitalize(a.priority)} priority`}</Chip>}
@@ -1500,7 +1500,7 @@ function OperationPreview({
                 : 'No category'}
           </Chip>
           <Chip styles={styles}>
-            {dueDate ? `Complete by ${formatDisplayDate(dueDate, t.locale)}` : t.noDate}
+            {dueDate ? `Complete by ${formatCalendarDate(dueDate, { locale: t.locale })}` : t.noDate}
           </Chip>
           <Chip styles={styles}>{`${capitalize(priority)} priority`}</Chip>
           {repeat(a.recurrence) && <Chip styles={styles}>{repeat(a.recurrence)}</Chip>}

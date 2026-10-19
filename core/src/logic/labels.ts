@@ -112,6 +112,38 @@ export function formatDateTime(at: string, opts: LabelFormatOptions = {}): strin
   return `${shortDate(d, opts)}, ${timePart}`
 }
 
+/** Absolute calendar label for a confirm card: "Today" / "Tomorrow" /
+ * "Fri, Oct 23" (year added when not this year), plus ", 9:00 AM" when the
+ * value carries a time. Relative "in 4 days" reads badly after "Complete by".
+ * Accepts 'YYYY-MM-DD' or 'YYYY-MM-DDTHH:mm'; anything else is returned as-is. */
+export function formatCalendarDate(iso: string, opts: LabelFormatOptions = {}): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/.exec(iso)
+  if (!m) return iso
+  const [, y, mo, d, hh, mm] = m
+  const date = new Date(Number(y), Number(mo) - 1, Number(d))
+  if (Number.isNaN(date.valueOf())) return iso
+  const now = opts.now ?? new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const diffDays = Math.round((date.valueOf() - startOfToday.valueOf()) / 86_400_000)
+  const day =
+    diffDays === 0
+      ? 'Today'
+      : diffDays === 1
+        ? 'Tomorrow'
+        : date.toLocaleDateString(opts.locale, {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+          })
+  if (hh === undefined) return day
+  const time = new Date(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm)).toLocaleTimeString(
+    opts.locale,
+    { hour: 'numeric', minute: '2-digit' },
+  )
+  return `${day}, ${time}`
+}
+
 /** Compact interval: "30m", "1h", "1h 30m". */
 export function formatInterval(minutes: number): string {
   if (minutes < 60) return `${minutes}m`

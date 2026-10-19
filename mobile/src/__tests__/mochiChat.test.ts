@@ -108,3 +108,21 @@ describe('mochiRest', () => {
     )
   })
 })
+
+describe('chat-only rest (server details.reason "turns")', () => {
+  afterEach(() => __resetForTests())
+  const now = new Date('2026-10-19T15:00:00Z')
+
+  it('pauses the chat but not the other AI surfaces', () => {
+    markMochiResting('u1', now, 'chat')
+    expect(mochiRestUntil('u1', now.valueOf(), 'chat')).toBeGreaterThan(now.valueOf())
+    expect(mochiRestUntil('u1', now.valueOf())).toBe(0)
+  })
+
+  it('a shared rest pauses everything, and a later chat-only hit never narrows it', () => {
+    markMochiResting('u1', now)
+    markMochiResting('u1', now, 'chat')
+    expect(mochiRestUntil('u1', now.valueOf())).toBeGreaterThan(now.valueOf())
+    expect(mochiRestUntil('u1', now.valueOf(), 'chat')).toBeGreaterThan(now.valueOf())
+  })
+})

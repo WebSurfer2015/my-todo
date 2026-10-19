@@ -101,7 +101,15 @@ interface SendResult {
   ok: boolean
   data?: AgentResponse
   error?: string
+  /** On 'quota': true when only the chat's turn backstop was hit (server
+   * details.reason 'turns') — other AI surfaces may keep going. */
+  chatOnly?: boolean
 }
+
+/** The callable's RESOURCE_EXHAUSTED body; `details.reason === 'turns'`
+ * marks the chat-only daily turn backstop. */
+type ExhaustedBody = { error?: { status?: string; message?: string; details?: { reason?: string } } } | null
+const isChatOnlyExhausted = (b: ExhaustedBody) => b?.error?.details?.reason === 'turns'
 
 /** The wire shape of one history turn: `sig` only on signed assistant turns. */
 export function toWireTurn(m: ChatTurn): { role: 'user' | 'assistant'; content: string; sig?: string } {
@@ -231,16 +239,14 @@ export function useMochiAgent() {
           // Two very different 429s: a HARD daily-quota cap (the callable
           // throws resource-exhausted → body.error.status === RESOURCE_EXHAUSTED)
           // vs a transient throttle. Retrying only helps the latter.
-          const peek = (await res.json().catch(() => null)) as {
-            error?: { status?: string; message?: string }
-          } | null
+          const peek = (await res.json().catch(() => null)) as ExhaustedBody
           if (peek?.error?.status === 'RESOURCE_EXHAUSTED') {
             // De-metered: no "you're out" wall or reset countdown. ChatSheet
             // normally falls back to manual compose on 'quota' (P1.7); this
             // copy only shows when no fallback is wired.
             setError('Mochi needs a little rest — you can add this one yourself.')
             setErrorKind('quota')
-            return { ok: false, error: 'quota' }
+            return { ok: false, error: 'quota', chatOnly: isChatOnlyExhausted(peek) }
           }
           // Transient — back off once and retry before surfacing anything.
           await new Promise((r) => setTimeout(r, COLD_START_RETRY_MS))
@@ -248,13 +254,11 @@ export function useMochiAgent() {
           // The retry can itself hit the fair-use ceiling — same 'quota'
           // classification so ChatSheet takes the graceful fallback (P1.7).
           if (res.status === 429) {
-            const again = (await res.clone().json().catch(() => null)) as {
-              error?: { status?: string }
-            } | null
+            const again = (await res.clone().json().catch(() => null)) as ExhaustedBody
             if (again?.error?.status === 'RESOURCE_EXHAUSTED') {
               setError('Mochi needs a little rest — you can add this one yourself.')
               setErrorKind('quota')
-              return { ok: false, error: 'quota' }
+              return { ok: false, error: 'quota', chatOnly: isChatOnlyExhausted(again) }
             }
           }
         }

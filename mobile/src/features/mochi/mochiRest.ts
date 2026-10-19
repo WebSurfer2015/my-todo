@@ -11,18 +11,36 @@
  */
 import { mochiRestEndsAt } from '../../../../core/src/logic/mochiFallback'
 
-let rest: { uid: string; until: number } | null = null
+/** 'all' = the shared cap (every AI surface pauses); 'chat' = only the
+ * chat's own turn backstop (server details.reason 'turns') — field
+ * suggestions and suggest-steps keep working. */
+export type MochiRestScope = 'all' | 'chat'
 
-/** Epoch ms when `uid`'s rest ends, or 0 when not resting. */
-export function mochiRestUntil(uid: string | null | undefined, nowMs: number = Date.now()): number {
+let rest: { uid: string; until: number; scope: MochiRestScope } | null = null
+
+/** Epoch ms when `uid`'s rest ends, or 0 when not resting. A chat-only rest
+ * counts only when asked for `'chat'` (the chat itself). */
+export function mochiRestUntil(
+  uid: string | null | undefined,
+  nowMs: number = Date.now(),
+  scope: MochiRestScope = 'all',
+): number {
   if (!uid || !rest || rest.uid !== uid || nowMs >= rest.until) return 0
+  if (rest.scope === 'chat' && scope !== 'chat') return 0
   return rest.until
 }
 
-/** Record that `uid` hit the cap; returns when the rest ends (epoch ms). */
-export function markMochiResting(uid: string | null | undefined, now: Date = new Date()): number {
+/** Record that `uid` hit a cap; returns when the rest ends (epoch ms). A
+ * chat-only rest never narrows an active shared one. */
+export function markMochiResting(
+  uid: string | null | undefined,
+  now: Date = new Date(),
+  scope: MochiRestScope = 'all',
+): number {
   const until = mochiRestEndsAt(now).valueOf()
-  if (uid) rest = { uid, until }
+  if (!uid) return until
+  const keepShared = scope === 'chat' && mochiRestUntil(uid, now.valueOf()) > 0
+  if (!keepShared) rest = { uid, until, scope }
   return until
 }
 
