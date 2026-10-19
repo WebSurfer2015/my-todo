@@ -298,3 +298,47 @@ async function syncOnce(
       ),
   )
 }
+
+// ── Tap handling ──────────────────────────────────────────────────────
+
+/** Responses already routed (a launch response may also reach the listener,
+ * and AppGate can remount across sign-out / sign-in). */
+const handledResponses = new Set<string>()
+
+function todoIdOf(response: Notifications.NotificationResponse): string | null {
+  if (response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return null
+  const data = response.notification.request.content.data as { todoId?: unknown } | null
+  return typeof data?.todoId === 'string' && data.todoId ? data.todoId : null
+}
+
+/**
+ * Calls `onTodo(todoId)` when the user taps a to-do reminder — both while the
+ * app is running and for the tap that cold-launched it. Notifications without
+ * a todoId (the daily check-in) and non-default actions are ignored.
+ * Returns an unsubscribe.
+ */
+export function onReminderTapped(onTodo: (todoId: string) => void): () => void {
+  let alive = true
+  const route = (response: Notifications.NotificationResponse | null) => {
+    if (!alive || !response) return
+    const key = `${response.notification.request.identifier}@${response.notification.date}`
+    if (handledResponses.has(key)) return
+    handledResponses.add(key)
+    const todoId = todoIdOf(response)
+    if (todoId) onTodo(todoId)
+  }
+  const sub = Notifications.addNotificationResponseReceivedListener(route)
+  Notifications.getLastNotificationResponseAsync()
+    .then((response) => {
+      route(response)
+      // Consumed — don't reopen it on a later mount / next sign-in.
+      if (response && alive) return Notifications.clearLastNotificationResponseAsync()
+    })
+    .catch(() => {
+      // best-effort: no launch response just means no deep link
+    })
+  return () => {
+    alive = false
+    sub.remove()
+  }
+}
