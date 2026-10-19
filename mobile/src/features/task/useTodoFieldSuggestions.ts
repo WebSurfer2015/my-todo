@@ -4,13 +4,22 @@
  * from TodoFieldSuggestPills.tsx so it can be unit-tested without
  * pulling in the React Native pill UI.
  *
- * Token discipline: 1500ms debounce, 8-char minimum, dedupe by
- * trimmed-text, profile.agentEnabled gate, single in-flight via
- * sequence number.
+ * Token discipline: 1500ms debounce, 8-char minimum, a real signal
+ * pre-filter (≥3 words or a date/time/recurrence/priority cue), dedupe by
+ * trimmed-text, profile.agentEnabled gate, single in-flight via sequence
+ * number. Every call spends a slot of the SHARED daily fair-use cap (the
+ * same one the chat uses), so once the server says the cap is reached the
+ * hook goes quiet until the next 00:00 UTC (features/mochi/mochiRest).
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { suggestTodoFields, SuggestFieldsResult } from '../../adapters/aiInfer'
+import {
+  currentAiUid,
+  isAiQuotaError,
+  suggestTodoFields,
+  SuggestFieldsResult,
+} from '../../adapters/aiInfer'
+import { markMochiResting, mochiRestUntil } from '../mochi/mochiRest'
 
 interface HookArgs {
   text: string
@@ -27,8 +36,8 @@ export const MIN_CHARS = 8
 export const DEBOUNCE_MS = 1500
 
 // Patterns that signal the AI *might* extract a useful field. If
-// none match, we still allow a call when the text is long enough
-// to plausibly carry a category signal — but for short text with no
+// none match, we still allow a call when the text has enough words to
+// plausibly carry a category signal — but for short text with no
 // signal, skip to save tokens. Cheap regex, runs on every text
 // change before the network call.
 export const SIGNAL_PATTERNS: RegExp[] = [
@@ -49,16 +58,16 @@ export const SIGNAL_PATTERNS: RegExp[] = [
   /\b(urgent|asap|important|low\s+priority|optional|whenever)\b/i,
 ]
 
+/** Words needed before a cue-less title is worth a (category-only) guess. */
+export const MIN_WORDS = 3
+
 export function hasExtractableSignal(text: string): boolean {
   if (SIGNAL_PATTERNS.some((re) => re.test(text))) return true
-  // Allow any text long enough to plausibly carry intent beyond a
-  // typo. The MIN_CHARS gate (8 chars) already trims trivial entries;
-  // requiring multiple words would skip legitimate 2-word category
-  // signals like "renew passport" (→ Travel) or "call dentist"
-  // (→ Health). Token cost is bounded by the 1.5s debounce + the
-  // lastQueriedRef dedupe — extra calls only fire when the user
-  // actually pauses on changed text.
-  return text.trim().length >= 8
+  // No date/time/recurrence/priority cue: the only thing left to suggest
+  // is a category, and a 1–2 word fragment ("renew passport", "buy m")
+  // is mostly the user mid-thought. Every call spends a slot of the shared
+  // daily cap, so wait for a fuller title (≥ MIN_WORDS words).
+  return text.trim().split(/\s+/).filter(Boolean).length >= MIN_WORDS
 }
 
 export function useTodoFieldSuggestions({
@@ -90,7 +99,9 @@ export function useTodoFieldSuggestions({
   const lastQueriedRef = useRef<string>('')
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Aborts the in-flight request when the effect re-runs or the hook
-  // unmounts — stops a model call billing after the compose UI is gone.
+  // unmounts, so a stale response is dropped client-side. (The server's
+  // model call still completes and is still billed — aborting doesn't stop
+  // it; the debounce + pre-filter are what save tokens.)
   const controllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
@@ -126,7 +137,9 @@ export function useTodoFieldSuggestions({
     // and is too short to be worth a category guess. Big token win
     // on early typing strokes that the debounce alone wouldn't catch
     // (e.g., the user pauses to think after "buy m").
-    if (!hasExtractableSignal(trimmed)) {
+    // Mochi's resting (the shared daily cap is spent): no ambient calls
+    // until it resets — they'd only spend a request on a "no".
+    if (!hasExtractableSignal(trimmed) || mochiRestUntil(currentAiUid())) {
       seqRef.current += 1
       setSuggestions(null)
       setThinking(false)
@@ -143,35 +156,52 @@ export function useTodoFieldSuggestions({
     seqRef.current += 1
 
     timerRef.current = setTimeout(() => {
+      // Re-check at fire time: another AI surface may have hit the cap
+      // during the debounce.
+      const uid = currentAiUid()
+      if (mochiRestUntil(uid)) {
+        setThinking(false)
+        return
+      }
       const querySeq = ++seqRef.current
       const queryText = trimmed
       lastQueriedRef.current = queryText
       setThinking(true)
       const controller = new AbortController()
       controllerRef.current = controller
-      void suggestTodoFields(
+      suggestTodoFields(
         {
           text: queryText,
           today: todayRef.current,
           categories: categoriesRef.current,
         },
         controller.signal,
-      ).then((res) => {
-        // Drop stale response — the user kept typing.
-        if (querySeq !== seqRef.current) return
-        // If every field is null, hide the row entirely rather than
-        // rendering an empty placeholder.
-        const hasAny = !!(
-          res.category ||
-          res.newCategoryLabel ||
-          res.priority ||
-          res.dueDate ||
-          res.recurrence ||
-          res.reminder
-        )
-        setSuggestions(hasAny ? res : null)
-        setThinking(false)
-      })
+      ).then(
+        (res) => {
+          // Drop stale response — the user kept typing.
+          if (querySeq !== seqRef.current) return
+          // If every field is null, hide the row entirely rather than
+          // rendering an empty placeholder.
+          const hasAny = !!(
+            res.category ||
+            res.newCategoryLabel ||
+            res.priority ||
+            res.dueDate ||
+            res.recurrence ||
+            res.reminder
+          )
+          setSuggestions(hasAny ? res : null)
+          setThinking(false)
+        },
+        (e: unknown) => {
+          // Only the fair-use ceiling rejects (everything else resolves
+          // all-null): go quiet until the cap resets at 00:00 UTC.
+          if (isAiQuotaError(e)) markMochiResting(uid)
+          if (querySeq !== seqRef.current) return
+          setSuggestions(null)
+          setThinking(false)
+        },
+      )
     }, DEBOUNCE_MS)
 
     return () => {
@@ -179,9 +209,10 @@ export function useTodoFieldSuggestions({
         clearTimeout(timerRef.current)
         timerRef.current = null
       }
-      // Cancel + invalidate any in-flight request: abort the fetch (so it
-      // stops billing) AND bump seqRef so a late resolve can't setState on
-      // an unmounted component.
+      // Cancel + invalidate any in-flight request: abort the fetch (drops
+      // the response client-side — the server call itself still completes
+      // and bills) AND bump seqRef so a late resolve can't setState on an
+      // unmounted component.
       controllerRef.current?.abort()
       seqRef.current += 1
     }

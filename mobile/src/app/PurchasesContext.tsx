@@ -208,7 +208,12 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
     void rcManageSubscriptions()
   }, [])
 
-  const openPaywall = useCallback((reason?: string) => setPaywall({ open: true, reason }), [])
+  // Gated at the source: with IAP off (free-only release) no caller can open
+  // the paywall, even one that forgot to check the flag.
+  const openPaywall = useCallback((reason?: string) => {
+    if (!IAP_ENABLED) return
+    setPaywall({ open: true, reason })
+  }, [])
   const closePaywall = useCallback(() => setPaywall({ open: false }), [])
 
   const value = useMemo<PurchasesValue>(

@@ -14,6 +14,7 @@ import React, {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   ReactNode,
   useCallback,
@@ -39,15 +40,28 @@ import GuidesPrompt from '../features/onboarding/GuidesPrompt'
 import ComposeSheet, { type ComposePrefill } from '../features/task/ComposeSheet'
 import TaskDetailsSheet from '../features/task/TaskDetailsSheet'
 import ChatSheet from '../features/mochi/ChatSheet'
-import type { ProposedOperation } from '../features/mochi/useMochiAgent'
+import type { OpOf, ProposedOperation } from '../../../core/src/ports/aiContracts'
+import {
+  planMochiOp,
+  planMochiOps,
+  planPickedTodos,
+  type CategoryRef,
+  type MochiIntent,
+  type MochiSnapshot,
+} from '../../../core/src/logic/mochiOps'
+import { clearMochiRest } from '../features/mochi/mochiRest'
 import { IAP_ENABLED, MOCHI_AGENT_ENABLED } from './featureFlags'
 import ManageAnimationSoundSheet from '../features/profile/ManageAnimationSoundSheet'
 import CategorySheet from '../features/category/CategorySheet'
-import { COLOR_PALETTE } from '../core-bindings/categories'
+import { COLOR_PALETTE, categoryLabel } from '../core-bindings/categories'
 import { SEED_GROCERY_STORES, frequentGroceries } from '../core-bindings/groceries'
 import type { Filter, Priority } from '../core-bindings/types'
 import type { Guide } from '../features/onboarding/guides'
-import { dueDateOnly, genUuid, todayLocal } from '../../../core/src/logic/utils'
+import { genUuid, todayLocal } from '../../../core/src/logic/utils'
+
+/** How long a sheet takes to animate out before the next one may open —
+ * iOS can't reliably present a <Modal> while another is still dismissing. */
+export const MODAL_HANDOFF_MS = 280
 
 /** Signal that a screen should open its tab-local manage sheet. The
  * `seq` bumps so a repeat-trigger fires even when target stays the
@@ -223,202 +237,233 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     else openCompose()
   }, [agentEnabled, lastComposeMode, openCompose])
 
+  // Sheet → sheet handoffs: iOS can't reliably stack two <Modal>s, so the
+  // next sheet opens only once the current one has animated out. Pending
+  // handoffs are cancelled on unmount (e.g. sign-out tears the shell down).
+  const handoffTimers = useRef(new Set<ReturnType<typeof setTimeout>>())
+  useEffect(() => {
+    const timers = handoffTimers.current
+    return () => {
+      timers.forEach(clearTimeout)
+      timers.clear()
+    }
+  }, [])
+  const afterModalClose = useCallback((fn: () => void) => {
+    const id = setTimeout(() => {
+      handoffTimers.current.delete(id)
+      fn()
+    }, MODAL_HANDOFF_MS)
+    handoffTimers.current.add(id)
+  }, [])
+
+  // Read-only view of the store for the pure Mochi op planner (core
+  // logic/mochiOps). Built at apply time so it sees the latest store.
+  const mochiSnapshot = useCallback(
+    (): MochiSnapshot => ({
+      today: todayLocal(),
+      todos: store.todos,
+      categories: store.categories.map((c) => ({
+        id: c.id,
+        label: c.label ?? '',
+        displayLabel: categoryLabel(c, t),
+        color: c.color,
+        icon: c.icon,
+      })),
+      groceries: store.groceries,
+    }),
+    [store.todos, store.categories, store.groceries, t],
+  )
+
+  // The thin executor: run each planned intent through the SAME store
+  // mutation a manual tap uses (the agent has no privileged write path), and
+  // collect the Undos the store hands back into one inline Undo — the
+  // store's own snackbar renders BEHIND the chat Modal. All the guards
+  // (unknown id, idempotent mark-done, Done-bin-only deletes, step matching,
+  // same-turn categories) live in the planner, where they're table-tested.
+  const runMochiIntents = useCallback(
+    (intents: MochiIntent[]) => {
+      const undos: Array<(() => void) | null> = []
+      const todoIds: string[] = []
+      const groceryIds: string[] = []
+      // Categories created by this run, by lower-cased label.
+      const created = new Map<string, string>()
+      const categoryOf = (ref: CategoryRef): string | undefined =>
+        'id' in ref ? ref.id : created.get(ref.newLabel.trim().toLowerCase())
+      for (const it of intents) {
+        switch (it.type) {
+          case 'addCategory':
+            created.set(
+              it.label.trim().toLowerCase(),
+              store.addCategory({ label: it.label, color: it.color, icon: it.icon }),
+            )
+            break
+          case 'addTask':
+            todoIds.push(
+              store.addTask(
+                it.text,
+                it.priority,
+                it.dueDate,
+                it.category ? categoryOf(it.category) : undefined,
+                it.recurrence,
+                {
+                  ...(it.notes ? { notes: it.notes } : {}),
+                  ...(it.reminders ? { reminders: it.reminders } : {}),
+                },
+              ),
+            )
+            break
+          case 'updateText':
+            store.updateText(it.todoId, it.text)
+            break
+          case 'updatePriority':
+            store.updatePriority(it.todoId, it.priority)
+            break
+          case 'updateDueDate':
+            store.updateDueDate(it.todoId, it.dueDate)
+            break
+          case 'updateCategory': {
+            const id = categoryOf(it.category)
+            if (id) store.updateTaskCategory(it.todoId, id)
+            break
+          }
+          case 'updateNotes':
+            store.updateNotes(it.todoId, it.notes)
+            break
+          case 'updateRecurrence':
+            store.updateRecurrence(it.todoId, it.recurrence)
+            break
+          case 'updateReminders':
+            store.updateReminders(it.todoId, it.reminders)
+            break
+          case 'addSubtask':
+            store.addSubtask(it.todoId, it.text)
+            break
+          case 'toggle':
+            undos.push(store.toggle(it.todoId))
+            break
+          case 'moveToTrash':
+            undos.push(store.moveToTrash(it.todoId))
+            break
+          case 'moveSeriesFutureToTrash':
+            undos.push(store.moveSeriesFutureToTrash(it.todoId))
+            break
+          case 'askDeleteScope': {
+            const id = it.todoId
+            Alert.alert(
+              'Delete repeating to-do?',
+              `"${it.text}" — just this one, or this and all future? Deleted to-dos stay in Done for 30 days.`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Just this one', onPress: () => store.moveToTrash(id) },
+                { text: 'This & future', onPress: () => store.moveSeriesFutureToTrash(id) },
+              ],
+            )
+            break
+          }
+          case 'skipTodo':
+            undos.push(store.skipTodo(it.todoId))
+            break
+          case 'skipSeriesFuture':
+            undos.push(store.skipSeriesFuture(it.todoId))
+            break
+          case 'restoreFromTrash':
+            store.restoreFromTrash(it.todoId)
+            break
+          case 'bulkDeferTodos':
+            store.bulkDeferTodos(it.todoIds, it.dueDate)
+            break
+          case 'toggleSubtask':
+            store.toggleSubtask(it.todoId, it.subtaskId)
+            break
+          case 'removeSubtask':
+            store.removeSubtask(it.todoId, it.subtaskId)
+            break
+          case 'updateSubtaskText':
+            store.updateSubtaskText(it.todoId, it.subtaskId, it.text)
+            break
+          case 'addGroceryStore':
+            store.addGroceryStore(it.name)
+            break
+          case 'renameGroceryStore':
+            store.renameGroceryStore(it.from, it.to)
+            break
+          case 'deleteGroceryStore':
+            store.deleteGroceryStore(it.name)
+            break
+          case 'addGrocery': {
+            const id = store.addGrocery({ text: it.text, groupId: it.groupId, stores: it.stores })
+            if (id) groceryIds.push(id)
+            break
+          }
+          case 'editGrocery':
+            store.editGrocery(it.groceryId, it.patch)
+            break
+          case 'toggleGroceryChecked':
+            store.toggleGroceryChecked(it.groceryId)
+            break
+          case 'askRemoveGrocery': {
+            const id = it.groceryId
+            Alert.alert(
+              'Remove from shopping?',
+              `Permanently remove "${it.text}" from your shopping list. This can't be undone.`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Remove', style: 'destructive', onPress: () => store.deleteGrocery(id) },
+              ],
+            )
+            break
+          }
+          case 'editCategory':
+            store.editCategory(it.categoryId, { label: it.label, color: it.color, icon: it.icon })
+            break
+          case 'deleteCategory':
+            store.deleteCategory(it.categoryId)
+            break
+          default: {
+            const unhandled: never = it
+            void unhandled
+          }
+        }
+      }
+      return { undo: combineUndos(undos), todoIds, groceryIds, categoryOf }
+    },
+    [store],
+  )
+
   // Ask Mochi → "Review & add": hand the chat's createTodo proposal to the
   // manual ComposeSheet (the same code a manual add uses) so the user reviews
   // and saves through one path — no separate apply logic, identical outcome.
-  // The agent's reminders carry no id (the model can't mint stable UUIDs), so
-  // stamp one per entry, exactly as applyMochiOp does.
+  // The planner stamps reminder ids and resolves a same-turn new category
+  // (creating it now, so Compose can preselect it); only the addTask is left
+  // for the user to save.
   const reviewCreateTodo = useCallback(
-    (args: Extract<ProposedOperation, { kind: 'createTodo' }>['args'], opts?: { note?: string }) => {
-      const reminders =
-        args.reminders && args.reminders.length > 0
-          ? args.reminders.map((r) => ({
-              id: genUuid(),
-              at: r.at,
-              ...(r.offsetMinutes ? { offsetMinutes: r.offsetMinutes } : {}),
-              ...(r.intervalMinutes ? { intervalMinutes: r.intervalMinutes } : {}),
-            }))
-          : undefined
+    (args: OpOf<'createTodo'>['args'], opts?: { note?: string }) => {
+      const intents = planMochiOp({ kind: 'createTodo', args }, mochiSnapshot(), { genId: genUuid })
+      const task = intents.find((i): i is Extract<MochiIntent, { type: 'addTask' }> => i.type === 'addTask')
+      const { categoryOf } = runMochiIntents(intents.filter((i) => i.type === 'addCategory'))
       setComposePrefill({
         text: args.text,
         priority: args.priority ?? 'medium',
-        category: args.category,
+        category: task?.category ? categoryOf(task.category) : undefined,
         dueDate: args.dueDate,
         recurrence: args.recurrence,
-        ...(reminders ? { reminders } : {}),
+        ...(task?.reminders ? { reminders: task.reminders } : {}),
         ...(opts?.note ? { note: opts.note } : {}),
       })
-      // Close the chat first, then open Compose on the next tick — iOS can't
-      // stack two <Modal>s reliably (same handoff dance as guide menu → guide).
+      // Close the chat first, then open Compose once it has dismissed.
       setMochiOpen(false)
-      setTimeout(() => setComposeOpen(true), 280)
+      afterModalClose(() => setComposeOpen(true))
     },
-    [],
+    [mochiSnapshot, runMochiIntents, afterModalClose],
   )
 
-  // Apply one confirmed Mochi operation through the SAME store mutations a
-  // manual tap uses — so the agent has no privileged write path. Each kind
-  // maps to existing actions; the user already confirmed in ChatSheet.
-  const applyMochiOp = useCallback(
-    (op: ProposedOperation): (() => void) | null => {
-      // Agent reminders carry no id (the model can't mint stable UUIDs);
-      // stamp one per entry on apply so the scheduler's per-fire key stays
-      // distinct. Returns undefined for an empty/absent list.
-      const toReminders = (
-        rs?: { at: string; offsetMinutes?: number; intervalMinutes?: number }[],
-      ) =>
-        rs && rs.length > 0
-          ? rs.map((r) => ({
-              id: genUuid(),
-              at: r.at,
-              ...(r.offsetMinutes ? { offsetMinutes: r.offsetMinutes } : {}),
-              ...(r.intervalMinutes ? { intervalMinutes: r.intervalMinutes } : {}),
-            }))
-          : undefined
-
-      if (op.kind === 'createTodo') {
-        const a = op.args
-        const reminders = toReminders(a.reminders)
-        store.addTask(
-          a.text,
-          a.priority ?? 'medium',
-          a.dueDate ?? '',
-          a.category,
-          a.recurrence,
-          {
-            ...(a.notes ? { notes: a.notes } : {}),
-            ...(reminders ? { reminders } : {}),
-          },
-        )
-      } else if (op.kind === 'editTodo') {
-        const a = op.args
-        if (a.text !== undefined) store.updateText(a.todoId, a.text)
-        if (a.priority !== undefined) store.updatePriority(a.todoId, a.priority)
-        if (a.dueDate !== undefined) store.updateDueDate(a.todoId, a.dueDate)
-        if (a.category !== undefined) store.updateTaskCategory(a.todoId, a.category)
-        if (a.notes !== undefined) store.updateNotes(a.todoId, a.notes)
-        if (a.recurrence !== undefined) store.updateRecurrence(a.todoId, a.recurrence)
-        const editReminders = toReminders(a.reminders)
-        if (editReminders) store.updateReminders(a.todoId, editReminders)
-      } else if (op.kind === 'addSteps') {
-        for (const s of op.args.steps) store.addSubtask(op.args.todoId, s.text)
-      } else if (op.kind === 'markDone') {
-        // Idempotent: `toggle` flips state unconditionally, so guard
-        // against re-opening a todo that's already done (markDone means
-        // "make it done", never "un-done it").
-        const td = store.todos.find((t) => t.id === op.args.todoId)
-        // Its Undo is shown inline in the chat (the store snackbar is hidden
-        // behind the chat Modal).
-        if (td && !td.done) return store.toggle(op.args.todoId)
-      } else if (op.kind === 'createCategory') {
-        const a = op.args
-        store.addCategory({
-          label: a.label,
-          color: a.color ?? COLOR_PALETTE[store.categories.length % COLOR_PALETTE.length],
-          icon: a.icon ?? 'tag',
-        })
-      } else if (op.kind === 'createStore') {
-        store.addGroceryStore(op.args.name)
-      } else if (op.kind === 'addGroceryItem') {
-        const a = op.args
-        store.addGrocery({ text: a.text, groupId: a.groupId, stores: a.stores })
-      } else if (op.kind === 'deleteTodo') {
-        // Mochi deletes go to the 30-day Trash (Undo snackbar from the store),
-        // never permanent — an AI misreading must always be recoverable. For a
-        // series, ask the scope (this one vs this + future).
-        const td = store.todos.find((t) => t.id === op.args.todoId)
-        if (!td) return null
-        if (td.seriesId) {
-          Alert.alert(
-            'Delete repeating to-do?',
-            `"${td.text}" — just this one, or this and all future? Deleted to-dos stay in Done for 30 days.`,
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Just this one', onPress: () => store.moveToTrash(td.id) },
-              { text: 'This & future', onPress: () => store.moveSeriesFutureToTrash(td.id) },
-            ],
-          )
-        } else {
-          return store.moveToTrash(td.id)
-        }
-      } else if (op.kind === 'editGroceryItem') {
-        const a = op.args
-        store.editGrocery(a.groceryId, {
-          ...(a.text !== undefined ? { text: a.text } : {}),
-          ...(a.stores !== undefined ? { stores: a.stores } : {}),
-          ...(a.groupId !== undefined ? { groupId: a.groupId } : {}),
-        })
-      } else if (op.kind === 'deleteGroceryItem') {
-        const item = store.groceries.find((g) => g.id === op.args.groceryId)
-        Alert.alert(
-          'Remove from shopping?',
-          `Permanently remove "${item?.text ?? 'this item'}" from your shopping list. This can't be undone.`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Remove',
-              style: 'destructive',
-              onPress: () => store.deleteGrocery(op.args.groceryId),
-            },
-          ],
-        )
-      } else if (op.kind === 'editCategory') {
-        // editCategory replaces all three fields, so merge the patch over the
-        // category's current values (empty label preserves the localized
-        // built-in fallback).
-        const a = op.args
-        const cat = store.categories.find((c) => c.id === a.categoryId)
-        if (!cat) return null
-        store.editCategory(a.categoryId, {
-          label: a.label ?? cat.label ?? '',
-          color: a.color ?? cat.color,
-          icon: a.icon ?? cat.icon,
-        })
-      } else if (op.kind === 'deleteCategory') {
-        // store.deleteCategory cascades (reassigns to-dos) + guards the last
-        // category; the chat Confirm tap is the user's go-ahead.
-        store.deleteCategory(op.args.categoryId)
-      } else if (op.kind === 'setGroceryChecked') {
-        const item = store.groceries.find((g) => g.id === op.args.groceryId)
-        if (item && item.checked !== op.args.checked) {
-          store.toggleGroceryChecked(op.args.groceryId)
-        }
-      } else if (op.kind === 'renameStore') {
-        store.renameGroceryStore(op.args.from, op.args.to)
-      } else if (op.kind === 'deleteStore') {
-        store.deleteGroceryStore(op.args.name)
-      } else if (op.kind === 'skipTodo') {
-        const td = store.todos.find((t) => t.id === op.args.todoId)
-        if (!td) return null
-        return op.args.scope === 'series' && td.seriesId
-          ? store.skipSeriesFuture(td.id)
-          : store.skipTodo(td.id)
-      } else if (op.kind === 'markUndone') {
-        const td = store.todos.find((t) => t.id === op.args.todoId)
-        if (td && td.done) store.toggle(td.id)
-      } else if (op.kind === 'deferOverdue') {
-        const today = todayLocal()
-        const overdue = store.todos
-          .filter((t) => !t.done && !t.trashed && !!t.dueDate && dueDateOnly(t.dueDate) < today)
-          .map((t) => t.id)
-        if (overdue.length > 0) store.bulkDeferTodos(overdue, op.args.dueDate)
-      } else if (op.kind === 'restoreTodo') {
-        store.restoreFromTrash(op.args.todoId)
-      } else if (op.kind === 'subtaskAction') {
-        const a = op.args
-        const td = store.todos.find((t) => t.id === a.todoId)
-        const q = a.subtaskText.trim().toLowerCase()
-        const sub = td?.subtasks?.find((s) => s.text.toLowerCase().includes(q))
-        if (!td || !sub) return null
-        if (a.action === 'complete' && !sub.done) store.toggleSubtask(td.id, sub.id)
-        else if (a.action === 'uncomplete' && sub.done) store.toggleSubtask(td.id, sub.id)
-        else if (a.action === 'remove') store.removeSubtask(td.id, sub.id)
-        else if (a.action === 'rename' && a.newText)
-          store.updateSubtaskText(td.id, sub.id, a.newText)
-      }
-      return null
-    },
-    [store],
+  // Apply one confirmed Mochi turn. Planning the WHOLE turn at once lets a
+  // to-do land in a category created by the same turn. Returns the combined
+  // inline Undo (mark done / delete / skip), or null.
+  const applyMochiOps = useCallback(
+    (ops: ProposedOperation[]): (() => void) | null =>
+      runMochiIntents(planMochiOps(ops, mochiSnapshot(), { genId: genUuid })).undo,
+    [mochiSnapshot, runMochiIntents],
   )
 
   // Optimistic capture: apply a single new to-do / grocery item RIGHT AWAY
@@ -426,71 +471,45 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   // would render behind the chat Modal. For a recurring to-do, Undo asks
   // whether to drop just this occurrence or the whole repeat.
   const applyCaptureWithUndo = useCallback(
-    (op: ProposedOperation): { id: string | null; undo: () => void } => {
-      const toReminders = (
-        rs?: { at: string; offsetMinutes?: number; intervalMinutes?: number }[],
-      ) =>
-        rs && rs.length > 0
-          ? rs.map((r) => ({
-              id: genUuid(),
-              at: r.at,
-              ...(r.offsetMinutes ? { offsetMinutes: r.offsetMinutes } : {}),
-              ...(r.intervalMinutes ? { intervalMinutes: r.intervalMinutes } : {}),
-            }))
-          : undefined
-
-      if (op.kind === 'createTodo') {
-        const a = op.args
-        const reminders = toReminders(a.reminders)
-        const id = store.addTask(
-          a.text,
-          a.priority ?? 'medium',
-          a.dueDate ?? '',
-          a.category,
-          a.recurrence,
-          {
-            ...(a.notes ? { notes: a.notes } : {}),
-            ...(reminders ? { reminders } : {}),
-          },
-        )
-        const isRecurring = !!a.recurrence
-        return {
-          id,
-          undo: () => {
-            if (isRecurring) {
-              Alert.alert(
-                'Remove repeating to-do?',
-                `"${a.text}" repeats — remove just this one, or the whole series?`,
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Just this one', onPress: () => store.permanentlyDelete(id) },
-                  {
-                    text: 'Whole series',
-                    style: 'destructive',
-                    onPress: () => store.permanentlyDeleteSeriesFuture(id),
-                  },
-                ],
-              )
-            } else {
-              store.permanentlyDelete(id)
-            }
-          },
-        }
-      }
+    (op: ProposedOperation): { id: string | null; category?: string; undo: () => void } => {
+      if (op.kind !== 'createTodo' && op.kind !== 'addGroceryItem') return { id: null, undo: () => {} }
+      const intents = planMochiOp(op, mochiSnapshot(), { genId: genUuid })
+      const run = runMochiIntents(intents)
       if (op.kind === 'addGroceryItem') {
-        const a = op.args
-        const id = store.addGrocery({ text: a.text, groupId: a.groupId, stores: a.stores })
-        return {
-          // null id → no inline chip-editing for groceries (Undo only).
-          id: null,
-          undo: () => {
-            if (id) store.deleteGrocery(id)
-          },
-        }
+        const gid = run.groceryIds[0]
+        // null id → no inline chip-editing for groceries (Undo only).
+        return { id: null, undo: () => (gid ? store.deleteGrocery(gid) : undefined) }
       }
-      return { id: null, undo: () => {} }
+      const id = run.todoIds[0] ?? null
+      const task = intents.find((i): i is Extract<MochiIntent, { type: 'addTask' }> => i.type === 'addTask')
+      const text = op.args.text
+      const isRecurring = !!op.args.recurrence
+      return {
+        id,
+        category: task?.category ? run.categoryOf(task.category) : undefined,
+        undo: () => {
+          if (!id) return
+          if (isRecurring) {
+            Alert.alert(
+              'Remove repeating to-do?',
+              `"${text}" repeats — remove just this one, or the whole series?`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Just this one', onPress: () => store.permanentlyDelete(id) },
+                {
+                  text: 'Whole series',
+                  style: 'destructive',
+                  onPress: () => store.permanentlyDeleteSeriesFuture(id),
+                },
+              ],
+            )
+          } else {
+            store.permanentlyDelete(id)
+          }
+        },
+      }
     },
-    [store],
+    [store, mochiSnapshot, runMochiIntents],
   )
 
   // Inline-edit a just-captured to-do straight from the Mochi card — fixes the
@@ -504,53 +523,15 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     [store],
   )
 
-  // Apply a pick-list proposal to the user's chosen subset of ids. Each action
-  // runs through the SAME store mutations a manual edit / applyMochiOp uses, so
-  // the agent has no privileged write path; deletes go to the Trash.
+  // Apply a pick-list proposal to the user's ticked ids (planned in core:
+  // delete → Done bin, markDone only flips open ones, edit / addSteps per id).
+  // Returns the combined inline Undo.
   const applyPickedTodos = useCallback(
-    (op: Extract<ProposedOperation, { kind: 'pickTodos' }>, ids: string[]) => {
-      if (ids.length === 0) return null
-      const { action } = op.args
-      // delete / markDone return a combined Undo the chat card shows inline
-      // (the store's snackbar renders behind the chat Modal).
-      if (action === 'delete') {
-        return combineUndos(ids.map((id) => store.moveToTrash(id)))
-      } else if (action === 'markDone') {
-        // Idempotent — only flip ones that aren't already done.
-        return combineUndos(
-          ids.map((id) => {
-            const td = store.todos.find((t) => t.id === id)
-            return td && !td.done ? store.toggle(id) : null
-          }),
-        )
-      } else if (action === 'edit') {
-        const e = op.args.edit
-        if (!e) return null
-        const reminders =
-          e.reminders && e.reminders.length > 0
-            ? e.reminders.map((r) => ({
-                id: genUuid(),
-                at: r.at,
-                ...(r.offsetMinutes ? { offsetMinutes: r.offsetMinutes } : {}),
-                ...(r.intervalMinutes ? { intervalMinutes: r.intervalMinutes } : {}),
-              }))
-            : undefined
-        ids.forEach((id) => {
-          if (e.text !== undefined) store.updateText(id, e.text)
-          if (e.priority !== undefined) store.updatePriority(id, e.priority)
-          if (e.dueDate !== undefined) store.updateDueDate(id, e.dueDate)
-          if (e.category !== undefined) store.updateTaskCategory(id, e.category)
-          if (e.notes !== undefined) store.updateNotes(id, e.notes)
-          if (e.recurrence !== undefined) store.updateRecurrence(id, e.recurrence)
-          if (reminders) store.updateReminders(id, reminders)
-        })
-      } else if (action === 'addSteps') {
-        const steps = op.args.steps ?? []
-        ids.forEach((id) => steps.forEach((s) => store.addSubtask(id, s.text)))
-      }
-      return null
-    },
-    [store],
+    (op: OpOf<'pickTodos'>, ids: string[]) =>
+      ids.length === 0
+        ? null
+        : runMochiIntents(planPickedTodos(op, ids, mochiSnapshot(), { genId: genUuid })).undo,
+    [mochiSnapshot, runMochiIntents],
   )
 
   // Scoped delete for the Mochi delete card — to the Trash: one instance, or
@@ -657,16 +638,27 @@ export function SheetProvider({ children }: { children: ReactNode }) {
       const code = (err as { name?: string } | null)?.name
       if (code === 'RecentLoginRequiredError') {
         // Firebase needs a fresh sign-in to delete. Offer it directly instead
-        // of telling the user to find "Sign out" themselves.
-        Alert.alert(t.deleteAccount, t.deleteAccountReauth, [
-          { text: t.cancel, style: 'cancel' },
-          { text: t.signInAgain, onPress: () => void signOut() },
-        ])
+        // of telling the user to find "Sign out" themselves. Wait for Settings
+        // to finish dismissing — iOS drops an Alert raised mid-dismiss.
+        afterModalClose(() =>
+          Alert.alert(t.deleteAccount, t.deleteAccountReauth, [
+            { text: t.cancel, style: 'cancel' },
+            { text: t.signInAgain, onPress: () => void signOut() },
+          ]),
+        )
         return
       }
-      Alert.alert(t.deleteAccount, err instanceof Error ? err.message : String(err))
+      const message = err instanceof Error ? err.message : String(err)
+      afterModalClose(() => Alert.alert(t.deleteAccount, message))
     }
-  }, [deleteAccount, signOut, showSnackbar, t])
+  }, [deleteAccount, signOut, showSnackbar, t, afterModalClose])
+
+  // Mochi's "resting" state is per account: forget it on sign-out so the
+  // next account on this device doesn't inherit it.
+  const uid = user?.uid ?? null
+  useEffect(() => {
+    if (!uid) clearMochiRest()
+  }, [uid])
 
   // Mount the first-run prompt the first time the user lands in
   // the app post-onboarding with the flag unset. Stamping the
@@ -682,14 +674,18 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(t)
   }, [store.loaded, store.profile.onboardingDone, store.profile.guidesPromptShown])
 
+  // Updater form throughout: a spread of the render-time `store.profile`
+  // would clobber a profile change that landed since (another sheet's save,
+  // a Firestore snapshot).
   function stampPromptShown() {
-    store.saveProfile({ ...store.profile, guidesPromptShown: true })
+    store.saveProfile((p) => ({ ...p, guidesPromptShown: true }))
   }
 
   function markGuideSeen(id: string) {
-    const seen = store.profile.guidesSeen ?? []
-    if (seen.includes(id)) return
-    store.saveProfile({ ...store.profile, guidesSeen: [...seen, id] })
+    store.saveProfile((p) => {
+      const seen = p.guidesSeen ?? []
+      return seen.includes(id) ? p : { ...p, guidesSeen: [...seen, id] }
+    })
   }
 
   return (
@@ -716,11 +712,11 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         visible={settingsOpen}
         profile={store.profile}
         onSavePartial={(patch) =>
-          store.saveProfile({ ...store.profile, ...patch })
+          store.saveProfile((p) => ({ ...p, ...patch }))
         }
         onOpenTheme={openTheme}
         onShowIntro={() =>
-          store.saveProfile({ ...store.profile, onboardingDone: false })
+          store.saveProfile((p) => ({ ...p, onboardingDone: false }))
         }
         onOpenGuides={openGuides}
         onOpenManageTodos={openManageFilter}
@@ -738,10 +734,9 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         allThemesUnlocked={!IAP_ENABLED || tier !== 'free'}
         onUpgrade={() => {
           // Close the picker first, then open the paywall after it dismisses
-          // (iOS can't reliably stack two Modals — same 280ms handoff used
-          // elsewhere).
+          // (iOS can't reliably stack two Modals).
           setThemePickerOpen(false)
-          setTimeout(() => openPaywall('Unlock every theme with Premium.'), 280)
+          afterModalClose(() => openPaywall('Unlock every theme with Premium.'))
         }}
         onChange={(next) => {
           // Close the picker FIRST, then apply the theme after it has
@@ -752,10 +747,8 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           setThemePickerOpen(false)
           // Functional update so we apply onto the LATEST profile, not the
           // one captured when onChange fired (avoids clobbering a concurrent
-          // edit during the 260ms dismiss window).
-          setTimeout(() => {
-            store.saveProfile((p) => ({ ...p, theme: next }))
-          }, 260)
+          // edit during the dismiss window).
+          afterModalClose(() => store.saveProfile((p) => ({ ...p, theme: next })))
         }}
         onClose={() => setThemePickerOpen(false)}
       />
@@ -764,7 +757,9 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         onAccept={() => {
           stampPromptShown()
           setPromptOpen(false)
-          setGuideMenuOpen(true)
+          // Open the menu only once the prompt has dismissed — in the same
+          // tick it can render behind the closing prompt and look dead.
+          afterModalClose(() => setGuideMenuOpen(true))
         }}
         onDismiss={() => {
           stampPromptShown()
@@ -781,7 +776,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           // animation tick. The guide's onClose re-opens the
           // menu so the user lands back on the list.
           setGuideMenuOpen(false)
-          setTimeout(() => setActiveGuide(g), 280)
+          afterModalClose(() => setActiveGuide(g))
         }}
         onClose={() => setGuideMenuOpen(false)}
       />
@@ -794,11 +789,11 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           // Return the user to the menu so they can pick another
           // walkthrough (or close out). Same modal-handoff dance
           // as opening.
-          setTimeout(() => setGuideMenuOpen(true), 280)
+          afterModalClose(() => setGuideMenuOpen(true))
         }}
         onClose={() => {
           setActiveGuide(null)
-          setTimeout(() => setGuideMenuOpen(true), 280)
+          afterModalClose(() => setGuideMenuOpen(true))
         }}
       />
       {/* ComposeSheet promoted to the app shell so the Add FAB works
@@ -830,9 +825,9 @@ export function SheetProvider({ children }: { children: ReactNode }) {
                 store.saveProfile((p) => ({ ...p, lastComposeMode: 'mochi' }))
                 setMochiSeed(text)
                 setComposeOpen(false)
-                // Same 280ms handoff as the other sheet switches — iOS can't
+                // Same handoff as the other sheet switches — iOS can't
                 // reliably stack two Modals.
-                setTimeout(() => setMochiOpen(true), 280)
+                afterModalClose(() => setMochiOpen(true))
               }
             : undefined
         }
@@ -868,6 +863,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
               subtasks: td.subtasks?.map((s) => s.text),
               recurrence: td.recurrence,
               seriesId: td.seriesId,
+              reminders: td.reminders?.map((r) => ({ at: r.at })),
             }))}
           trashedTodos={store.todos
             .filter((td) => td.trashed)
@@ -887,7 +883,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
               prefill: `Add ${g.text} to shopping list`,
             }))}
           stores={store.profile.groceryStores ?? SEED_GROCERY_STORES}
-          onApplyOperation={applyMochiOp}
+          onApplyOperations={applyMochiOps}
           onCaptureWithUndo={applyCaptureWithUndo}
           onEditCapturedTodo={editCapturedTodo}
           onApplyPickedTodos={applyPickedTodos}
@@ -902,8 +898,8 @@ export function SheetProvider({ children }: { children: ReactNode }) {
               sheetNavigationRef.isReady() && sheetNavigationRef.getCurrentRoute()?.name === 'Home',
             )
             setMochiOpen(false)
-            // Same 280ms Modal handoff as the other sheet switches.
-            setTimeout(() => setComposeOpen(true), 280)
+            // Same Modal handoff as the other sheet switches.
+            afterModalClose(() => setComposeOpen(true))
           }}
         />
       )}
@@ -911,7 +907,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         visible={animationSoundOpen}
         profile={store.profile}
         onSavePartial={(patch) =>
-          store.saveProfile({ ...store.profile, ...patch })
+          store.saveProfile((p) => ({ ...p, ...patch }))
         }
         onClose={() => setAnimationSoundOpen(false)}
       />

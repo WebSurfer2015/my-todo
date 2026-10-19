@@ -19,7 +19,8 @@ const { suggestSubtasksMock } = vi.hoisted(() => ({
 }))
 vi.mock('../adapters/aiInfer', () => ({
   suggestSubtasks: suggestSubtasksMock,
-  AI_QUOTA_ERROR: 'AiQuotaError',
+  currentAiUid: () => 'uid-1',
+  isAiQuotaError: (e: unknown) => e instanceof Error && e.name === 'AiQuotaError',
 }))
 vi.mock('../app/LangContext', () => ({
   useLang: () => ({
@@ -33,6 +34,8 @@ vi.mock('../app/LangContext', () => ({
 }))
 
 import { useSuggestSteps } from '../features/task/useSuggestSteps'
+import { clearMochiRest, mochiRestLabel, mochiRestUntil } from '../features/mochi/mochiRest'
+import { mochiRestEndsAt } from '../../../core/src/logic/mochiFallback'
 
 describe('useSuggestSteps', () => {
   beforeEach(() => {
@@ -98,7 +101,8 @@ describe('useSuggestSteps', () => {
     expect(result.current.thinking).toBe(false)
   })
 
-  it('shows the gentle localized note (never the server text) over the fair-use ceiling', async () => {
+  it('over the fair-use ceiling: a gentle note WITH the reset time (never the server text)', async () => {
+    clearMochiRest()
     const quota = new Error('Daily AI limit reached (150 per day).')
     quota.name = 'AiQuotaError'
     suggestSubtasksMock.mockRejectedValueOnce(quota)
@@ -106,7 +110,19 @@ describe('useSuggestSteps', () => {
     await act(async () => {
       await result.current.request()
     })
-    expect(result.current.error).toBe('Mochi is resting.')
+    const until = mochiRestUntil('uid-1')
+    expect(until).toBe(mochiRestEndsAt(new Date()).valueOf())
+    expect(result.current.error).toBe(
+      `Mochi's resting until ${mochiRestLabel(until)} — you can add steps yourself.`,
+    )
+    expect(result.current.error).not.toMatch(/150/)
+    // Asking again while resting makes no call.
+    await act(async () => {
+      await result.current.request()
+    })
+    expect(suggestSubtasksMock).toHaveBeenCalledTimes(1)
+    expect(result.current.error).toMatch(/^Mochi's resting until /)
+    clearMochiRest()
   })
 
   it('reset() clears suggestions + error without firing a new request', async () => {

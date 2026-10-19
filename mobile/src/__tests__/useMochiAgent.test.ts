@@ -158,6 +158,56 @@ describe('useMochiAgent', () => {
     })
   })
 
+  it('stores the server sig on the assistant turn and echoes it back (assistant turns only)', async () => {
+    fetchMock
+      .mockResolvedValueOnce(reply({ reply: 'When should I set it for?', sig: 'sig-1' }))
+      .mockResolvedValueOnce(reply({ reply: 'ok' }))
+    const { result } = renderHook(() => useMochiAgent())
+    await act(async () => {
+      await result.current.send('call mom', CTX as never)
+    })
+    expect(result.current.messages[1].sig).toBe('sig-1')
+    await act(async () => {
+      await result.current.send('Friday', CTX as never)
+    })
+    expect(wireMessages(1)).toEqual([
+      { role: 'user', content: 'call mom' },
+      { role: 'assistant', content: 'When should I set it for?', sig: 'sig-1' },
+      { role: 'user', content: 'Friday' },
+    ])
+  })
+
+  it('a canned local exchange carries no sig on the wire', async () => {
+    fetchMock.mockResolvedValueOnce(reply({}))
+    const { result } = renderHook(() => useMochiAgent())
+    act(() => result.current.pushLocalExchange('Add a to-do', 'What should I add?'))
+    await act(async () => {
+      await result.current.send('call mom', CTX as never)
+    })
+    expect(wireMessages(0)[1]).toEqual({ role: 'assistant', content: 'What should I add?' })
+  })
+
+  it.each([
+    ['Will do — I added it.', false],
+    ["Can do! It's on your list.", false],
+    ['Want to see it later.', false],
+    ['Do you want a reminder', true],
+    ['Should I set it for Friday', true],
+    ['Is that the dentist one', true],
+    ['What time works', true],
+    ['Anything else to add', true],
+    ['Want me to add it to Work', true],
+  ])('no-op reply %j → question: %s', async (text, isQuestion) => {
+    fetchMock.mockResolvedValueOnce(reply({ reply: text }))
+    const { result } = renderHook(() => useMochiAgent())
+    await act(async () => {
+      await result.current.send('x', CTX as never)
+    })
+    const turn = result.current.messages[1]
+    expect(turn.isFollowUp).toBe(isQuestion)
+    expect(turn.content.endsWith('?')).toBe(isQuestion)
+  })
+
   it('a follow-up question reply is tagged isFollowUp; a proposal is not', async () => {
     fetchMock
       .mockResolvedValueOnce(reply({ reply: 'When should I set it for' }))

@@ -20,6 +20,8 @@ const { suggestTodoFieldsMock } = vi.hoisted(() => ({
 }))
 vi.mock('../adapters/aiInfer', () => ({
   suggestTodoFields: suggestTodoFieldsMock,
+  currentAiUid: () => 'uid-1',
+  isAiQuotaError: (e: unknown) => e instanceof Error && e.name === 'AiQuotaError',
 }))
 
 import {
@@ -28,6 +30,9 @@ import {
   MIN_CHARS,
   DEBOUNCE_MS,
 } from '../features/task/useTodoFieldSuggestions'
+import { clearMochiRest, markMochiResting, mochiRestUntil } from '../features/mochi/mochiRest'
+
+const quotaError = () => Object.assign(new Error('resting'), { name: 'AiQuotaError' })
 
 // Widened so tests can spread in string values ({ ...NULL_RES, dueDate: '…' }).
 const NULL_RES: Record<string, string | null> = {
@@ -61,12 +66,19 @@ describe('hasExtractableSignal', () => {
     expect(hasExtractableSignal('urgent: file the form')).toBe(true)
     expect(hasExtractableSignal('asap')).toBe(true)
   })
-  it('returns true for any text ≥ 8 chars (even without keywords)', () => {
-    expect(hasExtractableSignal('renew passport')).toBe(true)
+  it('returns true for ≥ 3 words even without a cue (a category guess)', () => {
+    expect(hasExtractableSignal('renew my passport')).toBe(true)
   })
-  it('returns false for short text with no signal', () => {
+  it('returns false for 1–2 cue-less words, however long', () => {
+    expect(hasExtractableSignal('renew passport')).toBe(false)
+    expect(hasExtractableSignal('extraordinarily-long-single-word')).toBe(false)
     expect(hasExtractableSignal('foo bar')).toBe(false)
     expect(hasExtractableSignal('a')).toBe(false)
+  })
+  it('a temporal / recurrence cue is enough on its own', () => {
+    expect(hasExtractableSignal('dentist friday')).toBe(true)
+    expect(hasExtractableSignal('gym 7am')).toBe(true)
+    expect(hasExtractableSignal('water plants every')).toBe(true)
   })
 })
 
@@ -185,6 +197,44 @@ describe('useTodoFieldSuggestions', () => {
     expect(result.current.suggestions?.dueDate).toBe('2026-05-21')
     act(() => result.current.dismissField('dueDate'))
     expect(result.current.suggestions).toBeNull()
+  })
+
+  it('a quota error stops ambient calls until the UTC reset', async () => {
+    clearMochiRest()
+    suggestTodoFieldsMock.mockRejectedValueOnce(quotaError())
+    const { result, rerender } = renderHook(
+      (args: Parameters<typeof useTodoFieldSuggestions>[0]) => useTodoFieldSuggestions(args),
+      { initialProps: defaultArgs({ text: 'call the dentist tomorrow' }) },
+    )
+    act(() => { vi.advanceTimersByTime(DEBOUNCE_MS + 50) })
+    await waitFor(() => expect(suggestTodoFieldsMock).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(result.current.thinking).toBe(false))
+    expect(result.current.suggestions).toBeNull()
+    expect(mochiRestUntil('uid-1')).toBeGreaterThan(Date.now())
+    // Keep typing — no further calls while resting.
+    rerender(defaultArgs({ text: 'call the dentist tomorrow at 3pm' }))
+    act(() => { vi.advanceTimersByTime(DEBOUNCE_MS + 50) })
+    rerender(defaultArgs({ text: 'call the dentist friday at 3pm' }))
+    act(() => { vi.advanceTimersByTime(DEBOUNCE_MS + 50) })
+    expect(suggestTodoFieldsMock).toHaveBeenCalledTimes(1)
+    clearMochiRest()
+  })
+
+  it('makes no call at all when already resting (e.g. the chat hit the cap)', () => {
+    markMochiResting('uid-1')
+    renderHook(() => useTodoFieldSuggestions(defaultArgs()))
+    act(() => { vi.advanceTimersByTime(DEBOUNCE_MS + 100) })
+    expect(suggestTodoFieldsMock).not.toHaveBeenCalled()
+    clearMochiRest()
+  })
+
+  it('another account\'s rest does not silence this one', async () => {
+    markMochiResting('someone-else')
+    suggestTodoFieldsMock.mockResolvedValueOnce({ ...NULL_RES })
+    renderHook(() => useTodoFieldSuggestions(defaultArgs()))
+    act(() => { vi.advanceTimersByTime(DEBOUNCE_MS + 50) })
+    await waitFor(() => expect(suggestTodoFieldsMock).toHaveBeenCalledTimes(1))
+    clearMochiRest()
   })
 
   it('clear() resets state and invalidates in-flight requests', async () => {
