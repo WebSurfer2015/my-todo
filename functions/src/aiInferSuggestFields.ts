@@ -1,13 +1,15 @@
 /**
  * `suggest-todo-fields` mode for the aiInfer dispatcher. Reads one
  * to-do title and proposes field values the user can tap-to-apply.
- * Haiku 4.5 + ephemeral prompt cache; fires on every typing pause
- * so token discipline is critical.
+ * Haiku 4.5; fires on every typing pause so token discipline is
+ * critical. (Not prompt-cached: this prompt is below Haiku 4.5's
+ * minimum cacheable prefix — see aiInfer.ts.)
  *
  * Extracted from aiInfer.ts so each mode is its own auditable file.
  */
 
 import { HttpsError } from 'firebase-functions/v2/https'
+import { isValidDueDate, isValidIsoDate, isValidIsoDateTime } from './dates'
 
 export interface SuggestFieldsInput {
   text: string
@@ -211,7 +213,7 @@ export function validateSuggestFieldsInput(raw: unknown): SuggestFieldsInput {
   if (text.length > 200) {
     throw new HttpsError('invalid-argument', 'Text too long (max 200 chars).')
   }
-  if (typeof today !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(today)) {
+  if (!isValidIsoDate(today)) {
     throw new HttpsError('invalid-argument', "today must be ISO yyyy-mm-dd.")
   }
   if (!Array.isArray(categories) || categories.length === 0) {
@@ -280,7 +282,7 @@ export function parseSuggestFieldsOutput(text: string): SuggestFieldsOutput {
     out.priority = rawPri
   }
   const rawDate = (parsed as { dueDate?: unknown }).dueDate
-  if (typeof rawDate === 'string' && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(rawDate)) {
+  if (isValidDueDate(rawDate)) {
     out.dueDate = rawDate
   }
   const rawRec = (parsed as { recurrence?: unknown }).recurrence
@@ -306,7 +308,7 @@ export function parseSuggestFieldsOutput(text: string): SuggestFieldsOutput {
           rec.byWeekday = [...seen].sort((a, b) => a - b)
         }
       }
-      if (typeof endDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+      if (isValidIsoDate(endDate)) {
         rec.endDate = endDate
       }
       out.recurrence = rec
@@ -315,7 +317,7 @@ export function parseSuggestFieldsOutput(text: string): SuggestFieldsOutput {
   const rawRem = (parsed as { reminder?: unknown }).reminder
   if (rawRem && typeof rawRem === 'object') {
     const r = rawRem as { at?: unknown; intervalMinutes?: unknown; until?: unknown }
-    if (typeof r.at === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(r.at)) {
+    if (isValidIsoDateTime(r.at)) {
       const rem: NonNullable<SuggestFieldsOutput['reminder']> = { at: r.at }
       if (
         typeof r.intervalMinutes === 'number' &&
@@ -327,7 +329,7 @@ export function parseSuggestFieldsOutput(text: string): SuggestFieldsOutput {
       ) {
         rem.intervalMinutes = Math.floor(r.intervalMinutes)
       }
-      if (typeof r.until === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(r.until)) {
+      if (isValidIsoDateTime(r.until)) {
         rem.until = r.until
       }
       // Drop unbounded recurring — too noisy for the user.

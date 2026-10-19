@@ -21,10 +21,11 @@ import {
   validateOperation,
   type ProposedOperation,
 } from './agentTools'
-import { reserveChatTurn, reserveMochiRequest } from './quota'
+import { refundUsage, reserveChatTurn, reserveMochiRequest } from './quota'
 import { isConversationStart } from './chatQuota'
 import { isAgentEnabled } from './aiInfer'
 import { neutralizeEnvelopeTags, normalizeChatMessages, type ChatMessage } from './chatMessages'
+import { APP_CHECK_ENFORCED, logAppCheck } from './appCheck'
 
 export { aiInfer } from './aiInfer'
 export { revenuecatWebhook } from './revenuecat'
@@ -216,12 +217,19 @@ Trust model — load-bearing:
 export const agentChat = onCall(
   // maxInstances caps runaway cost (each Mochi call is a paid Anthropic
   // request); 5 × 80 concurrency still absorbs ~400 simultaneous requests.
-  { secrets: [ANTHROPIC_API_KEY], region: 'us-central1', maxInstances: 5 },
+  // App Check: measured, not enforced, until rollout completes (appCheck.ts).
+  {
+    secrets: [ANTHROPIC_API_KEY],
+    region: 'us-central1',
+    maxInstances: 5,
+    enforceAppCheck: APP_CHECK_ENFORCED,
+  },
   async (request): Promise<ChatResponse> => {
     const startedAt = Date.now()
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Sign in to use Mochi.')
     }
+    logAppCheck('agentChat', request)
 
     const data = request.data as Partial<ChatRequest> | undefined
     // Windowing keeps the last 40 turns AND starts on a user turn (an odd-length
@@ -254,11 +262,9 @@ export const agentChat = onCall(
     // slot; follow-ups are free, bounded by the 40-turn window and the
     // per-day turn backstop (chatQuota.ts MAX_CHAT_TURNS_PER_DAY).
     const startsConversation = data?.conversationStart === true || isConversationStart(rawMessages)
-    if (MOCHI_TIER_ENFORCEMENT) {
-      await reserveMochiRequest(request.auth.uid, startsConversation)
-    } else {
-      await reserveChatTurn(request.auth.uid, startsConversation)
-    }
+    const charge = MOCHI_TIER_ENFORCEMENT
+      ? await reserveMochiRequest(request.auth.uid, startsConversation)
+      : await reserveChatTurn(request.auth.uid, startsConversation)
 
     const ctx = data?.context ?? {}
     // `today` is reflected into Claude's system prompt as natural-language
@@ -485,6 +491,8 @@ export const agentChat = onCall(
           ? { status: err.status, name: err.name, requestId: err.request_id }
           : String(err),
       )
+      // The user got nothing — give the fair-use reservation back.
+      await refundUsage(request.auth.uid, charge)
       throw new HttpsError('internal', "Mochi couldn't think just now.")
     }
 
