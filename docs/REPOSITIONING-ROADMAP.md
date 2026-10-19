@@ -42,6 +42,14 @@ Shipped from the review (dev): date-only pickers no longer store midnight
 "Ask Mochi instead" keeps your text, delete-account confirmation + "Sign in
 again", tab "Today", warm reminder body, paywall 3.1.2 copy for 2.1.
 
+Phase 2 (designs signed off 2026-10-18, all shipped to dev; device pass in
+the test matrix): AA contrast in every light theme · tap opens / circle
+completes / Undo on every completion (incl. to-dos with steps) · details
+sheet saves as you edit with "Changes saved · Undo" · two-line Compose with
+no default date (Today tab starts on today) + Notes · reminder presets +
+Gentle nudge (off by default) · "Mochi is resting until <local time>" with
+words kept · one-screen onboarding into Mochi with the AI disclosure.
+
 Still open: **Apple token revocation on account deletion** (App Review 5.1.1(v)
 for Sign in with Apple) needs a Sign in with Apple key (.p8 + Key ID + Team
 ID) from you before the Cloud Function can be written.

@@ -202,6 +202,15 @@ overlay (survives row unmount) · shared EmptyStateCard.
 
 ## ✋ Manual on-device checklist
 
+### Phase 2 interaction redesign (2026-10-18) — new behaviour, all ✋
+- [ ] **Onboarding:** fresh account → one screen; a starter chip pre-fills (doesn't send); send → Mochi opens and answers your words; "I'll look around first" → Today. Privacy link opens the policy. Settings → Show intro again re-shows it.
+- [ ] **Rows:** tapping a row body opens it; only the circle completes. Every completion shows "Done: … · Undo"; three quick completions merge into "3 done · Undo all", and Undo restores all of them. A to-do with steps: the circle completes every step, Undo brings back the previous step state, and the "1/3 ›" pill expands the steps.
+- [ ] **Details sheet:** no Save/Cancel, just Done. Edit the title, close → "Changes saved · Undo" → Undo restores the title and any picked fields. Edit series → its dialogs still appear and there's no toast.
+- [ ] **Compose:** From the To-dos tab a new to-do has **no date**; from the Today tab it starts on **Today** (so it doesn't vanish). The When chip opens Today / Tomorrow / This weekend / Next week / Pick a date / No date, and × clears it. More shows Remind / Repeat / Priority / Steps / Notes, and notes save.
+- [ ] **Reminders:** a dated to-do shows Day before / Morning of (+ 1 hour before / At the time when it has a time); an undated one shows Later today / Tomorrow morning; past times are hidden; Other time… reveals the picker. Gentle nudge is **off** by default; turn it on → it stays on for other to-dos; the notification arrives at 9:00 the morning after the last reminder, and completing the to-do first cancels it.
+- [ ] **Mochi resting** (needs the fair-use cap — test on a throwaway account or with the cap temporarily lowered; restore it afterwards): the chat stays open with "resting until <local time>", Add it myself → Compose with your words + the note, input disabled, reopening the chat still shows resting.
+- [ ] **Contrast:** spot-check secondary text and the primary buttons in all 6 light themes (Settings → Theme).
+
 ### Auth (device + a second account)
 - [ ] Apple: first-ever sign-in captures name into greeting
 - [ ] Apple: returning sign-in → Dashboard, data hydrates
