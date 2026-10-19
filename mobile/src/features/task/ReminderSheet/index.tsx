@@ -26,7 +26,7 @@ import { useTheme } from '../../../app/theme'
 import type { Reminder } from '../../../core-bindings/types'
 import { genUuid } from '../../../../../core/src/logic/utils'
 import { dedupeReminders } from '../../../../../core/src/logic/derive'
-import { formatDateTime, isoLocalDateTime, timeOfDay } from '../../../../../core/src/logic/labels'
+import { formatDateTime, isoLocalDateTime, timeOfDay, weekdayTime } from '../../../../../core/src/logic/labels'
 import { makeStyles } from './styles'
 import AndroidDateFlow from '../../../ui/AndroidDateFlow'
 
@@ -64,17 +64,8 @@ function isoMinutesBeforeDue(dueDate: string, minutes: number): string {
   return isoLocalDateTime(base)
 }
 
-/** "Thu 6:00 PM" for another day, "9:00 AM" for today. */
-function presetTimeLabel(at: string): string {
-  const d = new Date(at)
-  if (Number.isNaN(d.valueOf())) return ''
-  const sameDay = d.toDateString() === new Date().toDateString()
-  return d.toLocaleString(undefined, {
-    ...(sameDay ? {} : { weekday: 'short' }),
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-}
+/** "Thu 6:00 PM" for another day, "9:00 AM" for today (core labels). */
+const presetTimeLabel = (at: string): string => weekdayTime(at)
 
 /** Render text for a "before due" pill. */
 function beforeDuePillLabel(

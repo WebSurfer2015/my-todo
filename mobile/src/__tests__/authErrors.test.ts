@@ -10,10 +10,10 @@ import { describe, expect, it } from 'vitest'
 import { AUTH_UNKNOWN_MESSAGE, authErrorCode, mapAuthError } from '../adapters/authErrors'
 
 describe('mapAuthError — Firebase auth/* codes', () => {
-  it('maps invalid-api-key to a config-stale message + appends code', () => {
+  it('maps invalid-api-key to a config-stale message, with no raw code shown', () => {
     const out = mapAuthError({ code: 'auth/invalid-api-key', message: 'orig' })
     expect(out).toContain('misconfigured')
-    expect(out).toContain('(auth/invalid-api-key)')
+    expect(out).not.toContain('auth/')
   })
   it('maps user-disabled', () => {
     expect(mapAuthError({ code: 'auth/user-disabled' })).toContain('disabled')
@@ -28,19 +28,16 @@ describe('mapAuthError — Firebase auth/* codes', () => {
   it('maps weak-password', () => {
     expect(mapAuthError({ code: 'auth/weak-password' })).toContain('too weak')
   })
-  it('falls back to "Sign-in failed: <raw>" for unknown auth/* codes', () => {
+  it('unknown auth/* codes get the calm fallback — no raw message or code', () => {
     const out = mapAuthError({
       code: 'auth/some-future-code',
       message: 'boom',
     })
-    expect(out).toContain('Sign-in failed')
-    expect(out).toContain('boom')
-    expect(out).toContain('(auth/some-future-code)')
+    expect(out).toBe("Couldn't sign you in just now. Please try again.")
   })
-  it('uses cancelled-popup-request as a silent empty string', () => {
-    // Empty fallback gives the UI a "no error to show" cue.
+  it('cancelled-popup-request shows no code to the user', () => {
     const out = mapAuthError({ code: 'auth/cancelled-popup-request' })
-    expect(out).toContain('(auth/cancelled-popup-request)')
+    expect(out).not.toContain('auth/')
   })
 })
 

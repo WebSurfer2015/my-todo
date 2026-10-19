@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 import {
   AUTH_FALLBACK_MESSAGE,
   FIREBASE_AUTH_MESSAGES,
-  appendCode,
   authErrorCode,
   mapFirebaseAuthError,
   stripAuthCode,
@@ -39,7 +38,7 @@ describe("mapFirebaseAuthError — no code in user-facing text", () => {
   });
 });
 
-describe("authErrorCode / stripAuthCode / appendCode", () => {
+describe("authErrorCode / stripAuthCode", () => {
   it("authErrorCode reads the code for logging", () => {
     expect(authErrorCode({ code: "auth/invalid-credential" })).toBe("auth/invalid-credential");
     expect(authErrorCode({ code: 1001 })).toBe("1001");
@@ -53,10 +52,5 @@ describe("authErrorCode / stripAuthCode / appendCode", () => {
     expect(stripAuthCode("[auth/network-request-failed] A network error occurred.")).toBe("A network error occurred.");
     expect(stripAuthCode("Failed (auth/internal-error) now")).toBe("Failed now");
     expect(stripAuthCode("plain")).toBe("plain");
-  });
-
-  it("appendCode (diagnostics) appends only a non-empty code", () => {
-    expect(appendCode("m", "auth/x")).toBe("m (auth/x)");
-    expect(appendCode("m", "")).toBe("m");
   });
 });

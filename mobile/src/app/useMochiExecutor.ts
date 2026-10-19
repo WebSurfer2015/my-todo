@@ -226,7 +226,7 @@ export function useMochiExecutor(store: Store, t: Strings) {
             undos.push(store.skipSeriesFuture(it.todoId, SILENT))
             break
           case 'restoreFromTrash':
-            editTodo(it.todoId, () => store.restoreFromTrash(it.todoId))
+            editTodo(it.todoId, () => store.restoreFromTrash(it.todoId, SILENT))
             break
           case 'bulkDeferTodos':
             undos.push(store.bulkDeferTodos(it.todoIds, it.dueDate, SILENT))

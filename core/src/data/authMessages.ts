@@ -74,15 +74,6 @@ export function stripAuthCode(msg: string): string {
 }
 
 /**
- * @deprecated Diagnostics only (a log line) — user-facing sign-in text never
- * carries the code. Kept until the mobile adapter stops calling it.
- */
-export function appendCode(msg: string, code: string): string {
-  if (!code) return msg;
-  return `${msg} (${code})`;
-}
-
-/**
  * Map a Firebase `auth/*` code to a friendly message — never with the code
  * in it (log it via authErrorCode). The caller is expected to have checked
  * `code.startsWith("auth/")`. `flow` drives the auth/internal-error
