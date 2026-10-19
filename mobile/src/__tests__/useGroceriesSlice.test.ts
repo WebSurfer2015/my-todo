@@ -160,3 +160,91 @@ describe('useGroceriesSlice — Mochi Undo surfaces', () => {
     expect(hook.result.current.addGroceryStore('  ')).toBeNull()
   })
 })
+
+describe('useGroceriesSlice — Undos report what they did (round 8)', () => {
+  it('deleteGrocery returns an Undo that puts the item back in its slot (true once, then false)', async () => {
+    const { hook } = await setup()
+    const ids: string[] = []
+    act(() => {
+      ids.push(hook.result.current.addGrocery({ text: 'Milk' })!.id)
+      ids.push(hook.result.current.addGrocery({ text: 'Eggs' })!.id)
+      ids.push(hook.result.current.addGrocery({ text: 'Bread' })!.id)
+    })
+    const order = hook.result.current.groceries.map((g) => g.id)
+    let undo: (() => unknown) | null = null
+    act(() => {
+      undo = hook.result.current.deleteGrocery(ids[1])
+    })
+    expect(hook.result.current.groceries.some((g) => g.id === ids[1])).toBe(false)
+    let out: unknown
+    act(() => {
+      out = undo!()
+    })
+    expect(out).toBe(true)
+    expect(hook.result.current.groceries.map((g) => g.id)).toEqual(order)
+    act(() => {
+      out = undo!()
+    })
+    expect(out).toBe(false)
+    expect(hook.result.current.deleteGrocery('nope')).toBeNull()
+  })
+
+  it('store Undos return true when they restore and false when nothing is left to restore', async () => {
+    const { hook } = await setup()
+    let undo: (() => unknown) | null = null
+    act(() => {
+      undo = hook.result.current.deleteGroceryStore('Costco')
+    })
+    let out: unknown
+    act(() => {
+      out = undo!()
+    })
+    expect(out).toBe(true)
+    act(() => {
+      out = undo!()
+    })
+    expect(out).toBe(false)
+    let add: (() => unknown) | null = null
+    act(() => {
+      add = hook.result.current.addGroceryStore('Aldi')
+    })
+    act(() => {
+      out = add!()
+    })
+    expect(out).toBe(true)
+    act(() => {
+      out = add!()
+    })
+    expect(out).toBe(false)
+  })
+
+  it('restoreGrocery / editGrocery report whether they changed anything', async () => {
+    const { hook } = await setup()
+    let id = ''
+    act(() => {
+      id = hook.result.current.addGrocery({ text: 'Tea' })!.id
+    })
+    let changed: boolean | undefined
+    act(() => {
+      changed = hook.result.current.editGrocery(id, { text: 'Green tea' })
+    })
+    expect(changed).toBe(true)
+    act(() => {
+      changed = hook.result.current.editGrocery(id, { text: 'Green tea' })
+    })
+    expect(changed).toBe(false)
+    act(() => {
+      changed = hook.result.current.editGrocery('nope', { text: 'x' })
+    })
+    expect(changed).toBe(false)
+    let ok: boolean | undefined
+    act(() => {
+      ok = hook.result.current.restoreGrocery(id, { checked: false, addedAt: 1, stores: [] })
+    })
+    expect(ok).toBe(true)
+    act(() => {
+      ok = hook.result.current.restoreGrocery('nope', { checked: false, addedAt: 1, stores: [] })
+    })
+    expect(ok).toBe(false)
+  })
+})

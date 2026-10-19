@@ -504,7 +504,10 @@ export function todosRevertChangesWithReport(
  * Undoing a series' RULE change: occurrences a later top-up / completion
  * appended under the new rule (generated ids, still open, in neither
  * `before` nor `after`) would leave a mixed series behind — drop the ones
- * whose rule isn't the restored one. `todos` itself when there are none.
+ * whose rule isn't the restored one. Undoing the CREATION of a series (a
+ * one-off made to repeat): its later appends would be a ghost series that
+ * keeps growing — drop them once no row the action made is still an open
+ * repeating member. `todos` itself when there are none.
  */
 function dropForeignRuleAppends(
   todos: Todo[],
@@ -523,7 +526,13 @@ function dropForeignRuleAppends(
       ruleRows.set(td.seriesId, [...(ruleRows.get(td.seriesId) ?? []), td.id]);
     }
   }
-  if (restored.size === 0) return todos;
+  // Series the action CREATED ("make this one-off repeat"): no `before` row
+  // carried that seriesId.
+  const beforeSids = new Set<string>();
+  for (const td of beforeById.values()) if (td.seriesId) beforeSids.add(td.seriesId);
+  const created = new Set<string>();
+  for (const td of after) if (td.seriesId && !beforeSids.has(td.seriesId)) created.add(td.seriesId);
+  if (restored.size === 0 && created.size === 0) return todos;
   // Only once the old rule really is back on those rows (a kept later edit
   // leaves the new rule in place, and its appended rows with it).
   const byId = new Map(todos.map((td) => [td.id, td]));
@@ -531,12 +540,19 @@ function dropForeignRuleAppends(
     const back = (ruleRows.get(sid) ?? []).every((rid) => sameRule(byId.get(rid)?.recurrence, rule));
     if (!back) restored.delete(sid);
   }
+  // A created series is gone once none of the action's own rows is still an
+  // open repeating member (a kept later completion is history, not a series).
+  for (const td of todos) {
+    if (td.seriesId && created.has(td.seriesId) && afterById.has(td.id) && td.recurrence && !td.done && !td.trashed) {
+      created.delete(td.seriesId);
+    }
+  }
   const foreign = (td: Todo) => {
-    const rule = td.seriesId ? restored.get(td.seriesId) : undefined;
-    return (
-      !!rule && !beforeById.has(td.id) && !afterById.has(td.id) && !td.done && !td.trashed &&
-      isGeneratedSeriesRow(td) && !sameRule(td.recurrence, rule)
-    );
+    if (!td.seriesId || beforeById.has(td.id) || afterById.has(td.id) || td.done || td.trashed) return false;
+    if (!isGeneratedSeriesRow(td)) return false;
+    if (created.has(td.seriesId)) return true;
+    const rule = restored.get(td.seriesId);
+    return !!rule && !sameRule(td.recurrence, rule);
   };
   return todos.some(foreign) ? todos.filter((td) => !foreign(td)) : todos;
 }
@@ -818,7 +834,8 @@ export function todoApplySeriesFutureEdits(
   fields: {
     text?: string;
     priority?: Priority;
-    category?: Category | undefined;
+    /** null clears it on every sibling (undefined leaves it alone). */
+    category?: Category | null;
     notes?: string;
   },
   options: { overwriteDetached?: boolean; fromDue?: string } = {},
@@ -840,7 +857,8 @@ export function todoApplySeriesFutureEdits(
     const merged: Todo = { ...td, updatedAt: now };
     if (fields.text !== undefined) merged.text = fields.text.slice(0, MAX_TODO_TEXT_LEN);
     if (fields.priority !== undefined) merged.priority = fields.priority;
-    if (fields.category !== undefined) merged.category = fields.category;
+    if (fields.category === null) delete merged.category;
+    else if (fields.category !== undefined) merged.category = fields.category;
     if (fields.notes !== undefined) {
       if (fields.notes.length === 0) delete merged.notes;
       else merged.notes = fields.notes.slice(0, MAX_TODO_NOTES_LEN);
@@ -932,7 +950,9 @@ export function seriesEndBefore(todos: Todo[], seriesId: string | undefined, cut
  * dropped); `false` removes them too ("Recreate all").
  *
  * `fromDue`: the occurrence's ORIGINAL date when the same commit also moved
- * this row (the "this and future" cutoff) — defaults to its current date.
+ * this row (the "this and future" cutoff) — defaults to its current date;
+ * either way no later than the day its generated id names (a row snoozed past
+ * its siblings).
  * `rebuild`: re-expand even when the rule is unchanged (a just-captured
  * series whose start date moved).
  *
@@ -953,19 +973,25 @@ export function todoApplyRecurrenceChange(
   const sid = target.seriesId;
   const today = dueDateOnly(todayISO);
   const oldEnd = target.recurrence?.endDate;
-  const resumes =
-    !!newRecurrence && !!oldEnd && oldEnd < today && !(newRecurrence.endDate && newRecurrence.endDate < today);
+  const resumes = !!newRecurrence && liftsEnd(oldEnd, newRecurrence.endDate, today);
   // A new rule (or a resume) starts a fresh horizon — the old one's
   // materializedThrough must not hold the new tail back.
   const freshRule = newRecurrence ? withoutHorizon(newRecurrence) : undefined;
-  if (resumes) prev = dropSkippedAfter(prev, sid, id, today);
+  if (resumes && oldEnd) {
+    prev = dropSkippedAfter(prev, sid, id, oldEnd > today ? oldEnd : today, newRecurrence?.endDate);
+  }
   // Same repeat rule (only the end date differs, or nothing): patch the
   // series' endDate instead of rebuilding it — a rebuild would re-anchor a
   // "31st" series on the target's own (shorter-month) day.
   if (freshRule && sameRule(target.recurrence, freshRule) && !options.rebuild) {
     return seriesSetEndDate(prev, target, freshRule.endDate, todayISO, !!options.keepDetached);
   }
-  const cutoff = options.fromDue ?? target.dueDate;
+  // "This and future" starts at this occurrence's own day: a row snoozed past
+  // its siblings still stands for the day its generated id names, so the
+  // siblings in between are replaced too (else a mixed series).
+  const from = options.fromDue ?? target.dueDate;
+  const idDay = seriesIdDay(target.id, sid);
+  const cutoff = idDay && (!from || idDay < from) ? idDay : from;
   const now = Date.now();
   // 1) Update target's recurrence (+ snap dueDate if a weekday
   //    filter dictates a different anchor day).
@@ -1052,14 +1078,18 @@ function seriesSetEndDate(
   const sid = target.seriesId as string;
   const end = endDate ? dueDateOnly(endDate) : "";
   const now = Date.now();
-  // A resume (the old end already past) restarts the horizon too.
+  // A resume (the end lifted or moved later) regrows the days past the old
+  // end, so the horizon those rows / a stamped materializedThrough held past
+  // it goes too (todoApplyRecurrenceChange already dropped the binned rows).
   const oldEnd = target.recurrence?.endDate;
-  const resumes = !!oldEnd && oldEnd < dueDateOnly(todayISO) && !(end && end < dueDateOnly(todayISO));
+  const resumes = liftsEnd(oldEnd, end || undefined, dueDateOnly(todayISO));
   let trashedCount = 0;
-  const next = prev.flatMap((td) => {
+  let changed = false;
+  const kept = prev.flatMap((td) => {
     if (td.seriesId !== sid) return [td];
     const day = dueDateOnly(td.dueDate);
     if (td.id !== target.id && end && day && day > end) {
+      changed = true;
       if (!td.trashed && !(keepDetached && td.detachedFromSeries)) {
         trashedCount += 1;
         return [];
@@ -1071,14 +1101,33 @@ function seriesSetEndDate(
       return [oneOff];
     }
     if (!td.recurrence) return [td];
-    const dropHorizon = resumes && !!td.recurrence.materializedThrough;
+    const mt = td.recurrence.materializedThrough;
+    const dropHorizon = resumes && !!mt && !!oldEnd && mt > oldEnd;
     if ((td.recurrence.endDate ?? "") === end && !dropHorizon) return [td];
     const rec: Recurrence = dropHorizon ? withoutHorizon(td.recurrence) : { ...td.recurrence };
     if (end) rec.endDate = end;
     else delete rec.endDate;
+    changed = true;
     return [{ ...td, recurrence: rec, updatedAt: now }];
   });
+  // Nothing to change (the same rule restated): the very same list, so the
+  // caller sees a no-op (no Undo, no write).
+  const next = changed ? kept : prev;
   return { next: topUpSeries(next, sid, todayISO), trashedCount };
+}
+
+/**
+ * True when a series' end is lifted: it had an end (`oldEnd`) and the new
+ * rule has none, or a later one that isn't already past — a RESUME, whether
+ * the old end is past ("restart") or still ahead ("this & future to the bin",
+ * then the end cleared the same day). The days after the old end were cut
+ * (binned / skipped rows, a stamped horizon) and must be regrown.
+ */
+function liftsEnd(oldEnd: string | undefined, newEnd: string | undefined, today: string): boolean {
+  if (!oldEnd) return false;
+  if (!newEnd) return true;
+  const end = dueDateOnly(newEnd);
+  return end > oldEnd && end >= today;
 }
 
 /** `rec` without its materializedThrough horizon (same object when absent). */
@@ -1089,11 +1138,22 @@ function withoutHorizon(rec: Recurrence): Recurrence {
 }
 
 /** Drop `seriesId`'s binned, not-done rows (skipped / moved to the bin as
- * "this & future") dated after `today` — except `exceptId`. A resumed
- * series regrows those days. */
-function dropSkippedAfter(todos: Todo[], seriesId: string, exceptId: string, today: string): Todo[] {
-  const drop = (td: Todo) =>
-    td.seriesId === seriesId && td.id !== exceptId && td.trashed && !td.done && dueDateOnly(td.dueDate) > today;
+ * "this & future") dated after `after` (the later of today and the old end)
+ * and up to the new end `until` (none = no bound) — except `exceptId`. A
+ * resumed series regrows those days. */
+function dropSkippedAfter(
+  todos: Todo[],
+  seriesId: string,
+  exceptId: string,
+  after: string,
+  until: string | undefined,
+): Todo[] {
+  const end = until ? dueDateOnly(until) : "";
+  const drop = (td: Todo) => {
+    if (td.seriesId !== seriesId || td.id === exceptId || !td.trashed || td.done) return false;
+    const d = dueDateOnly(td.dueDate);
+    return d > after && (!end || d <= end);
+  };
   return todos.some(drop) ? todos.filter((td) => !drop(td)) : todos;
 }
 
@@ -1351,6 +1411,17 @@ export function isGeneratedSeriesRow(td: Todo): boolean {
   return td.id === base || (td.id.startsWith(`${base}_`) && /^[2-9]$/.test(td.id.slice(base.length + 1)));
 }
 
+/**
+ * Two rules repeat the same way AND end the same day: freq, interval (absent
+ * = 1), byWeekday / bySetPos (order-sensitive; absent = empty) and endDate
+ * (absent = none). The derived anchorDay / materializedThrough are ignored.
+ * Lets a UI skip a no-op rule change. Both undefined → true.
+ */
+export function recurrenceRuleEquals(a: Recurrence | undefined, b: Recurrence | undefined): boolean {
+  if (!a || !b) return !a && !b;
+  return sameRule(a, b) && dueDateOnly(a.endDate ?? "") === dueDateOnly(b.endDate ?? "");
+}
+
 /** Same repeat rule, ignoring endDate (which "end the series" rewrites). */
 function sameRule(a: Recurrence | undefined, b: Recurrence): boolean {
   if (!a) return false;
@@ -1503,6 +1574,7 @@ export function topUpSeries(
   const additions: Todo[] = [];
   const taken = new Set(todos.map((t) => t.id));
   const held = heldSeriesDays(todos, seriesId);
+  const newRowRule = withoutHorizon(rec);
   // A lapsed series resumes at today — no flood of back-filled overdue rows.
   let cursor = firstOccurrenceFrom(latest, dueDateOnly(todayISO), rec, anchor);
   let guard = 0;
@@ -1524,7 +1596,8 @@ export function topUpSeries(
       trashed: false,
       updatedAt: now,
       seriesId,
-      recurrence: rec,
+      // A new row lies past any stamped horizon — it carries none.
+      recurrence: newRowRule,
     };
     if (inheritFrom.category) inst.category = inheritFrom.category;
     const subs = cloneSubtasksFresh(inheritFrom.subtasks);
@@ -1714,7 +1787,8 @@ export function appendNextSeriesInstance(
     trashed: false,
     updatedAt: now,
     seriesId,
-    recurrence: rec,
+    // The new row lies past any stamped horizon — it carries none.
+    recurrence: withoutHorizon(rec),
   };
   if (inheritFrom.category) inst.category = inheritFrom.category;
   const subs = cloneSubtasksFresh(inheritFrom.subtasks);
@@ -2664,6 +2738,25 @@ export function recordTodoReference(
   // (which is recency, since we keep `next` at the head).
   const filtered = refs.filter((r) => r.textLower !== textLower);
   return [next, ...filtered].slice(0, MAX_TODO_REFERENCES);
+}
+
+/**
+ * Forget the suggestion-history entries of permanently deleted to-dos (Delete
+ * forever, emptying the bin, Clear done, a bulk delete, undoing a capture):
+ * an entry whose text matches a `removed` row goes, unless a `remaining` row
+ * (any state) still carries that text. `refs` itself when nothing goes.
+ */
+export function forgetTodoReferences(
+  refs: TodoReference[],
+  removed: ReadonlyArray<Pick<Todo, "text">>,
+  remaining: ReadonlyArray<Pick<Todo, "text">>,
+): TodoReference[] {
+  const key = (text: string | undefined) => (text ?? "").trim().toLowerCase();
+  const gone = new Set(removed.map((td) => key(td.text)).filter(Boolean));
+  if (gone.size === 0) return refs;
+  for (const td of remaining) gone.delete(key(td.text));
+  if (gone.size === 0 || !refs.some((r) => gone.has(r.textLower))) return refs;
+  return refs.filter((r) => !gone.has(r.textLower));
 }
 
 /**

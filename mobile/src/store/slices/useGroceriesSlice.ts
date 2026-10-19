@@ -22,6 +22,7 @@ import { classifyGroceryDept } from "../../adapters/aiInfer";
 import { StorageAdapter } from "../../../../core/src/ports/persistence";
 import { TodoStoreActions } from "../../../../core/src/store";
 import { unwrap, serializeAny } from "../../storage/envelope";
+import type { Undo } from "./useTodosSlice";
 
 const parseGroceries = (raw: string | null): GroceryItem[] =>
   migrateGroceries(unwrap(raw));
@@ -68,8 +69,9 @@ export interface GroceryAddResult {
   previous?: GroceryReaddSnapshot;
 }
 
-/** Undo for a store rename/delete — puts the store list + item tags back. */
-export type GroceryUndo = () => void;
+/** Undo for a grocery action (store add / rename / delete, item removal):
+ * the shared store Undo — true only when something was put back. */
+export type GroceryUndo = Undo;
 
 export interface GroceriesSlice {
   groceries: GroceryItem[];
@@ -81,16 +83,20 @@ export interface GroceriesSlice {
     groupId?: string;
     stores?: string[];
   }) => GroceryAddResult | undefined;
-  /** Undo a re-add: put an existing item's previous fields back. */
-  restoreGrocery: (id: string, previous: GroceryReaddSnapshot) => void;
+  /** Undo a re-add: put an existing item's previous fields back. True when
+   * the item is still there (and so was restored). */
+  restoreGrocery: (id: string, previous: GroceryReaddSnapshot) => boolean;
   /** Returns 1 when this toggle just checked the item off (drives the
    * row's completion animation), 0 otherwise. */
   toggleGroceryChecked: (id: string) => number;
+  /** True when it changed the item. */
   editGrocery: (
     id: string,
     patch: { text?: string; groupId?: string; stores?: string[] },
-  ) => void;
-  deleteGrocery: (id: string) => void;
+  ) => boolean;
+  /** Removes the item; returns an Undo that puts it back in its place (null
+   * when there was no such item). */
+  deleteGrocery: (id: string) => GroceryUndo | null;
   addGroceryGroup: (label: string) => string | undefined;
   addGroceryStore: (name: string) => GroceryUndo | null;
   renameGroceryStore: (oldName: string, newName: string) => GroceryUndo | null;
@@ -368,25 +374,36 @@ export function useGroceriesSlice(
   // items that still exist (later adds/edits to other fields survive).
   const storeUndo = useCallback(
     (profileBefore: Profile, itemsBefore: GroceryItem[]): GroceryUndo => () => {
+      // Anything to put back? (the store list, or an item's store tags)
+      const prof = profileRef.current;
+      const storesById = new Map(itemsBefore.map((it) => [it.id, it.stores]));
+      const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+      const changed =
+        !same(prof.groceryStores, profileBefore.groceryStores) ||
+        !same(prof.activeGroceryStore, profileBefore.activeGroceryStore) ||
+        groceriesRef.current.some((it) => storesById.has(it.id) && !same(storesById.get(it.id), it.stores));
+      if (!changed) return false;
       setProfile((p) => ({
         ...p,
         groceryStores: profileBefore.groceryStores,
         activeGroceryStore: profileBefore.activeGroceryStore,
       }));
-      const storesById = new Map(itemsBefore.map((it) => [it.id, it.stores]));
       setGroceries((prev) =>
         prev.map((it) => {
           const stores = storesById.get(it.id);
           return stores && stores !== it.stores ? { ...it, stores } : it;
         }),
       );
+      return true;
     },
-    [setProfile, setGroceries],
+    [setProfile, setGroceries, profileRef],
   );
 
   const restoreGrocery = useCallback(
-    (id: string, previous: GroceryReaddSnapshot) => {
+    (id: string, previous: GroceryReaddSnapshot): boolean => {
+      if (!groceriesRef.current.some((it) => it.id === id)) return false;
       setGroceries((prev) => prev.map((it) => (it.id === id ? { ...it, ...previous } : it)));
+      return true;
     },
     [setGroceries],
   );
@@ -456,12 +473,16 @@ export function useGroceriesSlice(
       });
       if (existed) return null;
       return () => {
+        const live = profileRef.current.groceryStores ?? SEED_GROCERY_STORES;
+        const tagged = groceriesRef.current.some((it) => (it.stores ?? []).includes(trimmed));
+        if (!live.includes(trimmed) && !tagged) return false;
         setProfile((p) => {
           const list = (p.groceryStores ?? SEED_GROCERY_STORES).filter((s) => s !== trimmed);
           const active = p.activeGroceryStore === trimmed ? undefined : p.activeGroceryStore;
           return { ...p, groceryStores: list, activeGroceryStore: active };
         });
         setGroceries((prev) => removeStoreFromItems(prev, trimmed));
+        return true;
       };
     },
     [addStoreToList, removeStoreFromItems, setProfile, setGroceries, profileRef],
@@ -527,15 +548,29 @@ export function useGroceriesSlice(
   );
 
   const editGrocery = useCallback(
-    (id: string, patch: { text?: string; groupId?: string; stores?: string[] }) => {
-      setGroceries((prev) => groceryEdit(prev, id, patch));
+    (id: string, patch: { text?: string; groupId?: string; stores?: string[] }): boolean => {
+      const prev = groceriesRef.current;
+      const before = prev.find((it) => it.id === id);
+      const after = groceryEdit(prev, id, patch).find((it) => it.id === id);
+      setGroceries((p) => groceryEdit(p, id, patch));
+      return !!before && JSON.stringify(before) !== JSON.stringify(after);
     },
     [groceryEdit, setGroceries],
   );
 
   const deleteGrocery = useCallback(
-    (id: string) => {
-      setGroceries((prev) => groceryDelete(prev, id));
+    (id: string): GroceryUndo | null => {
+      const prev = groceriesRef.current;
+      const idx = prev.findIndex((it) => it.id === id);
+      if (idx === -1) return null;
+      const item = prev[idx];
+      setGroceries((p) => groceryDelete(p, id));
+      // Undo: the very item back in its slot (unless it is back already).
+      return () => {
+        if (groceriesRef.current.some((it) => it.id === id)) return false;
+        setGroceries((p) => (p.some((it) => it.id === id) ? p : [...p.slice(0, idx), item, ...p.slice(idx)]));
+        return true;
+      };
     },
     [groceryDelete, setGroceries],
   );

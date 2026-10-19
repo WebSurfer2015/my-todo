@@ -9,7 +9,7 @@ import { getOrderedPriorities } from "../../../core/src/domain/priorities";
 import { useCategoriesSlice } from "./slices/useCategoriesSlice";
 import { useProfileSlice } from "./slices/useProfileSlice";
 import { useGroceriesSlice } from "./slices/useGroceriesSlice";
-import { useTodosSlice } from "./slices/useTodosSlice";
+import { useTodosSlice, type Undo } from "./slices/useTodosSlice";
 import { useLang } from "../app/LangContext";
 import { useAuth } from "../app/AuthContext";
 import { useNotify } from "../app/notify";
@@ -201,6 +201,15 @@ export function useTodoStore() {
   useEffect(() => {
     profileRef.current = profile;
   }, [profile]);
+  // Latest categories / filter selection, for Undos that run later.
+  const categoriesRef = useRef(categories);
+  useEffect(() => {
+    categoriesRef.current = categories;
+  }, [categories]);
+  const filtersRef = useRef(filters);
+  useEffect(() => {
+    filtersRef.current = filters;
+  }, [filters]);
 
   // pinFilter / keepAndClearFilter / clearHomeStatTiles /
   // toggleHomeStatTile moved into useProfileSlice (PR 5). The
@@ -415,7 +424,7 @@ export function useTodoStore() {
 
   // Returns an Undo (Ask Mochi's inline "✓ Done · Undo") that puts the
   // category back in place and reverts the to-dos the cascade changed.
-  const deleteCategory = useCallback((id: string): (() => void) | null => {
+  const deleteCategory = useCallback((id: string): Undo | null => {
     const res = store.actions.deleteCategoryCascade({
       todos: todosRef.current,
       categories,
@@ -447,28 +456,60 @@ export function useTodoStore() {
       if (idx >= 0) removed = { cat: prev[idx], idx };
       return cascadeFrom(todosRef.current, prev).categories;
     });
-    if (res.filter !== null) setFilter(res.filter);
+    // The filter selection the delete leaves (single legacy filter, then the
+    // multi-select set — the latter wins), as ONE array object so the Undo
+    // can tell whether the user changed it since.
+    const filtersBefore = filters;
+    let filtersAfter: Filter[] | null = null;
+    if (res.filter !== null) filtersAfter = res.filter === "all" ? [] : [res.filter];
+    if (res.filters !== null) filtersAfter = res.filters;
+    if (filtersAfter) setFiltersState(filtersAfter);
     // Strip any pinned set that contained this category so the persisted
     // profile doesn't accumulate stale `cat:<deleted-id>` ghost pills.
-    if (res.pinnedFilters !== profile.pinnedFilters) {
-      setProfile((prev) => ({ ...prev, pinnedFilters: res.pinnedFilters }));
+    // Home stat tiles drop the deleted category too (a ghost `cat:<id>`).
+    const pinnedBefore = profile.pinnedFilters;
+    const tilesBefore = profile.homeStatTiles;
+    const pinnedChanged = res.pinnedFilters !== pinnedBefore;
+    const tilesChanged = res.homeStatTiles !== tilesBefore;
+    if (pinnedChanged || tilesChanged) {
+      setProfile((prev) => ({
+        ...prev,
+        ...(pinnedChanged ? { pinnedFilters: res.pinnedFilters } : {}),
+        ...(tilesChanged ? { homeStatTiles: res.homeStatTiles } : {}),
+      }));
     }
-    // Multi-select filter sets and Home stat tiles drop the deleted
-    // category too (they kept a ghost `cat:<id>`).
-    if (res.filters !== null) setFiltersState(res.filters);
-    if (res.homeStatTiles !== profile.homeStatTiles) {
-      setProfile((prev) => ({ ...prev, homeStatTiles: res.homeStatTiles }));
-    }
-    return () => {
-      if (todosChange) undoTracked(todosChange);
+    const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+    // Puts back the category in its slot, the to-dos the cascade changed,
+    // and the filter / pinned set / Home tiles it stripped — each only if
+    // still as the delete left it. True when anything came back.
+    return (): boolean => {
+      let restored = false;
+      if (todosChange && undoTracked(todosChange) !== false) restored = true;
       const r = removed as { cat: (typeof categories)[number]; idx: number } | null;
-      if (r) {
+      if (r && !categoriesRef.current.some((c) => c.id === id)) {
+        restored = true;
         setCategories((prev) =>
           prev.some((c) => c.id === id) ? prev : [...prev.slice(0, r.idx), r.cat, ...prev.slice(r.idx)],
         );
       }
+      if (filtersAfter && filtersRef.current === filtersAfter) {
+        restored = true;
+        setFiltersState((cur) => (cur === filtersAfter ? filtersBefore : cur));
+      }
+      const prof = profileRef.current;
+      const putPinned = pinnedChanged && same(prof.pinnedFilters, res.pinnedFilters);
+      const putTiles = tilesChanged && same(prof.homeStatTiles, res.homeStatTiles);
+      if (putPinned || putTiles) {
+        restored = true;
+        setProfile((prev) => ({
+          ...prev,
+          ...(putPinned && same(prev.pinnedFilters, res.pinnedFilters) ? { pinnedFilters: pinnedBefore } : {}),
+          ...(putTiles && same(prev.homeStatTiles, res.homeStatTiles) ? { homeStatTiles: tilesBefore } : {}),
+        }));
+      }
+      return restored;
     };
-  }, [store, todosRef, categories, filter, filters, profile.pinnedFilters, profile.homeStatTiles, applyTracked, undoTracked, setCategories, setFilter, setProfile]);
+  }, [store, todosRef, categories, filter, filters, profile.pinnedFilters, profile.homeStatTiles, applyTracked, undoTracked, setCategories, setProfile]);
 
 
   // ---- Derived state (memoized via core.deriveState) ----

@@ -61,16 +61,13 @@ import {
   recurrenceLabel,
   recurrenceShortLabel,
   reminderSummary,
+  rowDateLabel,
+  isCustomRecurrence,
 } from '../../../../../core/src/logic/labels'
 import { makeStyles } from './styles';
 import { planStepDoneFooter, stepDoneUndoAfterToggle } from './stepDoneFooter'
 import { buildSeriesCommit } from './seriesCommit'
-import { rowDateLabel } from '../rowDateLabel'
 import { absoluteDateLabel } from '../absoluteDateLabel'
-
-function isCustomRecurrence(rec: Recurrence | undefined): boolean {
-  return !!rec && Array.isArray(rec.byWeekday) && rec.byWeekday.length > 0
-}
 
 // Reminder-picker chip constants + helpers moved to
 // ../ReminderSheet/index.tsx. defaultRemindDate / XIcon / dueDateAsUntil

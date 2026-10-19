@@ -13,7 +13,7 @@ import { useTheme, ThemeColors } from '../../app/theme'
 import { useLang } from '../../app/LangContext'
 import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 import { Priority, PRIORITY_VALUES } from '../../core-bindings/types'
-import { dueDateToDate, isoDate } from '../../core-bindings/utils'
+import { dueDateToDate, dueDateWithDay } from '../../core-bindings/utils'
 import { formatCalendarDate } from '../../../../core/src/logic/labels'
 import { isCaptureCardEditable } from './captureCardEditable'
 
@@ -40,7 +40,9 @@ interface Props {
   categories: CategoryDef[]
   /** Read-only recurrence summary (computed by the caller). */
   recurrenceText: string | null
-  onEdit: (id: string, patch: CapturedTodoPatch) => void
+  /** May return the to-do's ACTUAL due date after the edit (a weekday rule
+   * snaps a picked day onto the rule) — the chip then shows that. */
+  onEdit: (id: string, patch: CapturedTodoPatch) => void | { dueDate?: string }
   /** Remove the captured to-do entirely (the bottom of the undo stack).
    * May ask first (a repeating to-do's scope Alert) — resolve false when
    * the user cancels, so the card keeps its Undo instead of reading
@@ -113,12 +115,14 @@ export default function EditableCaptureCard({
   const onDateChange = (e: DateTimePickerEvent, d?: Date) => {
     if (e.type === 'set' && d) {
       const prev = dueDate
-      const iso = isoDate(d)
-      setDueDate(iso)
-      onEdit(id, { dueDate: iso })
+      // The picked DAY, keeping the to-do's time of day (9:00 stays 9:00).
+      const iso = dueDateWithDay(prev, d)
+      const res = onEdit(id, { dueDate: iso })
+      // Show where it actually landed (a weekday series snaps the day).
+      setDueDate((res && res.dueDate) || iso)
       undoStack.current.push(() => {
-        setDueDate(prev)
-        onEdit(id, { dueDate: prev })
+        const back = onEdit(id, { dueDate: prev })
+        setDueDate((back && back.dueDate) || prev)
       })
       sync()
     }
