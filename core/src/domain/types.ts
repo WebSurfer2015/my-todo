@@ -55,7 +55,8 @@ export interface Recurrence {
    * day. Stamped on the surviving members when a hard delete (emptying the
    * Done bin, Delete permanently) removes the series' latest rows, so top-up /
    * completion never mint those days again. Cleared by a rule change or a
-   * resume (a fresh horizon). Absent while the rows themselves show it.
+   * resume (a fresh horizon). Never copied onto rows top-up / completion
+   * mint later (they lie past it). Absent while the rows themselves show it.
    */
   materializedThrough?: string
 }

@@ -12,6 +12,7 @@ import {
   deferSnackbarMessage,
   recurrenceChangedMessage,
   type TodosSliceDeps,
+  type Undo,
 } from '../store/slices/useTodosSlice'
 import { createTodoStore } from '../../../core/src/store'
 import { strings } from '../../../core/src/data/i18n'
@@ -785,7 +786,7 @@ describe('useTodosSlice round 7', () => {
       id = hook.result.current.addTaskWithUndo('Stretch', 'medium', '2026-10-19', undefined, { freq: 'daily' }).id
     })
     const sid = hook.result.current.todos.find((x) => x.id === id)!.seriesId!
-    let undo: (() => boolean) | null = null
+    let undo: Undo | null = null
     act(() => {
       undo = hook.result.current.rescheduleSeriesFrom(id, '2026-10-21')
     })
@@ -809,7 +810,7 @@ describe('useTodosSlice round 7', () => {
 
   it('rescheduleSeriesFrom on a one-off just moves it; an unchanged date or unknown id does nothing', async () => {
     const { hook } = await setup([mk('o', { dueDate: '2026-10-19' })])
-    let u: (() => boolean) | null = null
+    let u: Undo | null = null
     act(() => {
       u = hook.result.current.rescheduleSeriesFrom('o', '2026-10-25')
     })
@@ -833,18 +834,45 @@ describe('useTodosSlice round 7', () => {
     act(() => hook.result.current.updateText('d20', 'Jog'))
     let ok: unknown
     act(() => {
-      ok = (undo as () => boolean)()
+      ok = (undo as () => unknown)()
     })
-    expect(ok).toBe(true)
+    expect(ok).toBe('partial')
     expect(hook.result.current.todos.find((x) => x.id === 'd20')!.text).toBe('Jog')
     expect(hook.result.current.todos.find((x) => x.id === 'd21')!.text).toBe('Walk')
     expect(snacks.at(-1)).toEqual({ message: 'Undone — later changes were kept.' })
     // Nothing left to put back now (d20 is still edited): false, with the
     // same calm note.
     act(() => {
-      ok = (undo as () => boolean)()
+      ok = (undo as () => unknown)()
     })
     expect(ok).toBe(false)
+  })
+
+  it('a SILENT partial Undo shows no root snackbar — it reports "partial" for the caller to say inline', async () => {
+    const { hook, snacks } = await setup(dailySeries())
+    let undo: Undo | null = null
+    act(() => {
+      undo = hook.result.current.commitSeriesEdits('d19', { fields: { text: 'Run' } }, { silent: true })
+    })
+    // Silent: no commit snackbar either.
+    expect(snacks).toEqual([])
+    act(() => hook.result.current.updateText('d20', 'Jog'))
+    let ok: unknown
+    act(() => {
+      ok = undo!()
+    })
+    expect(ok).toBe('partial')
+    expect(snacks).toEqual([])
+    // Silent store Undos of every kind pass it through (toggle, rule change).
+    let u2: Undo | null = null
+    act(() => {
+      u2 = hook.result.current.updateRecurrence('d21', { freq: 'weekly' }, { silent: true })
+    })
+    act(() => hook.result.current.updateText('d21', 'Swim'))
+    act(() => {
+      ok = u2!()
+    })
+    expect(snacks).toEqual([])
   })
 
   it('a full Undo shows no partial note', async () => {
@@ -882,5 +910,110 @@ describe('useTodosSlice round 7', () => {
       hook.result.current.updateText('gone', 'x')
     })
     expect(hook.result.current.todosRef.current).toBe(before)
+  })
+})
+
+describe('useTodosSlice round 8', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 19, 12, 0, 0))
+  })
+  afterEach(() => vi.useRealTimers())
+
+  const day = (x: Todo) => x.dueDate.slice(0, 10)
+  const refTexts = (h: { result: { current: { todoReferences: Array<{ text: string }> } } }) =>
+    h.result.current.todoReferences.map((r) => r.text)
+
+  it('rescheduleSeriesFrom to the day it is already on does nothing (null)', async () => {
+    const { hook } = await setup(dailySeries())
+    act(() => {
+      expect(hook.result.current.rescheduleSeriesFrom('d19', '2026-10-19')).toBeNull()
+    })
+  })
+
+  it('rescheduling a TIMED series start keeps the time on every row and clears a stamped horizon', async () => {
+    const timed = dailySeries().map((x) => ({
+      ...x,
+      dueDate: `${x.dueDate}T09:00`,
+      recurrence: { freq: 'daily' as const, materializedThrough: '2026-12-31' },
+    }))
+    const { hook } = await setup(timed)
+    act(() => {
+      hook.result.current.rescheduleSeriesFrom('d19', '2026-10-21T09:00')
+    })
+    const rows = hook.result.current.todos.filter((x) => x.seriesId === 's1' && !x.trashed)
+    expect(rows.every((x) => x.dueDate.endsWith('T09:00'))).toBe(true)
+    expect(rows.map(day).sort()[0]).toBe('2026-10-21')
+    // Not held back by the old horizon: the window is filled again.
+    expect(rows.map(day)).toContain('2026-10-26')
+    expect(rows.every((x) => x.recurrence?.materializedThrough === undefined)).toBe(true)
+  })
+
+  it('commitSeriesEdits can CLEAR the category on every row (category: null), silently', async () => {
+    const tagged = dailySeries().map((x) => ({ ...x, category: 'work' }))
+    const { hook, snacks } = await setup(tagged)
+    let undo: Undo | null = null
+    act(() => {
+      undo = hook.result.current.commitSeriesEdits('d19', { fields: { category: null } }, { silent: true })
+    })
+    expect(snacks).toEqual([])
+    expect(hook.result.current.todos.every((x) => x.category === undefined)).toBe(true)
+    act(() => {
+      expect(undo!()).toBe(true)
+    })
+    expect(hook.result.current.todos.every((x) => x.category === 'work')).toBe(true)
+  })
+
+  it('a permanent delete forgets the title from the suggestion history (unless another to-do has it)', async () => {
+    const { hook } = await setup([mk('other')])
+    let a = ''
+    let b = ''
+    act(() => {
+      a = hook.result.current.addTask('Call mom', 'medium', '')
+      hook.result.current.addTask('Pay rent', 'medium', '')
+      b = hook.result.current.addTask('Pay rent', 'medium', '')
+    })
+    expect(refTexts(hook).sort()).toEqual(['Call mom', 'Pay rent'])
+    act(() => {
+      hook.result.current.permanentlyDelete(a)
+      hook.result.current.permanentlyDelete(b)
+    })
+    // "Pay rent" is still on the other to-do.
+    expect(refTexts(hook)).toEqual(['Pay rent'])
+  })
+
+  it("a capture's Undo forgets the title it added — or puts back the entry it replaced", async () => {
+    const { hook } = await setup([mk('other')])
+    let added: { id: string; undo: Undo } | null = null
+    act(() => {
+      added = hook.result.current.addTaskWithUndo('Stretch', 'low', '')
+    })
+    expect(refTexts(hook)).toEqual(['Stretch'])
+    act(() => {
+      expect(added!.undo()).toBe(true)
+    })
+    expect(refTexts(hook)).toEqual([])
+    // An earlier entry for the same title (from a completion) comes back.
+    let first = ''
+    act(() => {
+      first = hook.result.current.addTask('Water plants', 'high', '')
+    })
+    act(() => {
+      hook.result.current.permanentlyDelete(first)
+    })
+    expect(refTexts(hook)).toEqual([])
+    act(() => {
+      hook.result.current.addTask('Water plants', 'high', '')
+    })
+    const prior = hook.result.current.todoReferences[0]
+    act(() => {
+      added = hook.result.current.addTaskWithUndo('water plants', 'low', '')
+    })
+    expect(hook.result.current.todoReferences[0].priority).toBe('low')
+    act(() => {
+      added!.undo()
+    })
+    // The entry it replaced comes back exactly.
+    expect(hook.result.current.todoReferences[0]).toEqual(prior)
   })
 })

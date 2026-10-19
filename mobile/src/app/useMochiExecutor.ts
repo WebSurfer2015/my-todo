@@ -27,6 +27,7 @@ import {
 } from '../../../core/src/logic/mochiOps'
 import { genUuid, todayLocal } from '../../../core/src/logic/utils'
 import { beginMochiTurn } from './mochiUndo'
+import type { UndoOutcome } from '../store/slices/useTodosSlice'
 
 type Store = ReturnType<typeof useTodoStore>
 
@@ -49,12 +50,18 @@ function lazyTurn() {
 }
 
 /** Combine several actions' Undos into one (newest first); null if none.
- * Every part runs; the result is false only when EVERY part reported that
- * it put nothing back (an Undo returning nothing counts as done). */
-export function combineUndos(undos: Array<(() => unknown) | null | undefined>): (() => boolean) | null {
+ * Every part runs. The result: "partial" when any part put back only part
+ * of its action (rows edited since were kept), else true when any part put
+ * something back, else false. Every store Undo reports a boolean (or
+ * "partial") — a part returning anything else counts as nothing undone. */
+export function combineUndos(undos: Array<(() => unknown) | null | undefined>): (() => UndoOutcome) | null {
   const list = undos.filter((u): u is () => unknown => !!u)
   if (list.length === 0) return null
-  return () => [...list].reverse().map((u) => u()).some((r) => r !== false)
+  return () => {
+    const results = [...list].reverse().map((u) => u())
+    if (results.includes('partial')) return 'partial'
+    return results.some((r) => r === true)
+  }
 }
 
 export function useMochiExecutor(store: Store, t: Strings) {
@@ -128,10 +135,10 @@ export function useMochiExecutor(store: Store, t: Strings) {
             // Undos run newest-first, so the to-dos this run filed under it are
             // already gone; remove it only if nothing else uses it by then.
             // Read the LIVE store: the category didn't exist at this render.
-            undos.push(() => {
+            undos.push((): boolean => {
               const live = storeRef.current
-              if (live.todosRef.current.some((td) => td.category === id)) return
-              live.deleteCategory(id)
+              if (live.todosRef.current.some((td) => td.category === id)) return false
+              return live.deleteCategory(id) !== null
             })
             break
           }
@@ -174,13 +181,18 @@ export function useMochiExecutor(store: Store, t: Strings) {
           case 'updateRecurrence':
             // Tracked: a series occurrence rebuilds the series' future rows
             // — from where the row WAS when the same edit moved it first.
-            undos.push(store.updateRecurrence(it.todoId, it.recurrence, it.fromDue ? { fromDue: it.fromDue } : undefined))
+            undos.push(store.updateRecurrence(it.todoId, it.recurrence, { ...SILENT, ...(it.fromDue ? { fromDue: it.fromDue } : {}) }))
+            break
+          case 'rescheduleSeries':
+            // A restated rule with a new date on a series row: the series'
+            // start moves (rebuilt from the new day), not just this row.
+            undos.push(store.rescheduleSeriesFrom(it.todoId, it.dueDate, SILENT))
             break
           case 'updateReminders':
             editTodo(it.todoId, () => store.updateReminders(it.todoId, it.reminders))
             break
           case 'addSubtask':
-            undos.push(store.addSubtask(it.todoId, it.text))
+            undos.push(store.addSubtask(it.todoId, it.text, undefined, undefined, SILENT))
             break
           case 'toggle':
             undos.push(store.toggle(it.todoId, SILENT))
@@ -240,7 +252,7 @@ export function useMochiExecutor(store: Store, t: Strings) {
             undos.push(store.toggleSubtask(it.todoId, it.subtaskId, SILENT))
             break
           case 'removeSubtask':
-            undos.push(store.removeSubtask(it.todoId, it.subtaskId))
+            undos.push(store.removeSubtask(it.todoId, it.subtaskId, SILENT))
             break
           case 'updateSubtaskText':
             editTodo(it.todoId, () => store.updateSubtaskText(it.todoId, it.subtaskId, it.text))
@@ -261,7 +273,7 @@ export function useMochiExecutor(store: Store, t: Strings) {
               // A re-add of an item the user already had puts its previous
               // state back; a brand-new item is removed.
               const { id, previous } = res
-              undos.push(() => (previous ? store.restoreGrocery(id, previous) : store.deleteGrocery(id)))
+              undos.push((): boolean => (previous ? store.restoreGrocery(id, previous) : store.deleteGrocery(id) !== null))
             }
             break
           }
@@ -277,8 +289,8 @@ export function useMochiExecutor(store: Store, t: Strings) {
                 (p.stores !== undefined && (p.stores ?? []).join('\u0000') !== (before.stores ?? []).join('\u0000')))
             if (!before || !differs) break
             store.editGrocery(it.groceryId, p)
-            undos.push(() =>
-              store.editGrocery(before.id, { text: before.text, groupId: before.groupId, stores: before.stores }),
+            undos.push((): boolean =>
+              storeRef.current.editGrocery(before.id, { text: before.text, groupId: before.groupId, stores: before.stores }),
             )
             break
           }
@@ -289,9 +301,11 @@ export function useMochiExecutor(store: Store, t: Strings) {
             // Put back the ABSOLUTE previous state: a blind re-toggle would
             // flip it the wrong way if it was changed again since.
             if (wasChecked !== undefined) {
-              undos.push(() => {
+              undos.push((): boolean => {
                 const live = storeRef.current.groceries.find((g) => g.id === id)
-                if (live && live.checked !== wasChecked) storeRef.current.toggleGroceryChecked(id)
+                if (!live || live.checked === wasChecked) return false
+                storeRef.current.toggleGroceryChecked(id)
+                return true
               })
             }
             break
@@ -301,17 +315,18 @@ export function useMochiExecutor(store: Store, t: Strings) {
             const text = it.text
             asks.push(
               new Promise<boolean>((resolve) => {
+                // Neutral: Mochi's latest change always has an Undo.
                 Alert.alert(
-                  'Remove from shopping?',
-                  `Permanently remove "${text}" from your shopping list. This can't be undone.`,
+                  'Remove from shopping list?',
+                  `"${text}" comes off your shopping list.`,
                   [
                     { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
                     {
                       text: 'Remove',
-                      style: 'destructive',
                       onPress: () => {
-                        store.deleteGrocery(id)
-                        resolve(true)
+                        const undo = store.deleteGrocery(id)
+                        undos.push(undo)
+                        resolve(undo !== null)
                       },
                     },
                   ],
@@ -334,13 +349,19 @@ export function useMochiExecutor(store: Store, t: Strings) {
             store.editCategory(it.categoryId, { label: it.label, color: it.color, icon: it.icon })
             // A built-in's label is undefined (its localized name) — restore
             // exactly that, not "".
-            undos.push(() =>
-              store.editCategory(before.id, {
+            undos.push((): boolean => {
+              const live = storeRef.current
+              const now = live.categories.find((c) => c.id === before.id)
+              if (!now || (now.label === before.label && now.color === before.color && now.icon === before.icon)) {
+                return false
+              }
+              live.editCategory(before.id, {
                 label: before.label,
                 color: before.color,
                 icon: before.icon,
-              } as { label: string; color: string; icon: string }),
-            )
+              } as { label: string; color: string; icon: string })
+              return true
+            })
             break
           }
           case 'deleteCategory':
@@ -408,7 +429,7 @@ export function useMochiExecutor(store: Store, t: Strings) {
       if (op.kind === 'addGroceryItem') {
         // null id → no inline chip-editing for groceries (Undo only). The
         // Undo removes a new item, or restores one that was already listed.
-        return { id: null, undo: run.hasUndo() ? beginMochiTurn()(run.undo) : () => false }
+        return { id: null, undo: run.hasUndo() ? beginMochiTurn()((): boolean => !!run.undo()) : () => false }
       }
       const id = run.todoIds[0] ?? null
       const task = intents.find((i): i is Extract<MochiIntent, { type: 'addTask' }> => i.type === 'addTask')
@@ -443,18 +464,39 @@ export function useMochiExecutor(store: Store, t: Strings) {
 
   // Inline-edit a just-captured to-do straight from the Mochi card — fixes the
   // common "Mochi got the category/date slightly off" without leaving chat.
+  // A repeating capture is a whole new series: its category / priority chips
+  // apply to EVERY row of it (and so to future top-ups, which copy the latest
+  // row), not just the head. Returns the row's ACTUAL due date afterwards — a
+  // weekday rule snaps a picked day onto the rule, so the card shows that.
   const editCapturedTodo = useCallback(
-    (id: string, patch: CapturedTodoPatch) => {
-      // null clears the category (a chip Undo back to "no category").
-      if (patch.category !== undefined) store.updateTaskCategory(id, patch.category ?? undefined)
-      if (patch.priority !== undefined) store.updatePriority(id, patch.priority)
+    (id: string, patch: CapturedTodoPatch): { dueDate?: string } => {
+      const live = () => storeRef.current.todosRef.current.find((td) => td.id === id)
+      const row = live()
+      const isSeries = !!row?.seriesId && !!row.recurrence
+      if (isSeries && (patch.category !== undefined || patch.priority !== undefined)) {
+        // From the series' first row, so every occurrence takes it.
+        store.commitSeriesEdits(
+          id,
+          {
+            fields: {
+              ...(patch.category !== undefined ? { category: patch.category } : {}),
+              ...(patch.priority !== undefined ? { priority: patch.priority } : {}),
+            },
+          },
+          SILENT,
+        )
+      } else {
+        // null clears the category (a chip Undo back to "no category").
+        if (patch.category !== undefined) store.updateTaskCategory(id, patch.category ?? undefined)
+        if (patch.priority !== undefined) store.updatePriority(id, patch.priority)
+      }
       if (patch.dueDate !== undefined) {
         // A repeating capture's date chip moves the series' START: re-expand
         // it from the new date (moving only the head left the old tail).
-        const row = storeRef.current.todosRef.current.find((td) => td.id === id)
-        if (row?.seriesId && row.recurrence) store.rescheduleSeriesFrom(id, patch.dueDate)
+        if (isSeries) store.rescheduleSeriesFrom(id, patch.dueDate, SILENT)
         else store.updateDueDate(id, patch.dueDate)
       }
+      return { dueDate: live()?.dueDate }
     },
     [store],
   )

@@ -1,10 +1,11 @@
 /**
  * Date chips for carried-over to-dos / steps and Done-bin rows name the day
- * ("Mon, Oct 5") — never a count of days behind ("12 days ago").
+ * ("Mon, Oct 5") — never a count of days behind ("12 days ago"). (Moved from
+ * mobile/ with the helpers, now core/src/logic/labels.) Plus
+ * isCustomRecurrence, shared by the compose and details sheets.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { doneOnLabel, rowDateLabel } from '../features/task/rowDateLabel'
-import { weekdayDate } from '../../../core/src/logic/labels'
+import { doneOnLabel, isCustomRecurrence, rowDateLabel, weekdayDate } from '../src/logic/labels'
 
 const TODAY = '2026-10-19'
 
@@ -56,5 +57,15 @@ describe('doneOnLabel', () => {
   it('today reads "Done today"', () => {
     expect(doneOnLabel(TODAY, 'en-US', TODAY)).toBe('Done today')
     expect(doneOnLabel(TODAY)).toBe('Done today')
+  })
+})
+
+describe('isCustomRecurrence', () => {
+  it('only a weekday-picking rule is custom', () => {
+    expect(isCustomRecurrence(undefined)).toBe(false)
+    expect(isCustomRecurrence({ freq: 'weekly' })).toBe(false)
+    expect(isCustomRecurrence({ freq: 'weekly', byWeekday: [] })).toBe(false)
+    expect(isCustomRecurrence({ freq: 'daily', interval: 2 })).toBe(false)
+    expect(isCustomRecurrence({ freq: 'weekly', byWeekday: [1, 3] })).toBe(true)
   })
 })

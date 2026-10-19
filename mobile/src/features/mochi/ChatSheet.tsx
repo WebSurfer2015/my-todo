@@ -26,7 +26,7 @@ import { useMochiAgent, type ProposedOperation } from './useMochiAgent'
 import { pickMatchHeader, supersededProposalTurns } from './chatTurns'
 import MochiThinking from './MochiThinking'
 import EditableCaptureCard, { type CapturedTodoPatch } from './EditableCaptureCard'
-import { undoOutcome, type UndoFn } from './undoOutcome'
+import { PARTIAL_UNDO_NOTE, undoResult, type UndoFn } from './undoOutcome'
 import { useInlineUndo } from './useInlineUndo'
 import { snapDueDateToRecurrence } from '../../../../core/src/logic/derive'
 import { buildFallbackCapture } from '../../../../core/src/logic/mochiFallback'
@@ -304,13 +304,13 @@ export default function ChatSheet({
   // …and its resolved category id (a same-turn new category has no id in the
   // proposal itself).
   const capturedCategoryRef = useRef<Record<number, string | undefined>>({})
-  const [undone, setUndone] = useState<Record<number, true>>({})
+  const [undone, setUndone] = useState<Record<number, true | 'partial'>>({})
   // Run turn i's inline Undo; flip it to "Removed"/"Undone" only when the
   // undo actually happened (a Cancel in its confirm keeps the Undo live).
   const runUndo = useCallback(async (i: number): Promise<boolean> => {
-    const ok = await undoOutcome(undoFnsRef.current[i])
-    if (ok) setUndone((prev) => ({ ...prev, [i]: true }))
-    return ok
+    const r = await undoResult(undoFnsRef.current[i])
+    if (r !== 'nothing') setUndone((prev) => ({ ...prev, [i]: r === 'partial' ? 'partial' : true }))
+    return r !== 'nothing'
   }, [])
   const inputRef = useRef<TextInput>(null)
   const scrollRef = useRef<ScrollView>(null)
@@ -767,7 +767,9 @@ export default function ChatSheet({
                           undoFnsRef.current[i] && (undone[i] || isUndoLive(undoFnsRef.current[i])) ? (
                             undone[i] ? (
                               <Text style={styles.appliedNote}>
-                                {capturedIdRef.current[i] ? 'Removed' : 'Undone'}
+                                {undone[i] === 'partial'
+                                  ? PARTIAL_UNDO_NOTE
+                                  : capturedIdRef.current[i] ? 'Removed' : 'Undone'}
                               </Text>
                             ) : (
                               <View style={styles.appliedRow}>
@@ -1065,6 +1067,7 @@ function AppliedWithUndo({
   // Retired once a newer Mochi turn applied changes.
   const live = useUndoLive(undo)
   if (state === 'undone') return <Text style={styles.appliedNote}>Undone</Text>
+  if (state === 'partial') return <Text style={styles.appliedNote}>{PARTIAL_UNDO_NOTE}</Text>
   if (state === 'nothing') return <Text style={styles.appliedNote}>✓ {note} · Nothing to undo</Text>
   if (!undo || !live) return <Text style={styles.appliedNote}>✓ {note}</Text>
   return (

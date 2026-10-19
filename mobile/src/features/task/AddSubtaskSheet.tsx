@@ -11,7 +11,7 @@ import { Priority, PRIORITY_VALUES, PRIORITY_COLORS } from '../../core-bindings/
 import { useLang } from '../../app/LangContext'
 import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
 import { dueDateToDate, fullDateLabel, isoDate } from '../../core-bindings/utils'
-import { rowDateLabel } from './rowDateLabel'
+import { rowDateLabel } from '../../../../core/src/logic/labels'
 import PriorityDot from '../../ui/PriorityDot'
 import InlinePicker from '../../ui/InlinePicker'
 import { useModalPresence } from '../../app/modalPresence'

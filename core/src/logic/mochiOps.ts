@@ -49,7 +49,7 @@ export interface MochiSnapshot {
     priority?: AgentPriority
     category?: string
     notes?: string
-    reminders?: ReadonlyArray<{ at: string; offsetMinutes?: number; intervalMinutes?: number }>
+    reminders?: ReadonlyArray<{ at: string; offsetMinutes?: number; intervalMinutes?: number; until?: string }>
   }>
   /** `label` is the STORED label (empty for a built-in that shows its
    * localized name); `displayLabel` is what the user sees, so a
@@ -96,6 +96,10 @@ export type MochiIntent =
    * `fromDue`: the row's ORIGINAL date when the same edit moved it first —
    * the series' "this and future" cutoff. */
   | { type: 'updateRecurrence'; todoId: string; recurrence: Recurrence; fromDue?: string }
+  /** A series row's new date with its (unchanged) rule restated — "move rent
+   * to the 5th, monthly": the series' start moves (rebuilt from the new day,
+   * the store's rescheduleSeriesFrom), not just this one row. */
+  | { type: 'rescheduleSeries'; todoId: string; dueDate: string }
   | { type: 'updateReminders'; todoId: string; reminders: Reminder[] }
   | { type: 'addSubtask'; todoId: string; text: string }
   /** done ↔ open flip — only planned when it moves the right way. */
@@ -133,7 +137,7 @@ export type MochiIntent =
  * list (= "leave reminders alone").
  */
 export function stampReminders(
-  rs: readonly AgentReminder[] | undefined,
+  rs: readonly (AgentReminder & { until?: string })[] | undefined,
   genId: () => string,
 ): Reminder[] | undefined {
   if (!rs || rs.length === 0) return undefined
@@ -142,6 +146,8 @@ export function stampReminders(
     at: r.at,
     ...(r.offsetMinutes ? { offsetMinutes: r.offsetMinutes } : {}),
     ...(r.intervalMinutes ? { intervalMinutes: r.intervalMinutes } : {}),
+    // A nag's cutoff (only when it repeats) — dropping it would nag forever.
+    ...(r.intervalMinutes && typeof r.until === 'string' && r.until ? { until: r.until } : {}),
   }))
 }
 
@@ -302,8 +308,22 @@ export function mergeAgentRecurrence(
 type TodoPatch = NonNullable<OpOf<'pickTodos'>['args']['edit']> & { newCategoryLabel?: string }
 
 /** Reminders as comparable keys (ids ignored), sorted. */
-const reminderKeys = (rs: ReadonlyArray<{ at: string; offsetMinutes?: number; intervalMinutes?: number }> | undefined) =>
-  (rs ?? []).map((r) => `${r.at}|${r.offsetMinutes || ''}|${r.intervalMinutes || ''}`).sort().join(',')
+const reminderKeys = (
+  rs: ReadonlyArray<{ at: string; offsetMinutes?: number; intervalMinutes?: number; until?: string }> | undefined,
+) =>
+  (rs ?? [])
+    .map((r) => `${r.at}|${r.offsetMinutes || ''}|${r.intervalMinutes || ''}|${r.until || ''}`)
+    .sort()
+    .join(',')
+
+/** The agent's new date on `rowDue`: a date-only day keeps the row's time of
+ * day ("dentist is Friday" on a 15:00 appointment stays 15:00); a value with
+ * its own time, or '' (clear), is taken as is. */
+function dueWithRowTime(due: string, rowDue: string | undefined): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(due) || !rowDue) return due
+  const t = rowDue.indexOf('T')
+  return t === -1 ? due : `${due}${rowDue.slice(t)}`
+}
 
 /** The field-by-field edit of one to-do (editTodo and a pick-list edit).
  * A field already at the asked value is skipped — a no-op edit must not
@@ -315,9 +335,20 @@ function planTodoPatch(ctx: PlanCtx, todoId: string, e: TodoPatch): void {
   if (e.priority !== undefined && e.priority !== row?.priority) {
     out.push({ type: 'updatePriority', todoId, priority: e.priority })
   }
-  // '' is an explicit "clear the date" (server-gated to a user ask).
-  const moves = e.dueDate !== undefined && (!row || e.dueDate !== (row.dueDate ?? ''))
-  if (moves) out.push({ type: 'updateDueDate', todoId, dueDate: e.dueDate! })
+  // '' is an explicit "clear the date" (server-gated to a user ask). Compared
+  // AFTER keeping the row's time, so restating the day is a no-op.
+  const due = e.dueDate === undefined ? undefined : dueWithRowTime(e.dueDate, row?.dueDate)
+  const moves = due !== undefined && (!row || due !== (row.dueDate ?? ''))
+  // The rule merged over the row's (undefined: unchanged / not asked).
+  const recurrence =
+    e.recurrence !== undefined
+      ? mergeAgentRecurrence(e.recurrence, row?.recurrence, (due || row?.dueDate || ctx.snap.today) ?? '', ctx.snap.today)
+      : undefined
+  // A series row's date move WITH its unchanged rule restated moves the
+  // series' start; a bare date move stays this-occurrence-only.
+  const rebuild = moves && !!due && !!row?.seriesId && !!row.recurrence && e.recurrence !== undefined && !recurrence
+  if (rebuild) out.push({ type: 'rescheduleSeries', todoId, dueDate: due! })
+  else if (moves) out.push({ type: 'updateDueDate', todoId, dueDate: due! })
   const category = resolveCategory(ctx, e.category, e.newCategoryLabel)
   if (category && !(row && 'id' in category && category.id === row.category)) {
     out.push({ type: 'updateCategory', todoId, category })
@@ -325,20 +356,15 @@ function planTodoPatch(ctx: PlanCtx, todoId: string, e: TodoPatch): void {
   if (e.notes !== undefined && (!row || e.notes !== (row.notes ?? ''))) {
     out.push({ type: 'updateNotes', todoId, notes: e.notes })
   }
-  if (e.recurrence !== undefined) {
-    // The row's day once this edit lands (a same-edit dueDate goes first).
-    const day = (e.dueDate || row?.dueDate || ctx.snap.today) ?? ''
-    const recurrence = mergeAgentRecurrence(e.recurrence, row?.recurrence, day, ctx.snap.today)
-    // The date moved first: the series' cutoff is where the row WAS, so the
-    // siblings in between are replaced too (and earlier ones kept).
-    if (recurrence) {
-      out.push({
-        type: 'updateRecurrence',
-        todoId,
-        recurrence,
-        ...(moves && row?.dueDate ? { fromDue: row.dueDate } : {}),
-      })
-    }
+  // The date moved first: the series' cutoff is where the row WAS, so the
+  // siblings in between are replaced too (and earlier ones kept).
+  if (recurrence) {
+    out.push({
+      type: 'updateRecurrence',
+      todoId,
+      recurrence,
+      ...(moves && row?.dueDate ? { fromDue: row.dueDate } : {}),
+    })
   }
   const reminders = stampReminders(e.reminders, ctx.deps.genId)
   if (reminders && !(row && reminderKeys(reminders) === reminderKeys(row.reminders))) {

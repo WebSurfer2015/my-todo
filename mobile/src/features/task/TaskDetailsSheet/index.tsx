@@ -33,7 +33,7 @@ import {
   endOfYearLocal,
   dueDateOnly,
 } from '../../../../../core/src/logic/utils'
-import { sortedSubs, snapDueDateToRecurrence } from '../../../../../core/src/logic/derive'
+import { recurrenceRuleEquals, sortedSubs, snapDueDateToRecurrence } from '../../../../../core/src/logic/derive'
 import { useTheme } from '../../../app/theme'
 import { useLang } from '../../../app/LangContext'
 import { useNotify } from '../../../app/notify'
@@ -60,17 +60,14 @@ import {
   recurrenceLabel,
   recurrenceShortLabel,
   reminderSummary,
+  rowDateLabel,
+  isCustomRecurrence,
 } from '../../../../../core/src/logic/labels'
 import { makeStyles } from './styles';
 import { planStepDoneFooter, stepDoneUndoAfterToggle } from './stepDoneFooter'
 import { buildDetailsUndo, type RecurrenceStep } from './detailsUndo'
 import { buildSeriesCommit } from './seriesCommit'
-import { rowDateLabel } from '../rowDateLabel'
 import { absoluteDateLabel } from '../absoluteDateLabel'
-
-function isCustomRecurrence(rec: Recurrence | undefined): boolean {
-  return !!rec && Array.isArray(rec.byWeekday) && rec.byWeekday.length > 0
-}
 
 // Reminder-picker chip constants + helpers moved to
 // ../ReminderSheet/index.tsx. defaultRemindDate / XIcon / dueDateAsUntil
@@ -122,7 +119,7 @@ interface Props {
   onUpdateDueDate: (id: string, dueDate: string) => void
   onUpdateCategory: (id: string, category: Category) => void
   /** Returns the change's tracked Undo (null = nothing changed). */
-  onUpdateRecurrence: (id: string, recurrence: Recurrence | undefined) => (() => boolean) | null
+  onUpdateRecurrence: (id: string, recurrence: Recurrence | undefined) => (() => boolean | 'partial') | null
   /** Multi-reminder write — replaces the entire `reminders[]` on a todo
    * (ReminderSheet's Done, the AI reminder pill). The OS-level schedule
    * is reconciled separately by App.tsx's reminder sync effect. */
@@ -470,7 +467,7 @@ export default function TaskDetailsSheet({
     // before mutating cloud state. In "this only" mode the change
     // commits live (existing R6a behavior).
     const seriesBuffer = editMode === 'series' && isSeriesRow
-    if (!seriesBuffer && JSON.stringify(r ?? null) !== JSON.stringify(todo.recurrence ?? null)) {
+    if (!seriesBuffer && !recurrenceRuleEquals(r, todo.recurrence)) {
       const undo = onUpdateRecurrence(todo.id, r)
       const rowAfter = undo ? store.todosRef.current.find((td) => td.id === todo.id) : undefined
       if (undo && rowAfter) recurrenceStepsRef.current.push({ rowAfter, undo })
@@ -535,7 +532,7 @@ export default function TaskDetailsSheet({
     const textChanged = !!trimmedText && trimmedText !== todo.text
     const notesChanged = editNotes !== (todo.notes ?? '')
     const recurrenceChanged =
-      JSON.stringify(editRecurrence ?? null) !== JSON.stringify(todo.recurrence ?? null)
+      !recurrenceRuleEquals(editRecurrence, todo.recurrence)
     const dueDateChanged = editDueDate !== (todo.dueDate ?? '')
     const remindersChanged = JSON.stringify(editReminders) !== JSON.stringify(getReminders(todo))
 

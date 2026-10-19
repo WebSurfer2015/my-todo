@@ -40,6 +40,7 @@ import {
   SuggestStepsReview,
 } from '../SuggestStepsPanel'
 import {
+  isCustomRecurrence,
   isoLocalDateTime,
   recurrenceFreqLabel,
   recurrenceLabel,
@@ -125,10 +126,6 @@ function defaultEndDateFor(freq: RecurrenceFreq): Date {
     case 'yearly':  d.setFullYear(d.getFullYear() + 5); break
   }
   return d
-}
-
-function isCustomRecurrence(rec: Recurrence | undefined): boolean {
-  return !!rec && Array.isArray(rec.byWeekday) && rec.byWeekday.length > 0
 }
 
 export default function ComposeSheet({

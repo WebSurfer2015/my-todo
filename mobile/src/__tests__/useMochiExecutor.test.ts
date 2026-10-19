@@ -232,7 +232,7 @@ describe('useMochiExecutor — capture Undo', () => {
     })
     hook.result.current.editCapturedTodo('t1', { dueDate: '2026-10-21' })
     // The series start moved (re-expanded), not just the head.
-    expect(store.rescheduleSeriesFrom).toHaveBeenCalledWith('t1', '2026-10-21')
+    expect(store.rescheduleSeriesFrom).toHaveBeenCalledWith('t1', '2026-10-21', { silent: true })
     expect(store.updateDueDate).not.toHaveBeenCalled()
     expect(cap.undo()).toBe(true)
     // Every row of the new series is gone — the one left on 10-20 included.
@@ -337,8 +337,11 @@ describe('mochiUndo', () => {
     const ran: string[] = []
     expect(combineUndos([() => (ran.push('a'), false), () => (ran.push('b'), false)])!()).toBe(false)
     expect(ran).toEqual(['b', 'a'])
-    expect(combineUndos([() => false, () => undefined])!()).toBe(true)
+    // An Undo reporting nothing (undefined) counts as nothing undone.
+    expect(combineUndos([() => false, () => undefined])!()).toBe(false)
     expect(combineUndos([() => true, () => false])!()).toBe(true)
+    // A partial part makes the whole partial (truthy, for undoOutcome).
+    expect(combineUndos([() => true, () => 'partial', () => false])!()).toBe('partial')
   })
 })
 
@@ -535,7 +538,7 @@ describe('useMochiExecutor — apply details', () => {
       { kind: 'editTodo', args: { todoId: 'r', dueDate: '2026-10-22', recurrence: { freq: 'weekly', byWeekday: [4] } } },
     ])
     expect(store.updateDueDate).toHaveBeenCalledWith('r', '2026-10-22')
-    expect(store.updateRecurrence).toHaveBeenCalledWith('r', { freq: 'weekly', byWeekday: [4] }, { fromDue: '2026-10-19' })
+    expect(store.updateRecurrence).toHaveBeenCalledWith('r', { freq: 'weekly', byWeekday: [4] }, { silent: true, fromDue: '2026-10-19' })
   })
 
   it('editGrocery / editCategory with nothing different add no Undo (no new turn)', () => {
@@ -589,9 +592,14 @@ describe('useMochiExecutor — apply details', () => {
   it("editCategory's Undo restores a built-in's undefined label, not \"\"", () => {
     const { store, hook } = setup()
     store.categories = [{ id: 'work', color: '#111', icon: 'briefcase' }]
-    store.editCategory = vi.fn()
-    hook.result.current.applyMochiOps([{ kind: 'editCategory', args: { categoryId: 'work', color: '#222' } }]).undo!()
+    store.editCategory = vi.fn((id: string, d: { label?: string; color: string; icon: string }) => {
+      store.categories = store.categories.map((c) => (c.id === id ? { ...c, ...d } : c))
+    })
+    const undo = hook.result.current.applyMochiOps([{ kind: 'editCategory', args: { categoryId: 'work', color: '#222' } }]).undo!
+    expect(undo()).toBe(true)
     expect(store.editCategory).toHaveBeenLastCalledWith('work', { label: undefined, color: '#111', icon: 'briefcase' })
+    // Already back as it was: nothing to restore.
+    expect(combineUndos([undo])!()).toBe(false)
   })
 
   it('a grocery capture and a pick-list apply are turn-stamped (stale after a newer turn)', () => {
@@ -617,5 +625,100 @@ describe('useMochiExecutor — apply details', () => {
     expect(store.updateTaskCategory).toHaveBeenCalledWith('t1', undefined)
     hook.result.current.editCapturedTodo('t1', { priority: 'high' })
     expect(store.updateTaskCategory).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('useMochiExecutor — round 8', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('a repeating capture\'s category / priority chips go to the WHOLE series (silent, one tracked change)', () => {
+    const { store, hook } = setup()
+    store.commitSeriesEdits = vi.fn(() => () => true)
+    hook.result.current.applyCaptureWithUndo({ kind: 'createTodo', args: { text: 'Stretch', recurrence: { freq: 'daily' } } })
+    hook.result.current.editCapturedTodo('t1', { category: 'home' })
+    expect(store.commitSeriesEdits).toHaveBeenLastCalledWith('t1', { fields: { category: 'home' } }, { silent: true })
+    hook.result.current.editCapturedTodo('t1', { category: null })
+    expect(store.commitSeriesEdits).toHaveBeenLastCalledWith('t1', { fields: { category: null } }, { silent: true })
+    hook.result.current.editCapturedTodo('t1', { priority: 'high' })
+    expect(store.commitSeriesEdits).toHaveBeenLastCalledWith('t1', { fields: { priority: 'high' } }, { silent: true })
+    // Never just the head.
+    expect(store.updateTaskCategory).not.toHaveBeenCalled()
+    expect(store.updatePriority).not.toHaveBeenCalled()
+  })
+
+  it('editCapturedTodo returns where the to-do actually landed (a weekday rule snaps the day)', () => {
+    const { store, hook } = setup()
+    hook.result.current.applyCaptureWithUndo({ kind: 'createTodo', args: { text: 'Stretch', recurrence: { freq: 'daily' } } })
+    // The store snaps the picked Wed onto the rule's Thu.
+    store.rescheduleSeriesFrom = vi.fn((id: string) => {
+      store.todosRef.current = store.todosRef.current.map((td) => (td.id === id ? { ...td, dueDate: '2026-10-22T09:00' } : td))
+      return null
+    })
+    expect(hook.result.current.editCapturedTodo('t1', { dueDate: '2026-10-21T09:00' })).toEqual({ dueDate: '2026-10-22T09:00' })
+    // A one-off just reports its own date.
+    const one = setup()
+    one.hook.result.current.applyCaptureWithUndo({ kind: 'createTodo', args: { text: 'Call' } })
+    expect(one.hook.result.current.editCapturedTodo('t1', { dueDate: '2026-10-21T15:00' })).toEqual({ dueDate: '2026-10-21T15:00' })
+  })
+
+  it('removing a grocery asks neutrally, and the turn gets an exact Undo', async () => {
+    const { store, hook } = setup()
+    const restore = vi.fn(() => true)
+    store.deleteGrocery = vi.fn(() => restore)
+    const alerts = answerAlerts()
+    const res = hook.result.current.applyMochiOps([{ kind: 'deleteGroceryItem', args: { groceryId: 'g' } }])
+    const [title, message, buttons] = (Alert.alert as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]
+    expect(title).toBe('Remove from shopping list?')
+    expect(String(message)).not.toMatch(/can't be undone/i)
+    expect((buttons as Array<{ style?: string }>).some((b) => b.style === 'destructive')).toBe(false)
+    alerts[0].press('Remove')
+    const out = await res.pending!
+    expect(out.applied).toBe(true)
+    expect(store.deleteGrocery).toHaveBeenCalledWith('g')
+    expect(out.undo!()).toBe(true)
+    expect(restore).toHaveBeenCalled()
+  })
+
+  it('editGroceryItem: a text-only or a dept-only change is applied; Undo reports the restore', () => {
+    const { store, hook } = setup()
+    store.groceries = [{ id: 'g', text: 'milk', checked: false, groupId: 'dairy' } as Fake['groceries'][number]]
+    store.editGrocery = vi.fn(() => true)
+    const r1 = hook.result.current.applyMochiOps([{ kind: 'editGroceryItem', args: { groceryId: 'g', text: 'oat milk' } }])
+    expect(store.editGrocery).toHaveBeenCalledWith('g', { text: 'oat milk' })
+    expect(r1.undo!()).toBe(true)
+    hook.result.current.applyMochiOps([{ kind: 'editGroceryItem', args: { groceryId: 'g', groupId: 'bakery' } }])
+    expect(store.editGrocery).toHaveBeenCalledWith('g', { groupId: 'bakery' })
+  })
+
+  it('a restated rule with a new date on a series row reschedules the series (silent)', () => {
+    const { store, hook } = setup()
+    store.todos = [todo('r', { seriesId: 's', recurrence: { freq: 'monthly', anchorDay: 1 }, dueDate: '2026-11-01' })]
+    store.todosRef.current = store.todos
+    store.rescheduleSeriesFrom = vi.fn(() => () => true)
+    const r = hook.result.current.applyMochiOps([
+      { kind: 'editTodo', args: { todoId: 'r', dueDate: '2026-11-05', recurrence: { freq: 'monthly' } } },
+    ])
+    expect(store.rescheduleSeriesFrom).toHaveBeenCalledWith('r', '2026-11-05', { silent: true })
+    expect(store.updateDueDate).not.toHaveBeenCalled()
+    expect(r.undo!()).toBe(true)
+  })
+
+  it('an addCategory Undo reports whether it removed the category', () => {
+    const { store, hook } = setup()
+    store.deleteCategory = vi.fn(() => () => true)
+    const r = hook.result.current.applyMochiOps([{ kind: 'createCategory', args: { label: 'Garden' } }])
+    expect(r.undo!()).toBe(true)
+    store.deleteCategory = vi.fn(() => null)
+    const r2 = hook.result.current.applyMochiOps([{ kind: 'createCategory', args: { label: 'Gym' } }])
+    expect(r2.undo!()).toBe(false)
+  })
+
+  it('a partial store Undo surfaces as "partial" from the turn\'s Undo', () => {
+    const { store, hook } = setup()
+    store.toggle = vi.fn(() => () => 'partial')
+    const r = hook.result.current.applyMochiOps([markDone('a')])
+    expect(r.undo!()).toBe('partial')
   })
 })

@@ -22,7 +22,7 @@ export interface RecurrenceStep {
   /** The row right after this repeat change (before any later edit). */
   rowAfter: Todo
   /** That change's tracked Undo (true = something was put back). */
-  undo: () => boolean
+  undo: () => boolean | 'partial'
 }
 
 export function buildDetailsUndo(
