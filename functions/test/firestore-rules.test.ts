@@ -173,6 +173,28 @@ describe('users/{uid}/state/{key} access control', () => {
     )
   })
 
+  it('allows writes to every other whitelisted key (categories, profile, todoReferences)', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    for (const key of ['categories', 'profile', 'todoReferences']) {
+      await assertSucceeds(
+        setDoc(doc(alice, `users/alice/state/${key}`), {
+          value: '{"version":1,"data":[]}',
+          updatedAt: Date.now(),
+        }),
+      )
+    }
+  })
+
+  it('denies read + write on any non-state subcollection under the user (default deny)', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    for (const path of ['users/alice/other/x', 'users/alice/todos/x', 'users/alice/state/todos/sub/x']) {
+      await assertFails(setDoc(doc(alice, path), { value: '{}', updatedAt: Date.now() }))
+      await assertFails(getDoc(doc(alice, path)))
+    }
+    // …and the user root doc itself.
+    await assertFails(setDoc(doc(alice, 'users/alice'), { value: '{}', updatedAt: Date.now() }))
+  })
+
   it('rejects writes to arbitrary state keys', async () => {
     const alice = env.authenticatedContext('alice').firestore()
     await assertFails(

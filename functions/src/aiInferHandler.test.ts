@@ -113,6 +113,10 @@ describe('aiInfer handler', () => {
 
   it('rejects an unknown mode and invalid input before reserving', async () => {
     await expect(call({ mode: 'nope', input: {} })).rejects.toMatchObject({ code: 'invalid-argument' })
+    // Inherited Object.prototype names are not modes (used to TypeError → INTERNAL).
+    for (const mode of ['constructor', 'toString', '__proto__', 'hasOwnProperty', 42, null]) {
+      await expect(call({ mode, input: {} })).rejects.toMatchObject({ code: 'invalid-argument' })
+    }
     await expect(
       call({ mode: 'suggest-todo-fields', input: { ...suggestInput, today: '2026-02-31' } }),
     ).rejects.toMatchObject({ code: 'invalid-argument' })

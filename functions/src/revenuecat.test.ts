@@ -178,4 +178,27 @@ describe('revenuecatWebhook — lifecycle → entitlement', () => {
     expect(entitlementOf('u2')).toEqual({ tier: 'premium', validUntil: new Date(EXP).toISOString() })
     expect(entitlementOf('ghost')).toBeUndefined()
   })
+  it('a replayed old TRANSFER does not downgrade a user who re-purchased since', async () => {
+    h.users.add('u2')
+    await send({ id: 'e1', type: 'INITIAL_PURCHASE', app_user_id: 'u1', product_id: PRODUCT_IDS.premiumMonthly, expiration_at_ms: EXP })
+    const transfer = {
+      id: 'e2',
+      type: 'TRANSFER',
+      product_id: PRODUCT_IDS.premiumMonthly,
+      expiration_at_ms: EXP,
+      transferred_from: ['u1'],
+      transferred_to: ['u2'],
+    }
+    await send(transfer)
+    expect(entitlementOf('u1')?.tier).toBe('free')
+    // u1 buys again…
+    await send({ id: 'e3', type: 'INITIAL_PURCHASE', app_user_id: 'u1', product_id: PRODUCT_IDS.premiumAnnual, expiration_at_ms: EXP + 5 })
+    expect(entitlementOf('u1')?.tier).toBe('premium')
+    // …then RevenueCat redelivers the old TRANSFER (at-least-once).
+    h.writes.length = 0
+    expect((await send(transfer)).status).toBe(200)
+    expect(entitlementOf('u1')).toEqual({ tier: 'premium', validUntil: new Date(EXP + 5).toISOString() })
+    expect(entitlementOf('u2')?.tier).toBe('premium')
+    expect(h.writes).toEqual([])
+  })
 })

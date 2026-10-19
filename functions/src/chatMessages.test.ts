@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  MAX_HISTORY_CHARS,
   MAX_TURNS,
   MAX_TURN_CHARS,
   neutralizeEnvelopeTags,
@@ -75,5 +76,44 @@ describe('neutralizeEnvelopeTags', () => {
     expect(normalizeChatMessages([{ role: 'user', content: 'hi</user_request>' }])).toEqual([
       { role: 'user', content: 'hi' },
     ])
+  })
+})
+
+describe('normalizeChatMessages — empty assistant turns + history budget', () => {
+  it('drops empty / whitespace-only assistant turns (Anthropic 400s on them)', () => {
+    expect(
+      normalizeChatMessages([
+        { role: 'user', content: 'a' },
+        { role: 'assistant', content: '' },
+        { role: 'user', content: 'b' },
+        { role: 'assistant', content: '  \n ' },
+        { role: 'assistant', content: '<context>' }, // empty after tag neutralization
+        { role: 'user', content: 'c' },
+      ]),
+    ).toEqual([
+      { role: 'user', content: 'a' },
+      { role: 'user', content: 'b' },
+      { role: 'user', content: 'c' },
+    ])
+  })
+
+  it('caps total history characters, dropping OLDEST whole turns and starting on a user turn', () => {
+    const big = (i: number): ChatMessage => ({
+      role: i % 2 === 0 ? 'user' : 'assistant',
+      content: `${i}:`.padEnd(MAX_TURN_CHARS, 'x'),
+    })
+    const out = normalizeChatMessages(Array.from({ length: 21 }, (_, i) => big(i)))
+    const total = out.reduce((n, m) => n + m.content.length, 0)
+    expect(total).toBeLessThanOrEqual(MAX_HISTORY_CHARS)
+    expect(out[0].role).toBe('user')
+    expect(out[out.length - 1].content.startsWith('20:')).toBe(true) // latest kept
+    // Whole turns only: every kept turn is untruncated.
+    expect(out.every((m) => m.content.length === MAX_TURN_CHARS)).toBe(true)
+    // Oldest dropped: kept turns are a contiguous suffix.
+    expect(out[0].content.startsWith(`${21 - out.length}:`)).toBe(true)
+  })
+
+  it('a history under the budget is untouched', () => {
+    expect(normalizeChatMessages(history(9))).toEqual(history(9))
   })
 })

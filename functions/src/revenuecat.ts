@@ -49,17 +49,36 @@ async function authUserExists(uid: string): Promise<boolean> {
   }
 }
 
-/** Write a single user's entitlement tier + validity (read-modify-write in a transaction). */
+/** How many processed event ids each user's dedupe log keeps. */
+const DEDUPE_LOG_SIZE = 50
+
+function processedIds(snap: FirebaseFirestore.DocumentSnapshot): string[] {
+  const ids = snap.exists ? (snap.data()?.ids as unknown) : undefined
+  return Array.isArray(ids) ? ids.filter((x): x is string => typeof x === 'string') : []
+}
+
+/** Write a single user's entitlement tier + validity (read-modify-write in a
+ * transaction), deduped per user by event id — so an at-least-once redelivery
+ * of an OLD TRANSFER can't knock a user who has since re-purchased back to
+ * free (or re-grant a transferred-away subscription). */
 async function setUserTier(
   uid: string,
   tier: Tier,
   validUntil: string | null,
+  eventId: string | undefined,
 ): Promise<void> {
   if (!(await authUserExists(uid))) return
   const ref = db.doc(`users/${uid}/state/entitlement`)
+  const dedupeRef = db.doc(`users/${uid}/state/rcWebhook`)
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref)
+    const dedupeSnap = await tx.get(dedupeRef)
+    const processed = processedIds(dedupeSnap)
+    if (eventId && processed.includes(eventId)) return // already applied
     const current = parseEntitlement(snap.exists ? snap.data() : null)
+    if (eventId) {
+      tx.set(dedupeRef, { ids: [...processed, eventId].slice(-DEDUPE_LOG_SIZE) }, { merge: true })
+    }
     tx.set(ref, writeEnvelope({ ...current, tier, validUntil }))
   })
 }
@@ -73,11 +92,11 @@ async function handleTransfer(event: RCEvent): Promise<void> {
     : null
   if (tier) {
     for (const uid of event.transferred_to ?? []) {
-      await setUserTier(uid, tier, validUntil)
+      await setUserTier(uid, tier, validUntil, event.id)
     }
   }
   for (const uid of event.transferred_from ?? []) {
-    await setUserTier(uid, 'free', null)
+    await setUserTier(uid, 'free', null, event.id)
   }
 }
 
@@ -154,12 +173,11 @@ export const revenuecatWebhook = onRequest(
       await db.runTransaction(async (tx) => {
         const snap = await tx.get(ref)
         const dedupeSnap = await tx.get(dedupeRef)
-        const processed: string[] =
-          (dedupeSnap.exists ? (dedupeSnap.data()?.ids as string[] | undefined) : undefined) ?? []
+        const processed = processedIds(dedupeSnap)
         if (eventId && processed.includes(eventId)) return // already applied
         const current = parseEntitlement(snap.exists ? snap.data() : null)
         if (eventId) {
-          tx.set(dedupeRef, { ids: [...processed, eventId].slice(-50) }, { merge: true })
+          tx.set(dedupeRef, { ids: [...processed, eventId].slice(-DEDUPE_LOG_SIZE) }, { merge: true })
         }
         // All single-user tier logic (upgrade/downgrade ordering,
         // expiration, grace) lives in the pure applyEntitlementEvent so

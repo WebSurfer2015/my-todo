@@ -23,7 +23,7 @@ import type { ProposedOperation } from './agentTools'
 import { refundUsage, reserveChatTurn, reserveMochiRequest } from './quota'
 import { isAgentEnabled } from './aiInfer'
 import { normalizeChatMessages, type ChatMessage } from './chatMessages'
-import { deriveChatSigKey, signReply } from './chatSignature'
+import { deriveChatSigKey, precedingUserText, signReply } from './chatSignature'
 import { APP_CHECK_ENFORCED, logAppCheck } from './appCheck'
 import {
   MODEL,
@@ -70,8 +70,11 @@ interface ChatRequest {
 
 interface ChatResponse {
   reply: string
-  /** base64url HMAC-SHA256 over `reply` — the client echoes it back on this
-   * assistant turn so the server can tell real history from fabricated. */
+  /** base64url HMAC-SHA256 over `uid | sha256(last user turn) | reply`
+   * (chatSignature.ts) — the client echoes it back on this assistant turn so
+   * the server can tell real history from fabricated or replayed. `reply` is
+   * FINAL (question "?" normalization already applied server-side): the
+   * client must render and echo it verbatim or the sig won't verify. */
   sig: string
   operations: ProposedOperation[]
   /** True when Mochi has proposed operations awaiting the user's Confirm.
@@ -83,6 +86,15 @@ interface ChatResponse {
   usage: { input: number; output: number }
   model: string
 }
+
+// Fair-use errors (both RESOURCE_EXHAUSTED, same de-metered message):
+//  - Shared cap (daily/monthly; also blocks aiInfer): NO `details`. The
+//    client should pause all AI for the day.
+//  - Chat-only turn backstop (MAX_CHAT_TURNS_PER_DAY): `details: { reason:
+//    'turns' }` (CHAT_TURNS_EXHAUSTED_DETAILS in quota.ts). Only Mochi chat
+//    is out — ambient aiInfer still works. On the wire (raw callable HTTP):
+//    { "error": { "status": "RESOURCE_EXHAUSTED", "message": "…",
+//                 "details": { "reason": "turns" } } }
 
 export const agentChat = onCall(
   // maxInstances caps runaway cost (each Mochi call is a paid Anthropic
@@ -131,7 +143,7 @@ export const agentChat = onCall(
     // backstop (chatQuota.ts MAX_CHAT_TURNS_PER_DAY).
     const apiKey = ANTHROPIC_API_KEY.value()
     const sigKey = deriveChatSigKey(apiKey)
-    const isStart = isStartRequest(data?.conversationStart, messages, sigKey)
+    const isStart = isStartRequest(data?.conversationStart, messages, sigKey, uid)
     const charge = MOCHI_TIER_ENFORCEMENT
       ? await reserveMochiRequest(uid, isStart)
       : await reserveChatTurn(uid, isStart)
@@ -196,7 +208,8 @@ export const agentChat = onCall(
 
     return {
       reply,
-      sig: signReply(sigKey, reply),
+      // Bound to the caller and the user turn it answers (anti-replay).
+      sig: signReply(sigKey, uid, precedingUserText(messages, messages.length), reply),
       operations,
       awaitingConfirmation: operations.length > 0,
       usage: {

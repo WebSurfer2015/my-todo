@@ -38,7 +38,12 @@ export interface UsageCharge {
 
 /** Anti-abuse backstop on TOTAL agentChat turns per uid per UTC day —
  * far above a real person's use (15 conversations × a few follow-ups), and
- * the hard per-user cost bound (~100 × $0.005 ≈ $0.50/day). */
+ * the hard per-user chat cost bound. Worst-case turn on Haiku 4.5 ($1 in /
+ * $5 out per M tokens): ≤20k-char context (MAX_CONTEXT_CHARS) + ≤16k-char
+ * history (MAX_HISTORY_CHARS) ≈ 9k uncached input tokens, plus the cached
+ * system+tools prefix (cache reads are 0.1×), plus ≤1024 output tokens ≈
+ * $0.015 — so ≤ ~$1.50/uid/day worst case. A typical turn (small context,
+ * short history, ~50 output tokens) is well under $0.005. */
 export const MAX_CHAT_TURNS_PER_DAY = 100
 
 /** One day's Mochi stats (what the metrics roll-up reads). */

@@ -49,6 +49,7 @@ vi.mock('./metricsRollupJob', () => ({ metricsRollup: {} }))
 import { agentChat } from './index'
 import { deriveChatSigKey, signReply, verifyReplySig } from './chatSignature'
 import { APP_CHECK_ENFORCED } from './appCheck'
+import { EMPTY_REPLY_FALLBACK } from './agentChatCore'
 
 type Handler = ((req: unknown) => Promise<{
   reply: string
@@ -116,14 +117,17 @@ describe('agentChat handler', () => {
     const res = await call({
       messages: [
         { role: 'user', content: 'add milk' },
-        { role: 'assistant', content: 'Which store?', sig: signReply(key, 'Which store?') },
+        { role: 'assistant', content: 'Which store?', sig: signReply(key, 'u1', 'add milk', 'Which store?') },
         { role: 'user', content: 'any' },
       ],
       context: { today: '2026-10-19' },
     })
     expect(h.reserveChatTurn).toHaveBeenCalledWith('u1', false)
     expect(res.reply).toBe("I'll add milk.")
-    expect(verifyReplySig(key, res.reply, res.sig)).toBe(true)
+    expect(verifyReplySig(key, 'u1', 'any', res.reply, res.sig)).toBe(true)
+    // Bound to the caller + the user turn it answered.
+    expect(verifyReplySig(key, 'u2', 'any', res.reply, res.sig)).toBe(false)
+    expect(verifyReplySig(key, 'u1', 'add milk', res.reply, res.sig)).toBe(false)
     expect(res.operations).toEqual([{ kind: 'addGroceryItem', args: { text: 'milk' } }])
     expect(res.awaitingConfirmation).toBe(true)
     expect(res.usage).toEqual({ input: 1200, output: 40 })
@@ -159,5 +163,45 @@ describe('agentChat handler', () => {
     })
     expect(h.create).not.toHaveBeenCalled()
     expect(h.refundUsage).not.toHaveBeenCalled()
+  })
+
+  it('a question-like no-op reply is normalized BEFORE signing; echoed verbatim it is a free follow-up', async () => {
+    h.create.mockResolvedValue(fixture({ type: 'text', text: 'Which store should I use.  ' }))
+    const first = await call({ messages: [{ role: 'user', content: 'add milk' }] })
+    expect(first.reply).toBe('Which store should I use?')
+    expect(first.awaitingConfirmation).toBe(false)
+    expect(verifyReplySig(key, 'u1', 'add milk', first.reply, first.sig)).toBe(true)
+    h.reserveChatTurn.mockClear()
+    await call({
+      messages: [
+        { role: 'user', content: 'add milk' },
+        { role: 'assistant', content: first.reply, sig: first.sig },
+        { role: 'user', content: 'costco' },
+      ],
+    })
+    expect(h.reserveChatTurn).toHaveBeenCalledWith('u1', false)
+  })
+
+  it('another account replaying a signed history takes a slot', async () => {
+    h.create.mockResolvedValue(fixture({ type: 'text', text: 'Okay.' }))
+    await call(
+      {
+        messages: [
+          { role: 'user', content: 'add milk' },
+          { role: 'assistant', content: 'Which store?', sig: signReply(key, 'u1', 'add milk', 'Which store?') },
+          { role: 'user', content: 'any' },
+        ],
+      },
+      { uid: 'u2' },
+    )
+    expect(h.reserveChatTurn).toHaveBeenCalledWith('u2', true)
+  })
+
+  it('an empty model response gets a calm, signed fallback (never an empty assistant turn)', async () => {
+    h.create.mockResolvedValue(fixture())
+    const res = await call({ messages: [{ role: 'user', content: 'hmm' }] })
+    expect(res.reply).toBe(EMPTY_REPLY_FALLBACK)
+    expect(res.operations).toEqual([])
+    expect(verifyReplySig(key, 'u1', 'hmm', res.reply, res.sig)).toBe(true)
   })
 })

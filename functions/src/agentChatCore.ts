@@ -456,6 +456,28 @@ export interface WalkResult {
 export const DROPPED_OPS_REPLY =
   "I couldn't match that to anything on your list — which one did you mean?"
 export const SYNTHESIZED_ACK = 'Here it is — confirm to apply.'
+/** The model returned neither text nor a usable tool call. */
+export const EMPTY_REPLY_FALLBACK = "I didn't quite catch that — could you say it another way?"
+
+/** Starts like a question (English — the v2.0.0 launch language): a
+ * wh-word, or an auxiliary followed by its subject ("Do you…", "Should I…",
+ * "Is that…"). A bare auxiliary isn't enough — "Will do — added it." and
+ * "Can do." are statements. Mirrors the client's former normalizeNoOpReply
+ * (mobile/src/features/mochi/useMochiAgent.ts), which now lives here so the
+ * signed text is final. */
+const QUESTION_START =
+  /^(?:(?:what|when|which|where|who|whom|whose|how|why)\b|(?:do|does|did|is|are|was|were|can|could|would|should|shall|will|don't|doesn't|didn't|isn't|aren't|won't)\s+(?:i|you|we|they|he|she|it|that|this|these|those|there|the|a|an|your|my|any)\b|anything\s+else\b|want\s+me\b)/i
+
+/** Haiku doesn't reliably end its follow-up questions with "?", so a no-op
+ * reply that STARTS like a question gets one (trailing ".", "!", "。" and
+ * whitespace replaced). Anything else is a statement and is left as-is
+ * (trailing whitespace trimmed). Idempotent. */
+export function asQuestionIfLikely(reply: string): string {
+  const trimmed = reply.trimEnd()
+  if (trimmed.endsWith('?')) return trimmed
+  if (QUESTION_START.test(trimmed.trimStart())) return trimmed.replace(/[.!。\s]+$/, '') + '?'
+  return trimmed
+}
 
 /** Gather the text reply + every validated tool call from one response. */
 export function walkAgentResponse(response: AgentModelResponse, ctx: SanitizedContext): WalkResult {
@@ -508,14 +530,24 @@ export function walkAgentResponse(response: AgentModelResponse, ctx: SanitizedCo
   // the user would believe it happened.
   if (droppedOps > 0 && operations.length === 0) reply = DROPPED_OPS_REPLY
   // Voice-rule enforcement at the boundary: strip any exclamation marks
-  // Mochi let slip.
-  reply = reply.replace(/!/g, '.')
-  // Mochi proposed without saying anything — synthesize a quiet ack so the
-  // client always has something to render above the proposal.
-  if (!reply && operations.length > 0) reply = SYNTHESIZED_ACK
-  // Make the reply exactly what normalizeChatMessages will produce when the
-  // client echoes it back, so its signature still verifies on the next turn.
-  reply = neutralizeEnvelopeTags(reply).slice(0, MAX_TURN_CHARS)
+  // Mochi let slip. Then make the reply a fixed point of
+  // normalizeChatMessages (tag-neutralized, within MAX_TURN_CHARS — one char
+  // is held back for the "?" below) so its signature verifies when echoed.
+  reply = neutralizeEnvelopeTags(reply.replace(/!/g, '.'))
+    .trim()
+    .slice(0, MAX_TURN_CHARS - 1)
+    .trimEnd()
+  if (!reply) {
+    // Mochi proposed without saying anything — synthesize a quiet ack so the
+    // client always has something to render above the proposal. With no
+    // proposal either, an empty reply would be stored as an empty assistant
+    // turn, which Anthropic rejects on every later request — say something.
+    reply = operations.length > 0 ? SYNTHESIZED_ACK : EMPTY_REPLY_FALLBACK
+  }
+  // A no-op turn is a follow-up; make a question read like one. This is the
+  // FINAL user-visible text and is what gets signed — clients must render
+  // and echo it verbatim (no client-side re-formatting).
+  if (operations.length === 0) reply = asQuestionIfLikely(reply)
   return {
     reply,
     operations,
@@ -530,17 +562,19 @@ export function walkAgentResponse(response: AgentModelResponse, ctx: SanitizedCo
  * Does this request START a conversation (and so take a fair-use slot)?
  * Yes when the client says so (`conversationStart === true` — an intent chip
  * prepends a canned local exchange), when the window has exactly one user
- * turn, OR when ANY assistant turn lacks a valid server signature: history
- * we can't vouch for may have been fabricated to dodge the slot.
+ * turn, OR when ANY assistant turn lacks a valid server signature for this
+ * uid and its preceding user turn: history we can't vouch for may have been
+ * fabricated (or replayed) to dodge the slot.
  */
 export function startsConversation(
   conversationStartFlag: unknown,
   messages: ChatMessage[],
   sigKey: Buffer,
+  uid: string,
 ): boolean {
   return (
     conversationStartFlag === true ||
     isConversationStart(messages) ||
-    hasUnsignedAssistantTurn(messages, sigKey)
+    hasUnsignedAssistantTurn(messages, sigKey, uid)
   )
 }

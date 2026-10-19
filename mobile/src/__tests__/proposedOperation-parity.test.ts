@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
+import { PRIORITY_VALUES } from '../../../core/src/domain/types'
+import { literalMembers, matchBrace, shape, typeAliasRhs } from './contractShape'
 
 /**
  * Drift guard for the hand-duplicated `ProposedOperation` union.
@@ -14,13 +16,14 @@ import { resolve } from 'path'
  *
  * This reads BOTH files as text (an fs read, not an import — no arch-
  * boundary violation; test files are exempt anyway) and compares the
- * STRUCTURE, nested all the way down: each `kind`, the field-name +
- * optionality set inside its `args`, and the fields of every nested object —
- * inline (`pickTodos.edit`, `steps[]`) or a named interface in the same file
- * (`reminders[]` → AgentReminder, `recurrence` → AgentRecurrence). It
- * deliberately ignores leaf TYPES (so `Priority` vs `AgentPriority` and
- * formatting/comments don't false-positive) — the real drift risk is an
- * added/removed/renamed/re-optionalized field.
+ * STRUCTURE, nested all the way down (contractShape.ts): each `kind`, the
+ * field-name + optionality set inside its `args`, the fields of every nested
+ * object — inline (`pickTodos.edit`, `steps[]`) or a named interface in the
+ * same file (`reminders[]` → AgentReminder, `recurrence` → AgentRecurrence) —
+ * AND the members of every string-literal union leaf (`priority`,
+ * `recurrence.freq`, `pickTodos.action`, `scope`, …), resolving same-file
+ * aliases (`Priority` vs `AgentPriority`). Other leaf types are ignored so
+ * naming/formatting/comments don't false-positive.
  */
 
 const SERVER = resolve(__dirname, '../../../functions/src/agentTools.ts')
@@ -37,82 +40,6 @@ const CLIENT = resolve(__dirname, '../../../core/src/ports/aiContracts.ts')
 // Re-use this for the next contract change made on both sides in parallel.
 const PENDING: Record<string, string[]> = {}
 
-interface Field {
-  key: string // name + '?' when optional
-  type: string
-}
-
-const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
-
-/** Index of the `}` matching the `{` at `open`. */
-function matchBrace(s: string, open: number): number {
-  let depth = 0
-  for (let j = open; j < s.length; j++) {
-    if (s[j] === '{') depth++
-    else if (s[j] === '}' && --depth === 0) return j
-  }
-  throw new Error('unbalanced braces')
-}
-
-/** Top-level `name: type` / `name?: type` members of an object-type body. */
-function topLevelFields(bodyRaw: string): Field[] {
-  const body = stripComments(bodyRaw)
-  const fields: Field[] = []
-  let depth = 0
-  let token = ''
-  const flush = () => {
-    const t = token.trim()
-    token = ''
-    const fm = t.match(/^(\w+)\s*(\??)\s*:\s*([\s\S]*)$/)
-    if (fm) fields.push({ key: fm[1] + (fm[2] ? '?' : ''), type: fm[3].trim() })
-  }
-  for (const ch of body) {
-    if (ch === '{' || ch === '<' || ch === '(') depth++
-    else if (ch === '}' || ch === '>' || ch === ')') depth--
-    if ((ch === ';' || ch === '\n' || ch === ',') && depth === 0) {
-      flush()
-      continue
-    }
-    token += ch
-  }
-  flush()
-  return fields
-}
-
-/** Body of `interface <name> { … }` in `src`, or null. */
-function interfaceBody(src: string, name: string): string | null {
-  const m = new RegExp(`interface\\s+${name}\\s*\\{`).exec(src)
-  if (!m) return null
-  const open = m.index + m[0].length - 1
-  return src.slice(open + 1, matchBrace(src, open))
-}
-
-/**
- * Flatten an object type into `path → sorted field keys`, recursing into
- * inline objects (`{…}`, `Array<{…}>`) and same-file interfaces
- * (`Name`, `Name[]`, `Array<Name>`).
- */
-function shape(src: string, path: string, body: string, out: Record<string, string[]>): void {
-  const fields = topLevelFields(body)
-  out[path] = fields.map((f) => f.key).sort()
-  for (const f of fields) {
-    const name = f.key.replace('?', '')
-    const inline = f.type.indexOf('{')
-    if (inline >= 0) {
-      const isArray = /^Array\s*</.test(f.type)
-      shape(src, `${path}.${name}${isArray ? '[]' : ''}`, f.type.slice(inline + 1, matchBrace(f.type, inline)), out)
-      continue
-    }
-    const named = f.type.match(/^(?:Array\s*<\s*)?(\w+)\s*>?\s*(\[\])?$/)
-    if (!named) continue
-    const iface = interfaceBody(src, named[1])
-    if (iface !== null) {
-      const isArray = !!named[2] || /^Array\s*</.test(f.type)
-      shape(src, `${path}.${name}${isArray ? '[]' : ''}`, iface, out)
-    }
-  }
-}
-
 /** The `ProposedOperation` union's text — bounded at the END of the union
  * (the first line after it that isn't part of a `|` member), not a fixed
  * slice length. */
@@ -125,7 +52,8 @@ function unionRegion(src: string): string {
   return lines.slice(0, end).join('\n')
 }
 
-/** Map `<kind>.args[.nested…]` → sorted field keys for every op kind. */
+/** Map `<kind>.args[.nested…]` → sorted field keys (and `…:literals` →
+ * sorted literal members) for every op kind. */
 function extractOps(src: string): Record<string, string[]> {
   const region = unionRegion(src)
   const out: Record<string, string[]> = {}
@@ -169,7 +97,8 @@ const kindsOf = (ops: Record<string, string[]>) =>
   [...new Set(Object.keys(ops).map((p) => p.split('.')[0]))].sort()
 
 describe('ProposedOperation server↔client parity', () => {
-  const server = extractOps(readFileSync(SERVER, 'utf8'))
+  const serverSrc = readFileSync(SERVER, 'utf8')
+  const server = extractOps(serverSrc)
   const client = extractOps(readFileSync(CLIENT, 'utf8'))
 
   it('parses every op kind identically from both files', () => {
@@ -209,13 +138,38 @@ describe('ProposedOperation server↔client parity', () => {
     }
   })
 
-  it('every kind has identical (nested) arg field-shape on client and server', () => {
+  it('reads string-literal union members at the leaves (inline + aliased)', () => {
+    for (const side of [client, server]) {
+      expect(side['createTodo.args.priority:literals']).toEqual(['high', 'low', 'medium'])
+      expect(side['pickTodos.args.edit.priority:literals']).toEqual(['high', 'low', 'medium'])
+      expect(side['editTodo.args.recurrence.freq:literals']).toEqual(['daily', 'monthly', 'weekly', 'yearly'])
+      expect(side['pickTodos.args.action:literals']).toEqual(['addSteps', 'delete', 'edit', 'markDone'])
+      expect(side['skipTodo.args.scope:literals']).toEqual(['one', 'series'])
+      expect(side['subtaskAction.args.action:literals']).toEqual(['complete', 'remove', 'rename', 'uncomplete'])
+    }
+  })
+
+  it('every kind has identical (nested) arg field-shape AND leaf literal members on client and server', () => {
     const [c, s] = reconcilePending(client, server)
     expect(c).toEqual(s)
+  })
+
+  it("pins the server's Priority union to core's PRIORITY_VALUES", () => {
+    const rhs = typeAliasRhs(serverSrc, 'Priority')
+    expect(rhs, 'server `type Priority = …` not found').not.toBeNull()
+    expect(literalMembers(serverSrc, rhs as string)).toEqual([...PRIORITY_VALUES].sort())
   })
 
   it('the union is bounded at its end, not a fixed slice', () => {
     const src = 'export type ProposedOperation =\n  | { kind: \'a\'; args: { x: string } }\n\nconst later = { kind: \'zzz\' }\n'
     expect(Object.keys(extractOps(src))).toEqual(['a.args'])
+  })
+
+  it('a changed literal member is detected (self-test)', () => {
+    const a = "type P = 'high' | 'low'\nexport type ProposedOperation =\n  | { kind: 'a'; args: { p?: P; s: 'one' | 'series' } }\n"
+    const b = "type Q = 'high' | 'urgent'\nexport type ProposedOperation =\n  | { kind: 'a'; args: { p?: Q; s: 'one' | 'all' } }\n"
+    expect(extractOps(a)['a.args.p:literals']).toEqual(['high', 'low'])
+    expect(extractOps(a)).not.toEqual(extractOps(b))
+    expect(extractOps(a)['a.args']).toEqual(extractOps(b)['a.args']) // same keys — only literals differ
   })
 })
