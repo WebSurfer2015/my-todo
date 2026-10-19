@@ -39,6 +39,14 @@ describe('theme contrast (WCAG AA)', () => {
           expect(contrast('#1F2A24', bg)).toBeGreaterThanOrEqual(4.5)
         }
       })
+      it(`${name}/${scheme}: Ask Mochi voice input`, () => {
+        // "Listening…" / denied note (label2) and the Open Settings link
+        // (primary) on the chat sheet; the mic icon (label2, non-text 3:1) and
+        // the Stop square (primary) on its soft listening fill.
+        expect(contrast(c.label2, c.modal)).toBeGreaterThanOrEqual(4.5)
+        expect(contrast(c.primary, c.modal)).toBeGreaterThanOrEqual(4.5)
+        expect(contrast(c.primary, c.primarySoft)).toBeGreaterThanOrEqual(3)
+      })
     }
   }
 })

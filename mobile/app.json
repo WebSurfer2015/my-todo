@@ -49,7 +49,7 @@
         {
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to set a profile picture.",
           "cameraPermission": "Allow $(PRODUCT_NAME) to use the camera to take a profile picture.",
-          "microphonePermission": false
+          "microphonePermission": "Sagely uses the microphone so you can speak to Mochi instead of typing."
         }
       ],
       "@react-native-firebase/app",
@@ -71,7 +71,14 @@
           "color": "#4F8A75"
         }
       ],
-      "expo-audio"
+      "expo-audio",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Sagely uses the microphone so you can speak to Mochi instead of typing.",
+          "speechRecognitionPermission": "Sagely recognizes your speech on your iPhone to turn it into text for Mochi. Your voice never leaves your device."
+        }
+      ]
     ],
     "extra": {
       "eas": {

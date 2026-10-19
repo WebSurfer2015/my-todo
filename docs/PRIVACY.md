@@ -75,6 +75,22 @@ server when:
   [Anthropic's privacy policy](https://www.anthropic.com/legal/privacy).
 - If you turn AI assistance off, nothing is sent to Anthropic.
 
+### Microphone and speech recognition (optional)
+
+In Ask Mochi you can tap the microphone to speak instead of typing. This is
+optional, and Sagely asks for Microphone and Speech Recognition access only
+the first time you tap it.
+
+- Your speech is turned into text **on your iPhone**, by Apple's on-device
+  speech recognition. Sagely requires on-device recognition, so your audio
+  isn't sent to Apple's servers either.
+- **No audio is recorded, stored, or sent** — not to us, and not to Anthropic.
+- The text appears in the message box for you to review and edit. Nothing is
+  sent until you tap Send; then only that text goes to Anthropic, exactly as
+  if you had typed it (see "When you use Mochi" above).
+- You can turn Microphone or Speech Recognition off any time in iOS Settings
+  → Sagely.
+
 ### When you subscribe
 
 Subscriptions aren't offered in this version of Sagely, and the purchase
@@ -134,6 +150,8 @@ using Sagely's servers in your name.
 - We do not use your data to train AI models, and neither does Anthropic
   (see "When you use Mochi" above).
 - We do not collect your location.
+- We do not record or keep audio. If you speak to Mochi, your voice is
+  turned into text on your iPhone and the audio is never sent anywhere.
 - We do not collect contacts, calendars, or anything from elsewhere on your
   device — only a profile photo if you choose one.
 
