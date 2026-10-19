@@ -73,7 +73,7 @@ parity tests in `mobile/src/__tests__`).
 
 | Function | Trigger | Does |
 |---|---|---|
-| `agentChat` | callable | Multi-turn Mochi (Haiku + tool_use). Proposes operations; the client applies them after confirm. History windowed to 40 turns starting on a user turn. |
+| `agentChat` | callable | Multi-turn Mochi (Haiku + tool_use). Proposes operations (the `ProposedOperation` union lives in `core/src/ports/aiContracts.ts`, parity-tested against the functions copy); the client turns them into store calls with the pure planner `core/src/logic/mochiOps.ts` and applies them after confirm, with inline Undo. History windowed to 40 turns starting on a user turn; each reply carries an HMAC `sig` the client echoes back — an unsigned assistant turn counts as a new conversation for fair use. Context is budgeted (≤5 steps per to-do, ~20k chars). The fair-use slot is refunded if the model call fails. |
 | `aiInfer` | callable | One-shot modes: `suggest-todo-fields`, `classify-grocery-dept`, `breakdown-subtasks`, `link-store-to-items`. |
 | `revenuecatWebhook` | HTTPS | RevenueCat → `state/entitlement` (the client never writes it). Ignores events for deleted users. |
 | `onUserDeleted` | auth delete (gen-1) | Recursively erases `users/{uid}`; retries on failure. |

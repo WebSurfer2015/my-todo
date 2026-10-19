@@ -33,12 +33,9 @@ const CLIENT = resolve(__dirname, '../../../core/src/ports/aiContracts.ts')
  * once both have it, it's compared like any other. Delete entries once the
  * server copy lands.
  */
-const PENDING: Record<string, string[]> = {
-  'createTodo.args': ['newCategoryLabel?'],
-  'editTodo.args': ['newCategoryLabel?'],
-  'pickTodos.args': ['totalMatches?'],
-  'pickTodos.args.edit': ['newCategoryLabel?'],
-}
+// Empty: the server copy landed (2026-10-19) — client and server now match.
+// Re-use this for the next contract change made on both sides in parallel.
+const PENDING: Record<string, string[]> = {}
 
 interface Field {
   key: string // name + '?' when optional

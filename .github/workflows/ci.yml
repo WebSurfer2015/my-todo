@@ -66,9 +66,9 @@ jobs:
       - name: Typecheck
         working-directory: functions
         run: npx tsc --noEmit
-      - name: Test
+      - name: Test + coverage gate (thresholds in functions/vitest.config.ts)
         working-directory: functions
-        run: npm test
+        run: npm run test:coverage
 
   rules:
     name: firestore rules (emulator)

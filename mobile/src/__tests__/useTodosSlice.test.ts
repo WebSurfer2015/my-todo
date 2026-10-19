@@ -72,6 +72,7 @@ async function setup(todos: Todo[]) {
     filter,
     filterRef: { current: filter },
     uid: null,
+    today: new Date().toISOString().slice(0, 10),
     t,
     notify: { showSnackbar: (o) => { snacks.push(o) } },
     actions,

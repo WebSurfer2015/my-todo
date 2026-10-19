@@ -54,6 +54,9 @@ export interface TodosSliceDeps {
   filterRef: MutableRefObject<Filter>;
   /** uid — passed through for the post-hydrate series top-up effect. */
   uid: string | null;
+  /** Local calendar day (yyyy-mm-dd), advanced at midnight / on foreground
+   * by the store — the series top-up runs once per uid PER DAY. */
+  today: string;
   t: {
     movedToTrash: string;
     movedToTrashMany: (n: number) => string;
@@ -212,6 +215,7 @@ export function useTodosSlice(
     filter,
     filterRef,
     uid,
+    today,
     t,
     notify,
     actions,
@@ -283,19 +287,19 @@ export function useTodosSlice(
     todosRef.current = todos;
   }, [todos]);
 
-  // Series horizon top-up. Runs once per uid swap, after todos have
+  // Series horizon top-up. Runs once per uid per DAY, after todos have
   // loaded, so a long-idle device extends its series tails to today's
-  // window before the user sees the list. The ref guard prevents
-  // re-entry within a session.
-  const topUpForUidRef = useRef<string | null | undefined>(undefined);
+  // window before the user sees the list — and an app left open past
+  // midnight extends them too. The ref guard prevents re-entry.
+  const topUpForKeyRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!todosLoaded) return;
-    const k = uid ?? "(local)";
-    if (topUpForUidRef.current === k) return;
-    topUpForUidRef.current = k;
-    const tu = topUpAllSeries(todosRef.current, todayLocal());
+    const k = `${uid ?? "(none)"}|${today}`;
+    if (topUpForKeyRef.current === k) return;
+    topUpForKeyRef.current = k;
+    const tu = topUpAllSeries(todosRef.current, today);
     if (tu.changed) setTodos(tu.todos);
-  }, [todosLoaded, uid, setTodos, topUpAllSeries]);
+  }, [todosLoaded, uid, today, setTodos, topUpAllSeries]);
 
   // Auto-clear trash selection when leaving trash view.
   useEffect(() => {

@@ -68,20 +68,21 @@ The single most important pattern in this workspace.
 ```ts
 const uid = user?.uid ?? null;
 const adapter = useMemo<StorageAdapter>(
-  () => (uid ? makeFirestoreAdapter(db, uid) : localAdapter),
+  () => (uid ? makeFirestoreAdapter(db, uid) : SIGNED_OUT_ADAPTER),
   [uid],   // memoize on uid, NOT on the User object
 );
 ```
 
-**Memoize on `uid`, never on `user`.** Firebase rotates the `User` reference roughly hourly on token refresh. Memoizing on `user` would tear down Firestore listeners and re-fire `migrateLocalToCloud` every refresh.
-
-`migrateLocalToCloud(adapter, localAdapter, keys)` (core) runs once per uid: for each key in `["todos","categories","profile","groceries","groceryGroups"]`, if cloud is empty, push the local AsyncStorage value up. **Per-key gating** is intentional — checking only `profile` would let stale local todos overwrite cloud todos on a device whose cloud profile happened to be missing.
+**Memoize on `uid`, never on `user`.** Firebase rotates the `User` reference roughly hourly on token refresh. Memoizing on `user` would tear down Firestore listeners every refresh. Sign-in is mandatory, so the signed-out adapter is inert (there is no local-only mode and no local→cloud migration).
 
 `useSyncedState(adapter, key, initial, parse, serialize)` handles each entity:
 
-1. Hydrates via `adapter.getItem(key)` → `parse` → `setState`, flips `loaded` true.
-2. Subscribes via `adapter.subscribe?.(key, cb)` if available (Firestore adapter supplies `onSnapshot`; local adapter doesn't).
-3. **Trailing-debounced writes (~400ms)** — bursts of mutations (typing in a task title) collapse into one `setDoc`. `lastSerializedRef` short-circuits write→subscribe→setState round-trips.
+1. Hydrates via `adapter.getItem(key)` (the Firestore adapter tries the local cache first) → `parse` → `setState`, flips `loaded` true. `loaded`/`trusted` are scoped to the current adapter, so a uid swap never shows the previous user's data for a frame.
+2. Subscribes via `adapter.subscribe?.(key, cb)` (Firestore `onSnapshot` with `includeMetadataChanges`; each snapshot carries `meta.trusted` — a cache-only "missing" doc is untrusted).
+3. **Writes are locked until real data arrives** (a resolved read or a trusted snapshot). A timed-out/failed first read shows defaults but never writes them over the cloud doc; edits made while locked are written once it unlocks.
+4. **Trailing-debounced writes (~400ms)** — bursts of mutations collapse into one `setDoc`. `lastSerializedRef` short-circuits write→subscribe→setState round-trips. Values over ~480 KiB aren't written (Firestore's 512 KiB doc cap) and surface a calm snackbar via `onSyncIssue`.
+5. **`todos` merges instead of replacing** when a remote snapshot arrives while local changes are pending (`core/src/store/mergeTodos.ts`, a 3-way merge by id / `updatedAt`), so two devices editing different to-dos don't clobber each other.
+6. Returns a 4th value, `trusted`; the store exposes `profileTrusted` / `dataTrusted` (onboarding and reminder sync wait for real data).
 
 The Firestore adapter writes each entity to `users/{uid}/state/{key}` as `{ value: <json envelope>, updatedAt }`. `value` is the same versioned envelope (`{version, data}`) that AsyncStorage uses, so local and cloud data share one shape.
 
@@ -92,12 +93,12 @@ Two social providers (Apple, Google) + email/password, all funnel through `signI
 - **Apple** — `expo-apple-authentication` + Firebase nonce flow. Generates a raw nonce (`Crypto.randomUUID`), sends SHA-256 hash to Apple, passes the raw nonce alongside the JWT to Firebase. Apple sends `fullName` only on **first** sign-in — seed the profile then or it's lost forever.
 - **Google** — `@react-native-google-signin/google-signin` v16. Configure happens in a `useEffect` on mount. **iOS requires both `webClientId` and `iosClientId`** — v16's wrapper does NOT auto-read `GIDClientID` from `Info.plist`; omitting `iosClientId` produces `must specify |clientID| in |GIDConfiguration|`. Don't "simplify" this.
 - **Sign-in modes** — `src/features/auth/SignIn.tsx` is a 4-mode state machine: `"social"` (landing — Apple/Google + email-link toggle + create-account toggle) → `"signin"` | `"signup"` | `"reset"`. The email page intentionally has **no** social buttons (one path per page).
-- `signOut()` clears every key in `USER_STATE_KEYS` (`core/src/ports/persistence.ts` — todos, todoReferences, categories, profile, groceries, groceryGroups, signals) from AsyncStorage so the next signed-in user on this device can't bleed prior-user data into a brand-new Firestore doc via `migrateLocalToCloud`.
-- `deleteAccount()` calls `deleteUser`, then clears local data (same as sign-out). The **`onUserDeleted` Cloud Function** (`functions/src/deleteUserData.ts`) recursively erases `users/{uid}` server-side — clients can't delete state docs (`firestore.rules`). Throws `RecentLoginRequiredError` on `auth/requires-recent-login` so UI can prompt re-auth.
+- `signOut()` just signs out of Firebase: user state lives only in Firestore under per-uid paths (no device-local copy), and the store's adapter swaps on the uid change. The local-reminder schedule follows the (now empty) store.
+- `deleteAccount()` calls `deleteUser` (which signs the user out). The **`onUserDeleted` Cloud Function** (`functions/src/deleteUserData.ts`) recursively erases `users/{uid}` server-side — clients can't delete state docs (`firestore.rules`). Throws `RecentLoginRequiredError` on `auth/requires-recent-login` so UI can prompt re-auth.
 
 ### Domain store (`src/store/useTodoStore.ts`)
 
-**Functional core / imperative shell (`createTodoStore`).** All pure logic lives in `core/` and is reached through one orchestration surface, `core/src/store` → `createTodoStore({ now, genId, t })`:
+**Functional core / imperative shell (`createTodoStore`).** All pure logic lives in `core/` and is reached through one orchestration surface, `core/src/store` → `createTodoStore({ t })`:
 
 - `store.actions` — a flat table of **pure** transforms (`(state, …args) => state`) + cross-slice **coordinators** (`deleteCategoryCascade`, `toggleOutcome`), assembled by spreading the core transform modules so it auto-syncs as helpers land.
 - `store.derive(input)` — platform-agnostic derived state (`deriveState`). **Localized** presentation derived (greeting/mascot/identity lines) stays in this shell, *not* in core, to keep i18n out of `core`.

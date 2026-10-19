@@ -207,6 +207,7 @@ export function useTodoStore() {
     filter,
     filterRef,
     uid,
+    today,
     t,
     notify,
     actions: store.actions,
@@ -388,7 +389,9 @@ export function useTodoStore() {
       categories,
       id,
       filter,
+      filters,
       pinnedFilters: profile.pinnedFilters,
+      homeStatTiles: profile.homeStatTiles,
     });
     if (!res.changed) return;
     // Functional updates: a Mochi batch ("create Work, delete Errands", or
@@ -409,6 +412,12 @@ export function useTodoStore() {
     // profile doesn't accumulate stale `cat:<deleted-id>` ghost pills.
     if (res.pinnedFilters !== profile.pinnedFilters) {
       setProfile((prev) => ({ ...prev, pinnedFilters: res.pinnedFilters }));
+    }
+    // Multi-select filter sets and Home stat tiles drop the deleted
+    // category too (they kept a ghost `cat:<id>`).
+    if (res.filters !== null) setFiltersState(res.filters);
+    if (res.homeStatTiles !== profile.homeStatTiles) {
+      setProfile((prev) => ({ ...prev, homeStatTiles: res.homeStatTiles }));
     }
   }
 

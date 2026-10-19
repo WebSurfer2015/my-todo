@@ -131,10 +131,9 @@ describe('useMochiAgent', () => {
     expect(result.current.error).toMatch(/turned off/)
   })
 
-  it('sends conversationStart until the server has replied (intent-chip exchange is local)', async () => {
+  it('sends conversationStart until the server has replied', async () => {
     fetchMock.mockResolvedValueOnce(reply({ reply: 'When should I set it for' })).mockResolvedValueOnce(reply({}))
     const { result } = renderHook(() => useMochiAgent())
-    act(() => result.current.pushLocalExchange('Add a to-do', 'What should I add?'))
     await act(async () => {
       await result.current.send('call mom', CTX as never)
     })
@@ -175,16 +174,6 @@ describe('useMochiAgent', () => {
       { role: 'assistant', content: 'When should I set it for?', sig: 'sig-1' },
       { role: 'user', content: 'Friday' },
     ])
-  })
-
-  it('a canned local exchange carries no sig on the wire', async () => {
-    fetchMock.mockResolvedValueOnce(reply({}))
-    const { result } = renderHook(() => useMochiAgent())
-    act(() => result.current.pushLocalExchange('Add a to-do', 'What should I add?'))
-    await act(async () => {
-      await result.current.send('call mom', CTX as never)
-    })
-    expect(wireMessages(0)[1]).toEqual({ role: 'assistant', content: 'What should I add?' })
   })
 
   it.each([

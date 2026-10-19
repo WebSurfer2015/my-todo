@@ -87,8 +87,6 @@ export interface ChatTurn {
    * (normalizeNoOpReply) — a question is NOT always marked by a "?" (Haiku
    * often omits it), and a statement may still read like one. */
   isFollowUp?: boolean
-  /** Canned reply added on-device by an intent chip (no server call). */
-  isLocal?: boolean
   /** The server's signature for a real assistant reply (never on a local
    * canned turn); sent back with the turn so the server can verify it. */
   sig?: string
@@ -199,10 +197,9 @@ export function useMochiAgent() {
             data: {
               messages: history.map(toWireTurn),
               // Fair use counts conversations: tell the server this request
-              // starts one when no SERVER reply exists yet (an intent chip's
-              // canned local exchange would otherwise make it look like a
-              // follow-up).
-              conversationStart: !history.some((m) => m.role === 'assistant' && !m.isLocal),
+              // starts one when no server reply exists yet. (The server also
+              // treats any unsigned assistant turn as a new conversation.)
+              conversationStart: !history.some((m) => m.role === 'assistant'),
               context,
             },
           }),
@@ -373,18 +370,5 @@ export function useMochiAgent() {
     setErrorKind(null)
   }, [])
 
-  /** Append a canned user+assistant exchange WITHOUT calling the server —
-   * used by the intent chips so tapping "Add a to-do" auto-sends and gets an
-   * instant follow-up question with no AI round (no "thinking…", no cost).
-   * The canned assistant turn rides along in history on the next real send. */
-  const pushLocalExchange = useCallback((userText: string, assistantText: string) => {
-    setMessages((prev) => [
-      ...prev,
-      { role: 'user', content: userText },
-      // The canned reply is always a follow-up question ("What should I add?").
-      { role: 'assistant', content: assistantText, isFollowUp: true, isLocal: true },
-    ])
-  }, [])
-
-  return { send, reset, isThinking, messages, error, errorKind, pushLocalExchange }
+  return { send, reset, isThinking, messages, error, errorKind }
 }
