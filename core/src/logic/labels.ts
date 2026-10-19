@@ -101,6 +101,30 @@ export function shortDate(input: Date | string, opts: LabelFormatOptions = {}): 
   })
 }
 
+/** Date with weekday: "Wed, Oct 21" this year, "Wed, Oct 21, 2027"
+ * otherwise. Same inputs as shortDate (a Date or a local
+ * 'YYYY-MM-DD[THH:mm]' string; an unparseable string is returned as-is). */
+export function weekdayDate(input: Date | string, opts: LabelFormatOptions = {}): string {
+  const d = typeof input === 'string' ? parseLocalISO(input) : input
+  if (!d || Number.isNaN(d.valueOf())) return typeof input === 'string' ? input : ''
+  const now = opts.now ?? new Date()
+  return d.toLocaleDateString(opts.locale, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    ...(d.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+  })
+}
+
+/** Time of day only: "9:00 AM". Accepts a Date or a date-time string (a
+ * timezone-less 'YYYY-MM-DDTHH:mm' reads as device-local); an unparseable
+ * string is returned as-is. */
+export function timeOfDay(input: Date | string, opts: LabelFormatOptions = {}): string {
+  const d = typeof input === 'string' ? new Date(input) : input
+  if (Number.isNaN(d.valueOf())) return typeof input === 'string' ? input : ''
+  return d.toLocaleTimeString(opts.locale, { hour: 'numeric', minute: '2-digit' })
+}
+
 /** Cadence label plus " · ends <date>" when the rule has an end date. */
 export function recurrenceLabel(
   rec: Recurrence | undefined,
@@ -126,11 +150,7 @@ export function formatRepeatEnd(endDate: string | undefined, opts: LabelFormatOp
 export function formatDateTime(at: string, opts: LabelFormatOptions = {}): string {
   const d = new Date(at)
   if (Number.isNaN(d.valueOf())) return at
-  const timePart = d.toLocaleTimeString(opts.locale, {
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-  return `${shortDate(d, opts)}, ${timePart}`
+  return `${shortDate(d, opts)}, ${timeOfDay(d, opts)}`
 }
 
 /** Absolute calendar label for a confirm card: "Today" / "Tomorrow" /
@@ -151,17 +171,9 @@ export function formatCalendarDate(iso: string, opts: LabelFormatOptions = {}): 
       ? 'Today'
       : diffDays === 1
         ? 'Tomorrow'
-        : date.toLocaleDateString(opts.locale, {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric',
-            ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
-          })
+        : weekdayDate(date, { ...opts, now })
   if (hh === undefined) return day
-  const time = new Date(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm)).toLocaleTimeString(
-    opts.locale,
-    { hour: 'numeric', minute: '2-digit' },
-  )
+  const time = timeOfDay(new Date(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm)), opts)
   return `${day}, ${time}`
 }
 

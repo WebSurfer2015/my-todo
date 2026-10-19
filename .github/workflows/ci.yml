@@ -56,6 +56,10 @@ jobs:
       - name: Test + coverage gate (thresholds in mobile/vitest.config.ts)
         working-directory: mobile
         run: npm run test:coverage
+      # Same DST-zone rerun as the core job (the runner is UTC).
+      - name: Mobile tests under a DST time zone
+        working-directory: mobile
+        run: TZ=America/New_York npx vitest run
 
   functions:
     name: cloud functions typecheck + test
