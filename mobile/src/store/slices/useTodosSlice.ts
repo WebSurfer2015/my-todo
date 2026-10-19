@@ -253,7 +253,7 @@ export function useTodosSlice(
     todoSetReminders,
     todoSetRecurrence,
     selectOverdue,
-    setDueDates,
+    todoDeferTo,
     toggleSelection,
     applyBulkRestore,
     applyBulkDelete,
@@ -458,9 +458,12 @@ export function useTodosSlice(
       },
       options?: { overwriteDetached?: boolean; silent?: boolean },
     ) => {
+      // Counted from the live list (applyTracked runs `fn` synchronously); a
+      // count read inside a setTodos updater was still 0 when the snackbar
+      // ran, so every apply said "Nothing to apply".
       let affected = 0;
-      setTodos((prev) => {
-        const result = todoApplySeriesFutureEdits(prev, id, fields, {
+      applyTracked((ts) => {
+        const result = todoApplySeriesFutureEdits(ts, id, fields, {
           overwriteDetached: options?.overwriteDetached,
         });
         affected = result.affected;
@@ -474,7 +477,7 @@ export function useTodosSlice(
             : t.series.editsNothing,
       });
     },
-    [setTodos, notify, t.series, todoApplySeriesFutureEdits],
+    [applyTracked, notify, t.series, todoApplySeriesFutureEdits],
   );
 
   // R6a — flip detachedFromSeries on the row. Called by
@@ -496,8 +499,8 @@ export function useTodosSlice(
   const applySeriesSubtasks = useCallback(
     (id: string, options: { keepDetached: boolean }) => {
       let affected = 0;
-      setTodos((prev) => {
-        const result = todoApplySeriesSubtasks(prev, id, options);
+      applyTracked((ts) => {
+        const result = todoApplySeriesSubtasks(ts, id, options);
         affected = result.affected;
         return result.next;
       });
@@ -505,13 +508,14 @@ export function useTodosSlice(
         message: t.series.subtasksApplied(affected),
       });
     },
-    [setTodos, notify, t.series, todoApplySeriesSubtasks],
+    [applyTracked, notify, t.series, todoApplySeriesSubtasks],
   );
 
   // R6b — frequency-change apply for a series. Writes the new
   // recurrence, trashes future siblings (honoring keepDetached),
-  // and re-expands a fresh tail. Composes the diff inside one
-  // setTodos so cross-device sync sees a single mutation event.
+  // and re-expands a fresh tail. Composes the diff in one tracked
+  // apply so cross-device sync sees a single mutation event and the
+  // count is read from the live list.
   const applyRecurrenceChange = useCallback(
     (
       id: string,
@@ -520,8 +524,8 @@ export function useTodosSlice(
     ) => {
       const today = todayLocal();
       let trashedCount = 0;
-      setTodos((prev) => {
-        const result = todoApplyRecurrenceChange(prev, id, newRecurrence, today, {
+      applyTracked((ts) => {
+        const result = todoApplyRecurrenceChange(ts, id, newRecurrence, today, {
           keepDetached: options.keepDetached,
         });
         trashedCount = result.trashedCount;
@@ -531,7 +535,7 @@ export function useTodosSlice(
         message: t.series.recurrenceRecreated(trashedCount),
       });
     },
-    [setTodos, notify, t.series, todoApplyRecurrenceChange],
+    [applyTracked, notify, t.series, todoApplyRecurrenceChange],
   );
 
   const moveSeriesFutureToTrash = useCallback(
@@ -594,53 +598,61 @@ export function useTodosSlice(
     [setTodos, todoSetReminders],
   );
 
+  // Defer moves each to-do's date (keeping its time + moving its upcoming
+  // reminders) and, per repeating series, carries forward only the newest
+  // missed occurrence — the older ones are skipped instead of piling onto
+  // one day (todoDeferTo). The count is what actually moved; Undo is exact.
   const deferOverdue = useCallback(
     (daysFromToday: number) => {
-      const newDate = addDaysISO(daysFromToday);
-      const overdue = selectOverdue(todosRef.current, todayLocal());
-      if (overdue.length === 0) return;
-      const originals = new Map(overdue.map((td) => [td.id, td.dueDate]));
-      const reschedule = new Map(overdue.map((td) => [td.id, newDate]));
-      setTodos((prev) => setDueDates(prev, reschedule));
+      const today = todayLocal();
+      const ids = selectOverdue(todosRef.current, today).map((td) => td.id);
+      if (ids.length === 0) return;
+      let deferred = 0;
+      const change = applyTracked((ts) => {
+        const r = todoDeferTo(ts, ids, addDaysISO(daysFromToday), today);
+        deferred = r.deferred;
+        return r.next;
+      });
+      if (!change) return;
       notify.showSnackbar({
-        message: t.defer.done(overdue.length),
+        message: t.defer.done(deferred),
         actionLabel: t.undoAll,
-        onAction: () => setTodos((prev) => setDueDates(prev, originals)),
+        onAction: () => undoTracked(change),
       });
     },
-    [selectOverdue, setTodos, notify, t.defer, t.undoAll, setDueDates],
+    [selectOverdue, applyTracked, undoTracked, todoDeferTo, notify, t.defer, t.undoAll],
   );
 
   const bulkDeferTodos = useCallback(
     (ids: string[], targetISO: string) => {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(targetISO)) return;
-      const want = new Set(ids);
-      const candidates = todosRef.current.filter(
-        (td) => want.has(td.id) && !td.trashed && !td.done,
-      );
-      if (candidates.length === 0) return;
-      const originals = new Map(candidates.map((td) => [td.id, td.dueDate]));
-      const reschedule = new Map(candidates.map((td) => [td.id, targetISO]));
-      setTodos((prev) => setDueDates(prev, reschedule));
+      let deferred = 0;
+      const change = applyTracked((ts) => {
+        const r = todoDeferTo(ts, ids, targetISO, todayLocal());
+        deferred = r.deferred;
+        return r.next;
+      });
+      if (!change) return;
       notify.showSnackbar({
         message:
-          candidates.length === 1
+          deferred === 1
             ? "1 to-do deferred."
-            : `${candidates.length} to-dos deferred.`,
+            : `${deferred} to-dos deferred.`,
         actionLabel: t.undoAll,
-        onAction: () => setTodos((prev) => setDueDates(prev, originals)),
+        onAction: () => undoTracked(change),
       });
     },
-    [setTodos, notify, t.undoAll, setDueDates],
+    [applyTracked, undoTracked, todoDeferTo, notify, t.undoAll],
   );
 
   const snooze = useCallback(
     (id: string, daysFromToday: number) => {
-      const beforeTodo = todosRef.current.find((td) => td.id === id);
-      if (!beforeTodo) return;
-      const originalDate = beforeTodo.dueDate;
       const newDate = addDaysISO(daysFromToday);
-      setTodos((prev) => todoSet(prev, id, "dueDate", newDate));
+      // Exact Undo: the snooze also moves the to-do's upcoming reminders.
+      const change = applyTracked((ts) =>
+        ts.some((td) => td.id === id) ? todoSet(ts, id, "dueDate", newDate) : ts,
+      );
+      if (!change) return;
       const label =
         daysFromToday === 1
           ? t.snooze.toTomorrow
@@ -650,12 +662,10 @@ export function useTodosSlice(
       notify.showSnackbar({
         message: label,
         actionLabel: t.undo,
-        onAction: () => {
-          setTodos((prev) => todoSet(prev, id, "dueDate", originalDate));
-        },
+        onAction: () => undoTracked(change),
       });
     },
-    [setTodos, t.snooze, t.undo, notify, todoSet],
+    [applyTracked, undoTracked, t.snooze, t.undo, notify, todoSet],
   );
 
   const updateTaskCategory = useCallback(
@@ -690,16 +700,32 @@ export function useTodosSlice(
     (id: string, subId: string) => {
       const beforeTodo = todosRef.current.find((td) => td.id === id);
       const beforeSub = beforeTodo?.subtasks?.find((s) => s.id === subId);
-      setTodos((prev) => subtaskToggle(prev, id, subId));
-      if (
-        beforeTodo?.done &&
+      // Tracked: finishing the last step completes the to-do (and rolls a
+      // series forward), so it gets the same completion snackbar + exact
+      // Undo as tapping the circle.
+      const change = applyTracked((ts) => subtaskToggle(ts, id, subId));
+      if (!beforeTodo || !change) return;
+      const afterTodo = change.after.find((td) => td.id === id);
+      if (!beforeTodo.done && afterTodo?.done) {
+        setTodoReferences((prev) => recordTodoReference(prev, afterTodo));
+        const text = beforeTodo.text.length > 40 ? `${beforeTodo.text.slice(0, 39)}…` : beforeTodo.text;
+        notify.showSnackbar({
+          message: t.completedSnackbar(text),
+          actionLabel: t.undo,
+          onAction: () => undoTracked(change),
+          mergeKey: "done",
+          mergedMessage: (n: number) => t.completedSnackbarMany(n),
+          mergedActionLabel: t.undoAll,
+        });
+      } else if (
+        beforeTodo.done &&
         beforeSub?.done &&
         (filterRef.current === "done" || filterRef.current === "trash")
       ) {
         notify.showSnackbar({ message: "Moved back to your open list." });
       }
     },
-    [setTodos, filterRef, subtaskToggle, notify],
+    [applyTracked, undoTracked, filterRef, subtaskToggle, setTodoReferences, recordTodoReference, notify, t],
   );
 
   const updateSubtaskText = useCallback(

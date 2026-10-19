@@ -150,6 +150,10 @@ interface Props {
   subtaskDateFilter?: 'due-today'
 }
 
+/** How long after a completion a further tap on the circle is ignored — the
+ * same span as the held completion, so a double-tap can't complete then reopen. */
+const UNCOMPLETE_GUARD_MS = 650
+
 function TaskItem({
   todo, inTrash = false, binFilterView = false, selected = false, onToggleSelect,
   categories, celebrate = true, playSound = true,
@@ -226,6 +230,9 @@ function TaskItem({
   // spot. Flushed on unmount so a tapped completion is never lost.
   const [completing, setCompleting] = useState(false)
   const pendingCompleteRef = useRef<{ timer: ReturnType<typeof setTimeout>; commit: () => void } | null>(null)
+  // When this row's completion was last committed — a quick second tap (a
+  // double-tap) must not reopen the to-do it just completed.
+  const completedAtRef = useRef(0)
   useEffect(
     () => () => {
       const p = pendingCompleteRef.current
@@ -347,8 +354,11 @@ function TaskItem({
       onRestore?.(todo.id)
       return
     }
-    // Ignore taps while a completion is already animating/held.
+    // Ignore taps while a completion is already animating/held, and for a
+    // moment after it commits (the second tap of a double-tap).
     if (pendingCompleteRef.current) return
+    // (The prop may not show the completion yet, so don't gate on todo.done.)
+    if (Date.now() - completedAtRef.current < UNCOMPLETE_GUARD_MS) return
     // Completing a row: fire the chime + calm firework NOW (measured from the
     // leading control, rendered by the app-level overlay so it survives the
     // row leaving), show the row as done optimistically, and HOLD the real
@@ -362,13 +372,17 @@ function TaskItem({
       })
       const commit = () => {
         pendingCompleteRef.current = null
+        completedAtRef.current = Date.now()
         onToggle(todo.id)
       }
       pendingCompleteRef.current = { timer: setTimeout(commit, 650), commit }
       return
     }
     // Reduce-motion completion, or un-completing: act immediately.
-    if (!todo.done && playSound) playCompletionChime()
+    if (!todo.done) {
+      if (playSound) playCompletionChime()
+      completedAtRef.current = Date.now()
+    }
     onToggle(todo.id)
   }
 

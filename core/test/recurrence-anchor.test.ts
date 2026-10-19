@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { newTodo, todoSetRecurrence } from '../src/logic/derive'
-import { todayLocal } from '../src/logic/utils'
+import { todayLocal, isoDate } from '../src/logic/utils'
 import type { Todo } from '../src/domain/types'
 
 /**
@@ -15,6 +15,16 @@ import type { Todo } from '../src/domain/types'
  * shared core mutations (newTodo + todoSetRecurrence), so every path —
  * manual tap or agent — yields the same anchored series.
  */
+
+// Pinned clock: these assertions compare against todayLocal(), which used to
+// read the real date and could flip between two calls at midnight.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(2026, 9, 19, 12, 0, 0)) // Mon 2026-10-19 local
+})
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 const weekdayOf = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00`).getDay()
 
@@ -54,7 +64,7 @@ describe('newTodo anchors a recurring dueDate', () => {
       const d = new Date(`${todayLocal()}T00:00:00`)
       d.setDate(d.getDate() + i)
       if (d.getDay() === 3) {
-        wed = d.toISOString().slice(0, 10)
+        wed = isoDate(d)
         break
       }
     }
