@@ -85,6 +85,7 @@ import { Category, Priority, Todo, PRIORITY_VALUES, PRIORITY_COLORS } from '../.
 import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
 import { dueDateOnly, dueDateToDate, formatDisplayDate, fullDateLabel, todayLocal, isoDate } from '../../../core-bindings/utils'
 import { sortedSubs } from '../../../../../core/src/logic/derive'
+import { weekdayDate } from '../../../../../core/src/logic/labels'
 import { useTriggerFirework } from '../../../app/FireworkOverlay'
 import { playCompletionChime } from '../../../adapters/completionChime'
 import { useTheme } from '../../../app/theme'
@@ -766,7 +767,11 @@ function TaskItem({
                         : styles.chipTextDate,
                 ]}>
                   {todo.dueDate
-                    ? formatDisplayDate(todo.dueDate, t.locale)
+                    ? overdue
+                      ? // Carried over: the day it was for ("Mon, Oct 5"),
+                        // never a count of days behind ("23 days ago").
+                        weekdayDate(dueDateOnly(todo.dueDate), { locale: t.locale })
+                      : formatDisplayDate(todo.dueDate, t.locale)
                     : t.noDate}
                 </Text>
               )}

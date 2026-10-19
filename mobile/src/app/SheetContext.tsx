@@ -21,7 +21,7 @@ import React, {
   ReactNode,
   useCallback,
 } from 'react'
-import { Alert, Share } from 'react-native'
+import { Share } from 'react-native'
 import { createNavigationContainerRef } from '@react-navigation/native'
 import { useStore } from './StoreContext'
 import { useAuth } from './AuthContext'
@@ -54,7 +54,7 @@ import type { Filter } from '../core-bindings/types'
 import type { Guide } from '../features/onboarding/guides'
 import { genUuid } from '../../../core/src/logic/utils'
 import { useDetailsRouter, type DetailsRouter } from './useDetailsRouter'
-import { useModalPresence } from './modalPresence'
+import { alertWithPresence, useModalPresence } from './modalPresence'
 import { useMochiExecutor } from './useMochiExecutor'
 import { EXPORT_FAILED_MESSAGE, categoryDeletedMessage } from './sheetMessages'
 import {
@@ -203,6 +203,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   const {
     detailsReq,
     openTaskDetails,
+    detailsShown,
     closeTaskDetails,
     registerDetailsClose,
     forgetDetails,
@@ -365,7 +366,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
       groceryGroups: store.groceryGroups,
     })
     if (isExportEmpty(payload)) {
-      Alert.alert(t.exportData, t.exportEmpty)
+      alertWithPresence(t.exportData, t.exportEmpty)
       return
     }
     try {
@@ -376,7 +377,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
       })
     } catch {
       // Calm copy, never the raw error text.
-      Alert.alert(t.exportFailed, EXPORT_FAILED_MESSAGE)
+      alertWithPresence(t.exportFailed, EXPORT_FAILED_MESSAGE)
     }
   }, [
     store.todos,
@@ -439,14 +440,14 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         // of telling the user to find "Sign out" themselves. Wait for Settings
         // to finish dismissing — iOS drops an Alert raised mid-dismiss.
         afterModalClose(() =>
-          Alert.alert(t.deleteAccount, t.deleteAccountReauth, [
+          alertWithPresence(t.deleteAccount, t.deleteAccountReauth, [
             { text: t.cancel, style: 'cancel' },
             { text: t.signInAgain, onPress: () => void signOut() },
           ]),
         )
         return
       }
-      afterModalClose(() => Alert.alert(t.deleteAccount, deleteAccountErrorMessage(err)))
+      afterModalClose(() => alertWithPresence(t.deleteAccount, deleteAccountErrorMessage(err)))
     }
   }, [deleteAccount, signOut, showSnackbar, t, afterModalClose])
 
@@ -756,6 +757,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           categories={store.categories}
           initialSubtaskEditId={detailsReq.subtaskId}
           onClose={closeTaskDetails}
+          onShown={detailsShown}
           registerClose={registerDetailsClose}
           onUpdateText={store.updateText}
           onUpdateNotes={store.updateNotes}

@@ -129,8 +129,8 @@ using Sagely's servers in your name.
 - We do not use your data to train AI models, and neither does Anthropic
   (see "When you use Mochi" above).
 - We do not collect your location.
-- We do not collect contacts, photos, calendars, or anything from elsewhere
-  on your device.
+- We do not collect contacts, calendars, or anything from elsewhere on your
+  device — only a profile photo if you choose one.
 
 ---
 

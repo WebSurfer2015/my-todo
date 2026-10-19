@@ -3,15 +3,16 @@
  *   - store snackbar copy (series commit, single-day defer, category delete)
  *   - ChatSheet's `undoOutcome` (void / boolean / Promise<boolean>)
  *   - details' step-done footer plan
- *   - alertWithPresence counts an Alert until it's answered
+ *   - alertWithPresence / actionSheetWithPresence count until answered
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { Alert } from 'react-native'
+import { ActionSheetIOS, Alert } from 'react-native'
 import { seriesCommitMessage, deferredMessage } from '../store/slices/useTodosSlice'
 import { categoryDeletedMessage, EXPORT_FAILED_MESSAGE } from '../app/sheetMessages'
 import { undoOutcome } from '../features/mochi/undoOutcome'
+import { isCaptureCardEditable } from '../features/mochi/captureCardEditable'
 import { planStepDoneFooter, stepDoneUndoAfterToggle } from '../features/task/TaskDetailsSheet/stepDoneFooter'
-import { alertWithPresence, isAnyModalPresented, __resetModalPresenceForTests } from '../app/modalPresence'
+import { actionSheetWithPresence, alertWithPresence, isAnyModalPresented, __resetModalPresenceForTests } from '../app/modalPresence'
 import { MODAL_DISMISS_GRACE_MS } from '../app/modalTiming'
 
 describe('store snackbar copy', () => {
@@ -62,17 +63,21 @@ describe('undoOutcome', () => {
 
 describe('step-done footer', () => {
   const undo = () => {}
-  const steps = (...done: boolean[]) => done.map((d, i) => ({ id: `s${i}`, done: d }))
 
-  it('keeps the Undo only when the toggle finished the LAST open step', () => {
-    expect(stepDoneUndoAfterToggle({ subtasks: steps(true, false) }, 's1', undo)).toBe(undo)
-    // Not the last open step.
-    expect(stepDoneUndoAfterToggle({ subtasks: steps(false, false) }, 's1', null)).toBeNull()
-    expect(stepDoneUndoAfterToggle({ subtasks: steps(false, false) }, 's1', undo)).toBeNull()
-    // Re-opening a done step on a done to-do.
-    expect(stepDoneUndoAfterToggle({ done: true, subtasks: steps(true, true) }, 's1', undo)).toBeNull()
+  it('keeps the Undo only when the store turned an open to-do done', () => {
+    const open = { done: false }
+    const done = { done: true }
+    // Completed by the toggle (the store's result says so).
+    expect(stepDoneUndoAfterToggle(open, done, undo)).toBe(undo)
+    expect(stepDoneUndoAfterToggle({}, done, undo)).toBe(undo)
+    // Still open (not the last open step).
+    expect(stepDoneUndoAfterToggle(open, open, undo)).toBeNull()
+    // Already done: toggling a step on a done to-do never offers it.
+    expect(stepDoneUndoAfterToggle(done, done, undo)).toBeNull()
+    // Re-opened by the toggle.
+    expect(stepDoneUndoAfterToggle(done, open, undo)).toBeNull()
     // No Undo from the store (no-op).
-    expect(stepDoneUndoAfterToggle({ subtasks: steps(true, false) }, 's1', null)).toBeNull()
+    expect(stepDoneUndoAfterToggle(open, done, null)).toBeNull()
   })
 
   it('shows the "✓ Done · Undo" row over the Done-bin footer while it applies', () => {
@@ -129,5 +134,74 @@ describe('alertWithPresence', () => {
     calls[1].buttons[0].onPress!()
     vi.advanceTimersByTime(MODAL_DISMISS_GRACE_MS)
     expect(isAnyModalPresented()).toBe(false)
+  })
+
+  it('a dismiss alone (no button) releases it after the grace', () => {
+    const calls = capture()
+    alertWithPresence('Heads up')
+    expect(isAnyModalPresented()).toBe(true)
+    calls[0].options!.onDismiss!()
+    vi.advanceTimersByTime(MODAL_DISMISS_GRACE_MS)
+    expect(isAnyModalPresented()).toBe(false)
+  })
+})
+
+describe('actionSheetWithPresence', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    __resetModalPresenceForTests()
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+  })
+
+  const capture = () => {
+    const calls: Array<{ options: unknown; cb: (i: number) => void }> = []
+    vi.spyOn(ActionSheetIOS, 'showActionSheetWithOptions').mockImplementation((options, cb) => {
+      calls.push({ options, cb })
+    })
+    return calls
+  }
+
+  it('counts as presented until its callback fires, then runs it with the index', () => {
+    const calls = capture()
+    const cb = vi.fn()
+    const opts = { options: ['Pin', 'Cancel'], cancelButtonIndex: 1 }
+    actionSheetWithPresence(opts, cb)
+    expect(calls[0].options).toBe(opts)
+    expect(isAnyModalPresented()).toBe(true)
+    vi.advanceTimersByTime(MODAL_DISMISS_GRACE_MS * 10)
+    expect(isAnyModalPresented()).toBe(true)
+    calls[0].cb(0)
+    expect(cb).toHaveBeenCalledWith(0)
+    expect(isAnyModalPresented()).toBe(true)
+    vi.advanceTimersByTime(MODAL_DISMISS_GRACE_MS)
+    expect(isAnyModalPresented()).toBe(false)
+  })
+
+  it('cancel / outside tap (the cancel index) releases too, exactly once', () => {
+    const calls = capture()
+    actionSheetWithPresence({ options: ['Pin', 'Cancel'], cancelButtonIndex: 1 }, () => {})
+    actionSheetWithPresence({ options: ['Pin', 'Cancel'], cancelButtonIndex: 1 }, () => {})
+    calls[0].cb(1)
+    calls[0].cb(1)
+    vi.advanceTimersByTime(MODAL_DISMISS_GRACE_MS)
+    // The second sheet is still up (a double callback didn't uncount it).
+    expect(isAnyModalPresented()).toBe(true)
+    calls[1].cb(1)
+    vi.advanceTimersByTime(MODAL_DISMISS_GRACE_MS)
+    expect(isAnyModalPresented()).toBe(false)
+  })
+})
+
+describe('isCaptureCardEditable', () => {
+  it.each([
+    [true, false, true],
+    [true, true, false],
+    [false, false, false],
+    [false, true, false],
+  ])('undoLive=%s removed=%s → %s', (undoLive, removed, expected) => {
+    expect(isCaptureCardEditable(undoLive, removed)).toBe(expected)
   })
 })

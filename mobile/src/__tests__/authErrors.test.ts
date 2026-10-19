@@ -7,7 +7,7 @@
  * Pure function, no native deps — hosts cleanly under web vitest.
  */
 import { describe, expect, it } from 'vitest'
-import { mapAuthError } from '../adapters/authErrors'
+import { AUTH_UNKNOWN_MESSAGE, authErrorCode, mapAuthError } from '../adapters/authErrors'
 
 describe('mapAuthError — Firebase auth/* codes', () => {
   it('maps invalid-api-key to a config-stale message + appends code', () => {
@@ -118,11 +118,23 @@ describe('mapAuthError — network heuristics', () => {
 
 describe('mapAuthError — defensive fallbacks', () => {
   it('handles null / undefined input', () => {
-    expect(mapAuthError(null)).toBe('Sign-in failed.')
-    expect(mapAuthError(undefined)).toBe('Sign-in failed.')
+    expect(mapAuthError(null)).toBe(AUTH_UNKNOWN_MESSAGE)
+    expect(mapAuthError(undefined)).toBe(AUTH_UNKNOWN_MESSAGE)
   })
   it('handles missing code and missing message', () => {
-    expect(mapAuthError({})).toBe('Sign-in failed.')
+    expect(mapAuthError({})).toBe(AUTH_UNKNOWN_MESSAGE)
+  })
+  it('an unknown error shows calm copy — never its raw message or code', () => {
+    const out = mapAuthError({ code: 'SOME_SDK_THING', message: 'NSInternalInconsistency 0xdead' })
+    expect(out).toBe("Couldn't sign you in just now. Please try again.")
+    expect(out).not.toContain('SOME_SDK_THING')
+    expect(mapAuthError({ code: 'X', message: 'network down' })).not.toContain('(X)')
+  })
+  it('authErrorCode stringifies the code for the Crashlytics log', () => {
+    expect(authErrorCode({ code: 1004 })).toBe('1004')
+    expect(authErrorCode({ code: 'auth/x' })).toBe('auth/x')
+    expect(authErrorCode(null)).toBe('')
+    expect(authErrorCode({})).toBe('')
   })
   it('handles numeric codes by stringifying', () => {
     const out = mapAuthError({ code: 1001 })

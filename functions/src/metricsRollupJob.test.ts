@@ -167,6 +167,9 @@ describe('metricsRollup schedule', () => {
     await job()
     const metrics = h.store.get('metrics/2026-10-18')?.data
     expect(metrics).toMatchObject({ version: 2, users: { total: 1 } })
+    // The usage doc was read for the roll-up before its prune.
+    expect(metrics?.mochi).toMatchObject({ users: 1, conversations: 2, turns: 3, ceilingHits: 0 })
     expect(usageOf('u1')?.convs).toEqual([FRESH])
+    expect(h.store.get('users/u1/state/agentUsage')?.data.updatedAt).toBe(NOW)
   })
 })

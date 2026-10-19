@@ -13,16 +13,15 @@ interface StepTodo {
   subtasks?: ReadonlyArray<{ id: string; done?: boolean }>
 }
 
-/** The inline Undo to keep after toggling step `subId` on `before`: the
- * toggle's Undo only when it completed the to-do (the last open step). */
+/** The inline Undo to keep after a step toggle, decided from the STORE's
+ * result (core owns the "last open step completes it" rule — not re-derived
+ * here): the toggle's Undo only when it turned an open to-do done. */
 export function stepDoneUndoAfterToggle(
   before: StepTodo,
-  subId: string,
+  after: StepTodo,
   undo: (() => void) | null,
 ): (() => void) | null {
-  const willComplete =
-    !before.done && (before.subtasks ?? []).every((st) => (st.id === subId ? !st.done : !!st.done))
-  return willComplete && undo ? undo : null
+  return !before.done && !!after.done && undo ? undo : null
 }
 
 /** Which footer to render for the live to-do. */

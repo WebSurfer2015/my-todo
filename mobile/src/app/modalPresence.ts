@@ -10,12 +10,14 @@
  * (which would discard a draft).
  *
  * Instrumented in the shared shells (SheetShell, PickerModal) plus the few
- * hand-rolled Modals; row-level confirms go through `alertWithPresence`. A
+ * hand-rolled Modals; row-level confirms go through `alertWithPresence`, and
+ * iOS long-press menus through `actionSheetWithPresence` (RN presents the
+ * action sheet on the root view controller too). A
  * plain module counter, not React state: it's read at tap time, so nothing
  * needs to re-render when it changes.
  */
 import { useEffect } from 'react'
-import { Alert, type AlertButton } from 'react-native'
+import { ActionSheetIOS, Alert, type AlertButton } from 'react-native'
 import { MODAL_DISMISS_GRACE_MS } from './modalTiming'
 
 let presented = 0
@@ -70,6 +72,20 @@ export function alertWithPresence(
       release()
       options?.onDismiss?.()
     },
+  })
+}
+
+/** `ActionSheetIOS.showActionSheetWithOptions` that counts as presented until
+ * its callback fires. iOS always calls it — with the cancel index on Cancel or
+ * an outside tap — so the release can't leak; it's idempotent regardless. */
+export function actionSheetWithPresence(
+  options: Parameters<typeof ActionSheetIOS.showActionSheetWithOptions>[0],
+  callback: (buttonIndex: number) => void,
+): void {
+  const release = present()
+  ActionSheetIOS.showActionSheetWithOptions(options, (i) => {
+    release()
+    callback(i)
   })
 }
 

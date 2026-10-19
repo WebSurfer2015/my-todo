@@ -18,6 +18,7 @@ import { strings } from '../../../core/src/data/i18n'
 import type { StorageAdapter } from '../../../core/src/ports/persistence'
 import type { Filter, Todo } from '../../../core/src/domain/types'
 import { wrap } from '../storage/envelope'
+import { todayLocal } from '../../../core/src/logic/utils'
 
 type Snack = Parameters<TodosSliceDeps['notify']['showSnackbar']>[0]
 
@@ -66,16 +67,16 @@ const t = {
   defer: { done: (n: number) => `deferred ${n}` },
 }
 
-async function setup(todos: Todo[]) {
+async function setup(todos: Todo[], filter: Filter = 'all') {
   const snacks: Snack[] = []
   const retracted: Array<() => void> = []
   const actions = createTodoStore({ t: strings.en }).actions
-  const filter: Filter = 'all'
   const deps: TodosSliceDeps = {
     filter,
     filterRef: { current: filter },
     uid: null,
-    today: new Date().toISOString().slice(0, 10),
+    // Local calendar day (toISOString is UTC — wrong under TZ=Etc/GMT+12).
+    today: todayLocal(),
     t,
     notify: { showSnackbar: (o) => { snacks.push(o) }, retractSnackbar: (a) => { retracted.push(a) } },
     actions,
@@ -609,3 +610,101 @@ describe('recurrenceChangedMessage', () => {
     expect(recurrenceChangedMessage(3)).toBe('Repeat updated · 3 upcoming to-dos replaced')
   })
 })
+
+describe('useTodosSlice round 6', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 19, 12, 0, 0))
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('a category-only series edit reaches this row and every future sibling; Undo restores them', async () => {
+    const { hook, snacks } = await setup(dailySeries())
+    act(() => {
+      hook.result.current.commitSeriesEdits('d19', { fields: { category: 'work' } })
+    })
+    expect(hook.result.current.todos.every((x) => x.category === 'work')).toBe(true)
+    expect(snacks.at(-1)?.message).toBe('Applied to 7 upcoming to-dos')
+    act(() => snacks.at(-1)!.onAction!())
+    await waitFor(() => expect(hook.result.current.todos.every((x) => x.category === undefined)).toBe(true))
+  })
+
+  it("series mode: this occurrence's date + reminders ride the same commit and its one Undo", async () => {
+    const { hook, snacks } = await setup(dailySeries())
+    const reminders = [{ id: 'r1', at: '2026-10-21T09:00' }] as unknown as NonNullable<Todo['reminders']>
+    act(() => {
+      hook.result.current.commitSeriesEdits('d19', {
+        fields: { priority: 'high' },
+        thisRow: { dueDate: '2026-10-19T08:30', reminders },
+      })
+    })
+    const row = () => hook.result.current.todos.find((x) => x.id === 'd19')!
+    expect(row().dueDate).toBe('2026-10-19T08:30')
+    expect(row().reminders).toEqual(reminders)
+    // Siblings keep their own dates.
+    expect(hook.result.current.todos.find((x) => x.id === 'd20')!.dueDate).toBe('2026-10-20')
+    act(() => snacks.at(-1)!.onAction!())
+    await waitFor(() => expect(row().dueDate).toBe('2026-10-19'))
+    expect(row().reminders ?? []).toEqual([])
+    expect(row().priority).toBe('medium')
+  })
+
+  it('a date-only series-mode commit still saves, with "Changes saved · Undo"', async () => {
+    const { hook, snacks } = await setup(dailySeries())
+    let undo: (() => void) | null = null
+    act(() => {
+      undo = hook.result.current.commitSeriesEdits('d19', { fields: {}, thisRow: { dueDate: '2026-10-19T07:00' } })
+    })
+    expect(undo).not.toBeNull()
+    expect(snacks.at(-1)?.message).toBe('Changes saved')
+  })
+
+  it('reopening from Done says "Moved back…" with an exact Undo — and nothing when silent', async () => {
+    const done = (id: string) => mk(id, { done: true, trashed: true, completedAt: '2026-10-18' } as Partial<Todo>)
+    const { hook, snacks } = await setup([done('x'), done('y'), mk('open')], 'done')
+    const n = snacks.length
+    act(() => {
+      hook.result.current.toggle('y', { silent: true })
+    })
+    expect(snacks.length).toBe(n)
+    act(() => {
+      hook.result.current.toggle('x')
+    })
+    const snack = snacks.at(-1)!
+    expect(snack.message).toBe('Moved back to your open list.')
+    expect(snack.actionLabel).toBe('Undo')
+    expect(hook.result.current.todos.find((x) => x.id === 'x')!.done).toBe(false)
+    act(() => snack.onAction!())
+    await waitFor(() => expect(hook.result.current.todos.find((x) => x.id === 'x')!.done).toBe(true))
+  })
+
+  it('restoreFromTrash in the Done view offers an Undo (silent: none)', async () => {
+    const { hook, snacks } = await setup([mk('t1', { trashed: true }), mk('t2', { trashed: true }), mk('o')], 'trash')
+    const n = snacks.length
+    act(() => hook.result.current.restoreFromTrash('t2', { silent: true }))
+    expect(snacks.length).toBe(n)
+    act(() => hook.result.current.restoreFromTrash('t1'))
+    const snack = snacks.at(-1)!
+    expect(snack.message).toBe('Moved back to your open list.')
+    expect(hook.result.current.todos.find((x) => x.id === 't1')!.trashed).toBe(false)
+    act(() => snack.onAction!())
+    await waitFor(() => expect(hook.result.current.todos.find((x) => x.id === 't1')!.trashed).toBe(true))
+  })
+
+  it('un-ticking a step of a done to-do in the Done view reopens it with an Undo; silent says nothing', async () => {
+    const step = { id: 's', text: 'bag', done: true, priority: 'medium' as const, dueDate: '' }
+    const doneWithStep = (id: string) => mk(id, { done: true, trashed: true, subtasks: [{ ...step }] } as Partial<Todo>)
+    const { hook, snacks } = await setup([doneWithStep('p'), doneWithStep('q'), mk('o')], 'done')
+    const n = snacks.length
+    act(() => {
+      hook.result.current.toggleSubtask('q', 's', { silent: true })
+    })
+    expect(snacks.length).toBe(n)
+    act(() => {
+      hook.result.current.toggleSubtask('p', 's')
+    })
+    expect(snacks.at(-1)?.message).toBe('Moved back to your open list.')
+    expect(snacks.at(-1)?.actionLabel).toBe('Undo')
+  })
+})
+

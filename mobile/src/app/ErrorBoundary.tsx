@@ -2,7 +2,6 @@ import React, { Component, ErrorInfo, ReactNode, useMemo, useState } from 'react
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import crashlytics from '@react-native-firebase/crashlytics'
-import { clearAllPersisted } from '../adapters/persistence'
 import { useTheme, ThemeColors } from './theme'
 
 interface State {
@@ -33,18 +32,12 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
     this.setState({ error: null })
   }
 
-  resetAndClear = async () => {
-    await clearAllPersisted()
-    this.setState({ error: null })
-  }
-
   render() {
     if (!this.state.error) return this.props.children
     return (
       <ErrorFallback
         error={this.state.error}
         onRetry={this.reset}
-        onResetAll={this.resetAndClear}
       />
     )
   }
@@ -56,11 +49,9 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 function ErrorFallback({
   error,
   onRetry,
-  onResetAll,
 }: {
   error: Error
   onRetry: () => void
-  onResetAll: () => void
 }) {
   const c = useTheme()
   const styles = useMemo(() => makeStyles(c), [c])
@@ -68,17 +59,17 @@ function ErrorFallback({
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>{ERROR_FALLBACK_TITLE}</Text>
+        <Text style={styles.title} accessibilityRole="header">
+          {ERROR_FALLBACK_TITLE}
+        </Text>
         <Text style={styles.lead}>{ERROR_FALLBACK_BODY}</Text>
         <View style={styles.actions}>
           <TouchableOpacity style={styles.btn} onPress={onRetry} accessibilityRole="button">
             <Text style={styles.btnText}>Try again</Text>
           </TouchableOpacity>
-          {/* Clears only this device's local settings (the to-dos live in
-              the account), so it's a neutral action, not a destructive one. */}
-          <TouchableOpacity style={styles.btn} onPress={onResetAll} accessibilityRole="button">
-            <Text style={styles.btnText}>Reset this device's settings</Text>
-          </TouchableOpacity>
+          {/* No "reset this device" action: the only device-local state is
+              the language and Apple's first-sign-in name stash, and wiping
+              the stash could lose a first-time Apple name for good. */}
         </View>
         <TouchableOpacity
           onPress={() => setShowDetails((v) => !v)}

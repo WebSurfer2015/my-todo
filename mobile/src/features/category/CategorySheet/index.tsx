@@ -280,8 +280,8 @@ export default function CategorySheet({
     Alert.alert(t.deleteCategoryAction, message, [
       { text: t.cancel, style: "cancel" },
       {
+        // Neutral, not red: a category delete has an Undo.
         text: t.deleteCategoryAction,
-        style: "destructive",
         onPress: () => onDelete(c.id),
       },
     ]);
@@ -681,7 +681,7 @@ export default function CategorySheet({
                                   accessibilityRole="button"
                                   accessibilityLabel={`${t.deleteTask} ${label}`}
                                 >
-                                  <Trash2 size={14} color={theme.red} strokeWidth={2} />
+                                  <Trash2 size={14} color={theme.label2} strokeWidth={2} />
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                   onPress={() => onPinFilter([catFilter])}
@@ -805,7 +805,7 @@ export default function CategorySheet({
                         accessibilityRole="button"
                         accessibilityLabel={t.deleteCategoryAction}
                       >
-                        <Trash2 size={20} color={theme.red} strokeWidth={2} />
+                        <Trash2 size={20} color={theme.label2} strokeWidth={2} />
                       </TouchableOpacity>
                     ) : (
                       <View style={styles.editCatHeaderSide} />

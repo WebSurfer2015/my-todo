@@ -1,7 +1,7 @@
 /**
  * Map auth-flow errors (Firebase, Apple, Google native, network) to a
- * user-readable string. Unknown errors fall back to the raw message plus
- * the code in parens so debugging never requires a Metro session.
+ * user-readable string. Unknown errors get calm copy — never the raw SDK
+ * message or code; SignIn logs the code to Crashlytics for diagnosis.
  *
  * The platform-pure Firebase `auth/*` code map + lookup live in
  * core/src/data/authMessages.ts (shared, no RN deps). The Apple/Google
@@ -14,7 +14,6 @@
 
 import {
   AuthFlow,
-  appendCode,
   mapFirebaseAuthError,
 } from "../../../core/src/data/authMessages";
 
@@ -52,6 +51,15 @@ const GOOGLE_NATIVE_MESSAGES: Record<string, string> = {
     "Can't reach Google to sign in. Check your connection and try again.",
 };
 
+/** Calm fallback for an error we don't recognise (the code is logged, not shown). */
+export const AUTH_UNKNOWN_MESSAGE = "Couldn't sign you in just now. Please try again.";
+
+/** The error's code as a string ("" when none) — SignIn logs it to Crashlytics. */
+export function authErrorCode(err: unknown): string {
+  const c = (err as ErrLike | null | undefined)?.code;
+  return c != null ? String(c) : "";
+}
+
 export function mapAuthError(err: unknown, flow?: AuthFlow): string {
   const e = (err ?? {}) as ErrLike;
   const code = e.code != null ? String(e.code) : "";
@@ -83,12 +91,9 @@ export function mapAuthError(err: unknown, flow?: AuthFlow): string {
 
   // 5. Network-ish hints
   if (/network|offline|timeout|fetch/i.test(rawMessage)) {
-    return appendCode(
-      "Can't reach the sign-in server. Check your connection and try again.",
-      code,
-    );
+    return "Can't reach the sign-in server. Check your connection and try again.";
   }
 
-  // 6. Fallback: show raw message + code so future incidents are diagnosable
-  return appendCode(rawMessage || "Sign-in failed.", code);
+  // 6. Fallback: calm copy (the code goes to Crashlytics, not the screen).
+  return AUTH_UNKNOWN_MESSAGE;
 }

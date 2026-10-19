@@ -21,8 +21,7 @@ import {
   View,
 } from 'react-native'
 import { ChevronDown, ChevronRight } from 'lucide-react-native'
-import { ActionSheetIOS } from 'react-native'
-import { alertWithPresence } from '../../../app/modalPresence'
+import { actionSheetWithPresence, alertWithPresence } from '../../../app/modalPresence'
 import { GroceryItem, GroceryGroup, frequentGroceries } from '../../../core-bindings/groceries'
 import { useTheme } from '../../../app/theme'
 import GroceryEditSheet from '../GroceryEditSheet'
@@ -424,7 +423,7 @@ export default function GroceryView({
     const toggle = () =>
       kind === 'store' ? onTogglePinnedStore(name) : onTogglePinnedDept(name)
     if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
+      actionSheetWithPresence(
         { options: [actionLabel, 'Cancel'], title: label, cancelButtonIndex: 1 },
         (i) => {
           if (i === 0) toggle()

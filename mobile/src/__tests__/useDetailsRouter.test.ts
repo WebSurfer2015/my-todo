@@ -14,6 +14,7 @@ import {
   useDetailsRouter,
   type DetailsRouterDeps,
   DETAILS_OFFER_MS,
+  DETAILS_SHOW_TIMEOUT_MS,
   MAX_OPEN_RETRIES,
   PARK_POLL_MS,
   PARK_TTL_MS,
@@ -451,5 +452,111 @@ describe('useDetailsRouter — round 5', () => {
     act(() => hook.result.current.closeTaskDetails())
     settle()
     expect(offers.map((o) => o.message)).toEqual(['Reminder: “Call mom”'])
+  })
+})
+
+describe('useDetailsRouter — round 6', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    __resetModalPresenceForTests()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('a request whose Modal never presented is cleared (not a ghost) — a reminder is offered instead', () => {
+    const { hook, offers } = setup()
+    act(() => hook.result.current.openTaskDetails('a'))
+    expect(hook.result.current.detailsReq?.id).toBe('a')
+    act(() => vi.advanceTimersByTime(DETAILS_SHOW_TIMEOUT_MS - 1))
+    expect(hook.result.current.detailsReq?.id).toBe('a')
+    act(() => vi.advanceTimersByTime(1))
+    expect(hook.result.current.detailsReq).toBeNull()
+    settle()
+    expect(offers.map((o) => o.message)).toEqual(['Reminder: “Call mom”'])
+    // The ghost no longer blocks a later open.
+    act(() => hook.result.current.openTaskDetails('b', null, { source: 'user' }))
+    expect(hook.result.current.detailsReq?.id).toBe('b')
+  })
+
+  it('a presented sheet (onShow) is kept; a user tap that never presented is just dropped', () => {
+    const { hook, offers } = setup()
+    act(() => hook.result.current.openTaskDetails('a'))
+    act(() => hook.result.current.detailsShown())
+    act(() => vi.advanceTimersByTime(DETAILS_SHOW_TIMEOUT_MS * 3))
+    expect(hook.result.current.detailsReq?.id).toBe('a')
+    act(() => hook.result.current.closeTaskDetails())
+    settle()
+    act(() => hook.result.current.openTaskDetails('b', null, { source: 'user' }))
+    act(() => vi.advanceTimersByTime(DETAILS_SHOW_TIMEOUT_MS))
+    expect(hook.result.current.detailsReq).toBeNull()
+    settle()
+    expect(offers).toEqual([])
+  })
+
+  it('an offer already handed to the snackbar queue is dropped once that to-do was opened directly', () => {
+    const { hook, offers } = setup({ anySheetOpen: true })
+    act(() => hook.result.current.openTaskDetails('a'))
+    hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+    settle()
+    expect(offers).toHaveLength(1)
+    // It waits behind a visible Undo; meanwhile the user opens 'a' from its row…
+    act(() => hook.result.current.openTaskDetails('a', null, { source: 'user' }))
+    act(() => hook.result.current.detailsShown())
+    // …and closes it. When the Undo ends the screen is clear, but the offer
+    // is moot: it can't show, and handing it back doesn't re-park it.
+    act(() => hook.result.current.closeTaskDetails())
+    settle()
+    expect(offers[0].canShow()).toBe(false)
+    act(() => offers[0].onBlocked())
+    act(() => vi.advanceTimersByTime(PARK_POLL_MS * 20))
+    expect(offers).toHaveLength(1)
+  })
+
+  it('a handed-back offer carries its expiry: it lapses on the original clock', () => {
+    const { hook, offers } = setup({ anySheetOpen: true })
+    act(() => hook.result.current.openTaskDetails('a'))
+    hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+    settle()
+    expect(offers).toHaveLength(1)
+    act(() => vi.advanceTimersByTime(PARK_TTL_MS - 10_000))
+    hook.rerender({ anySheetOpen: true, accountUid: 'u1' })
+    act(() => offers[0].onBlocked())
+    act(() => vi.advanceTimersByTime(15_000))
+    hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+    settle()
+    expect(offers).toHaveLength(1)
+  })
+
+  it("canShow re-checks the to-do: trashed while queued → can't show, and isn't re-parked", () => {
+    const { hook, offers } = setup({ anySheetOpen: true })
+    act(() => hook.result.current.openTaskDetails('a'))
+    hook.rerender({ anySheetOpen: false, accountUid: 'u1' })
+    settle()
+    expect(offers[0].canShow()).toBe(true)
+    TODOS.a.trashed = true
+    try {
+      expect(offers[0].canShow()).toBe(false)
+      act(() => offers[0].onBlocked())
+      settle()
+    } finally {
+      delete TODOS.a.trashed
+    }
+    settle()
+    expect(offers).toHaveLength(1)
+  })
+
+  it("a user tap whose swap is held by details' close (confirm up) is dropped — never offered", () => {
+    const { hook, offers } = setup()
+    act(() => hook.result.current.openTaskDetails('a'))
+    act(() => hook.result.current.detailsShown())
+    act(() => hook.result.current.registerDetailsClose(() => {}))
+    act(() => hook.result.current.openTaskDetails('b', null, { source: 'user' }))
+    expect(hook.result.current.detailsReq?.id).toBe('a')
+    act(() => hook.result.current.closeTaskDetails())
+    act(() => vi.advanceTimersByTime(MODAL_HANDOFF_MS))
+    expect(hook.result.current.detailsReq).toBeNull()
+    settle()
+    expect(offers).toEqual([])
   })
 })

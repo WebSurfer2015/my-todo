@@ -15,6 +15,7 @@ import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 import { Priority, PRIORITY_VALUES } from '../../core-bindings/types'
 import { dueDateToDate, isoDate } from '../../core-bindings/utils'
 import { formatCalendarDate } from '../../../../core/src/logic/labels'
+import { isCaptureCardEditable } from './captureCardEditable'
 
 interface CreateTodoArgs {
   text: string
@@ -74,8 +75,7 @@ export default function EditableCaptureCard({
   const [, bumpUndo] = useState(0) // force a re-render when the stack changes
   const sync = () => bumpUndo((n) => n + 1)
 
-  // One rule: once a newer Mochi turn applied, this card is read-only.
-  const editable = undoLive && !removed
+  const editable = isCaptureCardEditable(undoLive, removed)
   const tray = editable ? open : null
   const activeCat = categories.find((c) => c.id === category)
   // Guard against a malformed dueDate → Invalid Date would crash the picker.

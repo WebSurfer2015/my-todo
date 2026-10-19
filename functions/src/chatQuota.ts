@@ -269,7 +269,7 @@ function isLiveConv(c: ConvRecord, nowMs: number): boolean {
 
 /**
  * The daily clean-up's half of the 24h rule (metricsRollupJob
- * pruneExpiredConversations): reservations only drop expired records lazily,
+ * pruneUsageSnapshot): reservations only drop expired records lazily,
  * on the user's NEXT Mochi request, so a user who never chats again would
  * keep them (with their history hashes) indefinitely. Returns the doc with
  * every expired record removed (`convs` omitted when none are left), or null

@@ -12,7 +12,6 @@ import {
   StatusBar,
   Platform,
   KeyboardAvoidingView,
-  Alert,
   useColorScheme,
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
@@ -34,6 +33,7 @@ import "./src/adapters/notifications";
 // and recorded every fatal twice.)
 import FilterBar from "./src/features/filters/FilterBar";
 import Fab from "./src/app/Fab";
+import { alertWithPresence } from "./src/app/modalPresence";
 import TaskItem from "./src/features/task/TaskItem";
 import Footer from "./src/app/Footer";
 import Avatar from "./src/ui/Avatar";
@@ -416,7 +416,7 @@ function TodosScreen() {
             <TouchableOpacity
               onPress={() => {
                 const ids = g.todos.map((td) => td.id);
-                Alert.alert(
+                alertWithPresence(
                   t.deletePermanently,
                   // English-only launch (the i18n template quotes a title).
                   `Permanently delete ${ids.length} ${ids.length === 1 ? 'to-do' : 'to-dos'} from ${headerLabel}? This can't be undone.`,

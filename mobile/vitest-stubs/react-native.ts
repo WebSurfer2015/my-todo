@@ -34,3 +34,8 @@ export const AppState = {
 export const Alert = {
   alert: (..._args: unknown[]) => {},
 }
+
+/** Inert ActionSheetIOS: tests spy on it. */
+export const ActionSheetIOS = {
+  showActionSheetWithOptions: (_options: unknown, _callback: (buttonIndex: number) => void) => {},
+}
