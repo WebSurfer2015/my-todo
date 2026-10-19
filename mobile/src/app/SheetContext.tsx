@@ -71,6 +71,9 @@ interface Sheets {
   /** Open the Mochi capture assistant (natural-language add/edit). Entry
    * point lives in the compose sheet. */
   openMochi: () => void
+  /** First-run hand-off: give `text` to Mochi and send it (Compose with the
+   * words pre-filled when Mochi is off). */
+  openCaptureWith: (text: string) => void
   /** Open the Manage Filter sheet (Todos gear icon, Settings entry). */
   openManageFilter: () => void
   /** Open the Select Filter sheet (Todos funnel). */
@@ -122,7 +125,10 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   // Text carried from Compose into Mochi ("Ask Mochi instead").
   const [mochiSeed, setMochiSeed] = useState('')
   useEffect(() => {
-    if (!mochiOpen) setMochiSeed('')
+    if (!mochiOpen) {
+      setMochiSeed('')
+      setMochiAutoSend(false)
+    }
   }, [mochiOpen])
   const [animationSoundOpen, setAnimationSoundOpen] = useState(false)
   const [categorySheetOpen, setCategorySheetOpen] = useState(false)
@@ -157,6 +163,21 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     setComposeOpen(true)
   }, [])
   const openMochi = useCallback(() => setMochiOpen(true), [])
+  const [mochiAutoSend, setMochiAutoSend] = useState(false)
+  const agentOn = MOCHI_AGENT_ENABLED && store.profile.agentEnabled !== false
+  const openCaptureWith = useCallback(
+    (text: string) => {
+      if (agentOn) {
+        setMochiSeed(text)
+        setMochiAutoSend(true)
+        setMochiOpen(true)
+      } else {
+        setComposePrefill({ text })
+        setComposeOpen(true)
+      }
+    },
+    [agentOn],
+  )
 
   // The FAB reopens whichever capture surface you used last — manual compose
   // or Ask Mochi — persisted on the profile so it sticks across launches. The
@@ -634,7 +655,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <SheetContext.Provider value={{ openProfile, openSettings, openTheme, openGuides, openCompose, openCapture, openMochi, openManageFilter, openSelectFilter, openManageGroceries, manageRequest, requestTodosScroll, todosScrollRequest }}>
+    <SheetContext.Provider value={{ openProfile, openSettings, openTheme, openGuides, openCompose, openCapture, openMochi, openCaptureWith, openManageFilter, openSelectFilter, openManageGroceries, manageRequest, requestTodosScroll, todosScrollRequest }}>
       {children}
       {/* Sheets are only relevant once signed in. Crucially, mounting these
           <Modal>s on the signed-out SignIn screen FLATTENS its iOS a11y tree
@@ -786,6 +807,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         <ChatSheet
           visible={mochiOpen}
           initialInput={mochiSeed}
+          autoSendInitial={mochiAutoSend}
           greetingName={
             store.profile.firstName?.trim() || store.profile.name?.trim() || ''
           }

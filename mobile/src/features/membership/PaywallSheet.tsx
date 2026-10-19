@@ -18,6 +18,7 @@ import type { PurchasesOffering, PurchasesPackage } from 'react-native-purchases
 import { useLang } from '../../app/LangContext'
 import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
 import { useSheetDismiss, sheetGrabZone } from '../../ui/useSheetDismiss'
+import { PRIVACY_URL } from '../../app/links'
 import {
   PRODUCT_IDS,
   tierAtLeast,
@@ -32,7 +33,6 @@ type Billing = 'annual' | 'monthly'
 // published policy; Terms falls back to Apple's standard EULA since we don't
 // ship a custom one — swap in a custom URL here if that changes.
 const TERMS_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'
-const PRIVACY_URL = 'https://websurfer2015.github.io/my-todo/PRIVACY.html'
 const openLink = (url: string) => Linking.openURL(url).catch(() => {})
 
 interface PlanView {

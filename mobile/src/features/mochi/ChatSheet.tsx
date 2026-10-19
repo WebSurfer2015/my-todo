@@ -35,6 +35,9 @@ interface Props {
   /** Text carried over from Compose ("Ask Mochi instead") — pre-fills the
    * input when the sheet opens so the user's words aren't lost. */
   initialInput?: string
+  /** Send `initialInput` straight away instead of pre-filling (first-run
+   * onboarding: the user already pressed send on its screen). */
+  autoSendInitial?: boolean
   /** First name (or display name) for the greeting line. */
   greetingName: string
   /** Honor the user's reduce-motion preference — skip the entrance + breathing
@@ -246,6 +249,7 @@ export default function ChatSheet({
   onPickAction,
   onReviewCreateTodo,
   initialInput,
+  autoSendInitial = false,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
@@ -276,10 +280,15 @@ export default function ChatSheet({
   const inputRef = useRef<TextInput>(null)
   const scrollRef = useRef<ScrollView>(null)
 
-  // Pre-fill what the user had typed in Compose (once per open).
+  // Pre-fill what the user had typed in Compose — or, from onboarding, send
+  // it right away (once per open; handleSend via a ref so the effect only
+  // re-runs on open).
+  const handleSendRef = useRef<(raw?: string) => void>(() => {})
   useEffect(() => {
-    if (visible && initialInput) setInput(initialInput)
-  }, [visible, initialInput])
+    if (!visible || !initialInput) return
+    if (autoSendInitial) handleSendRef.current(initialInput)
+    else setInput(initialInput)
+  }, [visible, initialInput, autoSendInitial])
 
   // Keep the latest turn in view as the conversation grows / Mochi thinks.
   useEffect(() => {
@@ -390,6 +399,8 @@ export default function ChatSheet({
       if (res.error === 'quota') fallBackToManual(turn)
     })
   }
+
+  handleSendRef.current = handleSend
 
   function handleConfirm(index: number, ops: ProposedOperation[]) {
     // Gentle success beat — the satisfying "Mochi got it" moment.

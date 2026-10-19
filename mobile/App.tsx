@@ -917,15 +917,14 @@ function TodosScreen() {
       />
       <Onboarding
         visible={onboardingNeeded}
-        onComplete={(intent) => {
+        onSubmit={(text) => {
           setOnboardingNeeded(false);
           store.saveProfile({ ...store.profile, onboardingDone: true });
-          if (intent === "firstTask") {
-            // Defer compose so the onboarding modal animates out first.
-            setTimeout(() => sheets.openCompose(), 250);
-          }
+          // Hand the words to Mochi once the onboarding modal has animated
+          // out (iOS can't stack two Modals — same 280ms handoff).
+          setTimeout(() => sheets.openCaptureWith(text), 280);
         }}
-        onSkip={() => {
+        onExplore={() => {
           setOnboardingNeeded(false);
           store.saveProfile({ ...store.profile, onboardingDone: true });
         }}

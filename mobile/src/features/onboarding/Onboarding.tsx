@@ -1,320 +1,246 @@
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
   Image,
-  ScrollView,
-  NativeSyntheticEvent,
-  NativeScrollEvent,
-  useWindowDimensions,
-  StatusBar,
+  KeyboardAvoidingView,
+  Linking,
+  Modal,
   Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native'
 import { RADIUS, SPACING, TYPE, useTheme, ThemeColors } from '../../app/theme'
-import SproutGlyph from '../../ui/SproutGlyph'
+import { PRIVACY_URL } from '../../app/links'
 
 /**
- * Three-screen first-launch flow:
- *   1. Meet Mochi
- *   2. How progress works
- *   3. Add your first thing
+ * One-screen first launch: Mochi is the front door (Phase 2, 2026-10-18).
  *
- * Soft / opt-out: every screen has a "Skip" affordance, the dots are
- * subtle, and the final CTA gives both a primary path (open compose)
- * and a secondary path (just dismiss). No exclamation marks, no
- * "Let's go!", no streak/quota framing.
+ *   Hi, I'm Mochi.
+ *   Tell me one thing that's on your mind…
+ *   [ e.g. call the dentist on Friday      (↑) ]
+ *   (Call someone) (Pay a bill) (Pick something up)
+ *   I'll look around first
+ *   Mochi sends what you type to our AI provider… Privacy
  *
- * The parent (App.tsx) gates rendering on profile.onboardingDone and
- * marks it true via the onComplete / onSkip callbacks.
+ * Sending hands the words to Mochi (the parent opens the chat and sends
+ * them), so the first thing a person sees is their own to-do. No slides,
+ * no streak/quota framing, no exclamation marks. The AI disclosure is
+ * shown BEFORE anything is sent (App Review 5.1.2(i)).
+ *
+ * The parent (App.tsx) gates rendering on profile.onboardingDone and marks
+ * it true via onSubmit / onExplore.
  */
 
 interface Props {
   visible: boolean
-  onComplete: (intent: 'firstTask' | 'explore') => void
-  onSkip: () => void
+  /** The user's first thing, trimmed and non-empty. */
+  onSubmit: (text: string) => void
+  /** "I'll look around first" (also Android back). */
+  onExplore: () => void
 }
 
-const SCREENS: Array<{
-  visual: 'mochi' | 'sprout' | 'mochi-small'
-  title: string
-  body: string
-}> = [
-  {
-    visual: 'mochi',
-    title: 'Meet Mochi',
-    body: "Your gentle planning buddy. Mochi's here to help you finish what matters — at your pace, without pressure.",
-  },
-  {
-    visual: 'sprout',
-    title: 'Small wins, real progress',
-    body: 'Finish things at your own pace. Nothing resets, nothing punishes you — no streaks to keep. Just a quiet record of what you did today.',
-  },
-  {
-    visual: 'mochi-small',
-    title: 'Ready when you are',
-    body: "Add one thing. That's it. Mochi's waiting.",
-  },
-]
+const EXAMPLES = ['Call someone', 'Pay a bill', 'Pick something up']
 
-export default function Onboarding({ visible, onComplete, onSkip }: Props) {
+export default function Onboarding({ visible, onSubmit, onExplore }: Props) {
   const theme = useTheme()
-  const { width } = useWindowDimensions()
-  const styles = useMemo(() => makeStyles(theme, width), [theme, width])
-  const [page, setPage] = useState(0)
-  const scrollRef = useRef<ScrollView>(null)
+  const styles = useMemo(() => makeStyles(theme), [theme])
+  const [text, setText] = useState('')
+  const inputRef = useRef<TextInput>(null)
+  const canSend = text.trim().length > 0
 
-  function goToPage(i: number) {
-    setPage(i)
-    scrollRef.current?.scrollTo({ x: i * width, animated: true })
+  useEffect(() => {
+    if (visible) setText('')
+  }, [visible])
+
+  function send() {
+    const trimmed = text.trim()
+    if (trimmed) onSubmit(trimmed)
   }
-
-  function next() {
-    if (page < SCREENS.length - 1) goToPage(page + 1)
-  }
-
-  function onScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
-    const i = Math.round(e.nativeEvent.contentOffset.x / width)
-    if (i !== page) setPage(i)
-  }
-
-  const isLast = page === SCREENS.length - 1
 
   return (
-    <Modal visible={visible} animationType="fade" statusBarTranslucent onRequestClose={onSkip}>
+    <Modal visible={visible} animationType="fade" statusBarTranslucent onRequestClose={onExplore}>
       <StatusBar barStyle={theme.statusBar} />
-      <View style={styles.root}>
-        {/* Skip button — always available */}
-        <View style={styles.topBar}>
-          <View style={{ flex: 1 }} />
-          <TouchableOpacity
-            onPress={onSkip}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel="Skip onboarding"
-          >
-            <Text style={styles.skipText}>Skip</Text>
-          </TouchableOpacity>
-        </View>
-
+      <KeyboardAvoidingView
+        style={styles.root}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
         <ScrollView
-          ref={scrollRef}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          onMomentumScrollEnd={onScroll}
-          style={styles.pager}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
         >
-          {SCREENS.map((s, i) => (
-            <View key={i} style={[styles.page, { width }]}>
-              <View style={styles.visualWrap}>
-                {s.visual === 'mochi' && (
-                  <View style={styles.mochiCircleLarge}>
-                    <Image
-                      source={require('../../../assets/icon.png')}
-                      style={styles.mochiImageLarge}
-                      resizeMode="cover"
-                    />
-                  </View>
-                )}
-                {s.visual === 'sprout' && (
-                  <SproutGlyph size={140} color={theme.primary} />
-                )}
-                {s.visual === 'mochi-small' && (
-                  <View style={styles.mochiCircleMed}>
-                    <Image
-                      source={require('../../../assets/icon.png')}
-                      style={styles.mochiImageMed}
-                      resizeMode="cover"
-                    />
-                  </View>
-                )}
-              </View>
-              <Text style={styles.title}>{s.title}</Text>
-              <Text style={styles.body}>{s.body}</Text>
+          <View style={styles.hero}>
+            <View style={styles.mochiCircle}>
+              <Image
+                source={require('../../../assets/icon.png')}
+                style={styles.mochiImage}
+                resizeMode="cover"
+                accessibilityIgnoresInvertColors
+              />
             </View>
-          ))}
-        </ScrollView>
+            <Text style={styles.title} accessibilityRole="header">Hi, I'm Mochi.</Text>
+            <Text style={styles.body}>
+              Tell me one thing that's on your mind. I'll turn it into a to-do — you can change
+              anything after.
+            </Text>
+          </View>
 
-        <View
-          style={styles.dots}
-          accessible
-          accessibilityRole="text"
-          accessibilityLabel={`Page ${page + 1} of ${SCREENS.length}`}
-        >
-          {SCREENS.map((_, i) => (
-            <View
-              key={i}
-              style={[styles.dot, i === page && styles.dotActive]}
+          <Text style={styles.inputLabel}>One thing on your mind</Text>
+          <View style={styles.inputCard}>
+            <TextInput
+              ref={inputRef}
+              style={styles.input}
+              value={text}
+              onChangeText={setText}
+              placeholder="e.g. call the dentist on Friday"
+              placeholderTextColor={theme.label2}
+              multiline
+              maxLength={2000}
+              returnKeyType="send"
+              blurOnSubmit
+              onSubmitEditing={send}
+              accessibilityLabel="One thing on your mind"
             />
-          ))}
-        </View>
-
-        <View style={styles.actions}>
-          {isLast ? (
-            <>
-              <TouchableOpacity
-                style={styles.primaryBtn}
-                onPress={() => onComplete('firstTask')}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel="Add my first thing"
-              >
-                <Text style={styles.primaryBtnText}>Add my first thing</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.secondaryBtn}
-                onPress={() => onComplete('explore')}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="I'll explore first"
-              >
-                <Text style={styles.secondaryBtnText}>I'll explore first</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
             <TouchableOpacity
-              style={styles.primaryBtn}
-              onPress={next}
-              activeOpacity={0.8}
+              style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
+              onPress={send}
+              disabled={!canSend}
               accessibilityRole="button"
-              accessibilityLabel="Next"
+              accessibilityLabel="Send to Mochi"
+              accessibilityState={{ disabled: !canSend }}
             >
-              <Text style={styles.primaryBtnText}>Next</Text>
+              <Text style={styles.sendBtnText}>↑</Text>
             </TouchableOpacity>
-          )}
-        </View>
-      </View>
+          </View>
+          <View style={styles.chips}>
+            {EXAMPLES.map((ex) => (
+              <TouchableOpacity
+                key={ex}
+                style={styles.chip}
+                onPress={() => {
+                  // A starter, not a submission — the user finishes the thought.
+                  setText(`${ex} `)
+                  inputRef.current?.focus()
+                }}
+                accessibilityRole="button"
+              >
+                <Text style={styles.chipText}>{ex}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View style={styles.spacer} />
+
+          <TouchableOpacity
+            style={styles.exploreBtn}
+            onPress={onExplore}
+            accessibilityRole="button"
+          >
+            <Text style={styles.exploreText}>I'll look around first</Text>
+          </TouchableOpacity>
+          <Text style={styles.disclosure}>
+            Mochi sends what you type to our AI provider to understand it — never for ads.{' '}
+            <Text
+              style={styles.link}
+              onPress={() => Linking.openURL(PRIVACY_URL).catch(() => {})}
+              accessibilityRole="link"
+            >
+              Privacy
+            </Text>
+          </Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Modal>
   )
 }
 
-function makeStyles(c: ThemeColors, _width: number) {
+function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    root: {
-      flex: 1,
-      backgroundColor: c.bg,
-      paddingTop: Platform.OS === 'ios' ? 56 : 40,
+    root: { flex: 1, backgroundColor: c.bg },
+    content: {
+      flexGrow: 1,
+      paddingHorizontal: SPACING.xl,
+      paddingTop: Platform.OS === 'ios' ? 96 : 64,
       paddingBottom: SPACING.xxl,
     },
-    topBar: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 20,
-      height: 32,
-    },
-    skipText: {
-      fontSize: TYPE.body,
-      fontWeight: '500',
-      color: c.label3,
-    },
-    pager: {
-      flex: 1,
-    },
-    page: {
-      paddingHorizontal: 28,
-      alignItems: 'center',
-      justifyContent: 'center',
-      flex: 1,
-    },
-    visualWrap: {
-      marginBottom: 28,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    mochiCircleLarge: {
-      width: 180,
-      height: 180,
-      borderRadius: 90,
-      backgroundColor: '#E8F0E5',
-      borderWidth: 2,
-      borderColor: c.primary,
+    hero: { alignItems: 'center', gap: SPACING.lg, marginBottom: SPACING.xxl },
+    mochiCircle: {
+      width: 96,
+      height: 96,
+      borderRadius: 48,
       overflow: 'hidden',
-      alignItems: 'center',
-      justifyContent: 'center',
+      backgroundColor: c.primarySoft,
     },
-    mochiImageLarge: {
-      width: 180,
-      height: 180,
-      borderRadius: 90,
-    },
-    mochiCircleMed: {
-      width: 120,
-      height: 120,
-      borderRadius: 60,
-      backgroundColor: '#E8F0E5',
-      borderWidth: 1.5,
-      borderColor: c.primary,
-      overflow: 'hidden',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    mochiImageMed: {
-      width: 120,
-      height: 120,
-      borderRadius: 60,
-    },
-    title: {
-      fontSize: TYPE.h2,
-      fontWeight: '700',
-      color: c.label,
-      textAlign: 'center',
-      letterSpacing: -0.4,
-      marginBottom: SPACING.md,
-    },
+    mochiImage: { width: 96, height: 96 },
+    title: { fontSize: 28, lineHeight: 34, fontWeight: '700', color: c.label, textAlign: 'center' },
     body: {
       fontSize: TYPE.bodyLg,
+      lineHeight: 24,
       color: c.label2,
       textAlign: 'center',
-      lineHeight: 23,
       maxWidth: 320,
-      fontWeight: '400',
     },
-    dots: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      gap: SPACING.sm,
-      paddingVertical: SPACING.lg,
-    },
-    dot: {
-      width: 6,
-      height: 6,
-      borderRadius: 3,
-      backgroundColor: c.gray3,
-    },
-    dotActive: {
-      backgroundColor: c.primary,
-      width: 18,
-    },
-    actions: {
-      paddingHorizontal: 28,
-      gap: SPACING.sm,
-    },
-    primaryBtn: {
-      height: 50,
-      borderRadius: RADIUS.control,
-      backgroundColor: c.primary,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    primaryBtnText: {
-      color: c.primaryOn,
-      fontSize: TYPE.bodyLg,
+    inputLabel: {
+      fontSize: TYPE.footnote,
       fontWeight: '600',
-      letterSpacing: -0.16,
+      color: c.label2,
+      marginBottom: SPACING.sm,
     },
-    secondaryBtn: {
+    inputCard: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      gap: SPACING.sm,
+      backgroundColor: c.card,
+      borderRadius: RADIUS.card,
+      borderWidth: 1,
+      borderColor: c.border,
+      paddingLeft: SPACING.md,
+      paddingRight: SPACING.sm,
+      paddingVertical: SPACING.sm,
+    },
+    input: {
+      flex: 1,
+      minHeight: 72,
+      fontSize: TYPE.bodyLg,
+      lineHeight: 24,
+      color: c.label,
+      paddingTop: SPACING.xs,
+      textAlignVertical: 'top',
+    },
+    sendBtn: {
+      width: 44,
       height: 44,
-      borderRadius: RADIUS.control,
+      borderRadius: 22,
+      backgroundColor: c.primary,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    secondaryBtnText: {
-      color: c.label2,
-      fontSize: TYPE.body,
-      fontWeight: '500',
+    sendBtnDisabled: { opacity: 0.4 },
+    sendBtnText: { fontSize: 20, fontWeight: '700', color: c.primaryOn },
+    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginTop: SPACING.md },
+    chip: {
+      minHeight: 44,
+      paddingHorizontal: SPACING.lg,
+      borderRadius: RADIUS.pill,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.card,
+      justifyContent: 'center',
     },
+    chipText: { fontSize: TYPE.body, color: c.label },
+    spacer: { flexGrow: 1, minHeight: SPACING.xxl },
+    exploreBtn: { alignSelf: 'center', minHeight: 44, justifyContent: 'center', paddingHorizontal: SPACING.lg },
+    exploreText: { fontSize: TYPE.bodyLg, fontWeight: '600', color: c.primary },
+    disclosure: {
+      marginTop: SPACING.md,
+      fontSize: TYPE.footnote,
+      lineHeight: 18,
+      color: c.label2,
+      textAlign: 'center',
+    },
+    link: { color: c.primary, fontWeight: '600', textDecorationLine: 'underline' },
   })
 }
