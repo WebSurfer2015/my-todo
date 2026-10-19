@@ -16,12 +16,12 @@ import { useTodoFieldSuggestions } from './useTodoFieldSuggestions'
 /**
  * Phase 2 #6: ambient suggestions while typing a to-do title.
  *
- * The hook owns the request lifecycle (debounce, dedupe, race
- * protection). The component is a pure presentational chip row. Both
- * live in one file because the hook is used in exactly one place
- * (ComposeSheet) and isn't worth a separate module.
+ * The hook (useTodoFieldSuggestions) owns the request lifecycle
+ * (debounce, dedupe, race protection); this component is a pure
+ * presentational chip row, used by the Compose and Details sheets.
  *
- * Token discipline: 800ms debounce, 3-char minimum, dedupe by
+ * Token discipline: 1500ms debounce (DEBOUNCE_MS), 8-char minimum
+ * (MIN_CHARS), local signal pre-filter, Mochi rest gate, dedupe by
  * trimmed-text, profile.agentEnabled gate, single in-flight via
  * sequence number. With aggressive prompt caching (configured
  * server-side via cacheableSystemModes in functions/src/aiInfer.ts),
