@@ -47,6 +47,9 @@ export interface UsageCharge {
   /** The conversation this reservation CONTINUED (a follow-up), so a refund
    * gives back its per-conversation turn (ConvRecord.n). */
   followUpConvId?: string
+  /** The conversation a START RETRY reused (no slot taken), so a refund
+   * gives back its reuse count (ConvRecord.r). */
+  reusedConvId?: string
 }
 
 /** One server-minted conversation (chatSignature.ts contract). Kept tiny —
@@ -64,8 +67,9 @@ export interface ConvRecord {
   h: string
   /** Follow-ups claimed so far (≤ MAX_TURNS_PER_CONVERSATION). */
   n: number
-  /** Start retries that reused this convId — a refund of the minting
-   * request only forgets the record when no retry is riding on it. */
+  /** Start retries currently riding on this convId (a retry's refund
+   * decrements it) — while > 0, a refund of the minting request keeps the
+   * record AND the slot (refundableCharge). */
   r: number
 }
 
@@ -200,9 +204,10 @@ export function decideFlatCall(
  */
 export function refundAgentUsage(
   usage: AgentUsageData | null,
-  charge: UsageCharge,
+  rawCharge: UsageCharge,
 ): AgentUsageData | null {
   if (!usage) return null
+  const charge = refundableCharge(usage, rawCharge)
   const convs = refundConvs(usage.convs, charge)
   const convsChanged = convs !== usage.convs
   const sameDay = usage.date === charge.date
@@ -218,26 +223,64 @@ export function refundAgentUsage(
   return next
 }
 
+/**
+ * What a refund may actually give back. A failed MINT whose conversation a
+ * start retry is riding on (record still there with r > 0) is NOT a lost
+ * slot — the retry's conversation continues on it — so the slot (`calls`,
+ * `chatConversations`, the tier counters) is kept and only the failed turn
+ * (`chatTurns`) is returned. Otherwise the charge as recorded. Callers use
+ * the result for BOTH halves of a refund (agentUsage and mochiUsage).
+ *
+ * Residual (conservative): if that retry then fails too, the slot stays
+ * spent — the user loses one slot, nobody gets a free conversation.
+ */
+export function refundableCharge(usage: AgentUsageData | null, charge: UsageCharge): UsageCharge {
+  if (!charge.convId) return charge
+  const rec = usage?.convs?.find((c) => c.id === charge.convId)
+  if (!rec || rec.r === 0) return charge
+  return { ...charge, calls: 0, chatConversations: 0, mochi: null }
+}
+
 /** The conversation-record half of a refund (even across a day rollover —
  * the list is rolling). Returns `convs` itself when nothing changes.
  *  - A MINTED convId is forgotten (no reply was signed for it; keeping it
  *    would let a retry of the failed start reuse it for free) — unless a
- *    start retry reused it meanwhile (r > 0): that request may hold a signed
- *    reply, so the record stays and only the reuse count drops.
+ *    start retry is riding on it (r > 0): that request may hold a signed
+ *    reply, so the record stays as-is (the retry's own refund drops r).
+ *  - A START RETRY gives back its reuse (r − 1, never < 0).
  *  - A FOLLOW-UP gives back its per-conversation turn (n − 1, never < 0). */
 function refundConvs(
   convs: ConvRecord[] | undefined,
   charge: UsageCharge,
 ): ConvRecord[] | undefined {
-  const id = charge.convId ?? charge.followUpConvId
+  const id = charge.convId ?? charge.reusedConvId ?? charge.followUpConvId
   const rec = id ? convs?.find((c) => c.id === id) : undefined
   if (!convs || !rec) return convs
-  if (charge.convId) {
-    if (rec.r === 0) return convs.filter((c) => c !== rec)
-    return convs.map((c) => (c === rec ? { ...c, r: c.r - 1 } : c))
-  }
-  if (rec.n === 0) return convs
-  return convs.map((c) => (c === rec ? { ...c, n: c.n - 1 } : c))
+  if (charge.convId) return rec.r === 0 ? convs.filter((c) => c !== rec) : convs
+  const field = charge.reusedConvId ? 'r' : 'n'
+  if (rec[field] === 0) return convs
+  return convs.map((c) => (c === rec ? { ...c, [field]: c[field] - 1 } : c))
+}
+
+/** A record is live until CONV_RECORD_TTL_MS after its last use. */
+function isLiveConv(c: ConvRecord, nowMs: number): boolean {
+  return nowMs - c.u < CONV_RECORD_TTL_MS
+}
+
+/**
+ * The daily clean-up's half of the 24h rule (metricsRollupJob
+ * pruneExpiredConversations): reservations only drop expired records lazily,
+ * on the user's NEXT Mochi request, so a user who never chats again would
+ * keep them (with their history hashes) indefinitely. Returns the doc with
+ * every expired record removed (`convs` omitted when none are left), or null
+ * when nothing has expired (no write). Counters and `prev` are untouched.
+ */
+export function pruneExpiredConvs(usage: AgentUsageData | null, nowMs: number): AgentUsageData | null {
+  if (!usage?.convs?.length) return null
+  const live = usage.convs.filter((c) => isLiveConv(c, nowMs))
+  if (live.length === usage.convs.length) return null
+  const { convs: _expired, ...rest } = usage
+  return live.length ? { ...rest, convs: live } : rest
 }
 
 export interface ConversationResolution {
@@ -276,7 +319,7 @@ export function resolveConversation(
   nowMs: number,
   mint: () => string,
 ): ConversationResolution {
-  const live = (convs ?? []).filter((c) => nowMs - c.u < CONV_RECORD_TTL_MS)
+  const live = (convs ?? []).filter((c) => isLiveConv(c, nowMs))
   /** `rec` updated, stamped and moved to the end (most recently used). */
   const touch = (rec: ConvRecord, upd: Partial<ConvRecord>): ConvRecord[] => [
     ...live.filter((c) => c !== rec),

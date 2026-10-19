@@ -293,16 +293,42 @@ describe('conversation ids (reservation transaction)', () => {
     expect(b.convId).not.toBe(a.convId)
     expect(agentUsage()).toMatchObject({ calls: 1, chatConversations: 1 })
   })
-  it('RACE: a retry reused the start, then the ORIGINAL start fails and refunds → the convId survives for the retry', async () => {
+  it('RACE: a retry reused the start, then the ORIGINAL start fails → the convId AND the slot survive for the retry', async () => {
     const claim = { claimedConvId: null, startHash: 'raced-start' }
     const a = await reserveChatTurn('u1', claim) // original (client timed out on it)
     const b = await reserveChatTurn('u1', claim) // retry reuses a.convId, no slot
     expect(b).toMatchObject({ convId: a.convId, startsConversation: false })
+    expect(b.charge).toMatchObject({ calls: 0, chatConversations: 0, reusedConvId: a.convId })
+    expect(b.charge.convId).toBeUndefined()
     await refundUsage('u1', a.charge) // original's upstream call then fails
-    expect(agentUsage()?.convs).toMatchObject([{ id: a.convId, r: 0 }])
+    // Record kept as-is; the slot is NOT returned (b's conversation is on it).
+    expect(agentUsage()?.convs).toMatchObject([{ id: a.convId, r: 1 }])
+    expect(agentUsage()).toMatchObject({ calls: 1, chatConversations: 1, chatTurns: 1 })
     // The retry got a reply signed with a.convId — its next turn is free.
     const fu = await reserveChatTurn('u1', { claimedConvId: a.convId, startHash: 'next' })
     expect(fu.startsConversation).toBe(false)
+  })
+  it('a refunded start RETRY gives back its reuse, so the original start refund then forgets the record', async () => {
+    const claim = { claimedConvId: null, startHash: 'retry-fails' }
+    const a = await reserveChatTurn('u1', claim)
+    const b = await reserveChatTurn('u1', claim)
+    expect(agentUsage()?.convs).toMatchObject([{ id: a.convId, r: 1 }])
+    await refundUsage('u1', b.charge) // the retry's model call fails
+    expect(agentUsage()?.convs).toMatchObject([{ id: a.convId, r: 0 }])
+    expect(agentUsage()).toMatchObject({ calls: 1, chatConversations: 1, chatTurns: 1 })
+    await refundUsage('u1', a.charge) // ...and the original's too
+    expect(agentUsage()?.convs).toBeUndefined()
+    expect(agentUsage()).toMatchObject({ calls: 0, chatConversations: 0, chatTurns: 0 })
+  })
+  it('tier path: a failed start a retry is riding on keeps its tier counters too', async () => {
+    const claim = { claimedConvId: null, startHash: 'tier-raced' }
+    const a = await reserveMochiRequest('u1', claim)
+    const b = await reserveMochiRequest('u1', claim)
+    expect(b.charge.mochi).toBeNull()
+    expect(mochiUsage()).toMatchObject({ dayCalls: 1, monthCalls: 1 })
+    await refundUsage('u1', a.charge)
+    expect(mochiUsage()).toMatchObject({ dayCalls: 1, monthCalls: 1 })
+    expect(agentUsage()).toMatchObject({ chatConversations: 1, chatTurns: 1 })
   })
   it('a refunded FOLLOW-UP gives back its per-conversation turn', async () => {
     h.store.set(AGENT, envelope({ date: today(), calls: 1, chatTurns: 4, chatConversations: 1, convs: [{ ...CONV_REC(), n: 3 }] }))

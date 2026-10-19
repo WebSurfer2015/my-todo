@@ -27,6 +27,7 @@ import {
   parseAgentUsage,
   refundAgentUsage,
   refundMochiUsage,
+  refundableCharge,
   resolveConversation,
   type AgentUsageData,
   type ChatTurnDecision,
@@ -282,6 +283,7 @@ async function runChatReservation(
         // What the refund must undo on the record too (chatQuota refundConvs).
         if (conv.minted) d.charge = { ...d.charge, convId: conv.convId }
         else if (conv.followUp) d.charge = { ...d.charge, followUpConvId: conv.convId }
+        else d.charge = { ...d.charge, reusedConvId: conv.convId } // start retry
       }
       convId = conv.convId
       starts = conv.startsConversation
@@ -400,12 +402,13 @@ export async function refundUsage(uid: string, charge: UsageCharge): Promise<voi
       // All reads before any write (Firestore transaction rule).
       const agentSnap = await tx.get(agentRef)
       const mochiSnap = charge.mochi ? await tx.get(mochiRef) : null
-      const nextAgent = refundAgentUsage(
-        agentSnap.exists ? parseAgentUsage(agentSnap.data()) : null,
-        charge,
-      )
+      const agentUsage = agentSnap.exists ? parseAgentUsage(agentSnap.data()) : null
+      const nextAgent = refundAgentUsage(agentUsage, charge)
+      // A failed start a retry is riding on keeps its slot — the tier
+      // counters included (chatQuota refundableCharge).
+      const tierCharge = refundableCharge(agentUsage, charge)
       const nextMochi = mochiSnap
-        ? refundMochiUsage(mochiSnap.exists ? parseMochiUsage(mochiSnap.data()) : null, charge)
+        ? refundMochiUsage(mochiSnap.exists ? parseMochiUsage(mochiSnap.data()) : null, tierCharge)
         : null
       if (nextAgent) writeAgentUsage(tx, agentRef, nextAgent)
       if (nextMochi) {

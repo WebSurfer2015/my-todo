@@ -131,6 +131,12 @@ export const agentChat = onCall(
     if (messages[0].role !== 'user') {
       throw new HttpsError('invalid-argument', 'Conversation must start with a user turn.')
     }
+    // ...and END on one: a trailing assistant turn would be sent as a
+    // prefill (the model continues text the client wrote). Rejected before
+    // the reservation, so a malformed request never takes a slot.
+    if (messages[messages.length - 1].role !== 'user') {
+      throw new HttpsError('invalid-argument', 'Conversation must end with a user turn.')
+    }
 
     // Profile gate — same opt-out check aiInfer enforces. Cheap (one
     // Firestore read) and BEFORE the quota reserve so a user who turned

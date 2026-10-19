@@ -17,6 +17,8 @@ import {
   parseAgentUsage,
   rollAgentUsage,
   type AgentUsageData,
+  pruneExpiredConvs,
+  CONV_RECORD_TTL_MS as PRUNE_TTL,
 } from './chatQuota'
 import { normalizeChatMessages } from './chatMessages'
 import { TIER_LIMITS } from './entitlements'
@@ -232,5 +234,21 @@ describe('chatDaysFromUsage', () => {
     expect(chatDaysFromUsage(usage({ calls: 9 }))).toEqual([])
     expect(chatDaysFromUsage(usage({ ceilingHit: true }))).toHaveLength(1)
     expect(chatDaysFromUsage(null)).toEqual([])
+  })
+})
+
+describe('pruneExpiredConvs (daily clean-up)', () => {
+  const NOW = 10 * PRUNE_TTL
+  const rec = (id: string, u: number) => ({ id, t: u, u, h: 'h', n: 0, r: 0 })
+  it('drops records idle ≥ 24h, keeps the rest and every counter; null when nothing expired', () => {
+    const live = rec('LLLLLLLLLLLLLLLL', NOW - PRUNE_TTL + 1)
+    const dead = rec('DDDDDDDDDDDDDDDD', NOW - PRUNE_TTL)
+    expect(pruneExpiredConvs(usage({ calls: 3, convs: [dead, live] }), NOW)).toEqual(usage({ calls: 3, convs: [live] }))
+    const allDead = pruneExpiredConvs(usage({ calls: 3, convs: [dead] }), NOW)
+    expect(allDead).toEqual(usage({ calls: 3 }))
+    expect(allDead && 'convs' in allDead).toBe(false)
+    expect(pruneExpiredConvs(usage({ convs: [live] }), NOW)).toBeNull()
+    expect(pruneExpiredConvs(usage(), NOW)).toBeNull()
+    expect(pruneExpiredConvs(null, NOW)).toBeNull()
   })
 })

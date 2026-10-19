@@ -59,7 +59,7 @@ server when:
 | Your message and the conversation so far | So Mochi can understand and reply | Sent to Anthropic for that request |
 | Today's date, your category names, the text of your to-dos and their steps (open, done, and in Done, up to 100), your shopping-list items and store names | So Mochi can find, add, or change the right items ("move the dentist to Friday") | Sent to Anthropic for that request |
 | How many Mochi requests you've made | To keep a fair-use limit on AI costs | Firebase Firestore, your private subtree |
-| A short-lived conversation id and fingerprint (a one-way hash of the conversation, not its text) | For fair use — so a retried or continued conversation isn't counted twice | Firebase Firestore, your private subtree; kept 24 hours |
+| A short-lived conversation id and fingerprint (a one-way hash of the conversation, not its text) | For fair use — so a retried or continued conversation isn't counted twice | Firebase Firestore, your private subtree; each expires 24 hours after its last use and is removed by a daily clean-up (or right away when you delete your account) |
 
 - We do **not** send your name, email, or account ID to Anthropic.
 - We do not save your Mochi conversations, on our servers or in your account.
