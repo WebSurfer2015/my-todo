@@ -427,9 +427,8 @@ function TodosScreen() {
                 const ids = g.todos.map((td) => td.id);
                 Alert.alert(
                   t.deletePermanently,
-                  t.deletePermanentlyConfirm(
-                    `${ids.length} ${ids.length === 1 ? 'item' : 'items'}`,
-                  ),
+                  // English-only launch (the i18n template quotes a title).
+                  `Permanently delete ${ids.length} ${ids.length === 1 ? 'to-do' : 'to-dos'} from ${headerLabel}? This can't be undone.`,
                   [
                     { text: t.cancel, style: 'cancel' },
                     {

@@ -92,7 +92,7 @@ export interface GroceriesSlice {
   ) => void;
   deleteGrocery: (id: string) => void;
   addGroceryGroup: (label: string) => string | undefined;
-  addGroceryStore: (name: string) => void;
+  addGroceryStore: (name: string) => GroceryUndo | null;
   renameGroceryStore: (oldName: string, newName: string) => GroceryUndo | null;
   deleteGroceryStore: (name: string) => GroceryUndo | null;
   linkItemsToStore: (storeName: string, itemIds: string[]) => void;
@@ -443,16 +443,28 @@ export function useGroceriesSlice(
     [setProfile],
   );
 
+  // Returns an Undo that removes the store again — null when it was already
+  // listed (nothing was added, so there's nothing to take back).
   const addGroceryStore = useCallback(
-    (name: string) => {
+    (name: string): GroceryUndo | null => {
       const trimmed = name.trim();
-      if (!trimmed) return;
+      if (!trimmed) return null;
+      const existed = (profileRef.current.groceryStores ?? SEED_GROCERY_STORES).includes(trimmed);
       setProfile((p) => {
         const list = p.groceryStores ?? SEED_GROCERY_STORES;
         return { ...p, groceryStores: addStoreToList(list, trimmed) };
       });
+      if (existed) return null;
+      return () => {
+        setProfile((p) => {
+          const list = (p.groceryStores ?? SEED_GROCERY_STORES).filter((s) => s !== trimmed);
+          const active = p.activeGroceryStore === trimmed ? undefined : p.activeGroceryStore;
+          return { ...p, groceryStores: list, activeGroceryStore: active };
+        });
+        setGroceries((prev) => removeStoreFromItems(prev, trimmed));
+      };
     },
-    [addStoreToList, setProfile],
+    [addStoreToList, removeStoreFromItems, setProfile, setGroceries, profileRef],
   );
 
   const addGroceryGroup = useCallback(

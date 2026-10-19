@@ -2,6 +2,7 @@ import React, { useMemo } from 'react'
 import { Modal, Pressable, View, TouchableOpacity, Text, StyleSheet } from 'react-native'
 import { useTheme, ThemeColors } from '../app/theme'
 import CheckGlyph from './CheckGlyph'
+import { useModalPresence } from '../app/modalPresence'
 
 interface Option {
   key: string
@@ -21,6 +22,7 @@ interface Props {
 export default function PickerModal({ visible, options, selectedKey, onSelect, onClose }: Props) {
   const theme = useTheme()
   const styles = useMemo(() => makeStyles(theme), [theme])
+  useModalPresence(visible)
   // RN <Modal visible={false}> still reconciles its JS subtree on every render.
   // With a long list of TaskItems each mounting 2-3 of these, that cost
   // multiplies per-row — skip the subtree entirely while closed.

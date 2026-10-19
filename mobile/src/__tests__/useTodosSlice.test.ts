@@ -294,3 +294,133 @@ describe('series top-up waits for server-confirmed todos', () => {
     await waitFor(() => expect(hook.result.current.todos.length).toBeGreaterThan(1))
   })
 })
+
+describe('useTodosSlice exact Undos (round 3)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 19, 12, 0, 0))
+  })
+  afterEach(() => vi.useRealTimers())
+  const byId = (todos: Todo[]) => Object.fromEntries(todos.map((x) => [x.id, x]))
+
+  it('Undo reverts only its own change — a later edit survives', async () => {
+    const { hook } = await setup([mk('a'), mk('b')])
+    let undo: (() => void) | null = null
+    act(() => {
+      undo = hook.result.current.toggle('a')
+    })
+    act(() => hook.result.current.updateText('b', 'renamed'))
+    act(() => undo!())
+    await waitFor(() => expect(byId(hook.result.current.todos).a.done).toBe(false))
+    expect(byId(hook.result.current.todos).b.text).toBe('renamed')
+  })
+
+  it('a local edit re-applies onto a remote snapshot that landed in the same tick', async () => {
+    type Cb = (v: string | null, meta?: { trusted: boolean; fromServer?: boolean }) => void
+    const subs = new Map<string, Cb>()
+    const seed = [mk('a', { updatedAt: 1 }), mk('b', { updatedAt: 1 })]
+    const adapter: StorageAdapter = {
+      ...adapterWith(seed),
+      subscribe: (k, cb) => {
+        subs.set(k, cb)
+        return () => { subs.delete(k) }
+      },
+    }
+    const deps: TodosSliceDeps = {
+      filter: 'all',
+      filterRef: { current: 'all' },
+      uid: 'u1',
+      today: '2026-10-19',
+      t,
+      notify: { showSnackbar: () => {} },
+      actions: createTodoStore({ t: strings.en }).actions,
+    }
+    const hook = renderHook(() => useTodosSlice(adapter, deps))
+    await waitFor(() => expect(hook.result.current.todos.length).toBe(2))
+    act(() => {
+      subs.get('todos')!(wrap([mk('a', { updatedAt: 1 }), mk('b', { text: 'remote', updatedAt: 99 })]), {
+        trusted: true,
+        fromServer: true,
+      })
+      hook.result.current.updateText('a', 'local')
+    })
+    await waitFor(() => expect(byId(hook.result.current.todos).a.text).toBe('local'))
+    expect(byId(hook.result.current.todos).b.text).toBe('remote')
+  })
+
+  it('a single-row defer offers "Undo", not "Undo all"', async () => {
+    const { hook, snacks } = await setup([mk('a', { dueDate: '2026-10-10' })])
+    act(() => {
+      hook.result.current.bulkDeferTodos(['a'], '2026-10-25')
+    })
+    expect(snacks.at(-1)?.actionLabel).toBe('Undo')
+  })
+
+  it('updateRecurrence on a series occurrence changes the series rule, with an Undo', async () => {
+    const { hook } = await setup(dailySeries())
+    let undo: (() => void) | null = null
+    act(() => {
+      undo = hook.result.current.updateRecurrence('d19', { freq: 'weekly' })
+    })
+    const live = () => hook.result.current.todos.filter((x) => x.seriesId === 's1' && !x.trashed)
+    // No open sibling keeps repeating the old daily rule.
+    expect(live().every((x) => x.recurrence?.freq === 'weekly')).toBe(true)
+    expect(live().some((x) => x.dueDate.startsWith('2026-10-20'))).toBe(false)
+    expect(undo).not.toBeNull()
+    act(() => undo!())
+    await waitFor(() => expect(byId(hook.result.current.todos).d19.recurrence?.freq).toBe('daily'))
+    expect(hook.result.current.todos.some((x) => x.recurrence?.freq === 'weekly')).toBe(false)
+  })
+
+  it('updateRecurrence on a one-off starts a series and fills its window; Undo removes it all', async () => {
+    const { hook } = await setup([mk('a', { dueDate: '2026-10-19' })])
+    let undo: (() => void) | null = null
+    act(() => {
+      undo = hook.result.current.updateRecurrence('a', { freq: 'daily' })
+    })
+    expect(hook.result.current.todos.length).toBeGreaterThan(1)
+    act(() => undo!())
+    await waitFor(() => expect(hook.result.current.todos.length).toBe(1))
+    expect(hook.result.current.todos[0].recurrence).toBeUndefined()
+  })
+
+  it('step add / toggle / remove each return an exact Undo', async () => {
+    const parent = mk('p', {
+      subtasks: [
+        { id: 's1', text: 'one', done: false, priority: 'medium', dueDate: '' },
+        { id: 's2', text: 'two', done: false, priority: 'medium', dueDate: '' },
+      ],
+    })
+    const { hook } = await setup([parent])
+    const p = () => hook.result.current.todos[0]
+    let u1: (() => void) | null = null
+    let u2: (() => void) | null = null
+    let u3: (() => void) | null = null
+    act(() => {
+      u1 = hook.result.current.toggleSubtask('p', 's1')
+      u2 = hook.result.current.removeSubtask('p', 's2')
+      u3 = hook.result.current.addSubtask('p', 'three')
+    })
+    expect(p().subtasks?.map((s) => s.text)).toEqual(['one', 'three'])
+    act(() => u3!())
+    act(() => u2!())
+    act(() => u1!())
+    await waitFor(() => expect(p().subtasks?.map((s) => [s.text, s.done])).toEqual([['one', false], ['two', false]]))
+    expect(hook.result.current.toggleSubtask('missing', 'x')).toBeNull()
+  })
+
+  it('addTaskWithUndo removes every occurrence of a new repeating to-do', async () => {
+    const { hook } = await setup([mk('keep')])
+    let added: { id: string; undo: () => void } | null = null
+    act(() => {
+      added = hook.result.current.addTaskWithUndo('Stretch', 'medium', '2026-10-19', undefined, { freq: 'daily' })
+    })
+    expect(hook.result.current.todos.filter((x) => x.text === 'Stretch').length).toBeGreaterThan(1)
+    act(() => {
+      expect(hook.result.current.addTask('Plain', 'low', '')).toEqual(expect.any(String))
+    })
+    act(() => added!.undo())
+    await waitFor(() => expect(hook.result.current.todos.some((x) => x.text === 'Stretch')).toBe(false))
+    expect(hook.result.current.todos.map((x) => x.text).sort()).toEqual(['Plain', 'keep'])
+  })
+})

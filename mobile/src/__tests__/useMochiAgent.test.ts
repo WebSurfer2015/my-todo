@@ -102,6 +102,20 @@ describe('useMochiAgent', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('transient 429 then the chat-only backstop on the retry → chatOnly', async () => {
+    fetchMock
+      .mockResolvedValueOnce(transient429())
+      .mockResolvedValueOnce(
+        json({ error: { status: 'RESOURCE_EXHAUSTED', message: 'resting', details: { reason: 'turns' } } }, 429),
+      )
+    const { result } = renderHook(() => useMochiAgent())
+    let res: { ok: boolean; error?: string; chatOnly?: boolean } | undefined
+    await act(async () => {
+      res = await result.current.send('call mom', CTX as never)
+    })
+    expect(res).toEqual({ ok: false, error: 'quota', chatOnly: true })
+  })
+
   it('transient 429 then success → ok, assistant turn appended', async () => {
     fetchMock.mockResolvedValueOnce(transient429()).mockResolvedValueOnce(reply({}))
     const { result } = renderHook(() => useMochiAgent())

@@ -12,6 +12,11 @@ const en = vi.hoisted(() => ({
   clear: () => Promise.resolve(),
   scheduled: [] as string[],
   cancelled: [] as string[],
+  presented: [] as string[],
+  dismissed: [] as string[],
+  newlyScheduled: [] as string[],
+  // Resolves getAllScheduledNotificationsAsync — swap in a gate to hold a sync.
+  gate: null as null | Promise<void>,
 }))
 
 vi.mock('expo-notifications', () => ({
@@ -23,22 +28,76 @@ vi.mock('expo-notifications', () => ({
   },
   getLastNotificationResponseAsync: () => Promise.resolve(en.last),
   clearLastNotificationResponseAsync: () => en.clear(),
-  getAllScheduledNotificationsAsync: () => Promise.resolve(en.scheduled.map((identifier) => ({ identifier }))),
+  SchedulableTriggerInputTypes: { DATE: 'date' },
+  getPermissionsAsync: () => Promise.resolve({ status: 'granted' }),
+  getAllScheduledNotificationsAsync: async () => {
+    if (en.gate) await en.gate
+    return en.scheduled.map((identifier) => ({ identifier, content: { data: {} } }))
+  },
+  scheduleNotificationAsync: (req: { identifier: string }) => {
+    en.newlyScheduled.push(req.identifier)
+    en.scheduled.push(req.identifier)
+    return Promise.resolve(req.identifier)
+  },
+  getPresentedNotificationsAsync: () =>
+    Promise.resolve(en.presented.map((identifier) => ({ request: { identifier } }))),
+  dismissNotificationAsync: (id: string) => {
+    en.dismissed.push(id)
+    return Promise.resolve()
+  },
   cancelScheduledNotificationAsync: (id: string) => {
     en.cancelled.push(id)
+    en.scheduled = en.scheduled.filter((k) => k !== id)
     return Promise.resolve()
   },
 }))
 
 import { runNewestFirst } from '../app/notify'
-import { cancelAllReminders, onReminderTapped } from '../adapters/notifications'
+import { cancelAllReminders, onReminderTapped, syncTodoReminders } from '../adapters/notifications'
 
 describe('cancelAllReminders', () => {
+  beforeEach(() => {
+    en.scheduled = []
+    en.cancelled = []
+    en.presented = []
+    en.dismissed = []
+    en.newlyScheduled = []
+    en.gate = null
+  })
+
   it('cancels every to-do reminder and the daily check-in, nothing else', async () => {
     en.scheduled = ['todo:a:r:0', 'todo:a:nudge:0', 'other-app-thing']
-    en.cancelled = []
     await cancelAllReminders()
     expect(en.cancelled.sort()).toEqual(['sagely-daily-checkin', 'todo:a:nudge:0', 'todo:a:r:0'])
+  })
+
+  it('also clears already-delivered reminders from Notification Center', async () => {
+    en.presented = ['todo:a:r:0', 'someone-else']
+    await cancelAllReminders()
+    expect(en.dismissed).toEqual(['todo:a:r:0'])
+  })
+
+  it('waits out an in-flight sync and drops a queued one — nothing is scheduled after', async () => {
+    let open!: () => void
+    en.gate = new Promise<void>((r) => { open = r })
+    const at = new Date(Date.now() + 3_600_000).toISOString()
+    const todo = (id: string) => ({ id, text: id, done: false, trashed: false, reminders: [{ id: 'r', at }] })
+    void syncTodoReminders([todo('a')]) // in flight, held at the gate
+    await Promise.resolve()
+    void syncTodoReminders([todo('b')]) // queued behind it
+    const cancelled = cancelAllReminders()
+    let done = false
+    void cancelled.then(() => { done = true })
+    await Promise.resolve()
+    expect(done).toBe(false) // still waiting for the in-flight sync
+    open()
+    await cancelled
+    // The in-flight sync finished ('a'); the queued 'b' never ran.
+    expect(en.newlyScheduled.filter((k) => k.startsWith('todo:b'))).toEqual([])
+    await new Promise((r) => setTimeout(r, 10))
+    // Nothing the sync scheduled survived the cancel.
+    expect(en.scheduled.filter((k) => k.startsWith('todo:'))).toEqual([])
+    expect(en.newlyScheduled.filter((k) => k.startsWith('todo:b'))).toEqual([])
   })
 })
 
@@ -57,6 +116,18 @@ const response = (id: string, data: unknown, action = 'expo.modules.notification
 })
 
 describe('onReminderTapped', () => {
+  it('keeps de-duping recent taps after many responses (capped history)', () => {
+    const onTodo = vi.fn()
+    const stop = onReminderTapped(onTodo)
+    for (let i = 0; i < 60; i++) en.listener!(response(`todo:x${i}:r:0`, { todoId: `x${i}` }))
+    en.listener!(response('todo:x59:r:0', { todoId: 'x59' }))
+    expect(onTodo).toHaveBeenCalledTimes(60)
+    // The oldest fell out of the history (bounded memory).
+    en.listener!(response('todo:x0:r:0', { todoId: 'x0' }))
+    expect(onTodo).toHaveBeenCalledTimes(61)
+    stop()
+  })
+
   beforeEach(() => {
     en.listener = null
     en.last = null

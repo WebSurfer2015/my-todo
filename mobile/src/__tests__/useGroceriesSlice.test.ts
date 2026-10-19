@@ -128,4 +128,36 @@ describe('useGroceriesSlice — Mochi Undo surfaces', () => {
     expect(hook.result.current.groceries.find((g) => g.id === id)!.stores).toEqual(['Target'])
     expect(hook.result.current.renameGroceryStore('Costco', 'Costco')).toBeNull()
   })
+
+  it('deleting the active store and Undoing makes it the active store again', async () => {
+    const { hook, profileRef } = await setup()
+    profileRef.current = { ...profileRef.current, activeGroceryStore: 'Costco' }
+    let undo: (() => void) | null = null
+    act(() => {
+      undo = hook.result.current.deleteGroceryStore('Costco')
+    })
+    expect(profileRef.current.activeGroceryStore).toBeUndefined()
+    act(() => undo!())
+    expect(profileRef.current.activeGroceryStore).toBe('Costco')
+  })
+
+  it('addGroceryStore returns an Undo that removes a new store (null for an existing one)', async () => {
+    const { hook, profileRef } = await setup()
+    let undo: (() => void) | null = null
+    act(() => {
+      undo = hook.result.current.addGroceryStore('Aldi')
+    })
+    expect(profileRef.current.groceryStores).toEqual(['Costco', 'Target', 'Aldi'])
+    let id = ''
+    act(() => {
+      id = hook.result.current.addGrocery({ text: 'Rice', stores: ['Aldi'] })!.id
+    })
+    profileRef.current = { ...profileRef.current, activeGroceryStore: 'Aldi' }
+    act(() => undo!())
+    expect(profileRef.current.groceryStores).toEqual(['Costco', 'Target'])
+    expect(profileRef.current.activeGroceryStore).toBeUndefined()
+    expect(hook.result.current.groceries.find((g) => g.id === id)!.stores).toEqual([])
+    expect(hook.result.current.addGroceryStore('Costco')).toBeNull()
+    expect(hook.result.current.addGroceryStore('  ')).toBeNull()
+  })
 })

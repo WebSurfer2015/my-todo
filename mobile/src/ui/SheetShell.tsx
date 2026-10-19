@@ -41,6 +41,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLang } from '../app/LangContext'
 import { useTheme, ThemeColors } from '../app/theme'
 import { useSheetDismiss } from './useSheetDismiss'
+import { useModalPresence } from '../app/modalPresence'
 
 interface HeaderAction {
   label: string
@@ -87,6 +88,7 @@ export default function SheetShell({
   const { height } = useWindowDimensions()
   const insets = useSafeAreaInsets()
   const { translateY, panHandlers } = useSheetDismiss(visible, onClose)
+  useModalPresence(visible)
   const leftAction: HeaderAction = left ?? { label: t.cancel, onPress: onClose }
 
   return (

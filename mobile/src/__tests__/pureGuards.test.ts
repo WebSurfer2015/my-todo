@@ -1,13 +1,16 @@
+// @vitest-environment happy-dom
 /**
  * Small pure decision helpers pulled out of RN components / SDK adapters:
  *   - tierFromCustomerInfo / productFromCustomerInfo (RevenueCat → Tier)
  *   - shouldIgnoreToggleTap (TaskItem's double-tap guard)
  *   - planDetailsOpen (details-sheet Modal handoff on a reminder / row tap)
  */
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { tierFromCustomerInfo, productFromCustomerInfo } from '../adapters/purchaseTier'
 import { shouldIgnoreToggleTap, UNCOMPLETE_GUARD_MS } from '../features/task/TaskItem/toggleGuard'
-import { planDetailsOpen } from '../app/detailsOpenPlan'
+import { detailsNotifyMessage, planDetailsOpen } from '../app/detailsOpenPlan'
+import { deleteAccountErrorMessage, DELETE_ACCOUNT_FAILED, DELETE_ACCOUNT_OFFLINE } from '../app/accountErrors'
+import { isAnyModalPresented, MODAL_DISMISS_GRACE_MS, useModalPresence } from '../app/modalPresence'
 import { PRODUCT_IDS } from '../core-bindings/entitlements'
 
 describe('tierFromCustomerInfo', () => {
@@ -78,16 +81,57 @@ describe('shouldIgnoreToggleTap', () => {
 })
 
 describe('planDetailsOpen', () => {
+  const base = { todoId: 'a', detailsId: null, anySheetOpen: false, anyModalOpen: false }
   it('opens right away when nothing is up', () => {
-    expect(planDetailsOpen({ todoId: 'a', detailsId: null, anySheetOpen: false })).toBe('now')
+    expect(planDetailsOpen(base)).toBe('now')
   })
-  it('closes another sheet first (iOS cannot stack Modals)', () => {
-    expect(planDetailsOpen({ todoId: 'a', detailsId: null, anySheetOpen: true })).toBe('after-close')
+  it('never force-closes a tracked sheet (a Compose draft) — offers a snackbar', () => {
+    expect(planDetailsOpen({ ...base, anySheetOpen: true })).toBe('notify')
   })
-  it('swaps through the open details sheet\'s save path', () => {
-    expect(planDetailsOpen({ todoId: 'a', detailsId: 'b', anySheetOpen: false })).toBe('swap')
+  it('never presents over an untracked modal (picker, paywall) — offers a snackbar', () => {
+    expect(planDetailsOpen({ ...base, anyModalOpen: true })).toBe('notify')
+  })
+  it('swaps through the open details sheet\'s save path when only details is up', () => {
+    expect(planDetailsOpen({ ...base, detailsId: 'b' })).toBe('swap')
+  })
+  it('does not swap while a modal sits over details (a picker inside it)', () => {
+    expect(planDetailsOpen({ ...base, detailsId: 'b', anyModalOpen: true })).toBe('notify')
   })
   it('is a no-op when that to-do is already showing', () => {
-    expect(planDetailsOpen({ todoId: 'a', detailsId: 'a', anySheetOpen: true })).toBe('already-open')
+    expect(planDetailsOpen({ ...base, detailsId: 'a', anySheetOpen: true })).toBe('already-open')
+  })
+})
+
+describe('detailsNotifyMessage', () => {
+  it('quotes the title and truncates it at ~40 chars', () => {
+    expect(detailsNotifyMessage('  Call mom ')).toBe('"Call mom"')
+    const long = 'x'.repeat(60)
+    expect(detailsNotifyMessage(long)).toBe(`"${'x'.repeat(39)}…"`)
+  })
+})
+
+describe('deleteAccountErrorMessage', () => {
+  it('maps network failures to the offline copy', () => {
+    expect(deleteAccountErrorMessage({ code: 'auth/network-request-failed' })).toBe(DELETE_ACCOUNT_OFFLINE)
+    expect(deleteAccountErrorMessage(new Error('A network error has occurred'))).toBe(DELETE_ACCOUNT_OFFLINE)
+  })
+  it('never shows a raw error otherwise', () => {
+    expect(deleteAccountErrorMessage(new Error('auth/internal-error: boom'))).toBe(DELETE_ACCOUNT_FAILED)
+    expect(deleteAccountErrorMessage(null)).toBe(DELETE_ACCOUNT_FAILED)
+  })
+})
+
+describe('useModalPresence counter', () => {
+  it('counts while visible and keeps counting through the dismiss grace', async () => {
+    vi.useFakeTimers()
+    const { renderHook } = await import('@testing-library/react')
+    const hook = renderHook(({ v }) => useModalPresence(v), { initialProps: { v: true } })
+    expect(isAnyModalPresented()).toBe(true)
+    hook.rerender({ v: false })
+    expect(isAnyModalPresented()).toBe(true)
+    vi.advanceTimersByTime(MODAL_DISMISS_GRACE_MS)
+    expect(isAnyModalPresented()).toBe(false)
+    hook.unmount()
+    vi.useRealTimers()
   })
 })

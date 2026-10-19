@@ -225,7 +225,6 @@ export function useTodoStore() {
   });
   const {
     todos,
-    setTodos,
     todosLoaded,
     todosTrusted,
     todoReferences,
@@ -263,6 +262,9 @@ export function useTodoStore() {
     bulkDeferTodos,
     snooze,
     addTask,
+    addTaskWithUndo,
+    applyTracked,
+    undoTracked,
     emptyTrash,
     clearTrashSelection,
     bulkRestore,
@@ -416,7 +418,7 @@ export function useTodoStore() {
   // category back in place and reverts the to-dos the cascade changed.
   const deleteCategory = useCallback((id: string): (() => void) | null => {
     const res = store.actions.deleteCategoryCascade({
-      todos,
+      todos: todosRef.current,
       categories,
       id,
       filter,
@@ -425,9 +427,10 @@ export function useTodoStore() {
       homeStatTiles: profile.homeStatTiles,
     });
     if (!res.changed) return null;
-    // Functional updates: a Mochi batch ("create Work, delete Errands", or
-    // "move X to Home, delete Errands") applies earlier ops in the same tick,
-    // and writing the render-time result clobbered them.
+    // Applied to the FRESHEST lists: a Mochi batch ("create Work, delete
+    // Errands", or "move X to Home, delete Errands") applies earlier ops in
+    // the same tick, and the render-time result clobbered them. The to-do
+    // change is tracked, so its Undo is exact (later edits survive).
     const cascadeFrom = (t: typeof todos, c: typeof categories) =>
       store.actions.deleteCategoryCascade({
         todos: t,
@@ -436,8 +439,15 @@ export function useTodoStore() {
         filter,
         pinnedFilters: profile.pinnedFilters,
       });
-    setTodos((prev) => cascadeFrom(prev, categories).todos);
-    setCategories((prev) => cascadeFrom(todos, prev).categories);
+    const todosChange = applyTracked((prev) => cascadeFrom(prev, categories).todos);
+    // The removed category + its slot, captured from the list it was
+    // actually removed from (the updater has run by the time Undo can).
+    let removed: { cat: (typeof categories)[number]; idx: number } | null = null;
+    setCategories((prev) => {
+      const idx = prev.findIndex((c) => c.id === id);
+      if (idx >= 0) removed = { cat: prev[idx], idx };
+      return cascadeFrom(todosRef.current, prev).categories;
+    });
     if (res.filter !== null) setFilter(res.filter);
     // Strip any pinned set that contained this category so the persisted
     // profile doesn't accumulate stale `cat:<deleted-id>` ghost pills.
@@ -450,19 +460,16 @@ export function useTodoStore() {
     if (res.homeStatTiles !== profile.homeStatTiles) {
       setProfile((prev) => ({ ...prev, homeStatTiles: res.homeStatTiles }));
     }
-    const idx = categories.findIndex((c) => c.id === id);
-    const removed = categories[idx];
-    const todosBefore = todos;
-    const todosAfter = res.todos;
     return () => {
-      setTodos((prev) => store.actions.todosRevertChanges(prev, todosBefore, todosAfter));
-      if (removed) {
+      if (todosChange) undoTracked(todosChange);
+      const r = removed as { cat: (typeof categories)[number]; idx: number } | null;
+      if (r) {
         setCategories((prev) =>
-          prev.some((c) => c.id === id) ? prev : [...prev.slice(0, idx), removed, ...prev.slice(idx)],
+          prev.some((c) => c.id === id) ? prev : [...prev.slice(0, r.idx), r.cat, ...prev.slice(r.idx)],
         );
       }
     };
-  }, [store, todos, categories, filter, filters, profile.pinnedFilters, profile.homeStatTiles, setTodos, setCategories, setFilter, setProfile]);
+  }, [store, todosRef, categories, filter, filters, profile.pinnedFilters, profile.homeStatTiles, applyTracked, undoTracked, setCategories, setFilter, setProfile]);
 
 
   // ---- Derived state (memoized via core.deriveState) ----
@@ -628,6 +635,10 @@ export function useTodoStore() {
     removeSubtask,
     clearSubtasks,
     addTask,
+    addTaskWithUndo,
+    /** Latest to-dos (advanced synchronously by every local mutation) — for
+     * Undos that must see the effect of an earlier Undo in the same tick. */
+    todosRef,
     updateRecurrence,
     emptyTrash,
     selectedTrashIds,
@@ -642,7 +653,7 @@ export function useTodoStore() {
     reorderCategories,
     clearAllData,
   }), [
-    addCategory, addGrocery, restoreGrocery, addGroceryGroup, addGroceryStore, addSubtask, addTask, animationOn,
+    addCategory, addGrocery, restoreGrocery, addGroceryGroup, addGroceryStore, addSubtask, addTask, addTaskWithUndo, animationOn,
     applyRecurrenceChange, applySeriesFutureEdits, applySeriesSubtasks, bulkDeferTodos,
     bulkPermanentDelete, bulkRestore, categories, clearAllData, clearDone, clearFilters,
     clearSubtasks, clearTrashSelection, dataTrusted, deferOverdue, deleteCategory, deleteGrocery,
@@ -653,7 +664,7 @@ export function useTodoStore() {
     permanentlyDeleteSeriesFuture, pinFilter, pinGroceryDept, pinGroceryStore, profile,
     profileTrusted, reduceMotion, removeSubtask, renameGroceryStore, renameStatus,
     reorderCategories, reorderGroceryStores, reorderPriorities, reorderStatuses, restoreFromTrash,
-    revertTodo, saveProfile, selectedTrashIds, setActiveGroceryDept, setActiveGroceryStore,
+    revertTodo, saveProfile, selectedTrashIds, todosRef, setActiveGroceryDept, setActiveGroceryStore,
     setFilter, setFilters, skipSeriesFuture, skipTodo, snooze, today, todoReferences, todos, toggle,
     toggleFilter, toggleGroceryChecked, toggleGroceryStoreHidden, togglePriorityHidden,
     toggleStatusHidden, toggleSubtask, toggleTrashSelection, updateDueDate, updateNotes,

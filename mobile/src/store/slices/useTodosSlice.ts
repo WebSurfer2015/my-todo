@@ -151,7 +151,8 @@ export interface TodosSlice {
   updateTaskCategory: (id: string, category: Category) => void;
   updateText: (id: string, text: string) => void;
   updateNotes: (id: string, notes: string) => void;
-  updateRecurrence: (id: string, recurrence: Recurrence | undefined) => void;
+  /** Series occurrence → the series-wide rule change (keepDetached). */
+  updateRecurrence: (id: string, recurrence: Recurrence | undefined) => Undo | null;
   toggleTrashSelection: (id: string) => void;
   // Series ops
   applySeriesFutureEdits: (
@@ -191,14 +192,14 @@ export interface TodosSlice {
     text: string,
     priority?: Priority,
     dueDate?: string,
-  ) => void;
-  toggleSubtask: (id: string, subId: string) => void;
+  ) => Undo | null;
+  toggleSubtask: (id: string, subId: string) => Undo | null;
   /** Put a to-do back exactly as `snapshot` (the edit/completion Undo). */
   revertTodo: (snapshot: Todo) => void;
   updateSubtaskText: (id: string, subId: string, text: string) => void;
   updateSubtaskPriority: (id: string, subId: string, priority: Priority) => void;
   updateSubtaskDueDate: (id: string, subId: string, dueDate: string) => void;
-  removeSubtask: (id: string, subId: string) => void;
+  removeSubtask: (id: string, subId: string) => Undo | null;
   clearSubtasks: (id: string) => void;
   // Defer / snooze
   deferOverdue: (daysFromToday: number) => void;
@@ -217,6 +218,12 @@ export interface TodosSlice {
       reminders?: Reminder[];
     },
   ) => string;
+  /** addTask that also hands back an exact Undo (removes every row it
+   * created — the whole new series for a repeating to-do). */
+  addTaskWithUndo: (...args: Parameters<TodosSlice["addTask"]>) => { id: string; undo: Undo };
+  /** Run a pure transform through the tracked setter (exact Undo source). */
+  applyTracked: (fn: (ts: Todo[]) => Todo[]) => { before: Todo[]; after: Todo[] } | null;
+  undoTracked: (c: { before: Todo[]; after: Todo[] }) => void;
   emptyTrash: () => void;
   clearTrashSelection: () => void;
   bulkRestore: () => void;
@@ -369,7 +376,7 @@ export function useTodosSlice(
       const beforeTodo = todosRef.current.find((td) => td.id === id);
       // Undo reverses EXACTLY what this toggle did — a series completion
       // also appends the next occurrence and moves reminders.
-      const change = applyTracked((ts) => todoToggle(ts, id));
+      const change = applyTracked((ts) => todoToggle(ts, id, todayLocal()));
       if (!beforeTodo || !change) return null;
       const undo: Undo = () => undoTracked(change);
       const { after, referenceRow } = toggleOutcome(beforeTodo);
@@ -445,7 +452,7 @@ export function useTodosSlice(
     (id: string) => {
       // null = nothing changed (e.g. a to-do with steps can't be skipped) —
       // don't claim "Skipped" for a no-op.
-      const change = applyTracked((ts) => todoSkip(ts, id));
+      const change = applyTracked((ts) => todoSkip(ts, id, todayLocal()));
       if (!change) return null;
       const undo: Undo = () => undoTracked(change);
       notify.showSnackbar({
@@ -469,7 +476,7 @@ export function useTodosSlice(
       // reverse exactly this (it ended the series silently, with no Undo).
       let affected = 0;
       const change = applyTracked((ts) => {
-        const r = todoSkipSeriesFuture(ts, id);
+        const r = todoSkipSeriesFuture(ts, id, todayLocal());
         affected = r.affected;
         return r.next;
       });
@@ -656,11 +663,11 @@ export function useTodosSlice(
       if (!change) return;
       notify.showSnackbar({
         message: deferSnackbarMessage(t.defer.done(deferred), skipped),
-        actionLabel: t.undoAll,
+        actionLabel: deferred + skipped === 1 ? t.undo : t.undoAll,
         onAction: () => undoTracked(change),
       });
     },
-    [selectOverdue, applyTracked, undoTracked, todoDeferTo, notify, t.defer, t.undoAll],
+    [selectOverdue, applyTracked, undoTracked, todoDeferTo, notify, t.defer, t.undo, t.undoAll],
   );
 
   const bulkDeferTodos = useCallback(
@@ -681,12 +688,12 @@ export function useTodosSlice(
           deferred === 1 ? "1 to-do deferred." : `${deferred} to-dos deferred.`,
           skipped,
         ),
-        actionLabel: t.undoAll,
+        actionLabel: deferred + skipped === 1 ? t.undo : t.undoAll,
         onAction: undo,
       });
       return undo;
     },
-    [applyTracked, undoTracked, todoDeferTo, notify, t.undoAll],
+    [applyTracked, undoTracked, todoDeferTo, notify, t.undo, t.undoAll],
   );
 
   const snooze = useCallback(
@@ -738,9 +745,10 @@ export function useTodosSlice(
 
   const addSubtask = useCallback(
     (id: string, text: string, priority?: Priority, dueDate?: string) => {
-      applyTracked((prev) => subtaskAdd(prev, id, text, priority, dueDate));
+      const change = applyTracked((prev) => subtaskAdd(prev, id, text, priority, dueDate));
+      return change ? () => undoTracked(change) : null;
     },
-    [applyTracked, subtaskAdd],
+    [applyTracked, undoTracked, subtaskAdd],
   );
 
   const toggleSubtask = useCallback(
@@ -750,8 +758,10 @@ export function useTodosSlice(
       // Tracked: finishing the last step completes the to-do (and rolls a
       // series forward), so it gets the same completion snackbar + exact
       // Undo as tapping the circle.
-      const change = applyTracked((ts) => subtaskToggle(ts, id, subId));
-      if (!beforeTodo || !change) return;
+      const change = applyTracked((ts) => subtaskToggle(ts, id, subId, todayLocal()));
+      if (!change) return null;
+      const undo: Undo = () => undoTracked(change);
+      if (!beforeTodo) return undo;
       const afterTodo = change.after.find((td) => td.id === id);
       if (!beforeTodo.done && afterTodo?.done) {
         setTodoReferences((prev) => recordTodoReference(prev, afterTodo));
@@ -759,7 +769,7 @@ export function useTodosSlice(
         notify.showSnackbar({
           message: t.completedSnackbar(text),
           actionLabel: t.undo,
-          onAction: () => undoTracked(change),
+          onAction: undo,
           mergeKey: "done",
           mergedMessage: (n: number) => t.completedSnackbarMany(n),
           mergedActionLabel: t.undoAll,
@@ -771,6 +781,7 @@ export function useTodosSlice(
       ) {
         notify.showSnackbar({ message: "Moved back to your open list." });
       }
+      return undo;
     },
     [applyTracked, undoTracked, filterRef, subtaskToggle, setTodoReferences, recordTodoReference, notify, t],
   );
@@ -798,9 +809,10 @@ export function useTodosSlice(
 
   const removeSubtask = useCallback(
     (id: string, subId: string) => {
-      applyTracked((prev) => subtaskRemove(prev, id, subId));
+      const change = applyTracked((prev) => subtaskRemove(prev, id, subId));
+      return change ? () => undoTracked(change) : null;
     },
-    [applyTracked, subtaskRemove],
+    [applyTracked, undoTracked, subtaskRemove],
   );
 
   const clearSubtasks = useCallback(
@@ -812,7 +824,7 @@ export function useTodosSlice(
 
   // ---- Non-stable mutations ----
 
-  const addTask = useCallback(
+  const addTaskWithUndo = useCallback(
     (
       text: string,
       priority: Priority,
@@ -850,23 +862,40 @@ export function useTodosSlice(
       // Expanded ONCE, outside the transform, so a re-run on a fresher list
       // prepends the very same rows (same ids).
       const rows = recurrence ? expandSeries(seed, todayLocal()) : [seed];
-      applyTracked((prev) => [...rows, ...prev]);
-      return seed.id;
+      const change = applyTracked((prev) => [...rows, ...prev]);
+      // Exact: removes just the rows this add created (every occurrence of a
+      // new series), keeping anything changed since.
+      const undo: Undo = () => {
+        if (change) undoTracked(change);
+      };
+      return { id: seed.id, undo };
     },
-    [setTodoReferences, newTodo, applyTracked, recordTodoReference, expandSeries],
+    [setTodoReferences, newTodo, applyTracked, undoTracked, recordTodoReference, expandSeries],
+  );
+  const addTask = useCallback(
+    (...args: Parameters<typeof addTaskWithUndo>) => addTaskWithUndo(...args).id,
+    [addTaskWithUndo],
   );
 
+  // A series occurrence changes the SERIES rule (Mochi, details "this
+  // only"): the same path as the series Save — this row takes the new rule
+  // and the future open siblings are rebuilt from it, keeping detached ones.
+  // Setting it on one row alone left the series repeating the old rule.
+  // A one-off becomes a new series and its window is filled right away.
   const updateRecurrence = useCallback(
     (id: string, recurrence: Recurrence | undefined) => {
-      applyTracked((prev) => {
+      const today = todayLocal();
+      const change = applyTracked((prev) => {
+        if (prev.find((td) => td.id === id)?.seriesId) {
+          return todoApplyRecurrenceChange(prev, id, recurrence, today, { keepDetached: true }).next;
+        }
         const next = todoSetRecurrence(prev, id, recurrence);
-        // Fill the series window right away — otherwise a newly-repeating
-        // to-do had only its one occurrence until the next cold launch.
         const sid = recurrence ? next.find((td) => td.id === id)?.seriesId : undefined;
-        return sid ? topUpSeries(next, sid, todayLocal()) : next;
+        return sid ? topUpSeries(next, sid, today) : next;
       });
+      return change ? () => undoTracked(change) : null;
     },
-    [applyTracked, todoSetRecurrence, topUpSeries],
+    [applyTracked, undoTracked, todoApplyRecurrenceChange, todoSetRecurrence, topUpSeries],
   );
 
   const emptyTrash = useCallback(() => {
@@ -977,6 +1006,9 @@ export function useTodosSlice(
     bulkDeferTodos,
     snooze,
     addTask,
+    addTaskWithUndo,
+    applyTracked,
+    undoTracked,
     emptyTrash,
     clearTrashSelection,
     bulkRestore,
