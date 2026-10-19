@@ -27,11 +27,13 @@ import {
   parseAgentUsage,
   refundAgentUsage,
   refundMochiUsage,
+  resolveConversation,
   type AgentUsageData,
   type ChatTurnDecision,
   type UsageCharge,
 } from './chatQuota'
 import { isCompName } from './compUsers'
+import { mintConvId } from './chatSignature'
 
 // Per-user daily ceiling, shared across every AI endpoint (ambient
 // suggestions, breakdowns, and Mochi conversations). Raised 30 → 150 to give active
@@ -53,6 +55,30 @@ const RESTING_MESSAGE = `Mochi's resting for now — you can still add this your
  * have room, so clients should pause Mochi chat, not every AI surface. The
  * shared-cap rejection carries no details. Wire contract: index.ts. */
 export const CHAT_TURNS_EXHAUSTED_DETAILS = { reason: 'turns' } as const
+
+/** `details` on the RESOURCE_EXHAUSTED thrown when the TIER conversation
+ * ceiling (MOCHI_TIER_ENFORCEMENT on: the Mochi-only daily/monthly counters
+ * in mochiUsage) is hit — aiInfer reserves against the separate flat counter,
+ * so this is chat-only too. Wire contract: index.ts. */
+export const CHAT_TIER_EXHAUSTED_DETAILS = { reason: 'tier' } as const
+
+/** What agentChat tells the reservation about the request (see
+ * agentChatCore claimFollowUp / chatSignature historyHash). */
+export interface ConversationClaim {
+  /** Sig-verified, fresh convId the history claims to continue; null = start. */
+  claimedConvId: string | null
+  /** historyHash() of the normalized request (start-retry de-dup). */
+  startHash: string
+}
+
+/** An allowed agentChat reservation. */
+export interface ChatReservation {
+  charge: UsageCharge
+  /** The convId to sign this turn's reply with. */
+  convId: string
+  /** True when this request took a slot (telemetry). */
+  startsConversation: boolean
+}
 
 function writeAgentUsage(
   tx: FirebaseFirestore.Transaction,
@@ -223,19 +249,40 @@ async function isCompUser(uid: string): Promise<boolean> {
 async function runChatReservation(
   uid: string,
   label: string,
+  claim: ConversationClaim,
   decide: (
     tx: FirebaseFirestore.Transaction,
     agentUsage: AgentUsageData | null,
+    startsConversation: boolean,
   ) => Promise<ChatTurnDecision>,
   extraWrite?: (tx: FirebaseFirestore.Transaction, d: ChatTurnDecision) => void,
-): Promise<UsageCharge> {
+  tierCeiling = false,
+): Promise<ChatReservation> {
   const ref = adminDb.doc(`users/${uid}/state/agentUsage`)
   let decision: ChatTurnDecision
+  let convId = ''
+  let starts = false
   try {
     decision = await adminDb.runTransaction(async (tx) => {
       const snap = await tx.get(ref)
       const usage = snap.exists ? parseAgentUsage(snap.data()) : null
-      const d = await decide(tx, usage)
+      // Is this a follow-up of a RECORDED conversation, a start retry, or a
+      // new start? Same transaction as the slot, so the convId record and the
+      // reservation commit together (chatQuota resolveConversation).
+      const conv = resolveConversation(
+        usage?.convs,
+        claim.claimedConvId,
+        claim.startHash,
+        Date.now(),
+        mintConvId,
+      )
+      const d = await decide(tx, usage, conv.startsConversation)
+      if (d.allow && d.charge) {
+        d.nextAgentUsage = { ...d.nextAgentUsage, convs: conv.nextConvs }
+        if (conv.minted) d.charge = { ...d.charge, convId: conv.convId }
+      }
+      convId = conv.convId
+      starts = conv.startsConversation
       // Skip the write when rejecting an already-marked day (no state change).
       const alreadyMarked = !d.allow && usage?.date === d.nextAgentUsage.date && usage.ceilingHit
       if (!alreadyMarked) writeAgentUsage(tx, ref, d.nextAgentUsage)
@@ -258,24 +305,29 @@ async function runChatReservation(
     if (decision.reason === 'turns') {
       throw new HttpsError('resource-exhausted', RESTING_MESSAGE, CHAT_TURNS_EXHAUSTED_DETAILS)
     }
+    // The tier ceiling is Mochi-only (aiInfer's flat counter is separate);
+    // the flat path's 'daily' is the SHARED cap → no details.
+    if (tierCeiling) {
+      throw new HttpsError('resource-exhausted', RESTING_MESSAGE, CHAT_TIER_EXHAUSTED_DETAILS)
+    }
     throw new HttpsError('resource-exhausted', RESTING_MESSAGE)
   }
-  return decision.charge
+  return { charge: decision.charge, convId, startsConversation: starts }
 }
 
 /**
  * Flat-path reservation for ONE agentChat turn (MOCHI_TIER_ENFORCEMENT off,
- * and comp users). Only a turn that STARTS a conversation takes a slot of the
+ * and comp users). Only a turn that STARTS a conversation (resolveConversation) takes a slot of the
  * shared flat daily cap (DAILY_CALL_LIMIT, shared with aiInfer); follow-ups
  * are free, bounded by the 40-turn window and MAX_CHAT_TURNS_PER_DAY.
  */
 export async function reserveChatTurn(
   uid: string,
-  startsConversation: boolean,
-): Promise<UsageCharge> {
+  claim: ConversationClaim,
+): Promise<ChatReservation> {
   const today = new Date().toISOString().slice(0, 10) // YYYY-MM-DD UTC
-  return runChatReservation(uid, 'Mochi', async (_tx, usage) =>
-    decideChatTurnFlat(usage, today, startsConversation, DAILY_CALL_LIMIT),
+  return runChatReservation(uid, 'Mochi', claim, async (_tx, usage, starts) =>
+    decideChatTurnFlat(usage, today, starts, DAILY_CALL_LIMIT),
   )
 }
 
@@ -293,12 +345,12 @@ export async function reserveChatTurn(
  */
 export async function reserveMochiRequest(
   uid: string,
-  startsConversation: boolean,
-): Promise<UsageCharge> {
+  claim: ConversationClaim,
+): Promise<ChatReservation> {
   // Family comp: no tier metering, but the same flat blast-radius cap everyone
   // gets with enforcement off. TODO: match comp by uid, not name.
   if (await isCompUser(uid)) {
-    return reserveChatTurn(uid, startsConversation)
+    return reserveChatTurn(uid, claim)
   }
   const now = new Date()
   const today = now.toISOString().slice(0, 10) // YYYY-MM-DD UTC
@@ -308,7 +360,8 @@ export async function reserveMochiRequest(
   return runChatReservation(
     uid,
     'Mochi(tier)',
-    async (tx, agentUsage) => {
+    claim,
+    async (tx, agentUsage, startsConversation) => {
       const [usageSnap, entSnap] = await Promise.all([tx.get(usageRef), tx.get(entRef)])
       const ent = parseEntitlement(entSnap.exists ? entSnap.data() : null)
       const tier = effectiveTier(ent, now.getTime())
@@ -324,6 +377,7 @@ export async function reserveMochiRequest(
         })
       }
     },
+    true,
   )
 }
 

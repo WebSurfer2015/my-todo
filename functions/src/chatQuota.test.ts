@@ -160,6 +160,10 @@ describe('rollAgentUsage / markCeilingHit', () => {
     const r = rollAgentUsage(usage({ date: YDAY, calls: 9, prev }), TODAY)
     expect(r).toEqual(usage({ prev }))
   })
+  it('carries conversation records across a UTC rollover (rolling list)', () => {
+    const convs = [{ id: 'AAAAAAAAAAAAAAAA', t: 1, h: 'h' }]
+    expect(rollAgentUsage(usage({ date: YDAY, convs }), TODAY).convs).toEqual(convs)
+  })
   it('markCeilingHit sets today\'s flag', () => {
     expect(markCeilingHit(null, TODAY)).toEqual(usage({ ceilingHit: true }))
   })
@@ -175,6 +179,21 @@ describe('parseAgentUsage', () => {
       ...usage({ calls: 2, chatTurns: 0, chatConversations: 4 }),
       prev: { date: YDAY, chatTurns: 6, chatConversations: 2, ceilingHit: true },
     })
+  })
+  it('parses conversation records, dropping malformed ones and keeping the newest 50', () => {
+    const good = { id: 'AAAAAAAAAAAAAAAA', t: 5, h: 'hash' }
+    const parsed = parseAgentUsage(
+      envelope({
+        ...usage(),
+        convs: [good, { id: 'short', t: 1, h: 'x' }, { id: 'BBBBBBBBBBBBBBBB', t: 'x', h: 'x' }, { id: 'CCCCCCCCCCCCCCCC', t: 1 }, null, 7],
+      }),
+    )
+    expect(parsed?.convs).toEqual([good])
+    const many = Array.from({ length: 60 }, (_, i) => ({ id: `C${String(i).padStart(15, '0')}`, t: i, h: 'h' }))
+    const capped = parseAgentUsage(envelope({ ...usage(), convs: many }))?.convs
+    expect(capped).toHaveLength(50)
+    expect(capped?.[0].t).toBe(10)
+    expect(parseAgentUsage(envelope({ ...usage(), convs: 'nope' }))?.convs).toBeUndefined()
   })
   it('null on junk', () => {
     expect(parseAgentUsage(null)).toBeNull()

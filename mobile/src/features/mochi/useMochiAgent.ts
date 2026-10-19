@@ -101,15 +101,19 @@ interface SendResult {
   ok: boolean
   data?: AgentResponse
   error?: string
-  /** On 'quota': true when only the chat's turn backstop was hit (server
-   * details.reason 'turns') — other AI surfaces may keep going. */
+  /** On 'quota': true when only a chat-only ceiling was hit (server
+   * details.reason 'turns' or 'tier') — other AI surfaces may keep going. */
   chatOnly?: boolean
 }
 
-/** The callable's RESOURCE_EXHAUSTED body; `details.reason === 'turns'`
- * marks the chat-only daily turn backstop. */
+/** The callable's RESOURCE_EXHAUSTED body; `details.reason` 'turns' (daily
+ * turn backstop) or 'tier' (tier conversation ceiling) is chat-only; no
+ * details = the shared cap (pause all AI). */
 type ExhaustedBody = { error?: { status?: string; message?: string; details?: { reason?: string } } } | null
-const isChatOnlyExhausted = (b: ExhaustedBody) => b?.error?.details?.reason === 'turns'
+const isChatOnlyExhausted = (b: ExhaustedBody) => {
+  const reason = b?.error?.details?.reason
+  return reason === 'turns' || reason === 'tier'
+}
 
 /** The wire shape of one history turn: `sig` only on signed assistant turns. */
 export function toWireTurn(m: ChatTurn): { role: 'user' | 'assistant'; content: string; sig?: string } {

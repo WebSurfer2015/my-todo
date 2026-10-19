@@ -89,6 +89,20 @@ describe('refundAgentUsage', () => {
       refundAgentUsage(usage({ calls: 3 }), { ...charge, calls: 0, chatTurns: 0, chatConversations: 0 }),
     ).toBeNull()
   })
+  it('forgets the conversation a start minted — same day with the counters, and alone after a rollover', () => {
+    const minted = { id: 'MMMMMMMMMMMMMMMM', t: 2, h: 'h' }
+    const other = { id: 'OOOOOOOOOOOOOOOO', t: 1, h: 'g' }
+    const charge: UsageCharge = { date: TODAY, calls: 1, chatTurns: 1, chatConversations: 1, mochi: null, convId: minted.id }
+    expect(refundAgentUsage(usage({ calls: 1, chatTurns: 1, chatConversations: 1, convs: [other, minted] }), charge)).toEqual(
+      usage({ convs: [other] }),
+    )
+    // Next day: counters already reset (untouched), the record still goes.
+    expect(refundAgentUsage(usage({ date: TOMORROW, calls: 4, convs: [other, minted] }), charge)).toEqual(
+      usage({ date: TOMORROW, calls: 4, convs: [other] }),
+    )
+    // Nothing to forget and nothing to refund after a rollover → no write.
+    expect(refundAgentUsage(usage({ date: TOMORROW, convs: [other] }), charge)).toBeNull()
+  })
   it('keeps prev stats untouched', () => {
     const prev = { date: '2026-10-17', chatTurns: 2, chatConversations: 1, ceilingHit: false }
     const out = refundAgentUsage(usage({ calls: 1, prev }), {

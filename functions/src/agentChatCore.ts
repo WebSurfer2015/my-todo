@@ -10,7 +10,8 @@
  *    windowed messages → the Anthropic Messages request;
  *  - walkAgentResponse — text + tool_use blocks → reply + validated
  *    operations (the voice / pickTodos / dropped-op / ack rules);
- *  - startsConversation — the fair-use "does this take a slot?" rule.
+ *  - claimFollowUp — the client-side half of the fair-use "does this take
+ *    a slot?" rule (the recorded-convId half is chatQuota resolveConversation).
  *
  * No firebase-admin / firebase-functions imports (the Anthropic import is
  * type-only), so tests load it without booting the SDKs.
@@ -29,7 +30,7 @@ import {
   neutralizeEnvelopeTags,
   type ChatMessage,
 } from './chatMessages'
-import { hasUnsignedAssistantTurn } from './chatSignature'
+import { verifiedConversation } from './chatSignature'
 import { isValidIsoDate } from './dates'
 
 // Haiku is the right default for a MULTI-TURN chat: the slot-filling
@@ -559,22 +560,23 @@ export function walkAgentResponse(response: AgentModelResponse, ctx: SanitizedCo
 // ─── Fair use ─────────────────────────────────────────────────────────
 
 /**
- * Does this request START a conversation (and so take a fair-use slot)?
- * Yes when the client says so (`conversationStart === true` — an intent chip
- * prepends a canned local exchange), when the window has exactly one user
- * turn, OR when ANY assistant turn lacks a valid server signature for this
- * uid and its preceding user turn: history we can't vouch for may have been
- * fabricated (or replayed) to dodge the slot.
+ * The conversation this request claims to CONTINUE (its verified convId), or
+ * null when it must be treated as a conversation START (takes a fair-use
+ * slot). Null when the client says so (`conversationStart === true` — an
+ * intent chip prepends a canned local exchange), when the window has exactly
+ * one user turn, or when the assistant history doesn't prove ONE live,
+ * server-signed conversation for this uid (chatSignature verifiedConversation:
+ * every sig valid; the newest reply's convId signed < 60 min ago). A non-null claim is
+ * only honoured if the convId is also in the user's recorded list — checked in
+ * the reservation transaction (chatQuota resolveConversation).
  */
-export function startsConversation(
+export function claimFollowUp(
   conversationStartFlag: unknown,
   messages: ChatMessage[],
   sigKey: Buffer,
   uid: string,
-): boolean {
-  return (
-    conversationStartFlag === true ||
-    isConversationStart(messages) ||
-    hasUnsignedAssistantTurn(messages, sigKey, uid)
-  )
+  nowMs: number,
+): string | null {
+  if (conversationStartFlag === true || isConversationStart(messages)) return null
+  return verifiedConversation(messages, sigKey, uid, nowMs)
 }

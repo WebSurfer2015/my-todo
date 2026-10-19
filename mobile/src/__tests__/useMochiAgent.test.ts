@@ -66,6 +66,30 @@ describe('useMochiAgent', () => {
     expect(res).toEqual({ ok: false, error: 'quota', chatOnly: true })
   })
 
+  it('the tier conversation ceiling (details.reason "tier") is chat-only too', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({ error: { status: 'RESOURCE_EXHAUSTED', message: 'resting', details: { reason: 'tier' } } }, 429),
+    )
+    const { result } = renderHook(() => useMochiAgent())
+    let res: { ok: boolean; error?: string; chatOnly?: boolean } | undefined
+    await act(async () => {
+      res = await result.current.send('call mom', CTX as never)
+    })
+    expect(res).toEqual({ ok: false, error: 'quota', chatOnly: true })
+  })
+
+  it('an unknown details.reason is NOT chat-only (pause all AI)', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({ error: { status: 'RESOURCE_EXHAUSTED', message: 'resting', details: { reason: 'other' } } }, 429),
+    )
+    const { result } = renderHook(() => useMochiAgent())
+    let res: { ok: boolean; error?: string; chatOnly?: boolean } | undefined
+    await act(async () => {
+      res = await result.current.send('call mom', CTX as never)
+    })
+    expect(res).toEqual({ ok: false, error: 'quota', chatOnly: false })
+  })
+
   it('transient 429 then quota 429 on the retry → still quota (graceful fallback)', async () => {
     fetchMock.mockResolvedValueOnce(transient429()).mockResolvedValueOnce(quota429())
     const { result } = renderHook(() => useMochiAgent())

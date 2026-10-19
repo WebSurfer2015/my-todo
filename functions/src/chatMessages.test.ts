@@ -113,6 +113,22 @@ describe('normalizeChatMessages — empty assistant turns + history budget', () 
     expect(out[0].content.startsWith(`${21 - out.length}:`)).toBe(true)
   })
 
+  it('exact budget boundary: === MAX_HISTORY_CHARS is kept whole; one char over drops the oldest turn', () => {
+    const full = (i: number): ChatMessage => ({
+      role: i % 2 === 0 ? 'user' : 'assistant',
+      content: `${i}:`.padEnd(MAX_TURN_CHARS, 'x'),
+    })
+    const n = MAX_HISTORY_CHARS / MAX_TURN_CHARS
+    expect(Number.isInteger(n)).toBe(true)
+    const exact = Array.from({ length: n }, (_, i) => full(i))
+    expect(normalizeChatMessages(exact)).toEqual(exact)
+    const over = [...exact, { role: n % 2 === 0 ? 'user' : 'assistant', content: 'y' } as ChatMessage]
+    const out = normalizeChatMessages(over)
+    // Oldest (user) dropped, then re-aligned to start on a user turn.
+    expect(out[0]).toEqual(full(2))
+    expect(out).toHaveLength(over.length - 2)
+  })
+
   it('a history under the budget is untouched', () => {
     expect(normalizeChatMessages(history(9))).toEqual(history(9))
   })

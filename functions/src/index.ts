@@ -23,7 +23,7 @@ import type { ProposedOperation } from './agentTools'
 import { refundUsage, reserveChatTurn, reserveMochiRequest } from './quota'
 import { isAgentEnabled } from './aiInfer'
 import { normalizeChatMessages, type ChatMessage } from './chatMessages'
-import { deriveChatSigKey, precedingUserText, signReply } from './chatSignature'
+import { deriveChatSigKey, historyHash, precedingUserText, signReply } from './chatSignature'
 import { APP_CHECK_ENFORCED, logAppCheck } from './appCheck'
 import {
   MODEL,
@@ -31,7 +31,7 @@ import {
   buildContextBlock,
   fitContextBudget,
   sanitizeChatContext,
-  startsConversation as isStartRequest,
+  claimFollowUp,
   walkAgentResponse,
   type ChatContext,
 } from './agentChatCore'
@@ -70,9 +70,11 @@ interface ChatRequest {
 
 interface ChatResponse {
   reply: string
-  /** base64url HMAC-SHA256 over `uid | sha256(last user turn) | reply`
-   * (chatSignature.ts) — the client echoes it back on this assistant turn so
-   * the server can tell real history from fabricated or replayed. `reply` is
+  /** `${convId}.${iat}.${hmac}` — HMAC-SHA256 over
+   * `uid | convId | iat | sha256(last user turn) | reply` (chatSignature.ts).
+   * OPAQUE to the client, which echoes it back on this assistant turn so the
+   * server can tell a live, recorded conversation from fabricated, replayed
+   * or stale history. `reply` is
    * FINAL (question "?" normalization already applied server-side): the
    * client must render and echo it verbatim or the sig won't verify. */
   sig: string
@@ -87,12 +89,16 @@ interface ChatResponse {
   model: string
 }
 
-// Fair-use errors (both RESOURCE_EXHAUSTED, same de-metered message):
-//  - Shared cap (daily/monthly; also blocks aiInfer): NO `details`. The
-//    client should pause all AI for the day.
+// Fair-use errors (all RESOURCE_EXHAUSTED, same de-metered message):
+//  - Shared flat cap (DAILY_CALL_LIMIT; also blocks aiInfer): NO `details`.
+//    The client should pause all AI for the day.
 //  - Chat-only turn backstop (MAX_CHAT_TURNS_PER_DAY): `details: { reason:
-//    'turns' }` (CHAT_TURNS_EXHAUSTED_DETAILS in quota.ts). Only Mochi chat
-//    is out — ambient aiInfer still works. On the wire (raw callable HTTP):
+//    'turns' }` (CHAT_TURNS_EXHAUSTED_DETAILS in quota.ts).
+//  - Chat-only TIER conversation ceiling (MOCHI_TIER_ENFORCEMENT on; the
+//    Mochi-only daily/monthly counters): `details: { reason: 'tier' }`
+//    (CHAT_TIER_EXHAUSTED_DETAILS).
+//  For 'turns' and 'tier' only Mochi chat is out — ambient aiInfer still
+//  works. On the wire (raw callable HTTP):
 //    { "error": { "status": "RESOURCE_EXHAUSTED", "message": "…",
 //                 "details": { "reason": "turns" } } }
 
@@ -137,16 +143,21 @@ export const agentChat = onCall(
     // Reserve before doing any expensive work: the turn is counted (committed
     // in a transaction) before the Anthropic request runs, so a hammered model
     // endpoint can't drain past the cap. Fair use counts CONVERSATIONS: only a
-    // request that starts one takes a slot — including any request whose
-    // assistant history isn't server-signed (agentChatCore.startsConversation).
+    // request that starts one takes a slot. A follow-up must prove ONE live,
+    // server-signed conversation (agentChatCore.claimFollowUp) whose convId is
+    // recorded for this uid (checked in the reservation transaction); a start
+    // mints the convId every reply in the conversation is signed with.
     // Follow-ups are free, bounded by the 40-turn window and the per-day turn
     // backstop (chatQuota.ts MAX_CHAT_TURNS_PER_DAY).
     const apiKey = ANTHROPIC_API_KEY.value()
     const sigKey = deriveChatSigKey(apiKey)
-    const isStart = isStartRequest(data?.conversationStart, messages, sigKey, uid)
-    const charge = MOCHI_TIER_ENFORCEMENT
-      ? await reserveMochiRequest(uid, isStart)
-      : await reserveChatTurn(uid, isStart)
+    const claim = {
+      claimedConvId: claimFollowUp(data?.conversationStart, messages, sigKey, uid, Date.now()),
+      startHash: historyHash(messages),
+    }
+    const { charge, convId, startsConversation: isStart } = MOCHI_TIER_ENFORCEMENT
+      ? await reserveMochiRequest(uid, claim)
+      : await reserveChatTurn(uid, claim)
 
     // Validated, capped, budgeted context — the model sees exactly what the
     // anti-hallucination allow-lists are built from.
@@ -208,8 +219,16 @@ export const agentChat = onCall(
 
     return {
       reply,
-      // Bound to the caller and the user turn it answers (anti-replay).
-      sig: signReply(sigKey, uid, precedingUserText(messages, messages.length), reply),
+      // Bound to the caller, the conversation, the signing time and the user
+      // turn it answers (anti-replay).
+      sig: signReply(
+        sigKey,
+        uid,
+        convId,
+        Math.floor(Date.now() / 1000),
+        precedingUserText(messages, messages.length),
+        reply,
+      ),
       operations,
       awaitingConfirmation: operations.length > 0,
       usage: {
