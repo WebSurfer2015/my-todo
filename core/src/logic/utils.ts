@@ -1,3 +1,5 @@
+import { WEEKDAY_SHORT } from '../domain/types'
+
 /**
  * Globally-unique id generator. Prefers `crypto.randomUUID()` (RFC 4122 v4)
  * which is available in modern browsers and React Native via Hermes (RN
@@ -327,17 +329,16 @@ export function formatRecurrence(rec: {
   byWeekday?: number[]
   bySetPos?: number[]
 }): string {
-  const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const POS_LABELS: Record<number, string> = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th', 5: '5th', [-1]: 'Last' }
   const interval = rec.interval ?? 1
   const everyN = interval === 1 ? 'every' : `every ${interval}`
   if (rec.freq === 'weekly' && rec.byWeekday && rec.byWeekday.length > 0) {
-    const days = rec.byWeekday.slice().sort().map((w) => WEEKDAYS[w]).join(', ')
+    const days = rec.byWeekday.slice().sort().map((w) => WEEKDAY_SHORT[w]).join(', ')
     const prefix = interval === 1 ? 'Weekly' : `Every ${interval} weeks`
     return `${prefix} · ${days}`
   }
   if (rec.freq === 'monthly' && rec.byWeekday && rec.byWeekday.length > 0) {
-    const days = rec.byWeekday.slice().sort().map((w) => WEEKDAYS[w]).join(', ')
+    const days = rec.byWeekday.slice().sort().map((w) => WEEKDAY_SHORT[w]).join(', ')
     const positions = rec.bySetPos && rec.bySetPos.length > 0
       ? rec.bySetPos.slice().sort((a, b) => a - b).map((p) => POS_LABELS[p] ?? `${p}`).join(' & ')
       : ''
