@@ -676,7 +676,7 @@ function TodosScreen() {
                     hint={store.emptyState.hint}
                     actionLabel={store.emptyState.ctaLabel}
                     onAction={() => {
-                      sheets.openCompose()
+                      sheets.openCapture()
                     }}
                     centered
                   />
@@ -940,15 +940,17 @@ function AppGate() {
   // changes — adds new ones, cancels removed/done/trashed/cleared
   // entries. Permission is requested at UI-action time (when the user
   // sets a reminder); this sync silently skips if it isn't granted.
+  // Signed-in only: on a cold launch the signed-out local store hydrates
+  // (empty) before auth resolves, and syncing that cancelled every reminder.
   useEffect(() => {
-    if (!store.loaded) return;
+    if (!store.loaded || !user) return;
     void syncTodoReminders(store.todos, { gentleNudge: store.profile.gentleNudge === true });
-  }, [store.todos, store.loaded, store.profile.gentleNudge]);
+  }, [store.todos, store.loaded, store.profile.gentleNudge, user]);
   // Re-sync when the app returns to the foreground: notification permission
   // may have been granted in iOS Settings, the time zone may have changed,
   // and repeating reminders are only scheduled a limited number ahead.
-  const reminderInputsRef = useRef({ todos: store.todos, loaded: store.loaded, nudge: store.profile.gentleNudge === true });
-  reminderInputsRef.current = { todos: store.todos, loaded: store.loaded, nudge: store.profile.gentleNudge === true };
+  const reminderInputsRef = useRef({ todos: store.todos, loaded: store.loaded && !!user, nudge: store.profile.gentleNudge === true });
+  reminderInputsRef.current = { todos: store.todos, loaded: store.loaded && !!user, nudge: store.profile.gentleNudge === true };
   useEffect(() => {
     const sub = AppState.addEventListener("change", (next) => {
       const cur = reminderInputsRef.current;

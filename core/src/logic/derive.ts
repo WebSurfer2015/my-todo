@@ -15,7 +15,7 @@ import {
 } from "../domain/types";
 import { CategoryDef, categoryLabel } from "../data/categories";
 import { buildGroups, TodoGroup } from "./groups";
-import { genUuid, todayLocal, dueDateOnly, nextOccurrence, expandRecurrence, MAX_RECURRENCE_INSTANCES } from "./utils";
+import { genUuid, isoDate, todayLocal, dueDateOnly, nextOccurrence, expandRecurrence, MAX_RECURRENCE_INSTANCES } from "./utils";
 import type { Strings } from "../data/i18n";
 
 export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
@@ -418,9 +418,10 @@ export function subtaskUpdateDueDate(
       s.id === subId ? { ...s, dueDate } : s,
     );
     // Parent's dueDate tracks the LATEST sub due date — every change
-    // to any sub recalculates the max across all subs. ISO yyyy-mm-dd
-    // strings sort lexically. If no sub has a date, the parent keeps
-    // its existing date so we don't accidentally clear it.
+    // to any sub recalculates the max across all subs (by design, also when
+    // that moves it earlier). ISO yyyy-mm-dd strings sort lexically. If no
+    // sub has a date, the parent keeps its existing date so we don't
+    // accidentally clear it.
     const maxSubDate = nextSubs.reduce<string>((acc, s) => {
       if (s.dueDate && s.dueDate > acc) return s.dueDate;
       return acc;
@@ -666,6 +667,27 @@ export function todoApplySeriesSubtasks(
   });
   return { next, affected };
 }
+/**
+ * End a series BEFORE `cutoffDue`: every member that still repeats gets
+ * recurrence.endDate = the day before. Used by every "end the series" action
+ * (delete series, mark all done, skip all, stop repeating) so an OLDER open
+ * occurrence (e.g. yesterday's, still undone) can't revive it — top-up and
+ * append both stop at endDate.
+ */
+export function seriesEndBefore(todos: Todo[], seriesId: string | undefined, cutoffDue: string): Todo[] {
+  const cutoff = dueDateOnly(cutoffDue);
+  if (!seriesId || !cutoff) return todos;
+  const d = new Date(`${cutoff}T00:00:00`);
+  d.setDate(d.getDate() - 1);
+  const endDate = isoDate(d);
+  const now = Date.now();
+  return todos.map((td) => {
+    if (td.seriesId !== seriesId || !td.recurrence) return td;
+    if (td.recurrence.endDate && td.recurrence.endDate <= endDate) return td;
+    return { ...td, recurrence: { ...td.recurrence, endDate }, updatedAt: now };
+  });
+}
+
 
 /**
  * R6b — Frequency-change apply for a series. Writes the new
@@ -722,7 +744,7 @@ export function todoApplyRecurrenceChange(
     return { ...td, trashed: true, trashedAt: now, updatedAt: now };
   });
   // 3) If recurrence is set, re-expand from the (newly-snapped) target.
-  if (!newRecurrence) return { next: updated, trashedCount };
+  if (!newRecurrence) return { next: seriesEndBefore(updated, sid, cutoff), trashedCount };
   const updatedTarget = updated.find((t) => t.id === id);
   if (!updatedTarget) return { next: updated, trashedCount };
   const expanded = expandSeries(updatedTarget, todayISO);
@@ -774,7 +796,7 @@ export function todoMoveToTrashFutureSeries(prev: Todo[], id: string): { next: T
     // the rationale (trashing is "discarded", not "completed").
     return { ...td, trashed: true, trashedAt: now, updatedAt: now };
   });
-  return { next, affected };
+  return { next: seriesEndBefore(next, target.seriesId, cutoff), affected };
 }
 
 /**
@@ -815,7 +837,7 @@ export function todoSkipSeriesFuture(
     delete out.reminders;
     return out;
   });
-  return { next, affected };
+  return { next: seriesEndBefore(next, target.seriesId, cutoff), affected };
 }
 
 // ---- Recurring series: horizon/window helpers ---------------------------
@@ -1327,11 +1349,12 @@ export function todoPermanentlyDeleteSeriesFuture(prev: Todo[], id: string): Tod
   if (!target) return prev;
   if (!target.seriesId) return prev.filter((td) => td.id !== id);
   const cutoff = target.dueDate;
-  return prev.filter((td) => {
+  const kept = prev.filter((td) => {
     if (td.seriesId !== target.seriesId) return true; // other series/one-offs
     if (cutoff && td.dueDate && td.dueDate < cutoff) return true; // keep past
     return false; // drop this + all future siblings
   });
+  return seriesEndBefore(kept, target.seriesId, cutoff);
 }
 
 export function todoEmptyTrash(prev: Todo[]): Todo[] {

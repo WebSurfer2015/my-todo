@@ -84,8 +84,14 @@ export function useSyncedState<T>(
         settled = true;
         if (cancelled) return;
         canWriteRef.current = true;
-        lastSerializedRef.current = raw;
-        setState(parseRef.current(raw));
+        const parsed = parseRef.current(raw);
+        // A MISSING doc: treat the defaults as already saved, so they aren't
+        // written 400ms later. That write raced (and could overwrite) a doc
+        // created elsewhere on this device — e.g. Apple/Google sign-in
+        // seeding the profile name, which Apple only sends once. The first
+        // real edit still writes.
+        lastSerializedRef.current = raw === null ? serializeRef.current(parsed) : raw;
+        setState(parsed);
         setLoaded(true);
       })
       .catch((err) => {

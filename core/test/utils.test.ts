@@ -345,3 +345,24 @@ describe('duePresetDates (Compose quick picks)', () => {
     expect(duePresetDates(new Date(2026, 9, 19)).nextWeek).toBe('2026-10-26')
   })
 })
+
+describe('nextOccurrence — every N weeks on weekdays', () => {
+  it('every 2 weeks on Monday skips the in-between week', () => {
+    expect(nextOccurrence('2026-10-19', 'weekly', 2, [1])).toBe('2026-11-02')
+  })
+  it('Mon+Wed every 2 weeks: Wed in the same week, then Mon two weeks on', () => {
+    expect(nextOccurrence('2026-10-19', 'weekly', 2, [1, 3])).toBe('2026-10-21')
+    expect(nextOccurrence('2026-10-21', 'weekly', 2, [1, 3])).toBe('2026-11-02')
+  })
+  it('weekly (n=1) is unchanged', () => {
+    expect(nextOccurrence('2026-10-19', 'weekly', 1, [1])).toBe('2026-10-26')
+  })
+})
+
+describe('distributeSubtaskDueDates — timed parent', () => {
+  it('a parent with a time still spreads dated steps (was all empty)', () => {
+    const out = distributeSubtaskDueDates('2099-01-10T09:00', 2)
+    expect(out.every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))).toBe(true)
+    expect(out[1]).toBe('2099-01-10')
+  })
+})

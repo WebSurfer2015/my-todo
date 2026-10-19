@@ -240,6 +240,7 @@ export function useTodosSlice(
     subtaskRemove,
     subtaskClearAll,
     topUpAllSeries,
+    topUpSeries,
     todoSkip,
     todoSkipSeriesFuture,
     todoDetachFromSeries,
@@ -300,16 +301,35 @@ export function useTodosSlice(
     }
   }, [filter, selectedTrashIds.size]);
 
+  // Apply a pure transform to the FRESHEST list and keep before/after for an
+  // exact Undo. todosRef is advanced synchronously so several actions in one
+  // tick (a Mochi batch: "mark these 3 done") chain on each other's result —
+  // reading the render-time ref made later ones recompute with new random
+  // ids that their Undo then couldn't find. Returns null when nothing changed.
+  const applyTracked = useCallback(
+    (fn: (ts: Todo[]) => Todo[]): { before: Todo[]; after: Todo[] } | null => {
+      const before = todosRef.current;
+      const after = fn(before);
+      if (after === before) return null;
+      todosRef.current = after;
+      setTodos((prev) => (prev === before ? after : fn(prev)));
+      return { before, after };
+    },
+    [setTodos],
+  );
+  const undoTracked = useCallback(
+    (c: { before: Todo[]; after: Todo[] }) =>
+      setTodos((prev) => todosRevertChanges(prev, c.before, c.after)),
+    [setTodos, todosRevertChanges],
+  );
+
   const toggle = useCallback(
     (id: string) => {
-      const beforeAll = todosRef.current;
-      const beforeTodo = beforeAll.find((td) => td.id === id);
-      // Computed up front so Undo can reverse EXACTLY what this toggle did —
-      // a series completion also appends the next occurrence and moves
-      // reminders; restoring only the one row left those behind.
-      const afterAll = todoToggle(beforeAll, id);
-      setTodos((prev) => (prev === beforeAll ? afterAll : todoToggle(prev, id)));
-      if (!beforeTodo) return;
+      const beforeTodo = todosRef.current.find((td) => td.id === id);
+      // Undo reverses EXACTLY what this toggle did — a series completion
+      // also appends the next occurrence and moves reminders.
+      const change = applyTracked((ts) => todoToggle(ts, id));
+      if (!beforeTodo || !change) return;
       const { after, referenceRow } = toggleOutcome(beforeTodo);
       if (referenceRow) {
         setTodoReferences((prev) => recordTodoReference(prev, referenceRow));
@@ -322,7 +342,7 @@ export function useTodosSlice(
         notify.showSnackbar({
           message: t.completedSnackbar(text),
           actionLabel: t.undo,
-          onAction: () => setTodos((prev) => todosRevertChanges(prev, beforeAll, afterAll)),
+          onAction: () => undoTracked(change),
           mergeKey: "done",
           mergedMessage: (n: number) => t.completedSnackbarMany(n),
           mergedActionLabel: t.undoAll,
@@ -335,7 +355,7 @@ export function useTodosSlice(
         notify.showSnackbar({ message: "Moved back to your open list." });
       }
     },
-    [setTodos, toggleOutcome, filterRef, todoToggle, todosRevertChanges, setTodoReferences, recordTodoReference, notify, t],
+    [applyTracked, undoTracked, toggleOutcome, filterRef, todoToggle, setTodoReferences, recordTodoReference, notify, t],
   );
 
   const revertTodo = useCallback(
@@ -357,17 +377,19 @@ export function useTodosSlice(
 
   const moveToTrash = useCallback(
     (id: string) => {
-      setTodos((prev) => todoMoveToTrash(prev, id));
+      const change = applyTracked((ts) => todoMoveToTrash(ts, id));
+      if (!change) return;
       notify.showSnackbar({
         message: t.movedToTrash,
         actionLabel: t.undo,
-        onAction: () => restoreFromTrash(id),
+        // Exact: restoreFromTrash reopened every step (2/5 came back 0/5).
+        onAction: () => undoTracked(change),
         mergeKey: "trash",
         mergedMessage: (n: number) => t.movedToTrashMany(n),
         mergedActionLabel: t.undoAll,
       });
     },
-    [setTodos, notify, t, todoMoveToTrash, restoreFromTrash],
+    [applyTracked, undoTracked, notify, t, todoMoveToTrash],
   );
 
   // R5 — Skip ("Not Do"). Sends the row to the Done
@@ -376,14 +398,19 @@ export function useTodosSlice(
   // helper also appends a fresh tail.
   const skipTodo = useCallback(
     (id: string) => {
-      setTodos((prev) => todoSkip(prev, id));
+      // null = nothing changed (e.g. a to-do with steps can't be skipped) —
+      // don't claim "Skipped" for a no-op.
+      const change = applyTracked((ts) => todoSkip(ts, id));
+      if (!change) return;
       notify.showSnackbar({
         message: t.skippedSnackbar,
         actionLabel: t.undo,
-        onAction: () => restoreFromTrash(id),
+        // Exact: restoreFromTrash lost the occurrence's reminders and left
+        // the appended next occurrence behind.
+        onAction: () => undoTracked(change),
       });
     },
-    [setTodos, notify, t.skippedSnackbar, t.undo, todoSkip, restoreFromTrash],
+    [applyTracked, undoTracked, notify, t.skippedSnackbar, t.undo, todoSkip],
   );
 
   // "Skip all" — skip this occurrence + every future sibling in the
@@ -393,17 +420,20 @@ export function useTodosSlice(
     (id: string) => {
       // Computed from the live list so the count is right and Undo can
       // reverse exactly this (it ended the series silently, with no Undo).
-      const before = todosRef.current;
-      const { next: after, affected } = todoSkipSeriesFuture(before, id);
-      if (after === before) return;
-      setTodos((prev) => (prev === before ? after : todoSkipSeriesFuture(prev, id).next));
+      let affected = 0;
+      const change = applyTracked((ts) => {
+        const r = todoSkipSeriesFuture(ts, id);
+        affected = r.affected;
+        return r.next;
+      });
+      if (!change) return;
       notify.showSnackbar({
         message: affected > 1 ? `Skipped ${affected} to-dos in this series.` : t.skippedSnackbar,
         actionLabel: t.undo,
-        onAction: () => setTodos((prev) => todosRevertChanges(prev, before, after)),
+        onAction: () => undoTracked(change),
       });
     },
-    [setTodos, notify, t.skippedSnackbar, t.undo, todoSkipSeriesFuture, todosRevertChanges],
+    [applyTracked, undoTracked, notify, t.skippedSnackbar, t.undo, todoSkipSeriesFuture],
   );
 
   const applySeriesFutureEdits = useCallback(
@@ -497,17 +527,20 @@ export function useTodosSlice(
     (id: string) => {
       // Computed from the live list: the count read inside the updater was
       // often still 0 when the snackbar ran, and there was no Undo.
-      const before = todosRef.current;
-      const { next: after, affected } = todoMoveToTrashFutureSeries(before, id);
-      if (after === before) return;
-      setTodos((prev) => (prev === before ? after : todoMoveToTrashFutureSeries(prev, id).next));
+      let affected = 0;
+      const change = applyTracked((ts) => {
+        const r = todoMoveToTrashFutureSeries(ts, id);
+        affected = r.affected;
+        return r.next;
+      });
+      if (!change) return;
       notify.showSnackbar({
         message: affected > 1 ? t.series.trashedMany(affected) : t.movedToTrash,
         actionLabel: t.undo,
-        onAction: () => setTodos((prev) => todosRevertChanges(prev, before, after)),
+        onAction: () => undoTracked(change),
       });
     },
-    [setTodos, notify, t.series, t.movedToTrash, t.undo, todoMoveToTrashFutureSeries, todosRevertChanges],
+    [applyTracked, undoTracked, notify, t.series, t.movedToTrash, t.undo, todoMoveToTrashFutureSeries],
   );
 
   const permanentlyDelete = useCallback(
@@ -744,9 +777,15 @@ export function useTodosSlice(
 
   const updateRecurrence = useCallback(
     (id: string, recurrence: Recurrence | undefined) => {
-      setTodos((prev) => todoSetRecurrence(prev, id, recurrence));
+      setTodos((prev) => {
+        const next = todoSetRecurrence(prev, id, recurrence);
+        // Fill the series window right away — otherwise a newly-repeating
+        // to-do had only its one occurrence until the next cold launch.
+        const sid = recurrence ? next.find((td) => td.id === id)?.seriesId : undefined;
+        return sid ? topUpSeries(next, sid, todayLocal()) : next;
+      });
     },
-    [setTodos, todoSetRecurrence],
+    [setTodos, todoSetRecurrence, topUpSeries],
   );
 
   const emptyTrash = useCallback(() => {

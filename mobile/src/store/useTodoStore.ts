@@ -352,8 +352,19 @@ export function useTodoStore() {
       pinnedFilters: profile.pinnedFilters,
     });
     if (!res.changed) return;
-    setTodos(res.todos);
-    setCategories(res.categories);
+    // Functional updates: a Mochi batch ("create Work, delete Errands", or
+    // "move X to Home, delete Errands") applies earlier ops in the same tick,
+    // and writing the render-time result clobbered them.
+    const cascadeFrom = (t: typeof todos, c: typeof categories) =>
+      store.actions.deleteCategoryCascade({
+        todos: t,
+        categories: c,
+        id,
+        filter,
+        pinnedFilters: profile.pinnedFilters,
+      });
+    setTodos((prev) => cascadeFrom(prev, categories).todos);
+    setCategories((prev) => cascadeFrom(todos, prev).categories);
     if (res.filter !== null) setFilter(res.filter);
     // Strip any pinned set that contained this category so the persisted
     // profile doesn't accumulate stale `cat:<deleted-id>` ghost pills.

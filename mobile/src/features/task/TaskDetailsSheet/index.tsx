@@ -598,7 +598,20 @@ export default function TaskDetailsSheet({
     }
     onUpdateReminders?.(todo.id, next)
   }
+  // Footer actions (Delete / Skip / Mark done) sit outside the ScrollView,
+  // so tapping one doesn't blur the title/notes input — save what was typed
+  // before acting, or the edit is lost.
+  function flushTypedText() {
+    if (editingSubtaskId) applySubText(editSubText)
+    if (editMode === 'series' && isSeriesRow) return
+    applyText(editText)
+    applyNotes(editNotes)
+  }
+
   function closeAndFlushText() {
+    // A step being edited only commits on blur, which never fires when the
+    // sheet unmounts — save it first.
+    if (editingSubtaskId) applySubText(editSubText)
     // The ONE close path (Done, scrim tap, Android back). In "this only"
     // mode this is a final flush for text + notes (other fields auto-save
     // on pick), then "Changes saved · Undo". In "Edit series" mode every
@@ -867,7 +880,13 @@ export default function TaskDetailsSheet({
       >
         {/* Scrim tap + Android back flush unblurred title/notes (calm,
             forgiving auto-save) instead of dropping the last edit. */}
-        <TouchableOpacity style={styles.overlayTouch} activeOpacity={1} onPress={closeAndFlushText} />
+        <TouchableOpacity
+          style={styles.overlayTouch}
+          activeOpacity={1}
+          onPress={closeAndFlushText}
+          // Not a VoiceOver stop: an unlabeled full-screen "button" that closes the sheet.
+          accessible={false}
+        />
         <Animated.View style={[styles.sheet, editingSubtaskId && styles.sheetTight, { transform: [{ translateY }] }]}>
           <View style={sheetGrabZone} {...panHandlers}>
             <View style={styles.grabHandle} />
@@ -1663,6 +1682,7 @@ export default function TaskDetailsSheet({
                   <TouchableOpacity
                     style={styles.bottomActionButton}
                     onPress={() => {
+                    flushTypedText()
                       // An active to-do goes to the Done bin (30 days, with
                       // Undo) — permanent delete is only for rows already in
                       // the bin. The App Store copy promises this.
@@ -1722,10 +1742,11 @@ export default function TaskDetailsSheet({
                   <View />
                 )}
 
-                {onSkip ? (
+                {onSkip && !(todo.subtasks && todo.subtasks.length > 0) ? (
                   <TouchableOpacity
                     style={styles.bottomActionButton}
                     onPress={() => {
+                    flushTypedText()
                       if (seriesScope && onSkipSeries) onSkipSeries(todo.id)
                       else onSkip(todo.id)
                       onClose()
@@ -1745,6 +1766,7 @@ export default function TaskDetailsSheet({
                 <TouchableOpacity
                   style={styles.bottomActionButton}
                   onPress={() => {
+                    flushTypedText()
                     if (seriesScope && onMoveSeriesFutureToTrash) {
                       onMoveSeriesFutureToTrash(todo.id)
                     } else if (onToggle) {

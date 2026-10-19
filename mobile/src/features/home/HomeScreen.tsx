@@ -134,8 +134,16 @@ export default function HomeScreen() {
         if (td.trashed) return false
         if (td.done) return false
         const subs = td.subtasks ?? []
-        if (subs.length > 0) return hasOpenTodaySub(td)
-        return !!td.dueDate && dueDateOnly(td.dueDate) <= today
+        const parentDue = !!td.dueDate && dueDateOnly(td.dueDate) <= today
+        if (subs.length > 0) {
+          // Dated steps decide; but if NO open step has a date, fall back to
+          // the parent's own date (a to-do due today with undated steps
+          // otherwise never showed on Today).
+          const openSubs = subs.filter((s) => !s.done)
+          if (openSubs.some((s) => !!s.dueDate)) return hasOpenTodaySub(td)
+          return parentDue
+        }
+        return parentDue
       })
       .sort((a, b) => {
         // Done rows sink to the bottom; everything else (including

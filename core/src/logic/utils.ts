@@ -88,13 +88,18 @@ export function distributeSubtaskDueDates(
 ): string[] {
   if (count <= 0) return []
   if (!parentDueDate) return new Array(count).fill('')
+  // Steps are date-only; a timed parent ("2026-10-18T09:00") made the day
+  // parse as NaN, so every suggested step got no date.
+  parentDueDate = dueDateOnly(parentDueDate)
   const [py, pm, pd] = parentDueDate.split('-').map(Number)
   if (!py || !pm || !pd) return new Array(count).fill('')
   const parent = new Date(py, pm - 1, pd)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const dayMs = 86_400_000
-  const totalDays = Math.floor((parent.getTime() - today.getTime()) / dayMs)
+  // round, not floor: across a DST change the span is an hour short of
+  // whole days, which dropped the last step a day early.
+  const totalDays = Math.round((parent.getTime() - today.getTime()) / dayMs)
   // Parent already overdue — don't auto-backdate the new subtasks.
   // Returning '' lets the user pick dates instead of inheriting an
   // already-past date and seeing every subtask render as "Yesterday".
@@ -107,7 +112,8 @@ export function distributeSubtaskDueDates(
     // one day in. Last entry (i === count-1) reduces to totalDays,
     // which is exactly parentDueDate.
     const offsetDays = Math.ceil(((i + 1) * totalDays) / count)
-    const d = new Date(today.getTime() + offsetDays * dayMs)
+    const d = new Date(today)
+    d.setDate(d.getDate() + offsetDays) // calendar days, DST-safe
     out.push(isoDate(d))
   }
   return out
@@ -144,16 +150,21 @@ export function nextOccurrence(
     return isoDate(new Date(first.getFullYear(), first.getMonth(), Math.min(d, lastDay)))
   }
 
-  // Weekly with specific weekdays: find next listed weekday strictly after start
+  // Weekly with specific weekdays: the next listed weekday later in the SAME
+  // (Sun–Sat) week; otherwise the first listed weekday `n` weeks on. (It used
+  // to just take the next listed weekday, so "every 2 weeks on Monday" ran
+  // weekly.) Chaining from each occurrence keeps the every-n-weeks cadence,
+  // because every occurrence sits in an active week.
   if (freq === 'weekly' && byWeekday && byWeekday.length > 0) {
-    const set = new Set(byWeekday)
-    const probe = new Date(start)
-    for (let i = 1; i <= 14 * n; i++) {
-      probe.setDate(probe.getDate() + 1)
-      if (set.has(probe.getDay())) return isoDate(probe)
+    const days = [...new Set(byWeekday)].sort((a, b) => a - b)
+    const dow = start.getDay()
+    const later = days.find((wd) => wd > dow)
+    if (later !== undefined) {
+      start.setDate(start.getDate() + (later - dow))
+      return isoDate(start)
     }
-    // Fallback (shouldn't hit): bump by interval weeks
-    start.setDate(start.getDate() + 7 * n)
+    // Sunday of this week + n weeks + the first listed weekday.
+    start.setDate(start.getDate() - dow + 7 * n + days[0])
     return isoDate(start)
   }
 

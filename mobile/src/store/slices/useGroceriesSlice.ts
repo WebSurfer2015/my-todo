@@ -443,7 +443,11 @@ export function useGroceriesSlice(
       const prev = groceriesRef.current;
       const beforeItem = prev.find((x) => x.id === id);
       const next = groceryToggleChecked(prev, id);
-      setGroceries(next);
+      // Advance the ref now and update functionally: a Mochi batch ("check
+      // off milk and eggs") calls this several times in one tick, and a plain
+      // setGroceries(next) from the stale ref kept only the last one.
+      groceriesRef.current = next;
+      setGroceries((p) => (p === prev ? next : groceryToggleChecked(p, id)));
       // 1 when the item just transitioned to checked — the Row fires the
       // completion animation on a positive value.
       return beforeItem && !beforeItem.checked ? 1 : 0;

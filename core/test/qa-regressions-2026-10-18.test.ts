@@ -46,6 +46,23 @@ describe("ended series never regrow on top-up", () => {
     expect(open(topUpSeries(ts, ts[0].seriesId!, LATER))).toHaveLength(0);
   });
 
+  it("an OLDER open occurrence can't revive a series ended later (all four ends)", () => {
+    const base = () => expandSeries(seed(), "2026-05-28"); // [0] = 5/28 stays open
+    const later = (ts: Todo[]) => ts[2];
+    const ends: Array<(ts: Todo[]) => Todo[]> = [
+      (ts) => todoPermanentlyDeleteSeriesFuture(ts, later(ts).id),
+      (ts) => todoMoveToTrashFutureSeries(ts, later(ts).id).next,
+    ];
+    for (const end of ends) {
+      const ts = end(base());
+      const before = open(ts).length;
+      expect(open(topUpSeries(ts, ts[0].seriesId!, LATER)).length).toBe(before);
+      // Completing the old open one doesn't append past the end either.
+      const done = todoToggle(ts, ts[0].id, "2026-05-28");
+      expect(open(done).length).toBe(before - 1);
+    }
+  });
+
   it("a live series still tops up", () => {
     const ts = expandSeries(seed(), "2026-05-28");
     expect(topUpSeries(ts, ts[0].seriesId!, LATER).length).toBeGreaterThan(ts.length);

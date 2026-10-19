@@ -10,7 +10,7 @@ import Svg, { Rect, Path } from 'react-native-svg'
 import { Priority, PRIORITY_VALUES, PRIORITY_COLORS } from '../../core-bindings/types'
 import { useLang } from '../../app/LangContext'
 import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
-import { formatDisplayDate, fullDateLabel, isoDate } from '../../core-bindings/utils'
+import { dueDateToDate, formatDisplayDate, fullDateLabel, isoDate } from '../../core-bindings/utils'
 import PriorityDot from '../../ui/PriorityDot'
 import InlinePicker from '../../ui/InlinePicker'
 
@@ -69,7 +69,9 @@ export default function AddSubtaskSheet({ visible, onAdd, onClose, defaultDueDat
   }
 
   function openDateView() {
-    setPickerDate(dueDate ? new Date(`${dueDate}T00:00:00`) : new Date())
+    // dueDateToDate: the default comes from the parent, which may carry a
+    // time — appending T00:00:00 to that made an Invalid Date for the picker.
+    setPickerDate(dueDate ? dueDateToDate(dueDate) : new Date())
     setSubView('date')
   }
 

@@ -351,6 +351,20 @@ export default function ChatSheet({
     const id = setTimeout(() => setResting(null), Math.max(0, resting.until - Date.now()))
     return () => clearTimeout(id)
   }, [resting])
+  // Switching to the manual form abandons this conversation: abort an
+  // in-flight request (a late reply would otherwise auto-create the to-do
+  // behind Compose — a duplicate of what the user is typing) and clear it.
+  function enterManually() {
+    reset()
+    setInput('')
+    setResolved({})
+    setUndone({})
+    appliedRef.current.clear()
+    undoFnsRef.current = {}
+    capturedIdRef.current = {}
+    onEnterManually?.()
+  }
+
   function fallBackToManual(turn: string) {
     restingUntilMs = mochiRestEndsAt(new Date()).valueOf()
     setResting({ until: restingUntilMs, label: restingUntilLabel(restingUntilMs) })
@@ -513,7 +527,7 @@ export default function ChatSheet({
             {onEnterManually && (
               <TouchableOpacity
                 style={styles.enterManuallyRow}
-                onPress={onEnterManually}
+                onPress={enterManually}
                 activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityLabel="Switch to entering the to-do manually"
@@ -757,7 +771,7 @@ export default function ChatSheet({
                     {onEnterManually && (
                       <TouchableOpacity
                         style={styles.errorBtn}
-                        onPress={onEnterManually}
+                        onPress={enterManually}
                         accessibilityRole="button"
                       >
                         <Text style={styles.errorBtnText}>Enter manually</Text>

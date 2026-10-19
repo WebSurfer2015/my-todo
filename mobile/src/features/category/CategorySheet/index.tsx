@@ -433,6 +433,9 @@ export default function CategorySheet({
                       style={styles.body}
                       contentContainerStyle={styles.bodyContent}
                       scrollEnabled={!dragActive}
+                      // While a rename has the keyboard up, the first tap on
+                      // another row must act, not just dismiss the keyboard.
+                      keyboardShouldPersistTaps="handled"
                     >
                       <Text style={styles.sectionHeader}>STATUSES</Text>
                       <View style={styles.listCard}>

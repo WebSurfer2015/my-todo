@@ -165,6 +165,11 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     [],
   )
   const detailsTodo = detailsReq ? store.todos.find((td) => td.id === detailsReq.id) : undefined
+  // The to-do vanished while open (e.g. deleted on another device): forget
+  // the request, or the sheet would pop back if that id reappeared.
+  useEffect(() => {
+    if (detailsReq && !detailsTodo) setDetailsReq(null)
+  }, [detailsReq, detailsTodo])
   const openProfile = useCallback(() => setProfileOpen(true), [])
   const openSettings = useCallback(() => setSettingsOpen(true), [])
   const openTheme = useCallback(() => setThemePickerOpen(true), [])

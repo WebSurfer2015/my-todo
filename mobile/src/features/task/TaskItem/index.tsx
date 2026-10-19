@@ -485,6 +485,9 @@ function TaskItem({
           <Calendar size={20} color="#fff" strokeWidth={2} />
           <Text style={styles.swipeActionText} numberOfLines={1}>{t.deferTask}</Text>
         </TouchableOpacity>
+        {/* Not Do can't apply to a to-do with steps (its done state comes
+            from the steps), so don't offer it there. */}
+        {!hasSubs && (
         <TouchableOpacity
           style={[styles.swipeAction, styles.swipeTrash]}
           onPress={() => {
@@ -501,6 +504,7 @@ function TaskItem({
           </View>
           <Text style={styles.swipeActionText} numberOfLines={1}>{t.notDo}</Text>
         </TouchableOpacity>
+        )}
         {/* Delete on an active row goes to the Done bin (30 days, with
             Undo); permanent delete lives only in the bin (above). */}
         <TouchableOpacity style={[styles.swipeAction, styles.swipeDelete]} onPress={handleMoveToTrash}>
