@@ -24,14 +24,14 @@ export default defineConfig({
         // formatter fns); line/fn coverage is meaningless here.
         'core/src/data/i18n.ts',
       ],
-      // Floor set ~1.5 points below the measured level (lines 97.0 / stmts
-      // 94.2 / funcs 96.2 / branches 89.0 as of 2026-10-19) so any real
-      // regression fails CI. Ratchet upward as coverage grows.
+      // Floor set ~1.5 points below the measured level (lines 97.7 / stmts
+      // 95.2 / funcs 97.3 / branches 90.4 as of 2026-10-19, round 7) so any
+      // real regression fails CI. Ratchet upward as coverage grows.
       thresholds: {
-        lines: 95.5,
-        statements: 92.5,
-        functions: 94.5,
-        branches: 87.5,
+        lines: 96.2,
+        statements: 93.7,
+        functions: 95.8,
+        branches: 88.9,
       },
     },
   },

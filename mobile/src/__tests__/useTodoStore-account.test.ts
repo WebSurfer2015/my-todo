@@ -35,9 +35,6 @@ vi.mock('../adapters/firestoreAdapter', () => ({
       async removeItem(key) {
         data.delete(key)
       },
-      async clear() {
-        data.clear()
-      },
     }
   },
 }))

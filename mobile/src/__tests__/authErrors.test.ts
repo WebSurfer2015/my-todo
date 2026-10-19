@@ -7,12 +7,17 @@
  * Pure function, no native deps — hosts cleanly under web vitest.
  */
 import { describe, expect, it } from 'vitest'
-import { AUTH_UNKNOWN_MESSAGE, authErrorCode, mapAuthError } from '../adapters/authErrors'
+import { AUTH_UNKNOWN_MESSAGE, authErrorCode, authErrorDiagnostic, mapAuthError } from '../adapters/authErrors'
+import { AUTH_FALLBACK_MESSAGE, authErrorCode as coreAuthErrorCode } from '../../../core/src/data/authMessages'
+
+/** Configuration jargon must never reach the sign-in screen. */
+const JARGON = /OAuth|client ID|Service ID|handshake|misconfigured|configured|for this build|scope/i
 
 describe('mapAuthError — Firebase auth/* codes', () => {
-  it('maps invalid-api-key to a config-stale message, with no raw code shown', () => {
+  it('maps invalid-api-key to calm "update the app" copy, with no raw code shown', () => {
     const out = mapAuthError({ code: 'auth/invalid-api-key', message: 'orig' })
-    expect(out).toContain('misconfigured')
+    expect(out).toContain('update the app')
+    expect(out).not.toMatch(JARGON)
     expect(out).not.toContain('auth/')
   })
   it('maps user-disabled', () => {
@@ -41,25 +46,25 @@ describe('mapAuthError — Firebase auth/* codes', () => {
   })
 })
 
-describe('mapAuthError — auth/internal-error per-flow guidance', () => {
-  it('says "OAuth web client ID" for the Google flow', () => {
-    const out = mapAuthError(
-      { code: 'auth/internal-error', message: '' },
-      'google',
-    )
-    expect(out).toContain('OAuth web client ID')
+describe('mapAuthError — auth/internal-error per flow: calm, no jargon', () => {
+  it('Google flow: "Couldn\'t sign in with Google…"', () => {
+    const out = mapAuthError({ code: 'auth/internal-error', message: '' }, 'google')
+    expect(out).toBe("Couldn't sign in with Google just now. Please try again, or use another option.")
   })
-  it('says "Apple Service ID" for the Apple flow', () => {
-    const out = mapAuthError(
-      { code: 'auth/internal-error', message: '' },
-      'apple',
-    )
-    expect(out).toContain('Apple Service ID')
+  it('Apple flow: "Couldn\'t sign in with Apple…"', () => {
+    const out = mapAuthError({ code: 'auth/internal-error', message: '' }, 'apple')
+    expect(out).toBe("Couldn't sign in with Apple just now. Please try again, or use another option.")
   })
-  it('uses the generic Firebase message when no flow is given', () => {
+  it('no flow: the generic calm copy', () => {
     const out = mapAuthError({ code: 'auth/internal-error', message: '' })
-    expect(out).toContain('handshake failed')
-    expect(out).not.toContain('OAuth web client ID')
+    expect(out).toBe("Couldn't sign you in just now. Please try again, or use another option.")
+  })
+  it('the technical reading goes to the crash log only', () => {
+    expect(authErrorDiagnostic({ code: 'auth/internal-error' }, 'google')).toBe(
+      "auth/internal-error (google): OAuth web client ID in this build doesn't match what Firebase expects",
+    )
+    expect(authErrorDiagnostic({ code: 'DEVELOPER_ERROR' }, 'google')).toContain('client IDs')
+    expect(authErrorDiagnostic({}, 'email')).toBe('(no code) (email)')
   })
 })
 
@@ -67,13 +72,15 @@ describe('mapAuthError — Apple native SDK', () => {
   it('maps 1000 (no iCloud)', () => {
     expect(mapAuthError({ code: '1000' })).toContain('iCloud')
   })
-  it('maps ERR_REQUEST_NOT_HANDLED to config guidance', () => {
-    expect(mapAuthError({ code: 'ERR_REQUEST_NOT_HANDLED' })).toContain(
-      'not configured',
-    )
+  it('ERR_REQUEST_NOT_HANDLED / ERR_INVALID_SCOPE get calm Apple copy, no jargon', () => {
+    for (const code of ['ERR_REQUEST_NOT_HANDLED', 'ERR_INVALID_SCOPE']) {
+      const out = mapAuthError({ code })
+      expect(out).toContain("Couldn't sign in with Apple")
+      expect(out).not.toMatch(JARGON)
+    }
   })
-  it('passes through raw message for cancelled (1001)', () => {
-    expect(mapAuthError({ code: '1001', message: 'cancelled' })).toBe('cancelled')
+  it('cancelled (1001) shows nothing — never the raw SDK message', () => {
+    expect(mapAuthError({ code: '1001', message: 'The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)' })).toBe('')
   })
 })
 
@@ -83,8 +90,10 @@ describe('mapAuthError — Google native SDK', () => {
       'Google Play Services',
     )
   })
-  it('maps DEVELOPER_ERROR to config guidance', () => {
-    expect(mapAuthError({ code: 'DEVELOPER_ERROR' })).toContain('misconfigured')
+  it('maps DEVELOPER_ERROR to calm Google copy, no jargon', () => {
+    const out = mapAuthError({ code: 'DEVELOPER_ERROR' })
+    expect(out).toContain("Couldn't sign in with Google")
+    expect(out).not.toMatch(JARGON)
   })
 })
 
@@ -126,6 +135,10 @@ describe('mapAuthError — defensive fallbacks', () => {
     expect(out).toBe("Couldn't sign you in just now. Please try again.")
     expect(out).not.toContain('SOME_SDK_THING')
     expect(mapAuthError({ code: 'X', message: 'network down' })).not.toContain('(X)')
+  })
+  it("the mobile names are core's helpers (no duplicate copies)", () => {
+    expect(AUTH_UNKNOWN_MESSAGE).toBe(AUTH_FALLBACK_MESSAGE)
+    expect(authErrorCode).toBe(coreAuthErrorCode)
   })
   it('authErrorCode stringifies the code for the Crashlytics log', () => {
     expect(authErrorCode({ code: 1004 })).toBe('1004')

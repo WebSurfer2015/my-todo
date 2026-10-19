@@ -53,8 +53,9 @@ describe("1 — todosRevertChanges leaves rows changed after the action alone", 
     const kept = undone.find((t) => t.id === d21.id)!;
     expect(kept).toBeDefined();
     expect(kept.done).toBe(true);
-    // A row a later action appended is never touched.
-    expect(undone.some((t) => t.id === tail.id)).toBe(true);
+    // The open daily row that completion appended would leave a mixed
+    // weekly/daily series once the weekly rule is back — round 7 drops it.
+    expect(undone.some((t) => t.id === tail.id)).toBe(false);
     // Untouched daily rows are removed; the weekly rows come back.
     expect(onDay(undone, "2026-10-22")).toHaveLength(0);
     expect(series(undone).map(day)).toContain("2026-11-02");

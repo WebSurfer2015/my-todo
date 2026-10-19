@@ -3,9 +3,10 @@ import { wrap, unwrap, serializeAny } from '../storage/envelope'
 
 /**
  * The versioned envelope is the cross-device persistence contract — the
- * SAME { version, data } shape is written by AsyncStorage (local) and
- * Firestore (cloud), so a drift here silently breaks sync. These pin the
- * byte shape + the round-trip + the non-envelope/garbage fallbacks.
+ * SAME { version, data } shape (core wrapEnvelope) is every Firestore state
+ * doc's value and the device-local setting's, so a drift here silently
+ * breaks sync. These pin the byte shape + the round-trip + the
+ * non-envelope/garbage fallbacks.
  */
 describe('storage envelope', () => {
   it('wraps as {"version":1,"data":...} (byte shape shared with cloud)', () => {
@@ -37,5 +38,9 @@ describe('storage envelope', () => {
 
   it('does not treat an array as an envelope', () => {
     expect(unwrap('[{"version":1,"data":9}]')).toBeNull()
+  })
+
+  it('rejects an envelope whose version is not a number', () => {
+    expect(unwrap('{"version":"1","data":[1]}')).toBeNull()
   })
 })

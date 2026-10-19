@@ -5,6 +5,7 @@ import {
   AUTH_FALLBACK_MESSAGE,
   FIREBASE_AUTH_MESSAGES,
   authErrorCode,
+  authErrorDiagnostic,
   mapFirebaseAuthError,
   stripAuthCode,
 } from "../src/data/authMessages";
@@ -19,12 +20,21 @@ describe("mapFirebaseAuthError — no code in user-facing text", () => {
     expect(mapFirebaseAuthError("auth/invalid-credential", "email", "x")).toBe("That email or password isn't right.");
   });
 
-  it("internal-error gets flow-specific guidance (no code)", () => {
-    expect(mapFirebaseAuthError("auth/internal-error", "google", "")).toContain("OAuth web client ID");
-    expect(mapFirebaseAuthError("auth/internal-error", "apple", "")).toContain("Apple Service ID");
-    expect(mapFirebaseAuthError("auth/internal-error", "email", "")).toBe("Sign-in handshake failed.");
-    for (const flow of ["google", "apple"] as const) {
-      expect(mapFirebaseAuthError("auth/internal-error", flow, "")).not.toContain("auth/");
+  it("internal-error gets calm per-provider copy — no code, no configuration jargon", () => {
+    expect(mapFirebaseAuthError("auth/internal-error", "google", "")).toBe(
+      "Couldn't sign in with Google just now. Please try again, or use another option.",
+    );
+    expect(mapFirebaseAuthError("auth/internal-error", "apple", "")).toBe(
+      "Couldn't sign in with Apple just now. Please try again, or use another option.",
+    );
+    expect(mapFirebaseAuthError("auth/internal-error", "email", "")).toBe(
+      "Couldn't sign you in just now. Please try again, or use another option.",
+    );
+  });
+
+  it("no curated message carries configuration jargon", () => {
+    for (const msg of Object.values(FIREBASE_AUTH_MESSAGES)) {
+      expect(msg).not.toMatch(/OAuth|client ID|Service ID|handshake|misconfigured|for this build/i);
     }
   });
 
@@ -52,5 +62,21 @@ describe("authErrorCode / stripAuthCode", () => {
     expect(stripAuthCode("[auth/network-request-failed] A network error occurred.")).toBe("A network error occurred.");
     expect(stripAuthCode("Failed (auth/internal-error) now")).toBe("Failed now");
     expect(stripAuthCode("plain")).toBe("plain");
+  });
+
+  it("stripAuthCode is case-insensitive", () => {
+    expect(stripAuthCode("x [AUTH/Foo]")).toBe("x");
+  });
+
+  it("authErrorDiagnostic: code, flow and likely cause — for logs only", () => {
+    expect(authErrorDiagnostic({ code: "auth/internal-error" }, "apple")).toBe(
+      "auth/internal-error (apple): Apple Service ID or Sign-in-with-Apple key in Firebase Console out of sync",
+    );
+    expect(authErrorDiagnostic({ code: "auth/internal-error" }, "email")).toBe(
+      "auth/internal-error (email): Firebase internal error — usually a credential/audience mismatch",
+    );
+    expect(authErrorDiagnostic({ code: "auth/user-not-found" })).toBe("auth/user-not-found");
+    expect(authErrorDiagnostic(null)).toBe("(no code)");
+    expect(authErrorDiagnostic({ code: "X" }, "google", { X: "extra" })).toBe("X (google): extra");
   });
 });

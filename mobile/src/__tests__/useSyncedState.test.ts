@@ -36,7 +36,6 @@ function makeAdapter(opts: {
       setCalls.push({ key, value })
     },
     async removeItem() { store.value = null },
-    async clear() { store.value = null },
   }
   if (opts.subscribe) {
     adapter.subscribe = (_key, cb) => {

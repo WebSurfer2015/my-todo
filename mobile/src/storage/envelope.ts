@@ -1,31 +1,12 @@
-// Versioned envelope shared by every slice's `useSyncedState` call.
-// The same `{version, data}` shape is written by AsyncStorage (local)
-// and by Firestore (cloud) so the cross-device payload stays
-// byte-identical. Anything that isn't an envelope reads as null (empty).
+// Versioned envelope shared by every slice's `useSyncedState` call — the
+// `{version, data}` shape lives in core's persistence port (wrapEnvelope /
+// unwrapEnvelope). Firestore stores it as each state doc's `value`, and the
+// device-local language setting (adapters/persistence, AsyncStorage) uses
+// the same envelope. Anything that isn't an envelope reads as null (empty).
+import { unwrapEnvelope, wrapEnvelope } from "../../../core/src/ports/persistence";
 
-const SCHEMA_VERSION = 1;
+export const unwrap = (raw: string | null): unknown => unwrapEnvelope(raw);
 
-export function unwrap(raw: string | null): unknown {
-  if (raw == null) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      !Array.isArray(parsed) &&
-      "version" in parsed &&
-      "data" in parsed
-    ) {
-      return (parsed as { data: unknown }).data;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-export function wrap(data: unknown): string {
-  return JSON.stringify({ version: SCHEMA_VERSION, data });
-}
+export const wrap = (data: unknown): string => wrapEnvelope(data);
 
 export const serializeAny = (v: unknown): string => wrap(v);

@@ -38,7 +38,6 @@ function makeAdapter(opts: {
       setCalls.push(value)
     },
     async removeItem() {},
-    async clear() {},
     subscribe(_key, cb) {
       sub = cb
       return () => { sub = null }
@@ -197,7 +196,6 @@ describe('useSyncedState — lifecycle edges', () => {
       getItem: async () => '2',
       setItem: async () => {},
       removeItem: async () => {},
-      clear: async () => {},
     }
     const { result } = renderHook(() => useSyncedState(adapter, 'k', 0, parse, serialize))
     await waitFor(() => expect(result.current[4]).toBe(true))

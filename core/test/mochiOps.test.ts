@@ -92,12 +92,12 @@ describe('planMochiOp — every op kind', () => {
     ],
     [
       'editTodo (patch only what is set; "" clears the date)',
-      { kind: 'editTodo', args: { todoId: 'open', text: 'Call Mom', dueDate: '', priority: 'low', notes: '' } },
+      { kind: 'editTodo', args: { todoId: 'open', text: 'Call Mom', dueDate: '', priority: 'low', notes: 'Ask about Sunday' } },
       [
         { type: 'updateText', todoId: 'open', text: 'Call Mom' },
         { type: 'updatePriority', todoId: 'open', priority: 'low' },
         { type: 'updateDueDate', todoId: 'open', dueDate: '' },
-        { type: 'updateNotes', todoId: 'open', notes: '' },
+        { type: 'updateNotes', todoId: 'open', notes: 'Ask about Sunday' },
       ],
     ],
     [

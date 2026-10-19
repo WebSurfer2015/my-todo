@@ -56,9 +56,6 @@ export function makeFirestoreAdapter(
       const ref = doc(db, stateDocPath(uid, key));
       await deleteDoc(ref);
     },
-    async clear() {
-      // No-op — clearing requires enumerating subcollections.
-    },
     subscribe(key, callback) {
       const ref = doc(db, stateDocPath(uid, key));
       let unsubscribe: (() => void) | null = null;

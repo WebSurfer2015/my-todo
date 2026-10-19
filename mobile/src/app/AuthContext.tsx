@@ -27,7 +27,7 @@ import * as Crypto from "expo-crypto";
 import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
 import { auth, db } from "../adapters/firebase";
 import { cancelAllReminders } from "../adapters/notifications";
-import { stateDocPath, SCHEMA_VERSION } from "../../../core/src/ports/persistence";
+import { stateDocPath, wrapEnvelope } from "../../../core/src/ports/persistence";
 import { Profile, SEED_PROFILE, MAX_PROFILE_NAME_LEN } from "../../../core/src/data/profile";
 
 type User = FirebaseAuthTypes.User;
@@ -134,7 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         lastName,
       };
       await setDoc(profileRef, {
-        value: JSON.stringify({ version: SCHEMA_VERSION, data: profile }),
+        value: wrapEnvelope(profile),
         updatedAt: Date.now(),
       });
       return true;
@@ -164,7 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         lastName,
       };
       await setDoc(doc(db, stateDocPath(cred.user.uid, "profile")), {
-        value: JSON.stringify({ version: SCHEMA_VERSION, data: profile }),
+        value: wrapEnvelope(profile),
         updatedAt: Date.now(),
       });
     },
@@ -250,7 +250,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         lastName,
       };
       await setDoc(profileRef, {
-        value: JSON.stringify({ version: SCHEMA_VERSION, data: profile }),
+        value: wrapEnvelope(profile),
         updatedAt: Date.now(),
       });
     }

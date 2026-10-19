@@ -44,6 +44,12 @@ export interface MochiSnapshot {
      * those are carried over from here (see mergeAgentRecurrence). */
     recurrence?: Recurrence
     subtasks?: ReadonlyArray<{ id: string; text: string; done: boolean }>
+    /** Current values — an edit that repeats them is skipped (a no-op must
+     * not start a new Mochi turn). */
+    priority?: AgentPriority
+    category?: string
+    notes?: string
+    reminders?: ReadonlyArray<{ at: string; offsetMinutes?: number; intervalMinutes?: number }>
   }>
   /** `label` is the STORED label (empty for a built-in that shows its
    * localized name); `displayLabel` is what the user sees, so a
@@ -86,8 +92,10 @@ export type MochiIntent =
   | { type: 'updateDueDate'; todoId: string; dueDate: string }
   | { type: 'updateCategory'; todoId: string; category: CategoryRef }
   | { type: 'updateNotes'; todoId: string; notes: string }
-  /** The agent's rule merged over the row's current one (mergeAgentRecurrence). */
-  | { type: 'updateRecurrence'; todoId: string; recurrence: Recurrence }
+  /** The agent's rule merged over the row's current one (mergeAgentRecurrence).
+   * `fromDue`: the row's ORIGINAL date when the same edit moved it first —
+   * the series' "this and future" cutoff. */
+  | { type: 'updateRecurrence'; todoId: string; recurrence: Recurrence; fromDue?: string }
   | { type: 'updateReminders'; todoId: string; reminders: Reminder[] }
   | { type: 'addSubtask'; todoId: string; text: string }
   /** done ↔ open flip — only planned when it moves the right way. */
@@ -293,25 +301,49 @@ export function mergeAgentRecurrence(
 
 type TodoPatch = NonNullable<OpOf<'pickTodos'>['args']['edit']> & { newCategoryLabel?: string }
 
-/** The field-by-field edit of one to-do (editTodo and a pick-list edit). */
+/** Reminders as comparable keys (ids ignored), sorted. */
+const reminderKeys = (rs: ReadonlyArray<{ at: string; offsetMinutes?: number; intervalMinutes?: number }> | undefined) =>
+  (rs ?? []).map((r) => `${r.at}|${r.offsetMinutes || ''}|${r.intervalMinutes || ''}`).sort().join(',')
+
+/** The field-by-field edit of one to-do (editTodo and a pick-list edit).
+ * A field already at the asked value is skipped — a no-op edit must not
+ * start a new Mochi turn (retiring the previous Undo). */
 function planTodoPatch(ctx: PlanCtx, todoId: string, e: TodoPatch): void {
   const out = ctx.out
-  if (e.text !== undefined) out.push({ type: 'updateText', todoId, text: e.text })
-  if (e.priority !== undefined) out.push({ type: 'updatePriority', todoId, priority: e.priority })
+  const row = ctx.snap.todos.find((t) => t.id === todoId)
+  if (e.text !== undefined && e.text !== row?.text) out.push({ type: 'updateText', todoId, text: e.text })
+  if (e.priority !== undefined && e.priority !== row?.priority) {
+    out.push({ type: 'updatePriority', todoId, priority: e.priority })
+  }
   // '' is an explicit "clear the date" (server-gated to a user ask).
-  if (e.dueDate !== undefined) out.push({ type: 'updateDueDate', todoId, dueDate: e.dueDate })
+  const moves = e.dueDate !== undefined && (!row || e.dueDate !== (row.dueDate ?? ''))
+  if (moves) out.push({ type: 'updateDueDate', todoId, dueDate: e.dueDate! })
   const category = resolveCategory(ctx, e.category, e.newCategoryLabel)
-  if (category) out.push({ type: 'updateCategory', todoId, category })
-  if (e.notes !== undefined) out.push({ type: 'updateNotes', todoId, notes: e.notes })
+  if (category && !(row && 'id' in category && category.id === row.category)) {
+    out.push({ type: 'updateCategory', todoId, category })
+  }
+  if (e.notes !== undefined && (!row || e.notes !== (row.notes ?? ''))) {
+    out.push({ type: 'updateNotes', todoId, notes: e.notes })
+  }
   if (e.recurrence !== undefined) {
-    const row = ctx.snap.todos.find((t) => t.id === todoId)
     // The row's day once this edit lands (a same-edit dueDate goes first).
     const day = (e.dueDate || row?.dueDate || ctx.snap.today) ?? ''
     const recurrence = mergeAgentRecurrence(e.recurrence, row?.recurrence, day, ctx.snap.today)
-    if (recurrence) out.push({ type: 'updateRecurrence', todoId, recurrence })
+    // The date moved first: the series' cutoff is where the row WAS, so the
+    // siblings in between are replaced too (and earlier ones kept).
+    if (recurrence) {
+      out.push({
+        type: 'updateRecurrence',
+        todoId,
+        recurrence,
+        ...(moves && row?.dueDate ? { fromDue: row.dueDate } : {}),
+      })
+    }
   }
   const reminders = stampReminders(e.reminders, ctx.deps.genId)
-  if (reminders) out.push({ type: 'updateReminders', todoId, reminders })
+  if (reminders && !(row && reminderKeys(reminders) === reminderKeys(row.reminders))) {
+    out.push({ type: 'updateReminders', todoId, reminders })
+  }
 }
 
 const liveTodo = (snap: MochiSnapshot, id: string) =>

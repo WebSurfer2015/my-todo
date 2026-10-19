@@ -38,7 +38,6 @@ function adapterWith(todos: Todo[]): StorageAdapter {
     async getItem(key) { return data.get(key) ?? null },
     async setItem(key, value) { data.set(key, value) },
     async removeItem(key) { data.delete(key) },
-    async clear() { data.clear() },
   }
 }
 
@@ -678,6 +677,25 @@ describe('useTodosSlice round 6', () => {
     await waitFor(() => expect(hook.result.current.todos.find((x) => x.id === 'x')!.done).toBe(true))
   })
 
+  it('reopening outside the Done view says "Reopened" with an exact Undo (silent: none)', async () => {
+    const done = (id: string) => mk(id, { done: true, trashed: true } as Partial<Todo>)
+    const { hook, snacks } = await setup([done('x'), done('y'), mk('t1', { trashed: true }), mk('open')], 'all')
+    const n = snacks.length
+    act(() => {
+      hook.result.current.toggle('y', { silent: true })
+    })
+    expect(snacks.length).toBe(n)
+    act(() => {
+      hook.result.current.toggle('x')
+    })
+    expect(snacks.at(-1)).toMatchObject({ message: 'Reopened', actionLabel: 'Undo' })
+    act(() => snacks.at(-1)!.onAction!())
+    await waitFor(() => expect(hook.result.current.todos.find((x) => x.id === 'x')!.done).toBe(true))
+    act(() => hook.result.current.restoreFromTrash('t1'))
+    expect(snacks.at(-1)).toMatchObject({ message: 'Reopened', actionLabel: 'Undo' })
+    expect(hook.result.current.todos.find((x) => x.id === 't1')!.trashed).toBe(false)
+  })
+
   it('restoreFromTrash in the Done view offers an Undo (silent: none)', async () => {
     const { hook, snacks } = await setup([mk('t1', { trashed: true }), mk('t2', { trashed: true }), mk('o')], 'trash')
     const n = snacks.length
@@ -708,3 +726,161 @@ describe('useTodosSlice round 6', () => {
   })
 })
 
+
+describe('useTodosSlice round 7', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 19, 12, 0, 0))
+  })
+  afterEach(() => vi.useRealTimers())
+
+  const day = (x: Todo) => x.dueDate.slice(0, 10)
+
+  it('series rule change that also moved this row: Mon → weekly Thu leaves no daily rows on 10-20 / 10-21', async () => {
+    const { hook } = await setup(dailySeries())
+    act(() => {
+      hook.result.current.commitSeriesEdits('d19', {
+        fields: {},
+        recurrence: { value: { freq: 'weekly', byWeekday: [4] }, keepDetached: true },
+        thisRow: { dueDate: '2026-10-22' },
+      })
+    })
+    const s1 = hook.result.current.todos.filter((x) => x.seriesId === 's1')
+    expect(s1.filter((x) => ['2026-10-20', '2026-10-21'].includes(day(x)))).toEqual([])
+    expect(s1.every((x) => x.recurrence?.freq === 'weekly')).toBe(true)
+  })
+
+  it('field edit + date moved later reaches the siblings in between', async () => {
+    const { hook } = await setup(dailySeries())
+    act(() => {
+      hook.result.current.commitSeriesEdits('d19', { fields: { text: 'Run' }, thisRow: { dueDate: '2026-10-21' } })
+    })
+    expect(hook.result.current.todos.find((x) => x.id === 'd20')!.text).toBe('Run')
+  })
+
+  it('field edit + date moved earlier leaves earlier siblings alone', async () => {
+    const { hook } = await setup(dailySeries())
+    act(() => {
+      hook.result.current.commitSeriesEdits('d22', { fields: { text: 'Run' }, thisRow: { dueDate: '2026-10-20' } })
+    })
+    expect(hook.result.current.todos.find((x) => x.id === 'd20')!.text).toBe('Walk')
+    expect(hook.result.current.todos.find((x) => x.id === 'd21')!.text).toBe('Walk')
+    expect(hook.result.current.todos.find((x) => x.id === 'd23')!.text).toBe('Run')
+  })
+
+  it('updateRecurrence(fromDue) cuts the series where the row was', async () => {
+    const { hook } = await setup(dailySeries())
+    act(() => {
+      hook.result.current.updateDueDate('d19', '2026-10-22')
+      hook.result.current.updateRecurrence('d19', { freq: 'weekly', byWeekday: [4] }, { fromDue: '2026-10-19' })
+    })
+    const s1 = hook.result.current.todos.filter((x) => x.seriesId === 's1')
+    expect(s1.some((x) => day(x) === '2026-10-20')).toBe(false)
+  })
+
+  it('a repeating capture: move its start (re-expanded), then delete the whole series → zero rows', async () => {
+    const { hook } = await setup([mk('other')])
+    let id = ''
+    act(() => {
+      id = hook.result.current.addTaskWithUndo('Stretch', 'medium', '2026-10-19', undefined, { freq: 'daily' }).id
+    })
+    const sid = hook.result.current.todos.find((x) => x.id === id)!.seriesId!
+    let undo: (() => boolean) | null = null
+    act(() => {
+      undo = hook.result.current.rescheduleSeriesFrom(id, '2026-10-21')
+    })
+    expect(undo).not.toBeNull()
+    const days = hook.result.current.todos.filter((x) => x.seriesId === sid).map(day).sort()
+    expect(days[0]).toBe('2026-10-21')
+    expect(days).not.toContain('2026-10-20')
+    let removed = false
+    act(() => {
+      removed = hook.result.current.permanentlyDeleteSeries(sid)
+    })
+    expect(removed).toBe(true)
+    expect(hook.result.current.todos.filter((x) => x.seriesId === sid)).toEqual([])
+    expect(hook.result.current.todos.map((x) => x.id)).toEqual(['other'])
+    let again = true
+    act(() => {
+      again = hook.result.current.permanentlyDeleteSeries(sid)
+    })
+    expect(again).toBe(false)
+  })
+
+  it('rescheduleSeriesFrom on a one-off just moves it; an unchanged date or unknown id does nothing', async () => {
+    const { hook } = await setup([mk('o', { dueDate: '2026-10-19' })])
+    let u: (() => boolean) | null = null
+    act(() => {
+      u = hook.result.current.rescheduleSeriesFrom('o', '2026-10-25')
+    })
+    expect(hook.result.current.todos[0].dueDate).toBe('2026-10-25')
+    act(() => {
+      expect(u!()).toBe(true)
+    })
+    expect(hook.result.current.todos[0].dueDate).toBe('2026-10-19')
+    act(() => {
+      expect(hook.result.current.rescheduleSeriesFrom('o', '2026-10-19')).toBeNull()
+      expect(hook.result.current.rescheduleSeriesFrom('gone', '2026-10-19')).toBeNull()
+    })
+  })
+
+  it('a partial Undo keeps the later edit and says so calmly; a stale Undo reports false', async () => {
+    const { hook, snacks } = await setup(dailySeries())
+    act(() => {
+      hook.result.current.commitSeriesEdits('d19', { fields: { text: 'Run' } })
+    })
+    const undo = snacks.at(-1)!.onAction!
+    act(() => hook.result.current.updateText('d20', 'Jog'))
+    let ok: unknown
+    act(() => {
+      ok = (undo as () => boolean)()
+    })
+    expect(ok).toBe(true)
+    expect(hook.result.current.todos.find((x) => x.id === 'd20')!.text).toBe('Jog')
+    expect(hook.result.current.todos.find((x) => x.id === 'd21')!.text).toBe('Walk')
+    expect(snacks.at(-1)).toEqual({ message: 'Undone — later changes were kept.' })
+    // Nothing left to put back now (d20 is still edited): false, with the
+    // same calm note.
+    act(() => {
+      ok = (undo as () => boolean)()
+    })
+    expect(ok).toBe(false)
+  })
+
+  it('a full Undo shows no partial note', async () => {
+    const { hook, snacks } = await setup(dailySeries())
+    act(() => {
+      hook.result.current.commitSeriesEdits('d19', { fields: { text: 'Run' } })
+    })
+    const n = snacks.length
+    act(() => {
+      snacks.at(-1)!.onAction!()
+    })
+    expect(snacks.length).toBe(n)
+  })
+
+  it('revertTodo reports whether it changed anything', async () => {
+    const { hook } = await setup([mk('a')])
+    const snap = hook.result.current.todos[0]
+    act(() => hook.result.current.updateText('a', 'b'))
+    act(() => {
+      expect(hook.result.current.revertTodo(snap)).toBe(true)
+      expect(hook.result.current.revertTodo({ ...snap, id: 'gone' })).toBe(false)
+    })
+  })
+
+  it('no-op setters change nothing (todos list identity kept)', async () => {
+    const { hook } = await setup([mk('a', { category: 'work' })])
+    const before = hook.result.current.todosRef.current
+    act(() => {
+      hook.result.current.updateText('a', 'a')
+      hook.result.current.updatePriority('a', 'medium')
+      hook.result.current.updateTaskCategory('a', 'work')
+      hook.result.current.updateDueDate('a', '')
+      hook.result.current.updateNotes('a', '')
+      hook.result.current.updateReminders('a', [])
+      hook.result.current.updateText('gone', 'x')
+    })
+    expect(hook.result.current.todosRef.current).toBe(before)
+  })
+})

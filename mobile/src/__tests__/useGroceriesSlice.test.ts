@@ -26,7 +26,6 @@ function memoryAdapter(): StorageAdapter {
     async getItem(key) { return data.get(key) ?? null },
     async setItem(key, value) { data.set(key, value) },
     async removeItem(key) { data.delete(key) },
-    async clear() { data.clear() },
   }
 }
 

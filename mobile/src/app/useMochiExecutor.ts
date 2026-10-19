@@ -48,11 +48,13 @@ function lazyTurn() {
   }
 }
 
-/** Combine several actions' Undos into one (newest first); null if none. */
-export function combineUndos(undos: Array<(() => void) | null | undefined>): (() => void) | null {
-  const list = undos.filter((u): u is () => void => !!u)
+/** Combine several actions' Undos into one (newest first); null if none.
+ * Every part runs; the result is false only when EVERY part reported that
+ * it put nothing back (an Undo returning nothing counts as done). */
+export function combineUndos(undos: Array<(() => unknown) | null | undefined>): (() => boolean) | null {
+  const list = undos.filter((u): u is () => unknown => !!u)
   if (list.length === 0) return null
-  return () => [...list].reverse().forEach((u) => u())
+  return () => [...list].reverse().map((u) => u()).some((r) => r !== false)
 }
 
 export function useMochiExecutor(store: Store, t: Strings) {
@@ -93,7 +95,7 @@ export function useMochiExecutor(store: Store, t: Strings) {
   // later — each `asks` entry resolves true (applied) / false (kept as is).
   const runMochiIntents = useCallback(
     (intents: MochiIntent[]) => {
-      const undos: Array<(() => void) | null> = []
+      const undos: Array<(() => unknown) | null> = []
       const todoIds: string[] = []
       const groceryIds: string[] = []
       const asks: Array<Promise<boolean>> = []
@@ -170,8 +172,9 @@ export function useMochiExecutor(store: Store, t: Strings) {
             editTodo(it.todoId, () => store.updateNotes(it.todoId, it.notes))
             break
           case 'updateRecurrence':
-            // Tracked: a series occurrence rebuilds the series' future rows.
-            undos.push(store.updateRecurrence(it.todoId, it.recurrence))
+            // Tracked: a series occurrence rebuilds the series' future rows
+            // — from where the row WAS when the same edit moved it first.
+            undos.push(store.updateRecurrence(it.todoId, it.recurrence, it.fromDue ? { fromDue: it.fromDue } : undefined))
             break
           case 'updateReminders':
             editTodo(it.todoId, () => store.updateReminders(it.todoId, it.reminders))
@@ -264,12 +267,19 @@ export function useMochiExecutor(store: Store, t: Strings) {
           }
           case 'editGrocery': {
             const before = store.groceries.find((g) => g.id === it.groceryId)
-            store.editGrocery(it.groceryId, it.patch)
-            if (before) {
-              undos.push(() =>
-                store.editGrocery(before.id, { text: before.text, groupId: before.groupId, stores: before.stores }),
-              )
-            }
+            // Only a field that actually differs is an edit — a no-op adds no
+            // Undo (and so doesn't begin a new Mochi turn).
+            const p = it.patch
+            const differs =
+              !!before &&
+              ((p.text !== undefined && p.text !== before.text) ||
+                (p.groupId !== undefined && p.groupId !== before.groupId) ||
+                (p.stores !== undefined && (p.stores ?? []).join('\u0000') !== (before.stores ?? []).join('\u0000')))
+            if (!before || !differs) break
+            store.editGrocery(it.groceryId, p)
+            undos.push(() =>
+              store.editGrocery(before.id, { text: before.text, groupId: before.groupId, stores: before.stores }),
+            )
             break
           }
           case 'toggleGroceryChecked': {
@@ -313,18 +323,24 @@ export function useMochiExecutor(store: Store, t: Strings) {
           }
           case 'editCategory': {
             const before = store.categories.find((c) => c.id === it.categoryId)
-            store.editCategory(it.categoryId, { label: it.label, color: it.color, icon: it.icon })
-            if (before) {
-              // A built-in's label is undefined (its localized name) — restore
-              // exactly that, not "".
-              undos.push(() =>
-                store.editCategory(before.id, {
-                  label: before.label,
-                  color: before.color,
-                  icon: before.icon,
-                } as { label: string; color: string; icon: string }),
-              )
+            // The planner merges the patch over the stored values (a
+            // built-in's label stored as ""), so equal means nothing changes.
+            if (
+              !before ||
+              (it.label === (before.label ?? '') && it.color === before.color && it.icon === before.icon)
+            ) {
+              break
             }
+            store.editCategory(it.categoryId, { label: it.label, color: it.color, icon: it.icon })
+            // A built-in's label is undefined (its localized name) — restore
+            // exactly that, not "".
+            undos.push(() =>
+              store.editCategory(before.id, {
+                label: before.label,
+                color: before.color,
+                icon: before.icon,
+              } as { label: string; color: string; icon: string }),
+            )
             break
           }
           case 'deleteCategory':
@@ -396,9 +412,12 @@ export function useMochiExecutor(store: Store, t: Strings) {
       }
       const id = run.todoIds[0] ?? null
       const task = intents.find((i): i is Extract<MochiIntent, { type: 'addTask' }> => i.type === 'addTask')
-      const isRecurring = !!op.args.recurrence
       // Nothing created → no new turn (the previous turn's Undo stays live).
       if (!id) return { id: null, undo: () => false }
+      // A repeating capture is a brand-new series: its Undo removes every
+      // row carrying this seriesId, whatever dates it has by then (a date
+      // chip may have moved the start).
+      const seriesId = op.args.recurrence ? storeRef.current.todosRef.current.find((td) => td.id === id)?.seriesId : undefined
       return {
         id,
         category: task?.category ? run.categoryOf(task.category) : undefined,
@@ -406,13 +425,12 @@ export function useMochiExecutor(store: Store, t: Strings) {
         // the to-do is already gone).
         undo: beginMochiTurn()((): boolean => {
           // Remove the captured to-do BY ID — even after a chip edit, the
-          // card's Undo means "I didn't want this". A series also drops
-          // occurrences topped up since (all of them belong to this new
-          // series). The run's Undo then removes a category it created, now
-          // unused.
+          // card's Undo means "I didn't want this". A series drops EVERY
+          // row of it (occurrences topped up since included). The run's Undo
+          // then removes a category it created, now unused.
           const live = storeRef.current
           const listBefore = live.todosRef.current
-          if (isRecurring) live.permanentlyDeleteSeriesFuture(id)
+          if (seriesId) live.permanentlyDeleteSeries(seriesId)
           else live.permanentlyDelete(id)
           const removed = live.todosRef.current !== listBefore
           run.undo()
@@ -430,7 +448,13 @@ export function useMochiExecutor(store: Store, t: Strings) {
       // null clears the category (a chip Undo back to "no category").
       if (patch.category !== undefined) store.updateTaskCategory(id, patch.category ?? undefined)
       if (patch.priority !== undefined) store.updatePriority(id, patch.priority)
-      if (patch.dueDate !== undefined) store.updateDueDate(id, patch.dueDate)
+      if (patch.dueDate !== undefined) {
+        // A repeating capture's date chip moves the series' START: re-expand
+        // it from the new date (moving only the head left the old tail).
+        const row = storeRef.current.todosRef.current.find((td) => td.id === id)
+        if (row?.seriesId && row.recurrence) store.rescheduleSeriesFrom(id, patch.dueDate)
+        else store.updateDueDate(id, patch.dueDate)
+      }
     },
     [store],
   )
