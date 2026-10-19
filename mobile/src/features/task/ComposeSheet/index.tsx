@@ -16,7 +16,7 @@ import { snapDueDateToRecurrence } from '../../../../../core/src/logic/derive'
 import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
 import { useLang } from '../../../app/LangContext'
 import { useTheme } from '../../../app/theme'
-import { dueDateToDate, formatDisplayDate, formatRecurrence, fullDateLabel, isoDate } from '../../../core-bindings/utils'
+import { dueDateToDate, dueDateWithDay, duePresetDates, formatDisplayDate, formatRecurrence, fullDateLabel, isoDate } from '../../../core-bindings/utils'
 import {
   todayLocal,
   endOfWeekLocal,
@@ -99,6 +99,8 @@ interface Props {
    * the chat already did the thinking. Null/undefined → a normal blank
    * compose. */
   prefill?: ComposePrefill | null
+  /** Opened from the Today tab: a blank compose starts dated today. */
+  startsToday?: boolean
 }
 
 type SubView = 'main' | 'category' | 'priority' | 'date' | 'repeat' | 'repeatEndDate' | 'customRepeat' | 'remindAt'
@@ -210,7 +212,7 @@ function reminderSummary(
 }
 
 export default function ComposeSheet({
-  visible, categories, defaultCategory, references, agentEnabled = false, onCreateCategory, onAdd, onClose, onAskMochi, prefill,
+  visible, categories, defaultCategory, references, agentEnabled = false, onCreateCategory, onAdd, onClose, onAskMochi, prefill, startsToday = false,
 }: Props) {
   const { t } = useLang()
   const theme = useTheme()
@@ -232,10 +234,15 @@ export default function ComposeSheet({
   const [text, setText] = useState('')
   const [priority, setPriority] = useState<Priority>('medium')
   const [category, setCategory] = useState<Category>(defaultCategory)
-  // Defaults to today so the compose opens with a sensible
-  // "Completed by" — the user can clear it from the date sub-view if
-  // they want a no-date task. Matches the spec for the Add flow.
-  const [dueDate, setDueDate] = useState(todayLocal())
+  // New to-dos have NO date unless the user picks one (Phase 2 decision
+  // 2026-10-18) — an undated capture is the calm default; the "When?"
+  // presets are one tap away.
+  const [dueDate, setDueDate] = useState('')
+  // Two-line Compose: line 2 is the chip row. "When?" presets expand
+  // inline; More reveals reminders / repeat / priority / notes / steps.
+  const [datePanelOpen, setDatePanelOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const [notes, setNotes] = useState('')
   const [pickerDate, setPickerDate] = useState<Date>(new Date())
   // Pending buffer for the date subview. Mirrors TaskDetailsSheet's
   // edit flow — the picker writes here, Save commits to dueDate.
@@ -322,7 +329,9 @@ export default function ComposeSheet({
   function applyRecurrenceWithSnap(rec: Recurrence | undefined) {
     setRecurrence(rec)
     if (rec) {
-      const snapped = snapDueDateToRecurrence(dueDate, rec)
+      // A repeat needs an anchor date: an undated to-do starts today.
+      const base = dueDate || todayLocal()
+      const snapped = snapDueDateToRecurrence(base, rec)
       if (snapped !== dueDate) setDueDate(snapped)
     }
   }
@@ -369,12 +378,17 @@ export default function ComposeSheet({
         setText(prefill.text)
         setPriority(prefill.priority ?? 'medium')
         setCategory(prefill.category ?? defaultCategory)
-        const baseDue = prefill.dueDate || todayLocal()
+        // No date unless the chat gave one — or a repeat needs an anchor.
+        const baseDue = prefill.dueDate || (prefill.recurrence ? todayLocal() : '')
         setDueDate(
           prefill.recurrence ? snapDueDateToRecurrence(baseDue, prefill.recurrence) : baseDue,
         )
         setRecurrence(prefill.recurrence)
         setReminders(prefill.reminders ?? [])
+        setNotes('')
+        setDatePanelOpen(false)
+        // Show the details the chat filled in.
+        setMoreOpen(!!prefill.recurrence || (prefill.reminders?.length ?? 0) > 0)
         setPendingSubtasks([])
         setAppliedTextLower(prefill.text.trim().toLowerCase())
         ai.markApplied(prefill.text)
@@ -384,10 +398,10 @@ export default function ComposeSheet({
       setText('')
       setPriority('medium')
       setCategory(defaultCategory)
-      // Default "Completed by" → today, matching the initial state +
-      // user spec. Users can clear from the date sub-view if they
-      // want a no-date task.
-      setDueDate(todayLocal())
+      setDueDate(startsToday ? todayLocal() : '')
+      setNotes('')
+      setDatePanelOpen(false)
+      setMoreOpen(false)
       setRecurrence(undefined)
       setReminders([])
       setPendingSubtasks([])
@@ -400,9 +414,12 @@ export default function ComposeSheet({
       return () => clearTimeout(id)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, defaultCategory, prefill])
+  }, [visible, defaultCategory, prefill, startsToday])
 
   const activeCat = categories.find((c) => c.id === category) ?? categories[0]
+  // Recomputed per open so a sheet left open past midnight stays right.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const presetDates = useMemo(() => duePresetDates(), [visible])
   const canSubmit = text.trim().length > 0 && !!activeCat
 
   function submit() {
@@ -410,6 +427,7 @@ export default function ComposeSheet({
     if (!trimmed || !activeCat) return
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
     onAdd(trimmed, priority, dueDate, activeCat.id, recurrence, {
+      notes: notes.trim() ? notes.trim() : undefined,
       subtasks: pendingSubtasks.length > 0 ? pendingSubtasks : undefined,
       reminders: reminders.length > 0 ? reminders : undefined,
     })
@@ -419,12 +437,13 @@ export default function ComposeSheet({
     onClose()
   }
 
-  // A new to-do is "dirty" once the user has typed a title or staged any
-  // steps / reminders / recurrence. dueDate defaults to today, so it isn't a
-  // dirty signal on its own.
+  // A new to-do is "dirty" once the user has typed a title or notes, or
+  // staged any steps / reminders / recurrence. A picked date alone isn't
+  // worth a "Discard?" prompt.
   function isDirty() {
     return (
       text.trim().length > 0 ||
+      notes.trim().length > 0 ||
       pendingSubtasks.length > 0 ||
       reminders.length > 0 ||
       recurrence !== undefined
@@ -629,6 +648,110 @@ export default function ComposeSheet({
                   )}
                 </View>
 
+                {/* Line 2 — the chip row: When · Category · More. */}
+                <View style={styles.chipRow}>
+                  <TouchableOpacity
+                    style={[styles.chip, (!!dueDate || datePanelOpen) && styles.chipActive]}
+                    onPress={() => setDatePanelOpen((v) => !v)}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: datePanelOpen }}
+                    accessibilityLabel={`${t.composeWhen} ${dueDate ? formatDisplayDate(dueDate, t.locale) : t.presetNoDate}`}
+                  >
+                    <CalendarIcon size={15} color={dueDate ? theme.primary : theme.label2} />
+                    <Text style={[styles.chipText, !dueDate && styles.chipTextMuted]} numberOfLines={1}>
+                      {dueDate ? formatDisplayDate(dueDate, t.locale) : t.presetNoDate}
+                    </Text>
+                  </TouchableOpacity>
+                  {!!dueDate && (
+                    <TouchableOpacity
+                      style={styles.chipClear}
+                      onPress={() => {
+                        setDueDate('')
+                        Haptics.selectionAsync().catch(() => {})
+                      }}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={t.clear}
+                    >
+                      <Text style={styles.chipClearText}>×</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={styles.chip}
+                    onPress={() => setSubView('category')}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t.composeCategoryLabel}, ${activeCat ? categoryLabel(activeCat, t) : ''}`}
+                  >
+                    {activeCat && <CategoryIcon icon={activeCat.icon} size={15} color={activeCat.color} />}
+                    <Text style={styles.chipText} numberOfLines={1}>
+                      {activeCat ? categoryLabel(activeCat, t) : ''}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.chip, moreOpen && styles.chipActive]}
+                    onPress={() => setMoreOpen((v) => !v)}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: moreOpen }}
+                  >
+                    <Text style={[styles.chipText, !moreOpen && styles.chipTextMuted]}>
+                      {moreOpen ? t.composeLess : t.composeMore}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {datePanelOpen && (
+                  <View style={styles.presetPanel}>
+                    <Text style={styles.presetPanelLabel}>{t.composeWhen}</Text>
+                    <View style={styles.presetGrid}>
+                      {[
+                        { label: t.presetToday, value: presetDates.today },
+                        { label: t.presetTomorrow, value: presetDates.tomorrow },
+                        { label: t.presetWeekend, value: presetDates.weekend },
+                        { label: t.presetNextWeek, value: presetDates.nextWeek },
+                      ].map((p) => {
+                        const active = dueDateOnly(dueDate) === p.value
+                        return (
+                          <TouchableOpacity
+                            key={p.label}
+                            style={[styles.presetBtn, active && styles.presetBtnActive]}
+                            onPress={() => {
+                              // Keep any time already set; just move the day.
+                              setDueDate(dueDateWithDay(dueDate, new Date(`${p.value}T00:00:00`)))
+                              setDatePanelOpen(false)
+                              Haptics.selectionAsync().catch(() => {})
+                            }}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: active }}
+                          >
+                            <Text style={[styles.presetBtnText, active && styles.presetBtnTextActive]}>{p.label}</Text>
+                          </TouchableOpacity>
+                        )
+                      })}
+                      <TouchableOpacity
+                        style={styles.presetBtn}
+                        onPress={() => {
+                          setDatePanelOpen(false)
+                          openDateView()
+                        }}
+                        accessibilityRole="button"
+                      >
+                        <Text style={styles.presetBtnText}>{t.presetPickDate}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.presetBtn, !dueDate && styles.presetBtnActive]}
+                        onPress={() => {
+                          setDueDate('')
+                          setDatePanelOpen(false)
+                        }}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: !dueDate }}
+                      >
+                        <Text style={[styles.presetBtnText, !dueDate && styles.presetBtnTextActive]}>{t.presetNoDate}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
                 <ScrollView
                   style={styles.body}
                   contentContainerStyle={styles.bodyContent}
@@ -717,24 +840,9 @@ export default function ComposeSheet({
                     }}
                     onDismissField={ai.dismissField}
                   />
+                  {moreOpen && (
+                  <>
                   <View style={styles.fieldGroup}>
-                    <TouchableOpacity
-                      style={styles.fieldRow}
-                      onPress={() => setSubView('category')}
-                      activeOpacity={0.6}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Category, ${activeCat ? categoryLabel(activeCat, t) : 'none'}. Tap to change.`}
-                    >
-                      {activeCat && <CategoryIcon icon={activeCat.icon} size={18} color={activeCat.color} />}
-                      <Text style={styles.fieldLabel}>{t.composeCategoryLabel}</Text>
-                      <Text style={styles.fieldValue} numberOfLines={1}>
-                        {activeCat ? categoryLabel(activeCat, t) : ''}
-                      </Text>
-                      <Text style={styles.chevron}>›</Text>
-                    </TouchableOpacity>
-
-                    <View style={styles.divider} />
-
                     <TouchableOpacity
                       style={styles.fieldRow}
                       onPress={() => setSubView('priority')}
@@ -750,29 +858,6 @@ export default function ComposeSheet({
                       <Text style={styles.fieldLabel}>{t.composePriorityLabel}</Text>
                       <Text style={styles.fieldValue} numberOfLines={1}>
                         {t.priority[priority]}
-                      </Text>
-                      <Text style={styles.chevron}>›</Text>
-                    </TouchableOpacity>
-
-                    <View style={styles.divider} />
-
-                    <TouchableOpacity
-                      style={styles.fieldRow}
-                      onPress={openDateView}
-                      activeOpacity={0.6}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Complete by, ${dueDate ? formatDisplayDate(dueDate, t.locale) : t.noDate}. Tap to change.`}
-                    >
-                      <CalendarIcon size={18} color={dueDate ? theme.blue : theme.gray3} />
-                      <Text style={styles.fieldLabel}>{t.composeDateLabel}</Text>
-                      <Text
-                        style={[
-                          styles.fieldValue,
-                          !dueDate && styles.fieldValueMuted,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {dueDate ? formatDisplayDate(dueDate, t.locale) : t.noDate}
                       </Text>
                       <Text style={styles.chevron}>›</Text>
                     </TouchableOpacity>
@@ -868,9 +953,18 @@ export default function ComposeSheet({
                     </TouchableOpacity>
                   </View>
 
-                  {/* Notes moved into the title card (top of sheet)
-                      so users don't have to scroll past every field
-                      row to add a quick context note. */}
+                  <Text style={styles.notesLabel}>{t.composeNotesLabel}</Text>
+                  <TextInput
+                    style={styles.notesInput}
+                    value={notes}
+                    onChangeText={setNotes}
+                    placeholder={t.composeNotesPlaceholder}
+                    placeholderTextColor={theme.label2}
+                    multiline
+                    maxLength={4096}
+                    textAlignVertical="top"
+                    accessibilityLabel={t.composeNotesLabel}
+                  />
 
                   {/* Steps — queued locally and attached when the user
                       taps Add. Empty state mirrors Edit-Todo. */}
@@ -962,6 +1056,8 @@ export default function ComposeSheet({
                       <Text style={styles.addStepText}>+ Add a step…</Text>
                     </TouchableOpacity>
                   </View>
+                  </>
+                  )}
                 </ScrollView>
               </>
             )}

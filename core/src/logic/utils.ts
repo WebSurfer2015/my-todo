@@ -32,6 +32,26 @@ export function isoDate(d: Date): string {
 }
 
 /**
+ * The Compose "When?" quick picks, as ISO dates (local time):
+ * - weekend: the coming Saturday (today if it's already Sat/Sun),
+ * - nextWeek: the coming Monday (never today).
+ */
+export function duePresetDates(from: Date = new Date()): {
+  today: string
+  tomorrow: string
+  weekend: string
+  nextWeek: string
+} {
+  const dow = from.getDay()
+  return {
+    today: isoDate(from),
+    tomorrow: addDaysISO(1, from),
+    weekend: dow === 6 || dow === 0 ? isoDate(from) : addDaysISO(6 - dow, from),
+    nextWeek: addDaysISO(dow === 0 ? 1 : 8 - dow, from),
+  }
+}
+
+/**
  * ISO yyyy-mm-dd `days` days from `from` (defaults to now), in local
  * time. Used by snooze / defer to turn "N days from today" into a date
  * string. `days` may be negative.

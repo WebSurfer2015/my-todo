@@ -145,8 +145,15 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   const openSettings = useCallback(() => setSettingsOpen(true), [])
   const openTheme = useCallback(() => setThemePickerOpen(true), [])
   const openGuides = useCallback(() => setGuideMenuOpen(true), [])
+  // Compose opened from the Today tab starts dated today — Today only lists
+  // dated to-dos, so an undated add would seem to vanish. Everywhere else a
+  // new to-do has no date by default.
+  const [composeStartsToday, setComposeStartsToday] = useState(false)
   const openCompose = useCallback(() => {
     setComposePrefill(null) // Add FAB → blank compose
+    setComposeStartsToday(
+      sheetNavigationRef.isReady() && sheetNavigationRef.getCurrentRoute()?.name === 'Home',
+    )
     setComposeOpen(true)
   }, [])
   const openMochi = useCallback(() => setMochiOpen(true), [])
@@ -738,6 +745,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           TodosScreen was removed when this moved up. */}
       <ComposeSheet
         visible={composeOpen}
+        startsToday={composeStartsToday}
         categories={store.categories}
         defaultCategory={store.defaultCategory}
         references={store.todoReferences}

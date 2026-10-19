@@ -8,6 +8,7 @@
  */
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import {
+  duePresetDates,
   genUuid,
   todayLocal,
   endOfWeekLocal,
@@ -323,5 +324,24 @@ describe('dueDateWithDay / dueDateToDate (date-only pickers)', () => {
     expect(Number.isNaN(d.getTime())).toBe(false)
     expect([d.getFullYear(), d.getMonth(), d.getDate(), d.getHours()]).toEqual([2026, 9, 19, 0])
     expect(dueDateToDate('2026-10-19').getDate()).toBe(19)
+  })
+})
+
+describe('duePresetDates (Compose quick picks)', () => {
+  it('weekday: weekend = coming Saturday, next week = coming Monday', () => {
+    // Wed 2026-10-21
+    expect(duePresetDates(new Date(2026, 9, 21))).toEqual({
+      today: '2026-10-21',
+      tomorrow: '2026-10-22',
+      weekend: '2026-10-24',
+      nextWeek: '2026-10-26',
+    })
+  })
+  it('on Saturday and Sunday, "this weekend" is today; next week is Monday', () => {
+    expect(duePresetDates(new Date(2026, 9, 24))).toMatchObject({ weekend: '2026-10-24', nextWeek: '2026-10-26' })
+    expect(duePresetDates(new Date(2026, 9, 25))).toMatchObject({ weekend: '2026-10-25', nextWeek: '2026-10-26' })
+  })
+  it('on Monday, next week is the FOLLOWING Monday', () => {
+    expect(duePresetDates(new Date(2026, 9, 19)).nextWeek).toBe('2026-10-26')
   })
 })
