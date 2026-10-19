@@ -10,7 +10,7 @@ interface SnackbarOptions {
   /**
    * If set, repeat calls with the same mergeKey while a toast is still
    * showing accumulate into a single stacked toast ("3 moved to trash. Undo all").
-   * Each merged onAction is preserved and called in order on Undo.
+   * Each merged onAction is preserved and called newest-first on Undo.
    */
   mergeKey?: string
   /** Builder for the merged message; receives the new total count (>=2). */
@@ -39,6 +39,22 @@ interface NotifyApi {
 }
 
 const NotifyContext = createContext<NotifyApi>(null!)
+
+/**
+ * Composite "Undo all" for a merged toast: runs the latest action first, then
+ * the accumulated ones newest → oldest. Undos must unwind in reverse — a later
+ * action may depend on an earlier one (e.g. complete, then trash the same
+ * to-do), so undoing the oldest first restores a stale snapshot underneath.
+ */
+export function runNewestFirst(
+  accumulated: ReadonlyArray<() => void>,
+  latest?: () => void,
+): () => void {
+  return () => {
+    latest?.()
+    for (let i = accumulated.length - 1; i >= 0; i--) accumulated[i]()
+  }
+}
 
 // Long enough to notice and reach Undo (was 3.5s — too quick, especially
 // with VoiceOver or a slower reader).
@@ -79,10 +95,7 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
           prev.mergedActionLabel ??
           opts.actionLabel ??
           prev.actionLabel,
-        onAction: () => {
-          accumulated.forEach((a) => a())
-          opts.onAction?.()
-        },
+        onAction: runNewestFirst(accumulated, opts.onAction),
         durationMs: opts.durationMs ?? DEFAULT_DURATION,
         mergeKey: opts.mergeKey,
         mergedCount: newCount,

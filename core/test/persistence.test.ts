@@ -12,6 +12,9 @@ import {
   readVersioned,
   writeVersioned,
   clearAllPersisted,
+  utf8ByteLength,
+  exceedsSyncedValueCap,
+  MAX_SYNCED_VALUE_BYTES,
   type StorageAdapter,
 } from '../src/ports/persistence'
 
@@ -126,5 +129,22 @@ describe('roundtrip: writeVersioned + readVersioned', () => {
     const migrate = (raw: unknown): string[] => (Array.isArray(raw) ? raw as string[] : [])
     await writeVersioned(adapter, 'list', ['a', 'b', 'c'])
     expect(await readVersioned(adapter, 'list', migrate)).toEqual(['a', 'b', 'c'])
+  })
+})
+
+describe('synced value size cap', () => {
+  it('utf8ByteLength counts 1/2/3/4-byte code points', () => {
+    expect(utf8ByteLength('abc')).toBe(3)
+    expect(utf8ByteLength('é')).toBe(2)
+    expect(utf8ByteLength('你')).toBe(3)
+    expect(utf8ByteLength('😀')).toBe(4)
+  })
+
+  it('flags only values over the cap', () => {
+    expect(exceedsSyncedValueCap('x'.repeat(1000))).toBe(false)
+    expect(exceedsSyncedValueCap('x'.repeat(MAX_SYNCED_VALUE_BYTES))).toBe(false)
+    expect(exceedsSyncedValueCap('x'.repeat(MAX_SYNCED_VALUE_BYTES + 1))).toBe(true)
+    // multi-byte text crosses the cap with fewer characters
+    expect(exceedsSyncedValueCap('你'.repeat(MAX_SYNCED_VALUE_BYTES / 3 + 1))).toBe(true)
   })
 })

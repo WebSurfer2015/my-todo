@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   AppState,
@@ -54,20 +54,25 @@ import SignIn from "./src/features/auth/SignIn";
 import EmptyStateCard from "./src/ui/EmptyStateCard";
 import Onboarding from "./src/features/onboarding/Onboarding";
 import SplashOverlay from "./src/app/SplashOverlay";
-import { cancelDailyCheckin, syncTodoReminders } from "./src/adapters/notifications";
+import { cancelDailyCheckin, onReminderTapped, syncTodoReminders } from "./src/adapters/notifications";
 import { installCrashReporters } from "./src/adapters/crashReporting";
+import { initAppCheck } from "./src/adapters/appCheck";
 
 // Install crash reporters before any React code runs so even very early
 // failures get forwarded to Crashlytics. Idempotent — safe to call once
 // at module-load.
 installCrashReporters();
+// App Check before any Firestore / Functions traffic. Best-effort: a dev
+// client without the native module keeps running (see adapters/appCheck).
+initAppCheck();
 import { NavigationContainer, useIsFocused } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { House, ListTodo, ShoppingBag } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { StoreProvider, useStore } from "./src/app/StoreContext";
+import { useReducedMotion } from "./src/app/useReducedMotion";
 import { PurchasesProvider } from "./src/app/PurchasesContext";
-import { SheetProvider, useSheets, sheetNavigationRef } from "./src/app/SheetContext";
+import { SheetProvider, useSheets, sheetNavigationRef, TaskDetailsOpenContext } from "./src/app/SheetContext";
 import { FireworkOverlayProvider } from "./src/app/FireworkOverlay";
 import HomeScreen from "./src/features/home/HomeScreen";
 import GroceriesScreen from "./src/features/groceries/GroceriesScreen";
@@ -877,11 +882,14 @@ function FirstRunLayer() {
   // Stable identity: the overlay restarts its animation when onDismiss
   // changes, so an inline arrow cut the splash short on every store update.
   const hideSplash = useCallback(() => setSplashShown(false), []);
-  // Onboarding is decided ONCE, the first time the store finishes
-  // hydrating — then latched, so a later profile-sync tick that momentarily
-  // lacks onboardingDone can't pop it over the app mid-session. The one
-  // deliberate re-entry is Settings → Show intro again, which writes an
-  // explicit `false`.
+  // Onboarding is decided ONCE, the first time the store has hydrated a
+  // REAL profile — then latched, so a later profile-sync tick that
+  // momentarily lacks onboardingDone can't pop it over the app mid-session.
+  // A hydrate that failed / timed out shows SEED_PROFILE (onboardingDone
+  // unset); deciding on that would show onboarding to an onboarded user, so
+  // we wait for real data — and if it never comes, onboarding never shows.
+  // The one deliberate re-entry is Settings → Show intro again, which writes
+  // an explicit `false`.
   // Finishing onboarding also marks the "A few quick tips?" prompt as seen:
   // a brand-new user goes straight to their first to-do instead of a second
   // pop-up (which could also collide with the Mochi sheet opening). The
@@ -889,14 +897,14 @@ function FirstRunLayer() {
   const [onboardingNeeded, setOnboardingNeeded] = useState(false);
   const onboardingDecidedRef = useRef(false);
   useEffect(() => {
-    if (!store.loaded) return;
+    if (!store.loaded || !store.profileTrusted) return;
     if (!onboardingDecidedRef.current) {
       onboardingDecidedRef.current = true;
       if (store.profile.onboardingDone !== true) setOnboardingNeeded(true);
     } else if (store.profile.onboardingDone === false) {
       setOnboardingNeeded(true);
     }
-  }, [store.loaded, store.profile.onboardingDone]);
+  }, [store.loaded, store.profileTrusted, store.profile.onboardingDone]);
 
   return (
     <>
@@ -940,17 +948,19 @@ function AppGate() {
   // changes — adds new ones, cancels removed/done/trashed/cleared
   // entries. Permission is requested at UI-action time (when the user
   // sets a reminder); this sync silently skips if it isn't granted.
-  // Signed-in only: on a cold launch the signed-out local store hydrates
-  // (empty) before auth resolves, and syncing that cancelled every reminder.
+  // Signed-in only, and only on REAL data: the signed-out store and a
+  // failed / timed-out hydrate both show empty defaults, and syncing those
+  // cancelled every reminder.
+  const remindersReady = store.dataTrusted && !!user;
   useEffect(() => {
-    if (!store.loaded || !user) return;
+    if (!remindersReady) return;
     void syncTodoReminders(store.todos, { gentleNudge: store.profile.gentleNudge === true });
-  }, [store.todos, store.loaded, store.profile.gentleNudge, user]);
+  }, [store.todos, remindersReady, store.profile.gentleNudge]);
   // Re-sync when the app returns to the foreground: notification permission
   // may have been granted in iOS Settings, the time zone may have changed,
   // and repeating reminders are only scheduled a limited number ahead.
-  const reminderInputsRef = useRef({ todos: store.todos, loaded: store.loaded && !!user, nudge: store.profile.gentleNudge === true });
-  reminderInputsRef.current = { todos: store.todos, loaded: store.loaded && !!user, nudge: store.profile.gentleNudge === true };
+  const reminderInputsRef = useRef({ todos: store.todos, loaded: remindersReady, nudge: store.profile.gentleNudge === true });
+  reminderInputsRef.current = { todos: store.todos, loaded: remindersReady, nudge: store.profile.gentleNudge === true };
   useEffect(() => {
     const sub = AppState.addEventListener("change", (next) => {
       const cur = reminderInputsRef.current;
@@ -1064,8 +1074,31 @@ function AppGate() {
         </Tab.Navigator>
       </NavigationContainer>
       <FirstRunLayer />
+      <ReminderTapHandler />
     </View>
   );
+}
+
+/**
+ * Opens a to-do's details when the user taps its reminder (while running or
+ * from a cold launch). Mounted inside AppGate's ready branch — so the store
+ * is hydrated — and under SheetProvider, which owns the details sheet.
+ */
+function ReminderTapHandler() {
+  const openTaskDetails = useContext(TaskDetailsOpenContext);
+  const store = useStore();
+  const todosRef = useRef(store.todos);
+  todosRef.current = store.todos;
+  useEffect(
+    () =>
+      onReminderTapped((todoId) => {
+        // A reminder can outlive its to-do (deleted on another device).
+        if (!todosRef.current.some((td) => td.id === todoId && !td.trashed)) return;
+        openTaskDetails(todoId);
+      }),
+    [openTaskDetails],
+  );
+  return null;
 }
 
 /**
@@ -1117,12 +1150,17 @@ export default function App() {
  * the center (Mochi mascot if no avatar yet) at a large size with a
  * gentle continuous pulse. Mirrors the calm-app stance — no spinner,
  * no progress bar, just a quiet "we're here" beat that matches the
- * user's identity.
+ * user's identity. With Reduce Motion on (OS setting) it renders static.
  */
 function LoadingScreen({ avatar }: { avatar?: AvatarT }) {
   const theme = useTheme();
+  const reduceMotion = useReducedMotion();
   const pulse = useRef(new Animated.Value(0.85)).current;
   useEffect(() => {
+    if (reduceMotion) {
+      pulse.setValue(1);
+      return;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, {
@@ -1141,7 +1179,7 @@ function LoadingScreen({ avatar }: { avatar?: AvatarT }) {
     );
     loop.start();
     return () => loop.stop();
-  }, [pulse]);
+  }, [pulse, reduceMotion]);
   const effectiveAvatar: AvatarT = avatar ?? { kind: 'preset', key: 'mochi' };
   return (
     <SafeAreaView

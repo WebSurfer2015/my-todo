@@ -50,7 +50,7 @@ export type TodoStoreActions = typeof derive &
   typeof coordinators
 
 export interface TodoStore {
-  /** The injected port (clock / id / i18n) for future deps-needing actions. */
+  /** The injected port (i18n) for future deps-needing actions. */
   deps: StoreDeps
   /** Flat table of pure state transforms + coordinators. */
   actions: TodoStoreActions

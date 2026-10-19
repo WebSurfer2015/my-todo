@@ -3,7 +3,7 @@
  * one persisted slice (todos + categories + filter + profile). Each
  * returns the next value of every touched slice plus a `changed` flag;
  * the React glue applies them via setState and skips writes when nothing
- * changed. No React, no adapter, no direct clock access (see StoreDeps).
+ * changed. No React, no adapter, no direct clock access.
  *
  * This is where the store's *orchestration* becomes testable — the logic
  * that used to live inline in the platform composer, deciding how a

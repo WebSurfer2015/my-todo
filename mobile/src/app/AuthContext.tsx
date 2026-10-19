@@ -26,7 +26,7 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
 import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
 import { auth, db } from "../adapters/firebase";
-import { stateDocPath, USER_STATE_KEYS, SCHEMA_VERSION } from "../../../core/src/ports/persistence";
+import { stateDocPath, SCHEMA_VERSION } from "../../../core/src/ports/persistence";
 import { Profile, SEED_PROFILE, MAX_PROFILE_NAME_LEN } from "../../../core/src/data/profile";
 
 type User = FirebaseAuthTypes.User;
@@ -62,17 +62,6 @@ export interface AuthApi {
 }
 
 const AuthContext = createContext<AuthApi>(null!);
-
-/**
- * Clear local persisted user state so the next user signing in on this device
- * doesn't see leftover data, and so migrateLocalToCloud can't push prior-user
- * data into a brand-new user's empty Firestore doc. Keyed off USER_STATE_KEYS
- * so it can't drift from what the app persists (groceries/groceryGroups were
- * once missing → cross-account bleed). Best-effort — never blocks auth.
- */
-async function clearLocalUserData(): Promise<void> {
-  await AsyncStorage.multiRemove([...USER_STATE_KEYS]).catch(() => {});
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -296,8 +285,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    // User state lives only in Firestore (per-uid paths), so there is no
+    // device-local copy to clear.
     await fbSignOut(auth);
-    await clearLocalUserData();
   }, []);
 
   const deleteAccount = useCallback(async () => {
@@ -305,8 +295,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!current) throw new Error("Not signed in");
     // Erasure is server-side: deleting the auth user fires the onUserDeleted
     // Cloud Function, which recursively deletes users/{uid} (clients can't
-    // delete state docs — firestore.rules). Then clear the device's local copy
-    // so it can't migrate into the next account created here.
+    // delete state docs — firestore.rules).
     try {
       await deleteUser(current);
     } catch (err) {
@@ -315,7 +304,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       throw err;
     }
-    await clearLocalUserData();
   }, []);
 
   const value = useMemo<AuthApi>(

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Filter, ViewMode } from "../core-bindings/types";
 import {
   getOrderedStatuses,
@@ -15,7 +14,6 @@ import { useLang } from "../app/LangContext";
 import { useAuth } from "../app/AuthContext";
 import { useNotify } from "../app/notify";
 import { useReducedMotion } from "../app/useReducedMotion";
-import { storage as localAdapter } from "../adapters/persistence";
 import { db } from "../adapters/firebase";
 import { makeFirestoreAdapter } from "../adapters/firestoreAdapter";
 import {
@@ -23,10 +21,34 @@ import {
   USER_STATE_KEYS,
   SCHEMA_VERSION,
 } from "../../../core/src/ports/persistence";
-import { createTodoStore, migrateLocalToCloud, refreshUsageSignals } from "../../../core/src/store";
-import { todayLocal, genUuid } from "../../../core/src/logic/utils";
+import { createTodoStore, refreshUsageSignals } from "../../../core/src/store";
+import { todayLocal } from "../../../core/src/logic/utils";
 import { dailyQuoteIndex, quoteAt } from "../../../core/src/data/quotes";
+import { isSyncedKeyTrusted, onSyncIssue } from "./useSyncedState";
 
+// Sync-problem snackbars. English-only launch — TODO(i18n owner): move into
+// core/src/data/i18n.ts when the language picker returns.
+const SYNC_TOO_LARGE_MESSAGE =
+  "Your list is very large — clear finished to-dos in Done to keep syncing.";
+const SYNC_WRITE_FAILED_MESSAGE =
+  "Couldn't save your latest changes. They'll stay on this device for now.";
+
+/** ms until the next local midnight (+1s so todayLocal() has rolled over). */
+function msUntilNextLocalMidnight(now = new Date()): number {
+  const next = new Date(now);
+  next.setHours(24, 0, 1, 0);
+  return next.getTime() - now.getTime();
+}
+
+/** Signed out there is no account to sync with: reads are empty and writes
+ * go nowhere. (The old AsyncStorage "local mode" and its local→cloud
+ * migration were removed once sign-in became mandatory.) */
+const SIGNED_OUT_ADAPTER: StorageAdapter = {
+  getItem: async () => null,
+  setItem: async () => {},
+  removeItem: async () => {},
+  clear: async () => {},
+};
 
 export function useTodoStore() {
   const { t } = useLang();
@@ -39,39 +61,17 @@ export function useTodoStore() {
   // state to store.derive. Memoized on `t` (the only deps member that
   // varies); actions are pure so this keeps useCallback identities
   // stable across ordinary renders.
-  const store = useMemo(
-    () => createTodoStore({ now: Date.now, genId: genUuid, t }),
-    [t],
-  );
+  const store = useMemo(() => createTodoStore({ t }), [t]);
 
   // Memoize on uid (not the User object) so token refresh — which replaces
-  // the User reference ~hourly — doesn't recreate the adapter, tear down
-  // Firestore listeners, and re-fire migrateLocalToCloud.
+  // the User reference ~hourly — doesn't recreate the adapter and tear down
+  // Firestore listeners. Sign-in is mandatory (AppGate renders <SignIn>
+  // until there's a user), so signed out there is nothing to persist.
   const uid = user?.uid ?? null;
   const adapter = useMemo<StorageAdapter>(
-    () => (uid ? makeFirestoreAdapter(db, uid) : localAdapter),
+    () => (uid ? makeFirestoreAdapter(db, uid) : SIGNED_OUT_ADAPTER),
     [uid],
   );
-
-  useEffect(() => {
-    if (!uid) return;
-    let cancelled = false;
-    // Mobile migrates its grocery superset too (web ships the shared
-    // three). localAdapter reads this device's AsyncStorage; the core
-    // helper's per-key gating prevents stomping any populated cloud key.
-    migrateLocalToCloud(adapter, localAdapter, [
-      "todos",
-      "categories",
-      "profile",
-      "groceries",
-      "groceryGroups",
-    ]).catch((err) => {
-      if (!cancelled) console.warn("Local→cloud migration failed:", err);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [uid, adapter]);
 
 
   // ---- Filter state (session — not persisted) ----
@@ -104,6 +104,28 @@ export function useTodoStore() {
   const clearFilters = useCallback(() => setFiltersState([]), []);
   const setFilters = useCallback((f: Filter[]) => setFiltersState(f), []);
 
+  // ---- Day key ----
+  // The local "today" (YYYY-MM-DD). State, not a per-render todayLocal(), so
+  // everything date-bound (derive's Today/overdue groups, the daily quote,
+  // usage signals) recomputes when the day rolls over while the app stays
+  // open: a timer fires at the next local midnight, and returning to the
+  // foreground re-checks (timers don't run while suspended; time zone may
+  // have changed).
+  const [today, setToday] = useState(todayLocal);
+  useEffect(() => {
+    const handle = setTimeout(
+      () => setToday(todayLocal()),
+      msUntilNextLocalMidnight(),
+    );
+    return () => clearTimeout(handle);
+  }, [today]);
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") setToday(todayLocal());
+    });
+    return () => sub.remove();
+  }, []);
+
   // ---- Profile + categories slices ----
   // Profile slice now also owns every profile-touching mutation
   // (pinFilter, keepAndClearFilter, home tiles, status/priority
@@ -113,6 +135,7 @@ export function useTodoStore() {
     profile,
     setProfile,
     profileLoaded,
+    profileTrusted,
     pinFilter,
     keepAndClearFilter,
     renameStatus,
@@ -269,6 +292,37 @@ export function useTodoStore() {
     profileLoaded &&
     groceriesLoaded &&
     groceryGroupsLoaded;
+  // True only when profile AND todos came from real data — not defaults
+  // after a failed / timed-out hydrate. Effects that would act destructively
+  // on defaults (reminder sync cancelling every reminder, onboarding over an
+  // onboarded account) gate on this. The todos flag is read from the
+  // useSyncedState registry because the todos slice doesn't surface it;
+  // reading at render is safe — the flag flips together with a state update
+  // in the same component, so this re-renders.
+  const todosTrusted = isSyncedKeyTrusted(adapter, "todos");
+  const dataTrusted = loaded && profileTrusted && todosTrusted;
+
+  // Calm, once-per-session notices for sync problems the user can act on
+  // (or should at least know about). Reset per account.
+  const syncNoticeShownRef = useRef({ tooLarge: false, writeFailed: false });
+  useEffect(() => {
+    syncNoticeShownRef.current = { tooLarge: false, writeFailed: false };
+  }, [uid]);
+  useEffect(
+    () =>
+      onSyncIssue((issue) => {
+        const shown = syncNoticeShownRef.current;
+        if (shown[issue.kind]) return;
+        shown[issue.kind] = true;
+        notify.showSnackbar({
+          message:
+            issue.kind === "tooLarge"
+              ? SYNC_TOO_LARGE_MESSAGE
+              : SYNC_WRITE_FAILED_MESSAGE,
+        });
+      }),
+    [notify],
+  );
 
   // P0 Tier 2 measurement (docs/MEASUREMENT-PLAN.md): stamp the
   // privacy-preserving signals — createdAt (once), lastActiveDate (today),
@@ -312,14 +366,6 @@ export function useTodoStore() {
   // SEED_CATEGORIES / SEED_PROFILE for the seeded slices), so the
   // next hydrate is clean.
   //
-  // Local strategy: AsyncStorage.removeItem every known key in
-  // parallel. Without this, migrateLocalToCloud on next sign-in
-  // would push the still-present local copy back to the freshly-
-  // cleared cloud (the inverse race that brought back the data the
-  // user just deleted). signOut() ITSELF only multiRemove's the
-  // legacy ['todos','categories','profile'] subset; we own
-  // todoReferences / groceries / groceryGroups too.
-  //
   // No setX calls: those triggered useSyncedState write-debounces
   // that raced everything else. Letting signOut re-hydrate is the
   // calmer guarantee.
@@ -333,13 +379,6 @@ export function useTodoStore() {
         console.warn(`clearAllData: cloud overwrite failed for ${key}`, err);
       });
     });
-    await Promise.all(
-      USER_STATE_KEYS.map((key) =>
-        AsyncStorage.removeItem(key).catch(() => {
-          // best-effort — already absent or storage hiccup
-        }),
-      ),
-    );
   }, [adapter]);
 
 
@@ -376,15 +415,19 @@ export function useTodoStore() {
 
   // ---- Derived state (memoized via core.deriveState) ----
 
+  // `today` is a dep (deriveState reads the clock itself) so the Today /
+  // carried-over grouping is recomputed when the day rolls over.
   const derived = useMemo(
-    () =>
-      store.derive({
+    () => {
+      void today;
+      return store.derive({
         todos,
         filters,
         categories,
         t,
-      }),
-    [store, todos, filters, categories, t],
+      });
+    },
+    [store, todos, filters, categories, t, today],
   );
 
   const hour = new Date().getHours();
@@ -398,7 +441,7 @@ export function useTodoStore() {
     : t.greeting[greetingKey];
   const trimmedQuote =
     profile.quote && profile.quote.trim() ? profile.quote.trim() : '';
-  const todayDate = todayLocal();
+  const todayDate = today;
   // Subtitle source. Resolution:
   //   - 'daily'  → date-seeded curated quote, stable all day, rotates at
   //                midnight; honors a per-day "show me another" shuffle.
@@ -449,6 +492,14 @@ export function useTodoStore() {
     filter,
     view,
     loaded,
+    /** Profile came from real data (not SEED_PROFILE after a failed /
+     * timed-out hydrate). Gate one-shot decisions like onboarding on it. */
+    profileTrusted,
+    /** loaded AND profile + todos came from real data. */
+    dataTrusted,
+    /** Local day key (YYYY-MM-DD); changes at local midnight / on resume.
+     * Use as a dep for once-per-day work (e.g. the series top-up latch). */
+    today,
     ...derived,
     // FilterBar + CategorySheet both want the full per-category count
     // (open + done, excludes trashed) — matches the user mental model
