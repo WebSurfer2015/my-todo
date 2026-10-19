@@ -48,6 +48,12 @@ const adminDb = admin.firestore()
  * with a local fallback (P1.7). Same text on every endpoint and path. */
 const RESTING_MESSAGE = `Mochi's resting for now — you can still add this yourself.`
 
+/** `details` on the RESOURCE_EXHAUSTED thrown when ONLY the chat turn
+ * backstop (MAX_CHAT_TURNS_PER_DAY) is hit — the shared daily cap may still
+ * have room, so clients should pause Mochi chat, not every AI surface. The
+ * shared-cap rejection carries no details. Wire contract: index.ts. */
+export const CHAT_TURNS_EXHAUSTED_DETAILS = { reason: 'turns' } as const
+
 function writeAgentUsage(
   tx: FirebaseFirestore.Transaction,
   ref: FirebaseFirestore.DocumentReference,
@@ -247,6 +253,11 @@ async function runChatReservation(
     // De-metered (docs/MOCHI-MONETIZATION-MODEL.md): the fair-use ceiling is
     // INVISIBLE — no counts, no reset countdown, no top-ups. Clients fall back
     // to manual capture on RESOURCE_EXHAUSTED (P1.7); this text is a last resort.
+    // The chat-only turn backstop carries `details` so the client can pause
+    // Mochi chat alone instead of all AI (aiInfer still has headroom).
+    if (decision.reason === 'turns') {
+      throw new HttpsError('resource-exhausted', RESTING_MESSAGE, CHAT_TURNS_EXHAUSTED_DETAILS)
+    }
     throw new HttpsError('resource-exhausted', RESTING_MESSAGE)
   }
   return decision.charge

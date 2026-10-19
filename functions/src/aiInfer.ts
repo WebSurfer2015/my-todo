@@ -232,7 +232,9 @@ export const aiInfer = onCall(
 
     const data = request.data as Partial<InferRequest> | undefined
     const mode = data?.mode
-    if (!mode || !(mode in MODES)) {
+    // Own keys only: `in` also matches inherited names ("constructor",
+    // "toString"), which then crashed on config.validateInput → INTERNAL.
+    if (typeof mode !== 'string' || !Object.hasOwn(MODES, mode)) {
       throw new HttpsError('invalid-argument', 'Unknown AI mode.')
     }
     const config = MODES[mode]
