@@ -27,7 +27,7 @@ devices.
 | Data | Why | Where it's stored |
 | --- | --- | --- |
 | Email address | To sign you in | Firebase Authentication |
-| Display name (optional) | To greet you ("Good morning, Ying") | Firebase Firestore, your private subtree |
+| Your first name (required for email sign-up; Apple may provide it) | To greet you ("Good morning, Ying") | Firebase Firestore, your private subtree |
 | Apple/Google ID token | To verify your identity with Apple/Google when signing in | Not stored by us — passed directly to Firebase Auth |
 
 ### When you use the app

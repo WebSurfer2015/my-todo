@@ -1097,7 +1097,7 @@ function ReminderTapHandler() {
       onReminderTapped((todoId) => {
         // A reminder can outlive its to-do (deleted on another device).
         if (!todosRef.current.some((td) => td.id === todoId && !td.trashed)) return;
-        openTaskDetails(todoId);
+        openTaskDetails(todoId, null, { source: 'reminder' });
       }),
     [openTaskDetails],
   );

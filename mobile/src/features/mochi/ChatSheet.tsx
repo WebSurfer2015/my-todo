@@ -642,7 +642,7 @@ export default function ChatSheet({
                   <BreathingSparkle reduceMotion={reduceMotion} color={theme.primary} />
                   <Text style={styles.greeting}>{greeting}</Text>
                   <Text style={styles.captureHint}>
-                    Type it however you like — I'll turn it into a to-do or list item.
+                    Type it however you like — I'll turn it into a to-do.
                   </Text>
                   <View style={styles.chipsRow}>
                     {openingChips.map((chip) => (

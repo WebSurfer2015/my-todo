@@ -113,7 +113,8 @@ export default function SignIn() {
       if (
         code === "ERR_REQUEST_CANCELED" ||
         code === "SIGN_IN_CANCELLED" ||
-        code === "12501" /* Google Android cancel */
+        code === "12501" /* Google Android cancel */ ||
+        String(code) === "1001" /* Apple ASAuthorizationError.canceled (string or number) */
       ) {
         return;
       }

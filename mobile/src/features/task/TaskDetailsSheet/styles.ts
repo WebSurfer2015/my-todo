@@ -602,10 +602,11 @@ export function makeStyles(c: ThemeColors) {
     headerSideBtnRight: {
       alignItems: 'flex-end',
     },
+    // "Delete step" is undoable — neutral, not red (red = permanent).
     deleteHeaderText: {
       fontSize: TYPE.body,
       fontWeight: '600',
-      color: c.red,
+      color: c.label2,
       textAlign: 'right',
     },
     subEditDoneText: {

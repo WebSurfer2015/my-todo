@@ -200,16 +200,18 @@ export default function FilterBar({
   //   • Pin / Unpin (toggles the pinned state for THIS pill's set)
   //   • Remove (unpins the set AND clears the selection if it
   //     matches — pill goes away from the strip entirely)
+  // VoiceOver gets the same two choices as custom actions (swipe up/down
+  // on the pill) — see pillA11yActions.
+  const PILL_REMOVE_LABEL = 'Remove'
+  function removePill(targetSet: Filter[]) {
+    if (isSetPinned(targetSet)) onPinFilter(targetSet)
+    if (setKey(selectedFilters) === setKey(targetSet)) onClearFilters()
+  }
   function promptPin(targetSet: Filter[], label: string) {
     const pinned = isSetPinned(targetSet)
     const pinLabel = pinned ? t.unpin : t.pin
-    const removeLabel = 'Remove'
-    const selKey = setKey(selectedFilters)
-    const tgtKey = setKey(targetSet)
-    const onRemove = () => {
-      if (pinned) onPinFilter(targetSet)
-      if (selKey === tgtKey) onClearFilters()
-    }
+    const removeLabel = PILL_REMOVE_LABEL
+    const onRemove = () => removePill(targetSet)
     if (Platform.OS === 'ios') {
       actionSheetWithPresence(
         {
@@ -422,7 +424,16 @@ export default function FilterBar({
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
                 accessibilityLabel={`${label}${count != null ? `, ${count}` : ''}${active ? ', selected — tap to clear' : ', tap to apply'}${pinned ? ', pinned' : ''}`}
-                accessibilityHint="Long-press for Pin or Remove"
+                // The long-press menu's choices, as VoiceOver custom actions
+                // (discoverable by swiping up / down — no gesture hint needed).
+                accessibilityActions={[
+                  { name: 'pin', label: pinned ? t.unpin : t.pin },
+                  { name: 'remove', label: PILL_REMOVE_LABEL },
+                ]}
+                onAccessibilityAction={(e) => {
+                  if (e.nativeEvent.actionName === 'pin') onPinFilter(set)
+                  else if (e.nativeEvent.actionName === 'remove') removePill(set)
+                }}
               >
                 {/* Pin glyph removed — a pinned pill is conveyed by its
                     persistence in the row; the icon was clutter. Long-press

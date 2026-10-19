@@ -167,8 +167,8 @@ iPhone captures are downscaled to 1290×2796 (the 6.7" slot), iPad to 2048×2732
 - **Auth** (`mobile/src/app/AuthContext.tsx`): Apple / Google / email → all via
   `signInWithCredential`. Apple sends `fullName` only on first sign-in — the
   profile is seeded then. User data lives only in Firestore under
-  `users/{uid}` (no device-local copy of to-dos; AsyncStorage holds just the
-  language setting). Sign-out signs out of Firebase and the store's adapter
+  `users/{uid}` (no device-local copy of to-dos; AsyncStorage holds the
+  language setting plus a transient Apple first-sign-in name stash). Sign-out signs out of Firebase and the store's adapter
   swaps to the inert one, so nothing of the previous user renders. Account
   deletion is server-side: `deleteUser` triggers the `onUserDeleted` Cloud
   Function, which recursively erases `users/{uid}` (clients can't delete
@@ -184,5 +184,5 @@ iPhone captures are downscaled to 1290×2796 (the 6.7" slot), iPad to 2048×2732
   `mobile/src/__tests__/privacy-guard.test.ts`); policy `docs/PRIVACY.md`,
   App Store label answers `docs/APP-PRIVACY-LABEL.md`.
 - **Calm-app stance** (`docs/POSITIONING.md`): no streaks or scoreboards, AI
-  never auto-mutates without confirm, destructive actions reversible or
-  confirmed, no exclamation marks in mascot copy (`mascotLines.test.ts`).
+  changes are confirmed, or (single capture) applied with a one-tap Undo,
+  destructive actions reversible or confirmed, no exclamation marks in mascot copy (`mascotLines.test.ts`).

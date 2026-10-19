@@ -21,12 +21,17 @@
  * path (commits typed text / series edits) and the new one opens once it has
  * closed. Details' own dismiss animation counts as presented (a grace) for
  * every other open. A request whose Modal never reports `onShow` (iOS
- * refused to present it) is cleared after DETAILS_SHOW_TIMEOUT_MS so it
- * can't linger as an invisible ghost. Everything is reset when the signed-in account changes.
+ * refused to present it) is cleared DETAILS_SHOW_TIMEOUT_MS after the sheet
+ * MOUNTED (not after the request — a slow cold launch / resume would
+ * otherwise close a sheet that is still presenting), so it can't linger as
+ * an invisible ghost; while the app isn't active the guard re-arms once
+ * instead. Everything is reset when the signed-in account changes.
  *
  * Plain hook (no JSX) so the routing rules are unit-testable with renderHook.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { AppState } from 'react-native'
+import { reportNonFatal } from '../adapters/crashReporting'
 import { detailsNotifyMessage, planDetailsOpen, type DetailsReq } from './detailsOpenPlan'
 import { isAnyModalPresented } from './modalPresence'
 import { MODAL_DISMISS_GRACE_MS, MODAL_HANDOFF_MS } from './modalTiming'
@@ -42,11 +47,14 @@ export const PARK_TTL_MS = 3 * 60_000
  * the snackbar's Open and the user's own row tap. */
 export const MAX_OPEN_RETRIES = 6
 /** Details must report it presented (RN Modal `onShow`) within this long
- * after a request is set. If it doesn't, iOS refused the presentation
- * (something native, e.g. an uncounted system sheet, was up), so the request
- * is cleared rather than left as an invisible "ghost" that blocks later
- * opens — a reminder's is parked as an offer instead. */
-export const DETAILS_SHOW_TIMEOUT_MS = 1500
+ * after the sheet MOUNTED (`detailsMounted`). If it doesn't, iOS refused the
+ * presentation (something native, e.g. an uncounted system sheet, was up),
+ * so the request is cleared rather than left as an invisible "ghost" that
+ * blocks later opens — a reminder's is parked as an offer instead. Timed
+ * from mount, not from the request, and generous, so a slow present (cold
+ * launch from a reminder, warm resume, an older device) isn't cut off; if
+ * the app isn't active when it fires, it re-arms once. */
+export const DETAILS_SHOW_TIMEOUT_MS = 2500
 
 /** Where an open request came from. `user` = their own row tap. */
 export type OpenSource = 'user' | 'reminder'
@@ -72,8 +80,11 @@ export interface DetailsRouterDeps {
 export interface DetailsRouter {
   /** The to-do the details sheet shows (null = closed). */
   detailsReq: DetailsReq | null
-  /** `source` defaults to 'reminder' (parks when it can't open). */
-  openTaskDetails: (todoId: string, subtaskId?: string | null, opts?: { source?: OpenSource }) => void
+  /** `source` is required: a 'reminder' request parks when it can't open; a
+   * 'user' tap retries a few handoffs, then drops. */
+  openTaskDetails: (todoId: string, subtaskId: string | null, opts: { source: OpenSource }) => void
+  /** The details sheet mounted — starts the ghost guard's clock. */
+  detailsMounted: () => void
   /** The details sheet presented (its Modal's onShow). */
   detailsShown: () => void
   /** The details sheet closed (its onClose): open a queued swap, if any. */
@@ -238,7 +249,39 @@ export function useDetailsRouter(deps: DetailsRouterDeps): DetailsRouter {
     showTimerRef.current = null
   }, [])
   useEffect(() => clearShowTimer, [clearShowTimer])
-  const detailsShown = clearShowTimer
+  // The request now set (opened 'now'), and whether its Modal reported onShow.
+  const currentRef = useRef<{ req: DetailsReq; source: OpenSource; shown: boolean } | null>(null)
+  const detailsShown = useCallback(() => {
+    clearShowTimer()
+    if (currentRef.current) currentRef.current.shown = true
+  }, [clearShowTimer])
+  // Armed when the sheet MOUNTS: on a slow present (cold launch from a
+  // reminder, resume, older device) the clock no longer runs while React is
+  // still getting the sheet onto the screen.
+  const detailsMounted = useCallback(() => {
+    const cur = currentRef.current
+    if (!cur || cur.shown || openStateRef.current.detailsId !== cur.req.id) return
+    clearShowTimer()
+    const arm = (rearmed: boolean) => {
+      showTimerRef.current = setTimeout(() => {
+        showTimerRef.current = null
+        if (currentRef.current !== cur || cur.shown || openStateRef.current.detailsId !== cur.req.id) return
+        // Backgrounded / inactive (e.g. a resume still in flight): iOS
+        // presents once the app is active — give it one more budget.
+        if (!rearmed && AppState.currentState !== 'active') {
+          arm(true)
+          return
+        }
+        // Never presented: don't leave a ghost that blocks every later
+        // open. A reminder's request waits as an offer instead.
+        currentRef.current = null
+        pendingRef.current = null
+        clearDetails()
+        if (cur.source === 'reminder') park(cur.req)
+      }, DETAILS_SHOW_TIMEOUT_MS)
+    }
+    arm(false)
+  }, [clearShowTimer, clearDetails, park])
 
   const openDetails = useCallback(
     (req: DetailsReq, attempt: OpenAttempt) => {
@@ -264,7 +307,9 @@ export function useDetailsRouter(deps: DetailsRouterDeps): DetailsRouter {
             afterModalClose(() => openDetailsRef.current(req, { source: attempt.source, retry: retry + 1 }))
           } else if (attempt.source === 'reminder') park(req)
           // A user tap that still can't open is dropped (they can tap
-          // again) — never relabelled as a "Reminder".
+          // again) — never relabelled as a "Reminder". Reported: a leaked
+          // presence count would make this happen on every tap.
+          else reportNonFatal('details: user tap dropped after MAX_OPEN_RETRIES (something still presented)')
           return
         }
         case 'swap':
@@ -281,17 +326,10 @@ export function useDetailsRouter(deps: DetailsRouterDeps): DetailsRouter {
           }
           return
         case 'now':
-          setDetailsReq(req)
+          // The ghost guard is armed by detailsMounted (the sheet's mount).
           clearShowTimer()
-          showTimerRef.current = setTimeout(() => {
-            showTimerRef.current = null
-            if (openStateRef.current.detailsId !== req.id) return
-            // Never presented: don't leave a ghost that blocks every later
-            // open. A reminder's request waits as an offer instead.
-            pendingRef.current = null
-            clearDetails()
-            if (attempt.source === 'reminder') park(req)
-          }, DETAILS_SHOW_TIMEOUT_MS)
+          currentRef.current = { req, source: attempt.source, shown: false }
+          setDetailsReq(req)
       }
     },
     [afterModalClose, park, clearDetails, clearShowTimer, openCount],
@@ -301,14 +339,15 @@ export function useDetailsRouter(deps: DetailsRouterDeps): DetailsRouter {
   }, [openDetails])
 
   const openTaskDetails = useCallback(
-    (todoId: string, subtaskId: string | null = null, opts?: { source?: OpenSource }) =>
-      openDetails({ id: todoId, subtaskId }, { source: opts?.source ?? 'reminder' }),
+    (todoId: string, subtaskId: string | null, opts: { source: OpenSource }) =>
+      openDetails({ id: todoId, subtaskId }, { source: opts.source }),
     [openDetails],
   )
   // A queued swap goes back through the plan: something may have opened
   // during the handoff.
   const closeTaskDetails = useCallback(() => {
     clearShowTimer()
+    currentRef.current = null
     clearDetails()
     const next = pendingRef.current
     pendingRef.current = null
@@ -316,6 +355,7 @@ export function useDetailsRouter(deps: DetailsRouterDeps): DetailsRouter {
   }, [afterModalClose, clearDetails, clearShowTimer])
   const forgetDetails = useCallback(() => {
     clearShowTimer()
+    currentRef.current = null
     pendingRef.current = null
     clearDetails()
   }, [clearDetails, clearShowTimer])
@@ -323,6 +363,7 @@ export function useDetailsRouter(deps: DetailsRouterDeps): DetailsRouter {
   // Per account: nothing opened, queued or parked survives an account change.
   useEffect(() => {
     setDetailsReq(null)
+    currentRef.current = null
     pendingRef.current = null
     parkedRef.current = null
     openCountsRef.current.clear()
@@ -333,6 +374,7 @@ export function useDetailsRouter(deps: DetailsRouterDeps): DetailsRouter {
   return {
     detailsReq,
     openTaskDetails,
+    detailsMounted,
     detailsShown,
     closeTaskDetails,
     registerDetailsClose,

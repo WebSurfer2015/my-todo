@@ -86,6 +86,7 @@ import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
 import { dueDateOnly, dueDateToDate, formatDisplayDate, fullDateLabel, todayLocal, isoDate } from '../../../core-bindings/utils'
 import { sortedSubs } from '../../../../../core/src/logic/derive'
 import { weekdayDate } from '../../../../../core/src/logic/labels'
+import { doneOnLabel, rowDateLabel } from '../rowDateLabel'
 import { useTriggerFirework } from '../../../app/FireworkOverlay'
 import { playCompletionChime } from '../../../adapters/completionChime'
 import { useTheme } from '../../../app/theme'
@@ -141,8 +142,9 @@ interface Props {
   onUpdateSubtaskDueDate?: (id: string, subId: string, dueDate: string) => void
   onRemoveSubtask?: (id: string, subId: string) => void
   /** Home-specific date chip rendering: hide the "Today" label for
-   * items due today, swap the formatted past date for a "carried over"
-   * label on overdue items. Default rendering shows the full
+   * items due today (and for upcoming rows with steps — their steps carry
+   * the dates). A carried-over row always names the day it was for
+   * ("Mon, Oct 5"), in the warm style. Default rendering shows the full
    * formatted date for every row. */
   dateChipFormat?: 'default' | 'home-today'
   /** When 'due-today', filter the rendered subtasks to those with a
@@ -333,6 +335,9 @@ function TaskItem({
 
   const overdue = !!todo.dueDate && !todo.done && dueDateOnly(todo.dueDate) < today
   const isToday = !!todo.dueDate && !todo.done && dueDateOnly(todo.dueDate) === today
+  // Home hides the date chip on today's rows (the header says TODAY) and on
+  // upcoming rows with steps; a carried-over row always shows its day.
+  const hideHomeDateChip = dateChipFormat === 'home-today' && (isToday || (hasSubs && !overdue))
   const cat = todo.category ? categories.find((c) => c.id === todo.category) : undefined
 
   function openDetails() {
@@ -597,7 +602,7 @@ function TaskItem({
           inTrash
             ? undefined
             : [
-                { name: 'toggleDone', label: todo.done ? 'Mark not done' : 'Mark done' },
+                { name: 'toggleDone', label: todo.done ? 'Reopen' : 'Mark done' },
                 // The steps pill sits inside this one VoiceOver element, so
                 // expanding steps must be offered as an action too.
                 ...(hasSubs ? [{ name: 'toggleSteps', label: expanded ? 'Hide steps' : 'Show steps' }] : []),
@@ -726,14 +731,14 @@ function TaskItem({
             </View>
 
             {/* Date chip + separator are suppressed for today's rows on
-                Home (the section header already says TODAY). Overdue
-                rows on Home swap the formatted past date for a calm
-                "carried over" label. */}
-            {!(dateChipFormat === 'home-today' && (isToday || hasSubs)) && (
+                Home (the section header already says TODAY). A
+                carried-over row keeps its date ("Mon, Oct 5", warm) —
+                with or without steps. */}
+            {!hideHomeDateChip && (
               <Text style={styles.metaSep}>·</Text>
             )}
 
-            {!(dateChipFormat === 'home-today' && (isToday || hasSubs)) && (
+            {!hideHomeDateChip && (
             <View style={styles.chip}>
               {binFilterView ? (
                 <Text style={[
@@ -746,14 +751,10 @@ function TaskItem({
                   {todo.status === 'notDo'
                     ? t.notDoChip
                     : todo.completionDate
-                      ? `Done ${formatDisplayDate(todo.completionDate, t.locale).toLowerCase()}`
+                      ? doneOnLabel(todo.completionDate, t.locale)
                       : todo.trashed
                         ? 'Deleted · here for 30 days'
                         : 'Done'}
-                </Text>
-              ) : dateChipFormat === 'home-today' && overdue ? (
-                <Text style={[styles.chipText, styles.chipTextOverdue]}>
-                  carried over
                 </Text>
               ) : (
                 <Text style={[
@@ -900,7 +901,7 @@ function TaskItem({
                                 ? styles.chipTextMuted
                                 : styles.chipTextDate,
                         ]}>
-                          {sDue ? formatDisplayDate(sDue, t.locale) : t.noDate}
+                          {sDue ? rowDateLabel(sDue, t.locale, today) : t.noDate}
                         </Text>
                       </TouchableOpacity>
                     )}
