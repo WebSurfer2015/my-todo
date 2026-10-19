@@ -59,6 +59,13 @@ parity tests in `mobile/src/__tests__`).
   `lastActiveDate`, `activatedAt` in their own `signals` doc — stamped on open,
   every foreground, and first completion; never in the profile.
 - Clients can't delete state docs (rules); account erasure is server-side.
+- **Tested UI rules live in core too**: display labels shared by the sheets
+  (`core/src/logic/labels.ts`) and Home's Today rules
+  (`core/src/logic/homeDashboard.ts`); mobile renders their output.
+- **Sheets**: app-level sheets (compose, to-do details, Ask Mochi, …) are hosted
+  once in `mobile/src/app/SheetContext.tsx`; a row tap opens details through
+  `TaskDetailsOpenContext`. Completions/trash go through `applyTracked` so each
+  has an exact Undo (`todosRevertChanges`).
 
 ---
 
@@ -87,8 +94,9 @@ wall, no meter, no paywall.
 
 Local notifications only (no server push, no push token). `Todo.reminders[]`;
 the scheduler diffs the desired fires against `getAllScheduledAsync`, cancels
-mismatches and schedules new ones (`todo:<id>:<n>` ids, capped per todo so one
-series can't starve iOS's ~64-notification budget). Done / trashed → cancelled
+mismatches and schedules new ones (`todo:<todoId>:<reminderId>:<fireIndex>`
+ids, capped at 30 fires per todo so one series can't starve iOS's
+~64-notification budget). Done / trashed → cancelled
 by the diff.
 
 ---
@@ -144,8 +152,10 @@ iPhone captures are downscaled to 1290×2796 (the 6.7" slot), iPad to 2048×2732
   profile is seeded then. Sign-out and account deletion both clear local data.
 - **Profile** (`core/src/data/profile.ts`): one synced doc per user — avatar,
   themes, flags, grocery stores, pinned filters, lifetime count.
-- **Localization** (`core/src/data/i18n.ts`): 6 languages; TS enforces that every
-  locale has every key.
+- **Localization** (`core/src/data/i18n.ts`): 6 locales (TS enforces that every
+  locale has every key), but v2.0.0 ships **English-only** — the language
+  picker is off (`LANGUAGE_PICKER_ENABLED` in `mobile/src/app/featureFlags.ts`).
+  v2.0.0 is also **free-only** (`IAP_ENABLED` off: RevenueCat never initialized).
 - **Crash reporting**: Firebase Crashlytics (no user id attached).
 - **Privacy**: no analytics or ad SDKs (guarded by
   `mobile/src/__tests__/privacy-guard.test.ts`); policy `docs/PRIVACY.md`,
