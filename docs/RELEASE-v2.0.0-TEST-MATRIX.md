@@ -122,7 +122,7 @@ Tomorrow / A week / A month / Pick-a-date; single + bulk.
 - ✅ setDueDates defer/reschedule · 🤖 defer-all-group, defer-single · ✋ native date picker
 
 ### 9. Shopping / Groceries
-Search · store filter · collapsible department groups · SAVED accordion
+Search · store filter · collapsible department groups · Bought recently accordion
 (often-picked + past, tap to re-add) · grocery compose (serial add, saved-item
 matches, AI department inference, store multi-select, new-store proposal) ·
 grocery edit (department/stores/delete) · Manage Store (drag-reorder, rename,

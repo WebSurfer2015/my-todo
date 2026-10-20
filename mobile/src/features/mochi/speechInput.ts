@@ -84,7 +84,9 @@ export function mergeTranscript(base: string, transcript: string, max = SPEECH_I
 
 /** Calm copy for the line under the field. */
 export const SPEECH_COPY = {
-  listening: 'Listening…',
+  listening: 'Listening… tap ■ to stop',
+  /** VoiceOver reads "■" as "black square" — name the Stop control instead. */
+  listeningA11y: 'Listening… tap Stop listening to stop',
   denied: 'Turn on Microphone and Speech Recognition for Sagely to speak to Mochi.',
   openSettings: 'Open Settings',
   missed: "Didn't catch that — try again.",

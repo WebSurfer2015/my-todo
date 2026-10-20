@@ -64,7 +64,7 @@ at the running sim and it'll show element selectors live.
 | File | What it covers | Manual-plan test # |
 | --- | --- | --- |
 | `flows/01-cold-launch-lands-on-home.yaml` | App launches to Today tab; TODAY section renders | 1.1, 3.1 |
-| `flows/02-add-todo.yaml` | + opens Mochi → "Switch to entering the to-do manually" → Compose renders | 4.1–4.3 |
+| `flows/02-add-todo.yaml` | + opens Mochi → "Enter manually instead" → Compose renders | 4.1–4.3 |
 | `flows/03-toggle-done-and-strike.yaml` | Filter Open → swipe → Mark done → appears under Done filter | 4.7, 3.2 |
 | `flows/04-swipe-to-trash-and-undo.yaml` | Swipe LEFT → Skip → "Skipped." snackbar Undo restores row | 4.10 |
 | `flows/05-defer-all-group.yaml` | Group header "Defer all →" → modal title check → Tomorrow | 7.5–7.7 |

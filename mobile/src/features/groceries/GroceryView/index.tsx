@@ -90,7 +90,7 @@ interface Props {
   playSound?: boolean
   onEdit: (
     id: string,
-    patch: { text?: string; groupId?: string; store?: string | null },
+    patch: { text?: string; groupId?: string; stores?: string[] },
   ) => void
   onDelete: (id: string) => void
   // Store management — wired through to StorePicker.
@@ -194,8 +194,8 @@ export default function GroceryView({
   // want the StorePicker to mount with its inline "Add store" row
   // already showing. Resets on every close.
   const [storePickerAutoAdd, setStorePickerAutoAdd] = useState(false)
-  // Per-department + the single "Saved" accordion collapse state. PAST_KEY is a
-  // synthetic id keying the Saved bucket (staples + past items), collapsed by
+  // Per-department + the single "Bought recently" accordion collapse state.
+  // PAST_KEY is a synthetic id keying that bucket (staples + the rest), collapsed by
   // default so the active list leads.
   const PAST_KEY = '__past__'
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
@@ -681,13 +681,17 @@ export default function GroceryView({
           )
         })}
 
-        {/* SAVED — one calm accordion (collapsed by default) holding the
-            steady-state staples (Often picked up) and checked-off history
-            (Past items). Merges what used to be two competing top-level
-            sections into one, with quiet sub-labels and a single hint. */}
-        {(often.length > 0 || future.length > 0) && (() => {
+        {/* BOUGHT RECENTLY — one calm accordion (collapsed by default)
+            holding checked-off items: the steady-state staples (Often picked
+            up) first, then everything else. A staple is listed once (it is
+            also checked off, so it would otherwise repeat below). Sub-labels
+            only when both parts are there. */}
+        {future.length > 0 && (() => {
           const collapsed = collapsedGroups.has(PAST_KEY)
-          const total = often.length + future.length
+          const oftenIds = new Set(often.map((it) => it.id))
+          const rest = future.filter((it) => !oftenIds.has(it.id))
+          const total = often.length + rest.length
+          const split = often.length > 0 && rest.length > 0
           const renderRows = (items: typeof often) => (
             <View style={styles.groupCard}>
               {items.map((it, i) => (
@@ -711,7 +715,8 @@ export default function GroceryView({
                 onPress={() => toggleCollapsed(PAST_KEY)}
                 activeOpacity={0.6}
                 accessibilityRole="button"
-                accessibilityLabel={`Saved items, ${total}, ${collapsed ? 'collapsed' : 'expanded'}. Tap to toggle.`}
+                accessibilityLabel={`Bought recently, ${total}, ${collapsed ? 'collapsed' : 'expanded'}`}
+                accessibilityHint="Shows or hides items you bought recently"
               >
                 {collapsed ? (
                   <ChevronRight size={14} color={theme.label3} strokeWidth={2} />
@@ -719,7 +724,7 @@ export default function GroceryView({
                   <ChevronDown size={14} color={theme.label3} strokeWidth={2} />
                 )}
                 <Text style={[styles.groupHeader, styles.groupHeaderFuture]}>
-                  SAVED
+                  BOUGHT RECENTLY
                   <Text style={styles.groupCount}>  {total}</Text>
                 </Text>
               </TouchableOpacity>
@@ -730,14 +735,14 @@ export default function GroceryView({
                   </Text>
                   {often.length > 0 && (
                     <>
-                      <Text style={styles.savedSubLabel}>Often picked up</Text>
+                      {split && <Text style={styles.savedSubLabel}>Often picked up</Text>}
                       {renderRows(often)}
                     </>
                   )}
-                  {future.length > 0 && (
+                  {rest.length > 0 && (
                     <>
-                      <Text style={styles.savedSubLabel}>Past items</Text>
-                      {renderRows(future)}
+                      {split && <Text style={styles.savedSubLabel}>Everything else</Text>}
+                      {renderRows(rest)}
                     </>
                   )}
                 </>

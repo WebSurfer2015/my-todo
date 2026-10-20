@@ -435,7 +435,8 @@ export default function GroceryComposeSheet({
                       style={styles.askMochiRow}
                       onPress={onAskMochi}
                       accessibilityRole="button"
-                      accessibilityLabel="Ask Mochi to add items in your own words"
+                      accessibilityLabel="Ask Mochi instead"
+                      accessibilityHint="Add items in your own words"
                     >
                       <Sparkles size={14} color={theme.primary} strokeWidth={2.4} />
                       <Text style={styles.askMochiText}>Ask Mochi instead</Text>
@@ -448,7 +449,7 @@ export default function GroceryComposeSheet({
                       badge and don't re-add. */}
                   {matches.length > 0 && (
                     <View style={styles.matchList}>
-                      <Text style={styles.matchHeader}>Saved items · tap to add</Text>
+                      <Text style={styles.matchHeader}>Your items · tap to add</Text>
                       {matches.map((m) => {
                         const saved = m.stores
                         const valid = saved.filter((s) => stores.includes(s))
@@ -520,7 +521,8 @@ export default function GroceryComposeSheet({
                               ]}
                               accessibilityRole="button"
                               accessibilityState={{ selected: on }}
-                              accessibilityLabel={`${on ? 'Remove' : 'Add'} ${s}`}
+                              accessibilityLabel={s}
+                              accessibilityHint={on ? 'Removes this store' : 'Adds this store'}
                             >
                               <Text
                                 style={[
@@ -552,7 +554,8 @@ export default function GroceryComposeSheet({
                         setTimeout(() => onOpenManageStore(), MODAL_HANDOFF_MS)
                       }}
                       accessibilityRole="button"
-                      accessibilityLabel="Add stores first — opens Shopping stores"
+                      accessibilityLabel="Add stores first to organize this item"
+                      accessibilityHint="Opens Shopping stores"
                     >
                       <Text style={styles.noStoresHintText}>
                         Add stores first to organize this item ›

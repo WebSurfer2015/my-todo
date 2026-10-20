@@ -113,7 +113,7 @@ export function makeStyles(c: ThemeColors) {
     },
     groupHeaderFuture: { color: c.label2 },
     groupCount: { fontWeight: '500', color: c.gray3 },
-    // Quiet sub-label inside the Saved accordion ("Often picked up" / "Past items").
+    // Quiet sub-label inside the Bought recently accordion ("Often picked up" / "Everything else").
     savedSubLabel: {
       fontSize: TYPE.caption,
       fontWeight: '600',
@@ -162,7 +162,9 @@ export function makeStyles(c: ThemeColors) {
       height: 24,
       borderRadius: 12,
       borderWidth: 1.5,
-      borderColor: c.gray3,
+      // label3, not gray3: the circle is the check-off control, so its ring
+      // needs ≥3:1 against the card (WCAG 1.4.11 non-text contrast).
+      borderColor: c.label3,
       alignItems: 'center',
       justifyContent: 'center',
     },

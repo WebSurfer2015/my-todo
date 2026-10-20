@@ -23,9 +23,9 @@ appId: com.websurfer.mytodo
 # to the manual form when the chat is what opened.
 - runFlow:
     when:
-      visible: "Switch to entering the to-do manually"
+      visible: "Enter manually instead"
     commands:
-      - tapOn: "Switch to entering the to-do manually"
+      - tapOn: "Enter manually instead"
       - waitForAnimationToEnd
 # ComposeSheet header reads "Cancel  Add to-do  Done" as one
 # concatenated accessibility label, so substring-match.

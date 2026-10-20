@@ -74,7 +74,7 @@ describe('ChatSheet wiring (source guard)', () => {
   const row = /<View style=\{styles\.inputRow\}>[\s\S]*?<\/View>/.exec(chat)?.[0] ?? ''
   it('puts the mic between the text field and Send, hidden when unavailable', () => {
     const field = row.indexOf('<TextInput')
-    const mic = row.indexOf('styles.micBtn')
+    const mic = row.indexOf('<MicButton')
     const send = row.indexOf('accessibilityLabel="Send"')
     expect(field).toBeGreaterThan(-1)
     expect(mic).toBeGreaterThan(field)

@@ -4,11 +4,14 @@
  * store. Includes the manual-only Delete button at the bottom; deletion
  * is the only path to permanent removal.
  *
- * Save fires on tap of the Save header button. Delete prompts a
- * confirm Alert before destroying.
+ * Autosaves like the to-do details sheet: a department / store tap saves at
+ * once, the name saves when the field is left (a blanked name keeps the old
+ * one). Close (header, backdrop or swipe) shows a calm "Changes saved · Undo"
+ * when anything changed; Undo puts the item's name / department / stores back
+ * exactly as they were when the sheet opened. Delete prompts a confirm Alert.
  */
 
-import React, { useMemo, useState, useEffect } from 'react'
+import React, { useMemo, useState, useEffect, useRef } from 'react'
 import {
   Alert,
   StyleSheet,
@@ -21,6 +24,14 @@ import { GroceryItem, GroceryGroup } from '../../core-bindings/groceries'
 import { useLang } from '../../app/LangContext'
 import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
 import SheetShell from '../../ui/SheetShell'
+import { useNotify } from '../../app/notify'
+import {
+  type GroceryEditFields,
+  groceryEditChanged,
+  groceryEditSnapshot,
+  groceryEditText,
+  groceryEditToggleStore,
+} from './groceryEditSession'
 
 interface Props {
   visible: boolean
@@ -29,7 +40,7 @@ interface Props {
   /** Configured store list (from profile.groceryStores ?? seeds). The
    * store field is a picker rather than a text input — letting users
    * type freely encourages typos that hide items behind store
-   * filters. Plus "Any store" as an explicit clear option. */
+   * filters. No stores selected = the item shows under any store. */
   stores: string[]
   onSave: (id: string, patch: { text?: string; groupId?: string; stores?: string[] }) => void
   onDelete: (id: string) => void
@@ -52,46 +63,66 @@ export default function GroceryEditSheet({
   const [text, setText] = useState('')
   const [groupId, setGroupId] = useState<string>('')
   const [storesList, setStoresList] = useState<string[]>([])
+  const { showSnackbar } = useNotify()
+  // The item as it was when this sheet opened — the Undo target. Seeded once
+  // per open (keyed by id): every autosave hands back a new `item` object,
+  // which must not re-seed the fields mid-edit.
+  const openedRef = useRef<{ id: string; before: GroceryEditFields } | null>(null)
 
-  // Re-seed local state every time a new item opens.
   useEffect(() => {
-    if (visible && item) {
-      setText(item.text)
-      setGroupId(item.groupId)
-      setStoresList(item.stores)
+    if (!visible || !item) {
+      if (!visible) openedRef.current = null
+      return
     }
+    if (openedRef.current?.id === item.id) return
+    openedRef.current = { id: item.id, before: groceryEditSnapshot(item) }
+    setText(item.text)
+    setGroupId(item.groupId)
+    setStoresList(item.stores)
   }, [visible, item])
 
+  function pickGroup(id: string) {
+    if (!item || id === groupId) return
+    setGroupId(id)
+    onSave(item.id, { groupId: id })
+  }
+
   function toggleStore(name: string) {
-    setStoresList((prev) =>
-      prev.includes(name) ? prev.filter((s) => s !== name) : [...prev, name],
-    )
-  }
-
-  function handleSave() {
     if (!item) return
-    // If the name was blanked, keep the original item name rather than
-    // discarding the user's department / store edits. A grocery item
-    // can't be nameless, so we fall back to what it was called before.
-    const trimmed = text.trim()
-    const finalText = trimmed || item.text
-    onSave(item.id, {
-      text: finalText,
-      groupId,
-      stores: storesList,
-    })
-    onClose()
+    const next = groceryEditToggleStore(storesList, name)
+    setStoresList(next)
+    onSave(item.id, { stores: next })
   }
 
-  // Backdrop / swipe dismiss: auto-save edits to this existing item (calm,
-  // forgiving) instead of silently dropping the changed department /
-  // stores. If the name was blanked, fall back to the original name so a
-  // cleared field never loses the other edits.
-  function handleDismiss() {
-    if (item) {
-      const finalText = text.trim() || item.text
-      onSave(item.id, { text: finalText, groupId, stores: storesList })
+  // Leaving the name field saves it; a blanked name keeps the old one (and
+  // the field shows it again).
+  function commitText() {
+    if (!item) return
+    const finalText = groceryEditText(text, item.text)
+    if (finalText !== text) setText(finalText)
+    if (finalText !== item.text) onSave(item.id, { text: finalText })
+  }
+
+  // Header Close, backdrop and swipe all land here.
+  function handleClose() {
+    const opened = openedRef.current
+    if (item && opened) {
+      const after: GroceryEditFields = {
+        text: groceryEditText(text, item.text),
+        groupId,
+        stores: storesList,
+      }
+      if (after.text !== item.text) onSave(item.id, { text: after.text })
+      if (groceryEditChanged(opened.before, after)) {
+        const { id, before } = opened
+        showSnackbar({
+          message: t.changesSaved,
+          actionLabel: t.undo,
+          onAction: () => onSave(id, before),
+        })
+      }
     }
+    openedRef.current = null
     onClose()
   }
 
@@ -107,6 +138,7 @@ export default function GroceryEditSheet({
           style: 'destructive',
           onPress: () => {
             onDelete(item.id)
+            openedRef.current = null
             onClose()
           },
         },
@@ -118,13 +150,14 @@ export default function GroceryEditSheet({
   return (
     <SheetShell
       visible={visible && !!item}
-      onClose={handleDismiss}
+      onClose={handleClose}
       title="Edit item"
-      primary={{ label: t.save, onPress: handleSave, disabled: !text.trim() }}
+      left={null}
+      primary={{ label: 'Close', onPress: handleClose }}
     >
       <View style={styles.card}>
         <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Item</Text>
+          <Text style={styles.fieldLabel}>ITEM</Text>
           <TextInput
             style={styles.input}
             value={text}
@@ -133,12 +166,12 @@ export default function GroceryEditSheet({
             placeholderTextColor={theme.label2}
             maxLength={200}
             returnKeyType="done"
-            onSubmitEditing={handleSave}
+            onEndEditing={commitText}
           />
         </View>
         <View style={styles.divider} />
         <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Department</Text>
+          <Text style={styles.fieldLabel}>DEPARTMENT</Text>
           <View style={styles.storeChipRow}>
             {groups
               .filter((g) => !g.hidden || g.id === groupId)
@@ -147,11 +180,11 @@ export default function GroceryEditSheet({
                 return (
                   <TouchableOpacity
                     key={g.id}
-                    onPress={() => setGroupId(g.id)}
+                    onPress={() => pickGroup(g.id)}
                     style={[styles.storeChip, on && styles.storeChipOn]}
                     accessibilityRole="button"
                     accessibilityState={{ selected: on }}
-                    accessibilityLabel={`Department: ${g.label}`}
+                    accessibilityLabel={`${g.label}, department`}
                   >
                     <Text style={[styles.storeChipText, on && styles.storeChipTextOn]}>
                       {g.label}
@@ -163,7 +196,7 @@ export default function GroceryEditSheet({
         </View>
         <View style={styles.divider} />
         <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Stores</Text>
+          <Text style={styles.fieldLabel}>STORES</Text>
           {stores.length === 0 ? (
             <Text style={[styles.rowValue, styles.rowValueMuted]}>
               No stores configured
@@ -179,7 +212,8 @@ export default function GroceryEditSheet({
                     style={[styles.storeChip, on && styles.storeChipOn]}
                     accessibilityRole="button"
                     accessibilityState={{ selected: on }}
-                    accessibilityLabel={`${on ? 'Remove' : 'Add'} ${s}`}
+                    accessibilityLabel={s}
+                    accessibilityHint={on ? 'Removes this store' : 'Adds this store'}
                   >
                     <Text style={[styles.storeChipText, on && styles.storeChipTextOn]}>
                       {s}
@@ -201,8 +235,8 @@ export default function GroceryEditSheet({
         <Text style={styles.deleteText}>Delete item</Text>
       </TouchableOpacity>
       <Text style={styles.deleteHint}>
-        Deleting can&apos;t be undone. Checked items rest in Saved — tap one to
-        add it back.
+        Deleting can&apos;t be undone. Checked items rest in Bought recently —
+        tap one to add it back.
       </Text>
     </SheetShell>
   )
