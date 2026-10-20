@@ -32,8 +32,6 @@ describe('migrateProfile — field-level garbage drops to undefined', () => {
     ['theme as number', { theme: 42 }, 'theme'],
     ['unknown theme', { theme: 'neon' }, 'theme'],
     ['quoteMode outside the enum', { quoteMode: 'random' }, 'quoteMode'],
-    ['unknown lastComposeMode', { lastComposeMode: 'voice' }, 'lastComposeMode'],
-    ['lastComposeMode as boolean', { lastComposeMode: true }, 'lastComposeMode'],
     ['dailyCheckinHour NaN', { dailyCheckinHour: NaN }, 'dailyCheckinHour'],
     ['dailyCheckinHour Infinity', { dailyCheckinHour: Infinity }, 'dailyCheckinHour'],
     ['dailyCheckinHour 24', { dailyCheckinHour: 24 }, 'dailyCheckinHour'],
@@ -58,12 +56,10 @@ describe('migrateProfile — field-level garbage drops to undefined', () => {
     const p = read({
       dailyCheckinHour: 7.9,
       quoteShuffle: { date: '2026-10-19', index: -3 },
-      lastComposeMode: 'mochi',
       theme: 'sky',
     })
     expect(p.dailyCheckinHour).toBe(7)
     expect(p.quoteShuffle).toEqual({ date: '2026-10-19', index: 0 })
-    expect(p.lastComposeMode).toBe('mochi')
     expect(p.theme).toBe('sky')
   })
 })

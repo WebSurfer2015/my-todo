@@ -96,11 +96,7 @@ export default function GroceriesScreen() {
         // de-marketed; Mochi is the front door for to-dos). "Ask Mochi
         // instead" stays in the sheet. Its "Enter manually" opens the TO-DO
         // form, which would be the wrong place from here.
-        lastComposeMode="manual"
-        onAskMochi={() => {
-          store.saveProfile((p) => ({ ...p, lastComposeMode: 'mochi' }))
-          sheets.openMochi()
-        }}
+        onAskMochi={() => sheets.openMochi()}
         onToggleChecked={store.toggleGroceryChecked}
         celebrate={store.animationOn}
         playSound={store.profile.completionSound !== false}

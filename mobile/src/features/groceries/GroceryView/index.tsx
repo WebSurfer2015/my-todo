@@ -74,9 +74,6 @@ interface Props {
    * matches the to-do FAB and signals that AI dept inference runs
    * silently on add. */
   agentEnabled?: boolean
-  /** Last-used capture mode — the FAB opens Ask Mochi when 'mochi', else the
-   * manual grocery sheet (mirrors the to-do FAB). */
-  lastComposeMode?: 'manual' | 'mochi'
   /** Switch to Ask Mochi (sets the mode + opens the chat). Wired from the FAB
    * and the grocery sheet's "Ask Mochi instead" link. */
   onAskMochi?: () => void
@@ -142,7 +139,6 @@ export default function GroceryView({
   onSearchClear,
   onAdd,
   agentEnabled = false,
-  lastComposeMode = 'manual',
   onAskMochi,
   onToggleChecked,
   celebrate = true,
@@ -815,9 +811,9 @@ export default function GroceryView({
     />
     <Fab
       onPress={() => {
-        // Match the other tabs: respect the last-used capture mode.
-        if (agentEnabled && lastComposeMode === 'mochi' && onAskMochi) onAskMochi()
-        else setComposeOpen(true)
+        // Shopping's + always opens the item sheet ("Ask Mochi instead" is
+        // inside it).
+        setComposeOpen(true)
       }}
       accessibilityLabel="Add an item"
       agentEnabled={agentEnabled}

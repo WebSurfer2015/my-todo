@@ -920,9 +920,8 @@ function FirstRunLayer() {
         visible={onboardingNeeded}
         onSubmit={(text) => {
           setOnboardingNeeded(false);
-          // Mochi is the front door: the + button opens it from now on
-          // (openCapture follows lastComposeMode).
-          store.saveProfile((p) => ({ ...p, onboardingDone: true, guidesPromptShown: true, lastComposeMode: 'mochi' }));
+          // Mochi is the front door: the + button always opens it.
+          store.saveProfile((p) => ({ ...p, onboardingDone: true, guidesPromptShown: true }));
           // Hand the words to Mochi once the onboarding modal has animated
           // out (iOS can't stack two Modals — the shared handoff delay).
           setTimeout(() => sheets.openCaptureWith(text), MODAL_HANDOFF_MS);
