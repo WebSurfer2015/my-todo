@@ -110,12 +110,12 @@ jobs:
           npx expo prebuild --platform ios --no-install
           cd ios && pod install
 
-      - name: Build for the simulator (signing disabled) + install
+      - name: Build for the simulator (ad-hoc signed) + install
         working-directory: mobile
         # `expo run:ios` insists on a signing identity even for a simulator
         # target (run 2 failed: "No code signing certificates"). Simulator
-        # builds genuinely don't need signing, so drive xcodebuild directly
-        # with CODE_SIGNING_ALLOWED=NO, then install the .app on the sim.
+        # builds don't need a certificate, so drive xcodebuild directly with
+        # ad-hoc signing (identity "-"), then install the .app on the sim.
         run: |
           # RELEASE, not Debug: a Debug build of this Expo project is a
           # dev-client that loads JS from Metro at runtime — CI has no Metro,
@@ -132,10 +132,20 @@ jobs:
             -sdk iphonesimulator \
             -destination "platform=iOS Simulator,name=$SIM_DEVICE" \
             -derivedDataPath ios/build \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual CODE_SIGNING_REQUIRED=NO \
+            DEVELOPMENT_TEAM=5WRVHVL4U7 PROVISIONING_PROFILE_SPECIFIER="" \
             COMPILER_INDEX_STORE_ENABLE=NO \
             build
           APP_PATH="$(find ios/build/Build/Products -name '*.app' -maxdepth 2 -type d | head -1)"
+          # Ad-hoc ("Sign to Run Locally") signing, NOT CODE_SIGNING_ALLOWED=NO:
+          # an unsigned sim app has no simulated entitlements, so Firebase Auth
+          # can't write its session to the keychain (errSecMissingEntitlement)
+          # and every email sign-in failed with the generic error. Ad-hoc
+          # needs no certificate; the team only fills application-identifier.
+          codesign -dvv "$APP_PATH" 2>&1 | grep -q "Signature=adhoc" \
+            || { echo "::error::app is not ad-hoc signed"; exit 1; }
+          xcrun otool -arch arm64 -s __TEXT __entitlements "$APP_PATH/SagelyCalmToDos" | grep -q __entitlements \
+            || { echo "::error::app has no simulated entitlements (keychain will fail)"; exit 1; }
           echo "Installing $APP_PATH"
           xcrun simctl install "$SIM_DEVICE" "$APP_PATH"
 
