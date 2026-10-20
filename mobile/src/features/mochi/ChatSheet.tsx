@@ -979,6 +979,30 @@ export default function ChatSheet({
                 Over the invisible fair-use ceiling the client should fall back
                 to local capture (graceful fallback — see the send guard; full
                 behavior tracked in docs/REPOSITIONING-ROADMAP.md P1.4). */}
+            {/* Voice status sits ABOVE the field: below it, the keyboard
+                covers it while the sheet is up. */}
+            {speech.status === 'listening' && (
+              <Text style={styles.speechNote} accessibilityLiveRegion="polite">
+                {SPEECH_COPY.listening}
+              </Text>
+            )}
+            {speech.status === 'error' && (
+              <Text style={styles.speechNote} accessibilityLiveRegion="polite">
+                {SPEECH_COPY.missed}
+              </Text>
+            )}
+            {speech.status === 'denied' && (
+              <Text style={styles.speechNote}>
+                {SPEECH_COPY.denied}{' '}
+                <Text
+                  style={styles.speechLink}
+                  onPress={() => Linking.openSettings().catch(() => {})}
+                  accessibilityRole="link"
+                >
+                  {SPEECH_COPY.openSettings}
+                </Text>
+              </Text>
+            )}
             <View style={styles.inputRow}>
               <TextInput
                 ref={inputRef}
@@ -1046,28 +1070,6 @@ export default function ChatSheet({
                 <Text style={styles.sendBtnText}>↑</Text>
               </Pressable>
             </View>
-            {speech.status === 'listening' && (
-              <Text style={styles.speechNote} accessibilityLiveRegion="polite">
-                {SPEECH_COPY.listening}
-              </Text>
-            )}
-            {speech.status === 'error' && (
-              <Text style={styles.speechNote} accessibilityLiveRegion="polite">
-                {SPEECH_COPY.missed}
-              </Text>
-            )}
-            {speech.status === 'denied' && (
-              <Text style={styles.speechNote}>
-                {SPEECH_COPY.denied}{' '}
-                <Text
-                  style={styles.speechLink}
-                  onPress={() => Linking.openSettings().catch(() => {})}
-                  accessibilityRole="link"
-                >
-                  {SPEECH_COPY.openSettings}
-                </Text>
-              </Text>
-            )}
           </Animated.View>
         </View>
       </KeyboardAvoidingView>
@@ -2211,7 +2213,7 @@ function makeStyles(c: ThemeColors) {
     speechNote: {
       fontSize: TYPE.footnote,
       color: c.label2,
-      paddingTop: SPACING.xs,
+      paddingBottom: SPACING.xs,
       paddingHorizontal: SPACING.xs,
     },
     speechLink: { color: c.primary, fontWeight: '600' },
