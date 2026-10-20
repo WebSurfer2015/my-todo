@@ -83,7 +83,7 @@ describe("authErrorCode / stripAuthCode", () => {
 
 describe("empty sign-in fields", () => {
   it("auth/missing-password and auth/missing-email get a calm prompt, not the generic fallback", () => {
-    expect(mapFirebaseAuthError("auth/missing-password")).toBe("Enter your password.");
-    expect(mapFirebaseAuthError("auth/missing-email")).toBe("Enter your email.");
+    expect(mapFirebaseAuthError("auth/missing-password", "email", "")).toBe("Enter your password.");
+    expect(mapFirebaseAuthError("auth/missing-email", "email", "")).toBe("Enter your email.");
   });
 });
