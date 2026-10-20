@@ -119,7 +119,9 @@ export function makeStyles(c: ThemeColors) {
       height: 20,
       borderRadius: 10,
       borderWidth: 1.5,
-      borderColor: c.gray3,
+      // label2, not gray3: an open step's circle is a control — it needs
+      // ≥3:1 against the sheet (WCAG 1.4.11 non-text contrast).
+      borderColor: c.label2,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -158,8 +160,7 @@ export function makeStyles(c: ThemeColors) {
       borderRadius: 5,
     },
     subDateChipText: { fontSize: TYPE.caption, fontWeight: '500' },
-    subDateChipMuted: { color: c.gray3, fontStyle: 'italic', fontWeight: '500' },
-    subDateChipPlain: { color: c.label3, fontWeight: '500' },
+    subDateChipPlain: { color: c.label2, fontWeight: '500' },
     subDateChipOverdue: { color: c.warmText, fontWeight: '600' },
     subDateChipToday: { color: c.warmText, fontWeight: '600' },
     subRemoveBtn: { padding: SPACING.xs },
@@ -228,12 +229,6 @@ export function makeStyles(c: ThemeColors) {
       marginTop: SPACING.sm,
       paddingHorizontal: SPACING.sm,
     },
-    editFieldLockHint: {
-      fontSize: TYPE.caption,
-      color: c.label3,
-      fontWeight: '500',
-      marginLeft: 2,
-    },
     editModeSegmented: {
       flexDirection: 'row',
       backgroundColor: c.surfaceAlt,
@@ -288,8 +283,10 @@ export function makeStyles(c: ThemeColors) {
       overflow: 'hidden',
       marginBottom: SPACING.lg,
     },
+    // One line to start (44pt target); a multiline input grows with its
+    // text, so a long title still wraps instead of scrolling.
     editTextInputInCard: {
-      minHeight: 96,
+      minHeight: 44,
       fontSize: TYPE.bodyLg,
       color: c.label,
       paddingHorizontal: SPACING.lg,
@@ -519,6 +516,25 @@ export function makeStyles(c: ThemeColors) {
     },
     // Row holding the STEPS header on the left and the Suggest steps
     // pill on the right. Mirrors the web subtask-section-header row.
+    // "Edit this only" on a series: the read-only repeat summary line that
+    // replaces the Repeat / Repeat ends rows (readable, not greyed out).
+    seriesRepeatLine: {
+      flex: 1,
+      fontSize: TYPE.body,
+      color: c.label2,
+    },
+    // label (not primary): primary misses 4.5:1 on the card in some themes.
+    seriesRepeatLink: {
+      color: c.label,
+      fontWeight: '600',
+    },
+    // STEPS header "…" menu button (44pt target).
+    stepsMenuBtn: {
+      minWidth: 44,
+      minHeight: 32,
+      alignItems: 'flex-end',
+      justifyContent: 'center',
+    },
     subtaskSectionRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -548,16 +564,6 @@ export function makeStyles(c: ThemeColors) {
       gap: SPACING.sm,
       paddingVertical: SPACING.sm,
       paddingHorizontal: SPACING.xs,
-    },
-    clearStepsLink: {
-      paddingVertical: SPACING.sm,
-      paddingHorizontal: SPACING.xs,
-    },
-    clearStepsLinkText: {
-      color: c.label3,
-      fontSize: TYPE.caption,
-      fontWeight: '600',
-      letterSpacing: -0.1,
     },
     destructiveAction: {
       alignItems: 'flex-start',
@@ -625,11 +631,6 @@ export function makeStyles(c: ThemeColors) {
       paddingHorizontal: SPACING.md,
       paddingTop: SPACING.xs,
       paddingBottom: SPACING.lg,
-    },
-    // Primary commit button — Save moved here from the header.
-    // Disabled field row (e.g. Repeat in "Edit this only").
-    editFieldRowDisabled: {
-      opacity: 0.4,
     },
     // Inline "✓ Done · Undo" after the last step completes the to-do.
     stepDoneRow: {

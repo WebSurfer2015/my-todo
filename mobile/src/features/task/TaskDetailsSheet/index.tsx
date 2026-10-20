@@ -11,10 +11,11 @@ import {
   KeyboardAvoidingView,
   Pressable,
   StyleSheet,
+  useWindowDimensions,
 } from 'react-native'
 import { useSheetDismiss, sheetGrabZone } from '../../../ui/useSheetDismiss'
 import Svg, { Path, Rect } from 'react-native-svg'
-import { Bell, Repeat } from 'lucide-react-native'
+import { Bell, Ellipsis, Repeat } from 'lucide-react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import AndroidDateFlow from '../../../ui/AndroidDateFlow'
 import * as Haptics from 'expo-haptics'
@@ -37,7 +38,7 @@ import { recurrenceRuleEquals, sortedSubs, snapDueDateToRecurrence } from '../..
 import { useTheme } from '../../../app/theme'
 import { useLang } from '../../../app/LangContext'
 import { useNotify } from '../../../app/notify'
-import { alertWithPresence, useModalPresence } from '../../../app/modalPresence'
+import { actionSheetWithPresence, alertWithPresence, useModalPresence } from '../../../app/modalPresence'
 import { useStore } from '../../../app/StoreContext'
 import type { SeriesCommit } from '../../../store/slices/useTodosSlice'
 import { detachOnEditDecision } from './detachPolicy'
@@ -68,6 +69,7 @@ import { makeStyles } from './styles';
 import { planStepDoneFooter, stepDoneUndoAfterToggle } from './stepDoneFooter'
 import { buildDetailsUndo, type RecurrenceStep } from './detailsUndo'
 import { buildSeriesCommit } from './seriesCommit'
+import { detailsBodyBottomInset, stepMetaVisibility } from './stepMeta'
 import { absoluteDateLabel } from '../absoluteDateLabel'
 
 // Reminder-picker chip constants + helpers moved to
@@ -158,11 +160,17 @@ interface Props {
   onUpdateSubtaskPriority: (id: string, subId: string, priority: Priority) => void
   onUpdateSubtaskDueDate: (id: string, subId: string, dueDate: string) => void
   onRemoveSubtask: (id: string, subId: string) => void
-  /** Bulk clear behind the "Clear all steps" link below the step list. */
+  /** Bulk clear behind the STEPS header's "…" menu (undoable via the
+   * close's "Changes saved · Undo"). */
   onClearSubtasks: (id: string) => void
   /** When true, shows the AI "Suggest steps" panel in the empty subtask
    * state and the ambient field pills (profile.agentEnabled). */
   agentEnabled: boolean
+}
+
+/** "Monthly" → "monthly", "Every Mon, Wed" → "every Mon, Wed" (mid-sentence). */
+function lowerFirst(s: string): string {
+  return s.charAt(0).toLowerCase() + s.slice(1)
 }
 
 /** Did the to-do's content change (ignoring the updatedAt stamp)? */
@@ -184,6 +192,10 @@ export default function TaskDetailsSheet({
   const notify = useNotify()
   const store = useStore()
   const styles = useMemo(() => makeStyles(theme), [theme])
+  // Larger Dynamic Type → a taller fixed footer; pad the scroll body so the
+  // last step / "Add a step" scrolls clear of it.
+  const { fontScale } = useWindowDimensions()
+  const bodyBottomInset = detailsBodyBottomInset(fontScale)
   // Swipe-the-grabber-down to dismiss. confirmsClose: closeAndFlushText may pop
   // a series-edit dialog before closing, so settle back rather than slide off.
   const { translateY, panHandlers } = useSheetDismiss(visible, closeAndFlushText, {
@@ -794,6 +806,30 @@ export default function TaskDetailsSheet({
     }
   }
 
+  // STEPS header "…" menu — one quiet entry point for list-wide actions.
+  // Clear all steps is neutral (not destructive): closing the sheet offers
+  // "Changes saved · Undo", so it's reversible.
+  function openStepsMenu() {
+    const clear = () => onClearSubtasks(todo.id)
+    if (Platform.OS === 'ios') {
+      actionSheetWithPresence(
+        {
+          options: [t.clearAllSteps, t.cancel],
+          cancelButtonIndex: 1,
+          message: t.clearAllStepsConfirm,
+        },
+        (i) => {
+          if (i === 0) clear()
+        },
+      )
+    } else {
+      alertWithPresence(t.clearAllSteps, t.clearAllStepsConfirm, [
+        { text: t.cancel, style: 'cancel' },
+        { text: t.clearAllSteps, onPress: clear },
+      ])
+    }
+  }
+
   // Expose the save-and-close path to the host (latest closure via a ref).
   const closeAndFlushRef = useRef(closeAndFlushText)
   closeAndFlushRef.current = closeAndFlushText
@@ -1135,7 +1171,6 @@ export default function TaskDetailsSheet({
               initial={editReminders}
               dueDate={editDueDate}
               recurs={!!editRecurrence}
-              onCancel={() => setParentEditView('main')}
               onSave={(next) => {
                 void applyReminders(next).then(() => setParentEditView('main'))
               }}
@@ -1287,7 +1322,7 @@ export default function TaskDetailsSheet({
           <ScrollView
               style={styles.list}
               keyboardShouldPersistTaps="handled"
-              contentContainerStyle={styles.editBody}
+              contentContainerStyle={[styles.editBody, { paddingBottom: bodyBottomInset }]}
               showsVerticalScrollIndicator={false}
             >
               <View style={styles.editGroupCard}>
@@ -1413,104 +1448,109 @@ export default function TaskDetailsSheet({
                   </Text>
                   <Text style={styles.editChevron}>›</Text>
                 </TouchableOpacity>
-                {/* Recurrence is a SERIES-level property — editing a single
-                    instance ("Edit this only") can't change the repeat rule,
-                    so Repeat + Repeat-ends are hidden in that mode. They show
-                    for one-off rows and in "Edit series" mode. */}
-                {/* Repeat — shown for all rows; disabled (not hidden) in
-                    "Edit this only" so the recurrence is visible but can't
-                    be changed for a single occurrence. */}
+                {/* Order: Complete by → Repeat → Repeat ends → Remind me (the
+                    schedule reads top-down, then the nudge about it).
+                    Recurrence is a SERIES-level property: in "Edit this only"
+                    the two repeat rows collapse into one readable line that
+                    says what the series does and switches to Edit series on
+                    tap (no greyed-out, below-contrast rows). */}
                 <View style={styles.editGroupDivider} />
-                <TouchableOpacity
-                  style={[
-                    styles.editFieldRowInGroup,
-                    repeatLocked && styles.editFieldRowDisabled,
-                  ]}
-                  onPress={() => setParentEditView('repeat')}
-                  disabled={repeatLocked}
-                  activeOpacity={0.6}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: repeatLocked }}
-                  accessibilityLabel={`Repeat, ${recurrenceLabel(editRecurrence, t.recurrence)}. Tap to change.`}
-                >
-                  <Repeat size={18} color={editRecurrence ? theme.blue : theme.gray3} strokeWidth={2} />
-                  <Text style={styles.editFieldLabel}>{t.edit.repeat}</Text>
-                  <Text
-                    style={[
-                      styles.editFieldValue,
-                      !editRecurrence && styles.editFieldValueMuted,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {recurrenceShortLabel(editRecurrence, t.recurrence)}
-                  </Text>
-                  {repeatLocked ? (
-                    <Text style={styles.editFieldLockHint}>Series only</Text>
-                  ) : (
-                    <Text style={styles.editChevron}>›</Text>
-                  )}
-                </TouchableOpacity>
-                <>
-                  <View style={styles.editGroupDivider} />
+                {repeatLocked ? (
                   <TouchableOpacity
                     style={styles.editFieldRowInGroup}
-                    onPress={() => setParentEditView('remindAt')}
+                    onPress={() => setEditMode('series')}
                     activeOpacity={0.6}
                     accessibilityRole="button"
-                    accessibilityLabel={`${t.remindMe}, ${reminderSummary(editReminders, { none: t.remindNone, withCount: t.remindYourRemindersWithCount })}. Tap to change.`}
+                    accessibilityLabel={`${editRecurrence ? `Repeats ${recurrenceLabel(editRecurrence, t.recurrence)}` : "Doesn't repeat"}. Change in Edit series.`}
+                    accessibilityHint="Switches to Edit series"
                   >
-                    <Bell size={18} color={editReminders.length > 0 ? theme.blue : theme.gray3} strokeWidth={2} />
-                    <Text style={styles.editFieldLabel}>{t.remindMe}</Text>
-                    <Text
-                      style={[
-                        styles.editFieldValue,
-                        editReminders.length === 0 && styles.editFieldValueMuted,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {reminderSummary(editReminders, { none: t.remindNone, withCount: t.remindYourRemindersWithCount })}
+                    <Repeat size={18} color={theme.label2} strokeWidth={2} />
+                    <Text style={styles.seriesRepeatLine}>
+                      {editRecurrence
+                        ? `Repeats ${lowerFirst(recurrenceShortLabel(editRecurrence, t.recurrence))}`
+                        : "Doesn't repeat"}
+                      {' · '}
+                      <Text style={styles.seriesRepeatLink}>change in Edit series</Text>
                     </Text>
-                    <Text style={styles.editChevron}>›</Text>
                   </TouchableOpacity>
-                </>
-                {editRecurrence && (
+                ) : (
                   <>
-                    <View style={styles.editGroupDivider} />
                     <TouchableOpacity
-                      style={[
-                        styles.editFieldRowInGroup,
-                        repeatLocked && styles.editFieldRowDisabled,
-                      ]}
-                      onPress={() => {
-                        setEndDatePickerDate(
-                          editRecurrence.endDate
-                            ? new Date(`${editRecurrence.endDate}T00:00:00`)
-                            : new Date(),
-                        )
-                        setPendingRecurEndDate(editRecurrence.endDate ?? '')
-                        setParentEditView('recurEndDate')
-                      }}
-                      disabled={repeatLocked}
+                      style={styles.editFieldRowInGroup}
+                      onPress={() => setParentEditView('repeat')}
                       activeOpacity={0.6}
                       accessibilityRole="button"
-                      accessibilityState={{ disabled: repeatLocked }}
-                      accessibilityLabel={`Repeat ends, ${editRecurrence.endDate ? absoluteDateLabel(editRecurrence.endDate, t.locale) : 'never'}. Tap to change.`}
+                      accessibilityLabel={`Repeat, ${recurrenceLabel(editRecurrence, t.recurrence)}. Tap to change.`}
                     >
-                      <CalendarIcon size={18} color={editRecurrence.endDate ? theme.blue : theme.gray3} />
-                      <Text style={styles.editFieldLabel}>{t.edit.repeatEnds}</Text>
+                      <Repeat size={18} color={editRecurrence ? theme.blue : theme.gray3} strokeWidth={2} />
+                      <Text style={styles.editFieldLabel}>{t.edit.repeat}</Text>
                       <Text
                         style={[
                           styles.editFieldValue,
-                          !editRecurrence.endDate && styles.editFieldValueMuted,
+                          !editRecurrence && styles.editFieldValueMuted,
                         ]}
                         numberOfLines={1}
                       >
-                        {editRecurrence.endDate ? absoluteDateLabel(editRecurrence.endDate, t.locale) : t.edit.noEnd}
+                        {recurrenceShortLabel(editRecurrence, t.recurrence)}
                       </Text>
                       <Text style={styles.editChevron}>›</Text>
                     </TouchableOpacity>
+                    {editRecurrence && (
+                      <>
+                        <View style={styles.editGroupDivider} />
+                        <TouchableOpacity
+                          style={styles.editFieldRowInGroup}
+                          onPress={() => {
+                            setEndDatePickerDate(
+                              editRecurrence.endDate
+                                ? new Date(`${editRecurrence.endDate}T00:00:00`)
+                                : new Date(),
+                            )
+                            setPendingRecurEndDate(editRecurrence.endDate ?? '')
+                            setParentEditView('recurEndDate')
+                          }}
+                          activeOpacity={0.6}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Repeat ends, ${editRecurrence.endDate ? absoluteDateLabel(editRecurrence.endDate, t.locale) : 'never'}. Tap to change.`}
+                        >
+                          <CalendarIcon size={18} color={editRecurrence.endDate ? theme.blue : theme.gray3} />
+                          <Text style={styles.editFieldLabel}>{t.edit.repeatEnds}</Text>
+                          <Text
+                            style={[
+                              styles.editFieldValue,
+                              !editRecurrence.endDate && styles.editFieldValueMuted,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {editRecurrence.endDate ? absoluteDateLabel(editRecurrence.endDate, t.locale) : t.edit.noEnd}
+                          </Text>
+                          <Text style={styles.editChevron}>›</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
                   </>
                 )}
+                <View style={styles.editGroupDivider} />
+                <TouchableOpacity
+                  style={styles.editFieldRowInGroup}
+                  onPress={() => setParentEditView('remindAt')}
+                  activeOpacity={0.6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t.remindMe}, ${reminderSummary(editReminders, { none: t.remindNone, withCount: t.remindYourRemindersWithCount })}. Tap to change.`}
+                >
+                  <Bell size={18} color={editReminders.length > 0 ? theme.blue : theme.gray3} strokeWidth={2} />
+                  <Text style={styles.editFieldLabel}>{t.remindMe}</Text>
+                  <Text
+                    style={[
+                      styles.editFieldValue,
+                      editReminders.length === 0 && styles.editFieldValueMuted,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {reminderSummary(editReminders, { none: t.remindNone, withCount: t.remindYourRemindersWithCount })}
+                  </Text>
+                  <Text style={styles.editChevron}>›</Text>
+                </TouchableOpacity>
               </View>
 
               {/* Notes moved into the title group card above; the
@@ -1528,26 +1568,14 @@ export default function TaskDetailsSheet({
                 )}
                 {subs.length > 0 && (
                   <TouchableOpacity
-                    style={styles.clearStepsLink}
-                    onPress={() => {
-                      alertWithPresence(
-                        t.clearAllSteps,
-                        t.clearAllStepsConfirm,
-                        [
-                          { text: t.cancel, style: 'cancel' },
-                          // Reversible (Undo / series Undo): no red.
-                          {
-                            text: t.clearAllSteps,
-                            onPress: () => onClearSubtasks(todo.id),
-                          },
-                        ],
-                      )
-                    }}
+                    style={styles.stepsMenuBtn}
+                    onPress={openStepsMenu}
+                    hitSlop={8}
                     activeOpacity={0.6}
                     accessibilityRole="button"
-                    accessibilityLabel={t.clearAllSteps}
+                    accessibilityLabel="Step options"
                   >
-                    <Text style={styles.clearStepsLinkText}>{t.clearAllSteps}</Text>
+                    <Ellipsis size={20} color={theme.label2} strokeWidth={2} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -1568,6 +1596,7 @@ export default function TaskDetailsSheet({
                       onToggle={toggleStep}
                       onUpdateText={onUpdateSubtaskText}
                       onTap={() => startEditSubtask(s)}
+                      meta={stepMetaVisibility(s, { priority: editPriority, dueDate: editDueDate })}
                     />
                   ))}
                 </View>
@@ -1891,11 +1920,13 @@ export default function TaskDetailsSheet({
 // picker now lives in ../ReminderSheet/index.tsx.)
 
 function SubtaskCard({
-  parentId, subtask, styles, 
-  onToggle, onUpdateText, onTap,
+  parentId, subtask, styles,
+  onToggle, onUpdateText, onTap, meta,
 }: {
   parentId: string
   subtask: Subtask
+  /** Which of the step's own priority / date to show (stepMetaVisibility). */
+  meta: { showPriority: boolean; showDate: boolean }
   styles: ReturnType<typeof makeStyles>
   onToggle: (id: string, subId: string) => void
   onUpdateText: (id: string, subId: string, text: string) => void
@@ -1963,19 +1994,19 @@ function SubtaskCard({
           >
             {subtask.text}
           </Text>
-          <PriorityDot level={priority} size={11} />
-          <Text style={[
-            styles.subDateChipText,
-            overdue
-              ? styles.subDateChipOverdue
-              : isToday
-                ? styles.subDateChipToday
-                : !dueDate
-                  ? styles.subDateChipMuted
+          {meta.showPriority && <PriorityDot level={priority} size={11} />}
+          {meta.showDate && (
+            <Text style={[
+              styles.subDateChipText,
+              overdue
+                ? styles.subDateChipOverdue
+                : isToday
+                  ? styles.subDateChipToday
                   : styles.subDateChipPlain,
-          ]}>
-            {dueDate ? rowDateLabel(dueDate, t.locale) : t.noDate}
-          </Text>
+            ]}>
+              {rowDateLabel(dueDate, t.locale)}
+            </Text>
+          )}
         </TouchableOpacity>
       )}
     </View>

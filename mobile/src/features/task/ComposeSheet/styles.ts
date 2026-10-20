@@ -202,14 +202,42 @@ export function makeStyles(c: ThemeColors) {
     chipActive: { borderColor: c.primary, backgroundColor: c.primarySoft },
     chipText: { fontSize: TYPE.body, fontWeight: '600', color: c.label },
     chipTextMuted: { color: c.label2, fontWeight: '500' },
-    chipClear: {
+    // Date chip split into [label | ×]: the chip frame is a View, the two
+    // halves are sibling buttons (each its own VoiceOver element).
+    chipSplit: { paddingHorizontal: 0, gap: 0, maxWidth: 220 },
+    chipMain: {
+      minHeight: 44,
+      paddingHorizontal: SPACING.md,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      flexShrink: 1,
+    },
+    chipMainWithClear: { paddingRight: SPACING.xs },
+    chipInnerClear: {
       width: 32,
-      height: 44,
-      marginLeft: -SPACING.sm,
+      minHeight: 44,
+      paddingRight: SPACING.xs,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    chipClearText: { fontSize: 20, color: c.label2 },
+    // "More details" disclosure row (Compose progressive disclosure).
+    moreRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.md,
+      minHeight: 44,
+      marginTop: SPACING.md,
+      paddingHorizontal: SPACING.lg,
+      paddingVertical: SPACING.sm,
+      borderRadius: RADIUS.card,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      backgroundColor: c.card,
+    },
+    moreRowText: { flex: 1 },
+    moreRowLabel: { fontSize: TYPE.body, fontWeight: '600', color: c.label },
+    moreRowHint: { fontSize: TYPE.footnote, color: c.label2, marginTop: 2 },
     presetPanel: {
       marginTop: SPACING.md,
       paddingTop: SPACING.sm,

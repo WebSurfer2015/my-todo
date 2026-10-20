@@ -218,8 +218,8 @@ export default function HomeScreen() {
             hint={hasDone ? 'What you finished is resting in Done.' : "Let's add your first to-do."}
             actionLabel="Add a to-do"
             onAction={() => {
-              // Same front door as the + button (Mochi when that's the
-              // last-used capture surface).
+              // Same front door as the + button (Ask Mochi while AI
+              // assistance is on, else Compose).
               sheets.openCapture()
             }}
           />

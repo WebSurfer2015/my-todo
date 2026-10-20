@@ -39,6 +39,14 @@ describe('theme contrast (WCAG AA)', () => {
           expect(contrast('#1F2A24', bg)).toBeGreaterThanOrEqual(4.5)
         }
       })
+      it(`${name}/${scheme}: details sheet step controls`, () => {
+        // An open step's circle (label2 border, non-text 3:1) on the sheet,
+        // and the "…" steps menu glyph; the series repeat line (label2 text)
+        // and its "change in Edit series" link (label, bold) on the field card.
+        expect(contrast(c.label2, c.modal)).toBeGreaterThanOrEqual(3)
+        expect(contrast(c.label2, c.bg)).toBeGreaterThanOrEqual(4.5)
+        expect(contrast(c.label, c.bg)).toBeGreaterThanOrEqual(4.5)
+      })
       it(`${name}/${scheme}: Ask Mochi voice input`, () => {
         // "Listening…" / denied note (label2) and the Open Settings link
         // (primary) on the chat sheet; the mic icon (label2, non-text 3:1) and
