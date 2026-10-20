@@ -86,8 +86,9 @@ export function useMochiExecutor(store: Store, t: Strings) {
         icon: c.icon,
       })),
       groceries: store.groceries,
+      defaultCategoryId: store.defaultCategory,
     }),
-    [store.todos, store.categories, store.groceries, t],
+    [store.todos, store.categories, store.groceries, store.defaultCategory, t],
   )
 
   // The thin executor: run each planned intent through the SAME store

@@ -396,7 +396,9 @@ export default function TaskDetailsSheet({
     // clobber title/notes typed but not yet blurred.
   }, [visible, todo.id, initialSubtaskEditId])
 
-  const editActiveCat = categories.find((c) => c.id === editCategory) ?? categories[0]
+  // No fallback to the first category: an uncategorized to-do says so, like
+  // its row does — it must not look filed under "Home".
+  const editActiveCat = categories.find((c) => c.id === editCategory)
 
   // R6c — ordered shape diff for the subtask list. Returns true when
   // the user added, removed, reordered, or edited text/priority/
@@ -1400,12 +1402,12 @@ export default function TaskDetailsSheet({
                   onPress={() => setEditCategoryOpen(true)}
                   activeOpacity={0.6}
                   accessibilityRole="button"
-                  accessibilityLabel={`Category, ${editActiveCat ? categoryLabel(editActiveCat, t) : 'none'}. Tap to change.`}
+                  accessibilityLabel={`Category, ${editActiveCat ? categoryLabel(editActiveCat, t) : t.noCategory}. Tap to change.`}
                 >
                   {editActiveCat && <CategoryIcon icon={editActiveCat.icon} size={18} color={editActiveCat.color} />}
                   <Text style={styles.editFieldLabel}>{t.composeCategoryLabel}</Text>
                   <Text style={styles.editFieldValue} numberOfLines={1}>
-                    {editActiveCat ? categoryLabel(editActiveCat, t) : ''}
+                    {editActiveCat ? categoryLabel(editActiveCat, t) : t.noCategory}
                   </Text>
                   <Text style={styles.editChevron}>›</Text>
                 </TouchableOpacity>

@@ -56,6 +56,22 @@ const plan = (op: ProposedOperation, snap: MochiSnapshot = SNAP): MochiIntent[] 
   return planMochiOp(op, snap, deps)
 }
 
+describe('createTodo with no category → the default category (like Compose)', () => {
+  it('files it under the snapshot default', () => {
+    expect(plan({ kind: 'createTodo', args: { text: 'Buy milk' } }, { ...SNAP, defaultCategoryId: 'work' })).toEqual([
+      { type: 'addTask', text: 'Buy milk', priority: 'medium', dueDate: '', category: { id: 'work' } },
+    ])
+  })
+  it("Mochi's own category wins over the default", () => {
+    const [it0] = plan({ kind: 'createTodo', args: { text: 'Run', category: 'gym' } }, { ...SNAP, defaultCategoryId: 'work' })
+    expect(it0).toMatchObject({ category: { id: 'gym' } })
+  })
+  it('a default that no longer exists leaves it uncategorized', () => {
+    const [it0] = plan({ kind: 'createTodo', args: { text: 'Buy milk' } }, { ...SNAP, defaultCategoryId: 'gone' })
+    expect(it0).not.toHaveProperty('category')
+  })
+})
+
 describe('planMochiOp — every op kind', () => {
   const cases: Array<[string, ProposedOperation, MochiIntent[]]> = [
     [

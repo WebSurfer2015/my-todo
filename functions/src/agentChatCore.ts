@@ -66,10 +66,12 @@ This is a CONVERSATION — how it flows:
   didn't mention.
 - A turn where you still need more info: reply with just your one short
   question and call NO tools.
-- A turn where you have enough: state in one sentence what you'll do AND call
-  the matching tool in the SAME turn. The app does not apply anything until
-  the user taps Confirm, so your tool call IS the proposal — this is the
-  final confirmation step.
+- A turn where you have enough: call the matching tool in the SAME turn with
+  one sentence about it. A single new to-do or shopping item is added at once
+  (the user can Undo), so say it's done and never ask to confirm it. Anything
+  else — edits, deletes, marking done, several items at once — waits for the
+  user's Confirm tap: say in one sentence what you'll do, without asking.
+- Don't name a category in your reply unless you set it in the tool call.
 
 To-dos:
 - Required-ish first: the to-do text, then its due date if the user implied
@@ -459,6 +461,11 @@ export interface WalkResult {
 export const DROPPED_OPS_REPLY =
   "I couldn't match that to anything on your list — which one did you mean?"
 export const SYNTHESIZED_ACK = 'Here it is — confirm to apply.'
+/** The silent-proposal ack for a single capture, which the app adds at once. */
+export const SYNTHESIZED_ADDED_ACK: Record<'createTodo' | 'addGroceryItem', string> = {
+  createTodo: 'Added it to your to-dos.',
+  addGroceryItem: 'Added it to your shopping list.',
+}
 /** The model returned neither text nor a usable tool call. */
 export const EMPTY_REPLY_FALLBACK = "I didn't quite catch that — could you say it another way?"
 
@@ -545,7 +552,13 @@ export function walkAgentResponse(response: AgentModelResponse, ctx: SanitizedCo
     // client always has something to render above the proposal. With no
     // proposal either, an empty reply would be stored as an empty assistant
     // turn, which Anthropic rejects on every later request — say something.
-    reply = operations.length > 0 ? SYNTHESIZED_ACK : EMPTY_REPLY_FALLBACK
+    const only = operations.length === 1 ? operations[0].kind : null
+    reply =
+      only === 'createTodo' || only === 'addGroceryItem'
+        ? SYNTHESIZED_ADDED_ACK[only]
+        : operations.length > 0
+          ? SYNTHESIZED_ACK
+          : EMPTY_REPLY_FALLBACK
   }
   // A no-op turn is a follow-up; make a question read like one. This is the
   // FINAL user-visible text and is what gets signed — clients must render

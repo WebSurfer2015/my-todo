@@ -23,7 +23,7 @@ import {
   verifyReplySig,
 } from './chatSignature'
 import { normalizeChatMessages, type ChatMessage } from './chatMessages'
-import { DROPPED_OPS_REPLY, SYNTHESIZED_ACK, claimFollowUp } from './agentChatCore'
+import { DROPPED_OPS_REPLY, SYNTHESIZED_ACK, SYNTHESIZED_ADDED_ACK, claimFollowUp } from './agentChatCore'
 import {
   CONV_RECORD_TTL_MS,
   MAX_CHAT_TURNS_PER_DAY,
@@ -95,7 +95,7 @@ describe('verifyReplySig', () => {
     expect(verifyReplySig(key, UID, 'add eggs', 'Which store?', sig)).toBeNull()
   })
   it('fixed server strings have no universal signature', () => {
-    for (const fixed of [SYNTHESIZED_ACK, DROPPED_OPS_REPLY]) {
+    for (const fixed of [SYNTHESIZED_ACK, DROPPED_OPS_REPLY, ...Object.values(SYNTHESIZED_ADDED_ACK)]) {
       const s = signReply(key, UID, CONV, NOW_S, 'buy stamps', fixed)
       expect(verifyReplySig(key, UID, 'buy stamps', fixed, s)).not.toBeNull()
       expect(verifyReplySig(key, UID, 'something else', fixed, s)).toBeNull()

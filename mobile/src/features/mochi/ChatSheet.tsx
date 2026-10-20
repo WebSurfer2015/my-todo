@@ -673,7 +673,9 @@ export default function ChatSheet({
                     <View style={styles.mochiBubble}>
                       {!!m.content && (
                         <Text style={styles.mochiLine}>
-                          {isAppliedCapture(m, i) ? addedReplyText(m.content) : m.content}
+                          {isAppliedCapture(m, i)
+                            ? addedReplyText(m.content, m.operations![0].kind as 'createTodo' | 'addGroceryItem')
+                            : m.content}
                         </Text>
                       )}
                       {m.operations?.map((op, j) => (

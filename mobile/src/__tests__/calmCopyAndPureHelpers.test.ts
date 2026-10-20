@@ -296,13 +296,17 @@ describe('isCaptureCardEditable', () => {
 
 describe('addedReplyText — an already-added capture reads in the past tense', () => {
   it('turns a promise into what happened', () => {
-    expect(addedReplyText("I'll add milk to your shopping list.")).toBe('Added milk to your shopping list.')
-    expect(addedReplyText('I will add the dentist for Friday.')).toBe('Added the dentist for Friday.')
-    expect(addedReplyText("I'll put gym on Monday.")).toBe('Added gym on Monday.')
+    expect(addedReplyText("I'll add milk to your shopping list.", 'addGroceryItem')).toBe('Added milk to your shopping list.')
+    expect(addedReplyText('I will add the dentist for Friday.', 'createTodo')).toBe('Added the dentist for Friday.')
+    expect(addedReplyText("I'll put gym on Monday.", 'createTodo')).toBe('Added gym on Monday.')
+  })
+  it('never asks to confirm something already added', () => {
+    expect(addedReplyText('Shall I add the dentist to Home?', 'createTodo')).toBe('Added it to your to-dos.')
+    expect(addedReplyText("I'll add milk — confirm?", 'addGroceryItem')).toBe('Added it to your shopping list.')
+    expect(addedReplyText('Here it is — confirm to apply.', 'createTodo')).toBe('Added it to your to-dos.')
   })
   it('leaves other replies alone', () => {
-    expect(addedReplyText('Added milk.')).toBe('Added milk.')
-    expect(addedReplyText('Which day works?')).toBe('Which day works?')
-    expect(addedReplyText("Sure — I'll add it.")).toBe("Sure — I'll add it.")
+    expect(addedReplyText('Added milk.', 'addGroceryItem')).toBe('Added milk.')
+    expect(addedReplyText("Sure — I'll add it.", 'createTodo')).toBe("Sure — I'll add it.")
   })
 })

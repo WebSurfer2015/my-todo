@@ -92,6 +92,14 @@ describe('Filter sheet', () => {
   })
 })
 
+describe('Task details: category', () => {
+  const details = read('features/task/TaskDetailsSheet/index.tsx')
+  it('an uncategorized to-do shows "No category", never the first category', () => {
+    expect(details).toMatch(/const editActiveCat = categories\.find\(\(c\) => c\.id === editCategory\)\n/)
+    expect(details).toMatch(/editActiveCat \? categoryLabel\(editActiveCat, t\) : t\.noCategory\}/)
+  })
+})
+
 describe('Guides', () => {
   it('"Pin a filter" teaches the Filter sheet, not a hidden pill row', () => {
     const guides = read('features/onboarding/guides.tsx')

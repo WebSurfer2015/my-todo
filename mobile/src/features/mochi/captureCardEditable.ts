@@ -19,7 +19,12 @@ export function captureCardRemovalNote(r: UndoResult): string {
 
 /** Mochi often phrases a capture as a promise ("I'll add milk."), but a single
  * to-do / shopping item is added the moment the reply lands — show it in the
- * past tense. Display-only: the signed wire text is never changed. */
-export function addedReplyText(content: string): string {
+ * past tense. A reply that still asks ("Shall I add it?", "…confirm?") would
+ * ask about something already done, so it's replaced by a plain "Added it…".
+ * Display-only: the signed wire text is never changed. */
+export function addedReplyText(content: string, kind: 'createTodo' | 'addGroceryItem'): string {
+  if (/\?\s*$|\bconfirm/i.test(content)) {
+    return kind === 'addGroceryItem' ? 'Added it to your shopping list.' : 'Added it to your to-dos.'
+  }
   return content.replace(/^\s*I(?:'ll| will) (?:add|put|pop|jot(?: down)?)\b\s*/i, 'Added ')
 }

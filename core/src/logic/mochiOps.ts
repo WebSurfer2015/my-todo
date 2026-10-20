@@ -62,6 +62,10 @@ export interface MochiSnapshot {
     icon: string
   }>
   groceries: ReadonlyArray<{ id: string; text: string; checked?: boolean }>
+  /** The category a hand-added to-do would get right now (Compose's
+   * default). A new to-do Mochi files under no category lands here, so a
+   * Mochi capture and a typed one agree — and the card shows where it went. */
+  defaultCategoryId?: string
 }
 
 export interface MochiPlanDeps {
@@ -260,6 +264,12 @@ function resolveCategory(
   return category !== undefined ? { id: category } : undefined
 }
 
+/** The snapshot's default category, if it still exists. */
+function defaultCategoryRef(snap: MochiSnapshot): CategoryRef | undefined {
+  const id = snap.defaultCategoryId
+  return id && snap.categories.some((c) => c.id === id) ? { id } : undefined
+}
+
 const ruleList = (v: readonly number[] | undefined) => (v && v.length > 0 ? v.join(',') : '')
 
 /** Same repeat rule AND end date (anchorDay is derived, so ignored). */
@@ -396,7 +406,8 @@ function planOne(ctx: PlanCtx, op: ProposedOperation): void {
   switch (op.kind) {
     case 'createTodo': {
       const a = op.args
-      const category = resolveCategory(ctx, a.category, a.newCategoryLabel)
+      const category =
+        resolveCategory(ctx, a.category, a.newCategoryLabel) ?? defaultCategoryRef(ctx.snap)
       const reminders = stampReminders(a.reminders, ctx.deps.genId)
       out.push({
         type: 'addTask',

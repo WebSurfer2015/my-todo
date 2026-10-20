@@ -12,6 +12,7 @@ import {
   MAX_CONTEXT_TODOS,
   MODEL,
   SYNTHESIZED_ACK,
+  SYNTHESIZED_ADDED_ACK,
   SYSTEM_PROMPT,
   asQuestionIfLikely,
   buildAgentRequest,
@@ -248,9 +249,22 @@ describe('walkAgentResponse', () => {
       { kind: 'pickTodos', args: { action: 'delete', todoIds: ['t-2', 't-3'], query: 'water plant' } },
     ])
   })
-  it('a silent proposal gets the synthesized ack', () => {
+  it('a silent single capture reads as added — it is applied at once, never "confirm"', () => {
     const w = walkAgentResponse(resp(tool('createTodo', { text: 'Buy stamps' })), baseCtx)
+    expect(w.reply).toBe(SYNTHESIZED_ADDED_ACK.createTodo)
+    expect(w.reply).not.toMatch(/confirm/i)
+  })
+  it('a silent multi-op proposal gets the confirm ack', () => {
+    const w = walkAgentResponse(
+      resp(tool('createTodo', { text: 'Buy stamps' }), tool('createTodo', { text: 'Mail card' })),
+      baseCtx,
+    )
     expect(w.reply).toBe(SYNTHESIZED_ACK)
+  })
+  it('the prompt never says a single capture waits for Confirm', () => {
+    expect(SYSTEM_PROMPT).not.toMatch(/does not apply anything until/)
+    expect(SYSTEM_PROMPT).toMatch(/single new to-do or shopping item is added at once/)
+    expect(SYSTEM_PROMPT).toMatch(/Don't name a category in your reply unless you set it/)
   })
   it('flags a max_tokens truncation', () => {
     expect(walkAgentResponse({ content: [text('Hm')], stop_reason: 'max_tokens' }, baseCtx).truncated).toBe(true)
