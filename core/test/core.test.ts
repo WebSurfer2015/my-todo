@@ -752,14 +752,16 @@ describe("deriveState", () => {
     };
   }
 
-  it("all filter shows everything including done + trashed", () => {
+  it("all filter shows open rows only — done + binned rows live in the Done bin", () => {
     const todos = [
       mk({ id: "open" }),
       mk({ id: "done", done: true, trashed: true, completionDate: "2026-05-13" }),
       mk({ id: "trashed", trashed: true, trashedAt: Date.now() }),
     ];
     const state = deriveState({ todos, filters: [], categories: cats, t });
-    expect(state.filtered.map((x) => x.id).sort()).toEqual(["done", "open", "trashed"]);
+    expect(state.filtered.map((x) => x.id)).toEqual(["open"]);
+    // ...so the open groups never carry a done / binned row.
+    expect(state.groups.flatMap((g) => g.todos).every((x) => !x.done && !x.trashed)).toBe(true);
   });
 
   it("open filter is strict — hides done and Not-Do rows including grace items", () => {
@@ -784,7 +786,7 @@ describe("deriveState", () => {
     expect(state.filtered.map((x) => x.id).sort()).toEqual(["done", "trashedOnly"]);
   });
 
-  it("overdue (Carried Over) counts include done past-due items as history", () => {
+  it("overdue (Carried Over) shows and counts open past-due rows only", () => {
     const todos = [
       mk({ id: "overdue", dueDate: "2026-05-10" }),
       mk({
@@ -798,14 +800,12 @@ describe("deriveState", () => {
       mk({ id: "future", dueDate: "2026-05-20" }),
     ];
     const state = deriveState({ todos, filters: ["overdue"], categories: cats, t });
-    // Trashed past-due items aren't filtered into the view, but the
-    // carried-over COUNT includes history (done past-due items count).
-    expect(state.filtered.map((x) => x.id)).toContain("overdue");
-    expect(state.filtered.map((x) => x.id)).not.toContain("today");
-    expect(state.systemCounts.overdue).toBe(2); // open overdue + done overdue
+    // A done past-due row (even one finished today) is in the Done bin.
+    expect(state.filtered.map((x) => x.id)).toEqual(["overdue"]);
+    expect(state.systemCounts.overdue).toBe(1);
   });
 
-  it("category filter shows only that category", () => {
+  it("category filter shows only that category's open rows", () => {
     const todos = [
       mk({ id: "h1", category: "home" }),
       mk({ id: "w1", category: "work" }),
@@ -823,7 +823,7 @@ describe("deriveState", () => {
       categories: cats,
       t,
     });
-    expect(state.filtered.map((x) => x.id).sort()).toEqual(["h1", "h2"]);
+    expect(state.filtered.map((x) => x.id)).toEqual(["h1"]);
   });
 
   it("systemCounts: all is open + merged Done bin", () => {
@@ -1011,7 +1011,7 @@ describe("category mutations", () => {
     expect(categoryReorder(before, 1, 1)).toBe(before);
   });
 
-  it("categoryDelete trashes affected todos and removes the category", () => {
+  it("categoryDelete uncategorizes its todos (never bins them) and removes the category", () => {
     const cats = [mkCat("home"), mkCat("work")];
     const todos = [
       newTodo({ text: "h1", priority: "low", dueDate: "", category: "home" }),
@@ -1020,9 +1020,12 @@ describe("category mutations", () => {
     const result = categoryDelete(todos, cats, "home");
     expect(result.deleted).toBe(true);
     expect(result.categories.map((c) => c.id)).toEqual(["work"]);
-    // h1 trashed (was in deleted cat); w1 untouched.
-    expect(result.todos.find((t) => t.text === "h1")?.trashed).toBe(true);
-    expect(result.todos.find((t) => t.text === "w1")?.trashed).toBe(false);
+    // h1 stays open, just without a category; w1 untouched.
+    const h1 = result.todos.find((t) => t.text === "h1")!;
+    expect(h1.trashed).toBe(false);
+    expect(h1.done).toBe(false);
+    expect(h1.category).toBeUndefined();
+    expect(result.todos.find((t) => t.text === "w1")).toBe(todos[1]);
   });
 
   it("categoryDelete refuses to delete the last remaining category", () => {

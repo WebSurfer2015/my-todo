@@ -107,9 +107,36 @@ export function runNewestFirst(
   }
 }
 
+/** Gap between the snackbar and the top of the tab bar. */
+export const SNACKBAR_TAB_BAR_GAP = 8
+/** Snackbar bottom offset where there's no tab bar (signed-out, loading). */
+const SNACKBAR_DEFAULT_BOTTOM = Platform.OS === 'ios' ? 40 : 24
+
+/** Where the root snackbar sits: above the tab bar while one is showing
+ * (its full height, safe area included, + the gap), else the default. */
+export function snackbarBottom(tabBarHeight: number | null): number {
+  return tabBarHeight && tabBarHeight > 0 ? tabBarHeight + SNACKBAR_TAB_BAR_GAP : SNACKBAR_DEFAULT_BOTTOM
+}
+
+// The tab bar reports its height here while mounted (see useReportTabBarHeight).
+const TabBarHeightContext = createContext<(key: object, height: number | null) => void>(() => {})
+
+/** Called from inside the tab navigator: keeps the snackbar above the tab
+ * bar for as long as the caller is mounted. */
+export function useReportTabBarHeight(height: number): void {
+  const report = useContext(TabBarHeightContext)
+  const keyRef = useRef<object>({})
+  useEffect(() => {
+    const key = keyRef.current
+    report(key, height)
+    return () => report(key, null)
+  }, [report, height])
+}
+
 // Long enough to notice and reach Undo (was 3.5s — too quick, especially
 // with VoiceOver or a slower reader).
-const DEFAULT_DURATION = 6000
+export const SNACKBAR_DURATION_MS = 6000
+const DEFAULT_DURATION = SNACKBAR_DURATION_MS
 
 export function NotifyProvider({ children }: { children: ReactNode }) {
   const [snackbar, setSnackbar] = useState<SnackbarState | null>(null)
@@ -119,6 +146,16 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
   // A low-priority snackbar waiting for the visible one to end.
   const waitingRef = useRef<SnackbarOptions | null>(null)
   const showRef = useRef<(opts: SnackbarOptions) => void>(() => {})
+  // Tab-bar height per reporter (every mounted tab screen reports the same
+  // bar); the snackbar uses the tallest while any is mounted.
+  const tabBarHeightsRef = useRef(new Map<object, number>())
+  const [tabBarHeight, setTabBarHeight] = useState<number | null>(null)
+  const reportTabBarHeight = useCallback((key: object, height: number | null) => {
+    const map = tabBarHeightsRef.current
+    if (height === null) map.delete(key)
+    else map.set(key, height)
+    setTabBarHeight(map.size ? Math.max(...map.values()) : null)
+  }, [])
 
   // The visible snackbar ended (timeout, action, ×): show the waiting one.
   const endCurrent = useCallback(() => {
@@ -265,9 +302,12 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
 
   return (
     <NotifyContext.Provider value={value}>
-      {children}
+      <TabBarHeightContext.Provider value={reportTabBarHeight}>
+        {children}
+      </TabBarHeightContext.Provider>
       {snackbar && (
         <Snackbar
+          bottom={snackbarBottom(tabBarHeight)}
           message={snackbar.message}
           actionLabel={snackbar.actionLabel}
           onAction={handleAction}
@@ -283,8 +323,9 @@ export function useNotify(): NotifyApi {
 }
 
 function Snackbar({
-  message, actionLabel, onAction, onDismiss,
+  bottom, message, actionLabel, onAction, onDismiss,
 }: {
+  bottom: number
   message: string
   actionLabel?: string
   onAction: () => void
@@ -308,7 +349,7 @@ function Snackbar({
   }, [message, actionLabel])
 
   return (
-    <View style={styles.container} pointerEvents="box-none">
+    <View style={[styles.container, { bottom }]} pointerEvents="box-none">
       <Animated.View
         style={[styles.snackbar, { transform: [{ translateY }], opacity }]}
         accessibilityRole="alert"
@@ -339,7 +380,6 @@ function makeStyles(c: ThemeColors) {
       position: 'absolute',
       left: 0,
       right: 0,
-      bottom: Platform.OS === 'ios' ? 40 : 24,
       alignItems: 'center',
       paddingHorizontal: 16,
     },

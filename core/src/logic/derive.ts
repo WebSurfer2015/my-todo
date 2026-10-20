@@ -2480,9 +2480,11 @@ export function categoryEdit(
 }
 
 /**
- * Removes the category, moves its open to-dos to the Done bin and clears the
- * category on every to-do that had it. Returns the new state for both
- * arrays, since both must be updated atomically.
+ * Removes the category and clears it from every to-do that had it (open,
+ * done or in the Done bin) — the to-dos themselves stay exactly where they
+ * are, just uncategorized. Nothing is binned and no series is ended.
+ * Returns the new state for both arrays, since both must be updated
+ * atomically.
  */
 export function categoryDelete(
   todos: Todo[],
@@ -2492,32 +2494,12 @@ export function categoryDelete(
   if (categories.length <= 1) return { categories, todos, deleted: false };
   const remaining = categories.filter((c) => c.id !== id);
   const now = Date.now();
-  // Earliest open member per series this delete bins — the series is ended
-  // before it below, so restoring one binned occurrence can't re-grow it.
-  const binnedFrom = new Map<string, string>();
-  // Open to-dos go to the Done bin; every row (open or already binned)
-  // drops the category so a restored one has no ghost category.
-  let next = todos.map((td) => {
+  const next = todos.map((td) => {
     if (td.category !== id) return td;
     const out: Todo = { ...td, updatedAt: now };
     delete out.category;
-    if (!td.trashed) {
-      out.trashed = true;
-      out.trashedAt = now;
-      const day = dueDateOnly(td.dueDate);
-      if (td.seriesId && day) {
-        const prior = binnedFrom.get(td.seriesId);
-        if (!prior || day < prior) binnedFrom.set(td.seriesId, day);
-      }
-    }
     return out;
   });
-  for (const [sid, day] of binnedFrom) {
-    // Only a series left with no open member was fully binned; one with an
-    // open row elsewhere (another category) keeps going.
-    if (next.some((td) => td.seriesId === sid && !td.trashed && !td.done)) continue;
-    next = seriesEndBefore(next, sid, day);
-  }
   return { categories: remaining, todos: next, deleted: true };
 }
 
@@ -3005,46 +2987,35 @@ export function deriveState(input: DeriveInput): DerivedState {
     !!td.dueDate && dueDateOnly(td.dueDate) < today;
   const active = todos.filter((td) => !td.trashed);
 
-  // Items just completed today linger in the open / overdue / category
-  // views so the user sees the strike-through before they navigate away
-  // — checking off a task shouldn't make it instantly vanish out from
-  // under them. Older done items drop out so the active view doesn't
-  // accumulate cruft over weeks. Because checking off a todo also
-  // sets `trashed: true` (done + trash are one merged bin), this
-  // predicate gates BOTH the trash-exclusion and the per-filter rule.
-  const completedToday = (td: Todo) =>
-    td.done && td.completionDate === today;
+  // Done and binned rows live in the Done bin only — never in the open
+  // groups (All, Open, Carried over, a category / priority). The UI keeps a
+  // just-completed row on screen for its Undo window (mobile useLinger),
+  // then it leaves; the explicit Done filter shows them.
+  const isActive = (td: Todo) => !td.done && !td.trashed;
 
   // Per-type status predicate. Pulled out so the multi-faceted match
   // below can reuse it for each selected status.
   const matchesStatus = (td: Todo, status: typeof selectedStatuses[number]): boolean => {
     if (status === 'done' || status === 'trash') return td.done || td.trashed;
-    // For non-done/trash statuses, trashed items drop out unless
-    // they were just completed today (grace period for the strike-
-    // through animation).
-    if (td.trashed && !completedToday(td)) return false;
+    // Every other status shows open rows only.
+    if (!isActive(td)) return false;
     if (status === 'overdue') return isOverdue(td);
-    if (status === 'open') return !td.done && !td.trashed;
+    if (status === 'open') return true;
     // 'groceries' isn't a real Todo predicate — the grocery filter
     // routes to a different view. Treat as no-match here.
     return false;
   };
 
   const filtered = todos.filter((td) => {
-    // No filters selected → "all" semantics: include everything
-    // (including trashed items, matching the old "all" behavior).
-    if (filters.length === 0) return true;
-    // Status group (OR within). If a Done/Trash status is selected,
-    // its predicate intentionally includes trashed items; other
-    // statuses exclude them. The matchesStatus helper handles the
-    // grace-period rule per status, so we don't need a separate
-    // trash short-circuit here.
+    // No filters selected → "all" semantics: every OPEN to-do (done and
+    // binned rows are in the Done bin).
+    if (filters.length === 0) return isActive(td);
+    // Status group (OR within). A Done/Trash status includes done and
+    // binned rows; every other status shows open rows only.
     if (selectedStatuses.length > 0) {
       if (!selectedStatuses.some((s) => matchesStatus(td, s))) return false;
-    } else if (td.trashed && !completedToday(td)) {
-      // No status filter active but category/priority filters are;
-      // exclude trashed items (matching the legacy category/priority
-      // filter behavior).
+    } else if (!isActive(td)) {
+      // Category / priority filters only: open rows only.
       return false;
     }
     // Category group (OR within).

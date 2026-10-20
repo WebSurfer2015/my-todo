@@ -11,7 +11,7 @@
  */
 
 import React, { useMemo } from 'react'
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Settings as SettingsIcon, Search as SearchIcon, Filter as FilterIcon } from 'lucide-react-native'
 import { useStore } from './StoreContext'
@@ -56,6 +56,9 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
     // chrome color fills all the way to the top edge (screens no longer
     // pad the top — the header owns that space now).
     <View style={[styles.row, { paddingTop: insets.top + 6 }]}>
+      {/* The status bar sits on the chrome band, which is dark green in both
+          schemes — so it is light-content everywhere the header shows. */}
+      <StatusBar barStyle="light-content" />
       <TouchableOpacity
         style={styles.avatarTouch}
         onPress={sheets.openProfile}
@@ -101,7 +104,7 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
           accessibilityLabel={t.a11yFilter}
           testID="filter-button"
         >
-          <FilterIcon size={22} color={theme.primaryOn} strokeWidth={1.8} />
+          <FilterIcon size={22} color={theme.headerOn} strokeWidth={1.8} />
         </TouchableOpacity>
       )}
       {onSearchPress && (
@@ -112,7 +115,7 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
           accessibilityRole="button"
           accessibilityLabel={t.a11ySearch}
         >
-          <SearchIcon size={22} color={theme.primaryOn} strokeWidth={1.8} />
+          <SearchIcon size={22} color={theme.headerOn} strokeWidth={1.8} />
         </TouchableOpacity>
       )}
       {onGearPress && (
@@ -124,7 +127,7 @@ export default function AppHeader({ title, onSearchPress, onFilterPress, onGearP
           accessibilityLabel={t.a11yManage}
           testID="settings-button"
         >
-          <SettingsIcon size={22} color={theme.primaryOn} strokeWidth={1.8} />
+          <SettingsIcon size={22} color={theme.headerOn} strokeWidth={1.8} />
         </TouchableOpacity>
       )}
     </View>
@@ -139,9 +142,9 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 20,
       paddingTop: 12,
       paddingBottom: 12,
-      // Header band uses the primary (FAB) color; text + icons flip to
-      // primaryOn for contrast.
-      backgroundColor: c.primary,
+      // Chrome band (shared with the tab bar): the accent in light, the deep
+      // brand tone in dark; text + icons use headerOn.
+      backgroundColor: c.headerBg,
       overflow: 'hidden',
     },
     avatarTouch: {
@@ -153,7 +156,7 @@ function makeStyles(c: ThemeColors) {
     textWrap: { flex: 1, minWidth: 0 },
     screenTitle: {
       fontSize: 27,
-      color: c.primaryOn,
+      color: c.headerOn,
       fontWeight: '700',
       letterSpacing: -0.3,
       lineHeight: 31,
@@ -161,22 +164,21 @@ function makeStyles(c: ThemeColors) {
     greeting: {
       // Match the Todos/Shopping screen-title font exactly.
       fontSize: 27,
-      color: c.primaryOn,
+      color: c.headerOn,
       fontWeight: '700',
       letterSpacing: -0.3,
       lineHeight: 31,
     },
     identity: {
       fontSize: 13,
-      color: c.primaryOn,
-      opacity: 0.82,
+      color: c.headerOn,
       fontWeight: '500',
       marginTop: 2,
       lineHeight: 18,
     },
     identityQuote: {
       fontStyle: 'italic',
-      color: c.primaryOn,
+      color: c.headerOn,
     },
     gearTouch: {
       width: 36,

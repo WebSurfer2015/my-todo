@@ -3,7 +3,6 @@ import { AppState } from "react-native";
 import { Filter, ViewMode } from "../core-bindings/types";
 import {
   getOrderedStatuses,
-  getOrderedVisibleStatuses,
 } from "../../../core/src/domain/statuses";
 import { getOrderedPriorities } from "../../../core/src/domain/priorities";
 import { useCategoriesSlice } from "./slices/useCategoriesSlice";
@@ -150,9 +149,7 @@ export function useTodoStore() {
     pinFilter,
     keepAndClearFilter,
     renameStatus,
-    toggleStatusHidden,
     reorderStatuses,
-    togglePriorityHidden,
     reorderPriorities,
   } = useProfileSlice(adapter, {
     setFilter,
@@ -291,6 +288,7 @@ export function useTodoStore() {
     addGrocery,
     restoreGrocery,
     toggleGroceryChecked,
+    checkOffGrocery,
     editGrocery,
     deleteGrocery,
     addGroceryGroup,
@@ -570,10 +568,6 @@ export function useTodoStore() {
   // Memoized: fresh arrays every render would bust the store memo below.
   const orderedStatuses = useMemo(() => getOrderedStatuses(profile, t), [profile, t]);
   const orderedPriorities = useMemo(() => getOrderedPriorities(profile, t), [profile, t]);
-  const orderedVisibleStatuses = useMemo(
-    () => getOrderedVisibleStatuses(profile, t),
-    [profile, t],
-  );
 
   // ONE stable object per state change: StoreContext hands this to every
   // screen, so a fresh literal each render re-rendered every consumer on
@@ -586,6 +580,7 @@ export function useTodoStore() {
     addGrocery,
     restoreGrocery,
     toggleGroceryChecked,
+    checkOffGrocery,
     editGrocery,
     deleteGrocery,
     setActiveGroceryStore,
@@ -634,7 +629,6 @@ export function useTodoStore() {
     reduceMotion,
     orderedStatuses,
     orderedPriorities,
-    orderedVisibleStatuses,
     setFilter,
     // Multi-select filter API. `filters` is the source of truth;
     // `filter` (above) is the single-pick alias for legacy code paths.
@@ -646,9 +640,7 @@ export function useTodoStore() {
     keepAndClearFilter,
     saveProfile,
     renameStatus,
-    toggleStatusHidden,
     reorderStatuses,
-    togglePriorityHidden,
     reorderPriorities,
     toggle,
     moveToTrash,
@@ -710,15 +702,15 @@ export function useTodoStore() {
     deleteGroceryStore, derived, detachFromSeries, editCategory, editGrocery, emptyTrash, filter,
     filters, groceries, groceryGroups, headerLine, identityLine, identityLineIsQuote,
     keepAndClearFilter, linkItemsToStore, loaded, moveSeriesFutureToTrash, moveSeriesToTrash, moveToTrash,
-    orderedPriorities, orderedStatuses, orderedVisibleStatuses, permanentlyDelete,
+    orderedPriorities, orderedStatuses, permanentlyDelete,
     permanentlyDeleteSeriesFuture, permanentlyDeleteSeries, rescheduleSeriesFrom,
     pinFilter, pinGroceryDept, pinGroceryStore, profile,
     profileTrusted, reduceMotion, removeSubtask, renameGroceryStore, renameStatus,
     reorderCategories, reorderGroceryStores, reorderPriorities, reorderStatuses, restoreFromTrash,
     revertTodo, saveProfile, selectedTrashIds, todosRef, undoTracked, groceriesRef, setActiveGroceryDept, setActiveGroceryStore,
     setFilter, setFilters, skipSeriesFuture, skipTodo, snooze, today, todoReferences, todos, toggle,
-    toggleFilter, toggleGroceryChecked, toggleGroceryStoreHidden, togglePriorityHidden,
-    toggleStatusHidden, toggleSubtask, toggleTrashSelection, updateDueDate, updateNotes,
+    toggleFilter, toggleGroceryChecked, checkOffGrocery, toggleGroceryStoreHidden,
+    toggleSubtask, toggleTrashSelection, updateDueDate, updateNotes,
     updatePriority, updateRecurrence, updateReminders, updateSubtaskDueDate,
     updateSubtaskPriority, updateSubtaskText, updateTaskCategory, updateText, view,
   ]);

@@ -62,8 +62,9 @@ export function buildGroups(todos: Todo[]): TodoGroup[] {
 /**
  * Group the Done bin by completion date. Items with `completionDate` are
  * bucketed under that ISO yyyy-mm-dd; items without (pre-feature legacy)
- * fall into a single 'earlier' bucket at the bottom. Bucket order:
- * today → yesterday → recent dates desc → earlier.
+ * fall into a single 'earlier' bucket at the bottom; a date after today is
+ * clamped into today's. Bucket order: today → yesterday → recent dates
+ * desc → earlier.
  */
 export interface DoneGroup {
   /** ISO yyyy-mm-dd date for dated buckets, or 'earlier' for legacy items. */
@@ -93,9 +94,12 @@ export function buildDoneGroups(todos: Todo[]): DoneGroup[] {
   const earlier: Todo[] = []
   for (const t of todos) {
     if (!t.completionDate) { earlier.push(t); continue }
-    const list = byDate.get(t.completionDate)
+    // A completion dated after today (clock skew, another device's timezone)
+    // files under Today — a finished thing never sits in a future day.
+    const key = t.completionDate > today ? today : t.completionDate
+    const list = byDate.get(key)
     if (list) list.push(t)
-    else byDate.set(t.completionDate, [t])
+    else byDate.set(key, [t])
   }
   // Sort each bucket: most recently trashed first (so the user's latest
   // completion sits at the top of its day).

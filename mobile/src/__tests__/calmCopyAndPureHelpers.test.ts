@@ -35,9 +35,9 @@ describe('store snackbar copy', () => {
   })
 
   it('category delete says how many to-dos went to Done', () => {
-    expect(categoryDeletedMessage(0)).toBe('Category deleted')
-    expect(categoryDeletedMessage(1)).toBe('Category deleted · 1 to-do tucked into Done')
-    expect(categoryDeletedMessage(4)).toBe('Category deleted · 4 to-dos tucked into Done')
+    expect(categoryDeletedMessage('Gym', 0)).toBe('Deleted Gym.')
+    expect(categoryDeletedMessage('Gym', 1)).toBe('Deleted Gym. Its 1 to-do is now uncategorized.')
+    expect(categoryDeletedMessage('Gym', 4)).toBe('Deleted Gym. Its 4 to-dos are now uncategorized.')
   })
 
   it('export failure is calm copy', () => {

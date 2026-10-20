@@ -220,19 +220,23 @@ describe("5 — a rule change anchors on the target's own day", () => {
   });
 });
 
-describe("6 — deleting a category ends the series it fully binned", () => {
+describe("6 — deleting a category leaves its series running, uncategorized", () => {
   const cats: CategoryDef[] = [
     { id: "home", label: "Home", color: "#111", icon: "home" },
     { id: "gym", label: "Gym", color: "#222", icon: "dumbbell" },
   ];
 
-  it("restoring one binned occurrence doesn't re-grow the series", () => {
+  // Was: "restoring one binned occurrence doesn't re-grow the series" —
+  // a category delete used to bin the series and end it. It now only clears
+  // the category, so nothing is binned and the series keeps its recurrence.
+  it("bins nothing and ends no series — every occurrence just loses the category", () => {
     const ts = expandSeries(seed({ seriesId: "s", category: "gym" }), "2026-10-19");
     const del = categoryDelete(ts, cats, "gym").todos;
-    expect(del.every((t) => t.recurrence?.endDate === "2026-10-18")).toBe(true);
-    const restored = todoRestoreFromTrash(del, "s_2026-10-22");
-    const topped = topUpSeries(restored, "s", "2026-10-25");
-    expect(topped).toBe(restored);
+    expect(del.some((t) => t.trashed)).toBe(false);
+    expect(del.some((t) => t.recurrence?.endDate)).toBe(false);
+    expect(del.every((t) => t.category === undefined)).toBe(true);
+    // The series still tops up normally afterward.
+    expect(topUpSeries(del, "s", "2026-10-30").length).toBeGreaterThanOrEqual(del.length);
   });
 
   it("a series with an open member elsewhere keeps going", () => {

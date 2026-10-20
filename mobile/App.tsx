@@ -9,10 +9,8 @@ import {
   SectionList,
   StyleSheet,
   TouchableOpacity,
-  StatusBar,
   Platform,
   KeyboardAvoidingView,
-  useColorScheme,
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -33,6 +31,7 @@ import "./src/adapters/notifications";
 // and recorded every fatal twice.)
 import FilterBar from "./src/features/filters/FilterBar";
 import Fab from "./src/app/Fab";
+import { TabBarIcon } from "./src/app/TabBarIcon";
 import { alertWithPresence } from "./src/app/modalPresence";
 import TaskItem from "./src/features/task/TaskItem";
 import Footer from "./src/app/Footer";
@@ -43,12 +42,12 @@ import DeferModal from "./src/features/task/DeferModal";
 import type { Filter } from "./src/core-bindings/types";
 import { LangProvider, useLang } from "./src/app/LangContext";
 import { AuthProvider, useAuth } from "./src/app/AuthContext";
-import { NotifyProvider } from "./src/app/notify";
+import { NotifyProvider, useReportTabBarHeight } from "./src/app/notify";
 import { MODAL_HANDOFF_MS } from "./src/app/modalTiming";
 import { ErrorBoundary } from "./src/app/ErrorBoundary";
 import { buildDoneGroups, type TodoGroup, type DoneGroup } from "../core/src/logic/groups";
 import { useLinger } from "./src/features/task/useLinger";
-import { fullDateLabel } from "./src/core-bindings/utils";
+import { weekdayDate } from "../core/src/logic/labels";
 import type { Todo } from "./src/core-bindings/types";
 import SignIn from "./src/features/auth/SignIn";
 import EmptyStateCard from "./src/ui/EmptyStateCard";
@@ -66,7 +65,7 @@ installCrashReporters();
 // client without the native module keeps running (see adapters/appCheck).
 initAppCheck();
 import { NavigationContainer, useIsFocused } from "@react-navigation/native";
-import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { createBottomTabNavigator, useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { House, ListTodo, ShoppingBag } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { StoreProvider, useStore } from "./src/app/StoreContext";
@@ -100,7 +99,7 @@ function TodosScreen() {
   // SheetContext at the app shell so they're reachable from any tab.
   // Mochi ("Ask Mochi") now lives in SheetContext, entered from the
   // compose sheet. CategorySheet moved to SheetContext so Settings →
-  // Manage Todos can open it from any tab.
+  // Filters & categories can open it from any tab.
   const sheets = useSheets();
   // Scroll-to-group: the Dashboard's "N open →" links ask us (via
   // sheets.todosScrollRequest) to scroll to a date-bucket group. With the
@@ -394,8 +393,8 @@ function TodosScreen() {
     </View>
   );
 
-  // Done date-group header (label via isToday/isYesterday/isEarlier/
-  // fullDateLabel + count + "Delete all →" confirm).
+  // Done date-group header ("Today" / "Yesterday" / "Mon, Oct 12" — year only
+  // outside the current one — + count + "Delete all →" confirm).
   const renderDoneHeader = ({ section }: { section: DoneSection }) => {
     const g = section.group;
     const headerLabel = g.isToday
@@ -404,7 +403,7 @@ function TodosScreen() {
         ? t.doneGroups.yesterday
         : g.isEarlier
           ? t.doneGroups.earlier
-          : fullDateLabel(g.key);
+          : weekdayDate(g.key, { locale: t.locale });
     return (
       <View style={[styles.groupHeaderRow, styles.groupHeaderSpacing]}>
         <Text style={styles.groupHeader}>
@@ -467,7 +466,6 @@ function TodosScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
-      <StatusBar barStyle={theme.statusBar} />
       <KeyboardAvoidingView
         style={styles.kb}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -532,7 +530,7 @@ function TodosScreen() {
               byPriority={store.byPriority}
               combinedCount={store.filtered.length}
               categories={store.categories}
-              orderedVisibleStatuses={store.orderedVisibleStatuses}
+              orderedStatuses={store.orderedStatuses}
               groceriesActiveCount={
                 store.groceries.filter((g) => !g.checked).length
               }
@@ -940,7 +938,6 @@ function FirstRunLayer() {
 function AppGate() {
   const { user, loading } = useAuth();
   const store = useStore();
-  const scheme = useColorScheme();
   // Theme is provided by <ThemeGate> above SheetProvider, so every sheet
   // (mounted by SheetProvider) and the tab chrome here all read the SAME
   // selected palette. (Previously the provider lived inside AppGate, below
@@ -1000,6 +997,14 @@ function AppGate() {
       <NavigationContainer ref={sheetNavigationRef}>
         <Tab.Navigator
           initialRouteName="Home"
+          // Every tab screen reports the tab bar's height so the root
+          // snackbar sits above the bar instead of over its icons.
+          screenLayout={({ children }) => (
+            <>
+              {children}
+              <TabBarHeightReporter />
+            </>
+          )}
           screenOptions={{
             headerShown: false,
             // Per-screen container must be transparent so the shared
@@ -1007,14 +1012,14 @@ function AppGate() {
             // every tab. Without this, react-navigation paints an
             // opaque scene bg that covers the wallpaper.
             sceneStyle: { backgroundColor: 'transparent' },
-          // Tab bar uses the primary (FAB) color as its background, so
-          // active/inactive tints flip to the on-primary foreground:
-          // full primaryOn for the active tab, a faded variant for the rest.
-          tabBarActiveTintColor: theme.primaryOn,
-          tabBarInactiveTintColor:
-            scheme === 'dark' ? 'rgba(26,24,20,0.5)' : 'rgba(255,255,255,0.62)',
+          // Tab bar shares the header's chrome band (headerBg — the deep
+          // brand tone in dark, not the bright accent). Inactive tabs use
+          // headerOnMuted, which still clears 4.5:1; the active tab is also
+          // told apart by its bolder label and the indicator bar on its icon.
+          tabBarActiveTintColor: theme.headerOn,
+          tabBarInactiveTintColor: theme.headerOnMuted,
           tabBarStyle: {
-            backgroundColor: theme.primary,
+            backgroundColor: theme.headerBg,
             borderTopColor: 'transparent',
             borderTopWidth: 0,
             // Nudge icons + labels down so they sit vertically centered
@@ -1046,8 +1051,8 @@ function AppGate() {
             // collide with the user's Home *category*. Route name stays
             // "Home" for stable navigation calls.
             tabBarLabel: 'Today',
-            tabBarIcon: ({ color, size }) => (
-              <House size={size ?? 22} color={color} strokeWidth={2} />
+            tabBarIcon: ({ color, size, focused }) => (
+              <TabBarIcon Icon={House} color={color} size={size} focused={focused} />
             ),
           }}
         />
@@ -1055,8 +1060,8 @@ function AppGate() {
           name="Todos"
           component={TodosScreen}
           options={{
-            tabBarIcon: ({ color, size }) => (
-              <ListTodo size={size ?? 22} color={color} strokeWidth={2} />
+            tabBarIcon: ({ color, size, focused }) => (
+              <TabBarIcon Icon={ListTodo} color={color} size={size} focused={focused} />
             ),
           }}
         />
@@ -1069,8 +1074,8 @@ function AppGate() {
             // navigation calls + the cross-tab manage signal in
             // SheetContext keep working without a rename cascade.
             tabBarLabel: 'Shopping',
-            tabBarIcon: ({ color, size }) => (
-              <ShoppingBag size={size ?? 22} color={color} strokeWidth={2} />
+            tabBarIcon: ({ color, size, focused }) => (
+              <TabBarIcon Icon={ShoppingBag} color={color} size={size} focused={focused} />
             ),
           }}
         />
@@ -1080,6 +1085,12 @@ function AppGate() {
       <ReminderTapHandler />
     </View>
   );
+}
+
+/** Inside a tab screen: keeps the root snackbar above the tab bar. */
+function TabBarHeightReporter() {
+  useReportTabBarHeight(useBottomTabBarHeight());
+  return null;
 }
 
 /**

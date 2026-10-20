@@ -63,8 +63,8 @@ function stripAndDedupePinned(
 
 /**
  * Cascade for deleting a category across every slice it touches:
- *   - core `categoryDelete` drops the category, trashes its open todos and
- *     clears the category on every todo that had it
+ *   - core `categoryDelete` drops the category and clears it on every todo
+ *     that had it (the todos stay put — uncategorized, never binned)
  *   - reset the active filter to 'all' if it pointed at the deleted id, and
  *     drop it from the multi-filter selection
  *   - strip the ghost `cat:<id>` from every pinned filter set (deduping sets

@@ -182,9 +182,9 @@ export default function SettingsSheet({
                   }}
                   activeOpacity={0.7}
                   accessibilityRole="button"
-                  accessibilityLabel="Manage Todos"
+                  accessibilityLabel={t.filtersAndCategories}
                 >
-                  <Text style={styles.rowLabel}>Manage Todos</Text>
+                  <Text style={styles.rowLabel}>{t.filtersAndCategories}</Text>
                   <Text style={styles.rowChevron}>›</Text>
                 </TouchableOpacity>
                 <View style={styles.divider} />

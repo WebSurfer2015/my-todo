@@ -150,7 +150,7 @@ describe('overdue count matches the Carried-over list (6)', () => {
   const cats: CategoryDef[] = [{ id: 'home', color: '#000', icon: 'home' }]
   const t = strings.en
 
-  it('excludes binned past-due rows except ones completed today', () => {
+  it('excludes every binned / done past-due row (even one completed today)', () => {
     const todos = [
       mk('open', { dueDate: '2026-10-17' }),
       mk('doneEarlier', { dueDate: '2026-10-16', done: true, trashed: true, completionDate: '2026-10-17' }),
@@ -160,7 +160,7 @@ describe('overdue count matches the Carried-over list (6)', () => {
     ]
     const overdueList = deriveState({ todos, filters: ['overdue'], categories: cats, t }).filtered
     const counts = deriveState({ todos, filters: [], categories: cats, t }).systemCounts
-    expect(overdueList.map((x) => x.id).sort()).toEqual(['doneToday', 'open'])
+    expect(overdueList.map((x) => x.id)).toEqual(['open'])
     expect(counts.overdue).toBe(overdueList.length)
   })
 })
@@ -284,7 +284,7 @@ describe('deleteCategoryCascade leaves no ghost references (10)', () => {
     expect(res.homeStatTiles).toBe(tiles)
   })
 
-  it('clears the category on trashed rows so a restore has none', () => {
+  it('clears the category on open AND binned rows, and bins nothing', () => {
     const res = deleteCategoryCascade({
       todos: [
         mk('open', { category: 'work' }),
@@ -297,12 +297,12 @@ describe('deleteCategoryCascade leaves no ghost references (10)', () => {
       pinnedFilters: undefined,
     })
     const byId = Object.fromEntries(res.todos.map((t) => [t.id, t]))
-    expect(byId.open.trashed).toBe(true)
+    expect(byId.open.trashed).toBe(false)
     expect(byId.open.category).toBeUndefined()
     expect(byId.binned.category).toBeUndefined()
     expect(byId.binned.trashedAt).toBe(5)
     expect(byId.other.category).toBe('home')
-    const [restored] = todoRestoreFromTrash(res.todos, 'open').filter((t) => t.id === 'open')
+    const [restored] = todoRestoreFromTrash(res.todos, 'binned').filter((t) => t.id === 'binned')
     expect(restored.category).toBeUndefined()
   })
 })

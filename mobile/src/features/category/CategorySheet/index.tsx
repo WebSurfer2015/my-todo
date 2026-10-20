@@ -15,7 +15,7 @@ import {
   Dimensions,
 } from "react-native";
 import { useSheetDismiss, sheetGrabZone } from "../../../ui/useSheetDismiss";
-import { Check, Pin, Pencil, Eye, EyeOff, Trash2 } from "lucide-react-native";
+import { Check, Pin, Pencil } from "lucide-react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import DraggableFlatList, {
   RenderItemParams,
@@ -74,26 +74,22 @@ interface Props {
   /** Total task counts per priority — used by the PRIORITIES section.
    * Items with no priority don't count toward any bucket. */
   priorityCounts: Record<Priority, number>;
-  /** Full status list — used in Edit mode so hidden statuses can be unhidden. */
+  /** Statuses in the user's order. */
   orderedStatuses: StatusEntry[];
-  /** Visible-only status list — used in View mode picker. */
-  orderedVisibleStatuses: { id: StatusFilter; label: string }[];
-  /** Full priority list — used in Edit mode so hidden priorities can be unhidden. */
+  /** Priorities in the user's order. */
   orderedPriorities: PriorityEntry[];
   onAdd: (data: { label: string; color: string; icon: string }) => void;
   onEdit: (
     id: string,
     data: { label: string; color: string; icon: string },
   ) => void;
-  /** Delete a category. Returns what to say inline (its to-dos moved to
-   * Done) and the store's Undo — the sheet shows them itself, since a
-   * snackbar would sit behind this Modal. */
+  /** Delete a category. Returns what to say inline (its to-dos are now
+   * uncategorized) and the store's Undo — the sheet shows them itself, since
+   * a snackbar would sit behind this Modal. */
   onDelete: (id: string) => { message: string; undo: (() => unknown) | null } | null;
   onReorder: (fromIndex: number, toIndex: number) => void;
   onRenameStatus: (id: StatusFilter, label: string) => void;
-  onToggleStatusHidden: (id: StatusFilter) => void;
   onReorderStatuses: (newOrder: StatusFilter[]) => void;
-  onTogglePriorityHidden: (id: Priority) => void;
   onReorderPriorities: (newOrder: Priority[]) => void;
   /** Which mode to land in when the sheet opens. Funnel entry-point
    * uses "view" (filter picker); gear entry-point uses "edit"
@@ -114,9 +110,11 @@ type Mode =
  * - View mode (default): two read-only sections — STATUSES (top) and
  *   CATEGORIES (below). Tapping a row sets the filter and closes the sheet.
  *   The currently active filter shows a checkmark.
- * - Edit mode: same layout but each row exposes drag-to-reorder + edit
- *   actions (rename/hide for statuses; rename/delete for categories). Add
- *   Category appears at the end of the categories list.
+ * - Edit mode ("Filters & categories"): same layout; each row keeps at most
+ *   two trailing controls — pin + drag. A status label renames in place; a
+ *   category label opens its edit form (name, color, icon, and Delete — the
+ *   only place a category can be deleted, so it can't be hit by accident).
+ *   Add Category appears at the end of the categories list.
  *
  * Toggle between modes via the "Edit" / "Done" action in the header.
  */
@@ -132,16 +130,13 @@ export default function CategorySheet({
   systemCounts,
   priorityCounts,
   orderedStatuses,
-  orderedVisibleStatuses,
   orderedPriorities,
   onAdd,
   onEdit,
   onDelete,
   onReorder,
   onRenameStatus,
-  onToggleStatusHidden,
   onReorderStatuses,
-  onTogglePriorityHidden,
   onReorderPriorities,
   defaultMode = "view",
   onClose,
@@ -159,9 +154,9 @@ export default function CategorySheet({
   const [name, setName] = useState("");
   const [color, setColor] = useState(COLOR_PALETTE[5]);
   const [icon, setIcon] = useState<string>("tag");
-  // Inline label editing in Configure mode — tap a row's label to rename
-  // it in place. `inlineId` is the status/category id being edited (null
-  // when no row is open); `inlineText` is the staged new label.
+  // Inline label editing in Configure mode — tap a status label to rename
+  // it in place. `inlineId` is the status id being edited (null when no row
+  // is open); `inlineText` is the staged new label.
   const [inlineId, setInlineId] = useState<string | null>(null);
   const [inlineText, setInlineText] = useState("");
   // Freeze the outer scroll while a row is being dragged so the sheet
@@ -223,18 +218,6 @@ export default function CategorySheet({
     setInlineId(null);
   }
 
-  function commitInlineCategory(c: CategoryDef, original: string) {
-    const trimmed = inlineText.trim().slice(0, 40);
-    if (trimmed && trimmed !== original) {
-      if (isDuplicateCategoryLabel(trimmed, c.id)) {
-        setInlineId(null);
-        return;
-      }
-      onEdit(c.id, { label: trimmed, color: c.color, icon: c.icon });
-    }
-    setInlineId(null);
-  }
-
   useEffect(() => {
     // On every open, snap to the caller's requested mode. Closing the
     // sheet doesn't change `defaultMode`, so a re-open from the same
@@ -248,6 +231,15 @@ export default function CategorySheet({
     setColor(COLOR_PALETTE[5]);
     setIcon("tag");
     setMode({ kind: "editCategory", id: null });
+  }
+
+  // A category row's label opens its edit form, staged with what it has now.
+  function startEditCategory(c: CategoryDef) {
+    setNotice(null);
+    setName(categoryLabel(c, t));
+    setColor(c.color);
+    setIcon(c.icon);
+    setMode({ kind: "editCategory", id: c.id });
   }
 
 
@@ -285,15 +277,10 @@ export default function CategorySheet({
       Alert.alert(t.cannotDeleteLast);
       return;
     }
-    const target = categories.find((x) => x.id !== c.id)!;
     const count = taskCounts[c.id] ?? 0;
     const message =
       count > 0
-        ? t.deleteCategoryConfirm(
-            categoryLabel(c, t),
-            categoryLabel(target, t),
-            count,
-          )
+        ? t.deleteCategoryConfirm(categoryLabel(c, t), count)
         : t.deleteCategoryConfirmEmpty(categoryLabel(c, t));
     Alert.alert(t.deleteCategoryAction, message, [
       { text: t.cancel, style: "cancel" },
@@ -375,8 +362,7 @@ export default function CategorySheet({
     const count = taskCounts[c.id] ?? 0;
     // View mode is purely for picking a filter — no edit affordances
     // (no pencil, no long-press shortcut). All editing lives in the
-    // Manage Todo's Filter (Configure) view, reached via the right-
-    // side "Manage" header button.
+    // "Filters & categories" (Configure) view, reached from Settings.
     return (
       <TouchableOpacity
         key={c.id}
@@ -436,7 +422,7 @@ export default function CategorySheet({
                       <Text style={styles.headerLeft}>{t.cancel}</Text>
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>
-                      {isEditing ? 'Manage Filters' : 'Select Filter'}
+                      {isEditing ? t.filtersAndCategories : 'Select Filter'}
                     </Text>
                     {isEditing ? (
                       // Manage flow keeps Done in the header. Select Filter's
@@ -525,7 +511,7 @@ export default function CategorySheet({
                                   >
                                     <View style={styles.editRowLabelInner}>
                                       <Text
-                                        style={[styles.editRowLabel, s.hidden && styles.editRowLabelHidden]}
+                                        style={styles.editRowLabel}
                                         numberOfLines={1}
                                       >
                                         {s.label}
@@ -534,20 +520,6 @@ export default function CategorySheet({
                                     </View>
                                   </TouchableOpacity>
                                 )}
-                                <TouchableOpacity
-                                  onPress={() => onToggleStatusHidden(s.id)}
-                                  hitSlop={10}
-                                  style={styles.rowAction}
-                                  accessibilityRole="switch"
-                                  accessibilityState={{ checked: !s.hidden }}
-                                  accessibilityLabel={`${s.hidden ? t.unhide : t.hide} ${s.label}`}
-                                >
-                                  {s.hidden ? (
-                                    <EyeOff size={16} color={theme.label3} strokeWidth={2} />
-                                  ) : (
-                                    <Eye size={16} color={theme.label2} strokeWidth={2} />
-                                  )}
-                                </TouchableOpacity>
                                 <TouchableOpacity
                                   onPress={() => pinRow(s.id)}
                                   hitSlop={10}
@@ -578,10 +550,9 @@ export default function CategorySheet({
                       </View>
 
                       {/* PRIORITIES — mirrors STATUSES so the pin column
-                          aligns with the rest of the sheet. Eye toggle
-                          hides the priority from the view-mode picker;
-                          drag handle reorders. Rename is not supported
-                          (priority labels are i18n-owned). */}
+                          aligns with the rest of the sheet; drag handle
+                          reorders. Rename is not supported (priority labels
+                          are i18n-owned). */}
                       <Text style={styles.sectionHeader}>PRIORITIES</Text>
                       <View style={styles.listCard}>
                         <DraggableFlatList
@@ -607,27 +578,13 @@ export default function CategorySheet({
                                 <View style={styles.editRowLabelTap}>
                                   <View style={styles.editRowLabelInner}>
                                     <Text
-                                      style={[styles.editRowLabel, p.hidden && styles.editRowLabelHidden]}
+                                      style={styles.editRowLabel}
                                       numberOfLines={1}
                                     >
                                       {p.label}
                                     </Text>
                                   </View>
                                 </View>
-                                <TouchableOpacity
-                                  onPress={() => onTogglePriorityHidden(p.id)}
-                                  hitSlop={10}
-                                  style={styles.rowAction}
-                                  accessibilityRole="switch"
-                                  accessibilityState={{ checked: !p.hidden }}
-                                  accessibilityLabel={`${p.hidden ? t.unhide : t.hide} ${p.label}`}
-                                >
-                                  {p.hidden ? (
-                                    <EyeOff size={16} color={theme.label3} strokeWidth={2} />
-                                  ) : (
-                                    <Eye size={16} color={theme.label2} strokeWidth={2} />
-                                  )}
-                                </TouchableOpacity>
                                 <TouchableOpacity
                                   onPress={() => pinRow(f)}
                                   hitSlop={10}
@@ -684,48 +641,24 @@ export default function CategorySheet({
                             isActive,
                           }: RenderItemParams<CategoryDef>) => {
                             const label = categoryLabel(c, t);
-                            const isInline = inlineId === c.id;
                             const catFilter = `cat:${c.id}` as Filter;
                             const isPinned = isFilterPinned(catFilter);
                             return (
                               <View style={[styles.editRow, isActive && styles.editRowActive]}>
                                 <CategoryIcon icon={c.icon} color={c.color} size={18} />
-                                {isInline ? (
-                                  <TextInput
-                                    style={[styles.editRowLabel, styles.inlineInput]}
-                                    value={inlineText}
-                                    onChangeText={setInlineText}
-                                    autoFocus
-                                    selectTextOnFocus
-                                    returnKeyType="done"
-                                    onBlur={() => commitInlineCategory(c, label)}
-                                    onSubmitEditing={() => commitInlineCategory(c, label)}
-                                    maxLength={40}
-                                  />
-                                ) : (
-                                  <TouchableOpacity
-                                    style={styles.editRowLabelTap}
-                                    onPress={() => startInlineEdit(c.id, label)}
-                                    activeOpacity={0.6}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={`Rename ${label}`}
-                                  >
-                                    <View style={styles.editRowLabelInner}>
-                                      <Text style={styles.editRowLabel} numberOfLines={1}>
-                                        {label}
-                                      </Text>
-                                      <Pencil size={11} color={theme.label3} strokeWidth={2} />
-                                    </View>
-                                  </TouchableOpacity>
-                                )}
                                 <TouchableOpacity
-                                  onPress={() => handleDelete(c)}
-                                  hitSlop={10}
-                                  style={styles.rowAction}
+                                  style={styles.editRowLabelTap}
+                                  onPress={() => startEditCategory(c)}
+                                  activeOpacity={0.6}
                                   accessibilityRole="button"
-                                  accessibilityLabel={`${t.deleteTask} ${label}`}
+                                  accessibilityLabel={`${t.editCategory}: ${label}`}
                                 >
-                                  <Trash2 size={14} color={theme.label2} strokeWidth={2} />
+                                  <View style={styles.editRowLabelInner}>
+                                    <Text style={styles.editRowLabel} numberOfLines={1}>
+                                      {label}
+                                    </Text>
+                                    <Pencil size={11} color={theme.label3} strokeWidth={2} />
+                                  </View>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                   onPress={() => pinRow(catFilter)}
@@ -790,13 +723,11 @@ export default function CategorySheet({
 
                       <Text style={styles.sectionHeader}>STATUSES</Text>
                       <View style={styles.listCard}>
-                        {orderedVisibleStatuses.map(viewStatusRow)}
+                        {orderedStatuses.map(viewStatusRow)}
                       </View>
                       <Text style={styles.sectionHeader}>PRIORITIES</Text>
                       <View style={styles.listCard}>
-                        {orderedPriorities
-                          .filter((p) => !p.hidden)
-                          .map((p) => viewPriorityRow(p.id))}
+                        {orderedPriorities.map((p) => viewPriorityRow(p.id))}
                       </View>
                       <Text style={styles.sectionHeader}>CATEGORIES</Text>
                       <View style={styles.listCard}>
@@ -821,13 +752,13 @@ export default function CategorySheet({
               ) : (
                 <>
                   {/* Header row matches the unified sheet pattern:
-                      Cancel/Back left, title center, Delete icon
-                      top-right (only when editing an existing
-                      category). Old in-body destructive Text was
-                      removed in favor of this icon. */}
+                      Back left, title center. Delete lives at the foot of
+                      the form (neutral — it has an Undo). */}
                   <View style={styles.editCatHeader}>
                     <TouchableOpacity
-                      onPress={() => setMode({ kind: "edit" })}
+                      // Same as the backdrop: an edit to an existing category
+                      // is kept (calm, forgiving); back to the list.
+                      onPress={handleBackdrop}
                       hitSlop={10}
                       style={styles.editCatHeaderSide}
                       accessibilityRole="button"
@@ -838,22 +769,7 @@ export default function CategorySheet({
                     <Text style={styles.editCatTitle}>
                       {mode.id ? t.editCategory : t.addCategory}
                     </Text>
-                    {mode.id && categories.length > 1 ? (
-                      <TouchableOpacity
-                        onPress={() => {
-                          const c = categories.find((x) => x.id === mode.id);
-                          if (c) handleDelete(c);
-                        }}
-                        hitSlop={10}
-                        style={styles.editCatHeaderSide}
-                        accessibilityRole="button"
-                        accessibilityLabel={t.deleteCategoryAction}
-                      >
-                        <Trash2 size={20} color={theme.label2} strokeWidth={2} />
-                      </TouchableOpacity>
-                    ) : (
-                      <View style={styles.editCatHeaderSide} />
-                    )}
+                    <View style={styles.editCatHeaderSide} />
                   </View>
                   <View style={styles.field}>
                     <Text style={styles.label}>{t.categoryNameLabel}</Text>
@@ -904,9 +820,8 @@ export default function CategorySheet({
                       ))}
                     </View>
                   </View>
-                  {/* Delete moved into the header (top-right trash
-                      icon). Bottom is now a single primary Save
-                      button — consistent with the Edit Step sheet. */}
+                  {/* Primary Save, then (existing category only) a quiet
+                      Delete — consistent with the Edit Step sheet. */}
                   <TouchableOpacity
                     style={[styles.editCatSaveBtn, !name.trim() && styles.editCatSaveBtnDisabled]}
                     onPress={handleSave}
@@ -918,6 +833,20 @@ export default function CategorySheet({
                   >
                     <Text style={styles.editCatSaveText}>{t.save}</Text>
                   </TouchableOpacity>
+                  {mode.id ? (
+                    <TouchableOpacity
+                      style={styles.editCatDeleteBtn}
+                      onPress={() => {
+                        const c = categories.find((x) => x.id === mode.id);
+                        if (c) handleDelete(c);
+                      }}
+                      activeOpacity={0.6}
+                      accessibilityRole="button"
+                      accessibilityLabel={t.deleteCategoryButton}
+                    >
+                      <Text style={styles.editCatDeleteText}>{t.deleteCategoryButton}</Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </>
               )}
             </Animated.View>

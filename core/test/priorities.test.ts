@@ -6,7 +6,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   getOrderedPriorities,
-  priorityToggleHidden,
   priorityReorder,
 } from '../src/domain/priorities'
 import { SEED_PROFILE, type Profile } from '../src/data/profile'
@@ -43,21 +42,6 @@ describe('getOrderedPriorities', () => {
   })
 })
 
-describe('priorityToggleHidden', () => {
-  it('hides a visible priority and unhides it again (round-trip)', () => {
-    const hidden = priorityToggleHidden(SEED_PROFILE, 'high')
-    expect(getOrderedPriorities(hidden, t).find((x) => x.id === 'high')?.hidden).toBe(true)
-    const shown = priorityToggleHidden(hidden, 'high')
-    expect(getOrderedPriorities(shown, t).find((x) => x.id === 'high')?.hidden).toBe(false)
-  })
-
-  it('does not mutate the input profile', () => {
-    const before = JSON.stringify(SEED_PROFILE)
-    priorityToggleHidden(SEED_PROFILE, 'low')
-    expect(JSON.stringify(SEED_PROFILE)).toBe(before)
-  })
-})
-
 describe('priorityReorder', () => {
   it('applies the new order and preserves all ids', () => {
     const out = priorityReorder(SEED_PROFILE, ['low', 'medium', 'high'])
@@ -72,7 +56,7 @@ describe('priorityReorder', () => {
   })
 
   it('preserves hidden flags across a reorder', () => {
-    const hidden = priorityToggleHidden(SEED_PROFILE, 'high')
+    const hidden: Profile = { ...SEED_PROFILE, priorities: [{ id: 'high', hidden: true }] }
     const out = priorityReorder(hidden, ['medium', 'low', 'high'])
     expect(out.priorities?.find((p) => p.id === 'high')?.hidden).toBe(true)
   })

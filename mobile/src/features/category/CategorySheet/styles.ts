@@ -168,6 +168,18 @@ export function makeStyles(c: ThemeColors) {
       fontWeight: '600',
       letterSpacing: -0.2,
     },
+    // Neutral, not red: a category delete has an Undo (and keeps its to-dos).
+    editCatDeleteBtn: {
+      minHeight: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: SPACING.sm,
+    },
+    editCatDeleteText: {
+      color: c.label2,
+      fontSize: TYPE.body,
+      fontWeight: '600',
+    },
     viewDoneBtn: {
       marginHorizontal: SPACING.lg,
       marginTop: SPACING.md,
@@ -223,7 +235,6 @@ export function makeStyles(c: ThemeColors) {
       borderRadius: 6,
       flex: 1,
     },
-    editRowLabelHidden: { color: c.label3, textDecorationLine: "line-through" },
     rowBtn: { paddingHorizontal: SPACING.sm, paddingVertical: SPACING.xs },
     rowBtnText: { fontSize: TYPE.footnote, fontWeight: "600", color: c.primary },
     // Inline action buttons inside an edit-mode row (Hide/Unhide/Pin/Unpin/

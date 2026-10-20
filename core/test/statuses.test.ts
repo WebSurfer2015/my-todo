@@ -5,9 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   getOrderedStatuses,
-  getOrderedVisibleStatuses,
   statusRename,
-  statusToggleHidden,
   statusReorder,
 } from '../src/domain/statuses'
 import { SEED_PROFILE, type Profile } from '../src/data/profile'
@@ -60,17 +58,6 @@ describe('getOrderedStatuses', () => {
   })
 })
 
-describe('getOrderedVisibleStatuses', () => {
-  it('drops hidden entries', () => {
-    const p: Profile = {
-      ...SEED_PROFILE,
-      statuses: [{ id: 'done', hidden: true }],
-    }
-    const ids = getOrderedVisibleStatuses(p, t).map((s) => s.id)
-    expect(ids).not.toContain('done')
-  })
-})
-
 describe('statusRename', () => {
   it('adds a new override entry when none exists', () => {
     const out = statusRename(SEED_PROFILE, 'open', 'In progress')
@@ -99,23 +86,6 @@ describe('statusRename', () => {
     const original: Profile = { ...SEED_PROFILE }
     statusRename(original, 'open', 'X')
     expect(original.statuses).toBeUndefined()
-  })
-})
-
-describe('statusToggleHidden', () => {
-  it('hides a previously-visible status', () => {
-    const out = statusToggleHidden(SEED_PROFILE, 'done')
-    const o = out.statuses?.find((s) => s.id === 'done')
-    expect(o?.hidden).toBe(true)
-  })
-  it('unhides a previously-hidden status', () => {
-    const p: Profile = {
-      ...SEED_PROFILE,
-      statuses: [{ id: 'done', hidden: true }],
-    }
-    const out = statusToggleHidden(p, 'done')
-    const o = out.statuses?.find((s) => s.id === 'done')
-    expect(o?.hidden).toBeUndefined()
   })
 })
 

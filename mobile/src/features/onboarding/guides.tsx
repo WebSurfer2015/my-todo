@@ -491,7 +491,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: 'Reorder categories',
-        body: "In Settings → Manage Todos, drag a category to reorder it. The order syncs across your devices.",
+        body: "In Settings → Filters & categories, drag a category to reorder it. The order syncs across your devices.",
         visual: (
           <View style={inlineStyles.sidebarWrap}>
             {['Home', 'Work', 'Family'].map((label, i) => (

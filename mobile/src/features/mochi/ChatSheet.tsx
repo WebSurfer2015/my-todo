@@ -801,7 +801,7 @@ export default function ChatSheet({
                         ) : undoFnsRef.current[i] && isUndoLive(undoFnsRef.current[i]) ? (
                           <View style={[styles.appliedRow, { justifyContent: 'flex-end' }]}>
                             <TouchableOpacity
-                              hitSlop={8}
+                              style={styles.undoBtn}
                               onPress={() => {
                                 void runUndo(i)
                               }}
@@ -849,7 +849,7 @@ export default function ChatSheet({
                                       : '✓ Done'}
                                 </Text>
                                 <TouchableOpacity
-                                  hitSlop={8}
+                                  style={styles.undoBtn}
                                   onPress={() => {
                                     void runUndo(i)
                                   }}
@@ -1184,7 +1184,7 @@ function AppliedWithUndo({
     <View style={styles.appliedRow}>
       <Text style={[styles.appliedNote, { marginTop: 0 }]}>✓ {note}</Text>
       <TouchableOpacity
-        hitSlop={8}
+        style={styles.undoBtn}
         onPress={() => {
           void run()
         }}
@@ -2096,6 +2096,8 @@ function makeStyles(c: ThemeColors) {
     appliedNote: { fontSize: TYPE.footnote, fontWeight: '600', color: c.label2, marginTop: SPACING.xs },
     appliedRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, marginTop: SPACING.xs },
     undoText: { fontSize: TYPE.footnote, fontWeight: '700', color: c.primary },
+    // Quiet text link, full 44pt touch target (the row grows to fit).
+    undoBtn: { minHeight: 44, minWidth: 44, paddingHorizontal: SPACING.sm, alignItems: 'center', justifyContent: 'center' },
     actionsRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.xs },
     btn: {
       flex: 1,

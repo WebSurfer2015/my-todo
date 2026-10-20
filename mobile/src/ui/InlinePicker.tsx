@@ -49,7 +49,7 @@ export default function InlinePicker({ title, options, selectedKey, onSelect, on
               activeOpacity={0.6}
             >
               {opt.icon}
-              <Text style={[styles.label, { color: opt.color ?? theme.label }]}>
+              <Text style={[styles.label, { color: theme.label }]}>
                 {opt.label}
               </Text>
               {selectedKey === opt.key && (

@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 /**
  * useTodoStore.deleteCategory's Undo (manual snackbar + Ask Mochi): puts back
- * the category in its slot, the to-dos the cascade moved, AND the filter
+ * the category in its slot, the category on each of its to-dos (the delete
+ * leaves them in place, uncategorized — never binned), AND the filter
  * selection / pinned filter sets / Home stat tiles it stripped — and reports
  * whether anything came back (the shared store Undo contract).
  */
@@ -54,6 +55,11 @@ describe('useTodoStore.deleteCategory Undo', () => {
       undo = hook.result.current.deleteCategory('work')
     })
     expect(hook.result.current.categories.some((c) => c.id === 'work')).toBe(false)
+    // The to-do stays open, just uncategorized.
+    const report = hook.result.current.todos.find((t) => t.text === 'Report')!
+    expect(report.trashed).toBe(false)
+    expect(report.done).toBe(false)
+    expect(report.category).toBeUndefined()
     expect(hook.result.current.filters).toEqual(['pri:high'])
     expect(hook.result.current.profile.pinnedFilters).toEqual([['pri:high']])
     expect(hook.result.current.profile.homeStatTiles).toEqual(['open'])
@@ -72,6 +78,35 @@ describe('useTodoStore.deleteCategory Undo', () => {
       out = undo!()
     })
     expect(out).toBe(false)
+    hook.unmount()
+  })
+
+  it('a done to-do keeps its done state; Undo puts the category back on open and done rows', async () => {
+    const hook = renderHook(() => useTodoStore())
+    await waitFor(() => expect(hook.result.current.loaded).toBe(true))
+    let done = ''
+    act(() => {
+      hook.result.current.addTask('Open one', 'medium', '', 'work')
+      done = hook.result.current.addTask('Done one', 'medium', '', 'work')
+    })
+    act(() => {
+      hook.result.current.toggle(done, { silent: true })
+    })
+    const doneBefore = hook.result.current.todos.find((t) => t.id === done)!
+    let undo: (() => unknown) | null = null
+    act(() => {
+      undo = hook.result.current.deleteCategory('work')
+    })
+    const after = hook.result.current.todos.find((t) => t.id === done)!
+    expect(after.category).toBeUndefined()
+    expect(after.done).toBe(doneBefore.done)
+    expect(after.trashed).toBe(doneBefore.trashed)
+    act(() => {
+      undo!()
+    })
+    for (const text of ['Open one', 'Done one']) {
+      expect(hook.result.current.todos.find((t) => t.text === text)?.category).toBe('work')
+    }
     hook.unmount()
   })
 

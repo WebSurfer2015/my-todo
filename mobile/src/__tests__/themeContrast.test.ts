@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { THEMES } from '../app/theme'
+import { makeStyles as makeTaskItemStyles } from '../features/task/TaskItem/styles'
+import { SEED_CATEGORIES } from '../../../core/src/data/categories'
 
 // WCAG 2.x relative luminance / contrast ratio.
 function luminance(hex: string): number {
@@ -38,6 +40,29 @@ describe('theme contrast (WCAG AA)', () => {
         for (const bg of [c.orange, c.green, c.gray]) {
           expect(contrast('#1F2A24', bg)).toBeGreaterThanOrEqual(4.5)
         }
+      })
+      it(`${name}/${scheme}: row category label ink`, () => {
+        // The category LABEL on a row is theme ink, not the category hue —
+        // the seed hues (Home green, Other orange) are ~2:1 as text.
+        const ink = makeTaskItemStyles(c).chipTextCategory.color as string
+        expect(ink).toBe(c.label2)
+        expect(contrast(ink, c.card)).toBeGreaterThanOrEqual(4.5)
+        expect(contrast(ink, c.bg)).toBeGreaterThanOrEqual(4.5)
+        if (scheme === 'light') {
+          // Guard the reason: at least one seed hue would fail as text.
+          expect(SEED_CATEGORIES.some((cat) => contrast(cat.color, c.card) < 4.5)).toBe(true)
+        }
+      })
+      it(`${name}/${scheme}: header + tab bar chrome`, () => {
+        // Header title / icons / active tab, and the inactive tab label, on
+        // the shared chrome band.
+        expect(contrast(c.headerOn, c.headerBg)).toBeGreaterThanOrEqual(4.5)
+        expect(contrast(c.headerOnMuted, c.headerBg)).toBeGreaterThanOrEqual(4.5)
+        // The status bar is light-content over the band in both schemes, so
+        // the band must be a dark tone (white reads on it).
+        expect(contrast('#FFFFFF', c.headerBg)).toBeGreaterThanOrEqual(4.5)
+        // Dark mode uses the deep brand tone, never the bright accent.
+        if (scheme === 'dark') expect(c.headerBg).not.toBe(c.primary)
       })
       it(`${name}/${scheme}: Ask Mochi voice input`, () => {
         // "Listening…" / denied note (label2) and the Open Settings link

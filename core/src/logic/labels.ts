@@ -11,7 +11,7 @@
  */
 
 import type { Recurrence, RecurrenceFreq, Reminder } from '../domain/types'
-import { dueDateOnly, formatDisplayDate, formatRecurrence, todayLocal } from './utils'
+import { dueDateOnly, formatRecurrence, todayLocal } from './utils'
 
 /** The `t.recurrence` slice: plain-frequency words. */
 export interface RecurrenceFreqStrings {
@@ -151,24 +151,50 @@ export function isCustomRecurrence(rec: Recurrence | undefined): boolean {
   return !!rec && Array.isArray(rec.byWeekday) && rec.byWeekday.length > 0
 }
 
+/** Whole days from local day `from` to local day `to` (both 'YYYY-MM-DD');
+ * NaN when either doesn't parse. DST-safe (rounds the hour shift away). */
+function dayDiff(from: string, to: string): number {
+  const a = parseLocalISO(from)
+  const b = parseLocalISO(to)
+  if (!a || !b) return NaN
+  return Math.round((b.valueOf() - a.valueOf()) / 86_400_000)
+}
+
 /**
- * A to-do / step date chip. A PAST date names the day it was for
- * ("Mon, Oct 5") — never a count of days behind ("12 days ago"), which reads
- * as a scoreboard for a carried-over item. Today / future keep the relative
- * label ("Today", "Tomorrow", "in 3 days"). Same rule as the parent row.
+ * A to-do / step date chip — and the details sheet's "Complete by", so the
+ * two always read the same:
+ * - past → the day it was for ("Mon, Oct 5"), never "12 days ago" (a
+ *   scoreboard for a carried-over item); a past time is dropped.
+ * - today / tomorrow → "Today" / "Tomorrow".
+ * - the next 6 days → the weekday ("Thu").
+ * - later → "Oct 24" ("Oct 24, 2027" in another year).
+ * Never "in N days". A future / today date-time adds ", 9:00 AM".
  */
 export function rowDateLabel(iso: string, locale?: string, today: string = todayLocal()): string {
   const day = dueDateOnly(iso)
-  return day < today ? weekdayDate(day, { locale }) : formatDisplayDate(iso, locale)
+  const diff = dayDiff(today, day)
+  if (Number.isNaN(diff)) return iso
+  const d = parseLocalISO(day)!
+  if (diff < 0) return weekdayDate(d, { locale, now: parseLocalISO(today) })
+  const label =
+    diff === 0
+      ? 'Today'
+      : diff === 1
+        ? 'Tomorrow'
+        : diff <= 6
+          ? d.toLocaleDateString(locale, { weekday: 'short' })
+          : shortDate(d, { locale, now: parseLocalISO(today) })
+  const at = /T\d{2}:\d{2}/.test(iso) ? parseLocalISO(iso) : undefined
+  return at ? `${label}, ${timeOfDay(at, { locale })}` : label
 }
 
 /** The Done bin's chip: a past completion names its day ("Done Mon, Oct 5"),
- * never "Done 12 days ago"; today reads "Done today". */
+ * never "Done 12 days ago"; today reads "Done today". A completion dated
+ * AFTER today (clock skew, another device's timezone) is clamped to "Done
+ * today" — a finished thing is never "Done tomorrow". */
 export function doneOnLabel(completionDate: string, locale?: string, today: string = todayLocal()): string {
   const day = dueDateOnly(completionDate)
-  return day < today
-    ? `Done ${weekdayDate(day, { locale })}`
-    : `Done ${formatDisplayDate(completionDate, locale).toLowerCase()}`
+  return day < today ? `Done ${weekdayDate(day, { locale })}` : 'Done today'
 }
 
 /** Cadence label plus " · ends <date>" when the rule has an end date. */

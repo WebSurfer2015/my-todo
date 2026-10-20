@@ -16,7 +16,7 @@ import { snapDueDateToRecurrence } from '../../../../../core/src/logic/derive'
 import { CategoryDef, categoryLabel } from '../../../core-bindings/categories'
 import { useLang } from '../../../app/LangContext'
 import { useTheme } from '../../../app/theme'
-import { dueDateToDate, dueDateWithDay, duePresetDates, formatDisplayDate, fullDateLabel, isoDate } from '../../../core-bindings/utils'
+import { dueDateToDate, dueDateWithDay, duePresetDates, fullDateLabel, isoDate } from '../../../core-bindings/utils'
 import {
   todayLocal,
   endOfWeekLocal,
@@ -931,7 +931,7 @@ export default function ComposeSheet({
                               </Text>
                               {s.dueDate ? (
                                 <Text style={styles.stepMeta}>
-                                  {formatDisplayDate(s.dueDate, t.locale)}
+                                  {rowDateLabel(s.dueDate, t.locale)}
                                 </Text>
                               ) : null}
                             </View>

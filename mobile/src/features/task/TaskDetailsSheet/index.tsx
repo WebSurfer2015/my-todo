@@ -989,7 +989,7 @@ export default function TaskDetailsSheet({
                         ]}
                         numberOfLines={1}
                       >
-                        {editSubDueDate ? absoluteDateLabel(editSubDueDate, t.locale) : t.noDate}
+                        {editSubDueDate ? rowDateLabel(editSubDueDate, t.locale) : t.noDate}
                       </Text>
                       <Text style={styles.editChevron}>›</Text>
                     </TouchableOpacity>
@@ -1207,19 +1207,20 @@ export default function TaskDetailsSheet({
           ) : (
           <>
           <View style={styles.editHeader}>
-            {/* Spacer keeps the title centered against Done. */}
+            {/* Spacer keeps the title centered against Close. */}
             <View style={styles.headerSideBtn} />
             <Text style={styles.editHeaderTitle}>{t.edit.toDo}</Text>
-            {/* Done = close; every field already saved as you edited
-                (Undo appears in the toast). */}
+            {/* Close (not "Done" — that sat beside the footer's "Mark done"):
+                every field already saved as you edited (Undo appears in the
+                toast). */}
             <TouchableOpacity
               onPress={closeAndFlushText}
               hitSlop={10}
               style={styles.headerSideBtn}
               accessibilityRole="button"
-              accessibilityLabel={t.done}
+              accessibilityLabel={t.close}
             >
-              <Text style={styles.saveHeaderText}>{t.done}</Text>
+              <Text style={styles.saveHeaderText}>{t.close}</Text>
             </TouchableOpacity>
           </View>
 
@@ -1398,7 +1399,7 @@ export default function TaskDetailsSheet({
                   onPress={openEditDatePicker}
                   activeOpacity={0.6}
                   accessibilityRole="button"
-                  accessibilityLabel={`Complete by, ${editDueDate ? absoluteDateLabel(editDueDate, t.locale) : t.noDate}. Tap to change.`}
+                  accessibilityLabel={`Complete by, ${editDueDate ? rowDateLabel(editDueDate, t.locale) : t.noDate}. Tap to change.`}
                 >
                   <CalendarIcon size={18} color={editDueDate ? theme.blue : theme.gray3} />
                   <Text style={styles.editFieldLabel}>{t.edit.completedBy}</Text>
@@ -1409,7 +1410,7 @@ export default function TaskDetailsSheet({
                     ]}
                     numberOfLines={1}
                   >
-                    {editDueDate ? absoluteDateLabel(editDueDate, t.locale) : t.noDate}
+                    {editDueDate ? rowDateLabel(editDueDate, t.locale) : t.noDate}
                   </Text>
                   <Text style={styles.editChevron}>›</Text>
                 </TouchableOpacity>

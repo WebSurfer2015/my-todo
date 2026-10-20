@@ -185,18 +185,6 @@ export function makeStyles(c: ThemeColors) {
       marginLeft: 'auto',
       maxWidth: 100,
     },
-    // Quiet trailing edit affordance (opens the edit sheet); the row body
-    // itself toggles, so this stays low-contrast to not clutter the list.
-    rowEditBtn: {
-      paddingLeft: SPACING.sm,
-      paddingVertical: SPACING.sm,
-      alignSelf: 'center',
-    },
-    rowEditChevron: {
-      fontSize: TYPE.h2,
-      color: c.gray3,
-      lineHeight: 22,
-    },
   })
 }
 
