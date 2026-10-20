@@ -963,7 +963,12 @@ export default function ChatSheet({
                 // newline. (onSubmitEditing never fires for multiline.)
                 onChangeText={(text) => {
                   if (text.endsWith('\n')) handleSend(text.replace(/\n+$/, ''))
-                  else setInput(text)
+                  else {
+                    // Typing takes over from the mic: a later speech result
+                    // would rebuild the box and drop this edit.
+                    speech.stop({ discard: true })
+                    setInput(text)
+                  }
                 }}
                 multiline
                 maxLength={2000}

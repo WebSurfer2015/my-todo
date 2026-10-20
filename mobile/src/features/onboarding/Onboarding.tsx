@@ -119,7 +119,12 @@ export default function Onboarding({ visible, onSubmit, onExplore }: Props) {
               ref={inputRef}
               style={styles.input}
               value={text}
-              onChangeText={setText}
+              onChangeText={(next) => {
+                // Typing takes over from the mic: a later speech result
+                // would rebuild the box and drop this edit.
+                speech.stop({ discard: true })
+                setText(next)
+              }}
               placeholder="e.g. call the dentist on Friday"
               placeholderTextColor={theme.label2}
               multiline

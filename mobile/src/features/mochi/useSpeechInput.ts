@@ -5,9 +5,9 @@
  * `requiresOnDeviceRecognition: true`, so audio never leaves the iPhone —
  * only the resulting text, and only if the user taps Send. English (en-US),
  * interim results on, CONTINUOUS: a pause doesn't end it. Listening ends only
- * after SPEECH_SILENCE_MS (10 s) with no new words, on Stop, or when the
- * caller stops it (Send, sheet close) / the app backgrounds / the hook
- * unmounts. If iOS ends its own session sooner (a pause, a no-speech error),
+ * after SPEECH_SILENCE_MS (5 s) with no new words, on Stop, or when the
+ * caller stops it (Send, typing, sheet close) / the app backgrounds / the
+ * hook unmounts. If iOS ends its own session sooner (a pause, a no-speech error),
  * the hook quietly restarts it inside that window, keeping the words so far.
  * Nothing is ever sent automatically.
  *
@@ -54,7 +54,7 @@ export interface SpeechModule {
 }
 
 /** Stop after this long with no new words — also when none came at all. */
-export const SPEECH_SILENCE_MS = 10_000
+export const SPEECH_SILENCE_MS = 5_000
 /** Native restarts allowed in a row with no words between them, so a
  * recognizer that keeps failing at once can't spin until the window ends. */
 const MAX_QUIET_RESTARTS = 3
@@ -91,8 +91,10 @@ function resolveOnDevice(load: () => SpeechModule | null): SpeechModule | null {
 }
 
 export interface StopOptions {
-  /** Ignore any result still in flight (Send / close / background), so a
-   * late final result can't refill a box that was just cleared. */
+  /** Ignore any result still in flight (Send / typing / close / background),
+   * so a late final result can't refill — or overwrite — the box. Applies
+   * even after listening has settled: the recognizer's last result can still
+   * be on its way. */
   discard?: boolean
 }
 
@@ -208,7 +210,7 @@ export function useSpeechInput({
           if (!transcript.trim()) return
           heardRef.current = true
           restartsRef.current = 0
-          // New words → the 10 s silence window starts over.
+          // New words → the silence window starts over.
           if (wantRef.current) armTimer()
         }),
         mod.addListener('error', (e) => {
@@ -279,6 +281,7 @@ export function useSpeechInput({
     (opts?: StopOptions) => {
       sessionRef.current++
       wantRef.current = false
+      if (opts?.discard) acceptingRef.current = false
       if (!mod || statusRef.current !== 'listening') return
       quietRef.current = true
       try {

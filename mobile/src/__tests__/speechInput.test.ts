@@ -88,6 +88,9 @@ describe('ChatSheet wiring (source guard)', () => {
     expect(chat).toMatch(/if \(!visible \|\| isThinking \|\| isResting\) stopSpeech\(\{ discard: true \}\)/)
     expect(chat).not.toMatch(/onTranscript:[^\n]*handleSend/)
   })
+  it('typing stops the mic so a later result cannot overwrite the edit', () => {
+    expect(chat).toMatch(/else \{\s*\n(\s*\/\/[^\n]*\n)+\s*speech\.stop\(\{ discard: true \}\)\s*\n\s*setInput\(text\)/)
+  })
   it('the denied note links to Settings', () => {
     const voice = readFileSync(join(here, '..', 'features/mochi/VoiceInput.tsx'), 'utf8')
     expect(voice).toMatch(/Linking\.openSettings\(\)/)
@@ -112,6 +115,9 @@ describe('Onboarding wiring (source guard)', () => {
     expect(src).toMatch(/if \(!trimmed\) return\s*\n\s*\/\/[^\n]*\n\s*speech\.stop\(\{ discard: true \}\)\s*\n\s*onSubmit\(trimmed\)/)
     expect(src).toMatch(/if \(!visible\) stopSpeech\(\{ discard: true \}\)/)
     expect(src).toMatch(/speech\.stop\(\{ discard: true \}\)\s*\n\s*setText\(`\$\{ex\} `\)/)
+  })
+  it('typing stops the mic so a later result cannot overwrite the edit', () => {
+    expect(src).toMatch(/onChangeText=\{\(next\) => \{\s*\n(\s*\/\/[^\n]*\n)+\s*speech\.stop\(\{ discard: true \}\)\s*\n\s*setText\(next\)/)
   })
 })
 

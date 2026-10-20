@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 /**
  * useSpeechInput: on-device only, permission on first tap, interim results
- * fill the box (appended to typed text), and listening ends on Stop / 10 s
- * of silence / background / unmount without ever sending — never at a mere
+ * fill the box (appended to typed text), and listening ends on Stop / 5 s
+ * of silence / typing / background / unmount without ever sending — never at a mere
  * pause (continuous; a native end inside the window restarts). A missing native
  * module or no on-device recognizer → 'unavailable' (mic hidden).
  */
@@ -125,7 +125,7 @@ describe('useSpeechInput', () => {
     expect(result.current.status).toBe('unavailable')
   })
 
-  it('stops itself only after 10 s of silence, keeping the text', async () => {
+  it('stops itself only after 5 s of silence, keeping the text', async () => {
     const { result, onTranscript } = setup()
     await act(async () => { await result.current.start('') })
     act(() => speak('buy eggs'))
@@ -205,8 +205,33 @@ describe('useSpeechInput', () => {
     expect(fake.listeners.result?.size ?? 0).toBe(0)
   })
 
-  it('the silence window is 10 s', () => {
-    expect(SPEECH_SILENCE_MS).toBe(10_000)
+  it('the silence window is 5 s', () => {
+    expect(SPEECH_SILENCE_MS).toBe(5_000)
+  })
+
+  it('typing while listening (discard) keeps the typed edit: later results are ignored', async () => {
+    const { result, onTranscript } = setup()
+    await act(async () => { await result.current.start('') })
+    act(() => speak('buy eggs'))
+    // The user edits the box → the caller stops with discard.
+    act(() => result.current.stop({ discard: true }))
+    expect(result.current.status).toBe('idle')
+    onTranscript.mockClear()
+    act(() => final('buy eggs'))
+    expect(onTranscript).not.toHaveBeenCalled()
+  })
+
+  it('typing right after the silence stop still drops the last in-flight result', async () => {
+    const { result, onTranscript } = setup()
+    await act(async () => { await result.current.start('') })
+    act(() => speak('buy eggs'))
+    act(() => { vi.advanceTimersByTime(SPEECH_SILENCE_MS) })
+    expect(result.current.status).toBe('idle')
+    // Settled, but iOS's final result hasn't landed yet; the user types.
+    act(() => result.current.stop({ discard: true }))
+    onTranscript.mockClear()
+    act(() => final('buy eggs.'))
+    expect(onTranscript).not.toHaveBeenCalled()
   })
 
   it('a pause that ends the native session restarts it and keeps the words so far', async () => {
@@ -221,7 +246,7 @@ describe('useSpeechInput', () => {
     // The new session's transcript starts fresh; the box keeps the old words.
     act(() => speak('and milk'))
     expect(onTranscript).toHaveBeenLastCalledWith('note: buy eggs and milk')
-    // And still only 10 s of silence ends it.
+    // And still only the silence window ends it.
     act(() => { vi.advanceTimersByTime(SPEECH_SILENCE_MS - 1) })
     expect(result.current.status).toBe('listening')
     act(() => { vi.advanceTimersByTime(1) })
