@@ -1083,3 +1083,30 @@ describe('useTodosSlice round 9', () => {
     expect(hook.result.current.todoReferences.map((r) => r.text)).toEqual(['Pay rent'])
   })
 })
+
+describe('Delete series from any occurrence (device report 2026-10-19)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 19, 12, 0, 0))
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('opened from a later occurrence, moves every open occurrence to Done; Undo brings them all back', async () => {
+    const { hook } = await setup([mk('keep')])
+    act(() => {
+      hook.result.current.addTaskWithUndo('Stretch', 'medium', '2026-10-19', undefined, { freq: 'daily' })
+    })
+    const rows = () => hook.result.current.todos.filter((x) => x.text === 'Stretch')
+    const total = rows().length
+    const later = rows()[4]
+    let undo: (() => unknown) | null = null
+    act(() => {
+      undo = hook.result.current.moveSeriesToTrash(later.id)
+    })
+    expect(rows().filter((x) => !x.trashed)).toEqual([])
+    act(() => {
+      undo!()
+    })
+    await waitFor(() => expect(rows().filter((x) => !x.trashed).length).toBe(total))
+  })
+})

@@ -494,7 +494,7 @@ export function useMochiExecutor(store: Store, t: Strings) {
   // this + every future occurrence in the series.
   const deleteTodoScoped = useCallback(
     (id: string, scope: 'one' | 'series') => {
-      const undo = scope === 'series' ? store.moveSeriesFutureToTrash(id, SILENT) : store.moveToTrash(id, SILENT)
+      const undo = scope === 'series' ? store.moveSeriesToTrash(id, SILENT) : store.moveToTrash(id, SILENT)
       return undo ? beginMochiTurn()(undo) : null
     },
     [store],

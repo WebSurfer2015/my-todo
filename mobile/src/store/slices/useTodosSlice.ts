@@ -251,6 +251,8 @@ export interface TodosSlice {
    * the row has no seriesId. */
   detachFromSeries: (id: string) => void;
   moveSeriesFutureToTrash: (id: string, opts?: SilentOpt) => Undo | null;
+  /** "Delete series": every open occurrence to Done (from any one), series ends. */
+  moveSeriesToTrash: (id: string, opts?: SilentOpt) => Undo | null;
   // Subtasks
   addSubtask: (
     id: string,
@@ -327,6 +329,7 @@ export function useTodosSlice(
     todosRevertChangesWithReport,
     todoMoveToTrash,
     todoMoveToTrashFutureSeries,
+    todoMoveSeriesToTrash,
     todoApplySeriesFutureEdits,
     todoRestoreFromTrash,
     todoPermanentlyDelete,
@@ -707,6 +710,24 @@ export function useTodosSlice(
       );
     },
     [applyTracked, undoTracked, withUndoSnackbar, t.series, t.movedToTrash, todoMoveToTrashFutureSeries],
+  );
+
+  const moveSeriesToTrash = useCallback(
+    (id: string, opts?: SilentOpt) => {
+      let affected = 0;
+      const change = applyTracked((ts) => {
+        const r = todoMoveSeriesToTrash(ts, id);
+        affected = r.affected;
+        return r.next;
+      });
+      if (!change) return null;
+      return withUndoSnackbar(
+        () => undoTracked(change, opts),
+        { message: affected > 1 ? t.series.trashedMany(affected) : t.movedToTrash },
+        opts,
+      );
+    },
+    [applyTracked, undoTracked, withUndoSnackbar, t.series, t.movedToTrash, todoMoveSeriesToTrash],
   );
 
   const permanentlyDelete = useCallback(
@@ -1153,6 +1174,7 @@ export function useTodosSlice(
     detachFromSeries,
     commitSeriesEdits,
     moveSeriesFutureToTrash,
+    moveSeriesToTrash,
     addSubtask,
     toggleSubtask,
     updateSubtaskText,

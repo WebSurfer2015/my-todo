@@ -62,6 +62,7 @@ function fakeStore(): Fake {
   })
   s.moveToTrash = vi.fn((id: string) => () => s.calls.push(`undo trash ${id}`))
   s.moveSeriesFutureToTrash = vi.fn((id: string) => () => s.calls.push(`undo series trash ${id}`))
+  s.moveSeriesToTrash = vi.fn((id: string) => () => s.calls.push(`undo whole series trash ${id}`))
   s.skipTodo = vi.fn((id: string) => () => s.calls.push(`undo skip ${id}`))
   s.bulkDeferTodos = vi.fn(() => () => s.calls.push('undo defer'))
   s.toggleGroceryChecked = vi.fn((id: string) => {
@@ -485,11 +486,12 @@ describe('useMochiExecutor — apply details', () => {
     vi.restoreAllMocks()
   })
 
-  it('scoped delete: "series" trashes this + future, "one" just this one', () => {
+  it('scoped delete: "series" moves the WHOLE series to Done, "one" just this one', () => {
     const { store, hook } = setup()
     hook.result.current.deleteTodoScoped('a', 'series')!()
     hook.result.current.deleteTodoScoped('b', 'one')!()
-    expect(store.calls).toEqual(['undo series trash a', 'undo trash b'])
+    expect(store.moveSeriesToTrash).toHaveBeenCalledWith('a', { silent: true })
+    expect(store.calls).toEqual(['undo whole series trash a', 'undo trash b'])
   })
 
   it('"This & future" on a repeating to-do trashes the series; its Undo is live', async () => {

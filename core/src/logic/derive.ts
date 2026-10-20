@@ -1264,6 +1264,34 @@ export function todoMoveToTrashFutureSeries(prev: Todo[], id: string): { next: T
 }
 
 /**
+ * "Delete series" — move EVERY open occurrence of this to-do's series to
+ * the Done bin, wherever it was opened from (an earlier upcoming occurrence
+ * is part of the series too), and stop it repeating. Finished occurrences
+ * stay as history. Undo goes through the tracked revert. A one-off falls
+ * back to a single move.
+ */
+export function todoMoveSeriesToTrash(prev: Todo[], id: string): { next: Todo[]; affected: number } {
+  const target = prev.find((t) => t.id === id);
+  if (!target) return { next: prev, affected: 0 };
+  if (!target.seriesId) {
+    return { next: todoMoveToTrash(prev, id), affected: 1 };
+  }
+  const now = Date.now();
+  let affected = 0;
+  let earliest = "";
+  const next = prev.map((td) => {
+    if (td.seriesId !== target.seriesId || td.trashed || td.done) return td;
+    affected += 1;
+    const day = dueDateOnly(td.dueDate);
+    if (day && (!earliest || day < earliest)) earliest = day;
+    return { ...td, trashed: true, trashedAt: now, updatedAt: now };
+  });
+  if (affected === 0) return { next: prev, affected: 0 };
+  const cutoff = earliest || dueDateOnly(target.dueDate);
+  return { next: cutoff ? seriesEndBefore(next, target.seriesId, cutoff) : next, affected };
+}
+
+/**
  * Skip this occurrence AND all future siblings in the series — the
  * "Skip all" action. Mirrors todoMoveToTrashFutureSeries' targeting (same
  * seriesId, dueDate >= this row's, not already done/trashed) but applies

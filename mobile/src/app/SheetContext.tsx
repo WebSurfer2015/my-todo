@@ -785,7 +785,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           onMoveToTrash={store.moveToTrash}
           onToggle={store.toggle}
           onPermanentDelete={store.permanentlyDelete}
-          onMoveSeriesFutureToTrash={store.moveSeriesFutureToTrash}
+          onMoveSeriesToTrash={store.moveSeriesToTrash}
           onSkip={store.skipTodo}
           onSkipSeries={store.skipSeriesFuture}
           onPermanentDeleteSeries={store.permanentlyDeleteSeriesFuture}

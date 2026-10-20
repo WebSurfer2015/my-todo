@@ -133,7 +133,8 @@ interface Props {
    * trash step). Open items still go to trash. */
   onPermanentDelete: (id: string) => void
   /** "Delete" in series scope: this + all future occurrences to trash. */
-  onMoveSeriesFutureToTrash: (id: string) => void
+  /** "Delete series": every open occurrence to Done, series stops. */
+  onMoveSeriesToTrash: (id: string) => void
   /** Skip this occurrence (recurring/series). */
   onSkip: (id: string) => void
   /** Skip this + all future occurrences in the series. */
@@ -173,7 +174,7 @@ function todoContentDiffers(a: Todo, b: Todo): boolean {
 
 export default function TaskDetailsSheet({
   visible, todo, categories, initialSubtaskEditId, onClose, onMounted, onShown, registerClose, onUpdateText, onUpdateNotes,
-  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminders, onMoveToTrash, onToggle, onPermanentDelete, onMoveSeriesFutureToTrash, onSkip, onSkipSeries, onPermanentDeleteSeries, onCommitSeriesEdits, onDetachFromSeries,
+  onUpdatePriority, onUpdateDueDate, onUpdateCategory, onUpdateRecurrence, onUpdateReminders, onMoveToTrash, onToggle, onPermanentDelete, onMoveSeriesToTrash, onSkip, onSkipSeries, onPermanentDeleteSeries, onCommitSeriesEdits, onDetachFromSeries,
   onAddSubtask, onToggleSubtask, onUpdateSubtaskText,
   onUpdateSubtaskPriority, onUpdateSubtaskDueDate, onRemoveSubtask, onClearSubtasks,
   agentEnabled,
@@ -1635,15 +1636,15 @@ export default function TaskDetailsSheet({
                     if (!isBinFooter) {
                       if (seriesScope) {
                         alertWithPresence(
-                          'Delete this and future to-dos?',
-                          'They move to Done, where they stay for 30 days. Past ones are kept.',
+                          'Delete this series?',
+                          'All its upcoming to-dos move to Done for 30 days, and it stops repeating. Finished ones stay as they are.',
                           [
                             { text: t.cancel, style: 'cancel' },
                             {
                               // Reversible (30 days in Done) — neutral, not red.
                               text: 'Move to Done',
                               onPress: () => {
-                                onMoveSeriesFutureToTrash(todo.id)
+                                onMoveSeriesToTrash(todo.id)
                                 onClose()
                               },
                             },
