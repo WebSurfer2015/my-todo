@@ -45,7 +45,9 @@ export default function PickerModal({ visible, options, selectedKey, onSelect, o
               onPress={() => { onSelect(opt.key); onClose() }}
             >
               {opt.icon}
-              <Text style={[styles.label, { color: opt.color }]}>{opt.label}</Text>
+              {/* Label in the theme ink — option colors (category / priority hues)
+                  stay on the icon + check; as text they fall under 4.5:1. */}
+              <Text style={styles.label}>{opt.label}</Text>
               {selectedKey === opt.key && <CheckGlyph size={16} color={opt.color} />}
             </TouchableOpacity>
           ))}
@@ -92,6 +94,7 @@ function makeStyles(c: ThemeColors) {
       flex: 1,
       fontSize: 16,
       fontWeight: '500',
+      color: c.label,
     },
     check: {
       fontSize: 16,

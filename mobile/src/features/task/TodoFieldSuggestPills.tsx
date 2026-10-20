@@ -6,7 +6,8 @@ import { useLang } from '../../app/LangContext'
 import { useTheme, ThemeColors } from '../../app/theme'
 import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 import { Priority, RecurrenceFreq } from '../../core-bindings/types'
-import { formatDisplayDate, formatRecurrence } from '../../core-bindings/utils'
+import { formatRecurrence } from '../../core-bindings/utils'
+import { rowDateLabel } from '../../../../core/src/logic/labels'
 import { formatReminder } from '../../../../core/src/logic/labels'
 import CategoryIcon from '../../ui/CategoryIcon'
 import PriorityDot from '../../ui/PriorityDot'
@@ -212,8 +213,8 @@ export function TodoFieldSuggestPills({
             onDismissField('dueDate')
           }}
           onDismiss={() => onDismissField('dueDate')}
-          accessibilityLabel={`${t.aiSuggestionA11y}: ${t.composeDateLabel} ${formatDisplayDate(suggestions!.dueDate!, t.locale)}`}
-          label={formatDisplayDate(suggestions!.dueDate!, t.locale)}
+          accessibilityLabel={`${t.aiSuggestionA11y}: ${t.composeDateLabel} ${rowDateLabel(suggestions!.dueDate!, t.locale)}`}
+          label={rowDateLabel(suggestions!.dueDate!, t.locale)}
         />
       )}
       {showRecurrencePill && (
@@ -224,11 +225,11 @@ export function TodoFieldSuggestPills({
             onDismissField('recurrence')
           }}
           onDismiss={() => onDismissField('recurrence')}
-          accessibilityLabel={`${t.aiSuggestionA11y}: ${formatRecurrence(suggestions!.recurrence!)}${suggestions!.recurrence!.endDate ? `, ${formatDisplayDate(suggestions!.recurrence!.endDate, t.locale)}` : ''}`}
+          accessibilityLabel={`${t.aiSuggestionA11y}: ${formatRecurrence(suggestions!.recurrence!)}${suggestions!.recurrence!.endDate ? `, ${rowDateLabel(suggestions!.recurrence!.endDate, t.locale)}` : ''}`}
           icon={<Repeat size={11} color={theme.primary} strokeWidth={2.2} />}
           label={
             suggestions!.recurrence!.endDate
-              ? `${formatRecurrence(suggestions!.recurrence!)} · ${formatDisplayDate(suggestions!.recurrence!.endDate, t.locale)}`
+              ? `${formatRecurrence(suggestions!.recurrence!)} · ${rowDateLabel(suggestions!.recurrence!.endDate, t.locale)}`
               : formatRecurrence(suggestions!.recurrence!)
           }
         />

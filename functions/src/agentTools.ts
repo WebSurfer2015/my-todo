@@ -254,7 +254,7 @@ export type ProposedOperation =
   | {
       kind: 'deleteCategory'
       args: {
-        /** Category id from context. Its to-dos move to Done (restorable for 30 days). */
+        /** Category id from context. Its to-dos stay, uncategorized. */
         categoryId: string
       }
     }
@@ -820,7 +820,7 @@ export const AGENT_TOOLS: AgentTool[] = [
     name: 'deleteCategory',
     description:
       "Delete an EXISTING category ('delete the Errands category'). Pick the categoryId " +
-      "from context. Its to-dos move to Done (restorable for 30 days) after the user " +
+      "from context. Its to-dos stay where they are, just uncategorized, after the user " +
       "confirms — say so in your reply. Use this only when the user clearly wants the " +
       "category itself removed.",
     input_schema: {

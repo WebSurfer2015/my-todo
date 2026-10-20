@@ -29,11 +29,6 @@ export function getOrderedStatuses(profile: Profile, t: Strings): StatusEntry[] 
   return result
 }
 
-/** Same as getOrderedStatuses, but excluding hidden entries. */
-export function getOrderedVisibleStatuses(profile: Profile, t: Strings): StatusEntry[] {
-  return getOrderedStatuses(profile, t).filter((s) => !s.hidden)
-}
-
 /** Pure: produce a new statuses[] with the given override applied. */
 function setOverride(
   profile: Profile,
@@ -65,13 +60,6 @@ function setOverride(
 /** Pure: produce a new Profile with the status label renamed. Empty string clears the override. */
 export function statusRename(profile: Profile, id: StatusFilter, label: string): Profile {
   return { ...profile, statuses: setOverride(profile, id, { label: label.trim() }) }
-}
-
-/** Pure: produce a new Profile with the status' hidden flag toggled. */
-export function statusToggleHidden(profile: Profile, id: StatusFilter): Profile {
-  const current = profile.statuses?.find((s) => s.id === id)
-  const nextHidden = !current?.hidden
-  return { ...profile, statuses: setOverride(profile, id, { hidden: nextHidden }) }
 }
 
 /**

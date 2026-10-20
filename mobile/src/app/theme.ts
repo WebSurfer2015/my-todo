@@ -9,8 +9,17 @@ export interface ThemeColors {
   surface: string
   surfaceAlt: string
   modal: string
-  /** Title-bar / header chrome band — the theme's weighted brand color. */
+  /** App chrome band — the AppHeader AND the bottom tab bar. Light: the
+   * theme accent (the long-standing green header). Dark: the deep brand tone
+   * — the bright dark-mode accent glared as a full-width band. */
   headerBg: string
+  /** Text / icons / active tab on `headerBg` (≥4.5:1 in every theme). */
+  headerOn: string
+  /** Inactive tab label + icon on `headerBg` — an opaque tint of `headerOn`,
+   * the faintest that still clears 4.5:1 (light accents leave no headroom,
+   * so it is plain white there; the active tab is told apart by weight and
+   * an indicator, not only by tint). */
+  headerOnMuted: string
   // Text
   label: string
   label2: string
@@ -144,6 +153,40 @@ const HANDOFF: Record<ThemeName, { light: HandoffPalette; dark: HandoffPalette }
 const CONST_LIGHT = { orange: '#E8A964', yellow: '#C9B85F', green: '#7FB59E', purple: '#927AAE', pink: '#EFB8AE', gray: '#8A998F', gray3: '#CDD4C9' }
 const CONST_DARK = { orange: '#ECB178', yellow: '#D9C97A', green: '#94C9AC', purple: '#A89BC2', pink: '#E8B6AE', gray: '#8FA095', gray3: '#4D4F47' }
 
+// WCAG relative luminance / contrast (for the derived chrome tints).
+function lum(hex: string): number {
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const v = parseInt(hex.slice(i, i + 2), 16) / 255
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+function contrastRatio(a: string, b: string): number {
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
+  return (hi + 0.05) / (lo + 0.05)
+}
+function blend(fg: string, bg: string, alpha: number): string {
+  return (
+    '#' +
+    [1, 3, 5]
+      .map((i) =>
+        Math.round(parseInt(fg.slice(i, i + 2), 16) * alpha + parseInt(bg.slice(i, i + 2), 16) * (1 - alpha))
+          .toString(16)
+          .padStart(2, '0'),
+      )
+      .join('')
+      .toUpperCase()
+  )
+}
+/** The faintest tint of `fg` over `bg` (down to 80%) that keeps 4.5:1. */
+function mutedOn(fg: string, bg: string): string {
+  for (let a = 0.8; a < 1; a += 0.02) {
+    const c = blend(fg, bg, a)
+    if (contrastRatio(c, bg) >= 4.5) return c
+  }
+  return fg
+}
+
 function buildTheme(h: HandoffPalette, scheme: 'light' | 'dark'): ThemeColors {
   const k = scheme === 'dark' ? CONST_DARK : CONST_LIGHT
   return {
@@ -152,7 +195,9 @@ function buildTheme(h: HandoffPalette, scheme: 'light' | 'dark'): ThemeColors {
     surface: h.completedBg,
     surfaceAlt: h.divider,
     modal: h.surface,
-    headerBg: h.brand,
+    headerBg: scheme === 'dark' ? h.brand : h.accent,
+    headerOn: '#FFFFFF',
+    headerOnMuted: mutedOn('#FFFFFF', scheme === 'dark' ? h.brand : h.accent),
     label: h.textPrimary,
     label2: h.textSecondary,
     label3: h.completedText,

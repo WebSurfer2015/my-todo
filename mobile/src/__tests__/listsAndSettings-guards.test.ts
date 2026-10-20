@@ -77,7 +77,7 @@ describe('Todos list', () => {
 describe('Filter sheet', () => {
   const sheet = read('features/category/CategorySheet/index.tsx')
   it('is titled "Filter", commits with "Show results", and has no Cancel', () => {
-    expect(sheet).toMatch(/isEditing \? 'Manage Filters' : 'Filter'/)
+    expect(sheet).toMatch(/isEditing \? t\.filtersAndCategories : 'Filter'/)
     expect(sheet).toMatch(/<Text style=\{styles\.viewDoneText\}>Show results<\/Text>/)
     expect(sheet).not.toMatch(/Set Filter|Select Filter/)
   })

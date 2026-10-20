@@ -29,35 +29,6 @@ export function getOrderedPriorities(profile: Profile, t: Strings): PriorityEntr
   return result
 }
 
-function setPriorityOverride(
-  profile: Profile,
-  id: Priority,
-  patch: Partial<Omit<PriorityOverride, 'id'>>,
-): PriorityOverride[] {
-  const existing = profile.priorities ?? []
-  const idx = existing.findIndex((p) => p.id === id)
-  if (idx >= 0) {
-    const next = [...existing]
-    const merged = { ...existing[idx], ...patch }
-    next[idx] = {
-      id: merged.id,
-      hidden: merged.hidden === true ? true : undefined,
-    }
-    return next
-  }
-  return [
-    ...existing,
-    { id, hidden: patch.hidden === true ? true : undefined },
-  ]
-}
-
-/** Pure: produce a new Profile with the priority's hidden flag toggled. */
-export function priorityToggleHidden(profile: Profile, id: Priority): Profile {
-  const current = profile.priorities?.find((p) => p.id === id)
-  const nextHidden = !current?.hidden
-  return { ...profile, priorities: setPriorityOverride(profile, id, { hidden: nextHidden }) }
-}
-
 /** Pure: produce a new Profile with priorities[] in a new order. */
 export function priorityReorder(profile: Profile, newOrder: Priority[]): Profile {
   const existingMap = new Map<Priority, PriorityOverride>()

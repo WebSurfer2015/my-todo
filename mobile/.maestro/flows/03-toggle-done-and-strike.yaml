@@ -4,11 +4,11 @@
 # MUTATES the seed: "Refill prescription" stays done. No other nightly
 # flow may target that row (flow 19 uses "Review reading group chapter").
 #
-# Note on the assertion: the just-completed row does NOT unmount from the
-# Open view in place (the Mochi flight keeps it mounted; it stays struck
-# through until the next re-render). So instead of asserting it vanishes
-# from Open, we switch to the Done filter and confirm it landed there —
-# a direct, timing-robust proof the toggle fired.
+# Note on the assertion: the just-completed row stays on screen (struck
+# through) for its Undo window (~6s, useLinger) before it leaves the open
+# groups. So instead of asserting it vanishes from Open, we switch to the
+# Done filter and confirm it landed there — a direct, timing-robust proof
+# the toggle fired.
 #
 # Filtering: funnel ("Filter") → status row (regex, carries a count) →
 # title-bar "Done" (bare text — doesn't collide with the "Done, N" row).

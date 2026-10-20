@@ -5,11 +5,12 @@
  * removable pill in the filter row.
  */
 
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { useIsFocused } from '@react-navigation/native'
 import { useStore } from '../../app/StoreContext'
 import { useSheets } from '../../app/SheetContext'
+import { useNotify } from '../../app/notify'
 import { SEED_GROCERY_STORES } from '../../core-bindings/groceries'
 import GroceryView from './GroceryView'
 import AppHeader from '../../app/AppHeader'
@@ -34,6 +35,24 @@ export default function GroceriesScreen() {
   // mid-search. The state (query + open flag) persists, so coming
   // back restores the same view.
   const isFocused = useIsFocused()
+  const notify = useNotify()
+
+  // The circle checks an item off; a check-off says "Got <item>." with an
+  // exact Undo (same promise as a to-do completion). Un-check / re-add from
+  // Saved stay silent — they're already the "undo" direction.
+  const { checkOffGrocery, toggleGroceryChecked, groceriesRef } = store
+  const onToggleChecked = useCallback(
+    (id: string): number => {
+      const item = groceriesRef.current.find((g) => g.id === id)
+      if (!item) return 0
+      if (item.checked) return toggleGroceryChecked(id)
+      const undo = checkOffGrocery(id)
+      if (!undo) return 0
+      notify.showSnackbar({ message: `Got ${item.text}.`, actionLabel: 'Undo', onAction: () => { undo() } })
+      return 1
+    },
+    [checkOffGrocery, toggleGroceryChecked, groceriesRef, notify],
+  )
 
   // React to a Manage Groceries signal from Settings → SheetContext.
   // SheetContext navigates to this tab + bumps the seq; we open the
@@ -97,7 +116,7 @@ export default function GroceriesScreen() {
         // instead" stays in the sheet. Its "Enter manually" opens the TO-DO
         // form, which would be the wrong place from here.
         onAskMochi={() => sheets.openMochi()}
-        onToggleChecked={store.toggleGroceryChecked}
+        onToggleChecked={onToggleChecked}
         celebrate={store.animationOn}
         playSound={store.profile.completionSound !== false}
         onEdit={store.editGrocery}

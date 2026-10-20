@@ -89,6 +89,10 @@ export interface GroceriesSlice {
   /** Returns 1 when this toggle just checked the item off (drives the
    * row's completion animation), 0 otherwise. */
   toggleGroceryChecked: (id: string) => number;
+  /** Check an UNCHECKED item off; returns an exact Undo that puts the item's
+   * checked / checkedAt / addedAt / purchases back (false when it changed
+   * since — re-added or gone). Null when there was nothing to check off. */
+  checkOffGrocery: (id: string) => GroceryUndo | null;
   /** True when it changed the item. */
   editGrocery: (
     id: string,
@@ -558,6 +562,29 @@ export function useGroceriesSlice(
     [groceryToggleChecked, setGroceries],
   );
 
+  const checkOffGrocery = useCallback(
+    (id: string): GroceryUndo | null => {
+      const before = groceriesRef.current.find((x) => x.id === id);
+      if (!before || before.checked) return null;
+      toggleGroceryChecked(id);
+      const after = groceriesRef.current.find((x) => x.id === id);
+      const checkedAt = after?.checkedAt;
+      return () => {
+        const live = groceriesRef.current.find((x) => x.id === id);
+        // Only undo the very check-off this made (not a later re-check).
+        if (!live || !live.checked || live.checkedAt !== checkedAt) return false;
+        const restore = (it: GroceryItem): GroceryItem =>
+          it.id === id
+            ? { ...it, checked: before.checked, checkedAt: before.checkedAt, addedAt: before.addedAt, purchases: before.purchases }
+            : it;
+        groceriesRef.current = groceriesRef.current.map(restore);
+        setGroceries((p) => p.map(restore));
+        return true;
+      };
+    },
+    [toggleGroceryChecked, setGroceries],
+  );
+
   const editGrocery = useCallback(
     (id: string, patch: { text?: string; groupId?: string; stores?: string[] }): boolean => {
       const prev = groceriesRef.current;
@@ -645,6 +672,7 @@ export function useGroceriesSlice(
     addGrocery,
     restoreGrocery,
     toggleGroceryChecked,
+    checkOffGrocery,
     editGrocery,
     deleteGrocery,
     addGroceryGroup,

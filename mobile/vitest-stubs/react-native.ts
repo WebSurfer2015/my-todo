@@ -44,3 +44,11 @@ export const ActionSheetIOS = {
 export const Platform = {
   OS: 'ios' as 'ios' | 'android',
 }
+
+/** Identity StyleSheet: lets a test read a `makeStyles(theme)` table (e.g.
+ * the contrast test checks the row category-label ink). */
+export const StyleSheet = {
+  create: <T,>(styles: T): T => styles,
+  absoluteFillObject: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 } as const,
+  hairlineWidth: 1,
+}

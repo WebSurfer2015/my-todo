@@ -13,7 +13,7 @@ import { deleteAccountErrorMessage, DELETE_ACCOUNT_FAILED, DELETE_ACCOUNT_OFFLIN
 import { __resetModalPresenceForTests, isAnyModalPresented, useModalPresence } from '../app/modalPresence'
 import { MODAL_DISMISS_GRACE_MS } from '../app/modalTiming'
 import { PRODUCT_IDS } from '../core-bindings/entitlements'
-import { planSnackbar } from '../app/notify'
+import { planSnackbar, snackbarBottom, SNACKBAR_TAB_BAR_GAP } from '../app/notify'
 import { absoluteDateLabel } from '../features/task/absoluteDateLabel'
 
 describe('tierFromCustomerInfo', () => {
@@ -202,6 +202,15 @@ describe('planSnackbar (notify queue)', () => {
       requeue: false,
     })
     expect(planSnackbar({}, null, { message: 'undo' })).toEqual({ action: 'show', requeue: false })
+  })
+})
+
+describe('snackbarBottom', () => {
+  it('sits above the tab bar while one is showing, at the default otherwise', () => {
+    // 83 = 49pt bar + 34pt home-indicator inset.
+    expect(snackbarBottom(83)).toBe(83 + SNACKBAR_TAB_BAR_GAP)
+    expect(snackbarBottom(null)).toBe(40)
+    expect(snackbarBottom(0)).toBe(40)
   })
 })
 

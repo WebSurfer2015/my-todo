@@ -45,7 +45,7 @@ interface Props {
   onKeepAndClearFilter: (set: Filter[]) => void
   onOpenSheet: () => void
   categories: CategoryDef[]
-  orderedVisibleStatuses: { id: StatusFilter; label: string }[]
+  orderedStatuses: { id: StatusFilter; label: string }[]
   systemCounts: { all: number; overdue: number; open: number; done: number; trash: number; notDo: number }
   byCategory: Record<string, number>
   /** Total task counts per priority, used to badge priority pills.
@@ -88,7 +88,7 @@ export default function FilterBar({
   onKeepAndClearFilter,
   onOpenSheet,
   categories,
-  orderedVisibleStatuses,
+  orderedStatuses,
   systemCounts,
   byCategory,
   byPriority,
@@ -171,7 +171,7 @@ export default function FilterBar({
         color: priorityGlyphColor(theme, p),
       }
     }
-    const s = orderedVisibleStatuses.find((x) => x.id === f)
+    const s = orderedStatuses.find((x) => x.id === f)
     if (!s) return null
     // Carried Over (overdue) is calm-design-sensitive: surfacing a
     // running count on the pill turns it into a guilt counter for

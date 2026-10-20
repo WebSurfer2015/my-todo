@@ -24,10 +24,10 @@ export interface RowProps {
 }
 
 /**
- * Row tap targets, tuned for fast shopping:
- * - Checkbox AND the text/store body → toggle checked / re-add from Future
- *   (tap anywhere to check an item off the list quickly).
- * - The trailing "›" chevron, or a long-press anywhere → open the edit sheet.
+ * Row tap targets — the same model as a to-do row (TaskItem):
+ * - The circle → check off (or re-add from Saved). A check-off gets a
+ *   "Got <item>." snackbar with an exact Undo (wired by the screen).
+ * - The text/store body → open the edit sheet.
  */
 function Row({
   item,
@@ -113,17 +113,24 @@ function Row({
       <TouchableOpacity
         style={styles.rowBody}
         activeOpacity={0.6}
-        onPress={handleToggle}
-        onLongPress={handleOpenEdit}
-        delayLongPress={350}
+        onPress={handleOpenEdit}
         accessibilityRole="button"
         accessibilityLabel={
           futureMode
-            ? `${item.text}. Tap to add back, long-press to edit.`
+            ? `${item.text}, saved`
             : item.checked
-              ? `${item.text}, checked. Tap to un-check, long-press to edit.`
-              : `${item.text}. Tap to check off, long-press to edit.`
+              ? `${item.text}, checked`
+              : item.text
         }
+        accessibilityHint="Opens the item"
+        accessibilityActions={[
+          { name: "activate", label: "Edit" },
+          { name: "toggle", label: futureMode ? "Add back to list" : item.checked ? "Un-check" : "Check off" },
+        ]}
+        onAccessibilityAction={(e) => {
+          if (e.nativeEvent.actionName === "toggle") handleToggle();
+          else handleOpenEdit();
+        }}
       >
         <Text
           style={[styles.rowText, showChecked && !futureMode && styles.rowTextChecked]}
@@ -136,17 +143,6 @@ function Row({
             {item.stores.join(" · ")}
           </Text>
         )}
-      </TouchableOpacity>
-      {/* Visible edit affordance — tap-to-toggle owns the row body, so a quiet
-          chevron gives a discoverable edit path without relying on long-press. */}
-      <TouchableOpacity
-        onPress={handleOpenEdit}
-        hitSlop={10}
-        style={styles.rowEditBtn}
-        accessibilityRole="button"
-        accessibilityLabel={`Edit ${item.text}`}
-      >
-        <Text style={styles.rowEditChevron}>›</Text>
       </TouchableOpacity>
     </View>
   );

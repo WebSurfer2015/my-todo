@@ -123,6 +123,13 @@ export function makeStyles(c: ThemeColors) {
       fontSize: TYPE.caption,
       fontWeight: '500',
     },
+    // Category label ink: the category's own color stays on the small icon
+    // only — saturated category hues (Home green, Other orange) are ~2:1 as
+    // text, so the label uses the theme's secondary ink (≥4.5:1).
+    chipTextCategory: {
+      color: c.label2,
+      fontWeight: '600',
+    },
     chipTextMuted: {
       color: c.label3,
       fontWeight: '500',

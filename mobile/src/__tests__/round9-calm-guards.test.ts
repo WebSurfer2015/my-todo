@@ -22,8 +22,8 @@ describe('CategorySheet inline notices', () => {
   const ctx = read('app/SheetContext.tsx')
 
   it('category delete returns its message + Undo instead of a snackbar', () => {
-    const fn = /const deleteCategoryWithUndo = useCallback\([\s\S]*?\}, \[\]\)/.exec(ctx)?.[0] ?? ''
-    expect(fn).toMatch(/return undo \? \{ message: categoryDeletedMessage\(moved\), undo \} : null/)
+    const fn = /const deleteCategoryWithUndo = useCallback\([\s\S]*?\}, \[t\]\)/.exec(ctx)?.[0] ?? ''
+    expect(fn).toMatch(/return undo \? \{ message: categoryDeletedMessage\(name, uncategorized\), undo \} : null/)
     expect(fn).not.toMatch(/showSnackbar/)
   })
 

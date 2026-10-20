@@ -133,11 +133,12 @@ hide/unhide, delete, add-store + AI link-existing) · check-off → firework →
 - ✋ AI inference live round-trip, check-off firework, drag-reorder gesture
 
 ### 10. Filter / Category management
-Select-Filter (statuses/priorities/categories multi-select) vs Manage-Filters
-(drag-reorder, rename, hide, pin, delete-with-reassign, add category with
-color+icon grid).
-- ✅ category delete-cascade (trashes todos, strips pinned filters, refuses
-  last), reference migration, priority/status reorder/hide
+Select-Filter (statuses/priorities/categories multi-select) vs "Filters &
+categories" (drag-reorder, rename, pin; a category's label opens its edit form
+— name, color+icon grid, and Delete, which leaves its to-dos uncategorized).
+- ✅ category delete-cascade (uncategorizes its todos — never bins them —,
+  strips pinned filters, refuses last), reference migration, priority/status
+  reorder
 - ✋ drag-reorder gesture, color/icon grid, delete-reassign Alert
 
 ### 11. Ask Mochi (AI chatbot) — de-metered

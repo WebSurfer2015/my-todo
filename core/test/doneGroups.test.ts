@@ -45,6 +45,16 @@ describe('buildDoneGroups', () => {
     expect(groups[4].todos.map((t) => t.id)).toEqual(['legacy'])
   })
 
+  it('files a completion dated after today under Today (no future-day group)', () => {
+    const groups = buildDoneGroups([
+      binned('skewed', '2026-10-20', 2),
+      binned('today', '2026-10-19', 1),
+    ])
+    expect(groups.map((g) => g.key)).toEqual(['2026-10-19'])
+    expect(groups[0].isToday).toBe(true)
+    expect(groups[0].todos.map((t) => t.id)).toEqual(['skewed', 'today'])
+  })
+
   it('orders each bucket newest-binned first (missing trashedAt last)', () => {
     const groups = buildDoneGroups([
       binned('first', '2026-10-19', 100),

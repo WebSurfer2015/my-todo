@@ -16,7 +16,6 @@ import {
   nextOccurrence,
   expandRecurrence,
   formatRecurrence,
-  formatDisplayDate,
   fullDateLabel,
   MAX_RECURRENCE_INSTANCES,
   dueDateWithDay,
@@ -244,52 +243,6 @@ describe('formatRecurrence', () => {
     expect(
       formatRecurrence({ freq: 'monthly', byWeekday: [5], bySetPos: [-1] }),
     ).toBe('Monthly · Last Fri')
-  })
-})
-
-describe('formatDisplayDate', () => {
-  beforeEach(() => vi.useFakeTimers())
-  afterEach(() => vi.useRealTimers())
-
-  it('returns "Today" for today', () => {
-    vi.setSystemTime(new Date(2026, 4, 20))
-    expect(formatDisplayDate('2026-05-20')).toBe('Today')
-  })
-  it('returns "Tomorrow" for +1 day', () => {
-    vi.setSystemTime(new Date(2026, 4, 20))
-    expect(formatDisplayDate('2026-05-21')).toBe('Tomorrow')
-  })
-  it('returns "Yesterday" for -1 day', () => {
-    vi.setSystemTime(new Date(2026, 4, 20))
-    expect(formatDisplayDate('2026-05-19')).toBe('Yesterday')
-  })
-  it('supports custom labels for today/tomorrow/yesterday', () => {
-    vi.setSystemTime(new Date(2026, 4, 20))
-    expect(
-      formatDisplayDate('2026-05-20', 'en-US', { today: 'Heute' }),
-    ).toBe('Heute')
-  })
-  it('returns "in N days" for 2–30 days out', () => {
-    vi.setSystemTime(new Date(2026, 4, 20))
-    expect(formatDisplayDate('2026-05-25')).toBe('in 5 days')
-  })
-  it('returns "in N months" for 31–364 days out', () => {
-    vi.setSystemTime(new Date(2026, 0, 1))
-    expect(formatDisplayDate('2026-06-01')).toBe('in 5 months')
-  })
-  it('returns "in N years" beyond a year', () => {
-    vi.setSystemTime(new Date(2026, 4, 20))
-    expect(formatDisplayDate('2028-05-20')).toBe('in 2 years')
-  })
-  it('appends a clock time when the iso includes T-suffix', () => {
-    vi.setSystemTime(new Date(2026, 4, 20))
-    const out = formatDisplayDate('2026-05-20T15:00')
-    expect(out.startsWith('Today,')).toBe(true)
-    expect(out).toMatch(/\d/)
-  })
-  it('falls back to date-only when T-suffix is malformed', () => {
-    vi.setSystemTime(new Date(2026, 4, 20))
-    expect(formatDisplayDate('2026-05-20Tnope')).toBe('Today')
   })
 })
 

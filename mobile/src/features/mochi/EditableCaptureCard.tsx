@@ -82,6 +82,9 @@ export default function EditableCaptureCard({
   const sync = () => bumpUndo((n) => n + 1)
 
   const editable = isCaptureCardEditable(undoLive, removal !== null)
+  // Chip edits still on the stack → the button undoes the latest; none → it
+  // removes the to-do (the original add).
+  const hasChipEdits = undoStack.current.length > 0
   const tray = editable ? open : null
   const activeCat = categories.find((c) => c.id === category)
   // Guard against a malformed dueDate → Invalid Date would crash the picker.
@@ -159,6 +162,7 @@ export default function EditableCaptureCard({
       <View style={styles.chipRow}>
         <TouchableOpacity
           style={editable ? styles.editChip : styles.roChip}
+          hitSlop={CHIP_HIT_SLOP}
           disabled={!editable}
           onPress={() => setOpen((p) => (p === 'category' ? null : 'category'))}
           accessibilityRole="button"
@@ -173,6 +177,7 @@ export default function EditableCaptureCard({
 
         <TouchableOpacity
           style={editable ? styles.editChip : styles.roChip}
+          hitSlop={CHIP_HIT_SLOP}
           disabled={!editable}
           onPress={() => setOpen((p) => (p === 'date' ? null : 'date'))}
           accessibilityRole="button"
@@ -187,6 +192,7 @@ export default function EditableCaptureCard({
 
         <TouchableOpacity
           style={editable ? styles.editChip : styles.roChip}
+          hitSlop={CHIP_HIT_SLOP}
           disabled={!editable}
           onPress={cyclePriority}
           accessibilityRole="button"
@@ -223,7 +229,10 @@ export default function EditableCaptureCard({
                 <TouchableOpacity
                   key={c.id}
                   style={[styles.catOption, sel && styles.catOptionActive]}
+                  hitSlop={CHIP_HIT_SLOP}
                   onPress={() => pickCategory(c.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: sel }}
                 >
                   <Text style={[styles.catOptionText, sel && styles.catOptionTextActive]}>
                     {categoryLabel(c, t)}
@@ -252,8 +261,8 @@ export default function EditableCaptureCard({
 
       {args.notes ? <Text style={styles.notes}>{args.notes}</Text> : null}
 
-      {/* Multi-level undo: each Undo reverts the most recent change; the last
-          one removes the to-do. */}
+      {/* Multi-level undo: "Undo change" reverts the most recent chip edit;
+          once only the add is left, the same button reads "Remove". */}
       <View style={styles.actionRow}>
         {removal ? (
           <Text style={styles.removedNote}>{captureCardRemovalNote(removal)}</Text>
@@ -263,11 +272,11 @@ export default function EditableCaptureCard({
             {editable && (
             <TouchableOpacity
               onPress={undoLast}
-              hitSlop={8}
+              style={styles.undoBtn}
               accessibilityRole="button"
-              accessibilityLabel="Undo last change"
+              accessibilityLabel={hasChipEdits ? 'Undo last change' : 'Remove this to-do'}
             >
-              <Text style={styles.undoText}>Undo</Text>
+              <Text style={styles.undoText}>{hasChipEdits ? 'Undo change' : 'Remove'}</Text>
             </TouchableOpacity>
             )}
           </>
@@ -276,6 +285,9 @@ export default function EditableCaptureCard({
     </View>
   )
 }
+
+// Chips stay visually compact (~34pt); the slop brings the hit area to 44pt.
+const CHIP_HIT_SLOP = { top: 5, bottom: 5, left: 3, right: 3 }
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
@@ -296,7 +308,7 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center',
       gap: 5,
       paddingHorizontal: 12,
-      paddingVertical: 5,
+      paddingVertical: 8,
       borderRadius: 999,
       backgroundColor: c.primarySoft,
       borderWidth: 1,
@@ -308,7 +320,7 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center',
       gap: 4,
       paddingHorizontal: 12,
-      paddingVertical: 5,
+      paddingVertical: 8,
       borderRadius: 999,
       backgroundColor: c.surfaceAlt,
     },
@@ -334,7 +346,7 @@ function makeStyles(c: ThemeColors) {
     // White pills pop out of the recessed tray — clearly selectable options.
     catOption: {
       paddingHorizontal: 12,
-      paddingVertical: 6,
+      paddingVertical: 8,
       borderRadius: 999,
       backgroundColor: c.card,
       borderWidth: 1,
@@ -344,7 +356,9 @@ function makeStyles(c: ThemeColors) {
     catOptionText: { fontSize: 13, fontWeight: '600', color: c.label2 },
     catOptionTextActive: { color: c.primaryOn },
     notes: { fontSize: 13, color: c.label3, fontStyle: 'italic', marginTop: 6 },
-    actionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 12, marginTop: 8 },
+    actionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 12, marginTop: 2 },
+    // Quiet text link with a full 44pt touch target.
+    undoBtn: { minHeight: 44, minWidth: 44, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
     removedNote: { fontSize: 13, fontWeight: '600', color: c.label3, marginTop: 8 },
     undoText: { fontSize: 13, fontWeight: '700', color: c.primary },
   })

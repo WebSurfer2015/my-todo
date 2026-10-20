@@ -38,7 +38,7 @@ describe("deleteCategoryCascade", () => {
     expect(res.changed).toBe(false);
   });
 
-  it("drops the category and trashes its todos", () => {
+  it("drops the category and uncategorizes (not bins) its todos", () => {
     const todos = [todoIn("1", "home"), todoIn("2", "work")];
     const res = deleteCategoryCascade({
       todos,
@@ -49,8 +49,10 @@ describe("deleteCategoryCascade", () => {
     });
     expect(res.changed).toBe(true);
     expect(res.categories.map((c) => c.id)).toEqual(["work"]);
-    expect(res.todos.find((t) => t.id === "1")!.trashed).toBe(true);
-    expect(res.todos.find((t) => t.id === "2")!.trashed).toBe(false);
+    const one = res.todos.find((t) => t.id === "1")!;
+    expect(one.trashed).toBe(false);
+    expect(one.category).toBeUndefined();
+    expect(res.todos.find((t) => t.id === "2")!.category).toBe("work");
   });
 
   it("resets the active filter only when it targets the deleted category", () => {

@@ -145,19 +145,8 @@ describe('useProfileSlice', () => {
     expect(setFilter).toHaveBeenLastCalledWith('all')
   })
 
-  it('hiding a status or priority strips it from pinned sets; rename / reorder persist', async () => {
+  it('status rename / reorder and priority reorder persist', async () => {
     const { hook } = await profileSetup()
-    act(() => {
-      hook.result.current.pinFilter(['overdue'])
-      hook.result.current.pinFilter(['pri:low'])
-    })
-    act(() => hook.result.current.toggleStatusHidden('overdue'))
-    expect(hook.result.current.profile.pinnedFilters ?? []).not.toContainEqual(['overdue'])
-    act(() => hook.result.current.togglePriorityHidden('low'))
-    expect(hook.result.current.profile.pinnedFilters ?? []).not.toContainEqual(['pri:low'])
-    // Un-hiding leaves pins alone.
-    act(() => hook.result.current.toggleStatusHidden('overdue'))
-    act(() => hook.result.current.togglePriorityHidden('low'))
     act(() => hook.result.current.renameStatus('open', 'To do'))
     expect(hook.result.current.profile.statuses?.find((s) => s.id === 'open')?.label).toBe('To do')
     act(() => hook.result.current.reorderStatuses(['done', 'open', 'overdue', 'notDo']))

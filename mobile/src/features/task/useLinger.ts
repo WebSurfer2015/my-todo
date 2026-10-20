@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SNACKBAR_DURATION_MS } from "../../app/notify";
 import { buildGroups, TodoGroup } from "../../../../core/src/logic/groups";
 import type { Todo, Filter } from "../../core-bindings/types";
 
@@ -11,13 +12,18 @@ interface LingerStore {
   todos: Todo[];
 }
 
+/** How long a just-completed row stays on screen: its Undo window (the
+ * completion snackbar's duration). */
+export const LINGER_MS = SNACKBAR_DURATION_MS;
+
 /**
- * "Linger" behavior for the Todos list, extracted verbatim from
- * TodosScreen. When a filter is active and a row drops out of the
- * filtered set (e.g. the user checks off a task in the Open view), the
- * row would normally vanish instantly. Instead we keep it visible at the
- * BOTTOM of its date-bucket group until the filter changes — so a
- * check-off doesn't yank the just-tapped row out from under the user.
+ * "Linger" behavior for the Todos list. Done rows aren't in the open
+ * groups (core deriveState), so a row the user just checked off drops out
+ * of the filtered set. Instead of vanishing under their finger, it stays
+ * visible (struck through) at the BOTTOM of its date-bucket group for its
+ * Undo window (LINGER_MS), then leaves — or right away when the filter
+ * changes. Only rows that left because they became DONE linger; a skipped
+ * / deleted row leaves at once (its snackbar has the Undo).
  *
  * Also folds in the search projection: `displayFiltered` (flat) and
  * `displayGroups` (grouped, lingering rows pushed to each group's end)
@@ -34,6 +40,14 @@ export function useLinger(
 ): { lingerIds: Set<string>; displayFiltered: Todo[]; displayGroups: TodoGroup[] } {
   const [lingerIds, setLingerIds] = useState<Set<string>>(new Set());
 
+  // One expiry timer per lingering id.
+  const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const clearTimers = () => {
+    timersRef.current.forEach((tm) => clearTimeout(tm));
+    timersRef.current.clear();
+  };
+  useEffect(() => clearTimers, []);
+
   // Reset linger whenever the active filter set changes — the user
   // changing scope is the trigger to drop the lingering items.
   const filtersKey = useMemo(
@@ -41,6 +55,7 @@ export function useLinger(
     [store.filters],
   );
   useEffect(() => {
+    clearTimers();
     setLingerIds(new Set());
   }, [filtersKey]);
 
@@ -49,16 +64,30 @@ export function useLinger(
   // lingering IDs that came BACK into the filter (e.g. the user
   // un-checked).
   const prevFilteredIdsRef = useRef<Set<string>>(new Set());
+  const todosRef = useRef(store.todos);
+  todosRef.current = store.todos;
   useEffect(() => {
-    if (store.filters.length === 0) {
-      prevFilteredIdsRef.current = new Set();
-      return;
-    }
     const currentIds = new Set(store.filtered.map((t) => t.id));
+    const doneNow = new Set(todosRef.current.filter((t) => t.done).map((t) => t.id));
     const dropped: string[] = [];
     prevFilteredIdsRef.current.forEach((id) => {
-      if (!currentIds.has(id)) dropped.push(id);
+      if (!currentIds.has(id) && doneNow.has(id)) dropped.push(id);
     });
+    for (const id of dropped) {
+      if (timersRef.current.has(id)) continue;
+      timersRef.current.set(
+        id,
+        setTimeout(() => {
+          timersRef.current.delete(id);
+          setLingerIds((prev) => {
+            if (!prev.has(id)) return prev;
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        }, LINGER_MS),
+      );
+    }
     setLingerIds((prev) => {
       let touched = false;
       const next = new Set(prev);
@@ -72,12 +101,15 @@ export function useLinger(
         if (currentIds.has(id)) {
           next.delete(id);
           touched = true;
+          const tm = timersRef.current.get(id);
+          if (tm) clearTimeout(tm);
+          timersRef.current.delete(id);
         }
       });
       return touched ? next : prev;
     });
     prevFilteredIdsRef.current = currentIds;
-  }, [store.filtered, store.filters.length]);
+  }, [store.filtered]);
 
   const displayFiltered = useMemo(() => {
     if (!searchNeedle) return store.filtered;

@@ -48,7 +48,7 @@ import { clearMochiRest } from '../features/mochi/mochiRest'
 import { IAP_ENABLED, MOCHI_AGENT_ENABLED } from './featureFlags'
 import ManageAnimationSoundSheet from '../features/profile/ManageAnimationSoundSheet'
 import CategorySheet from '../features/category/CategorySheet'
-import { COLOR_PALETTE } from '../core-bindings/categories'
+import { COLOR_PALETTE, categoryLabel } from '../core-bindings/categories'
 import { SEED_GROCERY_STORES, frequentGroceries } from '../core-bindings/groceries'
 import type { Filter } from '../core-bindings/types'
 import type { Guide } from '../features/onboarding/guides'
@@ -329,15 +329,17 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     [mochiSnapshot, runMochiIntents, afterModalClose],
   )
 
-  // Manual category delete (CategorySheet): its to-dos move to Done, so it
-  // gets the store's exact Undo — shown INLINE in the sheet (a snackbar
-  // would render behind its Modal).
+  // Manual category delete (CategorySheet): its to-dos stay, uncategorized,
+  // with the store's exact Undo (puts the category back on each of them) —
+  // shown INLINE in the sheet (a snackbar would render behind its Modal).
   const deleteCategoryWithUndo = useCallback((id: string) => {
     const live = storeRef.current
-    const moved = live.todosRef.current.filter((td) => td.category === id && !td.trashed).length
+    const cat = live.categories.find((c) => c.id === id)
+    const name = cat ? categoryLabel(cat, t) : ''
+    const uncategorized = live.todosRef.current.filter((td) => td.category === id).length
     const undo = live.deleteCategory(id)
-    return undo ? { message: categoryDeletedMessage(moved), undo } : null
-  }, [])
+    return undo ? { message: categoryDeletedMessage(name, uncategorized), undo } : null
+  }, [t])
 
   const openManageFilter = useCallback(() => {
     setCategorySheetMode('edit')
@@ -738,16 +740,13 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         systemCounts={store.systemCounts}
         priorityCounts={store.byPriority}
         orderedStatuses={store.orderedStatuses}
-        orderedVisibleStatuses={store.orderedVisibleStatuses}
         orderedPriorities={store.orderedPriorities}
         onAdd={store.addCategory}
         onEdit={store.editCategory}
         onDelete={deleteCategoryWithUndo}
         onReorder={store.reorderCategories}
         onRenameStatus={store.renameStatus}
-        onToggleStatusHidden={store.toggleStatusHidden}
         onReorderStatuses={store.reorderStatuses}
-        onTogglePriorityHidden={store.togglePriorityHidden}
         onReorderPriorities={store.reorderPriorities}
         onClose={() => setCategorySheetOpen(false)}
       />

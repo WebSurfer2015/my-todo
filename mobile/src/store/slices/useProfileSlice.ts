@@ -3,8 +3,8 @@
 //
 // PR 5 expansion: also owns every profile-touching mutation —
 // pinFilter / keepAndClearFilter / toggleHomeStatTile /
-// clearHomeStatTiles / changeView / renameStatus / toggleStatusHidden
-// / reorderStatuses / togglePriorityHidden / reorderPriorities — so
+// clearHomeStatTiles / changeView / renameStatus / reorderStatuses /
+// reorderPriorities — so
 // the composer doesn't have to re-derive setProfile in dozens of
 // callbacks. Cross-state mutations (changeView calls setFilter,
 // keepAndClearFilter calls clearFilters) thread through deps.
@@ -55,9 +55,7 @@ export interface ProfileSlice {
   clearHomeStatTiles: () => void;
   changeView: (v: ViewMode) => void;
   renameStatus: (id: StatusFilter, label: string) => void;
-  toggleStatusHidden: (id: StatusFilter) => void;
   reorderStatuses: (newOrder: StatusFilter[]) => void;
-  togglePriorityHidden: (id: Priority) => void;
   reorderPriorities: (newOrder: Priority[]) => void;
 }
 
@@ -71,13 +69,10 @@ export function useProfileSlice(
   // deps stay correct and callback identities hold.
   const {
     statusRename,
-    statusToggleHidden,
     statusReorder,
-    priorityToggleHidden,
     priorityReorder,
     togglePinnedFilter,
     addPinnedFilter,
-    stripFilterFromPinned,
     toggleStatTile,
     defaultFilterForView,
   } = actions;
@@ -167,46 +162,11 @@ export function useProfileSlice(
     [setProfile, statusRename],
   );
 
-  const toggleStatusHidden = useCallback(
-    (id: StatusFilter) => {
-      setProfile((prev) => {
-        const next = statusToggleHidden(prev, id);
-        // If the status was just hidden and any pinned set referenced
-        // it, strip it from those sets so the FilterBar doesn't surface
-        // an invisible filter as part of a composite pill.
-        const overrides = next.statuses ?? [];
-        const isNowHidden =
-          overrides.find((s) => s.id === id)?.hidden === true;
-        if (!isNowHidden) return next;
-        const pinned = stripFilterFromPinned(next.pinnedFilters, id);
-        if (pinned === next.pinnedFilters) return next;
-        return { ...next, pinnedFilters: pinned };
-      });
-    },
-    [setProfile, statusToggleHidden, stripFilterFromPinned],
-  );
-
   const reorderStatuses = useCallback(
     (newOrder: StatusFilter[]) => {
       setProfile((prev) => statusReorder(prev, newOrder));
     },
     [setProfile, statusReorder],
-  );
-
-  const togglePriorityHidden = useCallback(
-    (id: Priority) => {
-      setProfile((prev) => {
-        const next = priorityToggleHidden(prev, id);
-        const overrides = next.priorities ?? [];
-        const isNowHidden =
-          overrides.find((p) => p.id === id)?.hidden === true;
-        if (!isNowHidden) return next;
-        const pinned = stripFilterFromPinned(next.pinnedFilters, `pri:${id}`);
-        if (pinned === next.pinnedFilters) return next;
-        return { ...next, pinnedFilters: pinned };
-      });
-    },
-    [priorityToggleHidden, setProfile, stripFilterFromPinned],
   );
 
   const reorderPriorities = useCallback(
@@ -227,9 +187,7 @@ export function useProfileSlice(
     clearHomeStatTiles,
     changeView,
     renameStatus,
-    toggleStatusHidden,
     reorderStatuses,
-    togglePriorityHidden,
     reorderPriorities,
   };
 }

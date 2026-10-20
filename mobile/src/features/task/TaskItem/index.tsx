@@ -778,9 +778,7 @@ function TaskItem({
               {cat && <CategoryIcon icon={cat.icon} size={11} color={cat.color} />}
               <Text style={[
                 styles.chipText,
-                cat
-                  ? { color: cat.color, fontWeight: '600' }
-                  : styles.chipTextMuted,
+                cat ? styles.chipTextCategory : styles.chipTextMuted,
               ]}>
                 {cat ? categoryLabel(cat, t) : t.noCategory}
               </Text>
