@@ -1062,6 +1062,9 @@ function AppGate() {
             // collide with the user's Home *category*. Route name stays
             // "Home" for stable navigation calls.
             title: 'Today',
+            // A custom tabBarLabel drops React Navigation's default
+            // "<label>, tab, N of 3" — keep it for VoiceOver (and the flows).
+            tabBarAccessibilityLabel: 'Today, tab, 1 of 3',
             tabBarIcon: ({ color, size, focused }) => (
               <TabBarIcon Icon={House} color={color} size={size} focused={focused} />
             ),
@@ -1071,6 +1074,7 @@ function AppGate() {
           name="Todos"
           component={TodosScreen}
           options={{
+            tabBarAccessibilityLabel: 'Todos, tab, 2 of 3',
             tabBarIcon: ({ color, size, focused }) => (
               <TabBarIcon Icon={ListTodo} color={color} size={size} focused={focused} />
             ),
@@ -1085,6 +1089,7 @@ function AppGate() {
             // navigation calls + the cross-tab manage signal in
             // SheetContext keep working without a rename cascade.
             title: 'Shopping',
+            tabBarAccessibilityLabel: 'Shopping, tab, 3 of 3',
             tabBarIcon: ({ color, size, focused }) => (
               <TabBarIcon Icon={ShoppingBag} color={color} size={size} focused={focused} />
             ),

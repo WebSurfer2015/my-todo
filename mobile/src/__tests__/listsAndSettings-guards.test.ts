@@ -145,3 +145,12 @@ describe('Tab labels follow Dynamic Type, capped', () => {
     expect(app).toMatch(/tabBarLabel: TabLabel,/)
   })
 })
+
+describe('tab bar accessibility labels', () => {
+  it('each tab keeps "<label>, tab, N of 3" (a custom tabBarLabel drops the default)', () => {
+    const app = readFileSync(join(here, '..', '..', 'App.tsx'), 'utf8')
+    expect(app).toMatch(/tabBarAccessibilityLabel: 'Today, tab, 1 of 3'/)
+    expect(app).toMatch(/tabBarAccessibilityLabel: 'Todos, tab, 2 of 3'/)
+    expect(app).toMatch(/tabBarAccessibilityLabel: 'Shopping, tab, 3 of 3'/)
+  })
+})
