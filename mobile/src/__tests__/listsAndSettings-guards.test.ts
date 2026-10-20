@@ -85,6 +85,11 @@ describe('Filter sheet', () => {
     expect(sheet).toMatch(/const showCount = s\.id !== 'overdue';/)
     expect(sheet).toMatch(/\{showCount && <Text style=\{styles\.viewRowCount\}>\{count\}<\/Text>\}/)
   })
+  it('the notice Undo is a real 44pt target, not text + hitSlop', () => {
+    const styles = read('features/category/CategorySheet/styles.ts')
+    expect(sheet).toMatch(/style=\{styles\.noticeActionBtn\}/)
+    expect(styles).toMatch(/noticeActionBtn: \{\s*minWidth: 44,\s*minHeight: 44,/)
+  })
 })
 
 describe('Guides', () => {

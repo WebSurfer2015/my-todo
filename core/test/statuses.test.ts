@@ -18,8 +18,6 @@ describe('getOrderedStatuses', () => {
     const out = getOrderedStatuses(SEED_PROFILE, t)
     // core/types.ts STATUS_FILTERS = ['overdue', 'open', 'done']
     expect(out.map((s) => s.id)).toEqual(['overdue', 'open', 'done'])
-    // None are hidden by default.
-    expect(out.every((s) => s.hidden === false)).toBe(true)
   })
   it('places overrides first in their stored order', () => {
     const p: Profile = {
@@ -102,11 +100,11 @@ describe('statusReorder', () => {
     // Tail should include the rest.
     expect(ids.length).toBeGreaterThan(1)
   })
-  it('preserves existing labels + hidden flags through the reorder', () => {
+  it('preserves existing labels through the reorder', () => {
     const p: Profile = {
       ...SEED_PROFILE,
       statuses: [
-        { id: 'done', label: 'Finished', hidden: true },
+        { id: 'done', label: 'Finished' },
         { id: 'open', label: 'Active' },
       ],
     }
@@ -115,7 +113,6 @@ describe('statusReorder', () => {
     const done = out.statuses!.find((s) => s.id === 'done')!
     expect(open.label).toBe('Active')
     expect(done.label).toBe('Finished')
-    expect(done.hidden).toBe(true)
   })
   it('dedupes if newOrder lists the same id twice', () => {
     const out = statusReorder(SEED_PROFILE, ['open', 'open', 'done'])

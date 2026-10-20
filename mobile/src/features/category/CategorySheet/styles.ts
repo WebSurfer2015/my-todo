@@ -50,6 +50,15 @@ export function makeStyles(c: ThemeColors) {
     },
     noticeText: { flex: 1, fontSize: TYPE.footnote, color: c.label2 },
     noticeAction: { fontSize: TYPE.footnote, fontWeight: "700", color: c.primary },
+    // A real 44pt target for Undo; the negative margin eats the row's own
+    // vertical padding so the notice doesn't grow taller.
+    noticeActionBtn: {
+      minWidth: 44,
+      minHeight: 44,
+      marginVertical: -SPACING.sm,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     headerTitle: { fontSize: TYPE.title, fontWeight: "700", color: c.label },
     headerLeft: { fontSize: TYPE.bodyLg, fontWeight: "500", color: c.primary },
     headerRight: { fontSize: TYPE.bodyLg, fontWeight: "600", color: c.primary },

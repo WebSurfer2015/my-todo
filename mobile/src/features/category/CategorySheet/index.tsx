@@ -40,13 +40,11 @@ import { PIN_LIMIT } from "../../../../../core/src/logic/filters";
 export interface StatusEntry {
   id: StatusFilter;
   label: string;
-  hidden: boolean;
 }
 
 export interface PriorityEntry {
   id: Priority;
   label: string;
-  hidden: boolean;
 }
 
 interface Props {
@@ -464,7 +462,7 @@ export default function CategorySheet({
                             setNotice(null);
                             undo?.();
                           }}
-                          hitSlop={10}
+                          style={styles.noticeActionBtn}
                           accessibilityRole="button"
                           accessibilityLabel={`${t.undo}: ${notice.message}`}
                         >

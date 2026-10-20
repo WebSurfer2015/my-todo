@@ -24,14 +24,10 @@ export interface StatusOverride {
   id: StatusFilter
   /** User-set label override; falls back to t.filters[id]. */
   label?: string
-  /** When true, this status is hidden from the filter row. */
-  hidden?: boolean
 }
 
 export interface PriorityOverride {
   id: Priority
-  /** When true, this priority is hidden from filter pickers. */
-  hidden?: boolean
 }
 
 export interface Profile {
@@ -420,7 +416,7 @@ function migratePinnedFilters(raw: unknown): string[][] | undefined {
   // Set equality — order-insensitive dedupe across pinned entries so
   // ['done','cat:work'] and ['cat:work','done'] don't end up as two
   // separate pills.
-  const setKey = (set: string[]) => [...set].sort().join(' ')
+  const setKey = (set: string[]) => [...set].sort().join('\0')
   const seen = new Set<string>()
   const sets: string[][] = []
   const pushSet = (set: string[]) => {
@@ -457,10 +453,7 @@ function migratePriorities(raw: unknown): PriorityOverride[] | undefined {
     if (typeof id !== 'string' || !VALID_PRIORITY_IDS.includes(id as Priority)) continue
     if (seen.has(id as Priority)) continue
     seen.add(id as Priority)
-    result.push({
-      id: id as Priority,
-      hidden: o.hidden === true ? true : undefined,
-    })
+    result.push({ id: id as Priority })
   }
   return result.length > 0 ? result : undefined
 }
@@ -482,7 +475,6 @@ function migrateStatuses(raw: unknown): StatusOverride[] | undefined {
         typeof o.label === 'string' && o.label.length > 0
           ? o.label.slice(0, MAX_STATUS_LABEL_LEN)
           : undefined,
-      hidden: o.hidden === true ? true : undefined,
     })
   }
   return result.length > 0 ? result : undefined

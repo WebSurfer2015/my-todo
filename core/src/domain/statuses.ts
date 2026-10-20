@@ -5,7 +5,6 @@ import type { Strings } from '../data/i18n'
 export interface StatusEntry {
   id: StatusFilter
   label: string
-  hidden: boolean
 }
 
 /** Return all statuses in user-defined order, with resolved labels. Defaults fill any missing ids. */
@@ -19,12 +18,11 @@ export function getOrderedStatuses(profile: Profile, t: Strings): StatusEntry[] 
     result.push({
       id: o.id,
       label: o.label && o.label.trim() ? o.label : t.filters[o.id],
-      hidden: !!o.hidden,
     })
   }
   for (const id of STATUS_FILTERS) {
     if (seen.has(id)) continue
-    result.push({ id, label: t.filters[id], hidden: false })
+    result.push({ id, label: t.filters[id] })
   }
   return result
 }
@@ -43,7 +41,6 @@ function setOverride(
     next[idx] = {
       id: merged.id,
       label: merged.label && merged.label.trim() ? merged.label : undefined,
-      hidden: merged.hidden === true ? true : undefined,
     }
     return next
   }
@@ -52,7 +49,6 @@ function setOverride(
     {
       id,
       label: patch.label && patch.label.trim() ? patch.label : undefined,
-      hidden: patch.hidden === true ? true : undefined,
     },
   ]
 }
@@ -79,17 +75,13 @@ export function statusReorder(
     if (seen.has(id)) continue
     seen.add(id)
     const existing = existingMap.get(id)
-    next.push({
-      id,
-      label: existing?.label,
-      hidden: existing?.hidden,
-    })
+    next.push({ id, label: existing?.label })
   }
   // Append any statuses missing from newOrder so we don't silently drop them.
   for (const id of STATUS_FILTERS) {
     if (!seen.has(id)) {
       const existing = existingMap.get(id)
-      next.push({ id, label: existing?.label, hidden: existing?.hidden })
+      next.push({ id, label: existing?.label })
     }
   }
   return { ...profile, statuses: next }

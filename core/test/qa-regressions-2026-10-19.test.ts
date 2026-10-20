@@ -338,7 +338,7 @@ describe("8e — export payload round-trips every entity", () => {
 });
 
 describe("8f — status overrides migration", () => {
-  it("skips duplicate ids (first wins) and caps labels at 40 chars", () => {
+  it("skips duplicate ids (first wins), caps labels at 40 chars, drops the retired hidden flag", () => {
     const p = migrateProfile({
       name: "Me",
       avatar: { kind: "preset", key: "mochi" },
@@ -349,8 +349,8 @@ describe("8f — status overrides migration", () => {
       ],
     });
     expect(p.statuses).toEqual([
-      { id: "open", label: "x".repeat(40), hidden: undefined },
-      { id: "done", label: undefined, hidden: true },
+      { id: "open", label: "x".repeat(40) },
+      { id: "done", label: undefined },
     ]);
   });
 });

@@ -18,7 +18,6 @@ describe('getOrderedPriorities', () => {
   it('returns the default PRIORITY_VALUES order when no overrides', () => {
     const out = getOrderedPriorities(SEED_PROFILE, t)
     expect(out.map((p) => p.id)).toEqual([...PRIORITY_VALUES])
-    expect(out.every((p) => !p.hidden)).toBe(true)
     expect(out[0].label).toBe(t.priority[out[0].id])
   })
 
@@ -35,11 +34,6 @@ describe('getOrderedPriorities', () => {
     const ids = getOrderedPriorities(p, t).map((x) => x.id)
     expect(ids.filter((i) => i === 'high')).toHaveLength(1)
   })
-
-  it('carries the hidden flag through', () => {
-    const p: Profile = { ...SEED_PROFILE, priorities: [{ id: 'medium', hidden: true }] }
-    expect(getOrderedPriorities(p, t).find((x) => x.id === 'medium')?.hidden).toBe(true)
-  })
 })
 
 describe('priorityReorder', () => {
@@ -53,11 +47,5 @@ describe('priorityReorder', () => {
     const ids = out.priorities?.map((p) => p.id) ?? []
     expect(ids[0]).toBe('low')
     expect(new Set(ids)).toEqual(new Set(PRIORITY_VALUES))
-  })
-
-  it('preserves hidden flags across a reorder', () => {
-    const hidden: Profile = { ...SEED_PROFILE, priorities: [{ id: 'high', hidden: true }] }
-    const out = priorityReorder(hidden, ['medium', 'low', 'high'])
-    expect(out.priorities?.find((p) => p.id === 'high')?.hidden).toBe(true)
   })
 })
