@@ -55,6 +55,8 @@ export const FIREBASE_AUTH_MESSAGES: Record<string, string> = {
   "auth/user-not-found": "No account found for that email.",
   "auth/wrong-password": "That email or password isn't right.",
   "auth/weak-password": "Password is too weak — pick something longer.",
+  "auth/missing-password": "Enter your password.",
+  "auth/missing-email": "Enter your email.",
   "auth/too-many-requests":
     "Too many attempts. Wait a few minutes and try again.",
   "auth/requires-recent-login":

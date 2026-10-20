@@ -51,9 +51,20 @@ appId: com.websurfer.mytodo
             - assertVisible:
                 id: "signin-email-input"
                 text: ${EMAIL}
-      - tapOn:
-          id: "signin-password-input"
-      - inputText: ${PASSWORD}
+      # Same for the password: reveal it ("Show password") and check the
+      # field isn't empty before submitting (an untyped password came back
+      # as auth/missing-password in CI).
+      - tapOn: "Show password"
+      - retry:
+          maxRetries: 3
+          commands:
+            - tapOn:
+                id: "signin-password-input"
+            - eraseText: 80
+            - inputText: ${PASSWORD}
+            - assertVisible:
+                id: "signin-password-input"
+                text: ".+"
       # No hideKeyboard — it's flaky on the iOS sim ("Couldn't hide the
       # keyboard"). The SignIn form is in a KeyboardAvoidingView, so the
       # submit button stays visible above the keyboard and is tappable.
