@@ -59,6 +59,13 @@ describe('7 — Mochi card Undo targets', () => {
     expect(card).toMatch(/hasChipEdits \? 'Undo change' : 'Remove'/)
     expect(card).toMatch(/hasChipEdits \? 'Undo last change' : 'Remove this to-do'/)
   })
+
+  it('Confirm appears only after a chip change and locks the card in', () => {
+    expect(card).toMatch(/\{editable && hasChipEdits && \(\s*<TouchableOpacity\s*onPress=\{confirmChanges\}/)
+    expect(card).toMatch(/isCaptureCardEditable\(undoLive, removal !== null, confirmed\)/)
+    expect(card).toMatch(/confirmBtn: \{\s*minHeight: 44/)
+    expect(card).toMatch(/✓ Updated/)
+  })
 })
 
 describe('8 — details header says Close', () => {

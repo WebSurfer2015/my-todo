@@ -292,6 +292,9 @@ describe('isCaptureCardEditable', () => {
   ])('undoLive=%s removed=%s → %s', (undoLive, removed, expected) => {
     expect(isCaptureCardEditable(undoLive, removed)).toBe(expected)
   })
+  it('a confirmed card is read-only', () => {
+    expect(isCaptureCardEditable(true, false, true)).toBe(false)
+  })
 })
 
 describe('addedReplyText — an already-added capture reads in the past tense', () => {

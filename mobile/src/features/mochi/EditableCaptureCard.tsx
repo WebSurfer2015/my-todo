@@ -3,6 +3,8 @@
  * Its Category / Due-date / Priority chips are tap-to-edit — they update the
  * live task in place, so you can fix what Mochi got slightly wrong without
  * leaving the chat. Recurrence + reminders stay read-only (edit via the task).
+ * Chip changes save at once; after one, a Confirm appears beside Undo — it
+ * locks the card in ("✓ Updated", chips read-only).
  */
 import React, { useMemo, useRef, useState } from 'react'
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
@@ -74,6 +76,8 @@ export default function EditableCaptureCard({
   const [open, setOpen] = useState<'category' | 'date' | null>(null)
   // What the final Undo (the removal) did; null until it ran.
   const [removal, setRemoval] = useState<UndoResult | null>(null)
+  // The user confirmed their chip changes — the card is finished.
+  const [confirmed, setConfirmed] = useState(false)
   const removingRef = useRef(false)
   // Each change pushes its reverse; "Undo" pops the most recent. When empty,
   // the next Undo removes the to-do (the original add).
@@ -81,7 +85,7 @@ export default function EditableCaptureCard({
   const [, bumpUndo] = useState(0) // force a re-render when the stack changes
   const sync = () => bumpUndo((n) => n + 1)
 
-  const editable = isCaptureCardEditable(undoLive, removal !== null)
+  const editable = isCaptureCardEditable(undoLive, removal !== null, confirmed)
   // Chip edits still on the stack → the button undoes the latest; none → it
   // removes the to-do (the original add).
   const hasChipEdits = undoStack.current.length > 0
@@ -135,6 +139,12 @@ export default function EditableCaptureCard({
     }
     // Close the tray once the user commits (or dismisses) — on every platform.
     setOpen(null)
+  }
+  // The changes are already saved; Confirm just ends editing.
+  const confirmChanges = () => {
+    undoStack.current = []
+    setOpen(null)
+    setConfirmed(true)
   }
   const undoLast = () => {
     const fn = undoStack.current.pop()
@@ -266,6 +276,10 @@ export default function EditableCaptureCard({
       <View style={styles.actionRow}>
         {removal ? (
           <Text style={styles.removedNote}>{captureCardRemovalNote(removal)}</Text>
+        ) : confirmed ? (
+          <Text style={styles.removedNote} accessibilityLiveRegion="polite">
+            ✓ Updated
+          </Text>
         ) : (
           <>
             {/* Already added — the header says so; the footer is only Undo. */}
@@ -278,6 +292,17 @@ export default function EditableCaptureCard({
             >
               <Text style={styles.undoText}>{hasChipEdits ? 'Undo change' : 'Remove'}</Text>
             </TouchableOpacity>
+            )}
+            {/* Only after a chip change: lock the card in. */}
+            {editable && hasChipEdits && (
+              <TouchableOpacity
+                onPress={confirmChanges}
+                style={styles.confirmBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Confirm changes"
+              >
+                <Text style={styles.confirmText}>Confirm</Text>
+              </TouchableOpacity>
             )}
           </>
         )}
@@ -361,5 +386,16 @@ function makeStyles(c: ThemeColors) {
     undoBtn: { minHeight: 44, minWidth: 44, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
     removedNote: { fontSize: 13, fontWeight: '600', color: c.label3, marginTop: 8 },
     undoText: { fontSize: 13, fontWeight: '700', color: c.primary },
+    // The filled primary action, same 44pt target as Undo.
+    confirmBtn: {
+      minHeight: 44,
+      minWidth: 44,
+      paddingHorizontal: 16,
+      borderRadius: 999,
+      backgroundColor: c.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    confirmText: { fontSize: 13, fontWeight: '700', color: c.primaryOn },
   })
 }
