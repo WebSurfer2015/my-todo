@@ -92,7 +92,7 @@ interface Sheets {
   openCaptureWith: (text: string) => void
   /** Open the Manage Filter sheet (Todos gear icon, Settings entry). */
   openManageFilter: () => void
-  /** Open the Select Filter sheet (Todos funnel). */
+  /** Open the Filter sheet (Todos funnel). */
   openSelectFilter: () => void
   /** Open Manage Groceries — navigates to Groceries tab then signals
    * the screen to open StorePicker in edit mode (since StorePicker

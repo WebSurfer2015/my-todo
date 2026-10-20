@@ -219,7 +219,7 @@ export const PRIORITY_VALUES: Priority[] = ['high', 'medium', 'low']
  * full-saturation red. Bar count (1/2/3) still carries the primary signal.
  */
 export const PRIORITY_COLORS: Record<Priority, string> = {
-  high:   '#E07878',  // soft coral red
+  high:   '#C2703D',  // warm terracotta — never red (red = permanent deletes)
   medium: '#E8A964',  // soft amber
   low:    '#7AA4D4',  // soft slate blue
 }

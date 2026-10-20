@@ -24,6 +24,13 @@ interface Props {
   extraBottom?: number
 }
 
+/** FAB diameter and its resting gap above the screen's bottom edge. */
+export const FAB_SIZE = 70
+const FAB_BASE_OFFSET = 4
+/** Bottom padding a scrolling list needs so its last row clears the FAB
+ * (FAB height + its resting offset + 24pt of breathing room). */
+export const FAB_LIST_CLEARANCE = FAB_SIZE + FAB_BASE_OFFSET + 24
+
 export default function Fab({ onPress, accessibilityLabel, agentEnabled = false, extraBottom = 0 }: Props) {
   const theme = useTheme()
   const insets = useSafeAreaInsets()
@@ -56,7 +63,7 @@ export default function Fab({ onPress, accessibilityLabel, agentEnabled = false,
   // safe-area baseline + 4pt the design uses, plus an optional extra
   // offset so screens with their own sticky footer can lift the FAB
   // above it (Home's stats row, for one).
-  const bottom = kbHeight > 0 ? kbHeight + 12 : 4 + insets.bottom + extraBottom
+  const bottom = kbHeight > 0 ? kbHeight + 12 : FAB_BASE_OFFSET + insets.bottom + extraBottom
   const styles = useMemo(() => makeStyles(theme, bottom), [theme, bottom])
 
   return (
@@ -89,9 +96,9 @@ function makeStyles(c: ThemeColors, bottom: number) {
       position: 'absolute',
       right: 20,
       bottom,
-      width: 70,
-      height: 70,
-      borderRadius: 35,
+      width: FAB_SIZE,
+      height: FAB_SIZE,
+      borderRadius: FAB_SIZE / 2,
       backgroundColor: c.blue,
       // The tab bar now shares the FAB's color, so add a halo in the
       // canvas color + a stronger shadow to keep the FAB distinct where

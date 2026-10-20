@@ -23,7 +23,7 @@ appId: com.websurfer.mytodo
 - tapOn:
     text: ".*Open.*"
 - tapOn:
-    text: "Done"
+    text: "Show results"
 - waitForAnimationToEnd
 # Expand the collapsed UPCOMING section, then scroll the weekly row in.
 - tapOn:
@@ -57,7 +57,7 @@ appId: com.websurfer.mytodo
 - tapOn:
     text: "Done.*[0-9].*"
 - tapOn:
-    text: "Done"
+    text: "Show results"
 - waitForAnimationToEnd
 - scrollUntilVisible:
     element:

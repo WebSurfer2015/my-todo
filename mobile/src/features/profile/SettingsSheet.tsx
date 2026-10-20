@@ -113,6 +113,8 @@ export default function SettingsSheet({
       onClose={onClose}
       title="Settings"
       primary={{ label: t.done, onPress: onClose }}
+      // Changes apply immediately, so there's nothing to cancel: one Done.
+      left={null}
       padded={false}
     >
               {/* MEMBERSHIP — hidden while IAP is off (free-only v2.0.0) */}
@@ -127,7 +129,7 @@ export default function SettingsSheet({
                   }}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.rowLabel}>Sagely Membership</Text>
+                  <Text style={styles.rowLabelFill}>Sagely membership</Text>
                   <Text style={styles.rowValue} numberOfLines={1}>
                     {membershipLabel}
                   </Text>
@@ -159,7 +161,7 @@ export default function SettingsSheet({
                       <View style={[styles.themePieQuarter, { backgroundColor: sw.accentBright }]} />
                     </View>
                   </View>
-                  <Text style={styles.rowLabel}>Theme</Text>
+                  <Text style={styles.rowLabelFill}>Theme</Text>
                   <Text style={styles.rowValue} numberOfLines={1}>
                     {themeLabel}
                   </Text>
@@ -184,7 +186,7 @@ export default function SettingsSheet({
                   accessibilityRole="button"
                   accessibilityLabel="Manage Todos"
                 >
-                  <Text style={styles.rowLabel}>Manage Todos</Text>
+                  <Text style={styles.rowLabelFill}>Manage Todos</Text>
                   <Text style={styles.rowChevron}>›</Text>
                 </TouchableOpacity>
                 <View style={styles.divider} />
@@ -201,7 +203,7 @@ export default function SettingsSheet({
                   accessibilityRole="button"
                   accessibilityLabel="Shopping stores"
                 >
-                  <Text style={styles.rowLabel}>Shopping stores</Text>
+                  <Text style={styles.rowLabelFill}>Shopping stores</Text>
                   <Text style={styles.rowChevron}>›</Text>
                 </TouchableOpacity>
                 <View style={styles.divider} />
@@ -213,9 +215,9 @@ export default function SettingsSheet({
                   }}
                   activeOpacity={0.7}
                   accessibilityRole="button"
-                  accessibilityLabel="Manage Animation & Sound"
+                  accessibilityLabel="Animation & sound"
                 >
-                  <Text style={styles.rowLabel}>Manage Animation &amp; Sound</Text>
+                  <Text style={styles.rowLabelFill}>Animation &amp; sound</Text>
                   <Text style={styles.rowChevron}>›</Text>
                 </TouchableOpacity>
               </View>
@@ -249,7 +251,7 @@ export default function SettingsSheet({
                   accessibilityRole="button"
                   accessibilityLabel="Open Tips and guides"
                 >
-                  <Text style={styles.rowLabel}>Tips & guides</Text>
+                  <Text style={styles.rowLabelFill}>Tips & guides</Text>
                   <Text style={styles.rowChevron}>›</Text>
                 </TouchableOpacity>
                 <View style={styles.divider} />
@@ -262,11 +264,32 @@ export default function SettingsSheet({
                   accessibilityRole="button"
                   accessibilityLabel="View Mochi's intro again"
                 >
-                  <Text style={styles.rowLabel}>View intro again</Text>
+                  <Text style={styles.rowLabelFill}>View intro again</Text>
                   <Text style={styles.rowChevron}>›</Text>
                 </TouchableOpacity>
               </View>
 
+              <Text style={styles.sectionLabel}>ABOUT</Text>
+              <View style={styles.card}>
+                <View style={styles.rowStatic}>
+                  <Text style={styles.rowLabelFill}>Sagely</Text>
+                  <Text style={styles.rowValue}>v{Constants.expoConfig?.version ?? ""}</Text>
+                </View>
+                <View style={styles.divider} />
+                {/* App Review 5.1.1(i): the policy must be easy to find in-app. */}
+                <TouchableOpacity
+                  style={styles.row}
+                  onPress={() => Linking.openURL(PRIVACY_URL).catch(() => {})}
+                  accessibilityRole="link"
+                  accessibilityLabel="Privacy policy"
+                >
+                  <Text style={styles.rowLabelFill}>Privacy policy</Text>
+                  <Text style={styles.rowChevron}>›</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* DATA last — export plus the two permanent actions (red), so
+                  nothing destructive sits mid-scroll among preferences. */}
               <Text style={styles.sectionLabel}>{t.dataSection}</Text>
               <View style={styles.card}>
                 <TouchableOpacity
@@ -369,25 +392,6 @@ export default function SettingsSheet({
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.sectionLabel}>ABOUT</Text>
-              <View style={styles.card}>
-                <View style={styles.rowStatic}>
-                  <Text style={styles.rowLabel}>Sagely</Text>
-                  <Text style={styles.rowValue}>v{Constants.expoConfig?.version ?? ""}</Text>
-                </View>
-                <View style={styles.divider} />
-                {/* App Review 5.1.1(i): the policy must be easy to find in-app. */}
-                <TouchableOpacity
-                  style={styles.row}
-                  onPress={() => Linking.openURL(PRIVACY_URL).catch(() => {})}
-                  accessibilityRole="link"
-                  accessibilityLabel="Privacy policy"
-                >
-                  <Text style={styles.rowLabel}>Privacy policy</Text>
-                  <Text style={styles.rowChevron}>›</Text>
-                </TouchableOpacity>
-              </View>
-
               <View style={{ height: 24 }} />
     </SheetShell>
   );
@@ -475,6 +479,13 @@ function makeStyles(c: ThemeColors) {
       fontSize: TYPE.body,
       color: c.label,
       flexShrink: 1,
+    },
+    // A label that sits directly in a row: fills the row so the value and
+    // chevron always land on the right edge.
+    rowLabelFill: {
+      fontSize: TYPE.body,
+      color: c.label,
+      flex: 1,
     },
     rowHint: {
       fontSize: TYPE.caption,

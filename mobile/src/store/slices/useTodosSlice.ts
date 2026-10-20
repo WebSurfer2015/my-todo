@@ -1133,7 +1133,9 @@ export function useTodosSlice(
       (td) => td.done || td.trashed,
     ).length;
     if (count === 0) return;
-    alertWithPresence(t.clearAllCompleted, t.emptyTrashConfirm(count), [
+    // English-only launch: the title is a literal ("Empty Done…" is the
+    // button; the confirm asks it as a question).
+    alertWithPresence("Empty Done?", t.emptyTrashConfirm(count), [
       { text: t.cancel, style: "cancel" },
       {
         text: t.deletePermanently,

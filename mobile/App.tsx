@@ -13,8 +13,10 @@ import {
   Platform,
   KeyboardAvoidingView,
   useColorScheme,
+  useWindowDimensions,
 } from "react-native";
-import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { TAB_LABEL_MAX_SCALE, TAB_LABEL_SIZE, tabLabelExtraHeight } from "./src/app/tabLabelScale";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ChevronRight, ChevronDown } from "lucide-react-native";
 import {
@@ -32,9 +34,8 @@ import "./src/adapters/notifications";
 // (The former separate globalErrorHandler import double-registered the handler
 // and recorded every fatal twice.)
 import FilterBar from "./src/features/filters/FilterBar";
-import Fab from "./src/app/Fab";
-import { alertWithPresence } from "./src/app/modalPresence";
-import TaskItem from "./src/features/task/TaskItem";
+import Fab, { FAB_LIST_CLEARANCE } from "./src/app/Fab";
+import TaskItem, { closeOpenSwipeable } from "./src/features/task/TaskItem";
 import Footer from "./src/app/Footer";
 import Avatar from "./src/ui/Avatar";
 import SearchTopSheet from "./src/features/filters/SearchTopSheet";
@@ -95,6 +96,11 @@ function TodosScreen() {
   // tabs mid-search. State (searchOpen + searchQuery) persists across
   // tab switches; only the rendered Modal is suppressed when blurred.
   const isFocused = useIsFocused();
+  // Leaving the tab closes any half-open swipe row (it would otherwise
+  // greet the user, still open, on return). Scroll does the same below.
+  useEffect(() => {
+    if (!isFocused) closeOpenSwipeable();
+  }, [isFocused]);
 
   // Profile / Settings / Background picker / Compose now live in
   // SheetContext at the app shell so they're reachable from any tab.
@@ -293,8 +299,9 @@ function TodosScreen() {
     </View>
   );
 
-  // Collapsible date-bucket header (chevron + label + count + per-group
-  // "Defer all"). Mirrors the former inline group-header JSX exactly.
+  // Collapsible date-bucket header (chevron + label + count). "Defer all"
+  // shows only on an EXPANDED Carried over group — the one place a bulk
+  // push-out helps; elsewhere it was noise.
   const renderGroupedHeader = ({ section }: { section: GroupedSection }) => {
     const group = section.group;
     const collapsed = toggleableGroups && collapsedGroups.has(group.key);
@@ -344,8 +351,8 @@ function TodosScreen() {
           </Text>
         )}
         {openInGroupCount > 0 &&
-          group.key !== 'upcoming' &&
-          group.key !== 'noDate' && (
+          group.key === 'overdue' &&
+          !collapsed && (
             <TouchableOpacity
               onPress={() =>
                 setDeferTarget({
@@ -395,7 +402,8 @@ function TodosScreen() {
   );
 
   // Done date-group header (label via isToday/isYesterday/isEarlier/
-  // fullDateLabel + count + "Delete all →" confirm).
+  // fullDateLabel + count). No per-group delete: the bin has ONE
+  // permanent action, "Empty Done…", in the list header.
   const renderDoneHeader = ({ section }: { section: DoneSection }) => {
     const g = section.group;
     const headerLabel = g.isToday
@@ -410,47 +418,17 @@ function TodosScreen() {
         <Text style={styles.groupHeader}>
           {headerLabel} ({g.todos.length})
         </Text>
-        {g.todos.length > 0 && (
-          <>
-            <View style={{ flex: 1 }} />
-            <TouchableOpacity
-              onPress={() => {
-                const ids = g.todos.map((td) => td.id);
-                alertWithPresence(
-                  t.deletePermanently,
-                  // English-only launch (the i18n template quotes a title).
-                  `Permanently delete ${ids.length} ${ids.length === 1 ? 'to-do' : 'to-dos'} from ${headerLabel}? This can't be undone.`,
-                  [
-                    { text: t.cancel, style: 'cancel' },
-                    {
-                      text: t.deletePermanently,
-                      style: 'destructive',
-                      onPress: () => {
-                        for (const id of ids) {
-                          store.permanentlyDelete(id);
-                        }
-                      },
-                    },
-                  ],
-                );
-              }}
-              activeOpacity={0.6}
-              accessibilityRole="button"
-              accessibilityLabel={`Delete all ${g.todos.length} items in ${headerLabel}`}
-            >
-              <Text style={styles.groupHeaderDeleteText}>Delete all →</Text>
-            </TouchableOpacity>
-          </>
-        )}
       </View>
     );
   };
 
-  // Bin-peek footer (surfaces the 30-day Done safety net) + the screen
-  // Footer. Shared by the grouped ScrollView/SectionList footers.
+  // Bin-peek footer ("N in Done · View" — surfaces the 30-day Done safety
+  // net) + the screen Footer. Shared by the grouped ScrollView/SectionList
+  // footers. Hidden while searching: it counts the whole bin, not matches.
   const binPeekFooter =
     !store.inTrashView &&
     store.filter !== "done" &&
+    searchNeedle.length === 0 &&
     store.systemCounts.done > 0 ? (
       <TouchableOpacity
         onPress={() => store.setFilter("done")}
@@ -550,6 +528,7 @@ function TodosScreen() {
           <ScrollView
             contentContainerStyle={styles.container}
             keyboardShouldPersistTaps="handled"
+            onScrollBeginDrag={closeOpenSwipeable}
           >
             <View style={styles.body}>
             <>
@@ -780,16 +759,22 @@ function TodosScreen() {
             ItemSeparatorComponent={ItemSeparator}
             stickySectionHeadersEnabled={false}
             keyboardShouldPersistTaps="handled"
+            onScrollBeginDrag={closeOpenSwipeable}
             contentContainerStyle={styles.listContent}
             ListHeaderComponent={
               displayFiltered.length > 0 ? (
                 <View style={styles.trashHeader}>
                   <Text style={styles.trashNotice}>{t.trashRetention}</Text>
+                  {/* The bin's ONE permanent action: red text, not a red
+                      fill, and it confirms before deleting anything. */}
                   <TouchableOpacity
                     onPress={store.clearDone}
-                    style={styles.emptyTrashBtn}
+                    style={styles.emptyDoneBtn}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={t.clearAllCompleted}
                   >
-                    <Text style={styles.emptyTrashText}>
+                    <Text style={styles.emptyDoneText}>
                       {t.clearAllCompleted}
                     </Text>
                   </TouchableOpacity>
@@ -816,6 +801,7 @@ function TodosScreen() {
             ItemSeparatorComponent={ItemSeparator}
             stickySectionHeadersEnabled={false}
             keyboardShouldPersistTaps="handled"
+            onScrollBeginDrag={closeOpenSwipeable}
             contentContainerStyle={styles.listContent}
             onScrollToIndexFailed={() => {
               // Variable row heights can leave the target offset unknown on
@@ -845,9 +831,12 @@ function TodosScreen() {
           />
         )}
       </KeyboardAvoidingView>
+      {/* Hidden while the search field is up — it covered results and
+          competed with the keyboard. */}
       {!store.inTrashView &&
         store.filter !== "done" &&
-        store.filter !== "groceries" && (
+        store.filter !== "groceries" &&
+        !searchOpen && (
           <Fab
             onPress={() => {
               sheets.openCapture()
@@ -870,6 +859,22 @@ function TodosScreen() {
 }
 
 const Tab = createBottomTabNavigator();
+
+// UIKit tab bar height (react-navigation's default, before the safe area).
+const TAB_BAR_BASE_HEIGHT = 49;
+
+/** Tab label: scales with Dynamic Type up to TAB_LABEL_MAX_SCALE, one line. */
+function TabLabel({ color, children }: { color: string; children: string }) {
+  return (
+    <Text
+      style={{ color, fontSize: TAB_LABEL_SIZE, fontWeight: "600", textAlign: "center" }}
+      maxFontSizeMultiplier={TAB_LABEL_MAX_SCALE}
+      numberOfLines={1}
+    >
+      {children}
+    </Text>
+  );
+}
 
 /**
  * First-launch layer, mounted at the app level (above the tab navigator) so
@@ -946,6 +951,9 @@ function AppGate() {
   // selected palette. (Previously the provider lived inside AppGate, below
   // SheetProvider — so the sheets fell back to the default sage theme.)
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
+  const tabLabelExtra = tabLabelExtraHeight(fontScale);
 
   // Per-todo local reminder sync. Runs whenever the live todos list
   // changes — adds new ones, cancels removed/done/trashed/cleared
@@ -1020,6 +1028,7 @@ function AppGate() {
             // Nudge icons + labels down so they sit vertically centered
             // in the bar (above the home-indicator safe area).
             paddingTop: 12,
+            height: TAB_BAR_BASE_HEIGHT + tabLabelExtra + insets.bottom,
             // Soft upward shadow so the tab bar reads as a raised surface
             // floating above the content.
             shadowColor: '#000',
@@ -1028,7 +1037,10 @@ function AppGate() {
             shadowRadius: 8,
             elevation: 12,
           },
-          tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
+          // Labels follow Dynamic Type, capped at an accessibility size
+          // (TAB_LABEL_MAX_SCALE); the bar grows by the label's extra
+          // height (tabLabelExtra) so nothing clips.
+          tabBarLabel: TabLabel,
         }}
         screenListeners={{
           // Light tap haptic on tab switch so the change registers in the
@@ -1045,7 +1057,7 @@ function AppGate() {
             // Tab label is "Today" — what the screen shows, and it doesn't
             // collide with the user's Home *category*. Route name stays
             // "Home" for stable navigation calls.
-            tabBarLabel: 'Today',
+            title: 'Today',
             tabBarIcon: ({ color, size }) => (
               <House size={size ?? 22} color={color} strokeWidth={2} />
             ),
@@ -1068,7 +1080,7 @@ function AppGate() {
             // other shopping. Route name stays "Groceries" so existing
             // navigation calls + the cross-tab manage signal in
             // SheetContext keep working without a rename cascade.
-            tabBarLabel: 'Shopping',
+            title: 'Shopping',
             tabBarIcon: ({ color, size }) => (
               <ShoppingBag size={size ?? 22} color={color} strokeWidth={2} />
             ),
@@ -1207,7 +1219,8 @@ function makeStyles(c: ThemeColors) {
     },
     kb: { flex: 1 },
     container: {
-      paddingBottom: 16,
+      // The last row (or footer) must clear the FAB.
+      paddingBottom: FAB_LIST_CLEARANCE,
       // flexGrow:1 so the ScrollView's content always fills the
       // viewport even when content is short. Lets the body's
       // centered EmptyStateCard span the remaining vertical space
@@ -1302,7 +1315,8 @@ function makeStyles(c: ThemeColors) {
     listContent: {
       paddingHorizontal: 16,
       paddingTop: 16,
-      paddingBottom: 16,
+      // FAB height + offset + 24 so the last row clears the FAB.
+      paddingBottom: FAB_LIST_CLEARANCE,
     },
     // Replaces groupCard's `gap: 3` between cards (rendered by
     // ItemSeparatorComponent — never before the first or after the last row).
@@ -1364,12 +1378,6 @@ function makeStyles(c: ThemeColors) {
       paddingVertical: 4,
       marginBottom: 8,
     },
-    groupHeaderDeleteText: {
-      fontSize: 12,
-      color: c.red,
-      fontWeight: '600',
-      letterSpacing: 0.2,
-    },
     groupHeaderDeferText: {
       fontSize: 12,
       fontWeight: "600",
@@ -1425,6 +1433,16 @@ function makeStyles(c: ThemeColors) {
     },
     emptyTrashText: {
       color: c.onDanger,
+      fontSize: 13,
+      fontWeight: "600",
+    },
+    // "Empty Done…" — red TEXT (permanent), no fill: one quiet control.
+    emptyDoneBtn: {
+      paddingHorizontal: 4,
+      paddingVertical: 6,
+    },
+    emptyDoneText: {
+      color: c.red,
       fontSize: 13,
       fontWeight: "600",
     },

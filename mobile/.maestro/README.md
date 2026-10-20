@@ -67,7 +67,7 @@ at the running sim and it'll show element selectors live.
 | `flows/02-add-todo.yaml` | + opens Mochi → "Enter manually instead" → Compose renders | 4.1–4.3 |
 | `flows/03-toggle-done-and-strike.yaml` | Filter Open → swipe → Mark done → appears under Done filter | 4.7, 3.2 |
 | `flows/04-swipe-to-trash-and-undo.yaml` | Swipe LEFT → Skip → "Skipped." snackbar Undo restores row | 4.10 |
-| `flows/05-defer-all-group.yaml` | Group header "Defer all →" → modal title check → Tomorrow | 7.5–7.7 |
+| `flows/05-defer-all-group.yaml` | Carried over "Defer all →" → modal title check → Tomorrow | 7.5–7.7 |
 | `flows/07-defer-single-via-swipe.yaml` | Swipe LEFT → Defer → modal "Defer to" → Tomorrow | 7.1–7.3 |
 | `flows/08-recurring-rolling.yaml` | Complete recurring (swipe → Mark done) → Done bin + rolled-forward instance | 9.1–9.3 |
 | `flows/09-shopping-add-item.yaml` | Empty Shopping → Add CTA → GroceryComposeSheet renders (STORES section visible) | (v1.5) |
@@ -78,7 +78,7 @@ at the running sim and it'll show element selectors live.
 | `flows/14-relaunch-persists-data.yaml` | Seeded row survives a cold stopApp/launchApp (hydration) | P0.4 |
 | `flows/15-open-task-details-sheet.yaml` | Long-press (or tap) row → TaskDetailsSheet "Steps" renders (render-only) | P1.6 |
 | `flows/16-sign-out.yaml` | Avatar → ProfileSheet → Sign out → SignIn screen ⚠ destructive | P0.2 |
-| `flows/17-clear-completed.yaml` | Complete row → Done filter → "Delete all permanently" → confirm ⚠ destructive | P1.8 |
+| `flows/17-clear-completed.yaml` | Complete row → Done filter → "Empty Done…" → confirm ⚠ destructive | P1.8 |
 | `flows/18-bin-reopen.yaml` | Done bin footer → swipe LEFT → Reopen → "Moved back to your open list." | P1.7 |
 | `flows/19-complete-undo.yaml` | Swipe RIGHT → Mark done → "Done: … · Undo" → Undo restores "Review reading group chapter" | Phase 2 |
 | `flows/20-onboarding.yaml` | View intro again → one-screen onboarding; starter chip pre-fills; look around → Today (no AI call) | Phase 2 |
@@ -99,7 +99,7 @@ at the running sim and it'll show element selectors live.
 | P1.5 add task + toggle | `02`, `03` | ✅ |
 | P1.6 subtasks / task-details | `15` | ✅ long-press → TaskDetailsSheet renders ("Steps") |
 | P1.7 trash + undo | `04` | ✅ swipe LEFT → Skip → snackbar Undo (TODAY row) |
-| P1.7 trash bulk-select | `18` | bin via "tap to peek" footer → select → bulk Restore |
+| P1.7 trash bulk-select | `18` | bin via "N in Done · View" footer → select → bulk Restore |
 | P1.8 clear completed | `17` | ✅ new |
 | P1.9 reminders | — | reachable (ReminderSheet is addressable) — flow not yet written |
 | P1.10 defer (single + all) | `05`, `07` | ✅ swipe Defer (07) + group Defer-all (05) |
@@ -197,17 +197,18 @@ the sibling-vs-wrapper distinction is what matters.)
 
 **3. The Todos filter is a sheet, not inline chips.** There are no inline
 filter chips until a filter is already active. To filter: tap the funnel
-(`accessibilityLabel "Filter"`) → the "Select Filter" sheet → tap a
-**status row** → the title-bar **"Done"** applies + closes. Status rows
-carry a concatenated count (`"Open, 21"`), so they need a `.*regex.*`;
-the bare-text title-bar `"Done"` button does NOT collide with the
-`"Done, N"` status row (exact-match only hits the button). The sheet
-offers STATUSES (Carried over / Open / Done), PRIORITIES, CATEGORIES —
-**no "Trash"**; the bin is reached via the list's "N tucked away · tap
-to peek →" footer instead.
+(`accessibilityLabel "Filter"`) → the "Filter" sheet → tap a
+**status row** → the footer **"Show results"** closes it (there's no
+Cancel; "Reset" top-right clears). Status rows carry a concatenated count
+(`"Open, 21 items"`), so they need a `.*regex.*` — except Carried over,
+which never shows a count. The sheet offers STATUSES (Carried over / Open /
+Done), PRIORITIES, CATEGORIES — **no "Trash"**; the bin is reached via the
+list's "N in Done · View" footer instead, and its one bulk action is
+"Empty Done…".
 
-**4. Section headers' "Defer all →" has an a11y-label override.** The
-touchable sets `accessibilityLabel="Defer N … to-dos"`, which hides the
+**4. "Defer all →" has an a11y-label override and shows only on an
+expanded CARRIED OVER group** (and the Carried over filter view). The
+touchable sets `accessibilityLabel="Defer all … to-dos"`, which hides the
 visible "Defer all →" text from Maestro — match `.*Defer.*to-dos.*`, not
 `.*Defer all.*`. Collapsed sections (CARRIED OVER / UPCOMING) can't be
 scrolled into; tap the header to expand first, then `scrollUntilVisible`.

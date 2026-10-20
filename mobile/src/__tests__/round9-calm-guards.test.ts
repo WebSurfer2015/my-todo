@@ -43,7 +43,7 @@ describe('Home empty state', () => {
   const home = read('features/home/HomeScreen.tsx')
   it('a returning user with finished work gets a quiet day', () => {
     expect(home).toMatch(/const hasDone = store\.todos\.some\(\(td\) => td\.done \|\| td\.trashed\)/)
-    expect(home).toMatch(/'Nothing on your plate\. Quiet day\.'/)
+    expect(home).toMatch(/'A quiet day\. Nothing on your plate\.'/)
     expect(home).toMatch(/'What you finished is resting in Done\.'/)
   })
   it('the carried-over header never speaks a count', () => {

@@ -259,21 +259,9 @@ export function makeStyles(c: ThemeColors) {
       gap: SPACING.xs,
     },
     swipeActionsRow: { flexDirection: 'row' },
-    notDoIcon: {
-      width: 22,
-      height: 22,
-      borderRadius: 11,
-      backgroundColor: '#fff',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    notDoIconX: {
-      color: c.gray,
-      fontSize: TYPE.body,
-      fontWeight: '800',
-      lineHeight: 14,
-    },
     swipeEdit:    { backgroundColor: c.primary },
+    // Defer is the one warm action (the warm-text amber family); Skip and
+    // Delete share the neutral fill. Same outline-icon weight on all three.
     swipeDefer:   { backgroundColor: c.orange },
     swipeMarkDone: { backgroundColor: c.green },
     // swipeTrash = the reversible actions (Skip, Delete on an active row →

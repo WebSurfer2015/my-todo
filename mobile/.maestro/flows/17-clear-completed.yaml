@@ -1,8 +1,8 @@
-# Flow 17 — Clear all completed (Done filter → "Delete all permanently"
+# Flow 17 — Empty the Done bin (Done filter → "Empty Done…"
 # → confirm Alert → list clears). Manual-plan P1.8.
 #
 # Completes a seeded row (body-tap), switches to the Done filter via the
-# funnel sheet (Filter → Done status row → title-bar Done), taps the
+# funnel sheet (Filter → Done status row → "Show results"), taps the
 # header "Delete all permanently", and confirms the native Alert (whose
 # destructive button is the bare "Delete permanently" — distinct from the
 # header's "Delete all permanently").
@@ -34,22 +34,22 @@ appId: com.websurfer.mytodo
     timeout: 4000
 - waitForAnimationToEnd:
     timeout: 2500
-# Switch to the Done filter (funnel → status row → title-bar Done).
+# Switch to the Done filter (funnel → status row → "Show results").
 - tapOn:
     text: "Filter"
 - tapOn:
     text: "Done.*[0-9].*"
 - tapOn:
-    text: "Done"
+    text: "Show results"
 - waitForAnimationToEnd
-# Header bulk action — i18n clearAllCompleted: 'Delete all permanently'.
+# The bin's one permanent action — i18n clearAllCompleted: 'Empty Done…'.
 - assertVisible:
-    text: ".*Delete all permanently.*"
+    text: "Empty Done.*"
 - tapOn:
-    text: ".*Delete all permanently.*"
-# Native confirm Alert — destructive button is the bare "Delete permanently".
+    text: "Empty Done.*"
+# Native confirm Alert — destructive button is t.deletePermanently.
 - tapOn:
-    text: "Delete permanently"
+    text: "Delete forever"
 - waitForAnimationToEnd:
     timeout: 1500
 - assertNotVisible: ".*Email therapist about Friday.*"

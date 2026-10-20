@@ -1,15 +1,14 @@
 # Flow 05 — A section header's "Defer all →" opens the bulk-defer modal,
 # pick Tomorrow. Manual-plan tests 7.5–7.7.
 #
-# Each section header (TODAY / CARRIED OVER / THIS WEEK / UPCOMING) has
-# its own "Defer all →" action, so in the unfiltered view there are
-# several. We first filter to "Carried over" (funnel → status row →
-# title-bar Done) so exactly one "Defer all →" remains and the target
-# group is unambiguous. Carried over seeds 2 items, so the modal title
+# "Defer all →" appears only on an expanded CARRIED OVER group (and on
+# the Carried over filter view). We filter to "Carried over" (funnel →
+# status row → "Show results") so exactly one "Defer all →" shows and the
+# target group is unambiguous. Carried over seeds 2 items, so the modal title
 # is "Defer all to" (count > 1).
 #
 # NOTE: the "Defer all →" touchable sets an accessibilityLabel
-# ("Defer N carried-over to-dos" / "Defer N to-dos in <group>") which
+# ("Defer all carried-over to-dos" / "Defer all to-dos in <group>") which
 # OVERRIDES the visible "Defer all →" text on iOS — so Maestro sees the
 # label, not "Defer all". Both label variants contain "to-dos", so we
 # match on that.
@@ -24,7 +23,7 @@ appId: com.websurfer.mytodo
 - tapOn:
     text: ".*Carried over.*"
 - tapOn:
-    text: "Done"
+    text: "Show results"
 - waitForAnimationToEnd
 - tapOn:
     text: ".*Defer.*to-dos.*"
