@@ -8,7 +8,7 @@
  * tested in core/src/logic/homeDashboard.ts; done rows leave the section.
  */
 
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ScrollView,
   StyleSheet,
@@ -16,7 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import { useNavigation, type NavigationProp, type ParamListBase } from '@react-navigation/native'
+import { useIsFocused, useNavigation, type NavigationProp, type ParamListBase } from '@react-navigation/native'
 import { ChevronRight } from 'lucide-react-native'
 import { useStore } from '../../app/StoreContext'
 import { useLang } from '../../app/LangContext'
@@ -51,7 +51,7 @@ function nextGroupAfter(
 import EmptyStateCard from '../../ui/EmptyStateCard'
 import AppHeader from '../../app/AppHeader'
 import Fab from '../../app/Fab'
-import TaskItem from '../task/TaskItem'
+import TaskItem, { closeOpenSwipeable } from '../task/TaskItem'
 import DeferModal from '../task/DeferModal'
 
 const TODAY_PREVIEW_CAP = 6
@@ -63,6 +63,11 @@ export default function HomeScreen() {
   const styles = useMemo(() => makeStyles(theme), [theme])
   const navigation = useNavigation<NavigationProp<ParamListBase>>()
   const sheets = useSheets()
+  // Leaving the tab closes any half-open swipe row (scroll does too).
+  const isFocused = useIsFocused()
+  useEffect(() => {
+    if (!isFocused) closeOpenSwipeable()
+  }, [isFocused])
 
   const today = todayLocal()
 
@@ -144,6 +149,16 @@ export default function HomeScreen() {
     setNextGroupKey(firstAvailableNextKey)
     setNextExpanded(true)
   }, [firstAvailableNextKey])
+  // Peek ahead from beside CARRIED OVER: those rows are already on screen,
+  // so start past the overdue bucket. null = nothing further ahead.
+  const firstPeekPastCarriedKey = useMemo<GroupKey | null>(
+    () => nextGroupAfter('overdue', null, groupsByKey),
+    [groupsByKey],
+  )
+  const peekPastCarried = useCallback(() => {
+    setNextGroupKey(firstPeekPastCarriedKey)
+    setNextExpanded(true)
+  }, [firstPeekPastCarriedKey])
   // Advance to the next available group (used by the in-section
   // What's Next button when the current bucket has been emptied).
   const advanceToNextGroup = useCallback(() => {
@@ -195,6 +210,29 @@ export default function HomeScreen() {
     />
   )
 
+  // The quiet TODAY header used whenever nothing is due today: a plain
+  // label, or a "Done" link when something was finished today.
+  const quietTodayHeader =
+    counts.today === 0 ? (
+      <View style={styles.sectionHeaderRow}>
+        <Text style={styles.sectionHeader}>TODAY</Text>
+      </View>
+    ) : (
+      <TouchableOpacity
+        style={styles.sectionHeaderRow}
+        onPress={() => openTodos('done')}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Open Todos showing Done items"
+      >
+        <Text style={styles.sectionHeader}>TODAY</Text>
+        <View style={styles.sectionRight}>
+          <Text style={styles.sectionCount}>Done</Text>
+          <ChevronRight size={14} color={theme.label3} strokeWidth={2.5} />
+        </View>
+      </TouchableOpacity>
+    )
+
   // Day-1 / "empty workspace" mode: when there are NO non-trashed
   // todos anywhere, the Dashboard collapses to a single full-screen
   // welcome empty state. Hides the TODAY band, tile row, and What's
@@ -214,7 +252,7 @@ export default function HomeScreen() {
         <AppHeader onGearPress={sheets.openSettings} />
         <View style={styles.dayOneEmptyWrap}>
           <EmptyStateCard
-            title={hasDone ? 'Nothing on your plate. Quiet day.' : firstName ? `Welcome, ${firstName}.` : 'Welcome.'}
+            title={hasDone ? 'A quiet day. Nothing on your plate.' : firstName ? `Welcome, ${firstName}.` : 'Welcome.'}
             hint={hasDone ? 'What you finished is resting in Done.' : "Let's add your first to-do."}
             actionLabel="Add a to-do"
             onAction={() => {
@@ -242,6 +280,7 @@ export default function HomeScreen() {
         style={styles.flex}
         contentContainerStyle={[styles.body, { paddingBottom: 120 }]}
         showsVerticalScrollIndicator={false}
+        onScrollBeginDrag={closeOpenSwipeable}
       >
         {/* Today section — actionable focus right at the top. When
             today's bucket is empty the chip becomes "done" and routes
@@ -258,25 +297,7 @@ export default function HomeScreen() {
         {nextExpanded ? null : todayBucket.length === 0 ? (
           <>
             {/* Quiet TODAY header above the empty state. */}
-            {counts.today === 0 ? (
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeader}>TODAY</Text>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={styles.sectionHeaderRow}
-                onPress={() => openTodos('done')}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="Open Todos showing Done items"
-              >
-                <Text style={styles.sectionHeader}>TODAY</Text>
-                <View style={styles.sectionRight}>
-                  <Text style={styles.sectionCount}>Done</Text>
-                  <ChevronRight size={14} color={theme.label3} strokeWidth={2.5} />
-                </View>
-              </TouchableOpacity>
-            )}
+            {quietTodayHeader}
             {undatedCount > 0 ? (
               // Undated captures (e.g. a first to-do via Mochi) never land
               // on Today — point at them so they don't seem to vanish.
@@ -313,7 +334,28 @@ export default function HomeScreen() {
           </>
         ) : (
           <>
-            {todayDueItems.length > 0 && (
+            {todayDueItems.length === 0 ? (
+              // Only carried-over rows: keep the TODAY header so the day
+              // still has a home, say so in one quiet line, and offer the
+              // same Peek ahead the empty state does.
+              <>
+                {quietTodayHeader}
+                <View style={styles.quietLineRow}>
+                  <Text style={styles.quietLine}>Nothing due today.</Text>
+                  {firstPeekPastCarriedKey != null && (
+                    <TouchableOpacity
+                      onPress={peekPastCarried}
+                      hitSlop={8}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel="Peek ahead — show what's coming up next."
+                    >
+                      <Text style={styles.quietLink}>Peek ahead</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </>
+            ) : (
               <>
                 <TouchableOpacity
                   style={styles.sectionHeaderRow}
@@ -525,6 +567,25 @@ function makeStyles(c: ThemeColors) {
       fontWeight: '600',
       color: c.label2,
       letterSpacing: 0.2,
+    },
+    // "Nothing due today." + Peek ahead, when only carried-over rows exist.
+    quietLineRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      flexWrap: 'wrap',
+      gap: SPACING.sm,
+      paddingHorizontal: SPACING.xs,
+      marginTop: SPACING.xs,
+    },
+    quietLine: {
+      fontSize: TYPE.footnote,
+      color: c.label2,
+    },
+    quietLink: {
+      fontSize: TYPE.footnote,
+      fontWeight: '600',
+      color: c.primary,
     },
     sectionCollapse: {
       fontSize: TYPE.title,

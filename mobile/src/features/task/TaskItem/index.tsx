@@ -29,6 +29,12 @@ function trackOpenSwipeable(
 function clearOpenSwipeable(id: string): void {
   if (openSwipeable?.id === id) openSwipeable = null
 }
+/** Close whichever row's swipe menu is open (if any). Called by list
+ * screens on scroll and on tab blur so a half-open row never lingers. */
+export function closeOpenSwipeable(): void {
+  openSwipeable?.ref.current?.close()
+  openSwipeable = null
+}
 function closeOtherSwipeables(id: string): void {
   if (openSwipeable && openSwipeable.id !== id) {
     openSwipeable.ref.current?.close()
@@ -78,6 +84,7 @@ import {
   Pencil,
   Check,
   Calendar,
+  CircleX,
 } from 'lucide-react-native'
 import { getReminders } from '../../../../../core/src/logic/derive'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
@@ -591,12 +598,7 @@ function TaskItem({
           style={[styles.swipeAction, styles.swipeTrash]}
           onPress={handleSkip}
         >
-          {/* Solid white disc + dark X — lucide's XCircle outline reads
-              as "dotted" / thin at button scale, so we draw a filled
-              circle with a contrasting ✕ glyph instead. */}
-          <View style={styles.notDoIcon}>
-            <Text style={styles.notDoIconX}>✕</Text>
-          </View>
+          <CircleX size={20} color={SWIPE_INK} strokeWidth={2} />
           <Text style={[styles.swipeActionText, styles.swipeActionTextInk]} numberOfLines={1}>{t.notDo}</Text>
         </TouchableOpacity>
         )}

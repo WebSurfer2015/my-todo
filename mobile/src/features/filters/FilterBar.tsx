@@ -4,7 +4,6 @@ import { actionSheetWithPresence, alertWithPresence } from '../../app/modalPrese
 import {
   Filter,
   Priority,
-  PRIORITY_COLORS,
   StatusFilter,
   categoryIdFromFilter,
   isCategoryFilter,
@@ -15,6 +14,7 @@ import { CategoryDef, categoryLabel } from '../../core-bindings/categories'
 import CategoryIcon from '../../ui/CategoryIcon'
 import StatusIcon, { statusColor } from '../../ui/StatusIcon'
 import PriorityBars from '../../ui/PriorityBars'
+import { priorityGlyphColor } from '../../ui/priorityGlyph'
 import { useLang } from '../../app/LangContext'
 import { useTheme, ThemeColors, RADIUS } from '../../app/theme'
 
@@ -168,7 +168,7 @@ export default function FilterBar({
         icon: <PriorityBars level={p} size={14} />,
         label: t.priority[p],
         count: byPriority[p] ?? 0,
-        color: PRIORITY_COLORS[p],
+        color: priorityGlyphColor(theme, p),
       }
     }
     const s = orderedVisibleStatuses.find((x) => x.id === f)

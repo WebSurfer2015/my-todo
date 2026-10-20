@@ -122,7 +122,15 @@ export default function GuideSheet({ visible, guide, onComplete, onClose }: Prop
               <Text style={styles.title}>{s.title}</Text>
               <Text style={styles.body}>{renderBody(s.body, styles)}</Text>
               {s.visual && (
-                <View style={styles.visualWrap}>{s.visual}</View>
+                // The mockup is a picture of the UI, not the UI — hidden
+                // from VoiceOver so its fake buttons aren't read as real.
+                <View
+                  style={styles.visualWrap}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                >
+                  {s.visual}
+                </View>
               )}
             </ScrollView>
           ))}

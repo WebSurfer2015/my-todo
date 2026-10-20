@@ -1,16 +1,17 @@
 import React from 'react'
 import { View } from 'react-native'
-import { Priority, PRIORITY_COLORS } from '../core-bindings/types'
+import type { Priority } from '../core-bindings/types'
 import { useTheme } from '../app/theme'
+import { priorityGlyphColor } from './priorityGlyph'
 
 /**
  * Three-bar priority badge. High = 3 filled bars, Medium = 2, Low = 1.
- * Filled bars use the priority's color; unfilled bars are a muted track
- * color. Bars stack bottom-up (shortest on left, tallest on right) so
+ * Filled bars use priorityGlyphColor (warm amber for High, neutral
+ * otherwise — never red); unfilled bars are a muted track color. Bars stack bottom-up (shortest on left, tallest on right) so
  * the visual climbs to match a "how loud" reading at a glance.
  *
- * Used by the PRIORITIES section in CategorySheet + ManageHomeTilesSheet
- * + anywhere else we need to label a priority row.
+ * The ONE priority glyph: the filter sheet, CategorySheet, and every row /
+ * picker (via PriorityDot) render it, so High reads the same everywhere.
  */
 
 interface Props {
@@ -22,7 +23,7 @@ interface Props {
 export default function PriorityBars({ level, size = 18 }: Props) {
   const theme = useTheme()
   const filledCount = level === 'high' ? 3 : level === 'medium' ? 2 : 1
-  const fill = PRIORITY_COLORS[level]
+  const fill = priorityGlyphColor(theme, level)
   // Bar widths are equal; heights climb 40% → 70% → 100% of size.
   const barW = Math.max(2, Math.round(size / 5))
   const gap = Math.max(1, Math.round(size / 9))
@@ -36,6 +37,8 @@ export default function PriorityBars({ level, size = 18 }: Props) {
         alignItems: 'flex-end',
         gap,
       }}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
     >
       {[0, 1, 2].map((i) => (
         <View

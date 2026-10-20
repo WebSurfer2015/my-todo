@@ -171,6 +171,8 @@ const inlineStyles = StyleSheet.create({
   },
   swipeActionText: { color: '#1F2A24', fontWeight: '700', fontSize: TYPE.caption },
 
+  // "Pin a filter": the Filter sheet, then the pinned pill it produces.
+  pinWrap: { alignSelf: 'stretch', gap: SPACING.md },
   filterBar: {
     flexDirection: 'row',
     gap: SPACING.sm,
@@ -463,29 +465,34 @@ export const GUIDES: Guide[] = [
       },
       {
         title: 'Pin a filter',
-        body: "Keep the filters you use most (Carried over, Open, Done, or a category) in your quick-access bar. Long-press a pill to pin or remove it.",
+        body: "Tap the funnel and pick a filter in the Filter sheet — it shows as a pill above your list. Long-press that pill and choose Pin to keep it there.",
         visual: (
-          <View style={inlineStyles.filterBar}>
-            {[
-              { label: 'All', pinned: false },
-              { label: 'Open', pinned: true },
-              { label: 'Carried over', pinned: false },
-            ].map((f) => (
-              <View
-                key={f.label}
-                style={[inlineStyles.filterPill, f.pinned && inlineStyles.filterPillPinned]}
-              >
-                {f.pinned && <Text style={inlineStyles.filterPinGlyph}>•</Text>}
-                <Text
-                  style={[
-                    inlineStyles.filterPillText,
-                    f.pinned && inlineStyles.filterPillTextPinned,
-                  ]}
+          <View style={inlineStyles.pinWrap}>
+            <MockupSheet title="Filter" accent="Reset">
+              <MockupRow label="Open" value="✓" highlight />
+              <MockupRow label="Done" muted />
+            </MockupSheet>
+            <View style={inlineStyles.filterBar}>
+              {[
+                { label: 'All', pinned: false },
+                { label: 'Open', pinned: true },
+              ].map((f) => (
+                <View
+                  key={f.label}
+                  style={[inlineStyles.filterPill, f.pinned && inlineStyles.filterPillPinned]}
                 >
-                  {f.label}
-                </Text>
-              </View>
-            ))}
+                  {f.pinned && <Text style={inlineStyles.filterPinGlyph}>•</Text>}
+                  <Text
+                    style={[
+                      inlineStyles.filterPillText,
+                      f.pinned && inlineStyles.filterPillTextPinned,
+                    ]}
+                  >
+                    {f.label}
+                  </Text>
+                </View>
+              ))}
+            </View>
           </View>
         ),
       },

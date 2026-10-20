@@ -23,7 +23,7 @@ appId: com.websurfer.mytodo
 - tapOn:
     text: ".*Open.*"
 - tapOn:
-    text: "Done"
+    text: "Show results"
 - waitForAnimationToEnd
 # Row body tap OPENS a to-do now; complete via the swipe "Mark done" action
 # (a row is one VoiceOver element, so the circle isn't separately targetable).
@@ -53,6 +53,6 @@ appId: com.websurfer.mytodo
 - tapOn:
     text: "Done.*[0-9].*"
 - tapOn:
-    text: "Done"
+    text: "Show results"
 - waitForAnimationToEnd
 - assertVisible: ".*Refill prescription.*"

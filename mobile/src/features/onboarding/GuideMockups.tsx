@@ -14,22 +14,33 @@ import { StyleSheet, Text, View } from 'react-native'
 import { Bell, Calendar, Repeat, Sparkles, Tag } from 'lucide-react-native'
 import { RADIUS, SPACING, TYPE, useTheme, ThemeColors } from '../../app/theme'
 
+/**
+ * Spread on every mockup's root: these are pictures of controls, not
+ * controls, so VoiceOver skips them (the slide body already says it).
+ */
+export const MOCKUP_A11Y_HIDDEN = {
+  accessibilityElementsHidden: true,
+  importantForAccessibility: 'no-hide-descendants',
+} as const
+
 interface SheetProps {
   title: string
   children: React.ReactNode
+  /** Title-bar action text on the right (the real sheet's "Done", "Reset"…). */
+  accent?: string
 }
 
 /** Faux sheet card with a centered title bar. */
-export function MockupSheet({ title, children }: SheetProps) {
+export function MockupSheet({ title, children, accent = 'Done' }: SheetProps) {
   const theme = useTheme()
   const s = sheetStyles(theme)
   return (
-    <View style={s.card}>
+    <View style={s.card} {...MOCKUP_A11Y_HIDDEN}>
       <View style={s.handle} />
       <View style={s.titleRow}>
         <View style={{ width: 40 }} />
         <Text style={s.title}>{title}</Text>
-        <Text style={s.titleAccent}>Done</Text>
+        <Text style={s.titleAccent}>{accent}</Text>
       </View>
       <View style={s.body}>{children}</View>
     </View>
@@ -50,7 +61,7 @@ export function MockupRow({ icon, label, value, highlight, muted }: RowProps) {
   const theme = useTheme()
   const s = rowStyles(theme, !!highlight)
   return (
-    <View style={s.row}>
+    <View style={s.row} {...MOCKUP_A11Y_HIDDEN}>
       {icon ? <View style={s.icon}>{icon}</View> : <View style={s.iconSpacer} />}
       <Text style={s.label}>{label}</Text>
       <Text style={[s.value, muted && s.valueMuted]} numberOfLines={1}>
@@ -71,7 +82,7 @@ export function MockupPills({ pills, highlight }: PillsProps) {
   const theme = useTheme()
   const s = pillsStyles(theme, !!highlight)
   return (
-    <View style={s.wrap}>
+    <View style={s.wrap} {...MOCKUP_A11Y_HIDDEN}>
       <Sparkles size={11} color={theme.primary} strokeWidth={2.4} />
       {pills.map((p, i) => (
         <View key={i} style={s.pill}>
@@ -97,7 +108,7 @@ export function MockupTodo({ text, done, meta, highlight }: TodoProps) {
   const theme = useTheme()
   const s = todoStyles(theme, !!highlight)
   return (
-    <View style={s.row}>
+    <View style={s.row} {...MOCKUP_A11Y_HIDDEN}>
       <View style={[s.check, done && s.checkDone]}>
         {done && <Text style={s.checkMark}>✓</Text>}
       </View>
@@ -121,7 +132,7 @@ export function MockupTextField({ text, placeholder }: TextFieldProps) {
   const theme = useTheme()
   const s = textFieldStyles(theme)
   return (
-    <View style={s.wrap}>
+    <View style={s.wrap} {...MOCKUP_A11Y_HIDDEN}>
       <Text style={s.text} numberOfLines={2}>
         {text || placeholder}
       </Text>

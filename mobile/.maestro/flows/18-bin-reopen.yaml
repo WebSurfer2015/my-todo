@@ -2,10 +2,10 @@
 # tap it to reopen. P1.7 (trash).
 #
 # This app uses a MERGED DONE BIN (done + trashed live together under the
-# Done filter), reached via the list's "N tucked away · tap to peek →"
+# Done filter), reached via the list's "N in Done · View"
 # footer — NOT a multi-select Trash view. So there is no "N selected"
-# bulk-restore bar; the model is tap-a-row-to-reopen plus a "Delete all
-# permanently" bulk action. (Renamed from the old bulk-trash-restore flow,
+# bulk-restore bar; the model is tap-a-row-to-reopen plus one "Empty
+# Done…" bulk action. (Renamed from the old bulk-trash-restore flow,
 # whose multi-select premise never matched this UI.)
 #
 # Unblocked by #15: the bin rows are individually addressable now.
@@ -17,18 +17,16 @@ appId: com.websurfer.mytodo
 - launchApp
 - tapOn:
     text: "Todos, tab.*"
-# Bin footer: visible "N tucked away · tap to peek →", but its a11y label
-# (what Maestro sees) is "N to-dos resting in Done. Tap to view." — match
-# either.
+# Bin footer: visible text and a11y label are both "N in Done · View".
 - scrollUntilVisible:
     element:
-      text: ".*resting in Done.*|.*tucked away.*"
+      text: ".*in Done · View.*"
     direction: DOWN
 - tapOn:
-    text: ".*resting in Done.*|.*tucked away.*"
+    text: ".*in Done · View.*"
 - waitForAnimationToEnd
-# Bin chrome renders (retention notice + bulk delete).
-- assertVisible: ".*Delete all permanently.*"
+# Bin chrome renders (retention notice + the one bulk delete).
+- assertVisible: "Empty Done.*"
 # A trashed seed row is present; swipe → Reopen brings it back (a body tap
 # now OPENS the to-do — this flow used to pass without asserting anything).
 - scrollUntilVisible:

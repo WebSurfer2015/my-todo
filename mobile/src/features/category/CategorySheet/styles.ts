@@ -54,12 +54,14 @@ export function makeStyles(c: ThemeColors) {
     headerLeft: { fontSize: TYPE.bodyLg, fontWeight: "500", color: c.primary },
     headerRight: { fontSize: TYPE.bodyLg, fontWeight: "600", color: c.primary },
     // "Reset" in view mode — deliberately muted so it doesn't compete with the
-    // green primary "Set Filter" footer button (which owns the commit).
+    // green primary "Show results" footer button (which owns the commit).
     headerReset: { fontSize: TYPE.body, fontWeight: "500", color: c.label2 },
-    // Balances Cancel so the title stays centered when the header's
-    // right-side Done is hidden (Select Filter → Done is sticky below).
+    // Same width as the left spacer so the "Filter" title stays centered.
+    headerResetWrap: { minWidth: 56, alignItems: "flex-end" },
+    // Balances the left side so the title stays centered when the header's
+    // right-side Done is hidden (the Filter sheet commits from its sticky footer).
     headerRightSpacer: { minWidth: 56 },
-    // Sticky footer holding the Select Filter Done button.
+    // Sticky footer holding the Filter sheet "Show results" button.
     viewStickyFooter: {
       backgroundColor: c.modal,
       borderTopWidth: StyleSheet.hairlineWidth,

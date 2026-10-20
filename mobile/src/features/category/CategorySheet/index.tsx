@@ -325,6 +325,9 @@ export default function CategorySheet({
   function viewStatusRow(s: { id: StatusFilter; label: string }) {
     const active = selectedFilters.includes(s.id);
     const count = systemCounts[s.id] ?? 0;
+    // Carried over never shows a number — a backlog count is a guilt
+    // counter (FilterBar and the Todos header hide it too).
+    const showCount = s.id !== 'overdue';
     return (
       <TouchableOpacity
         key={s.id}
@@ -333,13 +336,13 @@ export default function CategorySheet({
         activeOpacity={0.65}
         accessibilityRole="checkbox"
         accessibilityState={{ checked: active }}
-        accessibilityLabel={`${s.label}, ${count} items`}
+        accessibilityLabel={showCount ? `${s.label}, ${count} items` : s.label}
       >
         <View style={styles.rowIcon}>
           <StatusIcon id={s.id} size={18} color={statusColor(s.id, theme)} />
         </View>
         <Text style={styles.viewRowLabel}>{s.label}</Text>
-        <Text style={styles.viewRowCount}>{count}</Text>
+        {showCount && <Text style={styles.viewRowCount}>{count}</Text>}
         {active ? <Check size={18} color={theme.primary} strokeWidth={2.5} /> : <View style={styles.checkPlaceholder} />}
       </TouchableOpacity>
     );
@@ -432,21 +435,34 @@ export default function CategorySheet({
               {isList ? (
                 <>
                   <View style={styles.headerRow}>
-                    <TouchableOpacity onPress={onClose} hitSlop={8}>
-                      <Text style={styles.headerLeft}>{t.cancel}</Text>
-                    </TouchableOpacity>
+                    {isEditing ? (
+                      <TouchableOpacity onPress={onClose} hitSlop={8}>
+                        <Text style={styles.headerLeft}>{t.cancel}</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      // No Cancel on the Filter sheet: taps apply live, and a
+                      // swipe down / scrim tap dismisses. Spacer keeps the
+                      // title centered against Reset.
+                      <View style={styles.headerRightSpacer} />
+                    )}
                     <Text style={styles.headerTitle}>
-                      {isEditing ? 'Manage Filters' : 'Select Filter'}
+                      {isEditing ? 'Manage Filters' : 'Filter'}
                     </Text>
                     {isEditing ? (
-                      // Manage flow keeps Done in the header. Select Filter's
-                      // Done now lives in the sticky footer below.
+                      // Manage flow keeps Done in the header. The Filter sheet's
+                      // "Show results" lives in the sticky footer below.
                       <TouchableOpacity onPress={onClose} hitSlop={8}>
                         <Text style={styles.headerRight}>{t.done}</Text>
                       </TouchableOpacity>
                     ) : (
                       // Reset clears every selected filter (back to "All").
-                      <TouchableOpacity onPress={onClearFilters} hitSlop={10}>
+                      <TouchableOpacity
+                        onPress={onClearFilters}
+                        hitSlop={10}
+                        style={styles.headerResetWrap}
+                        accessibilityRole="button"
+                        accessibilityLabel="Reset filters"
+                      >
                         <Text style={styles.headerReset}>Reset</Text>
                       </TouchableOpacity>
                     )}
@@ -810,9 +826,9 @@ export default function CategorySheet({
                         onPress={onClose}
                         activeOpacity={0.85}
                         accessibilityRole="button"
-                        accessibilityLabel="Set Filter"
+                        accessibilityLabel="Show results"
                       >
-                        <Text style={styles.viewDoneText}>Set Filter</Text>
+                        <Text style={styles.viewDoneText}>Show results</Text>
                       </TouchableOpacity>
                     </View>
                     </>

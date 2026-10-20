@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { THEMES } from '../app/theme'
+import { priorityGlyphColor } from '../ui/priorityGlyph'
+import { PRIORITY_VALUES } from '../core-bindings/types'
 
 // WCAG 2.x relative luminance / contrast ratio.
 function luminance(hex: string): number {
@@ -28,6 +30,8 @@ describe('theme contrast (WCAG AA)', () => {
         expect(contrast(c.warmText, c.card)).toBeGreaterThanOrEqual(4.5)
         // Red: as text (Delete actions) and as a fill under onDanger text.
         expect(contrast(c.red, c.card)).toBeGreaterThanOrEqual(4.5)
+        // "Empty Done…" red text on the bin's retention banner (surface).
+        expect(contrast(c.red, c.surface)).toBeGreaterThanOrEqual(4.5)
         expect(contrast(c.onDanger, c.red)).toBeGreaterThanOrEqual(4.5)
         // On-accent ink on every accent fill alias (SignIn submit, TaskItem
         // swipe Edit, primary buttons) — plain white fails in dark themes.
@@ -38,6 +42,16 @@ describe('theme contrast (WCAG AA)', () => {
         for (const bg of [c.orange, c.green, c.gray]) {
           expect(contrast('#1F2A24', bg)).toBeGreaterThanOrEqual(4.5)
         }
+      })
+      it(`${name}/${scheme}: priority glyph (non-text 3:1, High never red)`, () => {
+        for (const level of PRIORITY_VALUES) {
+          const ink = priorityGlyphColor(c, level)
+          for (const bg of [c.card, c.bg, c.modal]) {
+            expect(contrast(ink, bg)).toBeGreaterThanOrEqual(3)
+          }
+        }
+        expect(priorityGlyphColor(c, 'high')).not.toBe(c.red)
+        expect(priorityGlyphColor(c, 'high')).toBe(c.warmText)
       })
       it(`${name}/${scheme}: Ask Mochi voice input`, () => {
         // "Listening…" / denied note (label2) and the Open Settings link
