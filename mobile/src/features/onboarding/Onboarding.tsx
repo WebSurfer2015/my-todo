@@ -19,6 +19,7 @@ import * as Haptics from 'expo-haptics'
 import { useModalPresence } from '../../app/modalPresence'
 import { useSpeechInput } from '../mochi/useSpeechInput'
 import { MicButton, SpeechStatusNote } from '../mochi/VoiceInput'
+import { MOCHI_EXAMPLES } from '../mochi/examplePrompts'
 
 /**
  * One-screen first launch: Mochi is the front door (Phase 2, 2026-10-18).
@@ -48,7 +49,6 @@ interface Props {
   onExplore: () => void
 }
 
-const EXAMPLES = ['Call someone', 'Pay a bill', 'Pick something up']
 
 export default function Onboarding({ visible, onSubmit, onExplore }: Props) {
   const theme = useTheme()
@@ -149,7 +149,7 @@ export default function Onboarding({ visible, onSubmit, onExplore }: Props) {
             </TouchableOpacity>
           </View>
           <View style={styles.chips}>
-            {EXAMPLES.map((ex) => (
+            {MOCHI_EXAMPLES.map((ex) => (
               <TouchableOpacity
                 key={ex}
                 style={styles.chip}

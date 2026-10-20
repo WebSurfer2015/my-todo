@@ -16,6 +16,7 @@ import {
   SPEECH_INPUT_MAX,
   type SpeechStatus,
 } from '../features/mochi/speechInput'
+import { MOCHI_EXAMPLES } from '../features/mochi/examplePrompts'
 
 describe('mergeTranscript', () => {
   it('fills an empty box with the transcript', () => {
@@ -118,6 +119,16 @@ describe('Onboarding wiring (source guard)', () => {
   })
   it('typing stops the mic so a later result cannot overwrite the edit', () => {
     expect(src).toMatch(/onChangeText=\{\(next\) => \{\s*\n(\s*\/\/[^\n]*\n)+\s*speech\.stop\(\{ discard: true \}\)\s*\n\s*setText\(next\)/)
+  })
+})
+
+describe('starter examples', () => {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const read = (rel: string) => readFileSync(join(here, '..', rel), 'utf8')
+  it('first launch and Ask Mochi show the same examples', () => {
+    expect(MOCHI_EXAMPLES).toEqual(['Buy milk tomorrow', 'Run Mon/Wed/Fri 11am', 'Call mom this weekend'])
+    expect(read('features/onboarding/Onboarding.tsx')).toMatch(/\{MOCHI_EXAMPLES\.map\(\(ex\) =>/)
+    expect(read('features/mochi/ChatSheet.tsx')).toMatch(/EXAMPLE_CHIPS[^=]*= MOCHI_EXAMPLES\.map/)
   })
 })
 

@@ -39,6 +39,7 @@ import { deferPresets } from '../task/DeferModal'
 import CategoryIcon from '../../ui/CategoryIcon'
 import { formatCalendarDate, recurrenceShortLabel, type RecurrenceFreqStrings } from '../../../../core/src/logic/labels'
 import { addedReplyText } from './captureCardEditable'
+import { MOCHI_EXAMPLES } from './examplePrompts'
 import { useSpeechInput } from './useSpeechInput'
 import { MicButton, SpeechStatusNote } from './VoiceInput'
 
@@ -154,11 +155,10 @@ interface Props {
  * back-and-forth. These double as a "here's what I can do" teaser, and are the
  * fallback when the account has no frequent-staple history yet. `label` is what
  * the chip shows; `prefill` is what lands in the box. */
-const EXAMPLE_CHIPS: Array<{ label: string; prefill: string }> = [
-  { label: 'Buy milk tomorrow', prefill: 'Buy milk tomorrow' },
-  { label: 'Run Mon/Wed/Fri 11am', prefill: 'Run Mon/Wed/Fri 11am' },
-  { label: 'Call mom this weekend', prefill: 'Call mom this weekend' },
-]
+const EXAMPLE_CHIPS: Array<{ label: string; prefill: string }> = MOCHI_EXAMPLES.map((ex) => ({
+  label: ex,
+  prefill: ex,
+}))
 
 /** Fade-and-rise entrance for a chat row. New bubbles ease up into place so the
  * conversation feels alive; static when reduce-motion is on. */
