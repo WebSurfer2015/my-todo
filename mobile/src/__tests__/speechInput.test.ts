@@ -87,7 +87,29 @@ describe('ChatSheet wiring (source guard)', () => {
     expect(chat).not.toMatch(/onTranscript:[^\n]*handleSend/)
   })
   it('the denied note links to Settings', () => {
-    expect(chat).toMatch(/Linking\.openSettings\(\)/)
+    const voice = readFileSync(join(here, '..', 'features/mochi/VoiceInput.tsx'), 'utf8')
+    expect(voice).toMatch(/Linking\.openSettings\(\)/)
+  })
+})
+
+describe('Onboarding wiring (source guard)', () => {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const src = readFileSync(join(here, '..', 'features/onboarding/Onboarding.tsx'), 'utf8')
+  const card = /<View style=\{styles\.inputCard\}>[\s\S]*?<\/TouchableOpacity>/.exec(src)?.[0] ?? ''
+  it('puts the mic between the text field and Send, hidden when unavailable', () => {
+    const field = card.indexOf('<TextInput')
+    const mic = card.indexOf('<MicButton')
+    const send = card.indexOf('accessibilityLabel="Send to Mochi"')
+    expect(field).toBeGreaterThan(-1)
+    expect(mic).toBeGreaterThan(field)
+    expect(send).toBeGreaterThan(mic)
+    expect(card).toMatch(/speech\.status !== 'unavailable' &&/)
+  })
+  it('never auto-sends: the transcript only fills the box; Send / leaving / a starter chip stop listening', () => {
+    expect(src).toMatch(/useSpeechInput\(\{ onTranscript: setText \}\)/)
+    expect(src).toMatch(/if \(!trimmed\) return\s*\n\s*\/\/[^\n]*\n\s*speech\.stop\(\{ discard: true \}\)\s*\n\s*onSubmit\(trimmed\)/)
+    expect(src).toMatch(/if \(!visible\) stopSpeech\(\{ discard: true \}\)/)
+    expect(src).toMatch(/speech\.stop\(\{ discard: true \}\)\s*\n\s*setText\(`\$\{ex\} `\)/)
   })
 })
 

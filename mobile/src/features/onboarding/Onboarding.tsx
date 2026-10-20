@@ -15,20 +15,24 @@ import {
 } from 'react-native'
 import { RADIUS, SPACING, TYPE, useTheme, ThemeColors } from '../../app/theme'
 import { PRIVACY_URL } from '../../app/links'
+import * as Haptics from 'expo-haptics'
 import { useModalPresence } from '../../app/modalPresence'
+import { useSpeechInput } from '../mochi/useSpeechInput'
+import { MicButton, SpeechStatusNote } from '../mochi/VoiceInput'
 
 /**
  * One-screen first launch: Mochi is the front door (Phase 2, 2026-10-18).
  *
  *   Hi, I'm Mochi.
  *   Tell me one thing that's on your mind…
- *   [ e.g. call the dentist on Friday      (↑) ]
+ *   [ e.g. call the dentist on Friday  (🎤) (↑) ]
  *   (Call someone) (Pay a bill) (Pick something up)
  *   I'll look around first
  *   Mochi sends what you type to our AI provider… Privacy
  *
  * Sending hands the words to Mochi (the parent opens the chat and sends
- * them), so the first thing a person sees is their own to-do. No slides,
+ * them), so the first thing a person sees is their own to-do. The mic is
+ * Ask Mochi's (on-device, fills the box, never auto-sends). No slides,
  * no streak/quota framing, no exclamation marks. The AI disclosure is
  * shown BEFORE anything is sent (App Review 5.1.2(i)).
  *
@@ -54,14 +58,29 @@ export default function Onboarding({ visible, onSubmit, onExplore }: Props) {
   const canSend = text.trim().length > 0
   // A reminder tap must not try to present details over onboarding.
   useModalPresence(visible)
+  const speech = useSpeechInput({ onTranscript: setText })
 
   useEffect(() => {
     if (visible) setText('')
   }, [visible])
+  // Leaving the screen ends listening; a late result must not refill it.
+  const stopSpeech = speech.stop
+  useEffect(() => {
+    if (!visible) stopSpeech({ discard: true })
+  }, [visible, stopSpeech])
+
+  function toggleSpeech() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {})
+    if (speech.status === 'listening') speech.stop()
+    else void speech.start(text)
+  }
 
   function send() {
     const trimmed = text.trim()
-    if (trimmed) onSubmit(trimmed)
+    if (!trimmed) return
+    // Send ends listening; a late result must not refill the box.
+    speech.stop({ discard: true })
+    onSubmit(trimmed)
   }
 
   return (
@@ -92,6 +111,9 @@ export default function Onboarding({ visible, onSubmit, onExplore }: Props) {
           </View>
 
           <Text style={styles.inputLabel}>One thing on your mind</Text>
+          {/* Voice status sits ABOVE the field: below it, the keyboard
+              covers it. */}
+          <SpeechStatusNote status={speech.status} />
           <View style={styles.inputCard}>
             <TextInput
               ref={inputRef}
@@ -107,6 +129,9 @@ export default function Onboarding({ visible, onSubmit, onExplore }: Props) {
               onSubmitEditing={send}
               accessibilityLabel="One thing on your mind"
             />
+            {speech.status !== 'unavailable' && (
+              <MicButton listening={speech.status === 'listening'} onPress={toggleSpeech} />
+            )}
             <TouchableOpacity
               style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
               onPress={send}
@@ -125,6 +150,7 @@ export default function Onboarding({ visible, onSubmit, onExplore }: Props) {
                 style={styles.chip}
                 onPress={() => {
                   // A starter, not a submission — the user finishes the thought.
+                  speech.stop({ discard: true })
                   setText(`${ex} `)
                   inputRef.current?.focus()
                 }}

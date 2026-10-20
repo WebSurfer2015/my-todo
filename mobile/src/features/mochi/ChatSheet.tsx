@@ -4,7 +4,6 @@ import {
   Animated,
   Easing,
   KeyboardAvoidingView,
-  Linking,
   Modal,
   Platform,
   Pressable,
@@ -17,12 +16,11 @@ import {
 } from 'react-native'
 import * as Haptics from 'expo-haptics'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
-import { Sparkles, Bell, Check, Mic, Square } from 'lucide-react-native'
+import { Sparkles, Bell, Check } from 'lucide-react-native'
 import { useLang } from '../../app/LangContext'
 import { useAuth } from '../../app/AuthContext'
 import { isUndoLive, useUndoLive } from '../../app/mochiUndo'
 import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
-import { useReducedMotion } from '../../app/useReducedMotion'
 import { useSheetDismiss, sheetGrabZone } from '../../ui/useSheetDismiss'
 import { useMochiAgent, type ChatTurn, type ProposedOperation } from './useMochiAgent'
 import { pickMatchHeader, supersededProposalTurns } from './chatTurns'
@@ -42,7 +40,7 @@ import CategoryIcon from '../../ui/CategoryIcon'
 import { formatCalendarDate, recurrenceShortLabel, type RecurrenceFreqStrings } from '../../../../core/src/logic/labels'
 import { addedReplyText } from './captureCardEditable'
 import { useSpeechInput } from './useSpeechInput'
-import { SPEECH_COPY } from './speechInput'
+import { MicButton, SpeechStatusNote } from './VoiceInput'
 
 /** What applying a confirmed turn did. `pending` is set when the turn raised
  * confirm Alerts (a repeating to-do's delete scope):
@@ -199,81 +197,6 @@ function Appear({
     >
       {children}
     </Animated.View>
-  )
-}
-
-/** The voice-input mic. Idle: a soft 40pt circle so it reads as a button.
- * Listening: a filled accent circle with a Stop square and a slow, gentle
- * pulse ring — static when Reduce Motion is on (the in-app switch via
- * `reduceMotion`, or the OS setting via useReducedMotion). Same 40pt footprint
- * in every state, so nothing shifts. */
-function MicButton({
-  listening,
-  disabled,
-  reduceMotion,
-  onPress,
-  styles,
-  theme,
-}: {
-  listening: boolean
-  disabled: boolean
-  reduceMotion: boolean
-  onPress: () => void
-  styles: ReturnType<typeof makeStyles>
-  theme: ThemeColors
-}) {
-  const osReduceMotion = useReducedMotion()
-  const still = reduceMotion || osReduceMotion
-  const pulse = useRef(new Animated.Value(0)).current
-  useEffect(() => {
-    pulse.setValue(0)
-    if (!listening || still) return
-    const loop = Animated.loop(
-      Animated.timing(pulse, {
-        toValue: 1,
-        duration: 1600,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-    )
-    loop.start()
-    return () => loop.stop()
-  }, [listening, still, pulse])
-  return (
-    <View style={styles.micWrap}>
-      {listening && !still && (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.micPulse,
-            {
-              opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0] }),
-              transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.45] }) }],
-            },
-          ]}
-        />
-      )}
-      <Pressable
-        style={({ pressed }) => [
-          styles.micBtn,
-          listening && styles.micBtnListening,
-          disabled && styles.sendBtnDisabled,
-          pressed && !disabled && { transform: [{ scale: 0.9 }] },
-        ]}
-        onPress={onPress}
-        disabled={disabled}
-        hitSlop={4}
-        accessibilityRole="button"
-        accessibilityLabel={listening ? SPEECH_COPY.stopLabel : SPEECH_COPY.micLabel}
-        accessibilityState={{ disabled }}
-      >
-        {listening ? (
-          <Square size={14} color={theme.primaryOn} fill={theme.primaryOn} strokeWidth={2.5} />
-        ) : (
-          <Mic size={20} color={theme.label2} strokeWidth={2} />
-        )}
-      </Pressable>
-    </View>
   )
 }
 
@@ -710,7 +633,9 @@ export default function ChatSheet({
                 <View>
                   <Text style={styles.greeting}>{greeting}</Text>
                   <Text style={styles.captureHint}>
-                    Type it however you like — I'll turn it into a to-do.
+                    {speech.status !== 'unavailable'
+                      ? "Type or say it however you like — I'll turn it into a to-do."
+                      : "Type it however you like — I'll turn it into a to-do."}
                   </Text>
                   <View style={styles.chipsRow}>
                     {openingChips.map((chip) => (
@@ -1015,32 +940,7 @@ export default function ChatSheet({
                 behavior tracked in docs/REPOSITIONING-ROADMAP.md P1.4). */}
             {/* Voice status sits ABOVE the field: below it, the keyboard
                 covers it while the sheet is up. */}
-            {speech.status === 'listening' && (
-              <Text
-                style={[styles.speechNote, styles.speechNoteEnd]}
-                accessibilityLiveRegion="polite"
-                accessibilityLabel={SPEECH_COPY.listeningA11y}
-              >
-                {SPEECH_COPY.listening}
-              </Text>
-            )}
-            {speech.status === 'error' && (
-              <Text style={[styles.speechNote, styles.speechNoteEnd]} accessibilityLiveRegion="polite">
-                {SPEECH_COPY.missed}
-              </Text>
-            )}
-            {speech.status === 'denied' && (
-              <Text style={styles.speechNote}>
-                {SPEECH_COPY.denied}{' '}
-                <Text
-                  style={styles.speechLink}
-                  onPress={() => Linking.openSettings().catch(() => {})}
-                  accessibilityRole="link"
-                >
-                  {SPEECH_COPY.openSettings}
-                </Text>
-              </Text>
-            )}
+            <SpeechStatusNote status={speech.status} />
             <View style={styles.inputRow}>
               <TextInput
                 ref={inputRef}
@@ -1076,8 +976,6 @@ export default function ChatSheet({
                   disabled={micDisabled}
                   reduceMotion={reduceMotion}
                   onPress={toggleSpeech}
-                  styles={styles}
-                  theme={theme}
                 />
               )}
               <Pressable
@@ -2229,36 +2127,6 @@ function makeStyles(c: ThemeColors) {
     sendBtnDisabled: { opacity: 0.4 },
     // 40pt mic, vertically centred on the 44pt send button. A visible soft
     // circle at rest so it reads as a button (icon label2 on surfaceAlt ≥3:1).
-    micWrap: { width: 40, height: 40, marginBottom: 2 },
-    micBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: c.surfaceAlt,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    // Listening: filled accent circle, Stop square in primaryOn.
-    micBtnListening: { backgroundColor: c.primary },
-    // The gentle pulse ring behind the listening mic.
-    micPulse: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: c.primary,
-    },
-    speechNote: {
-      fontSize: TYPE.footnote,
-      color: c.label2,
-      paddingBottom: SPACING.xs,
-      paddingHorizontal: SPACING.xs,
-    },
-    // Listening / missed sit right-aligned, next to the mic they describe.
-    speechNoteEnd: { textAlign: 'right' },
-    speechLink: { color: c.primary, fontWeight: '600' },
     sendBtnText: { color: c.primaryOn, fontSize: TYPE.title, fontWeight: '700' },
   })
 }

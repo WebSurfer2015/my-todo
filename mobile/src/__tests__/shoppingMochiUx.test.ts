@@ -94,9 +94,15 @@ describe('source guards', () => {
   })
 
   it('Ask Mochi: the listening pulse is skipped under Reduce Motion', () => {
+    // The mic lives in the shared VoiceInput (Ask Mochi + Onboarding).
+    const voice = read('features/mochi/VoiceInput.tsx')
+    expect(voice).toMatch(/const still = reduceMotion \|\| osReduceMotion/)
+    expect(voice).toMatch(/if \(!listening \|\| still\) return/)
+  })
+
+  it('Ask Mochi: the opening hint offers speaking only when the mic is available', () => {
     const chat = read('features/mochi/ChatSheet.tsx')
-    expect(chat).toMatch(/const still = reduceMotion \|\| osReduceMotion/)
-    expect(chat).toMatch(/if \(!listening \|\| still\) return/)
+    expect(chat).toMatch(/speech\.status !== 'unavailable'\s*\n\s*\? "Type or say it however you like — I'll turn it into a to-do\."\s*\n\s*: "Type it however you like — I'll turn it into a to-do\."/)
   })
 
   it('Maestro flows tap the visible "Enter manually instead"', () => {

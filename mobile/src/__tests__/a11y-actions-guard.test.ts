@@ -54,11 +54,16 @@ describe('Ask Mochi conversation is per account (source guard)', () => {
 
 describe('voice status note placement (source guard)', () => {
   it('renders the Listening / missed / denied note ABOVE the input row (below it the keyboard hides it)', () => {
-    const src = readFileSync(join(__dirname, '../features/mochi/ChatSheet.tsx'), 'utf8')
-    const note = src.indexOf("speech.status === 'listening' && (")
-    const row = src.indexOf('<View style={styles.inputRow}>')
-    expect(note).toBeGreaterThan(-1)
-    expect(row).toBeGreaterThan(-1)
-    expect(note).toBeLessThan(row)
+    for (const [file, rowTag] of [
+      ['../features/mochi/ChatSheet.tsx', '<View style={styles.inputRow}>'],
+      ['../features/onboarding/Onboarding.tsx', '<View style={styles.inputCard}>'],
+    ] as const) {
+      const src = readFileSync(join(__dirname, file), 'utf8')
+      const note = src.indexOf('<SpeechStatusNote status={speech.status} />')
+      const row = src.indexOf(rowTag)
+      expect(note).toBeGreaterThan(-1)
+      expect(row).toBeGreaterThan(-1)
+      expect(note).toBeLessThan(row)
+    }
   })
 })
