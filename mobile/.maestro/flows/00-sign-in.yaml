@@ -63,10 +63,10 @@ appId: com.websurfer.mytodo
             - assertVisible:
                 id: "signin-email-input"
                 text: ${EMAIL}
-      # Same for the password: reveal it ("Show password") and check the
-      # field isn't empty before submitting (an untyped password came back
-      # as auth/missing-password in CI).
-      - tapOn: "Show password"
+      # Same for the password: check the field isn't empty before submitting
+      # (an untyped password came back as auth/missing-password in CI). Never
+      # tap "Show password" — CI screenshots are uploaded from a public repo;
+      # the masked field still reports its dots, so ".+" works without it.
       - retry:
           maxRetries: 3
           commands:

@@ -200,6 +200,24 @@ jobs:
             .maestro/flows/08-recurring-rolling.yaml \
             .maestro/flows/18-bin-reopen.yaml
 
+      # The repo is public, so artifacts are too: Maestro's own log records
+      # every inputText verbatim ("Inputting text: <password>"). Scrub the
+      # demo credentials from the debug output and drop the sign-in flow's
+      # screenshots before anything is uploaded.
+      - name: Redact demo credentials from debug output
+        if: failure()
+        env:
+          SAGELY_DEMO_EMAIL: ${{ secrets.SAGELY_DEMO_EMAIL }}
+          SAGELY_DEMO_PASSWORD: ${{ secrets.SAGELY_DEMO_PASSWORD }}
+        run: |
+          rm -rf ~/.maestro/tests/*/00-sign-in
+          find ~/.maestro/tests -type f \( -name '*.log' -o -name '*.json' -o -name '*.txt' -o -name '*.yaml' \) -print0 \
+            | xargs -0 -r perl -pi -e 's/\Q$ENV{SAGELY_DEMO_PASSWORD}\E/[REDACTED]/g; s/\Q$ENV{SAGELY_DEMO_EMAIL}\E/[REDACTED-EMAIL]/g'
+          if grep -rqF -- "$SAGELY_DEMO_PASSWORD" ~/.maestro/tests; then
+            echo "::error::demo password still present after redaction — not uploading"
+            rm -rf ~/.maestro/tests
+          fi
+
       - name: Upload Maestro debug artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4
