@@ -4,9 +4,12 @@
  * Wraps `expo-speech-recognition` (Apple's SFSpeechRecognizer) with
  * `requiresOnDeviceRecognition: true`, so audio never leaves the iPhone —
  * only the resulting text, and only if the user taps Send. English (en-US),
- * interim results on, non-continuous: listening ends on Stop, after ~2 s of
- * silence, or when the caller stops it (Send, sheet close) / the app
- * backgrounds / the hook unmounts. Nothing is ever sent automatically.
+ * interim results on, CONTINUOUS: a pause doesn't end it. Listening ends only
+ * after SPEECH_SILENCE_MS (10 s) with no new words, on Stop, or when the
+ * caller stops it (Send, sheet close) / the app backgrounds / the hook
+ * unmounts. If iOS ends its own session sooner (a pause, a no-speech error),
+ * the hook quietly restarts it inside that window, keeping the words so far.
+ * Nothing is ever sent automatically.
  *
  * The native module is loaded with a guarded require (like adapters/appCheck):
  * a dev client built before the module was added, Android (not shipped; its
@@ -15,7 +18,14 @@
  */
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { AppState, Platform } from 'react-native'
-import { classifySpeechError, mergeTranscript, speechReducer, type SpeechStatus } from './speechInput'
+import {
+  classifySpeechError,
+  isRestartableSpeechEnd,
+  mergeTranscript,
+  segmentAfterFinal,
+  speechReducer,
+  type SpeechStatus,
+} from './speechInput'
 
 interface Subscription {
   remove(): void
@@ -35,15 +45,27 @@ export interface SpeechModule {
   }): void
   stop(): void
   abort(): void
-  addListener(event: 'result', cb: (e: { results?: { transcript?: string }[] }) => void): Subscription
+  addListener(
+    event: 'result',
+    cb: (e: { isFinal?: boolean; results?: { transcript?: string }[] }) => void,
+  ): Subscription
   addListener(event: 'error', cb: (e: { error?: string }) => void): Subscription
   addListener(event: 'end', cb: () => void): Subscription
 }
 
-/** Stop after this long with no new words (the native timer is ~3 s). */
-export const SPEECH_SILENCE_MS = 2000
-/** Give up if no words arrive at all after starting. */
-export const SPEECH_NO_SPEECH_MS = 5000
+/** Stop after this long with no new words — also when none came at all. */
+export const SPEECH_SILENCE_MS = 10_000
+/** Native restarts allowed in a row with no words between them, so a
+ * recognizer that keeps failing at once can't spin until the window ends. */
+const MAX_QUIET_RESTARTS = 3
+
+const START_OPTIONS = {
+  lang: 'en-US',
+  interimResults: true,
+  continuous: true,
+  requiresOnDeviceRecognition: true,
+  addsPunctuation: true,
+} as const
 /** How long "Didn't catch that" stays up. */
 export const SPEECH_ERROR_MS = 3000
 
@@ -104,7 +126,16 @@ export function useSpeechInput({
   const sessionRef = useRef(0)
   // Results are applied only while this is true.
   const acceptingRef = useRef(false)
+  // The box's text so far: what was typed + every finished segment.
   const baseRef = useRef('')
+  // The last final transcript (to strip it if iOS keeps growing it) and the
+  // live segment's words (kept if the session ends and restarts).
+  const lastFinalRef = useRef('')
+  const segmentRef = useRef('')
+  // We still want to listen (inside the silence window) — a native end then
+  // restarts instead of settling.
+  const wantRef = useRef(false)
+  const restartsRef = useRef(0)
   const heardRef = useRef(false)
   // The end was asked for (Stop / Send / close) — no "missed" line.
   const quietRef = useRef(false)
@@ -117,6 +148,7 @@ export function useSpeechInput({
 
   const endSession = useCallback(
     (quiet: boolean) => {
+      wantRef.current = false
       clearTimer()
       dispatch({ type: 'ended', heard: heardRef.current, quiet })
     },
@@ -124,21 +156,35 @@ export function useSpeechInput({
   )
 
   // Silence: stop the recognizer (its final result still lands) and settle.
-  const armTimer = useCallback(
-    (ms: number) => {
-      clearTimer()
-      timerRef.current = setTimeout(() => {
-        timerRef.current = null
-        try {
-          mod?.stop()
-        } catch {
-          acceptingRef.current = false
-        }
-        endSession(false)
-      }, ms)
-    },
-    [mod, clearTimer, endSession],
-  )
+  const armTimer = useCallback(() => {
+    clearTimer()
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null
+      wantRef.current = false
+      try {
+        mod?.stop()
+      } catch {
+        acceptingRef.current = false
+      }
+      endSession(false)
+    }, SPEECH_SILENCE_MS)
+  }, [mod, clearTimer, endSession])
+
+  // iOS ended its session early: keep the words so far and listen again.
+  // Returns false when it can't (then the caller settles as before).
+  const restart = useCallback((): boolean => {
+    if (!mod || !wantRef.current || restartsRef.current >= MAX_QUIET_RESTARTS) return false
+    restartsRef.current++
+    baseRef.current = mergeTranscript(baseRef.current, segmentRef.current)
+    segmentRef.current = ''
+    lastFinalRef.current = ''
+    try {
+      mod.start(START_OPTIONS)
+      return true
+    } catch {
+      return false
+    }
+  }, [mod])
 
   // Native events, subscribed for the hook's lifetime.
   useEffect(() => {
@@ -149,20 +195,37 @@ export function useSpeechInput({
         mod.addListener('result', (e) => {
           if (!acceptingRef.current) return
           const transcript = e.results?.[0]?.transcript ?? ''
-          if (transcript.trim()) heardRef.current = true
-          onTranscriptRef.current(mergeTranscript(baseRef.current, transcript))
-          if (statusRef.current === 'listening') armTimer(SPEECH_SILENCE_MS)
+          const segment = segmentAfterFinal(lastFinalRef.current, transcript)
+          const text = mergeTranscript(baseRef.current, segment)
+          if (e.isFinal) {
+            baseRef.current = text
+            lastFinalRef.current = transcript
+            segmentRef.current = ''
+          } else {
+            segmentRef.current = segment
+          }
+          onTranscriptRef.current(text)
+          if (!transcript.trim()) return
+          heardRef.current = true
+          restartsRef.current = 0
+          // New words → the 10 s silence window starts over.
+          if (wantRef.current) armTimer()
         }),
         mod.addListener('error', (e) => {
           const kind = classifySpeechError(e.error)
           if (kind === 'quiet') return
+          // A pause / no-speech end inside the window → keep listening.
+          if (kind === 'missed' && isRestartableSpeechEnd(e.error) && restart()) return
           acceptingRef.current = false
           clearTimer()
+          wantRef.current = false
           if (kind === 'denied') dispatch({ type: 'denied' })
           else if (kind === 'unsupported') dispatch({ type: 'unsupported' })
           else endSession(quietRef.current)
         }),
         mod.addListener('end', () => {
+          // iOS ended on its own while we still want to listen → restart.
+          if (acceptingRef.current && restart()) return
           acceptingRef.current = false
           endSession(quietRef.current)
         }),
@@ -171,7 +234,7 @@ export function useSpeechInput({
       // A module without an event emitter — nothing to listen to.
     }
     return () => subs.forEach((s) => s.remove())
-  }, [mod, armTimer, clearTimer, endSession])
+  }, [mod, armTimer, clearTimer, endSession, restart])
 
   const start = useCallback(
     async (baseText: string) => {
@@ -191,25 +254,23 @@ export function useSpeechInput({
         return
       }
       baseRef.current = baseText
+      lastFinalRef.current = ''
+      segmentRef.current = ''
+      restartsRef.current = 0
       heardRef.current = false
       quietRef.current = false
       acceptingRef.current = true
+      wantRef.current = true
       dispatch({ type: 'listen' })
       statusRef.current = 'listening'
       try {
-        mod.start({
-          lang: 'en-US',
-          interimResults: true,
-          continuous: false,
-          requiresOnDeviceRecognition: true,
-          addsPunctuation: true,
-        })
+        mod.start(START_OPTIONS)
       } catch {
         acceptingRef.current = false
         endSession(false)
         return
       }
-      armTimer(SPEECH_NO_SPEECH_MS)
+      armTimer()
     },
     [mod, armTimer, endSession],
   )
@@ -217,6 +278,7 @@ export function useSpeechInput({
   const stop = useCallback(
     (opts?: StopOptions) => {
       sessionRef.current++
+      wantRef.current = false
       if (!mod || statusRef.current !== 'listening') return
       quietRef.current = true
       try {
@@ -267,6 +329,7 @@ export function useSpeechInput({
     return () => {
       // (A start still waiting on the prompt sees this and bails.)
       mountedRef.current = false
+      wantRef.current = false
       clearTimer()
       if (statusRef.current === 'listening' || acceptingRef.current) {
         acceptingRef.current = false

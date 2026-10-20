@@ -8,6 +8,8 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   classifySpeechError,
+  isRestartableSpeechEnd,
+  segmentAfterFinal,
   mergeTranscript,
   speechReducer,
   SPEECH_COPY,
@@ -119,5 +121,21 @@ describe('calm copy', () => {
     expect(SPEECH_COPY.missed).toBe("Didn't catch that — try again.")
     expect(SPEECH_COPY.micLabel).toBe('Speak instead of typing')
     expect(SPEECH_COPY.stopLabel).toBe('Stop listening')
+  })
+})
+
+describe('continuous recognition helpers', () => {
+  it('segmentAfterFinal strips a growing transcript and keeps a reset one', () => {
+    expect(segmentAfterFinal('', 'buy eggs')).toBe('buy eggs')
+    expect(segmentAfterFinal('Buy eggs.', 'Buy eggs. Call mom')).toBe('Call mom')
+    expect(segmentAfterFinal('Buy eggs.', 'buy eggs. call mom')).toBe('call mom')
+    expect(segmentAfterFinal('Buy eggs.', 'Call mom')).toBe('Call mom')
+  })
+  it('only a pause-type native end restarts', () => {
+    expect(isRestartableSpeechEnd('no-speech')).toBe(true)
+    expect(isRestartableSpeechEnd('speech-timeout')).toBe(true)
+    expect(isRestartableSpeechEnd('interrupted')).toBe(false)
+    expect(isRestartableSpeechEnd('audio-capture')).toBe(false)
+    expect(isRestartableSpeechEnd(undefined)).toBe(false)
   })
 })

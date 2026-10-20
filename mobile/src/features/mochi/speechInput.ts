@@ -70,6 +70,24 @@ export function classifySpeechError(code: string | undefined): SpeechErrorKind {
   }
 }
 
+/** A native end that isn't a reason to stop: iOS ending its session after a
+ * pause. While we still want to listen (inside the silence window), the
+ * hook quietly restarts recognition instead. */
+export function isRestartableSpeechEnd(code: string | undefined): boolean {
+  return code === 'no-speech' || code === 'speech-timeout'
+}
+
+/** Continuous recognition: the words of the live segment that come AFTER the
+ * last final result. iOS either keeps one growing transcript (it then still
+ * starts with the last final text — strip it) or starts a fresh one after a
+ * pause (use it whole). */
+export function segmentAfterFinal(lastFinal: string, transcript: string): string {
+  const prev = lastFinal.trim()
+  const next = transcript.trim()
+  if (!prev) return next
+  return next.toLowerCase().startsWith(prev.toLowerCase()) ? next.slice(prev.length).trim() : next
+}
+
 /** The chat box's maxLength — a long dictation never overflows it. */
 export const SPEECH_INPUT_MAX = 2000
 

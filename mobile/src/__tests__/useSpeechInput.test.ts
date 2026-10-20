@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
 /**
  * useSpeechInput: on-device only, permission on first tap, interim results
- * fill the box (appended to typed text), and listening ends on Stop / ~2 s
- * silence / background / unmount without ever sending. A missing native
+ * fill the box (appended to typed text), and listening ends on Stop / 10 s
+ * of silence / background / unmount without ever sending — never at a mere
+ * pause (continuous; a native end inside the window restarts). A missing native
  * module or no on-device recognizer → 'unavailable' (mic hidden).
  */
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
@@ -36,13 +37,13 @@ import {
   useSpeechInput,
   SPEECH_SILENCE_MS,
   SPEECH_ERROR_MS,
-  SPEECH_NO_SPEECH_MS,
   type SpeechModule,
 } from '../features/mochi/useSpeechInput'
 
 const load = () => (speechModule as unknown as { ExpoSpeechRecognitionModule: SpeechModule }).ExpoSpeechRecognitionModule
 type Emit = { __emit: (s: 'active' | 'background' | 'inactive') => void }
 const speak = (transcript: string) => fake.emit('result', { isFinal: false, results: [{ transcript }] })
+const final = (transcript: string) => fake.emit('result', { isFinal: true, results: [{ transcript }] })
 
 function setup(opts: { load?: () => SpeechModule | null } = {}) {
   const onTranscript = vi.fn()
@@ -85,7 +86,7 @@ describe('useSpeechInput', () => {
     expect(fake.mod.start).toHaveBeenCalledWith({
       lang: 'en-US',
       interimResults: true,
-      continuous: false,
+      continuous: true,
       requiresOnDeviceRecognition: true,
       addsPunctuation: true,
     })
@@ -93,9 +94,10 @@ describe('useSpeechInput', () => {
     act(() => speak('call'))
     act(() => speak('call mom'))
     expect(onTranscript).toHaveBeenLastCalledWith('remind me to call mom')
-    // Final result + native end → idle, nothing sent.
+    // A native end is NOT the end: it restarts inside the silence window.
     act(() => fake.emit('end'))
-    expect(result.current.status).toBe('idle')
+    expect(result.current.status).toBe('listening')
+    expect(fake.mod.start).toHaveBeenCalledTimes(2)
   })
 
   it('permission denied → denied (no start); re-checked on return to the app', async () => {
@@ -123,7 +125,7 @@ describe('useSpeechInput', () => {
     expect(result.current.status).toBe('unavailable')
   })
 
-  it('stops itself after ~2 s of silence, keeping the text', async () => {
+  it('stops itself only after 10 s of silence, keeping the text', async () => {
     const { result, onTranscript } = setup()
     await act(async () => { await result.current.start('') })
     act(() => speak('buy eggs'))
@@ -141,7 +143,9 @@ describe('useSpeechInput', () => {
   it('nothing heard → "Didn\'t catch that" (error), which fades on its own', async () => {
     const { result } = setup()
     await act(async () => { await result.current.start('') })
-    act(() => { vi.advanceTimersByTime(SPEECH_NO_SPEECH_MS) })
+    act(() => { vi.advanceTimersByTime(SPEECH_SILENCE_MS - 1) })
+    expect(result.current.status).toBe('listening')
+    act(() => { vi.advanceTimersByTime(1) })
     expect(result.current.status).toBe('error')
     act(() => { vi.advanceTimersByTime(SPEECH_ERROR_MS) })
     expect(result.current.status).toBe('idle')
@@ -199,6 +203,63 @@ describe('useSpeechInput', () => {
     unmount()
     expect(fake.mod.abort).toHaveBeenCalled()
     expect(fake.listeners.result?.size ?? 0).toBe(0)
+  })
+
+  it('the silence window is 10 s', () => {
+    expect(SPEECH_SILENCE_MS).toBe(10_000)
+  })
+
+  it('a pause that ends the native session restarts it and keeps the words so far', async () => {
+    const { result, onTranscript } = setup()
+    await act(async () => { await result.current.start('note:') })
+    act(() => speak('buy eggs'))
+    act(() => { vi.advanceTimersByTime(4000) })
+    // iOS gives up after its own pause (no-speech) — we keep listening.
+    act(() => fake.emit('error', { error: 'no-speech' }))
+    expect(result.current.status).toBe('listening')
+    expect(fake.mod.start).toHaveBeenCalledTimes(2)
+    // The new session's transcript starts fresh; the box keeps the old words.
+    act(() => speak('and milk'))
+    expect(onTranscript).toHaveBeenLastCalledWith('note: buy eggs and milk')
+    // And still only 10 s of silence ends it.
+    act(() => { vi.advanceTimersByTime(SPEECH_SILENCE_MS - 1) })
+    expect(result.current.status).toBe('listening')
+    act(() => { vi.advanceTimersByTime(1) })
+    expect(result.current.status).toBe('idle')
+    // The timer's own stop → native end must NOT restart.
+    act(() => fake.emit('end'))
+    expect(fake.mod.start).toHaveBeenCalledTimes(2)
+  })
+
+  it('final segments are kept whether iOS resets or keeps growing the transcript', async () => {
+    const { onTranscript, result } = setup()
+    await act(async () => { await result.current.start('') })
+    // Growing transcript: the next result repeats the final text first.
+    act(() => final('Buy eggs.'))
+    act(() => speak('Buy eggs. Call mom'))
+    expect(onTranscript).toHaveBeenLastCalledWith('Buy eggs. Call mom')
+    // Reset transcript: a fresh segment after a final.
+    act(() => final('Buy eggs. Call mom.'))
+    act(() => speak('Pay rent'))
+    expect(onTranscript).toHaveBeenLastCalledWith('Buy eggs. Call mom. Pay rent')
+  })
+
+  it('a recognizer that keeps ending at once stops after a few quiet restarts', async () => {
+    const { result } = setup()
+    await act(async () => { await result.current.start('') })
+    for (let i = 0; i < 3; i++) act(() => fake.emit('end'))
+    expect(result.current.status).toBe('listening')
+    act(() => fake.emit('end'))
+    expect(fake.mod.start).toHaveBeenCalledTimes(4)
+    expect(result.current.status).toBe('error')
+  })
+
+  it('an interruption (call, Siri) still ends listening', async () => {
+    const { result } = setup()
+    await act(async () => { await result.current.start('') })
+    act(() => fake.emit('error', { error: 'interrupted' }))
+    expect(fake.mod.start).toHaveBeenCalledTimes(1)
+    expect(result.current.status).toBe('error')
   })
 
   it('a start that throws natively settles to the "missed" line', async () => {
