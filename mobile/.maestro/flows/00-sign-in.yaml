@@ -41,13 +41,25 @@ appId: com.websurfer.mytodo
       # Fast typing on the iOS sim can scramble characters ("gmail.cmo" seen
       # in CI) — type, then verify the field shows exactly the email, and
       # retry (clearing first) if it doesn't.
+      # A fresh CI simulator shows iOS's one-time "Speed up your typing by
+      # sliding…" keyboard tip over the form — dismiss it whenever it's up.
+      # eraseText didn't clear the field on retry (the email got appended), so
+      # clear with the field's own clear button instead.
       - retry:
           maxRetries: 3
           commands:
             - tapOn:
                 id: "signin-email-input"
-            - eraseText: 60
+            - tapOn:
+                text: "Continue"
+                optional: true
+            - tapOn:
+                text: "Clear text"
+                optional: true
             - inputText: ${EMAIL}
+            - tapOn:
+                text: "Continue"
+                optional: true
             - assertVisible:
                 id: "signin-email-input"
                 text: ${EMAIL}
@@ -60,8 +72,14 @@ appId: com.websurfer.mytodo
           commands:
             - tapOn:
                 id: "signin-password-input"
+            - tapOn:
+                text: "Continue"
+                optional: true
             - eraseText: 80
             - inputText: ${PASSWORD}
+            - tapOn:
+                text: "Continue"
+                optional: true
             - assertVisible:
                 id: "signin-password-input"
                 text: ".+"
