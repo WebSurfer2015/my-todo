@@ -14,9 +14,9 @@ appId: com.websurfer.mytodo
 # 2026-10-18); switch to the manual form to check Compose.
 - runFlow:
     when:
-      visible: "Switch to entering the to-do manually"
+      visible: "Enter manually instead"
     commands:
-      - tapOn: "Switch to entering the to-do manually"
+      - tapOn: "Enter manually instead"
       - waitForAnimationToEnd
 # ComposeSheet's header reads "Cancel  Add to-do  Done" as one
 # concatenated accessibility label, so use a regex substring match.

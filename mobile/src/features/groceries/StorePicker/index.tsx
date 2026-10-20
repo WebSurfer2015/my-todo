@@ -1,9 +1,13 @@
 /**
  * Bottom-sheet store picker for the grocery view. Two modes:
  *
- * - Pick (default): "All stores" locked row at top, then each
- *   user-configured store. Tapping a row sets the active store and
- *   closes the sheet. The active row has a checkmark.
+ * - Pick (default): the same shape as the Todos filter sheet — "Filter"
+ *   title with Reset (back to All), no Cancel, a "Show results" button
+ *   below. An "All" row at top, then each store with items on the list;
+ *   stores with nothing on the list fold under an "Other stores"
+ *   disclosure. Tapping a row moves the checkmark; the choice applies
+ *   when the sheet closes (Show results, backdrop or swipe) — staged so
+ *   browsing rows doesn't auto-pin every store tapped on the way.
  * - Manage: same list but each row has rename-inline, eye-toggle hide,
  *   delete, and a drag-handle. "+ Add store" row at the bottom. The
  *   "All stores" row is hidden in Manage mode (it's not modifiable).
@@ -25,7 +29,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Check, Eye, EyeOff, Pencil, Trash2 } from "lucide-react-native";
+import { Check, ChevronDown, ChevronRight, Eye, EyeOff, Pencil, Trash2 } from "lucide-react-native";
 import DraggableFlatList, {
   RenderItemParams,
 } from "react-native-draggable-flatlist";
@@ -44,6 +48,7 @@ import GroceryIcon from "../GroceryIcon";
 import MochiThinking from "../../mochi/MochiThinking";
 import EmptyStateCard from "../../../ui/EmptyStateCard";
 import { makeStyles } from "./styles";
+import { splitStoresByCount } from "./storeSplit";
 import SheetShell from "../../../ui/SheetShell";
 
 interface Props {
@@ -205,6 +210,16 @@ export default function StorePicker({
     }
   }, [visible, defaultAdding]);
   const [dragActive, setDragActive] = useState(false);
+  // "Other stores" (nothing on the list there) starts folded on every open.
+  const [othersOpen, setOthersOpen] = useState(false);
+  // The staged pick (see header): seeded from the live filter on open (the
+  // live filter only changes on close, so it can't clobber a pick mid-way).
+  const [draft, setDraft] = useState<string | undefined>(activeStore);
+  useEffect(() => {
+    if (!visible) return;
+    setOthersOpen(false);
+    setDraft(activeStore);
+  }, [visible, activeStore]);
 
   const deptCounts = useMemo(() => {
     const m = new Map<string, number>();
@@ -259,15 +274,47 @@ export default function StorePicker({
   }
 
   function pickStore(s: string | undefined) {
-    onSelect(s);
-    onClose();
+    setDraft(s);
   }
 
   const visibleStores = editing
     ? stores
     : stores.filter((s) => !hiddenStores.includes(s));
+  const { withItems, empty: otherStores } = splitStoresByCount(
+    visibleStores,
+    counts,
+    draft,
+  );
+
+  function renderViewRow(s: string) {
+    const selected = draft === s;
+    return (
+      <TouchableOpacity
+        key={s}
+        style={styles.viewRow}
+        onPress={() => pickStore(s)}
+        activeOpacity={0.65}
+        accessibilityRole="button"
+        accessibilityLabel={`${s}, ${counts.get(s) ?? 0} items`}
+        accessibilityState={{ selected }}
+      >
+        <GroceryIcon kind="store" id={s} size={18} />
+        <Text style={styles.viewRowLabel} numberOfLines={1}>
+          {s}
+        </Text>
+        <Text style={styles.viewRowCount}>{counts.get(s) ?? 0}</Text>
+        {selected ? (
+          <Check size={18} color={theme.primary} strokeWidth={2.5} />
+        ) : (
+          <View style={styles.checkPlaceholder} />
+        )}
+      </TouchableOpacity>
+    );
+  }
 
   const closeAndReset = () => {
+    // Pick mode: apply the staged choice on any close.
+    if (!editing && draft !== activeStore) onSelect(draft);
     setEditing(false);
     onClose();
   };
@@ -278,8 +325,17 @@ export default function StorePicker({
       onClose={closeAndReset}
       scroll={false}
       padded={false}
-      title={editing ? "Shopping stores" : "Select store"}
-      primary={{ label: t.done, onPress: closeAndReset }}
+      title={editing ? "Shopping stores" : "Filter"}
+      left={editing ? undefined : null}
+      primary={
+        editing
+          ? { label: t.done, onPress: closeAndReset }
+          : {
+              label: "Reset",
+              onPress: () => setDraft(undefined),
+              disabled: draft === undefined,
+            }
+      }
     >
         <ScrollView
           style={styles.scroll}
@@ -312,11 +368,12 @@ export default function StorePicker({
                           onPress={() => pickStore(undefined)}
                           activeOpacity={0.65}
                           accessibilityRole="button"
-                          accessibilityLabel={`Any store, ${totalActive} items`}
+                          accessibilityLabel={`All, ${totalActive} items`}
+                          accessibilityState={{ selected: draft === undefined }}
                         >
-                          <Text style={styles.viewRowLabel}>Any</Text>
+                          <Text style={styles.viewRowLabel}>All</Text>
                           <Text style={styles.viewRowCount}>{totalActive}</Text>
-                          {activeStore === undefined ? (
+                          {draft === undefined ? (
                             <Check
                               size={18}
                               color={theme.primary}
@@ -376,7 +433,8 @@ export default function StorePicker({
                                       setInlineDraft(s);
                                     }}
                                     activeOpacity={0.6}
-                                    accessibilityLabel={`Rename ${s}`}
+                                    accessibilityLabel={s}
+                                    accessibilityHint="Renames this store"
                                   >
                                     <View style={styles.editRowLabelInner}>
                                       <Text
@@ -442,34 +500,30 @@ export default function StorePicker({
                           }}
                         />
                       ) : (
-                        visibleStores.map((s) => (
-                          <TouchableOpacity
-                            key={s}
-                            style={styles.viewRow}
-                            onPress={() => pickStore(s)}
-                            activeOpacity={0.65}
-                          >
-                            <GroceryIcon kind="store" id={s} size={18} />
-                            <Text
-                              style={styles.viewRowLabel}
-                              numberOfLines={1}
+                        <>
+                          {withItems.map(renderViewRow)}
+                          {otherStores.length > 0 && (
+                            <TouchableOpacity
+                              style={styles.viewRow}
+                              onPress={() => setOthersOpen((o) => !o)}
+                              activeOpacity={0.65}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Other stores, ${otherStores.length}`}
+                              accessibilityState={{ expanded: othersOpen }}
+                              accessibilityHint="Stores with nothing on your list"
                             >
-                              {s}
-                            </Text>
-                            <Text style={styles.viewRowCount}>
-                              {counts.get(s) ?? 0}
-                            </Text>
-                            {activeStore === s ? (
-                              <Check
-                                size={18}
-                                color={theme.primary}
-                                strokeWidth={2.5}
-                              />
-                            ) : (
+                              {othersOpen ? (
+                                <ChevronDown size={18} color={theme.label2} strokeWidth={2} />
+                              ) : (
+                                <ChevronRight size={18} color={theme.label2} strokeWidth={2} />
+                              )}
+                              <Text style={styles.otherStoresLabel}>Other stores</Text>
+                              <Text style={styles.viewRowCount}>{otherStores.length}</Text>
                               <View style={styles.checkPlaceholder} />
-                            )}
-                          </TouchableOpacity>
-                        ))
+                            </TouchableOpacity>
+                          )}
+                          {othersOpen && otherStores.map(renderViewRow)}
+                        </>
                       )}
                       {editing && addingNew && (
                         <View style={[styles.editRow, styles.editRowActive]}>
@@ -534,7 +588,7 @@ export default function StorePicker({
                             setAddingNew(true);
                           }}
                           accessibilityRole="button"
-                          accessibilityLabel="Add a store"
+                          accessibilityLabel="Add store"
                         >
                           <Text style={styles.addRowBtnText}>+ Add store</Text>
                         </TouchableOpacity>
@@ -543,6 +597,19 @@ export default function StorePicker({
                   )}
           <View style={{ height: 24 }} />
         </ScrollView>
+        {!editing && (
+          // Same sticky footer as the Todos filter sheet.
+          <View style={styles.footer}>
+            <TouchableOpacity
+              style={styles.footerBtn}
+              onPress={closeAndReset}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+            >
+              <Text style={styles.footerBtnText}>Show results</Text>
+            </TouchableOpacity>
+          </View>
+        )}
     </SheetShell>
   );
 }

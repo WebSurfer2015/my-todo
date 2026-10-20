@@ -22,6 +22,7 @@ import { useLang } from '../../app/LangContext'
 import { useAuth } from '../../app/AuthContext'
 import { isUndoLive, useUndoLive } from '../../app/mochiUndo'
 import { useTheme, ThemeColors, SPACING, RADIUS, TYPE } from '../../app/theme'
+import { useReducedMotion } from '../../app/useReducedMotion'
 import { useSheetDismiss, sheetGrabZone } from '../../ui/useSheetDismiss'
 import { useMochiAgent, type ChatTurn, type ProposedOperation } from './useMochiAgent'
 import { pickMatchHeader, supersededProposalTurns } from './chatTurns'
@@ -161,15 +162,6 @@ const EXAMPLE_CHIPS: Array<{ label: string; prefill: string }> = [
   { label: 'Call mom this weekend', prefill: 'Call mom this weekend' },
 ]
 
-/** Rotating placeholder hints — cycle while the box is empty so the field
- * itself teaches capability without an instructions screen. */
-const PLACEHOLDER_EXAMPLES: string[] = [
-  'Buy milk tomorrow',
-  'Call dentist Tue 3pm',
-  'Run Mon/Wed/Fri 11am',
-  'Pay the water bill Friday',
-]
-
 /** Fade-and-rise entrance for a chat row. New bubbles ease up into place so the
  * conversation feels alive; static when reduce-motion is on. */
 function Appear({
@@ -210,35 +202,78 @@ function Appear({
   )
 }
 
-/** Slow breathing sparkle for the empty-state greeting — a calm sign of life,
- * not a spinner. Static when reduce-motion is on. */
-function BreathingSparkle({ reduceMotion, color }: { reduceMotion: boolean; color: string }) {
-  const v = useRef(new Animated.Value(0)).current
+/** The voice-input mic. Idle: a soft 40pt circle so it reads as a button.
+ * Listening: a filled accent circle with a Stop square and a slow, gentle
+ * pulse ring — static when Reduce Motion is on (the in-app switch via
+ * `reduceMotion`, or the OS setting via useReducedMotion). Same 40pt footprint
+ * in every state, so nothing shifts. */
+function MicButton({
+  listening,
+  disabled,
+  reduceMotion,
+  onPress,
+  styles,
+  theme,
+}: {
+  listening: boolean
+  disabled: boolean
+  reduceMotion: boolean
+  onPress: () => void
+  styles: ReturnType<typeof makeStyles>
+  theme: ThemeColors
+}) {
+  const osReduceMotion = useReducedMotion()
+  const still = reduceMotion || osReduceMotion
+  const pulse = useRef(new Animated.Value(0)).current
   useEffect(() => {
-    if (reduceMotion) return
+    pulse.setValue(0)
+    if (!listening || still) return
     const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(v, { toValue: 1, duration: 1400, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(v, { toValue: 0, duration: 1400, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      ]),
+      Animated.timing(pulse, {
+        toValue: 1,
+        duration: 1600,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
     )
     loop.start()
     return () => loop.stop()
-  }, [reduceMotion, v])
+  }, [listening, still, pulse])
   return (
-    <Animated.View
-      style={
-        reduceMotion
-          ? { marginBottom: 8 }
-          : {
-              marginBottom: 8,
-              opacity: v.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }),
-              transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1.08] }) }],
-            }
-      }
-    >
-      <Sparkles size={22} color={color} strokeWidth={2.2} />
-    </Animated.View>
+    <View style={styles.micWrap}>
+      {listening && !still && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.micPulse,
+            {
+              opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0] }),
+              transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.45] }) }],
+            },
+          ]}
+        />
+      )}
+      <Pressable
+        style={({ pressed }) => [
+          styles.micBtn,
+          listening && styles.micBtnListening,
+          disabled && styles.sendBtnDisabled,
+          pressed && !disabled && { transform: [{ scale: 0.9 }] },
+        ]}
+        onPress={onPress}
+        disabled={disabled}
+        hitSlop={4}
+        accessibilityRole="button"
+        accessibilityLabel={listening ? SPEECH_COPY.stopLabel : SPEECH_COPY.micLabel}
+        accessibilityState={{ disabled }}
+      >
+        {listening ? (
+          <Square size={14} color={theme.primaryOn} fill={theme.primaryOn} strokeWidth={2.5} />
+        ) : (
+          <Mic size={20} color={theme.label2} strokeWidth={2} />
+        )}
+      </Pressable>
+    </View>
   )
 }
 
@@ -288,8 +323,6 @@ export default function ChatSheet({
   // until the user taps Send. 'unavailable' (no native module / no on-device
   // recognizer) hides the mic — keyboard dictation still exists.
   const speech = useSpeechInput({ onTranscript: setInput })
-  // Rotating placeholder index (cycles while the box is empty + pre-first-turn).
-  const [phIdx, setPhIdx] = useState(0)
   // Last user turn, for the "Try again" recovery action on an error.
   const lastSentRef = useRef('')
   // Per-proposal resolution so a confirmed/declined turn swaps its action
@@ -347,13 +380,6 @@ export default function ChatSheet({
     const id = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60)
     return () => clearTimeout(id)
   }, [messages, isThinking])
-
-  // Rotate the placeholder hint while the box is empty on the opening screen.
-  useEffect(() => {
-    if (!visible || input.length > 0 || messages.length > 0) return
-    const id = setInterval(() => setPhIdx((i) => (i + 1) % PLACEHOLDER_EXAMPLES.length), 3200)
-    return () => clearInterval(id)
-  }, [visible, input.length, messages.length])
 
   // Optimistic capture: a SINGLE new to-do / grocery item is applied the
   // moment Mochi proposes it (no Confirm tap), with an inline Undo. Multi-op
@@ -657,7 +683,7 @@ export default function ChatSheet({
                 onPress={enterManually}
                 activeOpacity={0.7}
                 accessibilityRole="button"
-                accessibilityLabel="Switch to entering the to-do manually"
+                accessibilityLabel="Enter manually instead"
               >
                 <Text style={styles.enterManuallyText}>Enter manually instead</Text>
               </TouchableOpacity>
@@ -668,12 +694,20 @@ export default function ChatSheet({
               style={styles.body}
               contentContainerStyle={styles.bodyContent}
               keyboardShouldPersistTaps="handled"
+              // Large text: the opening greeting + chips can outgrow the space
+              // the keyboard leaves. Keep the chips (the tappable part) beside
+              // the input when the body shrinks, and hint that it scrolls —
+              // the greeting stays one scroll up instead of a chip being cut.
+              onLayout={() => {
+                if (messages.length > 0) return
+                scrollRef.current?.scrollToEnd({ animated: false })
+                scrollRef.current?.flashScrollIndicators()
+              }}
             >
               {/* Greeting + example chips — only before the first user turn.
                   Chips PRE-FILL the box (capture-first) rather than asking. */}
               {messages.length === 0 && (
                 <View>
-                  <BreathingSparkle reduceMotion={reduceMotion} color={theme.primary} />
                   <Text style={styles.greeting}>{greeting}</Text>
                   <Text style={styles.captureHint}>
                     Type it however you like — I'll turn it into a to-do.
@@ -982,12 +1016,16 @@ export default function ChatSheet({
             {/* Voice status sits ABOVE the field: below it, the keyboard
                 covers it while the sheet is up. */}
             {speech.status === 'listening' && (
-              <Text style={styles.speechNote} accessibilityLiveRegion="polite">
+              <Text
+                style={[styles.speechNote, styles.speechNoteEnd]}
+                accessibilityLiveRegion="polite"
+                accessibilityLabel={SPEECH_COPY.listeningA11y}
+              >
                 {SPEECH_COPY.listening}
               </Text>
             )}
             {speech.status === 'error' && (
-              <Text style={styles.speechNote} accessibilityLiveRegion="polite">
+              <Text style={[styles.speechNote, styles.speechNoteEnd]} accessibilityLiveRegion="polite">
                 {SPEECH_COPY.missed}
               </Text>
             )}
@@ -1010,9 +1048,11 @@ export default function ChatSheet({
                 placeholder={
                   isResting
                     ? `Mochi's resting until ${restLabel}`
-                    : messages.length === 0
-                      ? `e.g. ${PLACEHOLDER_EXAMPLES[phIdx]}`
-                      : 'Message Mochi…'
+                    : messages.length > 0
+                      ? 'Message Mochi…'
+                      : speech.status !== 'unavailable'
+                        ? 'Type or tap the mic…'
+                        : "Type what's on your mind…"
                 }
                 placeholderTextColor={theme.label2}
                 autoCapitalize="sentences"
@@ -1031,29 +1071,14 @@ export default function ChatSheet({
                 editable={!isThinking && !isResting}
               />
               {speech.status !== 'unavailable' && (
-                // Same 40pt footprint in every state — no layout shift.
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.micBtn,
-                    speech.status === 'listening' && styles.micBtnListening,
-                    micDisabled && styles.sendBtnDisabled,
-                    pressed && !micDisabled && { transform: [{ scale: 0.9 }] },
-                  ]}
-                  onPress={toggleSpeech}
+                <MicButton
+                  listening={speech.status === 'listening'}
                   disabled={micDisabled}
-                  hitSlop={4}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    speech.status === 'listening' ? SPEECH_COPY.stopLabel : SPEECH_COPY.micLabel
-                  }
-                  accessibilityState={{ disabled: micDisabled }}
-                >
-                  {speech.status === 'listening' ? (
-                    <Square size={14} color={theme.primary} fill={theme.primary} strokeWidth={2.5} />
-                  ) : (
-                    <Mic size={20} color={theme.label2} strokeWidth={2} />
-                  )}
-                </Pressable>
+                  reduceMotion={reduceMotion}
+                  onPress={toggleSpeech}
+                  styles={styles}
+                  theme={theme}
+                />
               )}
               <Pressable
                 style={({ pressed }) => [
@@ -2200,22 +2225,37 @@ function makeStyles(c: ThemeColors) {
       justifyContent: 'center',
     },
     sendBtnDisabled: { opacity: 0.4 },
-    // 40pt mic, vertically centred on the 44pt send button.
+    // 40pt mic, vertically centred on the 44pt send button. A visible soft
+    // circle at rest so it reads as a button (icon label2 on surfaceAlt ≥3:1).
+    micWrap: { width: 40, height: 40, marginBottom: 2 },
     micBtn: {
       width: 40,
       height: 40,
       borderRadius: 20,
-      marginBottom: 2,
+      backgroundColor: c.surfaceAlt,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    micBtnListening: { backgroundColor: c.primarySoft },
+    // Listening: filled accent circle, Stop square in primaryOn.
+    micBtnListening: { backgroundColor: c.primary },
+    // The gentle pulse ring behind the listening mic.
+    micPulse: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: c.primary,
+    },
     speechNote: {
       fontSize: TYPE.footnote,
       color: c.label2,
       paddingBottom: SPACING.xs,
       paddingHorizontal: SPACING.xs,
     },
+    // Listening / missed sit right-aligned, next to the mic they describe.
+    speechNoteEnd: { textAlign: 'right' },
     speechLink: { color: c.primary, fontWeight: '600' },
     sendBtnText: { color: c.primaryOn, fontSize: TYPE.title, fontWeight: '700' },
   })

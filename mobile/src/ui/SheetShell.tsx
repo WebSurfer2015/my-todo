@@ -59,8 +59,9 @@ export interface SheetShellProps {
   subtitle?: string
   /** Right-side commit action. Omit for tap-to-select pickers. */
   primary?: HeaderAction
-  /** Left-side action. Defaults to Cancel → onClose. */
-  left?: HeaderAction
+  /** Left-side action. Defaults to Cancel → onClose; `null` shows none (a
+   * live-save / live-filter sheet has nothing to cancel). */
+  left?: HeaderAction | null
   /** Wrap the body in a ScrollView (default). Set false for sheets that own
    * their own scrolling / keyboard layout. */
   scroll?: boolean
@@ -89,7 +90,8 @@ export default function SheetShell({
   const insets = useSafeAreaInsets()
   const { translateY, panHandlers } = useSheetDismiss(visible, onClose)
   useModalPresence(visible)
-  const leftAction: HeaderAction = left ?? { label: t.cancel, onPress: onClose }
+  const leftAction: HeaderAction | null =
+    left === null ? null : (left ?? { label: t.cancel, onPress: onClose })
 
   return (
     <Modal visible={visible} transparent statusBarTranslucent animationType="slide" onRequestClose={onClose}>
@@ -118,17 +120,22 @@ export default function SheetShell({
             <View style={styles.handle} />
           </View>
           <View style={styles.headerRow}>
-            <TouchableOpacity
-              onPress={leftAction.onPress}
-              disabled={leftAction.disabled}
-              hitSlop={10}
-              style={styles.headerSideLeft}
-              accessibilityRole="button"
-            >
-              <Text style={[styles.cancelText, leftAction.destructive && styles.destructiveText]}>
-                {leftAction.label}
-              </Text>
-            </TouchableOpacity>
+            {leftAction ? (
+              <TouchableOpacity
+                onPress={leftAction.onPress}
+                disabled={leftAction.disabled}
+                hitSlop={10}
+                style={styles.headerSideLeft}
+                accessibilityRole="button"
+              >
+                <Text style={[styles.cancelText, leftAction.destructive && styles.destructiveText]}>
+                  {leftAction.label}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              // Keeps the title optically centered.
+              <View style={styles.headerSideLeft} />
+            )}
             <View style={styles.titleCol}>
               <Text style={styles.title} numberOfLines={1}>
                 {title}

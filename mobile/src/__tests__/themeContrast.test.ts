@@ -54,6 +54,17 @@ describe('theme contrast (WCAG AA)', () => {
         expect(contrast(c.label2, c.modal)).toBeGreaterThanOrEqual(4.5)
         expect(contrast(c.primary, c.modal)).toBeGreaterThanOrEqual(4.5)
         expect(contrast(c.primary, c.primarySoft)).toBeGreaterThanOrEqual(3)
+        // Idle mic: label2 icon on its soft surfaceAlt circle (non-text 3:1).
+        expect(contrast(c.label2, c.surfaceAlt)).toBeGreaterThanOrEqual(3)
+        // Listening mic: primaryOn Stop square on the filled primary circle.
+        expect(contrast(c.primaryOn, c.primary)).toBeGreaterThanOrEqual(3)
+        // "ADDED TO YOUR TO-DOS" / "ADDED TO SHOPPING LIST" (12pt label2) on
+        // the proposal card (modal).
+        expect(contrast(c.label2, c.modal)).toBeGreaterThanOrEqual(4.5)
+      })
+      it(`${name}/${scheme}: Shopping check-off circle`, () => {
+        // The grocery row's circle ring (label3) on its card (non-text 3:1).
+        expect(contrast(c.label3, c.card)).toBeGreaterThanOrEqual(3)
       })
     }
   }

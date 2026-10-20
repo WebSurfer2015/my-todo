@@ -64,6 +64,28 @@ export function makeStyles(c: ThemeColors) {
       minWidth: 24,
       textAlign: "right",
     },
+    // "Other stores" disclosure row — quieter than a store row.
+    otherStoresLabel: { flex: 1, fontSize: TYPE.body, fontWeight: "500", color: c.label2 },
+    // Sticky "Show results" footer — mirrors the Todos filter sheet's.
+    footer: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.separator,
+    },
+    footerBtn: {
+      marginHorizontal: SPACING.lg,
+      marginTop: SPACING.md,
+      paddingVertical: SPACING.md,
+      borderRadius: RADIUS.control,
+      backgroundColor: c.primary,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    footerBtnText: {
+      color: c.primaryOn,
+      fontSize: TYPE.bodyLg,
+      fontWeight: "600",
+      letterSpacing: -0.2,
+    },
     deptIconSpacer: { width: 18 },
     checkPlaceholder: { width: 18 },
     editRow: {

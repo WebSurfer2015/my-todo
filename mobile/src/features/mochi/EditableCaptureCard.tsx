@@ -162,7 +162,8 @@ export default function EditableCaptureCard({
           disabled={!editable}
           onPress={() => setOpen((p) => (p === 'category' ? null : 'category'))}
           accessibilityRole="button"
-          accessibilityLabel={`Category, ${activeCat ? categoryLabel(activeCat, t) : 'none'}${editable ? '. Tap to change.' : ''}`}
+          accessibilityLabel={activeCat ? `${categoryLabel(activeCat, t)}, category` : 'Category, none'}
+          accessibilityHint={editable ? 'Changes the category' : undefined}
         >
           <Text style={editable ? styles.editChipText : styles.roChipText}>
             {activeCat ? categoryLabel(activeCat, t) : 'Category'}
@@ -175,7 +176,8 @@ export default function EditableCaptureCard({
           disabled={!editable}
           onPress={() => setOpen((p) => (p === 'date' ? null : 'date'))}
           accessibilityRole="button"
-          accessibilityLabel={`Complete by, ${dueDate ? formatCalendarDate(dueDate, { locale: t.locale }) : t.noDate}${editable ? '. Tap to change.' : ''}`}
+          accessibilityLabel={dueDate ? `${formatCalendarDate(dueDate, { locale: t.locale })}, complete by` : 'Add date'}
+          accessibilityHint={editable ? 'Changes the complete-by date' : undefined}
         >
           <Text style={editable ? styles.editChipText : styles.roChipText}>
             {dueDate ? formatCalendarDate(dueDate, { locale: t.locale }) : 'Add date'}
@@ -188,7 +190,8 @@ export default function EditableCaptureCard({
           disabled={!editable}
           onPress={cyclePriority}
           accessibilityRole="button"
-          accessibilityLabel={`Priority ${t.priority[priority]}${editable ? '. Tap to cycle.' : ''}`}
+          accessibilityLabel={`${t.priority[priority]} priority`}
+          accessibilityHint={editable ? 'Switches to the next priority' : undefined}
         >
           <PriorityDot level={priority} size={10} />
           <Text style={editable ? styles.editChipText : styles.roChipText}>{t.priority[priority]}</Text>
@@ -276,10 +279,11 @@ export default function EditableCaptureCard({
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
+    // 12pt label2 (AA) — matches ChatSheet's proposalKind.
     kind: {
-      fontSize: 11,
+      fontSize: 12,
       fontWeight: '700',
-      color: c.label3,
+      color: c.label2,
       textTransform: 'uppercase',
       letterSpacing: 0.5,
       marginBottom: 2,
