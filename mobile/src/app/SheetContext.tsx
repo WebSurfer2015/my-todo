@@ -82,7 +82,7 @@ interface Sheets {
   openGuides: () => void
   /** Open the add-todo compose sheet from any tab. */
   openCompose: () => void
-  /** FAB entry point — opens the last-used capture surface (manual or Mochi). */
+  /** FAB entry point — Ask Mochi when AI assistance is on, else Compose. */
   openCapture: () => void
   /** Open the Mochi capture assistant (natural-language add/edit). Entry
    * point lives in the compose sheet. */
@@ -258,19 +258,13 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     [agentOn, showMochi],
   )
 
-  // The FAB reopens whichever capture surface you used last — manual compose
-  // or Ask Mochi — persisted on the profile so it sticks across launches. The
-  // two "switch" links below update it. When AI assistance is OFF, the FAB
-  // always opens manual compose, regardless of the remembered mode — Ask Mochi
-  // shouldn't surface at all while AI is disabled.
-  const agentEnabled = store.profile.agentEnabled !== false
-  // Default is Mochi — it's the front door (2026-10-18). "Enter manually"
-  // switches the remembered mode to manual.
-  const lastComposeMode = store.profile.lastComposeMode ?? 'mochi'
+  // The FAB always opens Ask Mochi — the front door — while AI assistance is
+  // on; with it off (or the kill-switch paused) it opens manual Compose. No
+  // remembered "last used" surface: one predictable door (owner, 2026-10-19).
   const openCapture = useCallback(() => {
-    if (MOCHI_AGENT_ENABLED && agentEnabled && lastComposeMode === 'mochi') showMochi()
+    if (agentOn) showMochi()
     else openCompose()
-  }, [agentEnabled, lastComposeMode, openCompose, showMochi])
+  }, [agentOn, openCompose, showMochi])
 
   // Every sheet is per account. SheetProvider sits ABOVE AppGate, so a
   // sign-out doesn't unmount it — reset all open state when the account
@@ -637,7 +631,6 @@ export function SheetProvider({ children }: { children: ReactNode }) {
         onAskMochi={
           MOCHI_AGENT_ENABLED
             ? (text: string) => {
-                store.saveProfile((p) => ({ ...p, lastComposeMode: 'mochi' }))
                 setMochiSeed(text)
                 setComposeOpen(false)
                 // Same handoff as the other sheet switches — iOS can't
@@ -710,12 +703,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
           onPickAction={applyPickAction}
           onReviewCreateTodo={reviewCreateTodo}
           onClose={() => setMochiOpen(false)}
-          onEnterManually={(opts?: { remember?: boolean }) => {
-            // "Add it myself" while Mochi rests is a one-off — it must not make
-            // manual the remembered FAB mode.
-            if (opts?.remember !== false) {
-              store.saveProfile((p) => ({ ...p, lastComposeMode: 'manual' }))
-            }
+          onEnterManually={() => {
             setComposePrefill(null)
             setComposeStartsToday(
               sheetNavigationRef.isReady() && sheetNavigationRef.getCurrentRoute()?.name === 'Home',

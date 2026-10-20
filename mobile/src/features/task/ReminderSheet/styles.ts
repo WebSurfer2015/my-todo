@@ -3,7 +3,7 @@ import { type ThemeColors, SPACING, RADIUS, TYPE } from '../../../app/theme'
 
 export function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    /* Header: ‹ Back   Remind me   Clear all */
+    /* Header: (spacer)   Remind me   Clear all (only when set) */
     header: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -19,11 +19,6 @@ export function makeStyles(c: ThemeColors) {
       minWidth: 72,
       alignItems: 'flex-end',
     },
-    backText: {
-      fontSize: TYPE.body,
-      fontWeight: '500',
-      color: c.primary,
-    },
     titleText: {
       fontSize: TYPE.body,
       fontWeight: '700',
@@ -33,9 +28,6 @@ export function makeStyles(c: ThemeColors) {
       fontSize: TYPE.body,
       fontWeight: '500',
       color: c.primary,
-    },
-    clearAllTextDisabled: {
-      color: c.label3,
     },
 
     /* Body container */
@@ -53,18 +45,6 @@ export function makeStyles(c: ThemeColors) {
       letterSpacing: 0.8,
       textTransform: 'uppercase',
       marginBottom: SPACING.md,
-    },
-    listEmpty: {
-      backgroundColor: c.surfaceAlt,
-      borderRadius: RADIUS.card,
-      paddingHorizontal: SPACING.lg,
-      paddingVertical: SPACING.md,
-    },
-    listEmptyText: {
-      fontSize: TYPE.body,
-      color: c.label3,
-      fontStyle: 'italic',
-      textAlign: 'center',
     },
     pillsWrap: {
       flexDirection: 'row',

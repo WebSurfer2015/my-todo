@@ -19,7 +19,7 @@ appId: com.websurfer.mytodo
 # bottom-right opens the same sheet.
 - tapOn:
     text: ".*Add a to-do.*"   # FAB (label "Add a to-do"); empty-state CTA only exists when list is empty
-# The + button opens Mochi by default (the front door, 2026-10-18) — switch
+# The + button always opens Ask Mochi while AI assistance is on — switch
 # to the manual form when the chat is what opened.
 - runFlow:
     when:

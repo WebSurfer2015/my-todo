@@ -9,7 +9,7 @@ import * as Haptics from 'expo-haptics'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import AndroidDateFlow from '../../../ui/AndroidDateFlow'
 import Svg, { Rect, Path } from 'react-native-svg'
-import { Bell, Repeat, Sparkles } from 'lucide-react-native'
+import { Bell, ChevronDown, ChevronUp, Repeat, Sparkles, X } from 'lucide-react-native'
 import { Category, Priority, PRIORITY_VALUES, PRIORITY_COLORS, Recurrence, RecurrenceFreq, RECURRENCE_FREQS, Subtask, TodoReference } from '../../../core-bindings/types'
 import { genUuid } from '../../../../../core/src/logic/utils'
 import { snapDueDateToRecurrence } from '../../../../../core/src/logic/derive'
@@ -50,6 +50,7 @@ import {
 } from '../../../../../core/src/logic/labels'
 import { makeStyles } from './styles';
 import { absoluteDateLabel } from '../absoluteDateLabel'
+import { composeDetailsHaveValue } from './moreDetails'
 
 function CalendarIcon({ size = 18, color = '#8E8E93' }: { size?: number; color?: string }) {
   return (
@@ -116,6 +117,11 @@ interface Props {
   startsToday?: boolean
 }
 
+/** "More details" open/closed, remembered for the app session (module
+ * scope: survives sheet closes, resets on relaunch). Only the user's own
+ * taps write it — an auto-expand for a prefilled value doesn't. */
+let moreDetailsOpenThisSession = false
+
 type SubView = 'main' | 'category' | 'priority' | 'date' | 'repeat' | 'repeatEndDate' | 'customRepeat' | 'remindAt'
 
 function defaultEndDateFor(freq: RecurrenceFreq): Date {
@@ -158,10 +164,17 @@ export default function ComposeSheet({
   // presets are one tap away.
   const [dueDate, setDueDate] = useState('')
   // Line 2 is the chip row (When · Category); "When?" presets expand inline.
-  // The other fields (remind / repeat / priority / notes / steps) are always
-  // listed below — hiding them behind a "More" chip made the sheet look
-  // empty with nothing to fill in (device feedback 2026-10-18).
+  // Priority / Repeat / Remind / Notes / Steps sit behind a "More details"
+  // disclosure row (progressive disclosure, UX review 2026-10-19). The row
+  // names what's inside so the sheet never reads as empty, and it opens on
+  // its own whenever one of those fields already holds a value.
   const [datePanelOpen, setDatePanelOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(moreDetailsOpenThisSession)
+  function toggleMoreDetails() {
+    const next = !moreOpen
+    moreDetailsOpenThisSession = next
+    setMoreOpen(next)
+  }
   const [notes, setNotes] = useState('')
   const [pickerDate, setPickerDate] = useState<Date>(new Date())
   // Pending buffer for the date subview. Mirrors TaskDetailsSheet's
@@ -323,6 +336,16 @@ export default function ComposeSheet({
         setNotes('')
         setDatePanelOpen(false)
         setPendingSubtasks([])
+        setMoreOpen(
+          moreDetailsOpenThisSession ||
+            composeDetailsHaveValue({
+              priority: prefill.priority ?? 'medium',
+              recurrence: prefill.recurrence,
+              reminders: prefill.reminders ?? [],
+              notes: '',
+              subtasks: [],
+            }),
+        )
         setAppliedTextLower(prefill.text.trim().toLowerCase())
         aiHandlesRef.current.markApplied(prefill.text)
         setPendingFreq(null)
@@ -337,6 +360,7 @@ export default function ComposeSheet({
       setRecurrence(undefined)
       setReminders([])
       setPendingSubtasks([])
+      setMoreOpen(moreDetailsOpenThisSession)
       // Clear the suggestion-overlay suppression so it re-engages on
       // the next compose session.
       setAppliedTextLower('')
@@ -346,6 +370,15 @@ export default function ComposeSheet({
       return () => clearTimeout(id)
     }
   }, [visible, defaultCategory, prefill, startsToday])
+
+  // A hidden field gaining a value (an AI pill, a reused past to-do) opens
+  // "More details" so the value is never set out of sight. Runs only when one
+  // of those fields changes — a manual collapse afterwards sticks.
+  useEffect(() => {
+    if (composeDetailsHaveValue({ priority, recurrence, reminders, notes, subtasks: pendingSubtasks })) {
+      setMoreOpen(true)
+    }
+  }, [priority, recurrence, reminders, notes, pendingSubtasks])
 
   const activeCat = categories.find((c) => c.id === category) ?? categories[0]
   const canSubmit = text.trim().length > 0 && !!activeCat
@@ -581,32 +614,37 @@ export default function ComposeSheet({
 
                 {/* Line 2 — the chip row: When · Category. */}
                 <View style={styles.chipRow}>
-                  <TouchableOpacity
-                    style={[styles.chip, (!!dueDate || datePanelOpen) && styles.chipActive]}
-                    onPress={() => setDatePanelOpen((v) => !v)}
-                    accessibilityRole="button"
-                    accessibilityState={{ expanded: datePanelOpen }}
-                    accessibilityLabel={`${t.composeDateLabel}, ${dueDate ? rowDateLabel(dueDate, t.locale) : t.presetNoDate}`}
-                  >
-                    <CalendarIcon size={15} color={dueDate ? theme.primary : theme.label2} />
-                    <Text style={[styles.chipText, !dueDate && styles.chipTextMuted]} numberOfLines={1}>
-                      {dueDate ? rowDateLabel(dueDate, t.locale) : t.presetNoDate}
-                    </Text>
-                  </TouchableOpacity>
-                  {!!dueDate && (
+                  {/* Date chip — its clear "×" sits INSIDE the chip (a sibling
+                      button, so VoiceOver reaches both: "When, …" and
+                      "Clear date"). */}
+                  <View style={[styles.chip, styles.chipSplit, (!!dueDate || datePanelOpen) && styles.chipActive]}>
                     <TouchableOpacity
-                      style={styles.chipClear}
-                      onPress={() => {
-                        setDueDate('')
-                        Haptics.selectionAsync().catch(() => {})
-                      }}
-                      hitSlop={8}
+                      style={[styles.chipMain, !!dueDate && styles.chipMainWithClear]}
+                      onPress={() => setDatePanelOpen((v) => !v)}
                       accessibilityRole="button"
-                      accessibilityLabel={t.clear}
+                      accessibilityState={{ expanded: datePanelOpen }}
+                      accessibilityLabel={`${t.composeDateLabel}, ${dueDate ? rowDateLabel(dueDate, t.locale) : t.presetNoDate}`}
                     >
-                      <Text style={styles.chipClearText}>×</Text>
+                      <CalendarIcon size={15} color={dueDate ? theme.primary : theme.label2} />
+                      <Text style={[styles.chipText, !dueDate && styles.chipTextMuted]} numberOfLines={1}>
+                        {dueDate ? rowDateLabel(dueDate, t.locale) : t.presetNoDate}
+                      </Text>
                     </TouchableOpacity>
-                  )}
+                    {!!dueDate && (
+                      <TouchableOpacity
+                        style={styles.chipInnerClear}
+                        onPress={() => {
+                          setDueDate('')
+                          Haptics.selectionAsync().catch(() => {})
+                        }}
+                        hitSlop={{ top: 4, bottom: 4, right: 6 }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Clear date"
+                      >
+                        <X size={15} color={theme.label2} strokeWidth={2.2} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
                   <TouchableOpacity
                     style={styles.chip}
                     onPress={() => setSubView('category')}
@@ -761,6 +799,30 @@ export default function ComposeSheet({
                     }}
                     onDismissField={ai.dismissField}
                   />
+                  <TouchableOpacity
+                    style={styles.moreRow}
+                    onPress={toggleMoreDetails}
+                    activeOpacity={0.6}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: moreOpen }}
+                    accessibilityLabel={moreOpen ? 'Fewer details' : 'More details: priority, repeat, reminders, notes, steps'}
+                  >
+                    <View style={styles.moreRowText}>
+                      <Text style={styles.moreRowLabel}>{moreOpen ? 'Fewer details' : 'More details'}</Text>
+                      {!moreOpen && (
+                        <Text style={styles.moreRowHint} numberOfLines={1}>
+                          Priority · Repeat · Remind · Notes · Steps
+                        </Text>
+                      )}
+                    </View>
+                    {moreOpen ? (
+                      <ChevronUp size={18} color={theme.label2} strokeWidth={2} />
+                    ) : (
+                      <ChevronDown size={18} color={theme.label2} strokeWidth={2} />
+                    )}
+                  </TouchableOpacity>
+                  {moreOpen && (
+                  <>
                   <View style={styles.fieldGroup}>
                     <TouchableOpacity
                       style={styles.fieldRow}
@@ -963,6 +1025,8 @@ export default function ComposeSheet({
                       <Text style={styles.addStepText}>+ Add a step…</Text>
                     </TouchableOpacity>
                   </View>
+                  </>
+                  )}
                 </ScrollView>
               </>
             )}
@@ -1119,7 +1183,6 @@ export default function ComposeSheet({
                 initial={reminders}
                 dueDate={dueDate}
                 recurs={!!recurrence}
-                onCancel={() => setSubView('main')}
                 onSave={async (next) => {
                   if (next.length > 0 && !(await ensurePermission())) {
                     Alert.alert(

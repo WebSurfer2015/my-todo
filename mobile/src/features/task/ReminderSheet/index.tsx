@@ -1,14 +1,17 @@
 /**
  * Reminder picker (Phase 2 design, 2026-10-18).
  *
- *   YOUR REMINDERS (N)          live pills; per-pill ✕ removes one
+ *   Remind me          Clear all   (Clear all only while something is set)
+ *   YOUR REMINDERS (N)          live pills; per-pill ✕ removes one — the
+ *                               block is omitted entirely when empty
  *   WHEN                        a few plain choices for THIS to-do, each with
  *     Day before      Thu 6 PM  its time (core reminderPresetsFor): tap to add,
  *     Morning of      9:00 AM   tap again to remove
  *     1 hour before   2:00 PM
  *     Other time…               reveals the date + time picker
  *   Gentle nudge        [ ]     one follow-up the next morning (profile-wide)
- *   [        Done        ]
+ *   [        Done        ]     the ONE way out (saves the picks); every pick
+ *                               is undone in place by tapping it again
  *
  * The old 10-chip "before due" grid and the "repeat every N min" nag are
  * gone; existing repeating reminders still show (and can be removed) as pills.
@@ -98,7 +101,6 @@ export interface ReminderSheetProps {
    * lands on the due date's day is shown as a time-of-day ("9:00 AM on
    * the day") rather than a specific date — it rebases per occurrence. */
   recurs?: boolean
-  onCancel: () => void
   onSave: (next: Reminder[]) => void
 }
 
@@ -106,7 +108,6 @@ export default function ReminderSheet({
   initial,
   dueDate,
   recurs = false,
-  onCancel,
   onSave,
 }: ReminderSheetProps) {
   const { t } = useLang()
@@ -228,57 +229,42 @@ export default function ReminderSheet({
     return out
   }, [pending, dueDate, recurs, t])
 
-  const canClearAll = pending.length > 0
+  const hasReminders = pending.length > 0
 
   return (
     <>
+      {/* One way out: the Done button below saves (a separate Back that
+          discarded read as a second, competing exit). Clear all shows only
+          when there's something to clear. */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={onCancel}
-          hitSlop={10}
-          style={styles.headerSide}
-          accessibilityRole="button"
-          accessibilityLabel={t.back}
-        >
-          <Text style={styles.backText}>{`‹ ${t.back}`}</Text>
-        </TouchableOpacity>
+        <View style={styles.headerSide} />
         <Text style={styles.titleText}>{t.remindMe}</Text>
-        <TouchableOpacity
-          onPress={clearAll}
-          disabled={!canClearAll}
-          hitSlop={10}
-          style={styles.headerSideRight}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: !canClearAll }}
-          accessibilityLabel={t.remindClearAll}
-        >
-          <Text
-            style={[
-              styles.clearAllText,
-              !canClearAll && styles.clearAllTextDisabled,
-            ]}
+        {hasReminders ? (
+          <TouchableOpacity
+            onPress={clearAll}
+            hitSlop={10}
+            style={styles.headerSideRight}
+            accessibilityRole="button"
+            accessibilityLabel={t.remindClearAll}
           >
-            {t.remindClearAll}
-          </Text>
-        </TouchableOpacity>
+            <Text style={styles.clearAllText}>{t.remindClearAll}</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerSideRight} />
+        )}
       </View>
 
       <ScrollView
         contentContainerStyle={styles.body}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Your reminders — live preview of what's about to commit. */}
-        <View>
-          <Text style={styles.listHeader}>
-            {pending.length > 0
-              ? t.remindYourRemindersWithCount(pending.length)
-              : t.remindYourReminders}
-          </Text>
-          {pending.length === 0 ? (
-            <View style={styles.listEmpty}>
-              <Text style={styles.listEmptyText}>{t.remindEmpty}</Text>
-            </View>
-          ) : (
+        {/* Your reminders — live preview of what's about to commit. Omitted
+            when empty: the WHEN choices below are the whole story then. */}
+        {hasReminders && (
+          <View>
+            <Text style={styles.listHeader}>
+              {t.remindYourRemindersWithCount(pending.length)}
+            </Text>
             <View style={styles.pillsWrap}>
               {yourPills.map((p) => (
                 <View key={p.id} style={styles.pill}>
@@ -295,8 +281,8 @@ export default function ReminderSheet({
                 </View>
               ))}
             </View>
-          )}
-        </View>
+          </View>
+        )}
 
         {/* WHEN — the plain choices for this to-do. */}
         <View style={styles.section}>
